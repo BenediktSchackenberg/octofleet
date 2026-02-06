@@ -221,7 +221,7 @@ public class GatewayService : IDisposable
                     id = "cli",
                     version = "0.2.0",
                     platform = "windows",
-                    mode = "operator"
+                    mode = "cli"  // Must be one of: webchat, cli, ui, backend, node, probe, test
                 },
                 role = "operator",
                 scopes = new[] { "operator.read", "operator.write" },
