@@ -1,37 +1,376 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+"""
+OpenClaw Inventory Backend
+FastAPI server for receiving and storing inventory data from Windows Agents
+"""
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Depends, HTTPException, Header, status
+from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
-from routes import hardware, software, hotfixes, system, security, network, browser, full
-from auth import AuthMiddleware
+from typing import Optional, Any, Dict
+import os
+import json
+from uuid import UUID
 
-# FastAPI App
-app = FastAPI()
+# Config
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://openclaw:openclaw_inventory_2026@127.0.0.1:5432/inventory"
+)
+API_KEY = os.getenv("INVENTORY_API_KEY", "openclaw-inventory-dev-key")
 
-# Database Connection Pool
-DATABASE_URL = "postgresql://openclaw:openclaw_inventory_2026@127.0.0.1:5432/inventory"
+# Database pool
+db_pool: Optional[asyncpg.Pool] = None
 
-async def create_pool():
-    return await asyncpg.create_pool(DATABASE_URL)
 
-db_pool = None
+async def get_db() -> asyncpg.Pool:
+    """Dependency to get database pool"""
+    if db_pool is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+    return db_pool
 
-@app.on_event("startup")
-async def startup():
+
+async def verify_api_key(x_api_key: str = Header(...)):
+    """Verify API key from header"""
+    if x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key"
+        )
+    return x_api_key
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events"""
     global db_pool
-    db_pool = await create_pool()
+    # Startup
+    db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+    print(f"✅ Database pool created")
+    yield
+    # Shutdown
+    if db_pool:
+        await db_pool.close()
+        print("Database pool closed")
 
-@app.on_event("shutdown")
-async def shutdown():
-    await db_pool.close()
 
-# Middleware
-app.add_middleware(AuthMiddleware)
+# Create app
+app = FastAPI(
+    title="OpenClaw Inventory API",
+    description="Receives and stores inventory data from Windows Agents",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
-# API Routes
-app.include_router(hardware.router, prefix="/api/v1/inventory/hardware")
-app.include_router(software.router, prefix="/api/v1/inventory/software")
-app.include_router(hotfixes.router, prefix="/api/v1/inventory/hotfixes")
-app.include_router(system.router, prefix="/api/v1/inventory/system")
-app.include_router(security.router, prefix="/api/v1/inventory/security")
-app.include_router(network.router, prefix="/api/v1/inventory/network")
-app.include_router(browser.router, prefix="/api/v1/inventory/browser")
-app.include_router(full.router, prefix="/api/v1/inventory/full")
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# === Helper Functions ===
+
+async def upsert_node(db: asyncpg.Pool, node_id: str, hostname: str, 
+                      os_name: str = None, os_version: str = None, os_build: str = None) -> UUID:
+    """Insert or update node, return UUID"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO nodes (node_id, hostname, os_name, os_version, os_build, last_seen, is_online)
+            VALUES ($1, $2, $3, $4, $5, NOW(), true)
+            ON CONFLICT (node_id) DO UPDATE SET
+                hostname = $2,
+                os_name = COALESCE($3, nodes.os_name),
+                os_version = COALESCE($4, nodes.os_version),
+                os_build = COALESCE($5, nodes.os_build),
+                last_seen = NOW(),
+                is_online = true,
+                updated_at = NOW()
+            RETURNING id
+        """, node_id, hostname, os_name, os_version, os_build)
+        return row['id']
+
+
+# === API Endpoints ===
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        async with db_pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        return {"status": "ok", "service": "openclaw-inventory", "database": "connected"}
+    except Exception as e:
+        return {"status": "degraded", "service": "openclaw-inventory", "database": str(e)}
+
+
+@app.get("/api/v1/nodes")
+async def list_nodes(db: asyncpg.Pool = Depends(get_db)):
+    """List all known nodes"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, node_id, hostname, os_name, os_version, os_build, 
+                   first_seen, last_seen, is_online
+            FROM nodes ORDER BY last_seen DESC
+        """)
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/v1/inventory/hardware", dependencies=[Depends(verify_api_key)])
+async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit hardware inventory (accepts raw JSON from Windows Agent)"""
+    # Extract node info
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    
+    uuid = await upsert_node(db, node_id_str, hostname)
+    
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO hardware_current (node_id, cpu, ram, disks, mainboard, bios, gpu, nics, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                cpu = $2, ram = $3, disks = $4, mainboard = $5, 
+                bios = $6, gpu = $7, nics = $8, updated_at = NOW()
+        """,
+            uuid,
+            json.dumps(data.get("cpu", {})),
+            json.dumps(data.get("memory", {})),
+            json.dumps(data.get("disks", [])),
+            json.dumps(data.get("mainboard", {})),
+            json.dumps(data.get("bios", {})),
+            json.dumps(data.get("gpus", [])),
+            json.dumps(data.get("networkAdapters", []))
+        )
+        
+        # Log to hypertable
+        await conn.execute("""
+            INSERT INTO hardware_changes (time, node_id, change_type, component, old_value, new_value)
+            VALUES (NOW(), $1, 'snapshot', 'full', NULL, $2)
+        """, uuid, json.dumps(data))
+    
+    return {"status": "ok", "node_id": str(uuid), "type": "hardware"}
+
+
+@app.post("/api/v1/inventory/software", dependencies=[Depends(verify_api_key)])
+async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit software inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    programs = data.get("programs", [])
+    
+    uuid = await upsert_node(db, node_id_str, hostname)
+    
+    async with db.acquire() as conn:
+        # Clear old entries
+        await conn.execute("DELETE FROM software_current WHERE node_id = $1", uuid)
+        
+        # Insert all programs
+        for prog in programs:
+            await conn.execute("""
+                INSERT INTO software_current (node_id, name, version, publisher, install_date, install_path, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            """,
+                uuid,
+                prog.get("name", "Unknown")[:500],
+                prog.get("version", "")[:100] if prog.get("version") else None,
+                prog.get("publisher", "")[:255] if prog.get("publisher") else None,
+                None,  # install_date needs parsing
+                prog.get("installLocation")
+            )
+    
+    return {"status": "ok", "node_id": str(uuid), "type": "software", "count": len(programs)}
+
+
+@app.post("/api/v1/inventory/hotfixes", dependencies=[Depends(verify_api_key)])
+async def submit_hotfixes(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit hotfix inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    hotfixes = data.get("hotfixes", [])
+    
+    uuid = await upsert_node(db, node_id_str, hostname)
+    
+    async with db.acquire() as conn:
+        await conn.execute("DELETE FROM hotfixes_current WHERE node_id = $1", uuid)
+        
+        for hf in hotfixes:
+            await conn.execute("""
+                INSERT INTO hotfixes_current (node_id, kb_id, description, installed_on, installed_by, updated_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+            """,
+                uuid,
+                hf.get("hotfixId", ""),
+                hf.get("description"),
+                None,  # installed_on needs date parsing
+                hf.get("installedBy")
+            )
+    
+    return {"status": "ok", "node_id": str(uuid), "type": "hotfixes", "count": len(hotfixes)}
+
+
+@app.post("/api/v1/inventory/system", dependencies=[Depends(verify_api_key)])
+async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit system inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    os_info = data.get("os", {})
+    
+    uuid = await upsert_node(
+        db, node_id_str, hostname,
+        os_name=os_info.get("name"),
+        os_version=os_info.get("version"),
+        os_build=os_info.get("build")
+    )
+    
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO system_current (node_id, users, services, startup_items, scheduled_tasks, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                users = $2, services = $3, startup_items = $4, 
+                scheduled_tasks = $5, updated_at = NOW()
+        """,
+            uuid,
+            json.dumps(data.get("users", [])),
+            json.dumps(data.get("services", [])),
+            json.dumps(data.get("startupItems", [])),
+            json.dumps(data.get("scheduledTasks", []))
+        )
+    
+    return {"status": "ok", "node_id": str(uuid), "type": "system"}
+
+
+@app.post("/api/v1/inventory/security", dependencies=[Depends(verify_api_key)])
+async def submit_security(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit security inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    
+    uuid = await upsert_node(db, node_id_str, hostname)
+    
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO security_current (node_id, defender, firewall, tpm, uac, bitlocker, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                defender = $2, firewall = $3, tpm = $4, 
+                uac = $5, bitlocker = $6, updated_at = NOW()
+        """,
+            uuid,
+            json.dumps(data.get("defender", {})),
+            json.dumps(data.get("firewall", [])),
+            json.dumps(data.get("tpm", {})),
+            json.dumps(data.get("uac", {})),
+            json.dumps(data.get("bitlocker", []))
+        )
+    
+    return {"status": "ok", "node_id": str(uuid), "type": "security"}
+
+
+@app.post("/api/v1/inventory/network", dependencies=[Depends(verify_api_key)])
+async def submit_network(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit network inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    
+    uuid = await upsert_node(db, node_id_str, hostname)
+    
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO network_current (node_id, adapters, connections, listening_ports, updated_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                adapters = $2, connections = $3, listening_ports = $4, updated_at = NOW()
+        """,
+            uuid,
+            json.dumps(data.get("adapters", [])),
+            json.dumps(data.get("connections", [])),
+            json.dumps(data.get("listeningPorts", []))
+        )
+    
+    return {"status": "ok", "node_id": str(uuid), "type": "network"}
+
+
+@app.post("/api/v1/inventory/browser", dependencies=[Depends(verify_api_key)])
+async def submit_browser(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit browser inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    browsers = data.get("browsers", [])
+    
+    uuid = await upsert_node(db, node_id_str, hostname)
+    
+    async with db.acquire() as conn:
+        await conn.execute("DELETE FROM browser_current WHERE node_id = $1", uuid)
+        
+        for browser in browsers:
+            browser_name = browser.get("browser", "Unknown")
+            for profile in browser.get("profiles", []):
+                await conn.execute("""
+                    INSERT INTO browser_current (node_id, browser, profile_name, profile_path,
+                        history_count, bookmark_count, password_count, extensions, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                """,
+                    uuid,
+                    browser_name,
+                    profile.get("name", "Default"),
+                    profile.get("path"),
+                    profile.get("historyCount"),
+                    profile.get("bookmarkCount"),
+                    profile.get("savedPasswordCount"),
+                    json.dumps(profile.get("extensions", []))
+                )
+    
+    return {"status": "ok", "node_id": str(uuid), "type": "browser"}
+
+
+@app.post("/api/v1/inventory/full", dependencies=[Depends(verify_api_key)])
+async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit full inventory (all types at once)"""
+    hostname = data.get("hostname", "unknown")
+    results = {"hostname": hostname, "submitted": []}
+    
+    # Hardware
+    if "cpu" in data or "memory" in data:
+        await submit_hardware(data, db)
+        results["submitted"].append("hardware")
+    
+    # Software
+    if "programs" in data:
+        await submit_software(data, db)
+        results["submitted"].append("software")
+    
+    # Hotfixes
+    if "hotfixes" in data:
+        await submit_hotfixes(data, db)
+        results["submitted"].append("hotfixes")
+    
+    # System
+    if "os" in data or "services" in data:
+        await submit_system(data, db)
+        results["submitted"].append("system")
+    
+    # Security
+    if "defender" in data or "firewall" in data:
+        await submit_security(data, db)
+        results["submitted"].append("security")
+    
+    # Network
+    if "adapters" in data or "connections" in data:
+        await submit_network(data, db)
+        results["submitted"].append("network")
+    
+    # Browser
+    if "browsers" in data:
+        await submit_browser(data, db)
+        results["submitted"].append("browser")
+    
+    return {"status": "ok", **results}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
