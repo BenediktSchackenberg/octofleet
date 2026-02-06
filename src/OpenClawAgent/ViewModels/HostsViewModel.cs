@@ -110,48 +110,52 @@ public partial class HostsViewModel : ObservableObject
 
     private void RefreshServiceStatus()
     {
-        try
+        // Must run on UI thread for property updates
+        System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
         {
-            IsServiceInstalled = Services.ServiceController.IsInstalled;
-            var status = Services.ServiceController.Status;
-            
-            if (!IsServiceInstalled)
+            try
             {
-                ServiceStatus = "Not installed";
+                IsServiceInstalled = Services.ServiceController.IsInstalled;
+                var status = Services.ServiceController.Status;
+                
+                if (!IsServiceInstalled)
+                {
+                    ServiceStatus = "Not installed";
+                    IsServiceRunning = false;
+                }
+                else if (status == ServiceControllerStatus.Running)
+                {
+                    ServiceStatus = "Running";
+                    IsServiceRunning = true;
+                }
+                else if (status == ServiceControllerStatus.Stopped)
+                {
+                    ServiceStatus = "Stopped";
+                    IsServiceRunning = false;
+                }
+                else if (status == ServiceControllerStatus.StartPending)
+                {
+                    ServiceStatus = "Starting...";
+                    IsServiceRunning = false;
+                }
+                else if (status == ServiceControllerStatus.StopPending)
+                {
+                    ServiceStatus = "Stopping...";
+                    IsServiceRunning = true;
+                }
+                else
+                {
+                    ServiceStatus = status?.ToString() ?? "Unknown";
+                    IsServiceRunning = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                IsServiceInstalled = false;
                 IsServiceRunning = false;
+                ServiceStatus = $"Error: {ex.Message}";
             }
-            else if (status == ServiceControllerStatus.Running)
-            {
-                ServiceStatus = "Running";
-                IsServiceRunning = true;
-            }
-            else if (status == ServiceControllerStatus.Stopped)
-            {
-                ServiceStatus = "Stopped";
-                IsServiceRunning = false;
-            }
-            else if (status == ServiceControllerStatus.StartPending)
-            {
-                ServiceStatus = "Starting...";
-                IsServiceRunning = false;
-            }
-            else if (status == ServiceControllerStatus.StopPending)
-            {
-                ServiceStatus = "Stopping...";
-                IsServiceRunning = true;
-            }
-            else
-            {
-                ServiceStatus = status?.ToString() ?? "Unknown";
-                IsServiceRunning = false;
-            }
-        }
-        catch
-        {
-            IsServiceInstalled = false;
-            IsServiceRunning = false;
-            ServiceStatus = "Error checking status";
-        }
+        });
     }
 
     private void LoadHosts()
