@@ -15,9 +15,29 @@ public class ServiceController
     public const string DisplayName = "OpenClaw Node Agent";
     public const string Description = "OpenClaw Node Agent - Connects this PC to an OpenClaw Gateway for remote command execution.";
 
-    private static string ServiceExePath => Path.Combine(
-        AppDomain.CurrentDomain.BaseDirectory,
-        "OpenClawAgent.Service.exe");
+    private static string ServiceExePath
+    {
+        get
+        {
+            // First check same directory as GUI
+            var sameDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "OpenClawAgent.Service.exe");
+            if (File.Exists(sameDir)) return sameDir;
+
+            // Check sibling project output (during development)
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var devPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", 
+                "OpenClawAgent.Service", "bin", "Debug", "net8.0-windows", "win-x64", "OpenClawAgent.Service.exe"));
+            if (File.Exists(devPath)) return devPath;
+
+            // Try without win-x64
+            var devPath2 = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", 
+                "OpenClawAgent.Service", "bin", "Debug", "net8.0-windows", "OpenClawAgent.Service.exe"));
+            if (File.Exists(devPath2)) return devPath2;
+
+            // Fallback to same directory
+            return sameDir;
+        }
+    }
 
     /// <summary>
     /// Check if the service is installed
