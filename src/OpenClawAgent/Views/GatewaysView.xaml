@@ -142,10 +142,29 @@
 
         <!-- Status Bar -->
         <Border Grid.Row="2" Margin="0,16,0,0">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="💡 Tip: " Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold"/>
-                <TextBlock Text="Gateway URL format: http://localhost:18789 or https://your-gateway.example.com" 
-                           Foreground="{StaticResource TextSecondaryBrush}"/>
+            <StackPanel>
+                <!-- Status Message -->
+                <TextBlock Text="{Binding StatusMessage}" 
+                           Margin="0,0,0,8"
+                           FontWeight="SemiBold"
+                           Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsStatusError}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="💡 Tip: " Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold"/>
+                    <TextBlock Text="Gateway URL format: http://localhost:18789 or https://your-gateway.example.com" 
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </StackPanel>
             </StackPanel>
         </Border>
     </Grid>

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using OpenClawAgent.Models;
 using OpenClawAgent.Services;
 using System.Collections.ObjectModel;
+using System.Windows;
 
 namespace OpenClawAgent.ViewModels;
 
@@ -32,6 +33,12 @@ public partial class GatewaysViewModel : ObservableObject
     [ObservableProperty]
     private string _newGatewayName = "";
 
+    [ObservableProperty]
+    private string _statusMessage = "";
+
+    [ObservableProperty]
+    private bool _isStatusError;
+
     public GatewaysViewModel()
     {
         LoadGateways();
@@ -53,10 +60,19 @@ public partial class GatewaysViewModel : ObservableObject
         if (SelectedGateway == null) return;
 
         IsConnecting = true;
+        StatusMessage = "Connecting...";
+        IsStatusError = false;
+        
         try
         {
             var service = new GatewayService();
             await service.ConnectAsync(SelectedGateway);
+            StatusMessage = $"Connected to {SelectedGateway.Name}!";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Connection failed: {ex.Message}";
+            IsStatusError = true;
         }
         finally
         {
@@ -65,9 +81,16 @@ public partial class GatewaysViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task AddGatewayAsync()
+    private void AddGateway()
     {
-        if (string.IsNullOrWhiteSpace(NewGatewayUrl)) return;
+        System.Diagnostics.Debug.WriteLine($"AddGateway called! URL={NewGatewayUrl}, Name={NewGatewayName}");
+        
+        if (string.IsNullOrWhiteSpace(NewGatewayUrl))
+        {
+            StatusMessage = "Please enter a Gateway URL";
+            IsStatusError = true;
+            return;
+        }
 
         var gateway = new GatewayConfig
         {
@@ -77,20 +100,20 @@ public partial class GatewaysViewModel : ObservableObject
             IsDefault = Gateways.Count == 0
         };
 
-        // Test connection first
-        var service = new GatewayService();
-        var testResult = await service.TestConnectionAsync(gateway);
+        // Add gateway to list (we'll test connection when user clicks Connect)
+        Gateways.Add(gateway);
+        CredentialService.SaveGateway(gateway);
         
-        if (testResult.Success)
-        {
-            Gateways.Add(gateway);
-            CredentialService.SaveGateway(gateway);
-            
-            // Clear form
-            NewGatewayUrl = "";
-            NewGatewayToken = "";
-            NewGatewayName = "";
-        }
+        StatusMessage = $"Gateway '{gateway.Name}' added! Click Connect to test.";
+        IsStatusError = false;
+        
+        // Clear form
+        NewGatewayUrl = "";
+        NewGatewayToken = "";
+        NewGatewayName = "";
+        
+        // Select the new gateway
+        SelectedGateway = gateway;
     }
 
     [RelayCommand]
