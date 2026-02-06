@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using OpenClawAgent.Models;
 using OpenClawAgent.Services;
 using System.Collections.ObjectModel;
-using System.Windows;
 
 namespace OpenClawAgent.ViewModels;
 
@@ -39,14 +38,25 @@ public partial class GatewaysViewModel : ObservableObject
     [ObservableProperty]
     private bool _isStatusError;
 
+    private readonly GatewayManager _gatewayManager = GatewayManager.Instance;
+
     public GatewaysViewModel()
     {
         LoadGateways();
+        
+        // Subscribe to manager status updates
+        _gatewayManager.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(GatewayManager.StatusMessage))
+            {
+                StatusMessage = _gatewayManager.StatusMessage;
+            }
+        };
     }
 
     private void LoadGateways()
     {
-        // TODO: Load from credential store
+        // Load from credential store
         var stored = CredentialService.GetStoredGateways();
         foreach (var gw in stored)
         {
@@ -60,18 +70,52 @@ public partial class GatewaysViewModel : ObservableObject
         if (SelectedGateway == null) return;
 
         IsConnecting = true;
-        StatusMessage = "Connecting...";
         IsStatusError = false;
         
         try
         {
-            var service = new GatewayService();
-            await service.ConnectAsync(SelectedGateway);
+            await _gatewayManager.ConnectAsync(SelectedGateway);
             StatusMessage = $"Connected to {SelectedGateway.Name}!";
+            SelectedGateway.IsConnected = true;
         }
         catch (Exception ex)
         {
             StatusMessage = $"Connection failed: {ex.Message}";
+            IsStatusError = true;
+        }
+        finally
+        {
+            IsConnecting = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task TestConnectionAsync()
+    {
+        if (SelectedGateway == null) return;
+
+        IsConnecting = true;
+        IsStatusError = false;
+        StatusMessage = "Testing connection...";
+        
+        try
+        {
+            var result = await _gatewayManager.TestConnectionAsync(SelectedGateway);
+            if (result.Success)
+            {
+                StatusMessage = $"✓ Connection successful! Latency: {result.Latency}ms, Version: {result.Version}";
+                SelectedGateway.Latency = result.Latency;
+                SelectedGateway.Version = result.Version;
+            }
+            else
+            {
+                StatusMessage = $"✗ Connection failed: {result.Error}";
+                IsStatusError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Test error: {ex.Message}";
             IsStatusError = true;
         }
         finally
@@ -123,6 +167,7 @@ public partial class GatewaysViewModel : ObservableObject
 
         CredentialService.RemoveGateway(SelectedGateway);
         Gateways.Remove(SelectedGateway);
+        StatusMessage = "Gateway removed.";
     }
 
     [RelayCommand]
@@ -136,5 +181,19 @@ public partial class GatewaysViewModel : ObservableObject
         }
         SelectedGateway.IsDefault = true;
         CredentialService.SaveGateway(SelectedGateway);
+        StatusMessage = $"{SelectedGateway.Name} set as default.";
+    }
+
+    [RelayCommand]
+    private async Task DisconnectAsync()
+    {
+        await _gatewayManager.DisconnectAsync();
+        
+        if (SelectedGateway != null)
+        {
+            SelectedGateway.IsConnected = false;
+        }
+        
+        StatusMessage = "Disconnected.";
     }
 }

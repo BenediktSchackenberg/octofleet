@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using OpenClawAgent.Services;
 
 namespace OpenClawAgent.ViewModels;
 
@@ -28,8 +30,34 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private string _lastSync = "Never";
 
+    private readonly GatewayManager _gatewayManager = GatewayManager.Instance;
+
     public DashboardViewModel()
     {
-        // Initialize with default values
+        // Subscribe to GatewayManager state changes
+        _gatewayManager.PropertyChanged += (s, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(GatewayManager.IsConnected):
+                    GatewayConnected = _gatewayManager.IsConnected;
+                    break;
+                case nameof(GatewayManager.ActiveGateway):
+                    GatewayUrl = _gatewayManager.ActiveGateway?.Url ?? "-";
+                    break;
+            }
+        };
+        
+        // Initialize with current state
+        GatewayConnected = _gatewayManager.IsConnected;
+        GatewayUrl = _gatewayManager.ActiveGateway?.Url ?? "-";
+    }
+
+    [RelayCommand]
+    private void RefreshStatus()
+    {
+        GatewayConnected = _gatewayManager.IsConnected;
+        GatewayUrl = _gatewayManager.ActiveGateway?.Url ?? "-";
+        LastSync = DateTime.Now.ToString("HH:mm:ss");
     }
 }

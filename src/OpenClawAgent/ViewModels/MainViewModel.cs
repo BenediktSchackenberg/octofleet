@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using OpenClawAgent.Services;
 
 namespace OpenClawAgent.ViewModels;
 
@@ -34,8 +35,31 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private object? _currentView;
 
+    private readonly GatewayManager _gatewayManager = GatewayManager.Instance;
+
     public MainViewModel()
     {
+        // Subscribe to GatewayManager state changes
+        _gatewayManager.PropertyChanged += (s, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(GatewayManager.IsConnected):
+                    IsConnected = _gatewayManager.IsConnected;
+                    UpdateConnectionStatus();
+                    break;
+                case nameof(GatewayManager.StatusMessage):
+                    StatusMessage = _gatewayManager.StatusMessage;
+                    break;
+                case nameof(GatewayManager.Latency):
+                    GatewayLatency = _gatewayManager.Latency;
+                    break;
+                case nameof(GatewayManager.Version):
+                    GatewayVersion = _gatewayManager.Version ?? "-";
+                    break;
+            }
+        };
+        
         // Initialize with dashboard view
         CurrentView = new Views.DashboardView { DataContext = new DashboardViewModel() };
         UpdateConnectionStatus();
@@ -46,12 +70,10 @@ public partial class MainViewModel : ObservableObject
         if (IsConnected)
         {
             ConnectionStatusText = "Connected";
-            // ConnectionStatusStyle = Application.Current.FindResource("StatusConnectedBadge") as Style;
         }
         else
         {
             ConnectionStatusText = "Disconnected";
-            // ConnectionStatusStyle = Application.Current.FindResource("StatusDisconnectedBadge") as Style;
         }
     }
 

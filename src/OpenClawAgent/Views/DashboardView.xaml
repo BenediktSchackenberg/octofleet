@@ -44,8 +44,18 @@
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock Text="{Binding GatewayConnected, Converter={x:Null}, FallbackValue='Disconnected'}" 
-                                           FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Disconnected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding GatewayConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                             <TextBlock Text="{Binding GatewayUrl}" Foreground="{StaticResource TextSecondaryBrush}" 
                                        FontSize="12" Margin="0,4,0,0"/>
@@ -123,10 +133,13 @@
                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                             
                             <Button Content="🔄 Refresh Status" Style="{StaticResource SecondaryButtonStyle}" 
+                                    Command="{Binding RefreshStatusCommand}"
                                     HorizontalAlignment="Left" Margin="0,0,0,8"/>
                             <Button Content="📋 View Logs" Style="{StaticResource SecondaryButtonStyle}" 
+                                    Command="{Binding DataContext.NavigateToLogsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     HorizontalAlignment="Left" Margin="0,0,0,8"/>
                             <Button Content="⚙️ Open Settings" Style="{StaticResource SecondaryButtonStyle}" 
+                                    Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Grid>

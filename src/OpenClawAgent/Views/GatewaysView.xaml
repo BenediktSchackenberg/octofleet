@@ -129,6 +129,14 @@
                             Command="{Binding ConnectCommand}" HorizontalAlignment="Stretch" Margin="0,0,0,8"
                             IsEnabled="{Binding SelectedGateway, Converter={StaticResource NullToBoolConverter}}"/>
 
+                    <Button Content="🧪 Test Connection" Style="{StaticResource SecondaryButtonStyle}" 
+                            Command="{Binding TestConnectionCommand}" HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                            IsEnabled="{Binding SelectedGateway, Converter={StaticResource NullToBoolConverter}}"/>
+
+                    <Button Content="🔌 Disconnect" Style="{StaticResource SecondaryButtonStyle}" 
+                            Command="{Binding DisconnectCommand}" HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                            IsEnabled="{Binding SelectedGateway.IsConnected}"/>
+
                     <Button Content="⭐ Set as Default" Style="{StaticResource SecondaryButtonStyle}" 
                             Command="{Binding SetAsDefaultCommand}" HorizontalAlignment="Stretch" Margin="0,0,0,8"
                             IsEnabled="{Binding SelectedGateway, Converter={StaticResource NullToBoolConverter}}"/>
