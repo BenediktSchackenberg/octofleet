@@ -88,10 +88,10 @@
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <Button Content="📡 Register as Node" Style="{StaticResource PrimaryButtonStyle}" 
-                            Command="{Binding RegisterAsNodeAsyncCommand}" Margin="0,0,0,8"
+                            Command="{Binding RegisterAsNodeCommand}" Margin="0,0,0,8"
                             Visibility="{Binding IsNodeConnected, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
                     <Button Content="🔌 Unregister" Style="{StaticResource SecondaryButtonStyle}" 
-                            Command="{Binding UnregisterNodeAsyncCommand}"
+                            Command="{Binding UnregisterNodeCommand}"
                             Visibility="{Binding IsNodeConnected, Converter={StaticResource BoolToVisibilityConverter}}"/>
                 </StackPanel>
             </Grid>
@@ -115,9 +115,9 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Content="🔄 Refresh" Style="{StaticResource SecondaryButtonStyle}" 
-                            Command="{Binding RefreshStatusAsyncCommand}" Margin="0,0,8,0"/>
+                            Command="{Binding RefreshStatusCommand}" Margin="0,0,8,0"/>
                     <Button Content="🚀 Deploy All" Style="{StaticResource PrimaryButtonStyle}" 
-                            Command="{Binding DeployToAllAsyncCommand}"
+                            Command="{Binding DeployToAllCommand}"
                             IsEnabled="{Binding IsDeploying, Converter={StaticResource InverseBoolConverter}}"/>
                 </StackPanel>
             </Grid>
@@ -255,7 +255,7 @@
                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
 
                         <Button Content="➕ Add Host" Style="{StaticResource PrimaryButtonStyle}" 
-                                Command="{Binding AddHostAsyncCommand}" HorizontalAlignment="Stretch"/>
+                                Command="{Binding AddHostCommand}" HorizontalAlignment="Stretch"/>
 
                         <!-- Selected Host Actions -->
                         <Separator Margin="0,20" Background="{StaticResource AccentBrush}"/>
@@ -264,7 +264,7 @@
                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
 
                         <Button Content="🚀 Deploy Agent" Style="{StaticResource PrimaryButtonStyle}" 
-                                Command="{Binding DeployToHostAsyncCommand}" HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                                Command="{Binding DeployToHostCommand}" HorizontalAlignment="Stretch" Margin="0,0,0,8"
                                 IsEnabled="{Binding SelectedHost, Converter={StaticResource NullToBoolConverter}}"/>
 
                         <Button Content="🗑️ Remove" Style="{StaticResource SecondaryButtonStyle}" 
