@@ -2,8 +2,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenClawAgent.Models;
 using OpenClawAgent.Services;
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.ServiceProcess;
+using System.Threading.Tasks;
 
 namespace OpenClawAgent.ViewModels;
 
