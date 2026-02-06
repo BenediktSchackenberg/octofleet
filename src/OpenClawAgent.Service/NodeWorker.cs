@@ -203,11 +203,17 @@ public class NodeWorker : BackgroundService
                     break;
                     
                 case "event":
-                    // Just log events
+                    // Handle events
                     if (root.TryGetProperty("event", out var eventProp))
                     {
                         var eventName = eventProp.GetString();
-                        if (eventName != "tick" && eventName != "health")
+                        
+                        if (eventName == "node.invoke.request")
+                        {
+                            // This is the actual command invocation!
+                            await HandleInvokeEventAsync(root, ct);
+                        }
+                        else if (eventName != "tick" && eventName != "health")
                         {
                             _logger.LogDebug("Event: {Event}", eventName);
                         }
@@ -276,6 +282,156 @@ public class NodeWorker : BackgroundService
             };
             await SendJsonAsync(response, ct);
         }
+    }
+
+    private async Task HandleInvokeEventAsync(JsonElement root, CancellationToken ct)
+    {
+        // Event payload contains: { requestId, command, params }
+        if (!root.TryGetProperty("payload", out var payload))
+            return;
+
+        string? requestId = null;
+        if (payload.TryGetProperty("requestId", out var reqIdProp))
+            requestId = reqIdProp.GetString();
+
+        string? command = null;
+        if (payload.TryGetProperty("command", out var cmdProp))
+            command = cmdProp.GetString();
+
+        _logger.LogInformation("Invoke request: {Command} (requestId: {RequestId})", command, requestId);
+
+        object? result = null;
+        string? error = null;
+
+        try
+        {
+            switch (command)
+            {
+                case "system.run":
+                    result = await HandleSystemRunFromPayloadAsync(payload, ct);
+                    break;
+                    
+                case "system.which":
+                    result = HandleSystemWhichFromPayload(payload);
+                    break;
+                    
+                case "node.ping":
+                    result = new { pong = true, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+                    break;
+                    
+                default:
+                    error = $"Unknown command: {command}";
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            _logger.LogError(ex, "Command execution failed: {Command}", command);
+        }
+
+        // Send result back via node.invoke.result
+        if (requestId != null)
+        {
+            var resultMsg = new
+            {
+                type = "req",
+                id = Interlocked.Increment(ref _requestId).ToString(),
+                method = "node.invoke.result",
+                @params = new
+                {
+                    requestId = requestId,
+                    ok = error == null,
+                    result = result,
+                    error = error
+                }
+            };
+            
+            _logger.LogInformation("Sending result for {RequestId}: ok={Ok}", requestId, error == null);
+            await SendJsonAsync(resultMsg, ct);
+        }
+    }
+
+    private async Task<object> HandleSystemRunFromPayloadAsync(JsonElement payload, CancellationToken ct)
+    {
+        var command = new List<string>();
+        
+        if (payload.TryGetProperty("params", out var paramsProp) &&
+            paramsProp.TryGetProperty("command", out var cmdProp) &&
+            cmdProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in cmdProp.EnumerateArray())
+            {
+                if (item.GetString() is string s)
+                    command.Add(s);
+            }
+        }
+
+        if (command.Count == 0)
+            throw new ArgumentException("No command specified");
+
+        _logger.LogInformation("Executing: {Command}", string.Join(" ", command));
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = command[0],
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        for (int i = 1; i < command.Count; i++)
+            psi.ArgumentList.Add(command[i]);
+
+        using var process = Process.Start(psi);
+        if (process == null)
+            throw new Exception("Failed to start process");
+
+        var stdout = await process.StandardOutput.ReadToEndAsync(ct);
+        var stderr = await process.StandardError.ReadToEndAsync(ct);
+        
+        await process.WaitForExitAsync(ct);
+
+        return new
+        {
+            exitCode = process.ExitCode,
+            stdout = stdout,
+            stderr = stderr
+        };
+    }
+
+    private object HandleSystemWhichFromPayload(JsonElement payload)
+    {
+        string? name = null;
+        
+        if (payload.TryGetProperty("params", out var paramsProp) &&
+            paramsProp.TryGetProperty("name", out var nameProp))
+        {
+            name = nameProp.GetString();
+        }
+
+        if (string.IsNullOrEmpty(name))
+            throw new ArgumentException("No name specified");
+
+        // Search in PATH
+        var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var paths = pathEnv.Split(Path.PathSeparator);
+        var extensions = new[] { ".exe", ".cmd", ".bat", ".ps1", "" };
+
+        foreach (var dir in paths)
+        {
+            foreach (var ext in extensions)
+            {
+                var fullPath = Path.Combine(dir, name + ext);
+                if (File.Exists(fullPath))
+                {
+                    return new { path = fullPath, found = true };
+                }
+            }
+        }
+
+        return new { path = (string?)null, found = false };
     }
 
     private async Task<object> HandleSystemRunAsync(JsonElement root, CancellationToken ct)
