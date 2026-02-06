@@ -16,6 +16,7 @@ public class NodeWorker : BackgroundService
     private readonly ServiceConfig _config;
     private ClientWebSocket? _webSocket;
     private int _requestId = 0;
+    private string _nodeId = "node-host";  // Will be set from connect response
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement?>> _pendingRequests = new();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -135,7 +136,13 @@ public class NodeWorker : BackgroundService
         
         if (response.TryGetProperty("ok", out var okProp) && okProp.GetBoolean())
         {
-            _logger.LogInformation("Connected as Node: {DisplayName}", config.DisplayName);
+            // Try to get nodeId from response
+            if (response.TryGetProperty("payload", out var respPayload) &&
+                respPayload.TryGetProperty("nodeId", out var nodeIdProp))
+            {
+                _nodeId = nodeIdProp.GetString() ?? "node-host";
+            }
+            _logger.LogInformation("Connected as Node: {DisplayName} (nodeId: {NodeId})", config.DisplayName, _nodeId);
         }
         else
         {
@@ -385,9 +392,10 @@ public class NodeWorker : BackgroundService
                 method = "node.invoke.result",
                 @params = new
                 {
-                    requestId = requestId,
+                    id = requestId,  // Gateway expects "id" not "requestId"
+                    nodeId = _nodeId,  // Gateway requires nodeId
                     ok = error == null,
-                    result = result,
+                    payload = result,  // Gateway expects "payload" not "result"
                     error = error
                 }
             };
