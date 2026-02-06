@@ -1,7 +1,8 @@
 using System;
-using System.Net.Http;
-using System.Net.Http.Json;
+using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawAgent.Models;
@@ -9,43 +10,72 @@ using OpenClawAgent.Models;
 namespace OpenClawAgent.Services;
 
 /// <summary>
-/// Service for communicating with OpenClaw Gateway
+/// Service for communicating with OpenClaw Gateway via WebSocket protocol
 /// </summary>
 public class GatewayService : IDisposable
 {
-    private HttpClient? _httpClient;
+    private ClientWebSocket? _webSocket;
     private GatewayConfig? _currentGateway;
-    private CancellationTokenSource? _heartbeatCts;
+    private CancellationTokenSource? _receiveCts;
+    private int _requestId = 0;
+    private string? _challengeNonce;
 
-    public bool IsConnected => _currentGateway?.IsConnected ?? false;
+    public bool IsConnected => _webSocket?.State == WebSocketState.Open;
     public event EventHandler<ConnectionStateChangedEventArgs>? ConnectionStateChanged;
     public event EventHandler<GatewayMessageEventArgs>? MessageReceived;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     public async Task<ConnectionTestResult> TestConnectionAsync(GatewayConfig gateway)
     {
         try
         {
-            using var client = CreateHttpClient(gateway);
+            using var ws = new ClientWebSocket();
+            var wsUrl = GetWebSocketUrl(gateway.Url);
             var startTime = DateTime.Now;
             
-            var response = await client.GetAsync("status");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await ws.ConnectAsync(new Uri(wsUrl), cts.Token);
+            
             var latency = (int)(DateTime.Now - startTime).TotalMilliseconds;
 
-            if (response.IsSuccessStatusCode)
+            if (ws.State == WebSocketState.Open)
             {
-                var status = await response.Content.ReadFromJsonAsync<GatewayStatus>();
-                return new ConnectionTestResult
+                // Wait for challenge
+                var challengeMsg = await ReceiveMessageAsync(ws, cts.Token);
+                
+                // Send connect request
+                var connectResult = await SendConnectRequestAsync(ws, gateway.Token, null, cts.Token);
+                
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Test complete", CancellationToken.None);
+                
+                if (connectResult.Ok)
                 {
-                    Success = true,
-                    Latency = latency,
-                    Version = status?.Version ?? "unknown"
-                };
+                    return new ConnectionTestResult
+                    {
+                        Success = true,
+                        Latency = latency,
+                        Version = connectResult.Version ?? "unknown"
+                    };
+                }
+                else
+                {
+                    return new ConnectionTestResult
+                    {
+                        Success = false,
+                        Error = connectResult.Error ?? "Connect failed"
+                    };
+                }
             }
 
             return new ConnectionTestResult
             {
                 Success = false,
-                Error = $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}"
+                Error = "WebSocket connection failed"
             };
         }
         catch (Exception ex)
@@ -67,30 +97,61 @@ public class GatewayService : IDisposable
         }
 
         _currentGateway = gateway;
-        _httpClient = CreateHttpClient(gateway);
+        _webSocket = new ClientWebSocket();
 
-        // Test connection
-        var testResult = await TestConnectionAsync(gateway);
-        if (!testResult.Success)
+        var wsUrl = GetWebSocketUrl(gateway.Url);
+        
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await _webSocket.ConnectAsync(new Uri(wsUrl), cts.Token);
+
+        if (_webSocket.State != WebSocketState.Open)
         {
-            throw new Exception($"Connection failed: {testResult.Error}");
+            throw new Exception("WebSocket connection failed");
+        }
+
+        // Wait for challenge event
+        var challengeMsg = await ReceiveMessageAsync(_webSocket, cts.Token);
+        if (challengeMsg != null)
+        {
+            var challengeEvent = JsonSerializer.Deserialize<GatewayEvent>(challengeMsg, JsonOptions);
+            if (challengeEvent?.Event == "connect.challenge")
+            {
+                _challengeNonce = challengeEvent.Payload?.GetProperty("nonce").GetString();
+            }
+        }
+
+        // Send connect request
+        var connectResult = await SendConnectRequestAsync(_webSocket, gateway.Token, _challengeNonce, cts.Token);
+        
+        if (!connectResult.Ok)
+        {
+            await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connect rejected", CancellationToken.None);
+            throw new Exception($"Connection rejected: {connectResult.Error}");
         }
 
         _currentGateway.IsConnected = true;
-        _currentGateway.Latency = testResult.Latency;
-        _currentGateway.Version = testResult.Version;
+        _currentGateway.Version = connectResult.Version;
         _currentGateway.LastConnected = DateTime.Now;
 
-        // Start heartbeat
-        _heartbeatCts = new CancellationTokenSource();
-        _ = HeartbeatLoopAsync(_heartbeatCts.Token);
+        // Start receive loop
+        _receiveCts = new CancellationTokenSource();
+        _ = ReceiveLoopAsync(_receiveCts.Token);
 
         OnConnectionStateChanged(true);
     }
 
     public async Task DisconnectAsync()
     {
-        _heartbeatCts?.Cancel();
+        _receiveCts?.Cancel();
+        
+        if (_webSocket != null && _webSocket.State == WebSocketState.Open)
+        {
+            try
+            {
+                await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnect", CancellationToken.None);
+            }
+            catch { }
+        }
         
         if (_currentGateway != null)
         {
@@ -98,89 +159,187 @@ public class GatewayService : IDisposable
             _currentGateway = null;
         }
 
-        _httpClient?.Dispose();
-        _httpClient = null;
+        _webSocket?.Dispose();
+        _webSocket = null;
 
         OnConnectionStateChanged(false);
-        await Task.CompletedTask;
     }
 
-    public async Task<string> ExecuteCommandAsync(string command)
+    public async Task<GatewayResponse?> SendRequestAsync(string method, object? parameters = null)
     {
-        if (_httpClient == null || !IsConnected)
+        if (_webSocket == null || _webSocket.State != WebSocketState.Open)
         {
             throw new InvalidOperationException("Not connected to gateway");
         }
 
-        var response = await _httpClient.PostAsJsonAsync("exec", new { command });
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadAsStringAsync();
-        return result;
-    }
-
-    public async Task<GatewayStatus?> GetStatusAsync()
-    {
-        if (_httpClient == null) return null;
-
-        var response = await _httpClient.GetAsync("status");
-        if (response.IsSuccessStatusCode)
+        var requestId = Interlocked.Increment(ref _requestId).ToString();
+        var request = new GatewayRequest
         {
-            return await response.Content.ReadFromJsonAsync<GatewayStatus>();
+            Type = "req",
+            Id = requestId,
+            Method = method,
+            Params = parameters
+        };
+
+        var json = JsonSerializer.Serialize(request, JsonOptions);
+        var bytes = Encoding.UTF8.GetBytes(json);
+        
+        await _webSocket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+
+        // Wait for response with matching id
+        // Note: In a real implementation, we'd use a proper request/response correlation
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var responseMsg = await ReceiveMessageAsync(_webSocket, cts.Token);
+        
+        if (responseMsg != null)
+        {
+            return JsonSerializer.Deserialize<GatewayResponse>(responseMsg, JsonOptions);
         }
+
         return null;
     }
 
-    private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
+    private async Task<ConnectResult> SendConnectRequestAsync(ClientWebSocket ws, string? token, string? nonce, CancellationToken ct)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        var requestId = Interlocked.Increment(ref _requestId).ToString();
+        var deviceId = $"win-{Environment.MachineName.GetHashCode():X8}";
+        
+        var request = new
+        {
+            type = "req",
+            id = requestId,
+            method = "connect",
+            @params = new
+            {
+                minProtocol = 3,
+                maxProtocol = 3,
+                client = new
+                {
+                    id = "openclaw-windows-agent",
+                    version = "0.2.0",
+                    platform = "windows",
+                    mode = "operator"
+                },
+                role = "operator",
+                scopes = new[] { "operator.read" },
+                caps = Array.Empty<string>(),
+                commands = Array.Empty<string>(),
+                permissions = new { },
+                auth = new { token = token ?? "" },
+                locale = "en-US",
+                userAgent = "openclaw-windows-agent/0.2.0",
+                device = new
+                {
+                    id = deviceId
+                }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(request, JsonOptions);
+        var bytes = Encoding.UTF8.GetBytes(json);
+        
+        await ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
+
+        // Wait for response
+        var responseMsg = await ReceiveMessageAsync(ws, ct);
+        
+        if (responseMsg != null)
+        {
+            var response = JsonSerializer.Deserialize<GatewayResponse>(responseMsg, JsonOptions);
+            if (response?.Type == "res" && response.Id == requestId)
+            {
+                return new ConnectResult
+                {
+                    Ok = response.Ok,
+                    Version = response.Payload?.GetProperty("protocol").GetInt32().ToString(),
+                    Error = response.Error?.ToString()
+                };
+            }
+        }
+
+        return new ConnectResult { Ok = false, Error = "No response" };
+    }
+
+    private async Task ReceiveLoopAsync(CancellationToken ct)
+    {
+        var buffer = new byte[8192];
+        var messageBuilder = new StringBuilder();
+
+        while (!ct.IsCancellationRequested && _webSocket?.State == WebSocketState.Open)
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                var result = await _webSocket.ReceiveAsync(buffer, ct);
                 
-                if (_httpClient != null)
+                if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    var startTime = DateTime.Now;
-                    var response = await _httpClient.GetAsync("ping", cancellationToken);
-                    
-                    if (_currentGateway != null)
-                    {
-                        _currentGateway.Latency = (int)(DateTime.Now - startTime).TotalMilliseconds;
-                    }
+                    OnConnectionStateChanged(false);
+                    break;
+                }
 
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        OnConnectionStateChanged(false);
-                    }
+                messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+
+                if (result.EndOfMessage)
+                {
+                    var message = messageBuilder.ToString();
+                    messageBuilder.Clear();
+                    
+                    MessageReceived?.Invoke(this, new GatewayMessageEventArgs(message));
                 }
             }
             catch (OperationCanceledException)
             {
                 break;
             }
-            catch
+            catch (Exception)
             {
                 OnConnectionStateChanged(false);
+                break;
             }
         }
     }
 
-    private HttpClient CreateHttpClient(GatewayConfig gateway)
+    private async Task<string?> ReceiveMessageAsync(ClientWebSocket ws, CancellationToken ct)
     {
-        var client = new HttpClient
-        {
-            BaseAddress = new Uri(gateway.Url.TrimEnd('/') + "/"),
-            Timeout = TimeSpan.FromSeconds(30)
-        };
+        var buffer = new byte[8192];
+        var messageBuilder = new StringBuilder();
 
-        if (!string.IsNullOrEmpty(gateway.Token))
+        while (true)
         {
-            client.DefaultRequestHeaders.Authorization = 
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", gateway.Token);
+            var result = await ws.ReceiveAsync(buffer, ct);
+            
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                return null;
+            }
+
+            messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+
+            if (result.EndOfMessage)
+            {
+                return messageBuilder.ToString();
+            }
         }
+    }
 
-        return client;
+    private string GetWebSocketUrl(string url)
+    {
+        // Convert http(s) to ws(s)
+        var wsUrl = url.TrimEnd('/');
+        if (wsUrl.StartsWith("http://"))
+        {
+            wsUrl = "ws://" + wsUrl.Substring(7);
+        }
+        else if (wsUrl.StartsWith("https://"))
+        {
+            wsUrl = "wss://" + wsUrl.Substring(8);
+        }
+        else if (!wsUrl.StartsWith("ws://") && !wsUrl.StartsWith("wss://"))
+        {
+            wsUrl = "ws://" + wsUrl;
+        }
+        
+        return wsUrl;
     }
 
     private void OnConnectionStateChanged(bool connected)
@@ -190,11 +349,48 @@ public class GatewayService : IDisposable
 
     public void Dispose()
     {
-        _heartbeatCts?.Cancel();
-        _heartbeatCts?.Dispose();
-        _httpClient?.Dispose();
+        _receiveCts?.Cancel();
+        _receiveCts?.Dispose();
+        _webSocket?.Dispose();
     }
 }
+
+#region Protocol Models
+
+public class GatewayRequest
+{
+    public string Type { get; set; } = "req";
+    public string Id { get; set; } = "";
+    public string Method { get; set; } = "";
+    public object? Params { get; set; }
+}
+
+public class GatewayResponse
+{
+    public string Type { get; set; } = "";
+    public string Id { get; set; } = "";
+    public bool Ok { get; set; }
+    public JsonElement? Payload { get; set; }
+    public JsonElement? Error { get; set; }
+}
+
+public class GatewayEvent
+{
+    public string Type { get; set; } = "";
+    public string Event { get; set; } = "";
+    public JsonElement? Payload { get; set; }
+}
+
+public class ConnectResult
+{
+    public bool Ok { get; set; }
+    public string? Version { get; set; }
+    public string? Error { get; set; }
+}
+
+#endregion
+
+#region Event Args
 
 public class ConnectionTestResult
 {
@@ -223,3 +419,5 @@ public class GatewayMessageEventArgs : EventArgs
     public string Message { get; }
     public GatewayMessageEventArgs(string message) => Message = message;
 }
+
+#endregion
