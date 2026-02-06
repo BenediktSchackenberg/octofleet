@@ -113,7 +113,8 @@
 
                     <TextBlock Text="Token" Foreground="{StaticResource TextSecondaryBrush}" 
                                FontSize="12" Margin="0,0,0,4"/>
-                    <PasswordBox x:Name="TokenBox" Style="{StaticResource OpenClawPasswordBoxStyle}" Margin="0,0,0,16"/>
+                    <PasswordBox x:Name="TokenBox" Style="{StaticResource OpenClawPasswordBoxStyle}" Margin="0,0,0,16"
+                                 PasswordChanged="TokenBox_PasswordChanged"/>
 
                     <Button Content="➕ Add Gateway" Style="{StaticResource PrimaryButtonStyle}" 
                             Command="{Binding AddGatewayCommand}" HorizontalAlignment="Stretch"/>
