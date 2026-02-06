@@ -108,14 +108,186 @@ async def health_check():
 
 @app.get("/api/v1/nodes")
 async def list_nodes(db: asyncpg.Pool = Depends(get_db)):
-    """List all known nodes"""
+    """List all known nodes with summary info"""
     async with db.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT id, node_id, hostname, os_name, os_version, os_build, 
-                   first_seen, last_seen, is_online
-            FROM nodes ORDER BY last_seen DESC
+            SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
+                   n.first_seen, n.last_seen, n.is_online,
+                   h.cpu->>'name' as cpu_name,
+                   (h.ram->>'totalGb')::numeric as total_memory_gb
+            FROM nodes n
+            LEFT JOIN hardware_current h ON n.id = h.node_id
+            ORDER BY n.last_seen DESC
         """)
-        return [dict(r) for r in rows]
+        return {"nodes": [dict(r) for r in rows]}
+
+
+@app.get("/api/v1/inventory/hardware/{node_id}")
+async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get hardware data for a node"""
+    async with db.acquire() as conn:
+        # Find node by node_id string or UUID
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        row = await conn.fetchrow("""
+            SELECT cpu, ram, disks, mainboard, bios, gpu, nics, updated_at
+            FROM hardware_current WHERE node_id = $1
+        """, node['id'])
+        
+        if not row:
+            return {"data": None}
+        
+        return {"data": {
+            "cpu": json.loads(row['cpu']) if row['cpu'] else {},
+            "memory": json.loads(row['ram']) if row['ram'] else {},
+            "disks": json.loads(row['disks']) if row['disks'] else [],
+            "mainboard": json.loads(row['mainboard']) if row['mainboard'] else {},
+            "bios": json.loads(row['bios']) if row['bios'] else {},
+            "gpus": json.loads(row['gpu']) if row['gpu'] else [],
+            "networkAdapters": json.loads(row['nics']) if row['nics'] else [],
+            "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
+        }}
+
+
+@app.get("/api/v1/inventory/software/{node_id}")
+async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get software data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        rows = await conn.fetch("""
+            SELECT name, version, publisher, install_date, install_path
+            FROM software_current WHERE node_id = $1 ORDER BY name
+        """, node['id'])
+        
+        return {"data": {"installedPrograms": [dict(r) for r in rows]}}
+
+
+@app.get("/api/v1/inventory/hotfixes/{node_id}")
+async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get hotfix data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        rows = await conn.fetch("""
+            SELECT kb_id as "hotfixId", description, installed_on as "installedOn", 
+                   installed_by as "installedBy"
+            FROM hotfixes_current WHERE node_id = $1 ORDER BY installed_on DESC
+        """, node['id'])
+        
+        return {"data": {"hotfixes": [dict(r) for r in rows]}}
+
+
+@app.get("/api/v1/inventory/system/{node_id}")
+async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get system data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("""
+            SELECT id, os_name, os_version, os_build FROM nodes WHERE node_id = $1
+        """, node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        row = await conn.fetchrow("""
+            SELECT users, services, startup_items, scheduled_tasks, updated_at
+            FROM system_current WHERE node_id = $1
+        """, node['id'])
+        
+        return {"data": {
+            "osName": node['os_name'],
+            "osVersion": node['os_version'],
+            "osBuild": node['os_build'],
+            "users": json.loads(row['users']) if row and row['users'] else [],
+            "services": json.loads(row['services']) if row and row['services'] else [],
+            "startupItems": json.loads(row['startup_items']) if row and row['startup_items'] else [],
+            "scheduledTasks": json.loads(row['scheduled_tasks']) if row and row['scheduled_tasks'] else []
+        }}
+
+
+@app.get("/api/v1/inventory/security/{node_id}")
+async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get security data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        row = await conn.fetchrow("""
+            SELECT defender, firewall, tpm, uac, bitlocker, updated_at
+            FROM security_current WHERE node_id = $1
+        """, node['id'])
+        
+        if not row:
+            return {"data": None}
+        
+        return {"data": {
+            "defender": json.loads(row['defender']) if row['defender'] else {},
+            "firewall": json.loads(row['firewall']) if row['firewall'] else [],
+            "tpm": json.loads(row['tpm']) if row['tpm'] else {},
+            "uac": json.loads(row['uac']) if row['uac'] else {},
+            "bitlocker": json.loads(row['bitlocker']) if row['bitlocker'] else []
+        }}
+
+
+@app.get("/api/v1/inventory/network/{node_id}")
+async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get network data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        row = await conn.fetchrow("""
+            SELECT adapters, connections, listening_ports, updated_at
+            FROM network_current WHERE node_id = $1
+        """, node['id'])
+        
+        if not row:
+            return {"data": None}
+        
+        return {"data": {
+            "adapters": json.loads(row['adapters']) if row['adapters'] else [],
+            "connections": json.loads(row['connections']) if row['connections'] else [],
+            "listeningPorts": json.loads(row['listening_ports']) if row['listening_ports'] else []
+        }}
+
+
+@app.get("/api/v1/inventory/browser/{node_id}")
+async def get_browser(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get browser data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        rows = await conn.fetch("""
+            SELECT browser, profile_name, history_count, bookmark_count, 
+                   password_count, extensions
+            FROM browser_current WHERE node_id = $1
+        """, node['id'])
+        
+        # Group by browser
+        browsers = {}
+        for row in rows:
+            b = row['browser']
+            if b not in browsers:
+                browsers[b] = {"profiles": [], "extensionCount": 0}
+            browsers[b]["profiles"].append({
+                "name": row['profile_name'],
+                "historyCount": row['history_count'],
+                "bookmarkCount": row['bookmark_count'],
+                "passwordCount": row['password_count']
+            })
+            exts = json.loads(row['extensions']) if row['extensions'] else []
+            browsers[b]["extensionCount"] += len(exts)
+        
+        return {"data": browsers}
 
 
 @app.post("/api/v1/inventory/hardware", dependencies=[Depends(verify_api_key)])

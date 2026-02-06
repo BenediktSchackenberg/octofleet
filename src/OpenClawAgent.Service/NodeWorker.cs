@@ -131,7 +131,8 @@ public class NodeWorker : BackgroundService
                     "inventory.browser.firefox",
                     "inventory.browser.edge",
                     "inventory.network",
-                    "inventory.full"
+                    "inventory.full",
+                    "inventory.push"
                 },
                 permissions = new Dictionary<string, bool>
                 {
@@ -147,7 +148,8 @@ public class NodeWorker : BackgroundService
                     { "inventory.browser.firefox", true },
                     { "inventory.browser.edge", true },
                     { "inventory.network", true },
-                    { "inventory.full", true }
+                    { "inventory.full", true },
+                    { "inventory.push", true }
                 },
                 auth = new { token = config.GatewayToken },
                 userAgent = $"openclaw-windows-service/0.2.0 ({config.DisplayName})"
@@ -443,6 +445,17 @@ public class NodeWorker : BackgroundService
                     
                 case "inventory.network":
                     result = await InventoryCollector.CollectAsync("network");
+                    break;
+                    
+                case "inventory.push":
+                    // Collect all inventory and push to backend API
+                    var pushResult = await InventoryPusher.CollectAndPushAllAsync(_config);
+                    result = new 
+                    { 
+                        success = pushResult.Success,
+                        summary = pushResult.Summary,
+                        details = pushResult.FullPush
+                    };
                     break;
                     
                 default:

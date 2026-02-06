@@ -17,6 +17,11 @@ public class ServiceConfig
     public string? GatewayToken { get; set; }
     public string DisplayName { get; set; } = Environment.MachineName;
     public bool AutoStart { get; set; } = true;
+    
+    // Inventory Backend settings
+    public string InventoryApiUrl { get; set; } = "http://localhost:8080";
+    public string InventoryApiKey { get; set; } = "openclaw-inventory-dev-key";
+    public bool AutoPushInventory { get; set; } = true;
 
     public static ServiceConfig Load()
     {
