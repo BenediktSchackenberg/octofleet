@@ -61,8 +61,8 @@
             <!-- Sidebar Navigation -->
             <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,10,0">
                 <StackPanel>
-                    <TextBlock Text="Navigation" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" 
-                               FontSize="11" Margin="0,0,0,12" TextTransform="Uppercase"/>
+                    <TextBlock Text="NAVIGATION" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" 
+                               FontSize="11" Margin="0,0,0,12"/>
                     
                     <Button Content="📊 Dashboard" Style="{StaticResource SecondaryButtonStyle}" 
                             HorizontalContentAlignment="Left" Margin="0,0,0,4"
