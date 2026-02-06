@@ -62,26 +62,26 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Active Jobs Card -->
+                    <!-- Active Sessions Card -->
                     <Border Style="{StaticResource CardStyle}" Margin="5,0">
                         <StackPanel>
-                            <TextBlock Text="⚡ Active Jobs" FontWeight="SemiBold" 
+                            <TextBlock Text="💬 Sessions" FontWeight="SemiBold" 
                                        Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
-                            <TextBlock Text="{Binding ActiveJobs}" FontSize="32" FontWeight="Bold" 
+                            <TextBlock Text="{Binding ActiveSessions}" FontSize="32" FontWeight="Bold" 
                                        Foreground="{StaticResource PrimaryBrush}"/>
-                            <TextBlock Text="currently running" Foreground="{StaticResource TextSecondaryBrush}" 
+                            <TextBlock Text="active sessions" Foreground="{StaticResource TextSecondaryBrush}" 
                                        FontSize="12"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Pending Tasks Card -->
+                    <!-- Cron Jobs Card -->
                     <Border Style="{StaticResource CardStyle}" Margin="10,0,0,0">
                         <StackPanel>
-                            <TextBlock Text="📋 Queue" FontWeight="SemiBold" 
+                            <TextBlock Text="⏰ Cron Jobs" FontWeight="SemiBold" 
                                        Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
-                            <TextBlock Text="{Binding PendingTasks}" FontSize="32" FontWeight="Bold" 
+                            <TextBlock Text="{Binding CronJobs}" FontSize="32" FontWeight="Bold" 
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <TextBlock Text="pending tasks" Foreground="{StaticResource TextSecondaryBrush}" 
+                            <TextBlock Text="scheduled jobs" Foreground="{StaticResource TextSecondaryBrush}" 
                                        FontSize="12"/>
                         </StackPanel>
                     </Border>
@@ -133,7 +133,7 @@
                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                             
                             <Button Content="🔄 Refresh Status" Style="{StaticResource SecondaryButtonStyle}" 
-                                    Command="{Binding RefreshStatusCommand}"
+                                    Command="{Binding RefreshStatusAsyncCommand}"
                                     HorizontalAlignment="Left" Margin="0,0,0,8"/>
                             <Button Content="📋 View Logs" Style="{StaticResource SecondaryButtonStyle}" 
                                     Command="{Binding DataContext.NavigateToLogsCommand, RelativeSource={RelativeSource AncestorType=Window}}"

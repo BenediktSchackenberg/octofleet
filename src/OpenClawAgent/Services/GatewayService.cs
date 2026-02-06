@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Text;
@@ -20,6 +21,9 @@ public class GatewayService : IDisposable
     private CancellationTokenSource? _receiveCts;
     private int _requestId = 0;
     private string? _challengeNonce;
+    
+    // Pending request tracking for request/response correlation
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement?>> _pendingRequests = new();
 
     public bool IsConnected => _webSocket?.State == WebSocketState.Open;
     public event EventHandler<ConnectionStateChangedEventArgs>? ConnectionStateChanged;
@@ -229,7 +233,7 @@ public class GatewayService : IDisposable
         OnConnectionStateChanged(false);
     }
 
-    public async Task<GatewayResponse?> SendRequestAsync(string method, object? parameters = null)
+    public async Task<JsonElement?> SendRequestAsync(string method, object? parameters = null, int timeoutSeconds = 30)
     {
         if (_webSocket == null || _webSocket.State != WebSocketState.Open)
         {
@@ -245,22 +249,28 @@ public class GatewayService : IDisposable
             Params = parameters
         };
 
-        var json = JsonSerializer.Serialize(request, JsonOptions);
-        var bytes = Encoding.UTF8.GetBytes(json);
-        
-        await _webSocket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+        // Create completion source for this request
+        var tcs = new TaskCompletionSource<JsonElement?>();
+        _pendingRequests[requestId] = tcs;
 
-        // Wait for response with matching id
-        // Note: In a real implementation, we'd use a proper request/response correlation
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var responseMsg = await ReceiveMessageAsync(_webSocket, cts.Token);
-        
-        if (responseMsg != null)
+        try
         {
-            return JsonSerializer.Deserialize<GatewayResponse>(responseMsg, JsonOptions);
-        }
+            var json = JsonSerializer.Serialize(request, JsonOptions);
+            Log($"SendRequest: {method} (id={requestId})");
+            var bytes = Encoding.UTF8.GetBytes(json);
+            
+            await _webSocket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
 
-        return null;
+            // Wait for response with timeout
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            cts.Token.Register(() => tcs.TrySetCanceled());
+            
+            return await tcs.Task;
+        }
+        finally
+        {
+            _pendingRequests.TryRemove(requestId, out _);
+        }
     }
 
     private async Task<ConnectResult> SendConnectRequestAsync(ClientWebSocket ws, string? token, string? nonce, CancellationToken ct)
@@ -379,6 +389,53 @@ public class GatewayService : IDisposable
                 {
                     var message = messageBuilder.ToString();
                     messageBuilder.Clear();
+                    
+                    // Try to parse and route responses to pending requests
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(message);
+                        var root = doc.RootElement;
+                        
+                        if (root.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "res")
+                        {
+                            if (root.TryGetProperty("id", out var idProp))
+                            {
+                                var requestId = idProp.GetString();
+                                if (requestId != null && _pendingRequests.TryRemove(requestId, out var tcs))
+                                {
+                                    if (root.TryGetProperty("ok", out var okProp) && okProp.GetBoolean())
+                                    {
+                                        if (root.TryGetProperty("payload", out var payload))
+                                        {
+                                            tcs.TrySetResult(payload.Clone());
+                                        }
+                                        else
+                                        {
+                                            tcs.TrySetResult(null);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Error response
+                                        var errorMsg = "Request failed";
+                                        if (root.TryGetProperty("error", out var errorProp))
+                                        {
+                                            if (errorProp.TryGetProperty("message", out var msgProp))
+                                            {
+                                                errorMsg = msgProp.GetString() ?? errorMsg;
+                                            }
+                                        }
+                                        tcs.TrySetException(new Exception(errorMsg));
+                                    }
+                                    continue; // Don't emit to MessageReceived for handled responses
+                                }
+                            }
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Not JSON or malformed, continue to emit as-is
+                    }
                     
                     MessageReceived?.Invoke(this, new GatewayMessageEventArgs(message));
                 }

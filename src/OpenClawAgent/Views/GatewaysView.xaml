@@ -39,6 +39,17 @@
                              SelectedItem="{Binding SelectedGateway}"
                              Background="Transparent"
                              BorderThickness="0">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="🔗 Connect" Command="{Binding ConnectCommand}"/>
+                                <MenuItem Header="🧪 Test Connection" Command="{Binding TestConnectionCommand}"/>
+                                <MenuItem Header="🔌 Disconnect" Command="{Binding DisconnectCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="⭐ Set as Default" Command="{Binding SetAsDefaultCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="🗑️ Delete" Command="{Binding RemoveGatewayCommand}"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Border Background="{StaticResource CardBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,8">

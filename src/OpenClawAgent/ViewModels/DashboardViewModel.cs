@@ -22,10 +22,10 @@ public partial class DashboardViewModel : ObservableObject
     private string _gatewayUptime = "-";
 
     [ObservableProperty]
-    private int _activeJobs;
+    private int _activeSessions;
 
     [ObservableProperty]
-    private int _pendingTasks;
+    private int _cronJobs;
 
     [ObservableProperty]
     private string _lastSync = "Never";
@@ -45,19 +45,33 @@ public partial class DashboardViewModel : ObservableObject
                 case nameof(GatewayManager.ActiveGateway):
                     GatewayUrl = _gatewayManager.ActiveGateway?.Url ?? "-";
                     break;
+                case nameof(GatewayManager.GatewayUptime):
+                    GatewayUptime = _gatewayManager.GatewayUptime;
+                    break;
+                case nameof(GatewayManager.ActiveSessions):
+                    ActiveSessions = _gatewayManager.ActiveSessions;
+                    break;
+                case nameof(GatewayManager.CronJobs):
+                    CronJobs = _gatewayManager.CronJobs;
+                    break;
+                case nameof(GatewayManager.LastSyncText):
+                    LastSync = _gatewayManager.LastSyncText;
+                    break;
             }
         };
         
         // Initialize with current state
         GatewayConnected = _gatewayManager.IsConnected;
         GatewayUrl = _gatewayManager.ActiveGateway?.Url ?? "-";
+        GatewayUptime = _gatewayManager.GatewayUptime;
+        ActiveSessions = _gatewayManager.ActiveSessions;
+        CronJobs = _gatewayManager.CronJobs;
+        LastSync = _gatewayManager.LastSyncText;
     }
 
     [RelayCommand]
-    private void RefreshStatus()
+    private async Task RefreshStatusAsync()
     {
-        GatewayConnected = _gatewayManager.IsConnected;
-        GatewayUrl = _gatewayManager.ActiveGateway?.Url ?? "-";
-        LastSync = DateTime.Now.ToString("HH:mm:ss");
+        await _gatewayManager.SyncStatusAsync();
     }
 }
