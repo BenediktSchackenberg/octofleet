@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -21,7 +22,6 @@ public class NodeService : IDisposable
     private CancellationTokenSource? _receiveCts;
     private int _requestId = 0;
     private string? _nodeId;
-    private string? _nodeToken;
     private bool _isPaired;
     
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement?>> _pendingRequests = new();
@@ -31,7 +31,6 @@ public class NodeService : IDisposable
     public string? NodeId => _nodeId;
     
     public event EventHandler<bool>? ConnectionStateChanged;
-    public event EventHandler<NodeCommandEventArgs>? CommandReceived;
     public event EventHandler<string>? DebugMessage;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
