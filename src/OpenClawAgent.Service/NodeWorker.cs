@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OpenClawAgent.Service.Inventory;
 
 namespace OpenClawAgent.Service;
 
@@ -115,12 +116,38 @@ public class NodeWorker : BackgroundService
                 },
                 role = "node",
                 scopes = Array.Empty<string>(),
-                caps = new[] { "system" },
-                commands = new[] { "system.run", "system.which" },
+                caps = new[] { "system", "inventory" },
+                commands = new[] 
+                { 
+                    "system.run", 
+                    "system.which",
+                    "inventory.hardware",
+                    "inventory.software",
+                    "inventory.hotfixes",
+                    "inventory.system",
+                    "inventory.security",
+                    "inventory.browser",
+                    "inventory.browser.chrome",
+                    "inventory.browser.firefox",
+                    "inventory.browser.edge",
+                    "inventory.network",
+                    "inventory.full"
+                },
                 permissions = new Dictionary<string, bool>
                 {
                     { "system.run", true },
-                    { "system.which", true }
+                    { "system.which", true },
+                    { "inventory.hardware", true },
+                    { "inventory.software", true },
+                    { "inventory.hotfixes", true },
+                    { "inventory.system", true },
+                    { "inventory.security", true },
+                    { "inventory.browser", true },
+                    { "inventory.browser.chrome", true },
+                    { "inventory.browser.firefox", true },
+                    { "inventory.browser.edge", true },
+                    { "inventory.network", true },
+                    { "inventory.full", true }
                 },
                 auth = new { token = config.GatewayToken },
                 userAgent = $"openclaw-windows-service/0.2.0 ({config.DisplayName})"
@@ -369,6 +396,51 @@ public class NodeWorker : BackgroundService
                     
                 case "node.ping":
                     result = new { pong = true, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+                    break;
+                
+                // Inventory commands
+                case "inventory.full":
+                    result = await InventoryCollector.CollectFullAsync();
+                    break;
+                    
+                case "inventory.hardware":
+                    result = await InventoryCollector.CollectAsync("hardware");
+                    break;
+                    
+                case "inventory.software":
+                    result = await InventoryCollector.CollectAsync("software");
+                    break;
+                    
+                case "inventory.hotfixes":
+                    result = await InventoryCollector.CollectAsync("hotfixes");
+                    break;
+                    
+                case "inventory.system":
+                    result = await InventoryCollector.CollectAsync("system");
+                    break;
+                    
+                case "inventory.security":
+                    result = await InventoryCollector.CollectAsync("security");
+                    break;
+                    
+                case "inventory.browser":
+                    result = await InventoryCollector.CollectAsync("browser");
+                    break;
+                    
+                case "inventory.browser.chrome":
+                    result = await InventoryCollector.CollectAsync("browser.chrome");
+                    break;
+                    
+                case "inventory.browser.firefox":
+                    result = await InventoryCollector.CollectAsync("browser.firefox");
+                    break;
+                    
+                case "inventory.browser.edge":
+                    result = await InventoryCollector.CollectAsync("browser.edge");
+                    break;
+                    
+                case "inventory.network":
+                    result = await InventoryCollector.CollectAsync("network");
                     break;
                     
                 default:
