@@ -270,9 +270,7 @@ public class GatewayService : IDisposable
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         
         // Build connect request following OpenClaw Gateway Protocol v3
-        // client.id = identifier for the client type (from GATEWAY_CLIENT_IDS)
-        // client.mode = connection mode (operator clients use "ui" or "cli")
-        // role = authorization role ("operator" for control plane clients)
+        // When allowInsecureAuth is enabled on the gateway, device can be omitted
         var request = new
         {
             type = "req",
@@ -296,15 +294,8 @@ public class GatewayService : IDisposable
                 permissions = new { },
                 auth = new { token = token ?? "" },
                 locale = System.Globalization.CultureInfo.CurrentCulture.Name,
-                userAgent = $"openclaw-windows-agent/0.2.0 ({Environment.OSVersion.Platform})",
-                device = new
-                {
-                    id = deviceId,
-                    publicKey = deviceId, // Use deviceId as placeholder (min 1 char required)
-                    signature = "insecure", // Placeholder for dangerouslyDisableDeviceAuth mode
-                    signedAt = timestamp,
-                    nonce = nonce ?? "0" // Must have value
-                }
+                userAgent = $"openclaw-windows-agent/0.2.0 ({Environment.OSVersion.Platform})"
+                // device omitted - requires gateway.controlUi.allowInsecureAuth: true
             }
         };
 
