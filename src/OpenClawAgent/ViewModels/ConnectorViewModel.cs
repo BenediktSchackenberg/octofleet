@@ -378,7 +378,7 @@ public partial class ConnectorViewModel : ObservableObject
         {
             Hostname = NewHostname,
             Username = NewUsername,
-            Status = "Unknown"
+            Status = HostStatus.Unknown
         };
 
         Hosts.Add(host);
@@ -405,7 +405,7 @@ public partial class ConnectorViewModel : ObservableObject
         await Task.Delay(2000);
         
         DeploymentStatus = $"Deployed to {SelectedHost.Hostname}";
-        SelectedHost.Status = "Deployed";
+        SelectedHost.Status = HostStatus.Deployed;
         IsDeploying = false;
     }
 
@@ -417,7 +417,7 @@ public partial class ConnectorViewModel : ObservableObject
         {
             DeploymentStatus = $"Deploying to {host.Hostname}...";
             await Task.Delay(1000);
-            host.Status = "Deployed";
+            host.Status = HostStatus.Deployed;
         }
         DeploymentStatus = "Deployment complete!";
         IsDeploying = false;
