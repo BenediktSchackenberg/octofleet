@@ -139,7 +139,7 @@ public class ServiceController
     }
 
     /// <summary>
-    /// Start the service
+    /// Start the service (requires admin - triggers UAC)
     /// </summary>
     public static async Task<(bool success, string message)> StartAsync()
     {
@@ -151,13 +151,17 @@ public class ServiceController
 
         try
         {
-            using var sc = new System.ServiceProcess.ServiceController(ServiceName);
-            sc.Start();
+            var result = await RunScAsync($"start {ServiceName}");
+            if (!result.success)
+                return result;
+
+            // Wait a bit for the service to start
+            await Task.Delay(2000);
             
-            // Wait for it to start (max 30 seconds)
-            await Task.Run(() => sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30)));
-            
-            return (true, "Service started successfully.");
+            if (IsRunning)
+                return (true, "Service started successfully.");
+            else
+                return (false, "Service did not start. Check Event Logs for details.");
         }
         catch (Exception ex)
         {
@@ -166,7 +170,7 @@ public class ServiceController
     }
 
     /// <summary>
-    /// Stop the service
+    /// Stop the service (requires admin - triggers UAC)
     /// </summary>
     public static async Task<(bool success, string message)> StopAsync()
     {
@@ -178,13 +182,17 @@ public class ServiceController
 
         try
         {
-            using var sc = new System.ServiceProcess.ServiceController(ServiceName);
-            sc.Stop();
+            var result = await RunScAsync($"stop {ServiceName}");
+            if (!result.success)
+                return result;
+
+            // Wait a bit for the service to stop
+            await Task.Delay(2000);
             
-            // Wait for it to stop (max 30 seconds)
-            await Task.Run(() => sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30)));
-            
-            return (true, "Service stopped successfully.");
+            if (!IsRunning)
+                return (true, "Service stopped successfully.");
+            else
+                return (false, "Service did not stop.");
         }
         catch (Exception ex)
         {
