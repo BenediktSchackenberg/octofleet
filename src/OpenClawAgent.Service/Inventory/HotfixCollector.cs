@@ -2,16 +2,31 @@ using System.Management;
 
 namespace OpenClawAgent.Service.Inventory;
 
+public class HotfixInfo
+{
+    public string? KbId { get; set; }
+    public string? Description { get; set; }
+    public string? InstalledOn { get; set; }
+    public string? InstalledBy { get; set; }
+}
+
+public class HotfixResult
+{
+    public int Count { get; set; }
+    public List<HotfixInfo> Hotfixes { get; set; } = new();
+    public string? Error { get; set; }
+}
+
 /// <summary>
 /// Collects Windows Hotfixes/Updates via WMI
 /// </summary>
 public static class HotfixCollector
 {
-    public static async Task<object> CollectAsync()
+    public static async Task<HotfixResult> CollectAsync()
     {
         return await Task.Run(() =>
         {
-            var hotfixes = new List<object>();
+            var result = new HotfixResult();
 
             try
             {
@@ -22,25 +37,26 @@ public static class HotfixCollector
                     var hotfixId = obj["HotFixID"]?.ToString();
                     if (string.IsNullOrEmpty(hotfixId)) continue;
 
-                    hotfixes.Add(new
+                    result.Hotfixes.Add(new HotfixInfo
                     {
-                        kbId = hotfixId,
-                        description = obj["Description"]?.ToString(),
-                        installedOn = ParseDate(obj["InstalledOn"]?.ToString()),
-                        installedBy = obj["InstalledBy"]?.ToString()
+                        KbId = hotfixId,
+                        Description = obj["Description"]?.ToString(),
+                        InstalledOn = ParseDate(obj["InstalledOn"]?.ToString()),
+                        InstalledBy = obj["InstalledBy"]?.ToString()
                     });
                 }
+
+                result.Count = result.Hotfixes.Count;
+                result.Hotfixes = result.Hotfixes
+                    .OrderByDescending(h => h.InstalledOn)
+                    .ToList();
             }
             catch (Exception ex)
             {
-                return new { error = ex.Message, hotfixes = hotfixes };
+                result.Error = ex.Message;
             }
 
-            return new
-            {
-                count = hotfixes.Count,
-                hotfixes = hotfixes.OrderByDescending(h => ((dynamic)h).installedOn).ToList()
-            };
+            return result;
         });
     }
 

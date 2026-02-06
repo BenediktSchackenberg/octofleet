@@ -4,39 +4,138 @@ using System.Text.Json;
 
 namespace OpenClawAgent.Service.Inventory;
 
+#region DTOs
+public class AntivirusProduct
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public bool UpToDate { get; set; }
+    public uint ProductState { get; set; }
+    public string? PathToSignedProductExe { get; set; }
+}
+
+public class DefenderStatus
+{
+    public bool Available { get; set; }
+    public bool? AntivirusEnabled { get; set; }
+    public bool? AntispywareEnabled { get; set; }
+    public bool? RealTimeProtectionEnabled { get; set; }
+    public bool? BehaviorMonitorEnabled { get; set; }
+    public bool? IoavProtectionEnabled { get; set; }
+    public bool? NicProtectionEnabled { get; set; }
+    public string? SignatureLastUpdated { get; set; }
+    public string? SignatureVersion { get; set; }
+    public string? EngineVersion { get; set; }
+    public string? ProductVersion { get; set; }
+    public string? LastQuickScan { get; set; }
+    public string? LastFullScan { get; set; }
+    public string? Error { get; set; }
+}
+
+public class AntivirusResult
+{
+    public List<AntivirusProduct> Products { get; set; } = new();
+    public DefenderStatus? WindowsDefender { get; set; }
+}
+
+public class FirewallProfile
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+}
+
+public class FirewallResult
+{
+    public List<FirewallProfile> Profiles { get; set; } = new();
+}
+
+public class BitlockerVolume
+{
+    public string? MountPoint { get; set; }
+    public string? VolumeStatus { get; set; }
+    public string? ProtectionStatus { get; set; }
+    public string? EncryptionMethod { get; set; }
+}
+
+public class BitlockerResult
+{
+    public bool Available { get; set; } = true;
+    public string? Reason { get; set; }
+    public List<BitlockerVolume> Volumes { get; set; } = new();
+}
+
+public class TpmInfo
+{
+    public bool Present { get; set; }
+    public bool Ready { get; set; }
+    public bool Enabled { get; set; }
+    public bool Activated { get; set; }
+    public bool Owned { get; set; }
+    public string? ManufacturerId { get; set; }
+    public string? ManufacturerVersion { get; set; }
+    public string? Error { get; set; }
+}
+
+public class UacInfo
+{
+    public bool Enabled { get; set; }
+    public int ConsentPromptBehavior { get; set; }
+    public bool SecureDesktopPrompt { get; set; }
+    public string? Error { get; set; }
+}
+
+public class SecureBootInfo
+{
+    public bool Supported { get; set; }
+    public bool Enabled { get; set; }
+    public string? Reason { get; set; }
+}
+
+public class SecurityResult
+{
+    public AntivirusResult Antivirus { get; set; } = new();
+    public FirewallResult Firewall { get; set; } = new();
+    public BitlockerResult Bitlocker { get; set; } = new();
+    public TpmInfo Tpm { get; set; } = new();
+    public UacInfo Uac { get; set; } = new();
+    public SecureBootInfo SecureBoot { get; set; } = new();
+}
+#endregion
+
 /// <summary>
 /// Collects security information: AV, Firewall, BitLocker, TPM
 /// </summary>
 public static class SecurityCollector
 {
-    public static async Task<object> CollectAsync()
+    public static async Task<SecurityResult> CollectAsync()
     {
-        var tasks = new List<Task<(string key, object value)>>
+        var result = new SecurityResult();
+
+        var tasks = new List<Task>
         {
-            Task.Run(() => ("antivirus", GetAntivirusInfo())),
-            Task.Run(() => ("firewall", GetFirewallInfo())),
-            Task.Run(() => ("bitlocker", GetBitLockerInfo())),
-            Task.Run(() => ("tpm", GetTpmInfo())),
-            Task.Run(() => ("uac", GetUacInfo())),
-            Task.Run(() => ("secureBoot", GetSecureBootInfo()))
+            Task.Run(() => result.Antivirus = GetAntivirusInfo()),
+            Task.Run(() => result.Firewall = GetFirewallInfo()),
+            Task.Run(() => result.Bitlocker = GetBitLockerInfo()),
+            Task.Run(() => result.Tpm = GetTpmInfo()),
+            Task.Run(() => result.Uac = GetUacInfo()),
+            Task.Run(() => result.SecureBoot = GetSecureBootInfo())
         };
 
-        var results = await Task.WhenAll(tasks);
-        var dict = results.ToDictionary(r => r.key, r => r.value);
+        await Task.WhenAll(tasks);
 
-        return dict;
+        return result;
     }
 
-    private static object GetAntivirusInfo()
+    private static AntivirusResult GetAntivirusInfo()
     {
+        var result = new AntivirusResult();
+
         try
         {
             // Try Windows Security Center first (Win10+)
             using var searcher = new ManagementObjectSearcher(
                 @"root\SecurityCenter2",
                 "SELECT * FROM AntiVirusProduct");
-            
-            var products = new List<object>();
 
             foreach (ManagementObject obj in searcher.Get())
             {
@@ -44,32 +143,28 @@ public static class SecurityCollector
                 var enabled = ((state >> 12) & 0xF) == 1;
                 var upToDate = ((state >> 4) & 0xF) == 0;
 
-                products.Add(new
+                result.Products.Add(new AntivirusProduct
                 {
-                    name = obj["displayName"]?.ToString(),
-                    enabled = enabled,
-                    upToDate = upToDate,
-                    productState = state,
-                    pathToSignedProductExe = obj["pathToSignedProductExe"]?.ToString()
+                    Name = obj["displayName"]?.ToString(),
+                    Enabled = enabled,
+                    UpToDate = upToDate,
+                    ProductState = state,
+                    PathToSignedProductExe = obj["pathToSignedProductExe"]?.ToString()
                 });
             }
 
             // Also try Windows Defender specific
-            var defender = GetDefenderStatus();
-
-            return new
-            {
-                products = products,
-                windowsDefender = defender
-            };
+            result.WindowsDefender = GetDefenderStatus();
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            // Security Center not available
         }
+
+        return result;
     }
 
-    private static object GetDefenderStatus()
+    private static DefenderStatus GetDefenderStatus()
     {
         try
         {
@@ -84,41 +179,43 @@ public static class SecurityCollector
             };
 
             using var process = Process.Start(psi);
-            if (process == null) return new { error = "Failed to start PowerShell" };
+            if (process == null) return new DefenderStatus { Error = "Failed to start PowerShell" };
 
             var output = process.StandardOutput.ReadToEnd();
             process.WaitForExit(5000);
 
-            if (string.IsNullOrEmpty(output)) return new { available = false };
+            if (string.IsNullOrEmpty(output)) return new DefenderStatus { Available = false };
 
             var json = JsonDocument.Parse(output);
             var root = json.RootElement;
 
-            return new
+            return new DefenderStatus
             {
-                available = true,
-                antivirusEnabled = GetBoolProp(root, "AntivirusEnabled"),
-                antispywareEnabled = GetBoolProp(root, "AntispywareEnabled"),
-                realTimeProtectionEnabled = GetBoolProp(root, "RealTimeProtectionEnabled"),
-                behaviorMonitorEnabled = GetBoolProp(root, "BehaviorMonitorEnabled"),
-                ioavProtectionEnabled = GetBoolProp(root, "IoavProtectionEnabled"),
-                nicProtectionEnabled = GetBoolProp(root, "NISEnabled"),
-                signatureLastUpdated = GetStringProp(root, "AntivirusSignatureLastUpdated"),
-                signatureVersion = GetStringProp(root, "AntivirusSignatureVersion"),
-                engineVersion = GetStringProp(root, "AMEngineVersion"),
-                productVersion = GetStringProp(root, "AMProductVersion"),
-                lastQuickScan = GetStringProp(root, "QuickScanEndTime"),
-                lastFullScan = GetStringProp(root, "FullScanEndTime")
+                Available = true,
+                AntivirusEnabled = GetBoolProp(root, "AntivirusEnabled"),
+                AntispywareEnabled = GetBoolProp(root, "AntispywareEnabled"),
+                RealTimeProtectionEnabled = GetBoolProp(root, "RealTimeProtectionEnabled"),
+                BehaviorMonitorEnabled = GetBoolProp(root, "BehaviorMonitorEnabled"),
+                IoavProtectionEnabled = GetBoolProp(root, "IoavProtectionEnabled"),
+                NicProtectionEnabled = GetBoolProp(root, "NISEnabled"),
+                SignatureLastUpdated = GetStringProp(root, "AntivirusSignatureLastUpdated"),
+                SignatureVersion = GetStringProp(root, "AntivirusSignatureVersion"),
+                EngineVersion = GetStringProp(root, "AMEngineVersion"),
+                ProductVersion = GetStringProp(root, "AMProductVersion"),
+                LastQuickScan = GetStringProp(root, "QuickScanEndTime"),
+                LastFullScan = GetStringProp(root, "FullScanEndTime")
             };
         }
         catch (Exception ex)
         {
-            return new { error = ex.Message };
+            return new DefenderStatus { Error = ex.Message };
         }
     }
 
-    private static object GetFirewallInfo()
+    private static FirewallResult GetFirewallInfo()
     {
+        var result = new FirewallResult();
+
         try
         {
             var psi = new ProcessStartInfo
@@ -131,38 +228,51 @@ public static class SecurityCollector
             };
 
             using var process = Process.Start(psi);
-            if (process == null) return new { error = "Failed to start PowerShell" };
+            if (process == null) return result;
 
             var output = process.StandardOutput.ReadToEnd();
             process.WaitForExit(5000);
 
-            if (string.IsNullOrEmpty(output)) return new { available = false };
+            if (string.IsNullOrEmpty(output)) return result;
 
-            var profiles = JsonSerializer.Deserialize<List<FirewallProfile>>(output);
-            
-            return new
+            // Handle single object vs array
+            if (output.TrimStart().StartsWith("["))
             {
-                profiles = profiles?.Select(p => new
+                var profiles = JsonSerializer.Deserialize<List<JsonElement>>(output);
+                if (profiles != null)
                 {
-                    name = p.Name,
-                    enabled = p.Enabled
-                }).ToList()
-            };
+                    foreach (var p in profiles)
+                    {
+                        result.Profiles.Add(new FirewallProfile
+                        {
+                            Name = GetStringProp(p, "Name"),
+                            Enabled = GetBoolProp(p, "Enabled") ?? false
+                        });
+                    }
+                }
+            }
+            else
+            {
+                var p = JsonSerializer.Deserialize<JsonElement>(output);
+                result.Profiles.Add(new FirewallProfile
+                {
+                    Name = GetStringProp(p, "Name"),
+                    Enabled = GetBoolProp(p, "Enabled") ?? false
+                });
+            }
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            // Ignore errors
         }
+
+        return result;
     }
 
-    private class FirewallProfile
+    private static BitlockerResult GetBitLockerInfo()
     {
-        public string? Name { get; set; }
-        public bool Enabled { get; set; }
-    }
+        var result = new BitlockerResult();
 
-    private static object GetBitLockerInfo()
-    {
         try
         {
             var psi = new ProcessStartInfo
@@ -176,7 +286,7 @@ public static class SecurityCollector
             };
 
             using var process = Process.Start(psi);
-            if (process == null) return new { error = "Failed to start PowerShell" };
+            if (process == null) return result;
 
             var output = process.StandardOutput.ReadToEnd();
             var error = process.StandardError.ReadToEnd();
@@ -184,46 +294,52 @@ public static class SecurityCollector
 
             if (!string.IsNullOrEmpty(error) && error.Contains("not recognized"))
             {
-                return new { available = false, reason = "BitLocker cmdlet not available" };
+                result.Available = false;
+                result.Reason = "BitLocker cmdlet not available";
+                return result;
             }
 
-            if (string.IsNullOrEmpty(output)) return new { volumes = new List<object>() };
+            if (string.IsNullOrEmpty(output)) return result;
 
             // Handle single object vs array
-            object? parsed;
             if (output.TrimStart().StartsWith("["))
             {
-                parsed = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(output);
+                var volumes = JsonSerializer.Deserialize<List<JsonElement>>(output);
+                if (volumes != null)
+                {
+                    foreach (var v in volumes)
+                    {
+                        result.Volumes.Add(new BitlockerVolume
+                        {
+                            MountPoint = GetStringProp(v, "MountPoint"),
+                            VolumeStatus = GetStringProp(v, "VolumeStatus"),
+                            ProtectionStatus = GetStringProp(v, "ProtectionStatus"),
+                            EncryptionMethod = GetStringProp(v, "EncryptionMethod")
+                        });
+                    }
+                }
             }
             else
             {
-                var single = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(output);
-                parsed = single != null ? new List<Dictionary<string, JsonElement>> { single } : null;
-            }
-
-            if (parsed is List<Dictionary<string, JsonElement>> volumes)
-            {
-                return new
+                var v = JsonSerializer.Deserialize<JsonElement>(output);
+                result.Volumes.Add(new BitlockerVolume
                 {
-                    volumes = volumes.Select(v => new
-                    {
-                        mountPoint = GetElementString(v, "MountPoint"),
-                        volumeStatus = GetElementString(v, "VolumeStatus"),
-                        protectionStatus = GetElementString(v, "ProtectionStatus"),
-                        encryptionMethod = GetElementString(v, "EncryptionMethod")
-                    }).ToList()
-                };
+                    MountPoint = GetStringProp(v, "MountPoint"),
+                    VolumeStatus = GetStringProp(v, "VolumeStatus"),
+                    ProtectionStatus = GetStringProp(v, "ProtectionStatus"),
+                    EncryptionMethod = GetStringProp(v, "EncryptionMethod")
+                });
             }
-
-            return new { volumes = new List<object>() };
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            // Ignore errors
         }
+
+        return result;
     }
 
-    private static object GetTpmInfo()
+    private static TpmInfo GetTpmInfo()
     {
         try
         {
@@ -238,7 +354,7 @@ public static class SecurityCollector
             };
 
             using var process = Process.Start(psi);
-            if (process == null) return new { error = "Failed to start PowerShell" };
+            if (process == null) return new TpmInfo { Error = "Failed to start PowerShell" };
 
             var output = process.StandardOutput.ReadToEnd();
             var error = process.StandardError.ReadToEnd();
@@ -246,58 +362,58 @@ public static class SecurityCollector
 
             if (!string.IsNullOrEmpty(error) && error.Contains("not recognized"))
             {
-                return new { available = false };
+                return new TpmInfo { Present = false };
             }
 
-            if (string.IsNullOrEmpty(output)) return new { present = false };
+            if (string.IsNullOrEmpty(output)) return new TpmInfo { Present = false };
 
             var json = JsonDocument.Parse(output);
             var root = json.RootElement;
 
-            return new
+            return new TpmInfo
             {
-                present = GetBoolProp(root, "TpmPresent"),
-                ready = GetBoolProp(root, "TpmReady"),
-                enabled = GetBoolProp(root, "TpmEnabled"),
-                activated = GetBoolProp(root, "TpmActivated"),
-                owned = GetBoolProp(root, "TpmOwned"),
-                manufacturerId = GetStringProp(root, "ManufacturerId"),
-                manufacturerVersion = GetStringProp(root, "ManufacturerVersion")
+                Present = GetBoolProp(root, "TpmPresent") ?? false,
+                Ready = GetBoolProp(root, "TpmReady") ?? false,
+                Enabled = GetBoolProp(root, "TpmEnabled") ?? false,
+                Activated = GetBoolProp(root, "TpmActivated") ?? false,
+                Owned = GetBoolProp(root, "TpmOwned") ?? false,
+                ManufacturerId = GetStringProp(root, "ManufacturerId"),
+                ManufacturerVersion = GetStringProp(root, "ManufacturerVersion")
             };
         }
         catch (Exception ex)
         {
-            return new { error = ex.Message };
+            return new TpmInfo { Error = ex.Message };
         }
     }
 
-    private static object GetUacInfo()
+    private static UacInfo GetUacInfo()
     {
         try
         {
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System");
             
-            if (key == null) return new { error = "Cannot read UAC settings" };
+            if (key == null) return new UacInfo { Error = "Cannot read UAC settings" };
 
             var enableLUA = key.GetValue("EnableLUA");
             var consentPrompt = key.GetValue("ConsentPromptBehaviorAdmin");
             var secureDesktop = key.GetValue("PromptOnSecureDesktop");
 
-            return new
+            return new UacInfo
             {
-                enabled = enableLUA != null && Convert.ToInt32(enableLUA) == 1,
-                consentPromptBehavior = consentPrompt != null ? Convert.ToInt32(consentPrompt) : -1,
-                secureDesktopPrompt = secureDesktop != null && Convert.ToInt32(secureDesktop) == 1
+                Enabled = enableLUA != null && Convert.ToInt32(enableLUA) == 1,
+                ConsentPromptBehavior = consentPrompt != null ? Convert.ToInt32(consentPrompt) : -1,
+                SecureDesktopPrompt = secureDesktop != null && Convert.ToInt32(secureDesktop) == 1
             };
         }
         catch (Exception ex)
         {
-            return new { error = ex.Message };
+            return new UacInfo { Error = ex.Message };
         }
     }
 
-    private static object GetSecureBootInfo()
+    private static SecureBootInfo GetSecureBootInfo()
     {
         try
         {
@@ -312,7 +428,7 @@ public static class SecurityCollector
             };
 
             using var process = Process.Start(psi);
-            if (process == null) return new { error = "Failed to start PowerShell" };
+            if (process == null) return new SecureBootInfo { Supported = false };
 
             var output = process.StandardOutput.ReadToEnd().Trim();
             var error = process.StandardError.ReadToEnd();
@@ -321,28 +437,31 @@ public static class SecurityCollector
             if (!string.IsNullOrEmpty(error))
             {
                 if (error.Contains("not supported"))
-                    return new { supported = false, reason = "Not UEFI system" };
+                    return new SecureBootInfo { Supported = false, Reason = "Not UEFI system" };
                 if (error.Contains("Cmdlet not supported"))
-                    return new { supported = false, reason = "Cmdlet not available" };
+                    return new SecureBootInfo { Supported = false, Reason = "Cmdlet not available" };
             }
 
-            return new
+            return new SecureBootInfo
             {
-                supported = true,
-                enabled = output.Equals("True", StringComparison.OrdinalIgnoreCase)
+                Supported = true,
+                Enabled = output.Equals("True", StringComparison.OrdinalIgnoreCase)
             };
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return new SecureBootInfo { Supported = false };
         }
     }
 
-    private static bool GetBoolProp(JsonElement element, string name)
+    private static bool? GetBoolProp(JsonElement element, string name)
     {
-        if (element.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.True)
-            return true;
-        return false;
+        if (element.TryGetProperty(name, out var prop))
+        {
+            if (prop.ValueKind == JsonValueKind.True) return true;
+            if (prop.ValueKind == JsonValueKind.False) return false;
+        }
+        return null;
     }
 
     private static string? GetStringProp(JsonElement element, string name)
@@ -351,20 +470,9 @@ public static class SecurityCollector
         {
             if (prop.ValueKind == JsonValueKind.String)
                 return prop.GetString();
+            if (prop.ValueKind == JsonValueKind.Number)
+                return prop.GetInt32().ToString();
             return prop.ToString();
-        }
-        return null;
-    }
-
-    private static string? GetElementString(Dictionary<string, JsonElement> dict, string key)
-    {
-        if (dict.TryGetValue(key, out var element))
-        {
-            if (element.ValueKind == JsonValueKind.String)
-                return element.GetString();
-            if (element.ValueKind == JsonValueKind.Number)
-                return element.GetInt32().ToString();
-            return element.ToString();
         }
         return null;
     }

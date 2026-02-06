@@ -5,26 +5,155 @@ using Microsoft.Win32;
 
 namespace OpenClawAgent.Service.Inventory;
 
+// DTOs for type-safe returns
+public class CpuInfo
+{
+    public string? Name { get; set; }
+    public string? Manufacturer { get; set; }
+    public int Cores { get; set; }
+    public int LogicalProcessors { get; set; }
+    public int MaxClockSpeedMHz { get; set; }
+    public string? Architecture { get; set; }
+    public string? SocketDesignation { get; set; }
+    public int L2CacheKB { get; set; }
+    public int L3CacheKB { get; set; }
+    public string? ProcessorId { get; set; }
+}
+
+public class RamModule
+{
+    public string? Manufacturer { get; set; }
+    public string? PartNumber { get; set; }
+    public string? SerialNumber { get; set; }
+    public double CapacityGB { get; set; }
+    public int SpeedMHz { get; set; }
+    public string? FormFactor { get; set; }
+    public string? MemoryType { get; set; }
+    public string? BankLabel { get; set; }
+    public string? DeviceLocator { get; set; }
+}
+
+public class RamInfo
+{
+    public double TotalGB { get; set; }
+    public int ModuleCount { get; set; }
+    public List<RamModule> Modules { get; set; } = new();
+}
+
+public class DiskInfo
+{
+    public string? Model { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? SerialNumber { get; set; }
+    public double SizeGB { get; set; }
+    public string? InterfaceType { get; set; }
+    public string? MediaType { get; set; }
+    public int Partitions { get; set; }
+    public string? DeviceId { get; set; }
+}
+
+public class VolumeInfo
+{
+    public string? DriveLetter { get; set; }
+    public string? VolumeName { get; set; }
+    public string? FileSystem { get; set; }
+    public double SizeGB { get; set; }
+    public double FreeGB { get; set; }
+    public double UsedPercent { get; set; }
+}
+
+public class DiskResult
+{
+    public List<DiskInfo> Physical { get; set; } = new();
+    public List<VolumeInfo> Volumes { get; set; } = new();
+}
+
+public class MainboardInfo
+{
+    public string? Manufacturer { get; set; }
+    public string? Product { get; set; }
+    public string? Version { get; set; }
+    public string? SerialNumber { get; set; }
+    public string? Error { get; set; }
+}
+
+public class BiosInfo
+{
+    public string? Manufacturer { get; set; }
+    public string? Name { get; set; }
+    public string? Version { get; set; }
+    public string? SmbiosVersion { get; set; }
+    public string? ReleaseDate { get; set; }
+    public string? SerialNumber { get; set; }
+    public string? Error { get; set; }
+}
+
+public class GpuInfo
+{
+    public string? Name { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? DriverVersion { get; set; }
+    public string? DriverDate { get; set; }
+    public double? VideoMemoryGB { get; set; }
+    public string? CurrentResolution { get; set; }
+    public string? RefreshRate { get; set; }
+}
+
+public class NicInfo
+{
+    public string? Name { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? MacAddress { get; set; }
+    public long? SpeedMbps { get; set; }
+    public string? ConnectionStatus { get; set; }
+    public string? AdapterType { get; set; }
+    public string? DeviceId { get; set; }
+}
+
+public class NicConfig
+{
+    public string[]? IpAddresses { get; set; }
+    public string[]? Gateways { get; set; }
+    public string[]? DnsServers { get; set; }
+    public bool DhcpEnabled { get; set; }
+}
+
+public class NicResult
+{
+    public List<NicInfo> Adapters { get; set; } = new();
+    public Dictionary<string, NicConfig> Configurations { get; set; } = new();
+}
+
+public class HardwareResult
+{
+    public object? Cpu { get; set; }
+    public RamInfo? Ram { get; set; }
+    public DiskResult? Disks { get; set; }
+    public MainboardInfo? Mainboard { get; set; }
+    public BiosInfo? Bios { get; set; }
+    public List<GpuInfo>? Gpu { get; set; }
+    public NicResult? Nics { get; set; }
+}
+
 /// <summary>
 /// Collects hardware information via WMI
 /// </summary>
 public static class HardwareCollector
 {
-    public static async Task<object> CollectAsync()
+    public static async Task<HardwareResult> CollectAsync()
     {
         return await Task.Run(() =>
         {
-            var result = new
+            return new HardwareResult
             {
-                cpu = GetCpuInfo(),
-                ram = GetRamInfo(),
-                disks = GetDiskInfo(),
-                mainboard = GetMainboardInfo(),
-                bios = GetBiosInfo(),
-                gpu = GetGpuInfo(),
-                nics = GetNicInfo()
+                Cpu = GetCpuInfo(),
+                Ram = GetRamInfo(),
+                Disks = GetDiskInfo(),
+                Mainboard = GetMainboardInfo(),
+                Bios = GetBiosInfo(),
+                Gpu = GetGpuInfo(),
+                Nics = GetNicInfo()
             };
-            return result;
         });
     }
 
@@ -33,22 +162,22 @@ public static class HardwareCollector
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor");
-            var cpus = new List<object>();
+            var cpus = new List<CpuInfo>();
             
             foreach (ManagementObject obj in searcher.Get())
             {
-                cpus.Add(new
+                cpus.Add(new CpuInfo
                 {
-                    name = obj["Name"]?.ToString()?.Trim(),
-                    manufacturer = obj["Manufacturer"]?.ToString(),
-                    cores = Convert.ToInt32(obj["NumberOfCores"] ?? 0),
-                    logicalProcessors = Convert.ToInt32(obj["NumberOfLogicalProcessors"] ?? 0),
-                    maxClockSpeedMHz = Convert.ToInt32(obj["MaxClockSpeed"] ?? 0),
-                    architecture = GetArchitecture(obj["Architecture"]),
-                    socketDesignation = obj["SocketDesignation"]?.ToString(),
-                    l2CacheKB = Convert.ToInt32(obj["L2CacheSize"] ?? 0),
-                    l3CacheKB = Convert.ToInt32(obj["L3CacheSize"] ?? 0),
-                    processorId = obj["ProcessorId"]?.ToString()
+                    Name = obj["Name"]?.ToString()?.Trim(),
+                    Manufacturer = obj["Manufacturer"]?.ToString(),
+                    Cores = Convert.ToInt32(obj["NumberOfCores"] ?? 0),
+                    LogicalProcessors = Convert.ToInt32(obj["NumberOfLogicalProcessors"] ?? 0),
+                    MaxClockSpeedMHz = Convert.ToInt32(obj["MaxClockSpeed"] ?? 0),
+                    Architecture = GetArchitecture(obj["Architecture"]),
+                    SocketDesignation = obj["SocketDesignation"]?.ToString(),
+                    L2CacheKB = Convert.ToInt32(obj["L2CacheSize"] ?? 0),
+                    L3CacheKB = Convert.ToInt32(obj["L3CacheSize"] ?? 0),
+                    ProcessorId = obj["ProcessorId"]?.ToString()
                 });
             }
             
@@ -73,12 +202,12 @@ public static class HardwareCollector
         };
     }
 
-    private static object GetRamInfo()
+    private static RamInfo GetRamInfo()
     {
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory");
-            var modules = new List<object>();
+            var modules = new List<RamModule>();
             long totalBytes = 0;
 
             foreach (ManagementObject obj in searcher.Get())
@@ -86,30 +215,30 @@ public static class HardwareCollector
                 var capacity = Convert.ToInt64(obj["Capacity"] ?? 0);
                 totalBytes += capacity;
                 
-                modules.Add(new
+                modules.Add(new RamModule
                 {
-                    manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
-                    partNumber = obj["PartNumber"]?.ToString()?.Trim(),
-                    serialNumber = obj["SerialNumber"]?.ToString()?.Trim(),
-                    capacityGB = Math.Round(capacity / 1024.0 / 1024.0 / 1024.0, 2),
-                    speedMHz = Convert.ToInt32(obj["Speed"] ?? 0),
-                    formFactor = GetFormFactor(obj["FormFactor"]),
-                    memoryType = GetMemoryType(obj["SMBIOSMemoryType"]),
-                    bankLabel = obj["BankLabel"]?.ToString(),
-                    deviceLocator = obj["DeviceLocator"]?.ToString()
+                    Manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
+                    PartNumber = obj["PartNumber"]?.ToString()?.Trim(),
+                    SerialNumber = obj["SerialNumber"]?.ToString()?.Trim(),
+                    CapacityGB = Math.Round(capacity / 1024.0 / 1024.0 / 1024.0, 2),
+                    SpeedMHz = Convert.ToInt32(obj["Speed"] ?? 0),
+                    FormFactor = GetFormFactor(obj["FormFactor"]),
+                    MemoryType = GetMemoryType(obj["SMBIOSMemoryType"]),
+                    BankLabel = obj["BankLabel"]?.ToString(),
+                    DeviceLocator = obj["DeviceLocator"]?.ToString()
                 });
             }
 
-            return new
+            return new RamInfo
             {
-                totalGB = Math.Round(totalBytes / 1024.0 / 1024.0 / 1024.0, 2),
-                moduleCount = modules.Count,
-                modules = modules
+                TotalGB = Math.Round(totalBytes / 1024.0 / 1024.0 / 1024.0, 2),
+                ModuleCount = modules.Count,
+                Modules = modules
             };
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return new RamInfo();
         }
     }
 
@@ -138,12 +267,12 @@ public static class HardwareCollector
         };
     }
 
-    private static object GetDiskInfo()
+    private static DiskResult GetDiskInfo()
     {
+        var result = new DiskResult();
+
         try
         {
-            var disks = new List<object>();
-            
             // Physical disks
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_DiskDrive"))
             {
@@ -151,22 +280,21 @@ public static class HardwareCollector
                 {
                     var sizeBytes = Convert.ToInt64(obj["Size"] ?? 0);
                     
-                    disks.Add(new
+                    result.Physical.Add(new DiskInfo
                     {
-                        model = obj["Model"]?.ToString()?.Trim(),
-                        manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
-                        serialNumber = obj["SerialNumber"]?.ToString()?.Trim(),
-                        sizeGB = Math.Round(sizeBytes / 1024.0 / 1024.0 / 1024.0, 2),
-                        interfaceType = obj["InterfaceType"]?.ToString(),
-                        mediaType = obj["MediaType"]?.ToString(),
-                        partitions = Convert.ToInt32(obj["Partitions"] ?? 0),
-                        deviceId = obj["DeviceID"]?.ToString()
+                        Model = obj["Model"]?.ToString()?.Trim(),
+                        Manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
+                        SerialNumber = obj["SerialNumber"]?.ToString()?.Trim(),
+                        SizeGB = Math.Round(sizeBytes / 1024.0 / 1024.0 / 1024.0, 2),
+                        InterfaceType = obj["InterfaceType"]?.ToString(),
+                        MediaType = obj["MediaType"]?.ToString(),
+                        Partitions = Convert.ToInt32(obj["Partitions"] ?? 0),
+                        DeviceId = obj["DeviceID"]?.ToString()
                     });
                 }
             }
 
             // Add logical disk info (free space)
-            var volumes = new List<object>();
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_LogicalDisk WHERE DriveType=3"))
             {
                 foreach (ManagementObject obj in searcher.Get())
@@ -174,73 +302,73 @@ public static class HardwareCollector
                     var sizeBytes = Convert.ToInt64(obj["Size"] ?? 0);
                     var freeBytes = Convert.ToInt64(obj["FreeSpace"] ?? 0);
                     
-                    volumes.Add(new
+                    result.Volumes.Add(new VolumeInfo
                     {
-                        driveLetter = obj["DeviceID"]?.ToString(),
-                        volumeName = obj["VolumeName"]?.ToString(),
-                        fileSystem = obj["FileSystem"]?.ToString(),
-                        sizeGB = Math.Round(sizeBytes / 1024.0 / 1024.0 / 1024.0, 2),
-                        freeGB = Math.Round(freeBytes / 1024.0 / 1024.0 / 1024.0, 2),
-                        usedPercent = sizeBytes > 0 
+                        DriveLetter = obj["DeviceID"]?.ToString(),
+                        VolumeName = obj["VolumeName"]?.ToString(),
+                        FileSystem = obj["FileSystem"]?.ToString(),
+                        SizeGB = Math.Round(sizeBytes / 1024.0 / 1024.0 / 1024.0, 2),
+                        FreeGB = Math.Round(freeBytes / 1024.0 / 1024.0 / 1024.0, 2),
+                        UsedPercent = sizeBytes > 0 
                             ? Math.Round((1 - (freeBytes / (double)sizeBytes)) * 100, 1) 
                             : 0
                     });
                 }
             }
 
-            return new { physical = disks, volumes = volumes };
+            return result;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return result;
         }
     }
 
-    private static object GetMainboardInfo()
+    private static MainboardInfo GetMainboardInfo()
     {
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
             foreach (ManagementObject obj in searcher.Get())
             {
-                return new
+                return new MainboardInfo
                 {
-                    manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
-                    product = obj["Product"]?.ToString()?.Trim(),
-                    version = obj["Version"]?.ToString()?.Trim(),
-                    serialNumber = obj["SerialNumber"]?.ToString()?.Trim()
+                    Manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
+                    Product = obj["Product"]?.ToString()?.Trim(),
+                    Version = obj["Version"]?.ToString()?.Trim(),
+                    SerialNumber = obj["SerialNumber"]?.ToString()?.Trim()
                 };
             }
-            return new { error = "No mainboard found" };
+            return new MainboardInfo { Error = "No mainboard found" };
         }
         catch (Exception ex)
         {
-            return new { error = ex.Message };
+            return new MainboardInfo { Error = ex.Message };
         }
     }
 
-    private static object GetBiosInfo()
+    private static BiosInfo GetBiosInfo()
     {
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
             foreach (ManagementObject obj in searcher.Get())
             {
-                return new
+                return new BiosInfo
                 {
-                    manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
-                    name = obj["Name"]?.ToString()?.Trim(),
-                    version = obj["Version"]?.ToString()?.Trim(),
-                    smbiosVersion = obj["SMBIOSBIOSVersion"]?.ToString()?.Trim(),
-                    releaseDate = ParseWmiDate(obj["ReleaseDate"]?.ToString()),
-                    serialNumber = obj["SerialNumber"]?.ToString()?.Trim()
+                    Manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
+                    Name = obj["Name"]?.ToString()?.Trim(),
+                    Version = obj["Version"]?.ToString()?.Trim(),
+                    SmbiosVersion = obj["SMBIOSBIOSVersion"]?.ToString()?.Trim(),
+                    ReleaseDate = ParseWmiDate(obj["ReleaseDate"]?.ToString()),
+                    SerialNumber = obj["SerialNumber"]?.ToString()?.Trim()
                 };
             }
-            return new { error = "No BIOS found" };
+            return new BiosInfo { Error = "No BIOS found" };
         }
         catch (Exception ex)
         {
-            return new { error = ex.Message };
+            return new BiosInfo { Error = ex.Message };
         }
     }
 
@@ -260,65 +388,66 @@ public static class HardwareCollector
         }
     }
 
-    private static object GetGpuInfo()
+    private static List<GpuInfo> GetGpuInfo()
     {
+        var gpus = new List<GpuInfo>();
+
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController");
-            var gpus = new List<object>();
 
             foreach (ManagementObject obj in searcher.Get())
             {
                 var ramBytes = Convert.ToInt64(obj["AdapterRAM"] ?? 0);
                 
-                gpus.Add(new
+                gpus.Add(new GpuInfo
                 {
-                    name = obj["Name"]?.ToString()?.Trim(),
-                    manufacturer = obj["AdapterCompatibility"]?.ToString()?.Trim(),
-                    driverVersion = obj["DriverVersion"]?.ToString(),
-                    driverDate = ParseWmiDate(obj["DriverDate"]?.ToString()),
-                    videoMemoryGB = ramBytes > 0 ? Math.Round(ramBytes / 1024.0 / 1024.0 / 1024.0, 2) : null,
-                    currentResolution = $"{obj["CurrentHorizontalResolution"]}x{obj["CurrentVerticalResolution"]}",
-                    refreshRate = obj["CurrentRefreshRate"]?.ToString()
+                    Name = obj["Name"]?.ToString()?.Trim(),
+                    Manufacturer = obj["AdapterCompatibility"]?.ToString()?.Trim(),
+                    DriverVersion = obj["DriverVersion"]?.ToString(),
+                    DriverDate = ParseWmiDate(obj["DriverDate"]?.ToString()),
+                    VideoMemoryGB = ramBytes > 0 ? Math.Round(ramBytes / 1024.0 / 1024.0 / 1024.0, 2) : null,
+                    CurrentResolution = $"{obj["CurrentHorizontalResolution"]}x{obj["CurrentVerticalResolution"]}",
+                    RefreshRate = obj["CurrentRefreshRate"]?.ToString()
                 });
             }
 
             return gpus;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return gpus;
         }
     }
 
-    private static object GetNicInfo()
+    private static NicResult GetNicInfo()
     {
+        var result = new NicResult();
+
         try
         {
             using var searcher = new ManagementObjectSearcher(
                 "SELECT * FROM Win32_NetworkAdapter WHERE NetConnectionStatus IS NOT NULL");
-            var nics = new List<object>();
 
             foreach (ManagementObject obj in searcher.Get())
             {
                 var speedBps = Convert.ToInt64(obj["Speed"] ?? 0);
                 
-                nics.Add(new
+                result.Adapters.Add(new NicInfo
                 {
-                    name = obj["Name"]?.ToString()?.Trim(),
-                    manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
-                    macAddress = obj["MACAddress"]?.ToString(),
-                    speedMbps = speedBps > 0 ? speedBps / 1000000 : null,
-                    connectionStatus = GetConnectionStatus(obj["NetConnectionStatus"]),
-                    adapterType = obj["AdapterType"]?.ToString(),
-                    deviceId = obj["DeviceID"]?.ToString()
+                    Name = obj["Name"]?.ToString()?.Trim(),
+                    Manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
+                    MacAddress = obj["MACAddress"]?.ToString(),
+                    SpeedMbps = speedBps > 0 ? speedBps / 1000000 : null,
+                    ConnectionStatus = GetConnectionStatus(obj["NetConnectionStatus"]),
+                    AdapterType = obj["AdapterType"]?.ToString(),
+                    DeviceId = obj["DeviceID"]?.ToString()
                 });
             }
 
             // Also get IP configuration
             using var configSearcher = new ManagementObjectSearcher(
                 "SELECT * FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled=True");
-            var configs = new Dictionary<string, object>();
             
             foreach (ManagementObject obj in configSearcher.Get())
             {
@@ -328,20 +457,20 @@ public static class HardwareCollector
                 var dnsServers = obj["DNSServerSearchOrder"] as string[];
                 var dhcpEnabled = Convert.ToBoolean(obj["DHCPEnabled"]);
                 
-                configs[index] = new
+                result.Configurations[index] = new NicConfig
                 {
-                    ipAddresses = ipAddresses,
-                    gateways = gateways,
-                    dnsServers = dnsServers,
-                    dhcpEnabled = dhcpEnabled
+                    IpAddresses = ipAddresses,
+                    Gateways = gateways,
+                    DnsServers = dnsServers,
+                    DhcpEnabled = dhcpEnabled
                 };
             }
 
-            return new { adapters = nics, configurations = configs };
+            return result;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return result;
         }
     }
 

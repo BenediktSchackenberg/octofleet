@@ -1,130 +1,224 @@
 using System.Management;
-using System.Security.Principal;
 using Microsoft.Win32;
 
 namespace OpenClawAgent.Service.Inventory;
+
+#region DTOs
+public class OsInfo
+{
+    public string? Name { get; set; }
+    public string? Version { get; set; }
+    public string? BuildNumber { get; set; }
+    public string? Architecture { get; set; }
+    public string? InstallDate { get; set; }
+    public string? LastBootTime { get; set; }
+    public string? SystemDrive { get; set; }
+    public string? WindowsDirectory { get; set; }
+    public string? Locale { get; set; }
+    public string? SerialNumber { get; set; }
+    public string? RegisteredUser { get; set; }
+    public string? Organization { get; set; }
+    public string? Error { get; set; }
+}
+
+public class LocalUserInfo
+{
+    public string? Name { get; set; }
+    public string? FullName { get; set; }
+    public string? Description { get; set; }
+    public bool Disabled { get; set; }
+    public bool PasswordRequired { get; set; }
+    public bool PasswordExpires { get; set; }
+    public string? Sid { get; set; }
+    public string? Status { get; set; }
+}
+
+public class ServiceInfo
+{
+    public string? Name { get; set; }
+    public string? DisplayName { get; set; }
+    public string? State { get; set; }
+    public string? StartMode { get; set; }
+    public string? PathName { get; set; }
+    public string? StartName { get; set; }
+    public string? Description { get; set; }
+}
+
+public class ServiceResult
+{
+    public int Total { get; set; }
+    public int Running { get; set; }
+    public List<ServiceInfo> Services { get; set; } = new();
+}
+
+public class StartupItem
+{
+    public string? Name { get; set; }
+    public string? Command { get; set; }
+    public string? Source { get; set; }
+    public string? User { get; set; }
+    public string? Type { get; set; }
+}
+
+public class ShareInfo
+{
+    public string? Name { get; set; }
+    public string? Path { get; set; }
+    public string? Description { get; set; }
+    public string? Type { get; set; }
+}
+
+public class PrinterInfo
+{
+    public string? Name { get; set; }
+    public string? DriverName { get; set; }
+    public string? PortName { get; set; }
+    public bool IsDefault { get; set; }
+    public bool IsNetwork { get; set; }
+    public string? Status { get; set; }
+}
+
+public class EnvironmentVars
+{
+    public Dictionary<string, string> System { get; set; } = new();
+    public Dictionary<string, string> User { get; set; } = new();
+}
+
+public class SystemResult
+{
+    public OsInfo Os { get; set; } = new();
+    public List<LocalUserInfo> LocalUsers { get; set; } = new();
+    public ServiceResult Services { get; set; } = new();
+    public List<StartupItem> StartupItems { get; set; } = new();
+    public object? ScheduledTasks { get; set; }
+    public List<ShareInfo> Shares { get; set; } = new();
+    public List<PrinterInfo> Printers { get; set; } = new();
+    public EnvironmentVars EnvironmentVariables { get; set; } = new();
+}
+#endregion
 
 /// <summary>
 /// Collects system information: Users, Services, Startup items, etc.
 /// </summary>
 public static class SystemCollector
 {
-    public static async Task<object> CollectAsync()
+    public static async Task<SystemResult> CollectAsync()
     {
         return await Task.Run(() =>
         {
-            return new
+            return new SystemResult
             {
-                os = GetOsInfo(),
-                localUsers = GetLocalUsers(),
-                services = GetServices(),
-                startupItems = GetStartupItems(),
-                scheduledTasks = GetScheduledTasks(),
-                shares = GetShares(),
-                printers = GetPrinters(),
-                environmentVariables = GetEnvironmentVariables()
+                Os = GetOsInfo(),
+                LocalUsers = GetLocalUsers(),
+                Services = GetServices(),
+                StartupItems = GetStartupItems(),
+                ScheduledTasks = GetScheduledTasks(),
+                Shares = GetShares(),
+                Printers = GetPrinters(),
+                EnvironmentVariables = GetEnvironmentVariables()
             };
         });
     }
 
-    private static object GetOsInfo()
+    private static OsInfo GetOsInfo()
     {
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem");
             foreach (ManagementObject obj in searcher.Get())
             {
-                return new
+                return new OsInfo
                 {
-                    name = obj["Caption"]?.ToString()?.Trim(),
-                    version = obj["Version"]?.ToString(),
-                    buildNumber = obj["BuildNumber"]?.ToString(),
-                    architecture = obj["OSArchitecture"]?.ToString(),
-                    installDate = ParseWmiDate(obj["InstallDate"]?.ToString()),
-                    lastBootTime = ParseWmiDate(obj["LastBootUpTime"]?.ToString()),
-                    systemDrive = obj["SystemDrive"]?.ToString(),
-                    windowsDirectory = obj["WindowsDirectory"]?.ToString(),
-                    locale = obj["Locale"]?.ToString(),
-                    serialNumber = obj["SerialNumber"]?.ToString(),
-                    registeredUser = obj["RegisteredUser"]?.ToString(),
-                    organization = obj["Organization"]?.ToString()
+                    Name = obj["Caption"]?.ToString()?.Trim(),
+                    Version = obj["Version"]?.ToString(),
+                    BuildNumber = obj["BuildNumber"]?.ToString(),
+                    Architecture = obj["OSArchitecture"]?.ToString(),
+                    InstallDate = ParseWmiDate(obj["InstallDate"]?.ToString()),
+                    LastBootTime = ParseWmiDate(obj["LastBootUpTime"]?.ToString()),
+                    SystemDrive = obj["SystemDrive"]?.ToString(),
+                    WindowsDirectory = obj["WindowsDirectory"]?.ToString(),
+                    Locale = obj["Locale"]?.ToString(),
+                    SerialNumber = obj["SerialNumber"]?.ToString(),
+                    RegisteredUser = obj["RegisteredUser"]?.ToString(),
+                    Organization = obj["Organization"]?.ToString()
                 };
             }
-            return new { error = "No OS info found" };
+            return new OsInfo { Error = "No OS info found" };
         }
         catch (Exception ex)
         {
-            return new { error = ex.Message };
+            return new OsInfo { Error = ex.Message };
         }
     }
 
-    private static object GetLocalUsers()
+    private static List<LocalUserInfo> GetLocalUsers()
     {
+        var users = new List<LocalUserInfo>();
+
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_UserAccount WHERE LocalAccount=True");
-            var users = new List<object>();
 
             foreach (ManagementObject obj in searcher.Get())
             {
-                users.Add(new
+                users.Add(new LocalUserInfo
                 {
-                    name = obj["Name"]?.ToString(),
-                    fullName = obj["FullName"]?.ToString(),
-                    description = obj["Description"]?.ToString(),
-                    disabled = Convert.ToBoolean(obj["Disabled"]),
-                    passwordRequired = Convert.ToBoolean(obj["PasswordRequired"]),
-                    passwordExpires = Convert.ToBoolean(obj["PasswordExpires"]),
-                    sid = obj["SID"]?.ToString(),
-                    status = obj["Status"]?.ToString()
+                    Name = obj["Name"]?.ToString(),
+                    FullName = obj["FullName"]?.ToString(),
+                    Description = obj["Description"]?.ToString(),
+                    Disabled = Convert.ToBoolean(obj["Disabled"]),
+                    PasswordRequired = Convert.ToBoolean(obj["PasswordRequired"]),
+                    PasswordExpires = Convert.ToBoolean(obj["PasswordExpires"]),
+                    Sid = obj["SID"]?.ToString(),
+                    Status = obj["Status"]?.ToString()
                 });
             }
 
             return users;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return users;
         }
     }
 
-    private static object GetServices()
+    private static ServiceResult GetServices()
     {
+        var result = new ServiceResult();
+
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Service");
-            var services = new List<object>();
 
             foreach (ManagementObject obj in searcher.Get())
             {
-                services.Add(new
+                result.Services.Add(new ServiceInfo
                 {
-                    name = obj["Name"]?.ToString(),
-                    displayName = obj["DisplayName"]?.ToString(),
-                    state = obj["State"]?.ToString(),
-                    startMode = obj["StartMode"]?.ToString(),
-                    pathName = obj["PathName"]?.ToString(),
-                    startName = obj["StartName"]?.ToString(), // Account running the service
-                    description = obj["Description"]?.ToString()
+                    Name = obj["Name"]?.ToString(),
+                    DisplayName = obj["DisplayName"]?.ToString(),
+                    State = obj["State"]?.ToString(),
+                    StartMode = obj["StartMode"]?.ToString(),
+                    PathName = obj["PathName"]?.ToString(),
+                    StartName = obj["StartName"]?.ToString(),
+                    Description = obj["Description"]?.ToString()
                 });
             }
 
-            return new
-            {
-                total = services.Count,
-                running = services.Count(s => ((dynamic)s).state == "Running"),
-                services = services.OrderBy(s => ((dynamic)s).displayName).ToList()
-            };
+            result.Total = result.Services.Count;
+            result.Running = result.Services.Count(s => s.State == "Running");
+            result.Services = result.Services.OrderBy(s => s.DisplayName).ToList();
+
+            return result;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return result;
         }
     }
 
-    private static object GetStartupItems()
+    private static List<StartupItem> GetStartupItems()
     {
-        var items = new List<object>();
+        var items = new List<StartupItem>();
 
         // Registry Run keys
         var runKeys = new[]
@@ -146,12 +240,12 @@ public static class SystemCollector
                 foreach (var valueName in key.GetValueNames())
                 {
                     var value = key.GetValue(valueName)?.ToString();
-                    items.Add(new
+                    items.Add(new StartupItem
                     {
-                        name = valueName,
-                        command = value,
-                        source = source,
-                        type = "Registry"
+                        Name = valueName,
+                        Command = value,
+                        Source = source,
+                        Type = "Registry"
                     });
                 }
             }
@@ -167,13 +261,13 @@ public static class SystemCollector
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_StartupCommand");
             foreach (ManagementObject obj in searcher.Get())
             {
-                items.Add(new
+                items.Add(new StartupItem
                 {
-                    name = obj["Name"]?.ToString(),
-                    command = obj["Command"]?.ToString(),
-                    source = obj["Location"]?.ToString(),
-                    user = obj["User"]?.ToString(),
-                    type = "StartupCommand"
+                    Name = obj["Name"]?.ToString(),
+                    Command = obj["Command"]?.ToString(),
+                    Source = obj["Location"]?.ToString(),
+                    User = obj["User"]?.ToString(),
+                    Type = "StartupCommand"
                 });
             }
         }
@@ -188,7 +282,7 @@ public static class SystemCollector
     private static object GetScheduledTasks()
     {
         // For full task scheduler info, we'd need to use Task Scheduler COM
-        // For now, just get basic info via WMI/schtasks
+        // For now, just get basic info via WMI
         try
         {
             using var searcher = new ManagementObjectSearcher(
@@ -211,34 +305,34 @@ public static class SystemCollector
         }
         catch
         {
-            // Fallback: just return count from schtasks
             return new { note = "Detailed task info requires elevated permissions" };
         }
     }
 
-    private static object GetShares()
+    private static List<ShareInfo> GetShares()
     {
+        var shares = new List<ShareInfo>();
+
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Share");
-            var shares = new List<object>();
 
             foreach (ManagementObject obj in searcher.Get())
             {
-                shares.Add(new
+                shares.Add(new ShareInfo
                 {
-                    name = obj["Name"]?.ToString(),
-                    path = obj["Path"]?.ToString(),
-                    description = obj["Description"]?.ToString(),
-                    type = GetShareType(obj["Type"])
+                    Name = obj["Name"]?.ToString(),
+                    Path = obj["Path"]?.ToString(),
+                    Description = obj["Description"]?.ToString(),
+                    Type = GetShareType(obj["Type"])
                 });
             }
 
             return shares;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return shares;
         }
     }
 
@@ -259,41 +353,41 @@ public static class SystemCollector
         };
     }
 
-    private static object GetPrinters()
+    private static List<PrinterInfo> GetPrinters()
     {
+        var printers = new List<PrinterInfo>();
+
         try
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Printer");
-            var printers = new List<object>();
 
             foreach (ManagementObject obj in searcher.Get())
             {
-                printers.Add(new
+                printers.Add(new PrinterInfo
                 {
-                    name = obj["Name"]?.ToString(),
-                    driverName = obj["DriverName"]?.ToString(),
-                    portName = obj["PortName"]?.ToString(),
-                    isDefault = Convert.ToBoolean(obj["Default"]),
-                    isNetwork = Convert.ToBoolean(obj["Network"]),
-                    status = obj["Status"]?.ToString()
+                    Name = obj["Name"]?.ToString(),
+                    DriverName = obj["DriverName"]?.ToString(),
+                    PortName = obj["PortName"]?.ToString(),
+                    IsDefault = Convert.ToBoolean(obj["Default"]),
+                    IsNetwork = Convert.ToBoolean(obj["Network"]),
+                    Status = obj["Status"]?.ToString()
                 });
             }
 
             return printers;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return printers;
         }
     }
 
-    private static object GetEnvironmentVariables()
+    private static EnvironmentVars GetEnvironmentVariables()
     {
+        var result = new EnvironmentVars();
+
         try
         {
-            var systemVars = new Dictionary<string, string>();
-            var userVars = new Dictionary<string, string>();
-
             // System environment variables
             using (var key = Registry.LocalMachine.OpenSubKey(
                 @"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"))
@@ -305,7 +399,7 @@ public static class SystemCollector
                         var value = key.GetValue(name)?.ToString();
                         if (value != null)
                         {
-                            systemVars[name] = value;
+                            result.System[name] = value;
                         }
                     }
                 }
@@ -321,17 +415,17 @@ public static class SystemCollector
                         var value = key.GetValue(name)?.ToString();
                         if (value != null)
                         {
-                            userVars[name] = value;
+                            result.User[name] = value;
                         }
                     }
                 }
             }
 
-            return new { system = systemVars, user = userVars };
+            return result;
         }
-        catch (Exception ex)
+        catch
         {
-            return new { error = ex.Message };
+            return result;
         }
     }
 

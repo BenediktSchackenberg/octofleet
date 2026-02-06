@@ -2,6 +2,24 @@ using Microsoft.Win32;
 
 namespace OpenClawAgent.Service.Inventory;
 
+public class SoftwareItem
+{
+    public string Name { get; set; } = "";
+    public string? Version { get; set; }
+    public string? Publisher { get; set; }
+    public string? InstallDate { get; set; }
+    public string? InstallPath { get; set; }
+    public double? SizeMB { get; set; }
+    public string? UninstallString { get; set; }
+    public string? RegistryKey { get; set; }
+}
+
+public class SoftwareResult
+{
+    public int Count { get; set; }
+    public List<SoftwareItem> Software { get; set; } = new();
+}
+
 /// <summary>
 /// Collects installed software from Windows Registry
 /// </summary>
@@ -13,11 +31,11 @@ public static class SoftwareCollector
         @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     };
 
-    public static async Task<object> CollectAsync()
+    public static async Task<SoftwareResult> CollectAsync()
     {
         return await Task.Run(() =>
         {
-            var software = new List<object>();
+            var software = new List<SoftwareItem>();
             var seen = new HashSet<string>(); // Dedupe by name+version
 
             foreach (var keyPath in UninstallKeys)
@@ -28,15 +46,15 @@ public static class SoftwareCollector
             // Also check HKCU for user-installed apps
             CollectFromKey(RegistryHive.CurrentUser, UninstallKeys[0], software, seen);
 
-            return new
+            return new SoftwareResult
             {
-                count = software.Count,
-                software = software.OrderBy(s => ((dynamic)s).name).ToList()
+                Count = software.Count,
+                Software = software.OrderBy(s => s.Name).ToList()
             };
         });
     }
 
-    private static void CollectFromKey(RegistryHive hive, string keyPath, List<object> software, HashSet<string> seen)
+    private static void CollectFromKey(RegistryHive hive, string keyPath, List<SoftwareItem> software, HashSet<string> seen)
     {
         try
         {
@@ -68,18 +86,18 @@ public static class SoftwareCollector
                     var installDate = ParseInstallDate(subKey.GetValue("InstallDate")?.ToString());
                     var estimatedSize = subKey.GetValue("EstimatedSize");
                     
-                    software.Add(new
+                    software.Add(new SoftwareItem
                     {
-                        name = displayName.Trim(),
-                        version = version?.Trim(),
-                        publisher = subKey.GetValue("Publisher")?.ToString()?.Trim(),
-                        installDate = installDate,
-                        installPath = subKey.GetValue("InstallLocation")?.ToString()?.Trim(),
-                        sizeMB = estimatedSize != null 
+                        Name = displayName.Trim(),
+                        Version = version?.Trim(),
+                        Publisher = subKey.GetValue("Publisher")?.ToString()?.Trim(),
+                        InstallDate = installDate,
+                        InstallPath = subKey.GetValue("InstallLocation")?.ToString()?.Trim(),
+                        SizeMB = estimatedSize != null 
                             ? Math.Round(Convert.ToInt64(estimatedSize) / 1024.0, 2) 
-                            : (double?)null,
-                        uninstallString = subKey.GetValue("UninstallString")?.ToString(),
-                        registryKey = $"{hive}\\{keyPath}\\{subKeyName}"
+                            : null,
+                        UninstallString = subKey.GetValue("UninstallString")?.ToString(),
+                        RegistryKey = $"{hive}\\{keyPath}\\{subKeyName}"
                     });
                 }
                 catch

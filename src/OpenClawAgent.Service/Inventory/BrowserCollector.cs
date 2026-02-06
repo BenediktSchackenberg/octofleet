@@ -8,46 +8,79 @@ namespace OpenClawAgent.Service.Inventory;
 /// </summary>
 public static class BrowserCollector
 {
-    public static async Task<object> CollectAsync(string? browser = null)
+    public static async Task<BrowserResult> CollectAsync(string? browser = null)
     {
-        var results = new Dictionary<string, object>();
+        var results = new BrowserResult();
 
         if (browser == null || browser == "chrome")
-            results["chrome"] = await CollectChromeAsync();
+            results.Chrome = await CollectChromeAsync();
         
         if (browser == null || browser == "edge")
-            results["edge"] = await CollectEdgeAsync();
+            results.Edge = await CollectEdgeAsync();
         
         if (browser == null || browser == "firefox")
-            results["firefox"] = await CollectFirefoxAsync();
+            results.Firefox = await CollectFirefoxAsync();
 
         return results;
     }
 
-    private static async Task<object> CollectChromeAsync()
+    public class BrowserResult
+    {
+        public BrowserData? Chrome { get; set; }
+        public BrowserData? Edge { get; set; }
+        public BrowserData? Firefox { get; set; }
+    }
+
+    public class BrowserData
+    {
+        public bool Installed { get; set; }
+        public int ProfileCount { get; set; }
+        public List<ProfileData> Profiles { get; set; } = new();
+    }
+
+    public class ProfileData
+    {
+        public string Name { get; set; } = "";
+        public List<ExtensionData>? Extensions { get; set; }
+        public int CookiesCount { get; set; }
+        public int HistoryCount { get; set; }
+        public int LoginsCount { get; set; }
+        public int BookmarksCount { get; set; }
+    }
+
+    public class ExtensionData
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Version { get; set; }
+        public string? Description { get; set; }
+        public bool? Active { get; set; }
+    }
+
+    private static Task<BrowserData> CollectChromeAsync()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var chromePath = Path.Combine(localAppData, "Google", "Chrome", "User Data");
         
-        return await CollectChromiumAsync(chromePath, "Chrome");
+        return CollectChromiumAsync(chromePath);
     }
 
-    private static async Task<object> CollectEdgeAsync()
+    private static Task<BrowserData> CollectEdgeAsync()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var edgePath = Path.Combine(localAppData, "Microsoft", "Edge", "User Data");
         
-        return await CollectChromiumAsync(edgePath, "Edge");
+        return CollectChromiumAsync(edgePath);
     }
 
-    private static async Task<object> CollectChromiumAsync(string userDataPath, string browserName)
+    private static Task<BrowserData> CollectChromiumAsync(string userDataPath)
     {
-        return await Task.Run(() =>
+        return Task.Run(() =>
         {
             if (!Directory.Exists(userDataPath))
-                return new { installed = false };
+                return new BrowserData { Installed = false };
 
-            var profiles = new List<object>();
+            var profiles = new List<ProfileData>();
             
             // Find all profiles (Default, Profile 1, Profile 2, etc.)
             var profileDirs = Directory.GetDirectories(userDataPath)
@@ -61,16 +94,13 @@ public static class BrowserCollector
             foreach (var profileDir in profileDirs)
             {
                 var profileName = Path.GetFileName(profileDir);
-                var profileData = new Dictionary<string, object>
-                {
-                    ["name"] = profileName
-                };
+                var profileData = new ProfileData { Name = profileName };
 
                 // Extensions
                 var extensionsDir = Path.Combine(profileDir, "Extensions");
                 if (Directory.Exists(extensionsDir))
                 {
-                    profileData["extensions"] = GetChromiumExtensions(extensionsDir);
+                    profileData.Extensions = GetChromiumExtensions(extensionsDir);
                 }
 
                 // Cookies count (from SQLite)
@@ -80,45 +110,45 @@ public static class BrowserCollector
                 
                 if (File.Exists(cookiesDb))
                 {
-                    profileData["cookiesCount"] = CountSqliteRows(cookiesDb, "cookies");
+                    profileData.CookiesCount = CountSqliteRows(cookiesDb, "cookies");
                 }
 
                 // History count
                 var historyDb = Path.Combine(profileDir, "History");
                 if (File.Exists(historyDb))
                 {
-                    profileData["historyCount"] = CountSqliteRows(historyDb, "urls");
+                    profileData.HistoryCount = CountSqliteRows(historyDb, "urls");
                 }
 
                 // Login Data count
                 var loginDb = Path.Combine(profileDir, "Login Data");
                 if (File.Exists(loginDb))
                 {
-                    profileData["loginsCount"] = CountSqliteRows(loginDb, "logins");
+                    profileData.LoginsCount = CountSqliteRows(loginDb, "logins");
                 }
 
                 // Bookmarks count
                 var bookmarksFile = Path.Combine(profileDir, "Bookmarks");
                 if (File.Exists(bookmarksFile))
                 {
-                    profileData["bookmarksCount"] = CountBookmarks(bookmarksFile);
+                    profileData.BookmarksCount = CountBookmarks(bookmarksFile);
                 }
 
                 profiles.Add(profileData);
             }
 
-            return new
+            return new BrowserData
             {
-                installed = true,
-                profileCount = profiles.Count,
-                profiles = profiles
+                Installed = true,
+                ProfileCount = profiles.Count,
+                Profiles = profiles
             };
         });
     }
 
-    private static object GetChromiumExtensions(string extensionsDir)
+    private static List<ExtensionData> GetChromiumExtensions(string extensionsDir)
     {
-        var extensions = new List<object>();
+        var extensions = new List<ExtensionData>();
 
         try
         {
@@ -157,42 +187,42 @@ public static class BrowserCollector
                         name = extId;
                     }
 
-                    extensions.Add(new
+                    extensions.Add(new ExtensionData
                     {
-                        id = extId,
-                        name = name,
-                        version = version,
-                        description = description?.Length > 100 
+                        Id = extId,
+                        Name = name,
+                        Version = version,
+                        Description = description?.Length > 100 
                             ? description.Substring(0, 100) + "..." 
                             : description
                     });
                 }
                 catch
                 {
-                    extensions.Add(new { id = extId, name = extId, error = "Failed to parse manifest" });
+                    extensions.Add(new ExtensionData { Id = extId, Name = extId });
                 }
             }
         }
         catch
         {
-            return new { error = "Failed to enumerate extensions" };
+            // Failed to enumerate extensions
         }
 
         return extensions;
     }
 
-    private static async Task<object> CollectFirefoxAsync()
+    private static Task<BrowserData> CollectFirefoxAsync()
     {
-        return await Task.Run(() =>
+        return Task.Run(() =>
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var firefoxPath = Path.Combine(appData, "Mozilla", "Firefox");
             var profilesIni = Path.Combine(firefoxPath, "profiles.ini");
 
             if (!File.Exists(profilesIni))
-                return new { installed = false };
+                return new BrowserData { Installed = false };
 
-            var profiles = new List<object>();
+            var profiles = new List<ProfileData>();
 
             // Parse profiles.ini
             var lines = File.ReadAllLines(profilesIni);
@@ -239,42 +269,39 @@ public static class BrowserCollector
                 }
             }
 
-            return new
+            return new BrowserData
             {
-                installed = true,
-                profileCount = profiles.Count,
-                profiles = profiles
+                Installed = true,
+                ProfileCount = profiles.Count,
+                Profiles = profiles
             };
         });
     }
 
-    private static object CollectFirefoxProfile(string profilePath, string profileName)
+    private static ProfileData CollectFirefoxProfile(string profilePath, string profileName)
     {
-        var profileData = new Dictionary<string, object>
-        {
-            ["name"] = profileName
-        };
+        var profileData = new ProfileData { Name = profileName };
 
         // Extensions
         var extensionsJson = Path.Combine(profilePath, "extensions.json");
         if (File.Exists(extensionsJson))
         {
-            profileData["extensions"] = GetFirefoxExtensions(extensionsJson);
+            profileData.Extensions = GetFirefoxExtensions(extensionsJson);
         }
 
         // Cookies
         var cookiesDb = Path.Combine(profilePath, "cookies.sqlite");
         if (File.Exists(cookiesDb))
         {
-            profileData["cookiesCount"] = CountSqliteRows(cookiesDb, "moz_cookies");
+            profileData.CookiesCount = CountSqliteRows(cookiesDb, "moz_cookies");
         }
 
         // History
         var placesDb = Path.Combine(profilePath, "places.sqlite");
         if (File.Exists(placesDb))
         {
-            profileData["historyCount"] = CountSqliteRows(placesDb, "moz_places");
-            profileData["bookmarksCount"] = CountSqliteRows(placesDb, "moz_bookmarks");
+            profileData.HistoryCount = CountSqliteRows(placesDb, "moz_places");
+            profileData.BookmarksCount = CountSqliteRows(placesDb, "moz_bookmarks");
         }
 
         // Logins
@@ -286,21 +313,21 @@ public static class BrowserCollector
                 var json = JsonDocument.Parse(File.ReadAllText(loginsJson));
                 if (json.RootElement.TryGetProperty("logins", out var logins))
                 {
-                    profileData["loginsCount"] = logins.GetArrayLength();
+                    profileData.LoginsCount = logins.GetArrayLength();
                 }
             }
             catch
             {
-                profileData["loginsCount"] = -1;
+                profileData.LoginsCount = -1;
             }
         }
 
         return profileData;
     }
 
-    private static object GetFirefoxExtensions(string extensionsJsonPath)
+    private static List<ExtensionData> GetFirefoxExtensions(string extensionsJsonPath)
     {
-        var extensions = new List<object>();
+        var extensions = new List<ExtensionData>();
 
         try
         {
@@ -317,17 +344,17 @@ public static class BrowserCollector
                     // Only include extensions, not themes/plugins
                     if (type != "extension") continue;
 
-                    extensions.Add(new
+                    extensions.Add(new ExtensionData
                     {
-                        id = addon.TryGetProperty("id", out var idProp) ? idProp.GetString() : null,
-                        name = addon.TryGetProperty("defaultLocale", out var locale) 
+                        Id = addon.TryGetProperty("id", out var idProp) ? idProp.GetString() : null,
+                        Name = addon.TryGetProperty("defaultLocale", out var locale) 
                             && locale.TryGetProperty("name", out var nameProp) 
                                 ? nameProp.GetString() 
                                 : null,
-                        version = addon.TryGetProperty("version", out var versionProp) 
+                        Version = addon.TryGetProperty("version", out var versionProp) 
                             ? versionProp.GetString() 
                             : null,
-                        active = addon.TryGetProperty("active", out var activeProp) 
+                        Active = addon.TryGetProperty("active", out var activeProp) 
                             && activeProp.GetBoolean()
                     });
                 }
@@ -335,7 +362,7 @@ public static class BrowserCollector
         }
         catch
         {
-            return new { error = "Failed to parse extensions.json" };
+            // Failed to parse extensions.json
         }
 
         return extensions;
