@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = 'http://192.168.0.5:8080/api/v1';
 const API_KEY = 'openclaw-inventory-dev-key';
 
 async function fetchData(endpoint: string) {

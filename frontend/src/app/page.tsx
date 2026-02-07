@@ -15,7 +15,7 @@ interface NodeSummary {
 
 async function getNodes(): Promise<NodeSummary[]> {
   try {
-    const res = await fetch('http://localhost:8080/api/v1/nodes', {
+    const res = await fetch('http://192.168.0.5:8080/api/v1/nodes', {
       headers: { 'X-API-Key': 'openclaw-inventory-dev-key' },
       cache: 'no-store'
     });

@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AddDevicesDialog } from "@/components/add-devices-dialog";
 
 interface GroupMember {
   id: string;
@@ -31,7 +32,7 @@ interface GroupDetail {
 
 async function getGroup(id: string): Promise<GroupDetail | null> {
   try {
-    const res = await fetch(`http://localhost:8080/api/v1/groups/${id}`, {
+    const res = await fetch(`http://192.168.0.5:8080/api/v1/groups/${id}`, {
       headers: { 'X-API-Key': 'openclaw-inventory-dev-key' },
       cache: 'no-store'
     });
@@ -152,7 +153,10 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold">Mitglieder ({group.members.length})</h2>
             {!group.is_dynamic && (
-              <Button variant="outline" size="sm">+ Geräte hinzufügen</Button>
+              <AddDevicesDialog 
+                groupId={group.id} 
+                existingMemberIds={group.members.map(m => m.id)} 
+              />
             )}
           </div>
           

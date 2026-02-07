@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = 'http://192.168.0.5:8080/api/v1';
 const API_KEY = 'openclaw-inventory-dev-key';
 
 export function CreateTagDialog() {

@@ -25,7 +25,7 @@ interface Tag {
 
 async function getGroups(): Promise<Group[]> {
   try {
-    const res = await fetch('http://localhost:8080/api/v1/groups', {
+    const res = await fetch('http://192.168.0.5:8080/api/v1/groups', {
       headers: { 'X-API-Key': 'openclaw-inventory-dev-key' },
       cache: 'no-store'
     });
@@ -39,7 +39,7 @@ async function getGroups(): Promise<Group[]> {
 
 async function getTags(): Promise<Tag[]> {
   try {
-    const res = await fetch('http://localhost:8080/api/v1/tags', {
+    const res = await fetch('http://192.168.0.5:8080/api/v1/tags', {
       headers: { 'X-API-Key': 'openclaw-inventory-dev-key' },
       cache: 'no-store'
     });

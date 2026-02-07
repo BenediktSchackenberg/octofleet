@@ -13,7 +13,8 @@
 | **E7** | Advanced UI | Medium | 2 |
 | **E8** | Security & RBAC | Medium | 1 |
 | **E9** | Rollout Strategies | Low | 1 |
-| **E10** | Performance & Scale | Low | Ongoing |
+| **E10** | Zero-Touch Installation | High | 3-4 |
+| **E11** | Performance & Scale | Low | Ongoing |
 
 ---
 
