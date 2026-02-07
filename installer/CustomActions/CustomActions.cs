@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Text.Json;
 using WixToolset.Dtf.WindowsInstaller;
 
 namespace OpenClawAgent.Installer.CustomActions
@@ -54,25 +53,8 @@ namespace OpenClawAgent.Installer.CustomActions
                     }
                 }
 
-                // Create config object
-                var config = new
-                {
-                    GatewayUrl = gatewayUrl,
-                    GatewayToken = gatewayToken,
-                    DisplayName = displayName,
-                    InventoryApiUrl = inventoryUrl,
-                    AutoStart = true,
-                    AutoPushInventory = true,
-                    ScheduledPushEnabled = true,
-                    ScheduledPushIntervalMinutes = 30
-                };
-
-                // Serialize to JSON
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
-                var json = JsonSerializer.Serialize(config, options);
+                // Build JSON manually (no external dependencies)
+                var json = BuildConfigJson(gatewayUrl, gatewayToken, displayName, inventoryUrl);
 
                 // Ensure directory exists
                 Directory.CreateDirectory(configDir);
@@ -94,6 +76,40 @@ namespace OpenClawAgent.Installer.CustomActions
                 // Don't fail the installation, just log the error
                 return ActionResult.Success;
             }
+        }
+
+        /// <summary>
+        /// Builds JSON config string manually to avoid System.Text.Json dependency
+        /// </summary>
+        private static string BuildConfigJson(string gatewayUrl, string gatewayToken, string displayName, string inventoryUrl)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine($"  \"GatewayUrl\": \"{EscapeJson(gatewayUrl)}\",");
+            sb.AppendLine($"  \"GatewayToken\": \"{EscapeJson(gatewayToken)}\",");
+            sb.AppendLine($"  \"DisplayName\": \"{EscapeJson(displayName)}\",");
+            sb.AppendLine($"  \"InventoryApiUrl\": \"{EscapeJson(inventoryUrl)}\",");
+            sb.AppendLine("  \"AutoStart\": true,");
+            sb.AppendLine("  \"AutoPushInventory\": true,");
+            sb.AppendLine("  \"ScheduledPushEnabled\": true,");
+            sb.AppendLine("  \"ScheduledPushIntervalMinutes\": 30");
+            sb.AppendLine("}");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Escapes special characters for JSON strings
+        /// </summary>
+        private static string EscapeJson(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
         }
     }
 }

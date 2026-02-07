@@ -16,6 +16,9 @@
 .PARAMETER GatewayToken
     The authentication token for the Gateway
 
+.PARAMETER EnrollToken
+    Enrollment token for automatic credential retrieval (alternative to GatewayUrl/GatewayToken)
+
 .PARAMETER InventoryUrl
     The Inventory API URL (optional, defaults to Gateway host:8080)
 
@@ -29,25 +32,30 @@
     Version to install (optional, defaults to "latest")
 
 .EXAMPLE
-    # One-liner installation:
-    irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 | iex
-    Install-OpenClawAgent -GatewayUrl "http://192.168.0.5:18789" -GatewayToken "abc123"
-
-    # Or direct:
+    # With direct credentials:
     .\Install-OpenClawAgent.ps1 -GatewayUrl "http://192.168.0.5:18789" -GatewayToken "abc123"
+
+    # With enrollment token (recommended):
+    .\Install-OpenClawAgent.ps1 -EnrollToken "abc123xyz..."
 
 .NOTES
     Author: OpenClaw
-    Version: 2.0.0
+    Version: 2.1.0
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Direct')]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(ParameterSetName = 'Direct', Mandatory = $true)]
     [string]$GatewayUrl,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(ParameterSetName = 'Direct', Mandatory = $true)]
     [string]$GatewayToken,
+
+    [Parameter(ParameterSetName = 'Enroll', Mandatory = $true)]
+    [string]$EnrollToken,
+
+    [Parameter(ParameterSetName = 'Enroll', Mandatory = $false)]
+    [string]$EnrollApiUrl = "http://192.168.0.5:8080",
 
     [Parameter(Mandatory = $false)]
     [string]$InventoryUrl,
@@ -95,9 +103,41 @@ function Write-Err {
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  OpenClaw Node Agent - Full Installer" -ForegroundColor Cyan
-Write-Host "  Version 2.0.0" -ForegroundColor Cyan
+Write-Host "  Version 2.1.0" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
+
+# ============================================
+# Enrollment Token Flow (if using EnrollToken)
+# ============================================
+if ($EnrollToken) {
+    Write-Step "0/6" "Enrolling device with token..."
+    
+    try {
+        $enrollBody = @{
+            enrollToken = $EnrollToken
+            hostname = $env:COMPUTERNAME
+        } | ConvertTo-Json
+        
+        $enrollResponse = Invoke-RestMethod -Uri "$EnrollApiUrl/api/v1/enroll" -Method Post -Body $enrollBody -ContentType "application/json"
+        
+        if ($enrollResponse.status -eq "enrolled") {
+            $GatewayUrl = $enrollResponse.gatewayUrl
+            $GatewayToken = $enrollResponse.gatewayToken
+            $InventoryUrl = $enrollResponse.inventoryApiUrl
+            Write-Detail "Enrolled successfully as: $($enrollResponse.deviceId)"
+            Write-Detail "Gateway: $GatewayUrl"
+        } else {
+            Write-Err "Enrollment failed: $($enrollResponse.message)"
+            exit 1
+        }
+    } catch {
+        Write-Err "Enrollment failed: $_"
+        Write-Host ""
+        Write-Host "Make sure the enrollment token is valid and not expired." -ForegroundColor Yellow
+        exit 1
+    }
+}
 
 # Derive InventoryUrl from GatewayUrl if not provided
 if (-not $InventoryUrl) {
@@ -190,6 +230,26 @@ try {
     Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
     $zipSize = (Get-Item $zipPath).Length / 1MB
     Write-Detail "Downloaded: $([math]::Round($zipSize, 2)) MB"
+    
+    # Calculate and display SHA256 hash for verification
+    $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash
+    Write-Detail "SHA256: $hash"
+    
+    # Optional: Verify against expected hash from manifest
+    if ($releaseInfo -and $releaseInfo.body -match "SHA256:\s*([A-Fa-f0-9]{64})") {
+        $expectedHash = $Matches[1].ToUpper()
+        if ($hash -eq $expectedHash) {
+            Write-Detail "Hash verified successfully!"
+        } else {
+            Write-Warn "Hash mismatch! Expected: $expectedHash"
+            Write-Warn "This could indicate a corrupted or tampered download."
+            $continue = Read-Host "Continue anyway? (y/N)"
+            if ($continue -ne "y") {
+                Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+                exit 1
+            }
+        }
+    }
 } catch {
     Write-Err "Failed to download package: $_"
     Write-Host ""

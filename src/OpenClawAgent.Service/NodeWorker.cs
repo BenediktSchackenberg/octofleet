@@ -18,7 +18,7 @@ public class NodeWorker : BackgroundService
     private readonly ServiceConfig _config;
     private ClientWebSocket? _webSocket;
     private int _requestId = 0;
-    private string _nodeId = "node-host";  // Will be set from connect response
+    private string _nodeId = "";  // Will be set from connect response or machine name
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement?>> _pendingRequests = new();
 
     // Reconnection settings
@@ -147,8 +147,8 @@ public class NodeWorker : BackgroundService
                 maxProtocol = 3,
                 client = new
                 {
-                    id = "node-host",
-                    version = "0.3.0",
+                    id = $"win-{Environment.MachineName.ToLowerInvariant()}",
+                    version = "0.3.1",
                     platform = "windows",
                     mode = "node"
                 },
@@ -205,11 +205,15 @@ public class NodeWorker : BackgroundService
         
         if (response.TryGetProperty("ok", out var okProp) && okProp.GetBoolean())
         {
-            // Try to get nodeId from response
+            // Try to get nodeId from response, fallback to machine name
             if (response.TryGetProperty("payload", out var respPayload) &&
                 respPayload.TryGetProperty("nodeId", out var nodeIdProp))
             {
-                _nodeId = nodeIdProp.GetString() ?? "node-host";
+                _nodeId = nodeIdProp.GetString() ?? $"win-{Environment.MachineName.ToLowerInvariant()}";
+            }
+            else
+            {
+                _nodeId = $"win-{Environment.MachineName.ToLowerInvariant()}";
             }
             _logger.LogInformation("Connected as Node: {DisplayName} (nodeId: {NodeId})", config.DisplayName, _nodeId);
             

@@ -3,14 +3,17 @@ OpenClaw Inventory Backend
 FastAPI server for receiving and storing inventory data from Windows Agents
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Header, status
+from fastapi import FastAPI, Depends, HTTPException, Header, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
 from typing import Optional, Any, Dict
 import os
 import json
 from uuid import UUID
+import uuid
 import re
+import secrets
+from datetime import datetime, timedelta
 
 # Config
 DATABASE_URL = os.getenv(
@@ -1089,3 +1092,209 @@ async def get_device_tags(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8080)
+
+# ============================================
+# Enrollment Tokens API (E10-10)
+# ============================================
+
+@app.post("/api/v1/enrollment-tokens")
+async def create_enrollment_token(request: Request):
+    """Create a new enrollment token for agent registration"""
+    data = await request.json()
+    api_key_check(request)
+    
+    token_id = str(uuid.uuid4())
+    token_value = secrets.token_urlsafe(32)
+    
+    # Token settings
+    expires_hours = data.get("expiresHours", 24)  # Default 24h
+    max_uses = data.get("maxUses", 10)  # Default 10 uses
+    description = data.get("description", "")
+    created_by = data.get("createdBy", "admin")
+    
+    expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Create table if not exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS enrollment_tokens (
+            id UUID PRIMARY KEY,
+            token TEXT UNIQUE NOT NULL,
+            description TEXT,
+            expires_at TIMESTAMPTZ NOT NULL,
+            max_uses INT NOT NULL DEFAULT 10,
+            use_count INT NOT NULL DEFAULT 0,
+            created_by TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            revoked BOOLEAN DEFAULT FALSE
+        )
+    """)
+    
+    cur.execute("""
+        INSERT INTO enrollment_tokens (id, token, description, expires_at, max_uses, created_by)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id, token, expires_at
+    """, (token_id, token_value, description, expires_at, max_uses, created_by))
+    
+    row = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return {
+        "id": str(row[0]),
+        "token": row[1],
+        "expiresAt": row[2].isoformat(),
+        "maxUses": max_uses,
+        "description": description,
+        "installCommand": f'irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1; .\\Install.ps1 -EnrollToken "{row[1]}"'
+    }
+
+@app.get("/api/v1/enrollment-tokens")
+async def list_enrollment_tokens(request: Request):
+    """List all enrollment tokens"""
+    api_key_check(request)
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Check if table exists
+    cur.execute("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'enrollment_tokens'
+        )
+    """)
+    if not cur.fetchone()[0]:
+        cur.close()
+        conn.close()
+        return {"tokens": []}
+    
+    cur.execute("""
+        SELECT id, token, description, expires_at, max_uses, use_count, created_by, created_at, revoked
+        FROM enrollment_tokens
+        ORDER BY created_at DESC
+    """)
+    
+    tokens = []
+    for row in cur.fetchall():
+        is_expired = row[3] < datetime.now(row[3].tzinfo) if row[3].tzinfo else row[3] < datetime.utcnow()
+        is_exhausted = row[5] >= row[4]
+        
+        tokens.append({
+            "id": str(row[0]),
+            "token": row[1][:8] + "..." if row[1] else None,  # Partial token for display
+            "description": row[2],
+            "expiresAt": row[3].isoformat() if row[3] else None,
+            "maxUses": row[4],
+            "useCount": row[5],
+            "createdBy": row[6],
+            "createdAt": row[7].isoformat() if row[7] else None,
+            "revoked": row[8],
+            "status": "revoked" if row[8] else ("expired" if is_expired else ("exhausted" if is_exhausted else "active"))
+        })
+    
+    cur.close()
+    conn.close()
+    
+    return {"tokens": tokens}
+
+@app.delete("/api/v1/enrollment-tokens/{token_id}")
+async def revoke_enrollment_token(token_id: str, request: Request):
+    """Revoke an enrollment token"""
+    api_key_check(request)
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        UPDATE enrollment_tokens SET revoked = TRUE WHERE id = %s
+        RETURNING id
+    """, (token_id,))
+    
+    row = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Token not found")
+    
+    return {"status": "revoked", "id": str(row[0])}
+
+@app.post("/api/v1/enroll")
+async def enroll_device(request: Request):
+    """Exchange enrollment token for device credentials"""
+    data = await request.json()
+    
+    enroll_token = data.get("enrollToken")
+    hostname = data.get("hostname", "unknown")
+    
+    if not enroll_token:
+        raise HTTPException(status_code=400, detail="enrollToken required")
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Find and validate token
+    cur.execute("""
+        SELECT id, expires_at, max_uses, use_count, revoked
+        FROM enrollment_tokens
+        WHERE token = %s
+    """, (enroll_token,))
+    
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=401, detail="Invalid enrollment token")
+    
+    token_id, expires_at, max_uses, use_count, revoked = row
+    
+    # Check if token is valid
+    if revoked:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=401, detail="Enrollment token has been revoked")
+    
+    is_expired = expires_at < datetime.now(expires_at.tzinfo) if expires_at.tzinfo else expires_at < datetime.utcnow()
+    if is_expired:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=401, detail="Enrollment token has expired")
+    
+    if use_count >= max_uses:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=401, detail="Enrollment token usage limit reached")
+    
+    # Increment use count
+    cur.execute("""
+        UPDATE enrollment_tokens SET use_count = use_count + 1 WHERE id = %s
+    """, (token_id,))
+    
+    # Generate device credentials
+    device_token = secrets.token_urlsafe(48)
+    device_id = f"dev-{secrets.token_hex(8)}"
+    
+    # TODO: Store device registration in a devices table
+    # For now, return the gateway token directly (from config)
+    # In production, you'd generate a unique device token
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    # Return credentials - for now, return the main gateway token
+    # In a full implementation, this would be a device-specific token
+    return {
+        "status": "enrolled",
+        "deviceId": device_id,
+        "hostname": hostname,
+        "gatewayUrl": "http://192.168.0.5:18789",  # TODO: From config
+        "gatewayToken": "a9544b6300030bda29268e0f207b88ba446f6a31669a7c63",  # TODO: From config or generate
+        "inventoryApiUrl": "http://192.168.0.5:8080",
+        "message": f"Device {hostname} enrolled successfully"
+    }

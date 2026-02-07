@@ -4,8 +4,8 @@
     <OutputType>Library</OutputType>
     <RootNamespace>OpenClawAgent.Installer.CustomActions</RootNamespace>
     <AssemblyName>CustomActions</AssemblyName>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
