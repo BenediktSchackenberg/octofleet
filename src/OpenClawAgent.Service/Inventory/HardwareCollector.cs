@@ -85,6 +85,18 @@ public class BiosInfo
     public string? SmbiosVersion { get; set; }
     public string? ReleaseDate { get; set; }
     public string? SerialNumber { get; set; }
+    public string? Uuid { get; set; }
+    public bool? IsUefi { get; set; }
+    public string? SecureBootState { get; set; }
+    public string? Error { get; set; }
+}
+
+public class VirtualizationInfo
+{
+    public bool IsVirtual { get; set; }
+    public string? Hypervisor { get; set; }
+    public string? Model { get; set; }
+    public string? Manufacturer { get; set; }
     public string? Error { get; set; }
 }
 
@@ -131,6 +143,7 @@ public class HardwareResult
     public DiskResult? Disks { get; set; }
     public MainboardInfo? Mainboard { get; set; }
     public BiosInfo? Bios { get; set; }
+    public VirtualizationInfo? Virtualization { get; set; }
     public List<GpuInfo>? Gpu { get; set; }
     public NicResult? Nics { get; set; }
 }
@@ -151,6 +164,7 @@ public static class HardwareCollector
                 Disks = GetDiskInfo(),
                 Mainboard = GetMainboardInfo(),
                 Bios = GetBiosInfo(),
+                Virtualization = GetVirtualizationInfo(),
                 Gpu = GetGpuInfo(),
                 Nics = GetNicInfo()
             };
@@ -351,24 +365,139 @@ public static class HardwareCollector
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
-            foreach (ManagementObject obj in searcher.Get())
+            var result = new BiosInfo();
+            
+            // Basic BIOS info
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
             {
-                return new BiosInfo
+                foreach (ManagementObject obj in searcher.Get())
                 {
-                    Manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
-                    Name = obj["Name"]?.ToString()?.Trim(),
-                    Version = obj["Version"]?.ToString()?.Trim(),
-                    SmbiosVersion = obj["SMBIOSBIOSVersion"]?.ToString()?.Trim(),
-                    ReleaseDate = ParseWmiDate(obj["ReleaseDate"]?.ToString()),
-                    SerialNumber = obj["SerialNumber"]?.ToString()?.Trim()
-                };
+                    result.Manufacturer = obj["Manufacturer"]?.ToString()?.Trim();
+                    result.Name = obj["Name"]?.ToString()?.Trim();
+                    result.Version = obj["Version"]?.ToString()?.Trim();
+                    result.SmbiosVersion = obj["SMBIOSBIOSVersion"]?.ToString()?.Trim();
+                    result.ReleaseDate = ParseWmiDate(obj["ReleaseDate"]?.ToString());
+                    result.SerialNumber = obj["SerialNumber"]?.ToString()?.Trim();
+                    break;
+                }
             }
-            return new BiosInfo { Error = "No BIOS found" };
+            
+            // UUID from Win32_ComputerSystemProduct
+            using (var searcher = new ManagementObjectSearcher("SELECT UUID FROM Win32_ComputerSystemProduct"))
+            {
+                foreach (ManagementObject obj in searcher.Get())
+                {
+                    result.Uuid = obj["UUID"]?.ToString()?.Trim();
+                    break;
+                }
+            }
+            
+            // UEFI detection via registry
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\SecureBoot\State");
+                if (key != null)
+                {
+                    result.IsUefi = true;
+                    var secureBootEnabled = key.GetValue("UEFISecureBootEnabled");
+                    result.SecureBootState = secureBootEnabled != null && Convert.ToInt32(secureBootEnabled) == 1 
+                        ? "Enabled" 
+                        : "Disabled";
+                }
+                else
+                {
+                    // Check for UEFI via firmware type
+                    using var firmwareKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Environment");
+                    if (firmwareKey != null)
+                    {
+                        var firmwareType = firmwareKey.GetValue("firmware_type")?.ToString();
+                        result.IsUefi = firmwareType?.Equals("UEFI", StringComparison.OrdinalIgnoreCase) == true;
+                    }
+                }
+            }
+            catch
+            {
+                // Can't determine UEFI status
+            }
+            
+            return result;
         }
         catch (Exception ex)
         {
             return new BiosInfo { Error = ex.Message };
+        }
+    }
+
+    private static VirtualizationInfo GetVirtualizationInfo()
+    {
+        try
+        {
+            var result = new VirtualizationInfo();
+            
+            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                result.Model = obj["Model"]?.ToString()?.Trim();
+                result.Manufacturer = obj["Manufacturer"]?.ToString()?.Trim();
+                
+                // Detect hypervisor from model/manufacturer
+                var model = result.Model?.ToLowerInvariant() ?? "";
+                var manufacturer = result.Manufacturer?.ToLowerInvariant() ?? "";
+                
+                if (model.Contains("virtual") || manufacturer.Contains("vmware"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "VMware";
+                }
+                else if (model.Contains("virtual machine") || manufacturer.Contains("microsoft corporation") && model.Contains("virtual"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "Hyper-V";
+                }
+                else if (model.Contains("virtualbox") || manufacturer.Contains("innotek"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "VirtualBox";
+                }
+                else if (model.Contains("kvm") || model.Contains("qemu"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "KVM/QEMU";
+                }
+                else if (model.Contains("xen"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "Xen";
+                }
+                else if (manufacturer.Contains("amazon") || model.Contains("hvm"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "AWS";
+                }
+                else if (manufacturer.Contains("google"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "GCP";
+                }
+                else if (model.Contains("azure") || manufacturer.Contains("microsoft") && !model.Contains("surface"))
+                {
+                    result.IsVirtual = true;
+                    result.Hypervisor = "Azure";
+                }
+                else
+                {
+                    result.IsVirtual = false;
+                    result.Hypervisor = "Physical";
+                }
+                
+                break;
+            }
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return new VirtualizationInfo { Error = ex.Message };
         }
     }
 

@@ -65,6 +65,9 @@ export default async function Dashboard() {
           </div>
           <div className="flex gap-4">
             <Button variant="outline" asChild>
+              <Link href="/groups">📁 Gruppen & Tags</Link>
+            </Button>
+            <Button variant="outline" asChild>
               <Link href="/api/refresh">🔄 Aktualisieren</Link>
             </Button>
           </div>

@@ -18,6 +18,12 @@ public class OsInfo
     public string? SerialNumber { get; set; }
     public string? RegisteredUser { get; set; }
     public string? Organization { get; set; }
+    // E1-03: Domain/Workgroup info
+    public string? ComputerName { get; set; }
+    public string? Domain { get; set; }
+    public string? Workgroup { get; set; }
+    public string? DomainRole { get; set; }
+    public bool IsDomainJoined { get; set; }
     public string? Error { get; set; }
 }
 
@@ -124,31 +130,69 @@ public static class SystemCollector
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem");
-            foreach (ManagementObject obj in searcher.Get())
+            var result = new OsInfo();
+            
+            // Basic OS info
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem"))
             {
-                return new OsInfo
+                foreach (ManagementObject obj in searcher.Get())
                 {
-                    Name = obj["Caption"]?.ToString()?.Trim(),
-                    Version = obj["Version"]?.ToString(),
-                    BuildNumber = obj["BuildNumber"]?.ToString(),
-                    Architecture = obj["OSArchitecture"]?.ToString(),
-                    InstallDate = ParseWmiDate(obj["InstallDate"]?.ToString()),
-                    LastBootTime = ParseWmiDate(obj["LastBootUpTime"]?.ToString()),
-                    SystemDrive = obj["SystemDrive"]?.ToString(),
-                    WindowsDirectory = obj["WindowsDirectory"]?.ToString(),
-                    Locale = obj["Locale"]?.ToString(),
-                    SerialNumber = obj["SerialNumber"]?.ToString(),
-                    RegisteredUser = obj["RegisteredUser"]?.ToString(),
-                    Organization = obj["Organization"]?.ToString()
-                };
+                    result.Name = obj["Caption"]?.ToString()?.Trim();
+                    result.Version = obj["Version"]?.ToString();
+                    result.BuildNumber = obj["BuildNumber"]?.ToString();
+                    result.Architecture = obj["OSArchitecture"]?.ToString();
+                    result.InstallDate = ParseWmiDate(obj["InstallDate"]?.ToString());
+                    result.LastBootTime = ParseWmiDate(obj["LastBootUpTime"]?.ToString());
+                    result.SystemDrive = obj["SystemDrive"]?.ToString();
+                    result.WindowsDirectory = obj["WindowsDirectory"]?.ToString();
+                    result.Locale = obj["Locale"]?.ToString();
+                    result.SerialNumber = obj["SerialNumber"]?.ToString();
+                    result.RegisteredUser = obj["RegisteredUser"]?.ToString();
+                    result.Organization = obj["Organization"]?.ToString();
+                    break;
+                }
             }
-            return new OsInfo { Error = "No OS info found" };
+            
+            // E1-03: Domain/Workgroup info from Win32_ComputerSystem
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem"))
+            {
+                foreach (ManagementObject obj in searcher.Get())
+                {
+                    result.ComputerName = obj["Name"]?.ToString();
+                    result.Domain = obj["Domain"]?.ToString();
+                    result.Workgroup = obj["Workgroup"]?.ToString();
+                    
+                    var partOfDomain = obj["PartOfDomain"];
+                    result.IsDomainJoined = partOfDomain != null && Convert.ToBoolean(partOfDomain);
+                    
+                    // DomainRole: 0=Standalone Workstation, 1=Member Workstation, 2=Standalone Server, 
+                    // 3=Member Server, 4=Backup DC, 5=Primary DC
+                    var domainRole = obj["DomainRole"];
+                    result.DomainRole = domainRole != null ? GetDomainRoleString(Convert.ToInt32(domainRole)) : null;
+                    break;
+                }
+            }
+            
+            return result;
         }
         catch (Exception ex)
         {
             return new OsInfo { Error = ex.Message };
         }
+    }
+    
+    private static string GetDomainRoleString(int role)
+    {
+        return role switch
+        {
+            0 => "Standalone Workstation",
+            1 => "Member Workstation",
+            2 => "Standalone Server",
+            3 => "Member Server",
+            4 => "Backup Domain Controller",
+            5 => "Primary Domain Controller",
+            _ => $"Unknown ({role})"
+        };
     }
 
     private static List<LocalUserInfo> GetLocalUsers()

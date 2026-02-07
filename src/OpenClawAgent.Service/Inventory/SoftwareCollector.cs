@@ -12,6 +12,9 @@ public class SoftwareItem
     public double? SizeMB { get; set; }
     public string? UninstallString { get; set; }
     public string? RegistryKey { get; set; }
+    // E1-05: MSI Product Codes for detection rules
+    public string? ProductCode { get; set; }
+    public bool IsMsi { get; set; }
 }
 
 public class SoftwareResult
@@ -85,6 +88,26 @@ public static class SoftwareCollector
 
                     var installDate = ParseInstallDate(subKey.GetValue("InstallDate")?.ToString());
                     var estimatedSize = subKey.GetValue("EstimatedSize");
+                    var uninstallString = subKey.GetValue("UninstallString")?.ToString();
+                    
+                    // E1-05: Detect MSI and extract Product Code
+                    // MSI product codes are stored as the registry key name when it's a GUID
+                    // Format: {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
+                    var isMsi = false;
+                    string? productCode = null;
+                    
+                    if (IsValidGuid(subKeyName))
+                    {
+                        isMsi = true;
+                        productCode = subKeyName;
+                    }
+                    else if (uninstallString != null && uninstallString.Contains("msiexec", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isMsi = true;
+                        // Try to extract product code from uninstall string
+                        // Example: MsiExec.exe /I{GUID} or MsiExec.exe /X{GUID}
+                        productCode = ExtractGuidFromString(uninstallString);
+                    }
                     
                     software.Add(new SoftwareItem
                     {
@@ -96,8 +119,10 @@ public static class SoftwareCollector
                         SizeMB = estimatedSize != null 
                             ? Math.Round(Convert.ToInt64(estimatedSize) / 1024.0, 2) 
                             : null,
-                        UninstallString = subKey.GetValue("UninstallString")?.ToString(),
-                        RegistryKey = $"{hive}\\{keyPath}\\{subKeyName}"
+                        UninstallString = uninstallString,
+                        RegistryKey = $"{hive}\\{keyPath}\\{subKeyName}",
+                        IsMsi = isMsi,
+                        ProductCode = productCode
                     });
                 }
                 catch
@@ -110,6 +135,29 @@ public static class SoftwareCollector
         {
             // Skip keys we can't access
         }
+    }
+    
+    private static bool IsValidGuid(string s)
+    {
+        return s.StartsWith("{") && s.EndsWith("}") && Guid.TryParse(s, out _);
+    }
+    
+    private static string? ExtractGuidFromString(string s)
+    {
+        // Look for GUID pattern in string
+        var start = s.IndexOf('{');
+        var end = s.IndexOf('}');
+        
+        if (start >= 0 && end > start)
+        {
+            var potential = s.Substring(start, end - start + 1);
+            if (Guid.TryParse(potential, out _))
+            {
+                return potential;
+            }
+        }
+        
+        return null;
     }
 
     private static string? ParseInstallDate(string? dateStr)

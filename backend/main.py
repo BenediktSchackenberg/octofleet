@@ -761,6 +761,313 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     return {"status": "ok", **results}
 
 
+# =============================================================================
+# E2: Groups & Tags API
+# =============================================================================
+
+@app.get("/api/v1/groups")
+async def list_groups(db: asyncpg.Pool = Depends(get_db)):
+    """List all groups with member counts"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT g.id, g.name, g.description, g.parent_id, g.is_dynamic, 
+                   g.dynamic_rule, g.color, g.icon, g.created_at, g.updated_at,
+                   COUNT(dg.node_id) as member_count
+            FROM groups g
+            LEFT JOIN device_groups dg ON g.id = dg.group_id
+            GROUP BY g.id
+            ORDER BY g.name
+        """)
+        return {"groups": [dict(r) for r in rows]}
+
+
+@app.get("/api/v1/groups/{group_id}")
+async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get single group with members"""
+    async with db.acquire() as conn:
+        group = await conn.fetchrow("""
+            SELECT g.id, g.name, g.description, g.parent_id, g.is_dynamic, 
+                   g.dynamic_rule, g.color, g.icon, g.created_at, g.updated_at
+            FROM groups g WHERE g.id = $1
+        """, UUID(group_id))
+        
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        # Get members
+        members = await conn.fetch("""
+            SELECT n.id, n.node_id, n.hostname, n.os_name, n.last_seen, n.is_online,
+                   dg.assigned_at, dg.assigned_by
+            FROM device_groups dg
+            JOIN nodes n ON dg.node_id = n.id
+            WHERE dg.group_id = $1
+            ORDER BY n.hostname
+        """, UUID(group_id))
+        
+        result = dict(group)
+        result["members"] = [dict(m) for m in members]
+        return result
+
+
+@app.post("/api/v1/groups", dependencies=[Depends(verify_api_key)])
+async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a new group"""
+    name = data.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    
+    async with db.acquire() as conn:
+        try:
+            row = await conn.fetchrow("""
+                INSERT INTO groups (name, description, parent_id, is_dynamic, dynamic_rule, color, icon)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id, name, description, parent_id, is_dynamic, dynamic_rule, color, icon, created_at
+            """,
+                name,
+                data.get("description"),
+                UUID(data["parentId"]) if data.get("parentId") else None,
+                data.get("isDynamic", False),
+                json.dumps(data["dynamicRule"]) if data.get("dynamicRule") else None,
+                data.get("color"),
+                data.get("icon")
+            )
+            return {"status": "created", "group": dict(row)}
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=409, detail="Group name already exists")
+
+
+@app.put("/api/v1/groups/{group_id}", dependencies=[Depends(verify_api_key)])
+async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Update an existing group"""
+    async with db.acquire() as conn:
+        existing = await conn.fetchrow("SELECT id FROM groups WHERE id = $1", UUID(group_id))
+        if not existing:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        row = await conn.fetchrow("""
+            UPDATE groups SET
+                name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                parent_id = $4,
+                is_dynamic = COALESCE($5, is_dynamic),
+                dynamic_rule = COALESCE($6, dynamic_rule),
+                color = COALESCE($7, color),
+                icon = COALESCE($8, icon),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING id, name, description, parent_id, is_dynamic, dynamic_rule, color, icon, updated_at
+        """,
+            UUID(group_id),
+            data.get("name"),
+            data.get("description"),
+            UUID(data["parentId"]) if data.get("parentId") else None,
+            data.get("isDynamic"),
+            json.dumps(data["dynamicRule"]) if data.get("dynamicRule") else None,
+            data.get("color"),
+            data.get("icon")
+        )
+        return {"status": "updated", "group": dict(row)}
+
+
+@app.delete("/api/v1/groups/{group_id}", dependencies=[Depends(verify_api_key)])
+async def delete_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a group"""
+    async with db.acquire() as conn:
+        result = await conn.execute("DELETE FROM groups WHERE id = $1", UUID(group_id))
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Group not found")
+        return {"status": "deleted", "groupId": group_id}
+
+
+# E2-03: Assign devices to groups
+@app.post("/api/v1/groups/{group_id}/members", dependencies=[Depends(verify_api_key)])
+async def add_group_members(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Add devices to a group"""
+    node_ids = data.get("nodeIds", [])
+    assigned_by = data.get("assignedBy", "api")
+    
+    if not node_ids:
+        raise HTTPException(status_code=400, detail="nodeIds array is required")
+    
+    async with db.acquire() as conn:
+        # Verify group exists
+        group = await conn.fetchrow("SELECT id FROM groups WHERE id = $1", UUID(group_id))
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        added = 0
+        for node_id in node_ids:
+            try:
+                await conn.execute("""
+                    INSERT INTO device_groups (node_id, group_id, assigned_by)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (node_id, group_id) DO NOTHING
+                """, UUID(node_id), UUID(group_id), assigned_by)
+                added += 1
+            except Exception:
+                pass  # Skip invalid UUIDs
+        
+        return {"status": "ok", "groupId": group_id, "added": added}
+
+
+@app.delete("/api/v1/groups/{group_id}/members", dependencies=[Depends(verify_api_key)])
+async def remove_group_members(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Remove devices from a group"""
+    node_ids = data.get("nodeIds", [])
+    
+    if not node_ids:
+        raise HTTPException(status_code=400, detail="nodeIds array is required")
+    
+    async with db.acquire() as conn:
+        removed = 0
+        for node_id in node_ids:
+            try:
+                result = await conn.execute("""
+                    DELETE FROM device_groups WHERE node_id = $1 AND group_id = $2
+                """, UUID(node_id), UUID(group_id))
+                if result != "DELETE 0":
+                    removed += 1
+            except Exception:
+                pass
+        
+        return {"status": "ok", "groupId": group_id, "removed": removed}
+
+
+# E2-04: Tags API
+@app.get("/api/v1/tags")
+async def list_tags(db: asyncpg.Pool = Depends(get_db)):
+    """List all tags with usage counts"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT t.id, t.name, t.color, t.created_at,
+                   COUNT(dt.node_id) as device_count
+            FROM tags t
+            LEFT JOIN device_tags dt ON t.id = dt.tag_id
+            GROUP BY t.id
+            ORDER BY t.name
+        """)
+        return {"tags": [dict(r) for r in rows]}
+
+
+@app.post("/api/v1/tags", dependencies=[Depends(verify_api_key)])
+async def create_tag(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a new tag"""
+    name = data.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    
+    async with db.acquire() as conn:
+        try:
+            row = await conn.fetchrow("""
+                INSERT INTO tags (name, color) VALUES ($1, $2)
+                RETURNING id, name, color, created_at
+            """, name, data.get("color"))
+            return {"status": "created", "tag": dict(row)}
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=409, detail="Tag name already exists")
+
+
+@app.delete("/api/v1/tags/{tag_id}", dependencies=[Depends(verify_api_key)])
+async def delete_tag(tag_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a tag"""
+    async with db.acquire() as conn:
+        result = await conn.execute("DELETE FROM tags WHERE id = $1", UUID(tag_id))
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Tag not found")
+        return {"status": "deleted", "tagId": tag_id}
+
+
+@app.post("/api/v1/devices/{node_id}/tags", dependencies=[Depends(verify_api_key)])
+async def add_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Add tags to a device"""
+    tag_ids = data.get("tagIds", [])
+    
+    if not tag_ids:
+        raise HTTPException(status_code=400, detail="tagIds array is required")
+    
+    async with db.acquire() as conn:
+        # Find node by node_id string
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        added = 0
+        for tag_id in tag_ids:
+            try:
+                await conn.execute("""
+                    INSERT INTO device_tags (node_id, tag_id)
+                    VALUES ($1, $2)
+                    ON CONFLICT (node_id, tag_id) DO NOTHING
+                """, node['id'], UUID(tag_id))
+                added += 1
+            except Exception:
+                pass
+        
+        return {"status": "ok", "nodeId": node_id, "added": added}
+
+
+@app.delete("/api/v1/devices/{node_id}/tags", dependencies=[Depends(verify_api_key)])
+async def remove_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Remove tags from a device"""
+    tag_ids = data.get("tagIds", [])
+    
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        removed = 0
+        for tag_id in tag_ids:
+            try:
+                result = await conn.execute("""
+                    DELETE FROM device_tags WHERE node_id = $1 AND tag_id = $2
+                """, node['id'], UUID(tag_id))
+                if result != "DELETE 0":
+                    removed += 1
+            except Exception:
+                pass
+        
+        return {"status": "ok", "nodeId": node_id, "removed": removed}
+
+
+@app.get("/api/v1/devices/{node_id}/groups")
+async def get_device_groups(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get groups a device belongs to"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        rows = await conn.fetch("""
+            SELECT g.id, g.name, g.description, g.color, g.icon, dg.assigned_at, dg.assigned_by
+            FROM device_groups dg
+            JOIN groups g ON dg.group_id = g.id
+            WHERE dg.node_id = $1
+            ORDER BY g.name
+        """, node['id'])
+        
+        return {"nodeId": node_id, "groups": [dict(r) for r in rows]}
+
+
+@app.get("/api/v1/devices/{node_id}/tags")
+async def get_device_tags(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get tags assigned to a device"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        rows = await conn.fetch("""
+            SELECT t.id, t.name, t.color, dt.assigned_at
+            FROM device_tags dt
+            JOIN tags t ON dt.tag_id = t.id
+            WHERE dt.node_id = $1
+            ORDER BY t.name
+        """, node['id'])
+        
+        return {"nodeId": node_id, "tags": [dict(r) for r in rows]}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8080)
