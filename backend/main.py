@@ -700,14 +700,16 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         await submit_software(flat_sw, db)
         results["submitted"].append("software")
     
-    # Extract hotfixes data - hotfixes.hotfixes is the array
+    # Extract hotfixes data - hotfixes.hotfixes is the array, updateHistory is separate
     hf_obj = data.get("hotfixes", {})
     hf_data = hf_obj.get("hotfixes", []) if isinstance(hf_obj, dict) else hf_obj
-    if hf_data:
+    update_history_data = hf_obj.get("updateHistory", []) if isinstance(hf_obj, dict) else []
+    if hf_data or update_history_data:
         flat_hf = {
             "hostname": hostname,
             "nodeId": data.get("nodeId", hostname),
-            "hotfixes": hf_data
+            "hotfixes": hf_data,
+            "updateHistory": update_history_data
         }
         await submit_hotfixes(flat_hf, db)
         results["submitted"].append("hotfixes")
