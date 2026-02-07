@@ -82,7 +82,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds }: AddDevicesDialo
           'X-API-Key': API_KEY,
         },
         body: JSON.stringify({
-          device_ids: selectedIds,
+          nodeIds: selectedIds,
           assigned_by: 'admin',
         }),
       });

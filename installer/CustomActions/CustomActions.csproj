@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>OpenClawAgent.Installer.CustomActions</RootNamespace>
+    <AssemblyName>CustomActions</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Dtf.CustomAction" Version="5.0.0" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="5.0.0" />
+  </ItemGroup>
+</Project>

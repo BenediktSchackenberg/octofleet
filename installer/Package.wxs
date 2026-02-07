@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <!-- Product Definition -->
+  <Package Name="OpenClaw Node Agent"
+           Manufacturer="OpenClaw"
+           Version="0.3.0"
+           UpgradeCode="E8F9D4A2-7B3C-4E5F-9A1D-2C6B8F0E3D7A"
+           Scope="perMachine">
+
+    <!-- Media Definition -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Major Upgrade: Remove older versions -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+                  Schedule="afterInstallInitialize" />
+
+    <!-- Custom Properties (can be set via command line) -->
+    <Property Id="GATEWAY_URL" Value="" />
+    <Property Id="GATEWAY_TOKEN" Value="" Secure="yes" />
+    <Property Id="INVENTORY_URL" Value="" />
+    <Property Id="DISPLAY_NAME" Value="" />
+
+    <!-- Installation Directory -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="OpenClaw">
+        <Directory Id="AGENTFOLDER" Name="Agent" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- CommonAppData for Config -->
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="CONFIGDIR" Name="OpenClaw" />
+    </StandardDirectory>
+
+    <!-- Feature: Main Agent -->
+    <Feature Id="MainFeature" Title="OpenClaw Node Agent" Level="1">
+      <ComponentGroupRef Id="ServiceComponents" />
+      <ComponentGroupRef Id="ConfigComponents" />
+    </Feature>
+
+  </Package>
+
+  <!-- Service Components -->
+  <Fragment>
+    <ComponentGroup Id="ServiceComponents" Directory="AGENTFOLDER">
+      
+      <!-- Main Service Executable -->
+      <Component Id="ServiceExe" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+        <File Id="OpenClawAgentServiceExe"
+              Source="$(var.OpenClawAgent.Service.TargetDir)OpenClawAgent.Service.exe"
+              KeyPath="yes" />
+        
+        <!-- Install as Windows Service -->
+        <ServiceInstall Id="ServiceInstaller"
+                        Name="OpenClawNodeAgent"
+                        DisplayName="OpenClaw Node Agent"
+                        Description="OpenClaw endpoint management agent - connects to Gateway for remote management"
+                        Type="ownProcess"
+                        Start="auto"
+                        ErrorControl="normal"
+                        Account="LocalSystem" />
+        
+        <!-- Service Control: Start after install, Stop before uninstall -->
+        <ServiceControl Id="ServiceControl"
+                        Name="OpenClawNodeAgent"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+      </Component>
+
+      <!-- All other DLLs and dependencies -->
+      <Component Id="ServiceDependencies" Guid="B2C3D4E5-F6A7-8901-BCDE-F23456789012">
+        <File Source="$(var.OpenClawAgent.Service.TargetDir)*.dll" />
+        <File Source="$(var.OpenClawAgent.Service.TargetDir)*.json" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Config Components -->
+  <Fragment>
+    <ComponentGroup Id="ConfigComponents" Directory="CONFIGDIR">
+      
+      <!-- Create config directory -->
+      <Component Id="ConfigDirectory" Guid="C3D4E5F6-A7B8-9012-CDEF-345678901234">
+        <CreateFolder />
+      </Component>
+
+      <!-- Create logs subdirectory -->
+      <Component Id="LogsDirectory" Guid="D4E5F6A7-B8C9-0123-DEF0-456789012345">
+        <CreateFolder Directory="CONFIGDIR">
+          <util:PermissionEx User="Everyone" GenericAll="yes" />
+        </CreateFolder>
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Custom Action for Config File Creation -->
+  <Fragment>
+    <Binary Id="CustomActionDll" SourceFile="CustomActions.CA.dll" />
+    
+    <CustomAction Id="WriteConfigFile"
+                  BinaryRef="CustomActionDll"
+                  DllEntry="WriteConfigFile"
+                  Execute="deferred"
+                  Impersonate="no" />
+    
+    <CustomAction Id="SetConfigProperties"
+                  Property="WriteConfigFile"
+                  Value="GATEWAY_URL=[GATEWAY_URL];GATEWAY_TOKEN=[GATEWAY_TOKEN];INVENTORY_URL=[INVENTORY_URL];DISPLAY_NAME=[DISPLAY_NAME];CONFIGDIR=[CONFIGDIR]" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SetConfigProperties" Before="WriteConfigFile">
+        GATEWAY_URL &lt;&gt; "" OR GATEWAY_TOKEN &lt;&gt; ""
+      </Custom>
+      <Custom Action="WriteConfigFile" Before="StartServices">
+        GATEWAY_URL &lt;&gt; "" OR GATEWAY_TOKEN &lt;&gt; ""
+      </Custom>
+    </InstallExecuteSequence>
+  </Fragment>
+
+</Wix>

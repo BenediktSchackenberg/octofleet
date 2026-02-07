@@ -1,0 +1,11 @@
+<Project Sdk="WixToolset.Sdk/5.0.0">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <InstallerPlatform>x64</InstallerPlatform>
+  </PropertyGroup>
+  
+  <!-- Reference the Service project output -->
+  <ItemGroup>
+    <ProjectReference Include="..\src\OpenClawAgent.Service\OpenClawAgent.Service.csproj" />
+  </ItemGroup>
+</Project>
