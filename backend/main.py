@@ -167,7 +167,7 @@ async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Node not found")
         
         row = await conn.fetchrow("""
-            SELECT cpu, ram, disks, mainboard, bios, gpu, nics, updated_at
+            SELECT cpu, ram, disks, mainboard, bios, gpu, nics, virtualization, updated_at
             FROM hardware_current WHERE node_id = $1
         """, node['id'])
         
@@ -182,6 +182,7 @@ async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "bios": json.loads(row['bios']) if row['bios'] else {},
             "gpu": json.loads(row['gpu']) if row['gpu'] else [],
             "nics": json.loads(row['nics']) if row['nics'] else [],
+            "virtualization": json.loads(row['virtualization']) if row['virtualization'] else None,
             "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
         }}
 
@@ -254,7 +255,8 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Node not found")
         
         row = await conn.fetchrow("""
-            SELECT users, services, startup_items, scheduled_tasks, updated_at
+            SELECT users, services, startup_items, scheduled_tasks, 
+                   computer_name, domain, workgroup, domain_role, is_domain_joined, updated_at
             FROM system_current WHERE node_id = $1
         """, node['id'])
         
@@ -262,6 +264,11 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "osName": node['os_name'],
             "osVersion": node['os_version'],
             "osBuild": node['os_build'],
+            "computerName": row['computer_name'] if row else None,
+            "domain": row['domain'] if row else None,
+            "workgroup": row['workgroup'] if row else None,
+            "domainRole": row['domain_role'] if row else None,
+            "isDomainJoined": row['is_domain_joined'] if row else None,
             "users": json.loads(row['users']) if row and row['users'] else [],
             "services": json.loads(row['services']) if row and row['services'] else [],
             "startupItems": json.loads(row['startup_items']) if row and row['startup_items'] else [],
@@ -362,11 +369,11 @@ async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
     # Windows Agent uses: ram (not memory), gpu (not gpus), nics (not networkAdapters)
     async with db.acquire() as conn:
         await conn.execute("""
-            INSERT INTO hardware_current (node_id, cpu, ram, disks, mainboard, bios, gpu, nics, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            INSERT INTO hardware_current (node_id, cpu, ram, disks, mainboard, bios, gpu, nics, virtualization, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
             ON CONFLICT (node_id) DO UPDATE SET
                 cpu = $2, ram = $3, disks = $4, mainboard = $5, 
-                bios = $6, gpu = $7, nics = $8, updated_at = NOW()
+                bios = $6, gpu = $7, nics = $8, virtualization = $9, updated_at = NOW()
         """,
             uuid,
             json.dumps(data.get("cpu", {})),
@@ -375,7 +382,8 @@ async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
             json.dumps(data.get("mainboard", {})),
             json.dumps(data.get("bios", {})),
             json.dumps(data.get("gpu") or data.get("gpus", [])),
-            json.dumps(data.get("nics") or data.get("networkAdapters", []))
+            json.dumps(data.get("nics") or data.get("networkAdapters", [])),
+            json.dumps(data.get("virtualization")) if data.get("virtualization") else None
         )
         
         # Log to hypertable
@@ -525,17 +533,27 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
     
     async with db.acquire() as conn:
         await conn.execute("""
-            INSERT INTO system_current (node_id, users, services, startup_items, scheduled_tasks, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
+            INSERT INTO system_current (node_id, users, services, startup_items, scheduled_tasks,
+                os_name, os_version, os_build, computer_name, domain, workgroup, domain_role, is_domain_joined, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
             ON CONFLICT (node_id) DO UPDATE SET
-                users = $2, services = $3, startup_items = $4, 
-                scheduled_tasks = $5, updated_at = NOW()
+                users = $2, services = $3, startup_items = $4, scheduled_tasks = $5,
+                os_name = $6, os_version = $7, os_build = $8, computer_name = $9,
+                domain = $10, workgroup = $11, domain_role = $12, is_domain_joined = $13, updated_at = NOW()
         """,
             uuid,
             json.dumps(data.get("users", [])),
             json.dumps(data.get("services", [])),
             json.dumps(data.get("startupItems", [])),
-            json.dumps(data.get("scheduledTasks", []))
+            json.dumps(data.get("scheduledTasks", [])),
+            os_info.get("name"),
+            os_info.get("version"),
+            os_info.get("build"),
+            os_info.get("computerName"),
+            os_info.get("domain"),
+            os_info.get("workgroup"),
+            os_info.get("domainRole"),
+            os_info.get("isDomainJoined")
         )
     
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
