@@ -1298,3 +1298,392 @@ async def enroll_device(request: Request):
         "inventoryApiUrl": "http://192.168.0.5:8080",
         "message": f"Device {hostname} enrolled successfully"
     }
+
+# ============================================
+# E3: Job System API
+# ============================================
+
+@app.post("/api/v1/jobs")
+async def create_job(request: Request):
+    """Create a new job targeting devices, groups, or tags"""
+    data = await request.json()
+    api_key_check(request)
+    
+    job_id = str(uuid.uuid4())
+    
+    # Required fields
+    target_type = data.get("targetType", "device")  # device, group, tag, all
+    command_type = data.get("commandType", "run")   # run, script, inventory
+    command_data = data.get("commandData", {})
+    
+    # Optional fields
+    name = data.get("name", f"Job {job_id[:8]}")
+    description = data.get("description", "")
+    target_id = data.get("targetId")  # device or group UUID
+    target_tag = data.get("targetTag")  # for tag targeting
+    priority = data.get("priority", 5)
+    scheduled_at = data.get("scheduledAt")
+    expires_at = data.get("expiresAt")
+    created_by = data.get("createdBy", "api")
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Insert job
+    cur.execute("""
+        INSERT INTO jobs (id, name, description, target_type, target_id, target_tag, 
+                         command_type, command_data, priority, scheduled_at, expires_at, created_by)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id, created_at
+    """, (job_id, name, description, target_type, target_id, target_tag,
+          command_type, json.dumps(command_data), priority, scheduled_at, expires_at, created_by))
+    
+    row = cur.fetchone()
+    
+    # Expand job to instances based on target
+    instances_created = 0
+    
+    if target_type == "device" and target_id:
+        # Single device - get node_id from system_current
+        cur.execute("SELECT node_id FROM system_current WHERE node_id = %s", (target_id,))
+        node = cur.fetchone()
+        if node:
+            cur.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES (%s, %s, 'pending')
+            """, (job_id, node[0]))
+            instances_created = 1
+    
+    elif target_type == "group" and target_id:
+        # Group - get all devices in group
+        cur.execute("""
+            SELECT dg.node_id FROM device_groups dg
+            WHERE dg.group_id = %s
+        """, (target_id,))
+        for node in cur.fetchall():
+            cur.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES (%s, %s, 'pending')
+            """, (job_id, node[0]))
+            instances_created += 1
+    
+    elif target_type == "tag" and target_tag:
+        # Tag - get all devices with tag
+        cur.execute("""
+            SELECT dt.node_id FROM device_tags dt
+            JOIN tags t ON t.id = dt.tag_id
+            WHERE t.name = %s
+        """, (target_tag,))
+        for node in cur.fetchall():
+            cur.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES (%s, %s, 'pending')
+            """, (job_id, node[0]))
+            instances_created += 1
+    
+    elif target_type == "all":
+        # All devices
+        cur.execute("SELECT DISTINCT node_id FROM system_current")
+        for node in cur.fetchall():
+            cur.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES (%s, %s, 'pending')
+            """, (job_id, node[0]))
+            instances_created += 1
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return {
+        "id": job_id,
+        "name": name,
+        "targetType": target_type,
+        "commandType": command_type,
+        "instancesCreated": instances_created,
+        "createdAt": row[1].isoformat() if row[1] else None
+    }
+
+
+@app.get("/api/v1/jobs")
+async def list_jobs(request: Request, limit: int = 50, offset: int = 0):
+    """List all jobs with summary"""
+    api_key_check(request)
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        SELECT job_id, name, command_type, target_type, created_at,
+               total_instances, pending, queued, running, success, failed, cancelled
+        FROM job_summary
+        ORDER BY created_at DESC
+        LIMIT %s OFFSET %s
+    """, (limit, offset))
+    
+    jobs = []
+    for row in cur.fetchall():
+        jobs.append({
+            "id": str(row[0]),
+            "name": row[1],
+            "commandType": row[2],
+            "targetType": row[3],
+            "createdAt": row[4].isoformat() if row[4] else None,
+            "summary": {
+                "total": row[5],
+                "pending": row[6],
+                "queued": row[7],
+                "running": row[8],
+                "success": row[9],
+                "failed": row[10],
+                "cancelled": row[11]
+            }
+        })
+    
+    cur.close()
+    conn.close()
+    
+    return {"jobs": jobs}
+
+
+@app.get("/api/v1/jobs/{job_id}")
+async def get_job(job_id: str, request: Request):
+    """Get job details with all instances"""
+    api_key_check(request)
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Get job
+    cur.execute("""
+        SELECT id, name, description, target_type, target_id, target_tag,
+               command_type, command_data, priority, scheduled_at, expires_at,
+               created_by, created_at
+        FROM jobs WHERE id = %s
+    """, (job_id,))
+    
+    job = cur.fetchone()
+    if not job:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get instances
+    cur.execute("""
+        SELECT id, node_id, status, queued_at, started_at, completed_at,
+               exit_code, stdout, stderr, error_message, duration_ms, attempt
+        FROM job_instances
+        WHERE job_id = %s
+        ORDER BY queued_at
+    """, (job_id,))
+    
+    instances = []
+    for row in cur.fetchall():
+        instances.append({
+            "id": str(row[0]),
+            "nodeId": row[1],
+            "status": row[2],
+            "queuedAt": row[3].isoformat() if row[3] else None,
+            "startedAt": row[4].isoformat() if row[4] else None,
+            "completedAt": row[5].isoformat() if row[5] else None,
+            "exitCode": row[6],
+            "stdout": row[7],
+            "stderr": row[8],
+            "errorMessage": row[9],
+            "durationMs": row[10],
+            "attempt": row[11]
+        })
+    
+    cur.close()
+    conn.close()
+    
+    return {
+        "id": str(job[0]),
+        "name": job[1],
+        "description": job[2],
+        "targetType": job[3],
+        "targetId": str(job[4]) if job[4] else None,
+        "targetTag": job[5],
+        "commandType": job[6],
+        "commandData": job[7],
+        "priority": job[8],
+        "scheduledAt": job[9].isoformat() if job[9] else None,
+        "expiresAt": job[10].isoformat() if job[10] else None,
+        "createdBy": job[11],
+        "createdAt": job[12].isoformat() if job[12] else None,
+        "instances": instances
+    }
+
+
+@app.get("/api/v1/jobs/pending/{node_id}")
+async def get_pending_jobs(node_id: str, request: Request):
+    """Agent endpoint: Get pending jobs for a specific node"""
+    # Note: Could add agent auth here instead of API key
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Get pending instances for this node, ordered by priority
+    cur.execute("""
+        SELECT ji.id, ji.job_id, j.command_type, j.command_data, j.priority,
+               ji.attempt, ji.max_attempts
+        FROM job_instances ji
+        JOIN jobs j ON j.id = ji.job_id
+        WHERE ji.node_id = %s 
+          AND ji.status = 'pending'
+          AND (j.scheduled_at IS NULL OR j.scheduled_at <= NOW())
+          AND (j.expires_at IS NULL OR j.expires_at > NOW())
+        ORDER BY j.priority ASC, ji.queued_at ASC
+        LIMIT 10
+    """, (node_id,))
+    
+    jobs = []
+    for row in cur.fetchall():
+        # Mark as queued
+        cur.execute("""
+            UPDATE job_instances SET status = 'queued', updated_at = NOW()
+            WHERE id = %s
+        """, (str(row[0]),))
+        
+        jobs.append({
+            "instanceId": str(row[0]),
+            "jobId": str(row[1]),
+            "commandType": row[2],
+            "commandData": row[3],
+            "priority": row[4],
+            "attempt": row[5],
+            "maxAttempts": row[6]
+        })
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return {"jobs": jobs, "count": len(jobs)}
+
+
+@app.post("/api/v1/jobs/instances/{instance_id}/start")
+async def start_job_instance(instance_id: str, request: Request):
+    """Agent endpoint: Mark job as started"""
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        UPDATE job_instances 
+        SET status = 'running', started_at = NOW(), updated_at = NOW()
+        WHERE id = %s
+        RETURNING id, job_id, node_id
+    """, (instance_id,))
+    
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    # Log start
+    cur.execute("""
+        INSERT INTO job_logs (instance_id, level, message)
+        VALUES (%s, 'info', 'Job execution started')
+    """, (instance_id,))
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return {"status": "running", "instanceId": instance_id}
+
+
+@app.post("/api/v1/jobs/instances/{instance_id}/result")
+async def submit_job_result(instance_id: str, request: Request):
+    """Agent endpoint: Submit job execution result"""
+    data = await request.json()
+    
+    success = data.get("success", False)
+    exit_code = data.get("exitCode", -1)
+    stdout = data.get("stdout", "")
+    stderr = data.get("stderr", "")
+    error_message = data.get("errorMessage", "")
+    duration_ms = data.get("durationMs", 0)
+    
+    status = "success" if success else "failed"
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        UPDATE job_instances 
+        SET status = %s, completed_at = NOW(), updated_at = NOW(),
+            exit_code = %s, stdout = %s, stderr = %s, 
+            error_message = %s, duration_ms = %s
+        WHERE id = %s
+        RETURNING id, job_id, attempt, max_attempts
+    """, (status, exit_code, stdout, stderr, error_message, duration_ms, instance_id))
+    
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    # Log completion
+    cur.execute("""
+        INSERT INTO job_logs (instance_id, level, message, data)
+        VALUES (%s, %s, %s, %s)
+    """, (instance_id, 'info' if success else 'error', 
+          f'Job completed with exit code {exit_code}',
+          json.dumps({"exitCode": exit_code, "durationMs": duration_ms})))
+    
+    # Handle retry logic if failed
+    should_retry = False
+    if not success and row[2] < row[3]:  # attempt < max_attempts
+        should_retry = True
+        cur.execute("""
+            UPDATE job_instances 
+            SET status = 'pending', attempt = attempt + 1, 
+                next_retry_at = NOW() + INTERVAL '30 seconds',
+                updated_at = NOW()
+            WHERE id = %s
+        """, (instance_id,))
+        
+        cur.execute("""
+            INSERT INTO job_logs (instance_id, level, message)
+            VALUES (%s, 'info', %s)
+        """, (instance_id, f'Scheduling retry (attempt {row[2]+1}/{row[3]})'))
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return {
+        "status": status,
+        "instanceId": instance_id,
+        "willRetry": should_retry
+    }
+
+
+@app.delete("/api/v1/jobs/{job_id}")
+async def cancel_job(job_id: str, request: Request):
+    """Cancel a job and all pending instances"""
+    api_key_check(request)
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Cancel all pending/queued instances
+    cur.execute("""
+        UPDATE job_instances 
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE job_id = %s AND status IN ('pending', 'queued')
+        RETURNING id
+    """, (job_id,))
+    
+    cancelled = len(cur.fetchall())
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return {"status": "cancelled", "instancesCancelled": cancelled}
+
