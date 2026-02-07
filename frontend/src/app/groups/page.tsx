@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { CreateGroupDialog } from "@/components/create-group-dialog";
+import { CreateTagDialog } from "@/components/create-tag-dialog";
 
 interface Group {
   id: string;
@@ -97,7 +98,7 @@ export default async function GroupsPage() {
         <div className="mb-12">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold">Gruppen</h2>
-            <Button variant="outline" size="sm">+ Neue Gruppe</Button>
+            <CreateGroupDialog />
           </div>
           
           {groups.length === 0 ? (
@@ -152,7 +153,7 @@ export default async function GroupsPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold">Tags</h2>
-            <Button variant="outline" size="sm">+ Neuer Tag</Button>
+            <CreateTagDialog />
           </div>
           
           {tags.length === 0 ? (

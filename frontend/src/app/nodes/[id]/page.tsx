@@ -132,11 +132,81 @@ export default async function NodeDetail({ params }: PageProps) {
                   <CardTitle>System Info</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <InfoRow label="Hostname" value={hwData.mainboard?.product ? `${hwData.mainboard.manufacturer} ${hwData.mainboard.product}` : null} />
-                  <InfoRow label="BIOS" value={hwData.bios?.name} />
+                  <InfoRow label="Mainboard" value={hwData.mainboard?.product ? `${hwData.mainboard.manufacturer} ${hwData.mainboard.product}` : null} />
+                  <InfoRow label="BIOS Version" value={hwData.bios?.smbiosVersion || hwData.bios?.name} />
                   <InfoRow label="BIOS Datum" value={hwData.bios?.releaseDate} />
+                  <InfoRow label="System UUID" value={hwData.bios?.uuid} />
+                  {hwData.bios?.isUefi !== undefined && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Boot Modus</span>
+                      <Badge variant={hwData.bios?.isUefi ? "default" : "secondary"}>
+                        {hwData.bios?.isUefi ? "UEFI" : "Legacy BIOS"}
+                      </Badge>
+                    </div>
+                  )}
+                  {hwData.bios?.secureBootState && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Secure Boot</span>
+                      <Badge variant={hwData.bios?.secureBootState === "Enabled" ? "default" : "secondary"}>
+                        {hwData.bios?.secureBootState}
+                      </Badge>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Virtualisierung & Domain</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {hwData.virtualization ? (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Typ</span>
+                        <Badge variant={hwData.virtualization.isVirtual ? "secondary" : "default"}>
+                          {hwData.virtualization.hypervisor || (hwData.virtualization.isVirtual ? "Virtual" : "Physical")}
+                        </Badge>
+                      </div>
+                      {hwData.virtualization.isVirtual && (
+                        <InfoRow label="VM Model" value={hwData.virtualization.model} />
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Typ</span>
+                      <Badge variant="outline">
+                        ⏳ Warte auf Agent-Update
+                      </Badge>
+                    </div>
+                  )}
+                  {/* Support both nested (sysData.os.computerName) and flat (hwData.computerName) structure */}
+                  <InfoRow label="Computer Name" value={sysData.os?.computerName || hwData.computerName || nodeId} />
+                  {(sysData.os?.isDomainJoined !== undefined || sysData.isDomainJoined !== undefined) ? (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Domain Status</span>
+                        <Badge variant={(sysData.os?.isDomainJoined || sysData.isDomainJoined) ? "default" : "secondary"}>
+                          {(sysData.os?.isDomainJoined || sysData.isDomainJoined) ? "Domain-joined" : "Workgroup"}
+                        </Badge>
+                      </div>
+                      <InfoRow 
+                        label={(sysData.os?.isDomainJoined || sysData.isDomainJoined) ? "Domain" : "Workgroup"} 
+                        value={(sysData.os?.isDomainJoined || sysData.isDomainJoined) 
+                          ? (sysData.os?.domain || sysData.domain) 
+                          : (sysData.os?.workgroup || sysData.workgroup)} 
+                      />
+                      <InfoRow label="Domain Role" value={sysData.os?.domainRole || sysData.domainRole} />
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-xs mt-2">
+                      💡 Domain-Daten erscheinen nach Agent-Update
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+            
+            <div className="grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Netzwerk</CardTitle>
@@ -167,6 +237,68 @@ export default async function NodeDetail({ params }: PageProps) {
                   <InfoRow label="Max Clock" value={hwData.cpu?.maxClockSpeedMHz ? `${hwData.cpu.maxClockSpeedMHz} MHz` : null} />
                   <InfoRow label="Architektur" value={hwData.cpu?.architecture} />
                   <InfoRow label="Socket" value={hwData.cpu?.socketDesignation} />
+                  <InfoRow label="L2 Cache" value={hwData.cpu?.l2CacheKB ? `${(hwData.cpu.l2CacheKB / 1024).toFixed(0)} MB` : null} />
+                  <InfoRow label="L3 Cache" value={hwData.cpu?.l3CacheKB ? `${(hwData.cpu.l3CacheKB / 1024).toFixed(0)} MB` : null} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>BIOS / UEFI</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <InfoRow label="Hersteller" value={hwData.bios?.manufacturer} />
+                  <InfoRow label="Version" value={hwData.bios?.smbiosVersion || hwData.bios?.name} />
+                  <InfoRow label="Datum" value={hwData.bios?.releaseDate} />
+                  <InfoRow label="UUID" value={hwData.bios?.uuid} />
+                  {hwData.bios?.isUefi !== undefined && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Boot Modus</span>
+                      <Badge variant={hwData.bios?.isUefi ? "default" : "secondary"}>
+                        {hwData.bios?.isUefi ? "UEFI" : "Legacy BIOS"}
+                      </Badge>
+                    </div>
+                  )}
+                  {hwData.bios?.secureBootState && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Secure Boot</span>
+                      <Badge variant={hwData.bios?.secureBootState === "Enabled" ? "default" : "secondary"}>
+                        {hwData.bios?.secureBootState}
+                      </Badge>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Mainboard</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <InfoRow label="Hersteller" value={hwData.mainboard?.manufacturer} />
+                  <InfoRow label="Produkt" value={hwData.mainboard?.product} />
+                  <InfoRow label="Version" value={hwData.mainboard?.version} />
+                  <InfoRow label="Seriennummer" value={hwData.mainboard?.serialNumber} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Virtualisierung</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {hwData.virtualization ? (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Typ</span>
+                        <Badge variant={hwData.virtualization.isVirtual ? "secondary" : "default"}>
+                          {hwData.virtualization.isVirtual ? "Virtual Machine" : "Physical Hardware"}
+                        </Badge>
+                      </div>
+                      <InfoRow label="Hypervisor" value={hwData.virtualization.hypervisor} />
+                      <InfoRow label="Hersteller" value={hwData.virtualization.manufacturer} />
+                      <InfoRow label="Model" value={hwData.virtualization.model} />
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Keine Virtualisierungsdaten</p>
+                  )}
                 </CardContent>
               </Card>
               <Card>
@@ -174,12 +306,13 @@ export default async function NodeDetail({ params }: PageProps) {
                   <CardTitle>Grafikkarte(n)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {gpuList.length > 0 ? gpuList.map((gpu: { name: string; vramMB: number; driverVersion: string; status: string }, i: number) => (
-                    <div key={i} className="mb-3">
+                  {gpuList.length > 0 ? gpuList.map((gpu: { name: string; vramMB: number; videoMemoryGB: number; driverVersion: string; driverDate: string; currentResolution: string; refreshRate: string }, i: number) => (
+                    <div key={i} className="mb-3 pb-3 border-b last:border-0">
                       <InfoRow label="Name" value={gpu.name} />
-                      <InfoRow label="VRAM" value={gpu.vramMB ? `${(gpu.vramMB / 1024).toFixed(0)} GB` : null} />
+                      <InfoRow label="VRAM" value={gpu.videoMemoryGB ? `${gpu.videoMemoryGB} GB` : (gpu.vramMB ? `${(gpu.vramMB / 1024).toFixed(0)} GB` : null)} />
                       <InfoRow label="Treiber" value={gpu.driverVersion} />
-                      <InfoRow label="Status" value={gpu.status} />
+                      <InfoRow label="Treiber Datum" value={gpu.driverDate} />
+                      <InfoRow label="Auflösung" value={gpu.currentResolution && gpu.currentResolution !== "x" ? `${gpu.currentResolution} @ ${gpu.refreshRate}Hz` : null} />
                     </div>
                   )) : <p className="text-muted-foreground text-sm">Keine GPU-Daten</p>}
                 </CardContent>
@@ -190,14 +323,17 @@ export default async function NodeDetail({ params }: PageProps) {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <InfoRow label="Gesamt" value={ramData.totalGb ? `${ramData.totalGb.toFixed(1)} GB` : (ramData.totalGB ? `${ramData.totalGB.toFixed(1)} GB` : null)} />
-                  {(ramData.modules || []).map((mod: { capacityGb: number; capacityGB: number; speedMHz: number; manufacturer: string; partNumber: string }, i: number) => (
-                    <div key={i} className="text-sm text-muted-foreground">
-                      Slot {i + 1}: {mod.capacityGb || mod.capacityGB} GB @ {mod.speedMHz} MHz ({mod.manufacturer} {mod.partNumber})
+                  <InfoRow label="Module" value={ramData.moduleCount?.toString()} />
+                  {(ramData.modules || []).map((mod: { capacityGb: number; capacityGB: number; speedMHz: number; manufacturer: string; partNumber: string; memoryType: string; deviceLocator: string }, i: number) => (
+                    <div key={i} className="text-sm text-muted-foreground border-t pt-2 mt-2">
+                      <div className="font-medium text-foreground">{mod.deviceLocator || `Slot ${i + 1}`}</div>
+                      <div>{mod.capacityGb || mod.capacityGB} GB {mod.memoryType} @ {mod.speedMHz} MHz</div>
+                      <div>{mod.manufacturer} {mod.partNumber}</div>
                     </div>
                   ))}
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="md:col-span-2">
                 <CardHeader>
                   <CardTitle>Festplatten</CardTitle>
                 </CardHeader>
@@ -206,7 +342,7 @@ export default async function NodeDetail({ params }: PageProps) {
                     <h4 className="text-sm font-medium mb-2">Physische Laufwerke</h4>
                     {(hwData.disks?.physical || []).map((disk: { model: string; sizeGB: number; mediaType: string; interfaceType: string; serialNumber: string }, i: number) => (
                       <div key={i} className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground truncate max-w-[200px]">{disk.model}</span>
+                        <span className="text-muted-foreground truncate max-w-[300px]">{disk.model}</span>
                         <span>{disk.sizeGB?.toFixed(0)} GB ({disk.interfaceType})</span>
                       </div>
                     ))}
