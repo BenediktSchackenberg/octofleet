@@ -174,6 +174,64 @@ export default function NodeDetailPage() {
   const [network, setNetwork] = useState<NetworkData | null>(null);
   const [browser, setBrowser] = useState<BrowserData | null>(null);
   const [criticalCookies, setCriticalCookies] = useState<CriticalCookiesData | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function refreshInventory() {
+    setRefreshing(true);
+    try {
+      const headers = { 'X-API-Key': API_KEY };
+      
+      const [hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
+        fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/software/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/hotfixes/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/system/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/browser/${nodeId}/critical`, { headers }),
+      ]);
+
+      if (hwRes.ok) {
+        const data = await hwRes.json();
+        setHardware(data.data || {});
+      }
+      if (swRes.ok) {
+        const data = await swRes.json();
+        setSoftware(data.data?.installedPrograms || []);
+      }
+      if (hfRes.ok) {
+        const data = await hfRes.json();
+        setHotfixes({
+          hotfixes: data.data?.hotfixes || [],
+          updateHistory: data.data?.updateHistory || []
+        });
+      }
+      if (sysRes.ok) {
+        const data = await sysRes.json();
+        setSystem(data.data || {});
+      }
+      if (secRes.ok) {
+        const data = await secRes.json();
+        setSecurity(data.data || {});
+      }
+      if (netRes.ok) {
+        const data = await netRes.json();
+        setNetwork(data.data || {});
+      }
+      if (brRes.ok) {
+        const data = await brRes.json();
+        setBrowser(data.data || {});
+      }
+      if (critRes.ok) {
+        setCriticalCookies(await critRes.json());
+      }
+    } catch (err) {
+      console.error("Failed to refresh inventory:", err);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     async function fetchAll() {
@@ -271,14 +329,14 @@ export default function NodeDetailPage() {
     );
   }
 
-  const hwData = hardware || {};
-  const sysData = system || {};
-  const secData = security || {};
-  const netData = network || {};
-  const browserData = browser || {};
-  const ramData = hwData.ram || {};
-  const gpuList = hwData.gpu || [];
-  const nicsList = hwData.nics || {};
+  const hwData: any = hardware || {};
+  const sysData: any = system || {};
+  const secData: any = security || {};
+  const netData: any = network || {};
+  const browserData: any = browser || {};
+  const ramData: any = (hwData as any).ram || hwData.data?.memory || {};
+  const gpuList: any[] = (hwData as any).gpu || hwData.data?.gpus || [];
+  const nicsList: any = (hwData as any).nics || hwData.data?.network || {};
   const totalUpdatesCount = hotfixes.hotfixes.length + hotfixes.updateHistory.length;
 
   return (
@@ -311,7 +369,13 @@ export default function NodeDetailPage() {
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">📊 Inventory abrufen</Button>
+            <Button 
+              variant="outline" 
+              onClick={refreshInventory}
+              disabled={refreshing}
+            >
+              {refreshing ? "⏳ Lade..." : "📊 Inventory abrufen"}
+            </Button>
           </div>
         </div>
 
@@ -485,7 +549,7 @@ export default function NodeDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {ramData.modules?.map((mod: Record<string, unknown>, i: number) => (
+                      {ramData.modules?.map((mod: any, i: number) => (
                         <TableRow key={i}>
                           <TableCell>{mod.deviceLocator || mod.bankLabel}</TableCell>
                           <TableCell>{mod.capacityGB} GB</TableCell>
@@ -510,7 +574,7 @@ export default function NodeDetailPage() {
                     <p className="text-muted-foreground">Keine Daten</p>
                   ) : (
                     <div className="space-y-4">
-                      {gpuList.map((gpu: Record<string, unknown>, i: number) => (
+                      {gpuList.map((gpu: any, i: number) => (
                         <div key={i} className="p-3 border rounded-lg">
                           <p className="font-medium">{gpu.name}</p>
                           <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
@@ -540,7 +604,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hwData.disks.physical.map((disk: Record<string, unknown>, i: number) => (
+                        {hwData.disks.physical.map((disk: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell className="truncate max-w-[200px]">{disk.model}</TableCell>
                             <TableCell>{disk.sizeGB?.toFixed(0)} GB</TableCell>
@@ -566,7 +630,7 @@ export default function NodeDetailPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {hwData.disks.volumes.filter((v: Record<string, unknown>) => v.sizeGB > 0).map((vol: Record<string, unknown>, i: number) => (
+                          {hwData.disks.volumes.filter((v: any) => v.sizeGB > 0).map((vol: any, i: number) => (
                             <TableRow key={i}>
                               <TableCell>{vol.driveLetter} {vol.volumeName && `(${vol.volumeName})`}</TableCell>
                               <TableCell>{vol.freeGB?.toFixed(0)} GB</TableCell>
@@ -610,7 +674,7 @@ export default function NodeDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {software.slice(0, 100).map((sw: Record<string, unknown>, i: number) => (
+                    {software.slice(0, 100).map((sw: any, i: number) => (
                       <TableRow key={i}>
                         <TableCell className="truncate max-w-[300px]">{sw.name}</TableCell>
                         <TableCell>{sw.version || '-'}</TableCell>
@@ -644,7 +708,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hotfixes.hotfixes.slice(0, 20).map((hf: Record<string, unknown>, i: number) => (
+                        {hotfixes.hotfixes.slice(0, 20).map((hf: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
                             <TableCell>{hf.description || '-'}</TableCell>
@@ -669,7 +733,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hotfixes.updateHistory.slice(0, 50).map((upd: Record<string, unknown>, i: number) => (
+                        {hotfixes.updateHistory.slice(0, 50).map((upd: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{upd.kb || '-'}</Badge></TableCell>
                             <TableCell className="truncate max-w-[300px]">{upd.title || '-'}</TableCell>
@@ -696,7 +760,7 @@ export default function NodeDetailPage() {
               <CardContent>
                 {nicsList.adapters?.length > 0 ? (
                   <div className="space-y-4">
-                    {nicsList.adapters.map((nic: Record<string, unknown>, i: number) => {
+                    {nicsList.adapters.map((nic: any, i: number) => {
                       const config = nicsList.configurations?.[nic.deviceId] || {};
                       return (
                         <div key={i} className="p-4 border rounded-lg">
@@ -738,7 +802,7 @@ export default function NodeDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {netData.connections.slice(0, 30).map((conn: Record<string, unknown>, i: number) => (
+                      {netData.connections.slice(0, 30).map((conn: any, i: number) => (
                         <TableRow key={i}>
                           <TableCell className="font-mono text-xs">{conn.localAddress}:{conn.localPort}</TableCell>
                           <TableCell className="font-mono text-xs">{conn.remoteAddress}:{conn.remotePort}</TableCell>
@@ -761,7 +825,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {secData.firewall?.profiles ? (
                     <div className="space-y-2">
-                      {Object.entries(secData.firewall.profiles).map(([profile, data]: [string, unknown]) => (
+                      {Object.entries(secData.firewall.profiles).map(([profile, data]: [string, any]) => (
                         <div key={profile} className="flex justify-between items-center">
                           <span>{profile}</span>
                           <Badge variant={data?.enabled ? "default" : "destructive"}>
@@ -801,7 +865,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {secData.bitlocker?.volumes?.length > 0 ? (
                     <div className="space-y-2">
-                      {secData.bitlocker.volumes.map((vol: Record<string, unknown>, i: number) => (
+                      {secData.bitlocker.volumes.map((vol: any, i: number) => (
                         <div key={i} className="flex justify-between items-center">
                           <span>{vol.driveLetter}</span>
                           <Badge variant={vol.protectionStatus === "On" ? "default" : "secondary"}>
@@ -857,7 +921,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {secData.localAdmins.members.map((admin: Record<string, unknown>, i: number) => (
+                        {secData.localAdmins.members.map((admin: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell className="font-medium">{admin.name}</TableCell>
                             <TableCell className="text-muted-foreground">{admin.domain || '-'}</TableCell>
@@ -987,7 +1051,7 @@ export default function NodeDetailPage() {
 
             {/* Browser Stats per User */}
             {browserData.users && Object.keys(browserData.users).length > 0 ? (
-              Object.entries(browserData.users).map(([username, browsers]: [string, unknown]) => (
+              Object.entries(browserData.users).map(([username, browsers]: [string, any]) => (
                 <Card key={username}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -996,7 +1060,7 @@ export default function NodeDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {Object.entries(browsers).map(([browserName, data]: [string, unknown]) => {
+                      {Object.entries(browsers).map(([browserName, data]: [string, any]) => {
                         const icon = browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊';
                         const profile = data.profiles?.[0];
                         const cookiesCount = profile?.cookiesCount || 0;
@@ -1069,7 +1133,7 @@ export default function NodeDetailPage() {
                   <CardDescription>Top-Domains pro Benutzer</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {Object.entries(browserData.cookies).map(([username, cookieList]: [string, unknown]) => (
+                  {Object.entries(browserData.cookies).map(([username, cookieList]: [string, any]) => (
                     <div key={username} className="mb-6">
                       <p className="font-medium mb-2">👤 {username}</p>
                       <Table>
@@ -1082,7 +1146,7 @@ export default function NodeDetailPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {Array.isArray(cookieList) && cookieList.slice(0, 15).map((cookie: Record<string, unknown>, i: number) => (
+                          {Array.isArray(cookieList) && cookieList.slice(0, 15).map((cookie: any, i: number) => (
                             <TableRow key={i}>
                               <TableCell>{cookie.browser}</TableCell>
                               <TableCell>{cookie.profile}</TableCell>

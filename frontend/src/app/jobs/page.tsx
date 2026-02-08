@@ -101,32 +101,118 @@ function SummaryBar({ summary }: { summary: JobSummary }) {
 
 function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("");
+  const [jobType, setJobType] = useState<"run" | "install_package">("run");
   const [targetType, setTargetType] = useState("all");
+  const [targetId, setTargetId] = useState("");
   const [command, setCommand] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // For package installation
+  const [packages, setPackages] = useState<{id: string; name: string; displayName?: string; latestVersion?: string}[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [selectedVersionId, setSelectedVersionId] = useState("");
+  const [versions, setVersions] = useState<{id: string; version: string}[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  
+  // For node/group selection
+  const [nodes, setNodes] = useState<{node_id: string; hostname: string}[]>([]);
+  const [groups, setGroups] = useState<{id: string; name: string}[]>([]);
+
+  useEffect(() => {
+    // Fetch packages, nodes, and groups
+    Promise.all([
+      fetch(`${API_URL}/api/v1/packages`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } }),
+      fetch(`${API_URL}/api/v1/nodes`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } }),
+      fetch(`${API_URL}/api/v1/groups`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } }),
+    ]).then(async ([pkgRes, nodeRes, groupRes]) => {
+      if (pkgRes.ok) {
+        const data = await pkgRes.json();
+        setPackages(data.packages || data || []);
+      }
+      if (nodeRes.ok) {
+        const data = await nodeRes.json();
+        setNodes(data.nodes || data || []);
+      }
+      if (groupRes.ok) {
+        const data = await groupRes.json();
+        setGroups(data.groups || data || []);
+      }
+    });
+  }, []);
+
+  // Fetch versions when package changes
+  useEffect(() => {
+    if (selectedPackageId) {
+      setLoadingVersions(true);
+      setVersions([]);
+      setSelectedVersionId("");
+      fetch(`${API_URL}/api/v1/packages/${selectedPackageId}`, { 
+        headers: { "X-API-Key": "openclaw-inventory-dev-key" } 
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.versions) {
+            setVersions(data.versions);
+          }
+        })
+        .finally(() => setLoadingVersions(false));
+    }
+  }, [selectedPackageId]);
+
+  const selectedPackage = packages.find(p => p.id === selectedPackageId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      let commandType = "run";
+      let commandData: Record<string, unknown> = {};
+
+      if (jobType === "run") {
+        commandType = "run";
+        commandData = {
+          command: command.split(" "),
+          timeout: 300,
+        };
+      } else if (jobType === "install_package") {
+        commandType = "install_package";
+        const pkg = packages.find(p => p.id === selectedPackageId);
+        const ver = versions.find(v => v.id === selectedVersionId);
+        commandData = {
+          packageId: selectedPackageId,
+          versionId: selectedVersionId,
+          packageName: pkg?.displayName || pkg?.name,
+          version: ver?.version,
+        };
+      }
+
+      const body: Record<string, unknown> = {
+        name: name || `${jobType === "install_package" ? "Install " + (selectedPackage?.name || "Package") : "Job"} ${new Date().toLocaleTimeString()}`,
+        targetType,
+        commandType,
+        commandData,
+      };
+
+      // Add target ID for specific targets
+      if (targetType === "device" && targetId) {
+        body.targetDeviceId = targetId;
+      } else if (targetType === "group" && targetId) {
+        body.targetGroupId = targetId;
+      }
+
       const res = await fetch(`${API_URL}/api/v1/jobs`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name || `Job ${new Date().toLocaleTimeString()}`,
-          targetType,
-          commandType: "run",
-          commandData: {
-            command: command.split(" "),
-            timeout: 300,
-          },
-        }),
+        headers: { "Content-Type": "application/json", "X-API-Key": "openclaw-inventory-dev-key" },
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
         onCreated();
         onClose();
+      } else {
+        const err = await res.json();
+        alert(`Fehler: ${err.detail || "Unbekannt"}`);
       }
     } catch (err) {
       console.error("Failed to create job:", err);
@@ -137,47 +223,142 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-zinc-800 p-6">
+      <div className="w-full max-w-lg rounded-lg bg-zinc-800 p-6">
         <h2 className="mb-4 text-xl font-bold text-white">Neuen Job erstellen</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Job Type */}
           <div>
-            <label className="block text-sm text-zinc-400">Name</label>
+            <label className="block text-sm text-zinc-400">Job-Typ</label>
+            <select
+              value={jobType}
+              onChange={(e) => setJobType(e.target.value as "run" | "install_package")}
+              className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
+            >
+              <option value="run">🖥️ Befehl ausführen</option>
+              <option value="install_package">📦 Paket installieren</option>
+            </select>
+          </div>
+
+          {/* Name */}
+          <div>
+            <label className="block text-sm text-zinc-400">Name (optional)</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="z.B. Windows Update Check"
+              placeholder={jobType === "install_package" ? "z.B. 7-Zip Installation" : "z.B. Windows Update Check"}
               className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
             />
           </div>
           
+          {/* Target Type */}
           <div>
             <label className="block text-sm text-zinc-400">Ziel</label>
             <select
               value={targetType}
-              onChange={(e) => setTargetType(e.target.value)}
+              onChange={(e) => { setTargetType(e.target.value); setTargetId(""); }}
               className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
             >
-              <option value="all">Alle Geräte</option>
-              <option value="device">Einzelnes Gerät</option>
-              <option value="group">Gruppe</option>
-              <option value="tag">Tag</option>
+              <option value="all">🌐 Alle Geräte</option>
+              <option value="device">💻 Einzelnes Gerät</option>
+              <option value="group">📁 Gruppe</option>
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm text-zinc-400">Befehl</label>
-            <input
-              type="text"
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              placeholder="z.B. hostname"
-              className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white font-mono"
-              required
-            />
-          </div>
+          {/* Target Selection */}
+          {targetType === "device" && (
+            <div>
+              <label className="block text-sm text-zinc-400">Gerät auswählen</label>
+              <select
+                value={targetId}
+                onChange={(e) => setTargetId(e.target.value)}
+                className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
+                required
+              >
+                <option value="">-- Gerät wählen --</option>
+                {nodes.map(n => (
+                  <option key={n.node_id} value={n.node_id}>{n.hostname}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          <div className="flex justify-end gap-2">
+          {targetType === "group" && (
+            <div>
+              <label className="block text-sm text-zinc-400">Gruppe auswählen</label>
+              <select
+                value={targetId}
+                onChange={(e) => setTargetId(e.target.value)}
+                className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
+                required
+              >
+                <option value="">-- Gruppe wählen --</option>
+                {groups.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Command (for run type) */}
+          {jobType === "run" && (
+            <div>
+              <label className="block text-sm text-zinc-400">Befehl</label>
+              <input
+                type="text"
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                placeholder="z.B. hostname"
+                className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white font-mono"
+                required
+              />
+            </div>
+          )}
+
+          {/* Package Selection (for install_package type) */}
+          {jobType === "install_package" && (
+            <>
+              <div>
+                <label className="block text-sm text-zinc-400">Paket</label>
+                <select
+                  value={selectedPackageId}
+                  onChange={(e) => { setSelectedPackageId(e.target.value); setSelectedVersionId(""); }}
+                  className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
+                  required
+                >
+                  <option value="">-- Paket wählen --</option>
+                  {packages.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedPackageId && (
+                <div>
+                  <label className="block text-sm text-zinc-400">Version</label>
+                  {loadingVersions ? (
+                    <p className="text-zinc-500 text-sm mt-1">Lade Versionen...</p>
+                  ) : versions.length > 0 ? (
+                    <select
+                      value={selectedVersionId}
+                      onChange={(e) => setSelectedVersionId(e.target.value)}
+                      className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
+                      required
+                    >
+                      <option value="">-- Version wählen --</option>
+                      {versions.map(v => (
+                        <option key={v.id} value={v.id}>{v.version}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-yellow-400 text-sm mt-1">⚠️ Dieses Paket hat noch keine Versionen. Bitte erst eine Version hinzufügen.</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
@@ -187,7 +368,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (jobType === "install_package" && (!selectedPackageId || !selectedVersionId || versions.length === 0))}
               className="rounded bg-purple-600 px-4 py-2 text-white hover:bg-purple-500 disabled:opacity-50"
             >
               {loading ? "Erstelle..." : "Job erstellen"}
@@ -199,7 +380,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   );
 }
 
-function JobDetailPanel({ job, onClose }: { job: JobDetail; onClose: () => void }) {
+function JobDetailPanel({ job, onClose, onRetry }: { job: JobDetail; onClose: () => void; onRetry: (instanceId: string) => void }) {
   return (
     <div className="fixed inset-y-0 right-0 z-40 w-full max-w-xl overflow-y-auto bg-zinc-800 p-6 shadow-xl">
       <div className="flex items-center justify-between mb-6">
@@ -227,7 +408,7 @@ function JobDetailPanel({ job, onClose }: { job: JobDetail; onClose: () => void 
           <div>
             <span className="text-zinc-400 text-sm">Befehl:</span>
             <pre className="mt-1 rounded bg-zinc-900 p-3 text-sm text-green-400 font-mono overflow-x-auto">
-              {job.commandData.command?.join(" ") || JSON.stringify(job.commandData)}
+                            {Array.isArray(job.commandData?.command) ? job.commandData.command.join(" ") : JSON.stringify(job.commandData)}
             </pre>
           </div>
         )}
@@ -240,7 +421,17 @@ function JobDetailPanel({ job, onClose }: { job: JobDetail; onClose: () => void 
           <div key={inst.id} className="rounded bg-zinc-700/50 p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="font-mono text-white">{inst.nodeId}</span>
-              <StatusBadge status={inst.status} />
+              <div className="flex items-center gap-2">
+                <StatusBadge status={inst.status} />
+                {(inst.status === "failed" || inst.status === "cancelled") && (
+                  <button
+                    onClick={() => onRetry(inst.id)}
+                    className="px-2 py-1 rounded bg-orange-600 hover:bg-orange-500 text-white text-xs"
+                  >
+                    🔄 Retry
+                  </button>
+                )}
+              </div>
             </div>
             
             {inst.completedAt && (
@@ -276,7 +467,7 @@ export default function JobsPage() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs`);
+      const res = await fetch(`${API_URL}/api/v1/jobs`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } });
       const data = await res.json();
       setJobs(data.jobs || []);
     } catch (err) {
@@ -288,11 +479,32 @@ export default function JobsPage() {
 
   const fetchJobDetail = async (jobId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}`);
+      const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } });
       const data = await res.json();
       setSelectedJob(data);
     } catch (err) {
       console.error("Failed to fetch job detail:", err);
+    }
+  };
+
+  const retryInstance = async (instanceId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/jobs/instances/${instanceId}/retry`, {
+        method: "POST",
+        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+      });
+      if (res.ok) {
+        // Refresh the job detail
+        if (selectedJob) {
+          fetchJobDetail(selectedJob.id);
+        }
+        fetchJobs();
+      } else {
+        const err = await res.json();
+        alert(`Retry fehlgeschlagen: ${err.detail || "Unbekannt"}`);
+      }
+    } catch (err) {
+      console.error("Failed to retry instance:", err);
     }
   };
 
@@ -402,6 +614,7 @@ export default function JobsPage() {
         <JobDetailPanel
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
+          onRetry={retryInstance}
         />
       )}
     </div>

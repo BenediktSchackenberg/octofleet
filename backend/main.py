@@ -174,6 +174,192 @@ async def list_nodes(db: asyncpg.Pool = Depends(get_db)):
         return {"nodes": [dict(r) for r in rows]}
 
 
+def _get_os_family(os_name: str | None) -> str:
+    """Determine OS family from OS name"""
+    if not os_name:
+        return "Unknown"
+    os_lower = os_name.lower()
+    if "windows" in os_lower:
+        return "Windows"
+    elif "ubuntu" in os_lower or "debian" in os_lower or "linux" in os_lower:
+        return "Linux"
+    elif "macos" in os_lower or "darwin" in os_lower:
+        return "macOS"
+    return "Other"
+
+
+@app.get("/api/v1/nodes/tree")
+async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
+    """Get nodes organized in a tree structure by groups/OS/version"""
+    async with db.acquire() as conn:
+        # Get all nodes with their groups
+        nodes = await conn.fetch("""
+            SELECT n.node_id, n.hostname, n.os_name, n.os_version, n.last_seen, n.is_online,
+                   COALESCE(
+                       (SELECT array_agg(g.name) FROM groups g 
+                        JOIN device_groups dg ON g.id = dg.group_id 
+                        WHERE dg.node_id = n.id),
+                       ARRAY[]::text[]
+                   ) as group_names,
+                   COALESCE(
+                       (SELECT array_agg(g.id::text) FROM groups g 
+                        JOIN device_groups dg ON g.id = dg.group_id 
+                        WHERE dg.node_id = n.id),
+                       ARRAY[]::text[]
+                   ) as group_ids
+            FROM nodes n
+            ORDER BY n.hostname
+        """)
+        
+        # Build tree structure
+        tree = {
+            "groups": {},
+            "unassigned": {}
+        }
+        
+        for node in nodes:
+            node_data = {
+                "node_id": node["node_id"],
+                "hostname": node["hostname"],
+                "os_name": node["os_name"] or "Unknown",
+                "os_version": node["os_version"] or "Unknown",
+                "last_seen": node["last_seen"].isoformat() if node["last_seen"] else None,
+                "is_online": node["is_online"]
+            }
+            
+            # Calculate status
+            if node["last_seen"]:
+                now = datetime.now(node["last_seen"].tzinfo) if node["last_seen"].tzinfo else datetime.utcnow()
+                diff_minutes = (now - node["last_seen"]).total_seconds() / 60
+                if diff_minutes < 5:
+                    node_data["status"] = "online"
+                elif diff_minutes < 60:
+                    node_data["status"] = "away"
+                else:
+                    node_data["status"] = "offline"
+            else:
+                node_data["status"] = "offline"
+            
+            os_family = _get_os_family(node["os_name"])
+            os_version = node["os_version"] or "Unknown"
+            
+            if node["group_names"] and len(node["group_names"]) > 0:
+                # Node belongs to groups
+                for i, group_name in enumerate(node["group_names"]):
+                    group_id = node["group_ids"][i] if i < len(node["group_ids"]) else group_name
+                    if group_name not in tree["groups"]:
+                        tree["groups"][group_name] = {"id": group_id, "os_families": {}}
+                    if os_family not in tree["groups"][group_name]["os_families"]:
+                        tree["groups"][group_name]["os_families"][os_family] = {}
+                    if os_version not in tree["groups"][group_name]["os_families"][os_family]:
+                        tree["groups"][group_name]["os_families"][os_family][os_version] = []
+                    tree["groups"][group_name]["os_families"][os_family][os_version].append(node_data)
+            else:
+                # Unassigned node
+                if os_family not in tree["unassigned"]:
+                    tree["unassigned"][os_family] = {}
+                if os_version not in tree["unassigned"][os_family]:
+                    tree["unassigned"][os_family][os_version] = []
+                tree["unassigned"][os_family][os_version].append(node_data)
+        
+        return tree
+
+
+@app.get("/api/v1/nodes/search")
+async def search_nodes(q: str, limit: int = 20, db: asyncpg.Pool = Depends(get_db)):
+    """Search nodes by name, hostname, IP, or node_id"""
+    if len(q) < 2:
+        return {"nodes": []}
+    
+    search_term = f"%{q}%"
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT n.node_id, n.hostname, n.os_name, n.os_version, n.last_seen
+            FROM nodes n
+            WHERE n.hostname ILIKE $1 
+               OR n.node_id ILIKE $1
+            ORDER BY 
+                CASE WHEN n.hostname ILIKE $2 THEN 0 ELSE 1 END,
+                n.last_seen DESC
+            LIMIT $3
+        """, search_term, f"{q}%", limit)
+        
+        results = []
+        for row in rows:
+            node = dict(row)
+            if row["last_seen"]:
+                now = datetime.now(row["last_seen"].tzinfo) if row["last_seen"].tzinfo else datetime.utcnow()
+                diff_minutes = (now - row["last_seen"]).total_seconds() / 60
+                if diff_minutes < 5:
+                    node["status"] = "online"
+                elif diff_minutes < 60:
+                    node["status"] = "away"
+                else:
+                    node["status"] = "offline"
+            else:
+                node["status"] = "offline"
+            node["last_seen"] = row["last_seen"].isoformat() if row["last_seen"] else None
+            results.append(node)
+        
+        return {"nodes": results}
+
+
+@app.get("/api/v1/dashboard/summary")
+async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
+    """Get dashboard summary with counts and recent events"""
+    async with db.acquire() as conn:
+        # Get node counts by status
+        counts = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '5 minutes') as online,
+                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '60 minutes' 
+                                   AND last_seen <= NOW() - INTERVAL '5 minutes') as away,
+                COUNT(*) FILTER (WHERE last_seen <= NOW() - INTERVAL '60 minutes' 
+                                   OR last_seen IS NULL) as offline
+            FROM nodes
+        """)
+        
+        # Get unassigned count
+        unassigned = await conn.fetchval("""
+            SELECT COUNT(*) FROM nodes n
+            WHERE NOT EXISTS (
+                SELECT 1 FROM device_groups dg WHERE dg.node_id = n.id
+            )
+        """)
+        
+        # Get recent events (last 10)
+        events = await conn.fetch("""
+            SELECT 
+                'node_seen' as event_type,
+                hostname as subject,
+                node_id as subject_id,
+                last_seen as timestamp
+            FROM nodes
+            ORDER BY last_seen DESC
+            LIMIT 10
+        """)
+        
+        return {
+            "counts": {
+                "total": counts["total"],
+                "online": counts["online"],
+                "away": counts["away"],
+                "offline": counts["offline"],
+                "unassigned": unassigned
+            },
+            "recent_events": [
+                {
+                    "type": e["event_type"],
+                    "subject": e["subject"],
+                    "subject_id": e["subject_id"],
+                    "timestamp": e["timestamp"].isoformat() if e["timestamp"] else None
+                }
+                for e in events
+            ]
+        }
+
+
 @app.get("/api/v1/nodes/{node_id}")
 async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get detailed info for a single node"""
@@ -468,7 +654,7 @@ async def get_browser(node_id: str, db: asyncpg.Pool = Depends(get_db)):
                 "passwordCount": row['password_count']
             })
             exts = json.loads(row['extensions']) if row['extensions'] else []
-            users[username][b]["extensionCount"] += len(exts)
+            users[username][b]["extensionCount"] += len(exts) if exts else 0
         
         # Get cookies summary
         cookie_rows = await conn.fetch("""
@@ -1731,7 +1917,8 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         # Optional fields
         name = data.get("name", f"Job {job_id[:8]}")
         description = data.get("description", "")
-        target_id_input = data.get("targetId")  # Can be text node_id or UUID string
+        # Support both targetId and targetDeviceId/targetGroupId
+        target_id_input = data.get("targetId") or data.get("targetDeviceId") or data.get("targetGroupId")
         target_tag = data.get("targetTag")
         priority = data.get("priority", 5)
         scheduled_at = data.get("scheduledAt")
@@ -1968,12 +2155,86 @@ async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
                 except:
                     command_data = {}
             
+            command_type = row["command_type"] or "run"
+            command_payload = command_data
+            
+            # Convert install_package to a run command with PowerShell script
+            if command_type == "install_package":
+                package_id = command_data.get("packageId")
+                version_id = command_data.get("versionId")
+                
+                # Look up version details to get download URL and install command
+                if package_id and version_id:
+                    version_row = await conn.fetchrow("""
+                        SELECT pv.filename, pv.download_url, pv.install_command, pv.sha256_hash,
+                               p.name as package_name, p.display_name
+                        FROM package_versions pv
+                        JOIN packages p ON p.id = pv.package_id
+                        WHERE pv.id = $1 AND p.id = $2
+                    """, version_id, package_id)
+                    
+                    if version_row and version_row["download_url"]:
+                        download_url = version_row["download_url"]
+                        filename = version_row["filename"] or "installer.exe"
+                        package_name = version_row["display_name"] or version_row["package_name"]
+                        
+                        ps_script = f'''
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+$installerPath = "$env:TEMP\\{filename}"
+
+Write-Host "=== Installing {package_name} ==="
+Write-Host "Downloading from: {download_url}"
+
+try {{
+    Invoke-WebRequest -Uri "{download_url}" -OutFile $installerPath -UseBasicParsing
+    Write-Host "Download complete: $installerPath"
+    
+    Write-Host "Running installation..."
+    if ($installerPath -like "*.msi") {{
+        $msiArgs = @("/i", $installerPath, "/qn", "/norestart")
+        Write-Host "msiexec /i $installerPath /qn /norestart"
+        $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $msiArgs -Wait -PassThru
+    }} else {{
+        Write-Host "$installerPath /S"
+        $process = Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait -PassThru
+    }}
+    $exitCode = $process.ExitCode
+    
+    if ($exitCode -eq 0 -or $exitCode -eq 3010) {{
+        Write-Host "Installation successful (exit code: $exitCode)"
+    }} else {{
+        Write-Host "Installation failed with exit code: $exitCode"
+        exit $exitCode
+    }}
+    
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+    Write-Host "=== Done ==="
+}} catch {{
+    Write-Host "ERROR: $_"
+    exit 1
+}}
+'''
+                        # Convert to run command
+                        command_type = "run"
+                        command_payload = {
+                            "command": ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script.strip()],
+                            "timeout": row["timeout_seconds"] or 600
+                        }
+                    else:
+                        # No download URL found
+                        command_payload = {
+                            "command": ["echo", "ERROR: Package version not found or missing download URL"],
+                            "timeout": 30
+                        }
+                        command_type = "run"
+            
             jobs.append({
                 "instanceId": str(row["id"]),
                 "jobId": str(row["job_id"]),
                 "jobName": row["name"] or "Unnamed Job",
-                "commandType": row["command_type"] or "command",
-                "commandPayload": json.dumps(command_data) if isinstance(command_data, dict) else str(command_data),
+                "commandType": command_type,
+                "commandPayload": json.dumps(command_payload) if isinstance(command_payload, dict) else str(command_payload),
                 "priority": row["priority"],
                 "attempt": row["attempt"],
                 "maxAttempts": row["max_attempts"],
@@ -2053,6 +2314,44 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
             "instanceId": instance_id,
             "willRetry": should_retry
         }
+
+
+@app.post("/api/v1/jobs/instances/{instance_id}/retry")
+async def retry_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Manually retry a failed or cancelled job instance"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT id, status, attempt, max_attempts FROM job_instances WHERE id = $1
+        """, instance_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        
+        if row["status"] not in ("failed", "cancelled"):
+            raise HTTPException(status_code=400, detail=f"Cannot retry instance with status: {row['status']}")
+        
+        # Reset to pending with incremented attempt (or reset if at max)
+        new_attempt = 1  # Reset attempts for manual retry
+        await conn.execute("""
+            UPDATE job_instances 
+            SET status = 'pending', 
+                attempt = $2,
+                started_at = NULL,
+                completed_at = NULL,
+                exit_code = NULL,
+                stdout = NULL,
+                stderr = NULL,
+                error_message = NULL,
+                updated_at = NOW()
+            WHERE id = $1
+        """, instance_id, new_attempt)
+        
+        await conn.execute("""
+            INSERT INTO job_logs (instance_id, level, message)
+            VALUES ($1, 'info', 'Job manually retried')
+        """, instance_id)
+        
+        return {"status": "pending", "instanceId": instance_id, "attempt": new_attempt}
 
 
 @app.delete("/api/v1/jobs/{job_id}")
@@ -2618,3 +2917,5 @@ async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool =
             "silentInstall": row["silent_install"],
             "sources": source_list
         }
+
+

@@ -1,8 +1,16 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
 
 interface GroupMember {
@@ -30,52 +38,146 @@ interface GroupDetail {
   members: GroupMember[];
 }
 
-async function getGroup(id: string): Promise<GroupDetail | null> {
-  try {
-    const res = await fetch(`http://192.168.0.5:8080/api/v1/groups/${id}`, {
-      headers: { 'X-API-Key': 'openclaw-inventory-dev-key' },
-      cache: 'no-store'
+const API_BASE = "http://192.168.0.5:8080/api/v1";
+const headers = { "X-API-Key": "openclaw-inventory-dev-key", "Content-Type": "application/json" };
+
+export default function GroupDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const groupId = params.id as string;
+
+  const [group, setGroup] = useState<GroupDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editColor, setEditColor] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchGroup();
+  }, [groupId]);
+
+  async function fetchGroup() {
+    try {
+      const res = await fetch(`${API_BASE}/groups/${groupId}`, { headers });
+      if (!res.ok) {
+        router.push("/groups");
+        return;
+      }
+      const data = await res.json();
+      setGroup(data);
+      setEditName(data.name);
+      setEditDescription(data.description || "");
+      setEditColor(data.color || "#3b82f6");
+    } catch (e) {
+      console.error("Failed to fetch group:", e);
+      router.push("/groups");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/groups/${groupId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          name: editName,
+          description: editDescription || null,
+          color: editColor || null,
+        }),
+      });
+      if (res.ok) {
+        await fetchGroup();
+        setShowEditDialog(false);
+      } else {
+        alert("Fehler beim Speichern");
+      }
+    } catch (e) {
+      console.error("Failed to update group:", e);
+      alert("Fehler beim Speichern");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/groups/${groupId}`, {
+        method: "DELETE",
+        headers,
+      });
+      if (res.ok) {
+        router.push("/groups");
+      } else {
+        alert("Fehler beim Löschen");
+      }
+    } catch (e) {
+      console.error("Failed to delete group:", e);
+      alert("Fehler beim Löschen");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    try {
+      const res = await fetch(`${API_BASE}/groups/${groupId}/members/${memberId}`, {
+        method: "DELETE",
+        headers,
+      });
+      if (res.ok) {
+        await fetchGroup();
+      }
+    } catch (e) {
+      console.error("Failed to remove member:", e);
+    }
+  }
+
+  function getStatusBadge(lastSeen: string) {
+    const lastSeenDate = new Date(lastSeen);
+    const now = new Date();
+    const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / 1000 / 60;
+
+    if (diffMinutes < 5) {
+      return <Badge className="bg-green-600">Online</Badge>;
+    } else if (diffMinutes < 60) {
+      return <Badge className="bg-yellow-600">Away</Badge>;
+    } else {
+      return <Badge variant="secondary">Offline</Badge>;
+    }
+  }
+
+  function formatDate(dateStr: string) {
+    const date = new Date(dateStr);
+    return date.toLocaleString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background p-8">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-muted-foreground">Laden...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!group) {
     return null;
   }
-}
 
-function getStatusBadge(lastSeen: string) {
-  const lastSeenDate = new Date(lastSeen);
-  const now = new Date();
-  const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / 1000 / 60;
-  
-  if (diffMinutes < 5) {
-    return <Badge className="bg-green-600">Online</Badge>;
-  } else if (diffMinutes < 60) {
-    return <Badge className="bg-yellow-600">Away</Badge>;
-  } else {
-    return <Badge variant="secondary">Offline</Badge>;
-  }
-}
-
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr);
-  return date.toLocaleString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
-export default async function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const group = await getGroup(id);
-  
-  if (!group) {
-    notFound();
-  }
-  
   return (
     <main className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
@@ -89,8 +191,8 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
             </div>
             <div className="flex items-center gap-3 mt-2">
               {group.color && (
-                <div 
-                  className="w-4 h-4 rounded-full" 
+                <div
+                  className="w-4 h-4 rounded-full"
                   style={{ backgroundColor: group.color }}
                 />
               )}
@@ -104,8 +206,12 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">Bearbeiten</Button>
-            <Button variant="destructive">Löschen</Button>
+            <Button variant="outline" onClick={() => setShowEditDialog(true)}>
+              Bearbeiten
+            </Button>
+            <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+              Löschen
+            </Button>
           </div>
         </div>
 
@@ -138,7 +244,9 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>Regel-Definition</CardTitle>
-              <CardDescription>Diese Regel bestimmt die Gruppenmitgliedschaft automatisch</CardDescription>
+              <CardDescription>
+                Diese Regel bestimmt die Gruppenmitgliedschaft automatisch
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
@@ -148,68 +256,159 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
           </Card>
         )}
 
-        {/* Members */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">Mitglieder ({group.members.length})</h2>
-            {!group.is_dynamic && (
-              <AddDevicesDialog 
-                groupId={group.id} 
-                existingMemberIds={group.members.map(m => m.id)} 
-              />
-            )}
-          </div>
-          
-          {group.members.length === 0 ? (
-            <Card className="p-8 text-center">
-              <CardContent>
-                <p className="text-muted-foreground mb-2">Keine Mitglieder in dieser Gruppe</p>
-                {!group.is_dynamic ? (
-                  <p className="text-sm text-muted-foreground">
-                    Füge Geräte manuell zu dieser statischen Gruppe hinzu
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Keine Geräte entsprechen der aktuellen Regel
+        {/* Members Table */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Mitglieder</CardTitle>
+                <CardDescription>
+                  {group.is_dynamic
+                    ? "Mitglieder werden automatisch durch die Regel bestimmt"
+                    : "Manuell zugewiesene Geräte"}
+                </CardDescription>
+              </div>
+              {!group.is_dynamic && (
+                <AddDevicesDialog
+                  groupId={group.id}
+                  existingMemberIds={group.members.map((m) => m.id)}
+                  onMembersAdded={fetchGroup}
+                />
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {group.members.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Hostname</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Betriebssystem</TableHead>
+                    <TableHead>Zuletzt gesehen</TableHead>
+                    <TableHead>Hinzugefügt am</TableHead>
+                    {!group.is_dynamic && <TableHead></TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {group.members.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell className="font-medium">
+                        <Link
+                          href={`/nodes/${member.node_id}`}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {member.hostname}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(member.last_seen)}</TableCell>
+                      <TableCell>{member.os_name || "-"}</TableCell>
+                      <TableCell>{formatDate(member.last_seen)}</TableCell>
+                      <TableCell>{formatDate(member.assigned_at)}</TableCell>
+                      {!group.is_dynamic && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveMember(member.id)}
+                          >
+                            Entfernen
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Keine Mitglieder in dieser Gruppe</p>
+                {!group.is_dynamic && (
+                  <p className="text-sm mt-2">
+                    Klicken Sie auf "Geräte hinzufügen" um Nodes zu dieser Gruppe hinzuzufügen.
                   </p>
                 )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {group.members.map((member) => (
-                <Link key={member.id} href={`/nodes/${member.node_id}`}>
-                  <Card className="hover:border-primary transition-colors cursor-pointer">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{member.hostname}</CardTitle>
-                        {getStatusBadge(member.last_seen)}
-                      </div>
-                      <CardDescription>{member.node_id}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">OS</span>
-                          <span className="truncate max-w-[150px]">{member.os_name || '-'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Zugewiesen</span>
-                          <span>{formatDate(member.assigned_at)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Durch</span>
-                          <Badge variant="outline" className="text-xs">{member.assigned_by}</Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gruppe bearbeiten</DialogTitle>
+            <DialogDescription>Ändern Sie die Details der Gruppe.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Beschreibung</Label>
+              <Textarea
+                id="description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="color">Farbe</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="color"
+                  type="color"
+                  value={editColor}
+                  onChange={(e) => setEditColor(e.target.value)}
+                  className="w-16 h-10 p-1"
+                />
+                <Input
+                  value={editColor}
+                  onChange={(e) => setEditColor(e.target.value)}
+                  placeholder="#3b82f6"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving || !editName.trim()}>
+              {saving ? "Speichern..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gruppe löschen?</DialogTitle>
+            <DialogDescription>
+              Möchten Sie die Gruppe "{group.name}" wirklich löschen? Diese Aktion kann
+              nicht rückgängig gemacht werden. Die Mitglieder werden nicht gelöscht,
+              sondern nur aus der Gruppe entfernt.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Abbrechen
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
+              {saving ? "Löschen..." : "Löschen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

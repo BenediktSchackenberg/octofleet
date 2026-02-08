@@ -28,9 +28,10 @@ interface Node {
 interface AddDevicesDialogProps {
   groupId: string;
   existingMemberIds: string[];
+  onMembersAdded?: () => void;
 }
 
-export function AddDevicesDialog({ groupId, existingMemberIds }: AddDevicesDialogProps) {
+export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }: AddDevicesDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -90,6 +91,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds }: AddDevicesDialo
       if (res.ok) {
         setOpen(false);
         setSelectedIds([]);
+        onMembersAdded?.();
         router.refresh();
       } else {
         const data = await res.json();

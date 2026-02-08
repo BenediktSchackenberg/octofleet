@@ -84,7 +84,7 @@ function CreatePackageDialog({ onClose, onCreated }: { onClose: () => void; onCr
 
       onCreated();
       onClose();
-    } catch (err: unknown) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);

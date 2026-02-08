@@ -90,7 +90,7 @@ function EditPackageDialog({ pkg, onClose, onUpdated }: { pkg: Package; onClose:
 
       onUpdated();
       onClose();
-    } catch (err: unknown) {
+    } catch (err: any) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
@@ -223,7 +223,7 @@ function EditVersionDialog({ packageId, version, onClose, onUpdated }: { package
 
       onUpdated();
       onClose();
-    } catch (err: unknown) {
+    } catch (err: any) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
@@ -325,6 +325,7 @@ function EditVersionDialog({ packageId, version, onClose, onUpdated }: { package
 function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string; onClose: () => void; onCreated: () => void }) {
   const [version, setVersion] = useState("");
   const [filename, setFilename] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
   const [installCommand, setInstallCommand] = useState("");
   const [sha256Hash, setSha256Hash] = useState("");
   const [loading, setLoading] = useState(false);
@@ -342,6 +343,7 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
         body: JSON.stringify({
           version,
           filename,
+          downloadUrl: downloadUrl || null,
           installCommand: installCommand || null,
           sha256Hash: sha256Hash || null,
           isLatest: true,
@@ -355,7 +357,7 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
 
       onCreated();
       onClose();
-    } catch (err: unknown) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
@@ -379,7 +381,7 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
                 type="text"
                 value={version}
                 onChange={(e) => setVersion(e.target.value)}
-                placeholder="z.B. 123.0.1"
+                placeholder="z.B. 25.01"
                 className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white"
                 required
               />
@@ -390,11 +392,24 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
                 type="text"
                 value={filename}
                 onChange={(e) => setFilename(e.target.value)}
-                placeholder="z.B. Firefox-Setup-123.0.1.exe"
+                placeholder="z.B. 7z2501-x64.msi"
                 className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white font-mono text-sm"
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400">Download URL *</label>
+            <input
+              type="url"
+              value={downloadUrl}
+              onChange={(e) => setDownloadUrl(e.target.value)}
+              placeholder="https://www.7-zip.org/a/7z2501-x64.msi"
+              className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white font-mono text-sm"
+              required
+            />
+            <p className="mt-1 text-xs text-zinc-500">Der Agent lädt die Datei von dieser URL herunter</p>
           </div>
 
           <div>
@@ -403,10 +418,10 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
               type="text"
               value={installCommand}
               onChange={(e) => setInstallCommand(e.target.value)}
-              placeholder="z.B. {file} /S oder msiexec /i {file} /qn"
+              placeholder="z.B. msiexec /i {file} /qn"
               className="mt-1 w-full rounded bg-zinc-700 px-3 py-2 text-white font-mono text-sm"
             />
-            <p className="mt-1 text-xs text-zinc-500">{"{file}"} wird durch den Pfad zur Datei ersetzt</p>
+            <p className="mt-1 text-xs text-zinc-500">{"{file}"} wird durch den Pfad zur Datei ersetzt. Leer = automatisch (MSI/EXE)</p>
           </div>
 
           <div>
@@ -444,7 +459,7 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
 
 function AddRuleDialog({ packageId, versionId, onClose, onCreated }: { packageId: string; versionId: string; onClose: () => void; onCreated: () => void }) {
   const [ruleType, setRuleType] = useState("msi");
-  const [config, setConfig] = useState<Record<string, unknown>>({});
+  const [config, setConfig] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
