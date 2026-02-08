@@ -108,9 +108,18 @@ public class NodeWorker : BackgroundService
         _logger.LogInformation("OpenClaw Node Agent stopped.");
     }
 
+    private DeviceIdentity? _deviceIdentity;
+
     private async Task ConnectAndRunAsync(ServiceConfig config, CancellationToken ct)
     {
         _webSocket = new ClientWebSocket();
+        
+        // Load or create device identity for authentication
+        var configDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "OpenClaw");
+        _deviceIdentity = DeviceIdentity.LoadOrCreate(configDir);
+        _logger.LogInformation("Device identity loaded: {DeviceId}", _deviceIdentity.Id);
         
         // Convert http to ws
         var wsUrl = config.GatewayUrl!
@@ -136,12 +145,8 @@ public class NodeWorker : BackgroundService
 
         // Send connect request
         var requestId = Interlocked.Increment(ref _requestId).ToString();
-        // Generate a stable device ID from machine name (for pairing)
-        var deviceId = Convert.ToHexString(
-            System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes($"openclaw-windows-{Environment.MachineName}")
-            )
-        ).ToLowerInvariant().Substring(0, 40);
+        // Create device object with signed challenge
+        var deviceObject = _deviceIdentity.CreateDeviceObject(nonce);
         
         var request = new
         {
@@ -155,7 +160,7 @@ public class NodeWorker : BackgroundService
                 client = new
                 {
                     id = "node-host",  // Must be a known client type from GATEWAY_CLIENT_IDS
-                    version = "0.3.9",
+                    version = "0.3.10",
                     platform = "windows",
                     mode = "node",
                     instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}",  // Unique instance identifier
@@ -199,11 +204,8 @@ public class NodeWorker : BackgroundService
                     { "inventory.push", true }
                 },
                 auth = new { token = config.GatewayToken },
-                device = new
-                {
-                    id = deviceId
-                },
-                userAgent = $"openclaw-windows-service/0.3.9 ({config.DisplayName})"
+                device = deviceObject,
+                userAgent = $"openclaw-windows-service/0.3.10 ({config.DisplayName})"
             }
         };
 

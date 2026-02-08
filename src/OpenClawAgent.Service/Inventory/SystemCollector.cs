@@ -193,7 +193,7 @@ public static class SystemCollector
             }
             
             // Agent version
-            result.AgentVersion = "0.3.9";
+            result.AgentVersion = "0.3.10";
             
             return result;
         }
