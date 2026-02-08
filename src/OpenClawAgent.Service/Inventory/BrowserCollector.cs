@@ -413,17 +413,75 @@ public static class BrowserCollector
 
     private static CookieCollectionResult TryGetCookiesViaVSS(string dbPath, string browserName)
     {
+        string? tempDb = null;
         try
         {
-            // Use vssadmin to create shadow copy and read from there
-            // This is complex and requires more setup, skip for now
-            // Could implement using AlphaVSS library in future
+            // Use VssHelper to copy locked file via VSS or esentutl
+            tempDb = VssHelper.CopySqliteDatabaseAsync(dbPath).GetAwaiter().GetResult();
             
-            return new CookieCollectionResult { Count = -1, Error = "VSS not implemented" };
+            if (tempDb == null || !File.Exists(tempDb))
+                return new CookieCollectionResult { Count = -1, Error = "VSS copy failed" };
+
+            var cookies = new List<CookieInfo>();
+            
+            using var conn = new SQLiteConnection($"Data Source={tempDb};Read Only=True;");
+            conn.Open();
+            
+            using var cmd = new SQLiteCommand(@"
+                SELECT 
+                    host_key, name, path, expires_utc, is_secure, 
+                    is_httponly, samesite, is_persistent
+                FROM cookies
+                ORDER BY host_key, name
+                LIMIT 10000
+            ", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var domain = reader.GetString(0);
+                var expiresUtc = reader.GetInt64(3);
+                DateTime? expires = null;
+                bool isExpired = false;
+                bool isSession = reader.GetInt32(7) == 0;
+
+                if (expiresUtc > 0 && !isSession)
+                {
+                    try
+                    {
+                        expires = new DateTime(1601, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddTicks(expiresUtc * 10);
+                        isExpired = expires < DateTime.UtcNow;
+                    }
+                    catch { }
+                }
+
+                var (isCritical, category) = CheckCriticalDomain(domain);
+
+                cookies.Add(new CookieInfo
+                {
+                    Domain = domain,
+                    Name = reader.GetString(1),
+                    Path = reader.GetString(2),
+                    ExpiresUtc = expires,
+                    IsSecure = reader.GetInt32(4) == 1,
+                    IsHttpOnly = reader.GetInt32(5) == 1,
+                    SameSite = reader.GetInt32(6) switch { 0 => "None", 1 => "Lax", 2 => "Strict", _ => null },
+                    IsSession = isSession,
+                    IsExpired = isExpired,
+                    IsCritical = isCritical,
+                    CriticalCategory = category
+                });
+            }
+
+            return new CookieCollectionResult { Cookies = cookies, Count = cookies.Count };
         }
-        catch
+        catch (Exception ex)
         {
-            return new CookieCollectionResult { Count = -1, Error = "VSS failed" };
+            return new CookieCollectionResult { Count = -1, Error = $"VSS failed: {ex.Message}" };
+        }
+        finally
+        {
+            VssHelper.CleanupTempDatabase(tempDb);
         }
     }
 
