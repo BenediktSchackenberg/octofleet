@@ -68,6 +68,9 @@ export default async function Dashboard() {
               <Link href="/jobs">🚀 Jobs</Link>
             </Button>
             <Button variant="outline" asChild>
+              <Link href="/packages">📦 Pakete</Link>
+            </Button>
+            <Button variant="outline" asChild>
               <Link href="/groups">📁 Gruppen & Tags</Link>
             </Button>
             <Button variant="outline" asChild>
