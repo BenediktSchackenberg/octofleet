@@ -51,41 +51,64 @@ public static class VssHelper
         try
         {
             var driveLetter = Path.GetPathRoot(sourcePath)?.TrimEnd('\\') ?? "C:";
+            var relativePath = sourcePath.Substring(3); // Remove "C:\" prefix
             
-            // PowerShell script to create VSS snapshot, copy file, then delete snapshot
-            var script = $@"
-$ErrorActionPreference = 'Stop'
-try {{
-    # Create shadow copy
-    $shadow = (Get-WmiObject -List Win32_ShadowCopy).Create('{driveLetter}\', 'ClientAccessible')
-    $shadowId = $shadow.ShadowID
-    $shadowObj = Get-WmiObject Win32_ShadowCopy | Where-Object {{ $_.ID -eq $shadowId }}
-    $shadowPath = $shadowObj.DeviceObject
-    
-    # Build path within shadow copy
-    $relativePath = '{sourcePath.Replace("'", "''").Substring(3)}'
-    $shadowFilePath = Join-Path $shadowPath $relativePath
-    
-    # Copy from shadow
-    Copy-Item -Path ""\\?\$shadowFilePath"" -Destination '{destPath.Replace("'", "''")}' -Force
-    
-    # Delete shadow copy
-    $shadowObj.Delete()
-    
-    Write-Output 'SUCCESS'
-}} catch {{
-    Write-Output ""ERROR: $_""
-}}
+            Console.WriteLine($"[VssHelper] Creating VSS snapshot for {driveLetter}");
+            
+            // Create shadow copy via WMI
+            var createScript = $@"
+$vss = (Get-WmiObject -List Win32_ShadowCopy).Create('{driveLetter}\', 'ClientAccessible')
+if ($vss.ReturnValue -ne 0) {{ throw 'VSS create failed' }}
+$shadow = Get-WmiObject Win32_ShadowCopy | Where-Object {{ $_.ID -eq $vss.ShadowID }}
+$shadow.DeviceObject
 ";
-            var result = await RunPowerShellAsync(script);
+            var deviceObject = (await RunPowerShellAsync(createScript)).Trim();
             
-            if (result.Contains("SUCCESS") && File.Exists(destPath))
+            if (string.IsNullOrEmpty(deviceObject) || !deviceObject.Contains("HarddiskVolumeShadowCopy"))
+            {
+                Console.WriteLine($"[VssHelper] VSS create failed, no device object returned");
+                return null;
+            }
+            
+            Console.WriteLine($"[VssHelper] VSS device: {deviceObject}");
+            
+            // Use cmd.exe copy (PowerShell Copy-Item has issues with these paths)
+            var vssSourcePath = $"{deviceObject}\\{relativePath}";
+            var copyPsi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c copy \"{vssSourcePath}\" \"{destPath}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            
+            using var copyProcess = Process.Start(copyPsi);
+            if (copyProcess != null)
+            {
+                await copyProcess.WaitForExitAsync();
+                Console.WriteLine($"[VssHelper] cmd copy exit code: {copyProcess.ExitCode}");
+            }
+            
+            // Cleanup: delete the shadow copy
+            var cleanupScript = $@"
+$shadow = Get-WmiObject Win32_ShadowCopy | Where-Object {{ $_.DeviceObject -eq '{deviceObject}' }}
+if ($shadow) {{ $shadow.Delete() }}
+";
+            await RunPowerShellAsync(cleanupScript);
+            
+            if (File.Exists(destPath))
+            {
+                Console.WriteLine($"[VssHelper] VSS copy successful: {destPath}");
                 return destPath;
+            }
 
             return null;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[VssHelper] VSS exception: {ex.Message}");
             return null;
         }
     }
