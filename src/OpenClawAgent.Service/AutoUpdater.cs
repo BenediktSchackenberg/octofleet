@@ -15,7 +15,7 @@ public class AutoUpdater : BackgroundService
     private readonly HttpClient _httpClient;
     
     // Current agent version
-    public static readonly string CurrentVersion = "0.3.11";
+    public static readonly string CurrentVersion = "0.3.12";
     
     // Check interval: every 5 minutes
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(5);

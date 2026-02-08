@@ -1,20 +1,21 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using NSec.Cryptography;
 
 namespace OpenClawAgent.Service;
 
 /// <summary>
-/// Manages device identity for Gateway authentication.
-/// Uses Ed25519 keypair for signing challenges.
+/// Manages device identity for Gateway authentication using Ed25519.
+/// Compatible with OpenClaw Gateway protocol.
 /// </summary>
 public class DeviceIdentity
 {
     private const string KeyFileName = "device-identity.json";
     
     public string Id { get; private set; } = "";
-    public string PublicKey { get; private set; } = "";
-    private byte[] _privateKey = Array.Empty<byte>();
+    public string PublicKeyBase64Url { get; private set; } = "";
+    private byte[] _privateKeyBytes = Array.Empty<byte>();
     
     /// <summary>
     /// Load or create device identity from config directory.
@@ -32,9 +33,9 @@ public class DeviceIdentity
                 var data = JsonSerializer.Deserialize<DeviceKeyData>(json);
                 if (data != null && !string.IsNullOrEmpty(data.PrivateKey) && !string.IsNullOrEmpty(data.PublicKey))
                 {
-                    identity._privateKey = Convert.FromBase64String(data.PrivateKey);
-                    identity.PublicKey = data.PublicKey;
-                    identity.Id = data.Id ?? ComputeFingerprint(Convert.FromBase64String(data.PublicKey));
+                    identity._privateKeyBytes = Base64UrlDecode(data.PrivateKey);
+                    identity.PublicKeyBase64Url = data.PublicKey;
+                    identity.Id = data.Id ?? ComputeFingerprint(Base64UrlDecode(data.PublicKey));
                     return identity;
                 }
             }
@@ -44,13 +45,16 @@ public class DeviceIdentity
             }
         }
         
-        // Generate new keypair using Ed25519
-        using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        var privateKeyBytes = ecdsa.ExportECPrivateKey();
-        var publicKeyBytes = ecdsa.ExportSubjectPublicKeyInfo();
+        // Generate new Ed25519 keypair
+        var algorithm = SignatureAlgorithm.Ed25519;
+        using var key = Key.Create(algorithm, new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport });
         
-        identity._privateKey = privateKeyBytes;
-        identity.PublicKey = Convert.ToBase64String(publicKeyBytes);
+        // Export raw keys (Ed25519 public key is 32 bytes, private is 32 bytes seed)
+        var privateKeyBytes = key.Export(KeyBlobFormat.RawPrivateKey);
+        var publicKeyBytes = key.Export(KeyBlobFormat.RawPublicKey);
+        
+        identity._privateKeyBytes = privateKeyBytes;
+        identity.PublicKeyBase64Url = Base64UrlEncode(publicKeyBytes);
         identity.Id = ComputeFingerprint(publicKeyBytes);
         
         // Save to file
@@ -58,8 +62,8 @@ public class DeviceIdentity
         var keyData = new DeviceKeyData
         {
             Id = identity.Id,
-            PublicKey = identity.PublicKey,
-            PrivateKey = Convert.ToBase64String(privateKeyBytes)
+            PublicKey = identity.PublicKeyBase64Url,
+            PrivateKey = Base64UrlEncode(privateKeyBytes)
         };
         File.WriteAllText(keyPath, JsonSerializer.Serialize(keyData, new JsonSerializerOptions { WriteIndented = true }));
         
@@ -67,45 +71,36 @@ public class DeviceIdentity
     }
     
     /// <summary>
-    /// Sign a challenge nonce for authentication.
+    /// Create device object for connect request with signed challenge.
     /// </summary>
-    public (string signature, long signedAt, string nonce) SignChallenge(string challenge)
+    public object CreateDeviceObject(string? nonce = null)
     {
-        var signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        
-        // Create message to sign: challenge + signedAt
-        var message = $"{challenge}:{signedAt}";
-        var messageBytes = Encoding.UTF8.GetBytes(message);
-        
-        using var ecdsa = ECDsa.Create();
-        ecdsa.ImportECPrivateKey(_privateKey, out _);
-        
-        var signatureBytes = ecdsa.SignData(messageBytes, HashAlgorithmName.SHA256);
-        var signature = Convert.ToBase64String(signatureBytes);
-        
-        return (signature, signedAt, challenge);
-    }
-    
-    /// <summary>
-    /// Create device object for connect request.
-    /// </summary>
-    public object CreateDeviceObject(string? challenge = null)
-    {
-        if (string.IsNullOrEmpty(challenge))
+        if (string.IsNullOrEmpty(nonce))
         {
             // Local connection without challenge
             return new
             {
                 id = Id,
-                publicKey = PublicKey
+                publicKey = PublicKeyBase64Url
             };
         }
         
-        var (signature, signedAt, nonce) = SignChallenge(challenge);
+        var signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        
+        // Build payload to sign: nonce:signedAt
+        var payload = $"{nonce}:{signedAt}";
+        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+        
+        // Sign with Ed25519
+        var algorithm = SignatureAlgorithm.Ed25519;
+        using var key = Key.Import(algorithm, _privateKeyBytes, KeyBlobFormat.RawPrivateKey);
+        var signatureBytes = algorithm.Sign(key, payloadBytes);
+        var signature = Base64UrlEncode(signatureBytes);
+        
         return new
         {
             id = Id,
-            publicKey = PublicKey,
+            publicKey = PublicKeyBase64Url,
             signature,
             signedAt,
             nonce
@@ -114,8 +109,33 @@ public class DeviceIdentity
     
     private static string ComputeFingerprint(byte[] publicKeyBytes)
     {
+        // SHA256 hash of raw public key bytes, as hex
         var hash = SHA256.HashData(publicKeyBytes);
-        return Convert.ToHexString(hash).ToLowerInvariant().Substring(0, 40);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+    
+    private static string Base64UrlEncode(byte[] data)
+    {
+        return Convert.ToBase64String(data)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+    }
+    
+    private static byte[] Base64UrlDecode(string base64Url)
+    {
+        var base64 = base64Url
+            .Replace('-', '+')
+            .Replace('_', '/');
+        
+        // Add padding if needed
+        switch (base64.Length % 4)
+        {
+            case 2: base64 += "=="; break;
+            case 3: base64 += "="; break;
+        }
+        
+        return Convert.FromBase64String(base64);
     }
     
     private class DeviceKeyData

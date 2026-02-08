@@ -120,6 +120,7 @@ public class NodeWorker : BackgroundService
             "OpenClaw");
         _deviceIdentity = DeviceIdentity.LoadOrCreate(configDir);
         _logger.LogInformation("Device identity loaded: {DeviceId}", _deviceIdentity.Id);
+        _logger.LogDebug("Public key: {PublicKey}", _deviceIdentity.PublicKeyBase64Url);
         
         // Convert http to ws
         var wsUrl = config.GatewayUrl!
@@ -160,7 +161,7 @@ public class NodeWorker : BackgroundService
                 client = new
                 {
                     id = "node-host",  // Must be a known client type from GATEWAY_CLIENT_IDS
-                    version = "0.3.11",
+                    version = "0.3.12",
                     platform = "windows",
                     mode = "node",
                     instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}",  // Unique instance identifier
@@ -205,7 +206,7 @@ public class NodeWorker : BackgroundService
                 },
                 auth = new { token = config.GatewayToken },
                 device = deviceObject,
-                userAgent = $"openclaw-windows-service/0.3.11 ({config.DisplayName})"
+                userAgent = $"openclaw-windows-service/0.3.12 ({config.DisplayName})"
             }
         };
 
