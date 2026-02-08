@@ -76,6 +76,26 @@ function formatDateTime(dateStr: string) {
   });
 }
 
+interface CriticalCookiesData {
+  nodeId: string;
+  criticalCookies: {
+    username: string;
+    browser: string;
+    profile: string;
+    domain: string;
+    name: string;
+    category: string;
+    isSecure: boolean;
+    isHttpOnly: boolean;
+    isSession: boolean;
+    isExpired: boolean;
+    expiresUtc: string | null;
+  }[];
+  count: number;
+  summary: Record<string, { count: number; domains: string[] }>;
+  warnings: string[];
+}
+
 export default function NodeDetailPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
@@ -90,6 +110,7 @@ export default function NodeDetailPage() {
   const [security, setSecurity] = useState<any>(null);
   const [network, setNetwork] = useState<any>(null);
   const [browser, setBrowser] = useState<any>(null);
+  const [criticalCookies, setCriticalCookies] = useState<CriticalCookiesData | null>(null);
 
   useEffect(() => {
     async function fetchAll() {
@@ -97,7 +118,7 @@ export default function NodeDetailPage() {
       try {
         const headers = { 'X-API-Key': API_KEY };
         
-        const [nodeRes, historyRes, hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes] = await Promise.all([
+        const [nodeRes, historyRes, hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
           fetch(`${API_BASE}/nodes/${nodeId}`, { headers }),
           fetch(`${API_BASE}/nodes/${nodeId}/history?limit=50`, { headers }),
           fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers }),
@@ -107,6 +128,7 @@ export default function NodeDetailPage() {
           fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers }),
           fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers }),
           fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers }),
+          fetch(`${API_BASE}/inventory/browser/${nodeId}/critical`, { headers }),
         ]);
 
         if (nodeRes.ok) setNode(await nodeRes.json());
@@ -144,6 +166,9 @@ export default function NodeDetailPage() {
         if (brRes.ok) {
           const data = await brRes.json();
           setBrowser(data.data || {});
+        }
+        if (critRes.ok) {
+          setCriticalCookies(await critRes.json());
         }
       } catch (err) {
         console.error("Failed to fetch data:", err);
@@ -741,7 +766,107 @@ export default function NodeDetailPage() {
 
           {/* Browser Tab */}
           <TabsContent value="browser" className="space-y-4">
-            {/* Browser Data per User */}
+            {/* Security Warnings */}
+            {criticalCookies && criticalCookies.warnings.length > 0 && (
+              <Card className="border-yellow-500 bg-yellow-500/10">
+                <CardHeader>
+                  <CardTitle className="text-yellow-600 dark:text-yellow-400">⚠️ Sicherheitshinweise</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {criticalCookies.warnings.map((warning, i) => (
+                      <li key={i} className="text-sm">{warning}</li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Critical Cookies Summary */}
+            {criticalCookies && criticalCookies.count > 0 && (
+              <Card className="border-red-500/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    🔐 Kritische Cookies <Badge variant="destructive">{criticalCookies.count}</Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Cookies von sensitiven Domains (Banking, Auth, Cloud, etc.)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* Category Summary */}
+                  <div className="grid gap-4 md:grid-cols-3 mb-6">
+                    {Object.entries(criticalCookies.summary).map(([category, data]) => (
+                      <div key={category} className="p-3 border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm">{category}</span>
+                          <Badge variant="outline">{data.count}</Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {data.domains.slice(0, 5).map(domain => (
+                            <Badge key={domain} variant="secondary" className="text-xs">
+                              {domain}
+                            </Badge>
+                          ))}
+                          {data.domains.length > 5 && (
+                            <Badge variant="secondary" className="text-xs">+{data.domains.length - 5}</Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Critical Cookies Table */}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Domain</TableHead>
+                        <TableHead>Cookie</TableHead>
+                        <TableHead>Kategorie</TableHead>
+                        <TableHead>Browser</TableHead>
+                        <TableHead>Flags</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {criticalCookies.criticalCookies.slice(0, 20).map((cookie, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-xs">{cookie.domain}</TableCell>
+                          <TableCell className="font-mono text-xs max-w-[150px] truncate" title={cookie.name}>
+                            {cookie.name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{cookie.category}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">{cookie.browser}</TableCell>
+                          <TableCell className="space-x-1">
+                            {cookie.isSecure ? (
+                              <Badge className="bg-green-600 text-xs">Secure</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">!Secure</Badge>
+                            )}
+                            {cookie.isHttpOnly ? (
+                              <Badge className="bg-green-600 text-xs">HttpOnly</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">!HttpOnly</Badge>
+                            )}
+                            {cookie.isSession && (
+                              <Badge variant="secondary" className="text-xs">Session</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {criticalCookies.criticalCookies.length > 20 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      ... und {criticalCookies.criticalCookies.length - 20} weitere kritische Cookies
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Browser Stats per User */}
             {browserData.users && Object.keys(browserData.users).length > 0 ? (
               Object.entries(browserData.users).map(([username, browsers]: [string, any]) => (
                 <Card key={username}>
@@ -751,24 +876,51 @@ export default function NodeDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-6">
-                      {Object.entries(browsers).map(([browserName, data]: [string, any]) => (
-                        <div key={browserName} className="border-l-2 border-muted pl-4">
-                          <p className="font-medium mb-2">
-                            {browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊'} {browserName}
-                          </p>
-                          {data.profiles?.map((profile: any, i: number) => (
-                            <div key={i} className="ml-4 mb-3 text-sm">
-                              <p className="text-muted-foreground">Profil: {profile.name}</p>
-                              <div className="flex gap-4 mt-1">
-                                <span>📜 {profile.historyCount || 0} History</span>
-                                <span>🔖 {profile.bookmarkCount || 0} Bookmarks</span>
-                                <span>🔑 {profile.passwordCount || 0} Passwörter</span>
-                              </div>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {Object.entries(browsers).map(([browserName, data]: [string, any]) => {
+                        const icon = browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊';
+                        const profile = data.profiles?.[0];
+                        const cookiesCount = profile?.cookiesCount || 0;
+                        return (
+                          <div key={browserName} className="p-4 border rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-2xl">{icon}</span>
+                              <span className="font-medium">{browserName}</span>
                             </div>
-                          ))}
-                        </div>
-                      ))}
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div className="flex items-center gap-1">
+                                <span>📜</span>
+                                <span className="text-muted-foreground">History</span>
+                              </div>
+                              <span className="font-mono text-right">{(profile?.historyCount || 0).toLocaleString()}</span>
+                              
+                              <div className="flex items-center gap-1">
+                                <span>🔖</span>
+                                <span className="text-muted-foreground">Bookmarks</span>
+                              </div>
+                              <span className="font-mono text-right">{(profile?.bookmarkCount || 0).toLocaleString()}</span>
+                              
+                              <div className="flex items-center gap-1">
+                                <span>🍪</span>
+                                <span className="text-muted-foreground">Cookies</span>
+                              </div>
+                              <span className="font-mono text-right">
+                                {cookiesCount === -1 ? (
+                                  <Badge variant="destructive" className="text-xs">Gesperrt</Badge>
+                                ) : (
+                                  cookiesCount.toLocaleString()
+                                )}
+                              </span>
+                              
+                              <div className="flex items-center gap-1">
+                                <span>🧩</span>
+                                <span className="text-muted-foreground">Extensions</span>
+                              </div>
+                              <span className="font-mono text-right">{data.extensionCount || 0}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -776,20 +928,9 @@ export default function NodeDetailPage() {
             ) : Object.keys(browserData).length > 0 && !browserData.users ? (
               // Legacy format fallback
               <Card>
-                <CardHeader><CardTitle>Browser-Erweiterungen</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Browser-Daten</CardTitle></CardHeader>
                 <CardContent>
-                  <div className="space-y-6">
-                    {Object.entries(browserData).filter(([k]) => k !== 'users' && k !== 'cookies').map(([browserName, profiles]: [string, any]) => (
-                      <div key={browserName}>
-                        <p className="font-medium mb-2">{browserName}</p>
-                        {Array.isArray(profiles) && profiles.map((profile: any, i: number) => (
-                          <div key={i} className="ml-4 mb-4">
-                            <p className="text-sm text-muted-foreground mb-2">Profil: {profile.profile}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-muted-foreground">Legacy-Format erkannt. Bitte Agent aktualisieren.</p>
                 </CardContent>
               </Card>
             ) : (
@@ -801,12 +942,12 @@ export default function NodeDetailPage() {
               </Card>
             )}
 
-            {/* Cookies Summary */}
+            {/* Cookies Summary by Domain */}
             {browserData.cookies && Object.keys(browserData.cookies).length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>🍪 Cookies nach Benutzer</CardTitle>
-                  <CardDescription>Top-Domains pro Benutzer (Details über API abrufbar)</CardDescription>
+                  <CardTitle>🍪 Alle Cookies nach Domain</CardTitle>
+                  <CardDescription>Top-Domains pro Benutzer</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {Object.entries(browserData.cookies).map(([username, cookieList]: [string, any]) => (
@@ -822,19 +963,19 @@ export default function NodeDetailPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {Array.isArray(cookieList) && cookieList.slice(0, 20).map((cookie: any, i: number) => (
+                          {Array.isArray(cookieList) && cookieList.slice(0, 15).map((cookie: any, i: number) => (
                             <TableRow key={i}>
                               <TableCell>{cookie.browser}</TableCell>
                               <TableCell>{cookie.profile}</TableCell>
                               <TableCell className="font-mono text-xs">{cookie.domain}</TableCell>
-                              <TableCell className="text-right">{cookie.count}</TableCell>
+                              <TableCell className="text-right font-mono">{cookie.count}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
-                      {Array.isArray(cookieList) && cookieList.length > 20 && (
+                      {Array.isArray(cookieList) && cookieList.length > 15 && (
                         <p className="text-sm text-muted-foreground mt-2">
-                          ... und {cookieList.length - 20} weitere Domains
+                          ... und {cookieList.length - 15} weitere Domains
                         </p>
                       )}
                     </div>
