@@ -104,46 +104,194 @@ Modern Next.js dashboard with:
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Server Setup (Complete Guide)
+
+This guide walks you through setting up the entire platform on a Linux server.
 
 ### Prerequisites
-- Linux server (Ubuntu 22.04+ recommended) for Backend/Gateway
-- Windows 10/11/Server for Agents
-- PostgreSQL 16 with TimescaleDB extension
-- Node.js 20+ and Python 3.12+
 
-### 1. Backend Setup
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| **Ubuntu Server** | 22.04+ | Host OS |
+| **PostgreSQL** | 16+ | Database |
+| **TimescaleDB** | 2.x | Time-series extension for metrics |
+| **Python** | 3.12+ | Backend API |
+| **Node.js** | 20+ | Frontend Dashboard |
+| **OpenClaw Gateway** | Latest | Node communication |
+
+### Step 1: Install PostgreSQL + TimescaleDB
 
 ```bash
-# Clone the repo
-git clone https://github.com/BenediktSchackenberg/openclaw-windows-agent.git
-cd openclaw-windows-agent/backend
+# Add TimescaleDB repository
+sudo apt install -y gnupg postgresql-common apt-transport-https lsb-release wget
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+echo "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/timescaledb.list
+wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | sudo apt-key add -
+sudo apt update
 
-# Create virtual environment
+# Install PostgreSQL 16 with TimescaleDB
+sudo apt install -y postgresql-16 timescaledb-2-postgresql-16
+
+# Enable TimescaleDB
+sudo timescaledb-tune --quiet --yes
+sudo systemctl restart postgresql
+
+# Create database
+sudo -u postgres psql -c "CREATE USER openclaw WITH PASSWORD 'your-secure-password';"
+sudo -u postgres psql -c "CREATE DATABASE inventory OWNER openclaw;"
+sudo -u postgres psql -d inventory -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+```
+
+### Step 2: Clone and Setup Backend
+
+```bash
+# Clone repository
+git clone https://github.com/BenediktSchackenberg/openclaw-windows-agent.git
+cd openclaw-windows-agent
+
+# Setup Python virtual environment
+cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Start the API
+# Configure database connection (edit main.py or use environment variables)
+export DATABASE_URL="postgresql://openclaw:your-secure-password@localhost:5432/inventory"
+
+# Initialize database schema (tables are auto-created on first run)
+# Start the backend
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-### 2. Frontend Setup
+**For production**, create a systemd service:
+
+```bash
+sudo tee /etc/systemd/system/openclaw-inventory.service << 'EOF'
+[Unit]
+Description=OpenClaw Inventory API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/openclaw-windows-agent/backend
+Environment="DATABASE_URL=postgresql://openclaw:your-secure-password@localhost:5432/inventory"
+ExecStart=/path/to/openclaw-windows-agent/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now openclaw-inventory
+```
+
+### Step 3: Setup Frontend
 
 ```bash
 cd ../frontend
 npm install
-npm run dev  # Development
-# or
-npm run build && npm start  # Production
+
+# Development
+npm run dev
+
+# Production build
+npm run build
+npm start
 ```
 
-### 3. Agent Installation (on Windows)
+**For production**, create a systemd service:
+
+```bash
+sudo tee /etc/systemd/system/openclaw-inventory-ui.service << 'EOF'
+[Unit]
+Description=OpenClaw Inventory UI
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/openclaw-windows-agent/frontend
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now openclaw-inventory-ui
+```
+
+### Step 4: Install OpenClaw Gateway
+
+The Gateway handles communication with Windows Agents.
+
+```bash
+# Install OpenClaw via npm
+npm install -g openclaw
+
+# Initialize configuration
+openclaw init
+
+# Edit config to enable nodes and set auth token
+nano ~/.openclaw/openclaw.json
+```
+
+**Minimum gateway config** (`~/.openclaw/openclaw.json`):
+
+```json
+{
+  "gateway": {
+    "bind": "lan",
+    "port": 18789
+  },
+  "auth": {
+    "mode": "token",
+    "tokens": ["your-secret-token-here"]
+  },
+  "nodes": {
+    "enabled": true,
+    "allowCommands": ["*"]
+  }
+}
+```
+
+```bash
+# Start the gateway
+openclaw gateway start
+```
+
+### Step 5: Configure Firewall
+
+```bash
+# Allow incoming connections
+sudo ufw allow 3000/tcp    # Frontend
+sudo ufw allow 8080/tcp    # Backend API
+sudo ufw allow 18789/tcp   # Gateway (for Windows Agents)
+```
+
+### Step 6: Verify Installation
+
+| Service | URL | Expected |
+|---------|-----|----------|
+| Frontend | `http://your-server:3000` | Dashboard loads |
+| Backend API | `http://your-server:8080/docs` | Swagger UI |
+| Gateway | `http://your-server:18789` | Connection accepted |
+
+---
+
+## 💻 Agent Installation (Windows)
+
+Once the server is running, install agents on your Windows machines:
 
 ```powershell
 # Run as Administrator
 irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1
-.\Install.ps1 -GatewayUrl "http://YOUR-SERVER-IP:18789" -GatewayToken "YOUR-TOKEN"
+.\Install.ps1 -GatewayUrl "http://YOUR-SERVER-IP:18789" -GatewayToken "your-secret-token-here"
 ```
 
 The installer:
@@ -152,6 +300,12 @@ The installer:
 3. ✅ Installs to `C:\Program Files\OpenClaw\Agent`
 4. ✅ Registers Windows Service (auto-start)
 5. ✅ Connects to Gateway
+
+**Update existing agents:**
+
+```powershell
+.\Install.ps1  # Keeps existing config, updates binary
+```
 
 ---
 
