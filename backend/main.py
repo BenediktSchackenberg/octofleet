@@ -526,6 +526,121 @@ async def get_browser_cookies(node_id: str, username: str = None, browser: str =
         return {"cookies": cookies, "count": len(cookies)}
 
 
+# Critical domains list for security analysis
+CRITICAL_DOMAINS = {
+    # Banking & Finance
+    "paypal.com", "stripe.com", "coinbase.com", "binance.com", "kraken.com",
+    # Auth Providers
+    "google.com", "accounts.google.com", "microsoft.com", "login.microsoftonline.com", 
+    "login.live.com", "github.com", "gitlab.com", "okta.com", "auth0.com",
+    # Cloud Providers
+    "aws.amazon.com", "console.aws.amazon.com", "azure.com", "portal.azure.com",
+    # Communication
+    "discord.com", "slack.com", "telegram.org", "web.telegram.org", "whatsapp.com",
+    # Email
+    "mail.google.com", "outlook.com", "outlook.live.com", "protonmail.com",
+    # Password Managers
+    "1password.com", "lastpass.com", "bitwarden.com", "dashlane.com"
+}
+
+def get_domain_category(domain: str) -> str:
+    """Categorize a domain for security reporting"""
+    d = domain.lower().lstrip('.')
+    if any(x in d for x in ["paypal", "stripe", "coinbase", "binance", "kraken"]):
+        return "Banking/Finance"
+    if any(x in d for x in ["google", "microsoft", "github", "okta", "auth0", "live.com"]):
+        return "Auth Provider"
+    if any(x in d for x in ["aws", "azure", "cloud.google"]):
+        return "Cloud Provider"
+    if any(x in d for x in ["discord", "slack", "telegram", "whatsapp"]):
+        return "Communication"
+    if any(x in d for x in ["mail", "outlook", "proton"]):
+        return "Email"
+    if any(x in d for x in ["1password", "lastpass", "bitwarden", "dashlane"]):
+        return "Password Manager"
+    return "Sensitive"
+
+def is_critical_domain(domain: str) -> bool:
+    """Check if a domain is in the critical list"""
+    d = domain.lower().lstrip('.')
+    for critical in CRITICAL_DOMAINS:
+        if d == critical or d.endswith('.' + critical):
+            return True
+    return False
+
+
+@app.get("/api/v1/inventory/browser/{node_id}/critical")
+async def get_critical_cookies(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get critical/sensitive cookies for security analysis"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR hostname = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        rows = await conn.fetch("""
+            SELECT username, browser, profile, domain, name, path, 
+                   expires_utc, is_secure, is_http_only, same_site, is_session, is_expired
+            FROM browser_cookies 
+            WHERE node_id = $1
+            ORDER BY username, browser, domain, name
+        """, node['id'])
+        
+        # Filter and categorize critical cookies
+        critical = []
+        categories = {}
+        
+        for row in rows:
+            domain = row['domain']
+            if is_critical_domain(domain):
+                category = get_domain_category(domain)
+                
+                cookie = {
+                    "username": row['username'],
+                    "browser": row['browser'],
+                    "profile": row['profile'],
+                    "domain": domain,
+                    "name": row['name'],
+                    "category": category,
+                    "isSecure": row['is_secure'],
+                    "isHttpOnly": row['is_http_only'],
+                    "isSession": row['is_session'],
+                    "isExpired": row['is_expired'],
+                    "expiresUtc": row['expires_utc'].isoformat() if row['expires_utc'] else None
+                }
+                critical.append(cookie)
+                
+                # Count by category
+                if category not in categories:
+                    categories[category] = {"count": 0, "domains": set()}
+                categories[category]["count"] += 1
+                categories[category]["domains"].add(domain.lstrip('.'))
+        
+        # Convert sets to lists for JSON
+        summary = {cat: {"count": data["count"], "domains": list(data["domains"])} 
+                   for cat, data in categories.items()}
+        
+        # Security warnings
+        warnings = []
+        if any(c for c in critical if not c["isSecure"]):
+            warnings.append("⚠️ Some critical cookies are NOT marked Secure (vulnerable to MITM)")
+        if any(c for c in critical if not c["isHttpOnly"]):
+            warnings.append("⚠️ Some critical cookies are NOT HttpOnly (vulnerable to XSS)")
+        if "Password Manager" in categories:
+            warnings.append("🔐 Password manager cookies found - high-value target")
+        if "Banking/Finance" in categories:
+            warnings.append("💰 Banking/Finance cookies found - monitor for unauthorized access")
+        if "Auth Provider" in categories:
+            warnings.append("🔑 Auth provider cookies found - could be used for session hijacking")
+        
+        return {
+            "nodeId": node_id,
+            "criticalCookies": critical,
+            "count": len(critical),
+            "summary": summary,
+            "warnings": warnings
+        }
+
+
 @app.post("/api/v1/inventory/hardware", dependencies=[Depends(verify_api_key)])
 async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit hardware inventory (accepts raw JSON from Windows Agent)"""
@@ -785,14 +900,97 @@ async def submit_browser(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
     hostname = data.get("hostname", "unknown")
     node_id_str = data.get("nodeId", hostname)
     browsers = data.get("browsers", {})
+    users = data.get("users", [])
     
     uuid = await upsert_node(db, node_id_str, hostname)
     
     async with db.acquire() as conn:
         await conn.execute("DELETE FROM browser_current WHERE node_id = $1", uuid)
         
-        # Handle Windows Agent format: { chrome: {...}, edge: {...}, firefox: {...} }
-        if isinstance(browsers, dict):
+        # NEW: Handle new format with users array (from SYSTEM service scanning all users)
+        if users:
+            await conn.execute("DELETE FROM browser_cookies WHERE node_id = $1", uuid)
+            
+            for user_data in users:
+                username = user_data.get("username", "unknown")
+                
+                for browser_key in ["chrome", "edge", "firefox"]:
+                    browser_data = user_data.get(browser_key)
+                    if not browser_data or not browser_data.get("installed"):
+                        continue
+                    
+                    browser_name = browser_key.title()
+                    
+                    for profile in browser_data.get("profiles", []):
+                        profile_name = profile.get("name", "Default")
+                        
+                        # Store browser profile with username
+                        await conn.execute("""
+                            INSERT INTO browser_current (node_id, browser, profile, username,
+                                history_count, bookmark_count, cookies_count, logins_count, extensions, updated_at)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                            ON CONFLICT (node_id, browser, profile) DO UPDATE SET
+                                username = EXCLUDED.username,
+                                history_count = EXCLUDED.history_count,
+                                bookmark_count = EXCLUDED.bookmark_count,
+                                cookies_count = EXCLUDED.cookies_count,
+                                logins_count = EXCLUDED.logins_count,
+                                extensions = EXCLUDED.extensions,
+                                updated_at = NOW()
+                        """,
+                            uuid,
+                            browser_name,
+                            profile_name,
+                            username,
+                            profile.get("historyCount"),
+                            profile.get("bookmarksCount"),
+                            profile.get("cookiesCount"),
+                            profile.get("loginsCount"),
+                            json.dumps(profile.get("extensions", []))
+                        )
+                        
+                        # Store cookies
+                        cookies = profile.get("cookies", [])
+                        for cookie in cookies:
+                            if cookie.get("domain") == "ERROR":
+                                continue  # Skip error entries
+                            try:
+                                expires = None
+                                if cookie.get("expiresUtc"):
+                                    expires = cookie["expiresUtc"]
+                                
+                                await conn.execute("""
+                                    INSERT INTO browser_cookies 
+                                    (node_id, username, browser, profile, domain, name, path,
+                                     expires_utc, is_secure, is_http_only, same_site, is_session, is_expired)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                    ON CONFLICT (node_id, username, browser, profile, domain, name) DO UPDATE SET
+                                        path = EXCLUDED.path,
+                                        expires_utc = EXCLUDED.expires_utc,
+                                        is_secure = EXCLUDED.is_secure,
+                                        is_http_only = EXCLUDED.is_http_only,
+                                        same_site = EXCLUDED.same_site,
+                                        is_session = EXCLUDED.is_session,
+                                        is_expired = EXCLUDED.is_expired,
+                                        updated_at = NOW()
+                                """,
+                                    uuid, username, browser_name, profile_name,
+                                    cookie.get("domain", ""),
+                                    cookie.get("name", ""),
+                                    cookie.get("path", "/"),
+                                    expires,
+                                    cookie.get("isSecure", False),
+                                    cookie.get("isHttpOnly", False),
+                                    cookie.get("sameSite"),
+                                    cookie.get("isSession", False),
+                                    cookie.get("isExpired", False)
+                                )
+                            except Exception as e:
+                                # Log but continue with other cookies
+                                print(f"Cookie insert error: {e}")
+        
+        # Handle legacy Windows Agent format: { chrome: {...}, edge: {...}, firefox: {...} }
+        elif isinstance(browsers, dict):
             for browser_name, browser_data in browsers.items():
                 if not isinstance(browser_data, dict):
                     continue
@@ -848,89 +1046,6 @@ async def submit_browser(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
                         profile.get("savedPasswordCount"),
                         json.dumps(profile.get("extensions", []))
                     )
-    
-    # NEW: Handle new format with users array (from SYSTEM service scanning all users)
-    users = data.get("users", [])
-    if users:
-        await conn.execute("DELETE FROM browser_cookies WHERE node_id = $1", uuid)
-        
-        for user_data in users:
-            username = user_data.get("username", "unknown")
-            
-            for browser_key in ["chrome", "edge", "firefox"]:
-                browser_data = user_data.get(browser_key)
-                if not browser_data or not browser_data.get("installed"):
-                    continue
-                
-                browser_name = browser_key.title()
-                
-                for profile in browser_data.get("profiles", []):
-                    profile_name = profile.get("name", "Default")
-                    
-                    # Store browser profile with username
-                    await conn.execute("""
-                        INSERT INTO browser_current (node_id, browser, profile, username,
-                            history_count, bookmark_count, cookies_count, logins_count, extensions, updated_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-                        ON CONFLICT (node_id, browser, profile) DO UPDATE SET
-                            username = EXCLUDED.username,
-                            history_count = EXCLUDED.history_count,
-                            bookmark_count = EXCLUDED.bookmark_count,
-                            cookies_count = EXCLUDED.cookies_count,
-                            logins_count = EXCLUDED.logins_count,
-                            extensions = EXCLUDED.extensions,
-                            updated_at = NOW()
-                    """,
-                        uuid,
-                        browser_name,
-                        profile_name,
-                        username,
-                        profile.get("historyCount"),
-                        profile.get("bookmarksCount"),
-                        profile.get("cookiesCount"),
-                        profile.get("loginsCount"),
-                        json.dumps(profile.get("extensions", []))
-                    )
-                    
-                    # Store cookies
-                    cookies = profile.get("cookies", [])
-                    for cookie in cookies:
-                        if cookie.get("domain") == "ERROR":
-                            continue  # Skip error entries
-                        try:
-                            expires = None
-                            if cookie.get("expiresUtc"):
-                                expires = cookie["expiresUtc"]
-                            
-                            await conn.execute("""
-                                INSERT INTO browser_cookies 
-                                (node_id, username, browser, profile, domain, name, path,
-                                 expires_utc, is_secure, is_http_only, same_site, is_session, is_expired)
-                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                                ON CONFLICT (node_id, username, browser, profile, domain, name) DO UPDATE SET
-                                    path = EXCLUDED.path,
-                                    expires_utc = EXCLUDED.expires_utc,
-                                    is_secure = EXCLUDED.is_secure,
-                                    is_http_only = EXCLUDED.is_http_only,
-                                    same_site = EXCLUDED.same_site,
-                                    is_session = EXCLUDED.is_session,
-                                    is_expired = EXCLUDED.is_expired,
-                                    updated_at = NOW()
-                            """,
-                                uuid, username, browser_name, profile_name,
-                                cookie.get("domain", ""),
-                                cookie.get("name", ""),
-                                cookie.get("path", "/"),
-                                expires,
-                                cookie.get("isSecure", False),
-                                cookie.get("isHttpOnly", False),
-                                cookie.get("sameSite"),
-                                cookie.get("isSession", False),
-                                cookie.get("isExpired", False)
-                            )
-                        except Exception as e:
-                            # Log but continue with other cookies
-                            print(f"Cookie insert error: {e}")
     
     return {"status": "ok", "node_id": str(uuid), "type": "browser"}
 
@@ -1018,12 +1133,15 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         results["submitted"].append("network")
     
     # Extract browser data - browser object contains chrome, edge, firefox, etc.
+    # NEW format: { users: [...] } from SYSTEM service
+    # OLD format: { chrome: {...}, edge: {...}, firefox: {...} }
     br_data = data.get("browser", {})
-    if br_data.get("chrome") or br_data.get("edge") or br_data.get("firefox"):
+    if br_data.get("users") or br_data.get("chrome") or br_data.get("edge") or br_data.get("firefox"):
         flat_br = {
             "hostname": hostname,
             "nodeId": data.get("nodeId", hostname),
-            "browsers": br_data
+            "browsers": br_data,  # Legacy format
+            "users": br_data.get("users", [])  # New format
         }
         await submit_browser(flat_br, db)
         results["submitted"].append("browser")

