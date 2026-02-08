@@ -15,27 +15,27 @@
 | **E9** | Rollout Strategies | Low | 1 |
 | **E10** | Zero-Touch Installation | High | 3-4 |
 | **E11** | Software Depot | High | 2 |
-| **E12** | Software Zuweisung | High | 1-2 |
-| **E13** | Installation & Deinstallation | High | 2 |
-| **E14** | Installations-Status & Monitoring | High | 1-2 |
+| **E12** | Software Assignment | High | 1-2 |
+| **E13** | Installation & Uninstallation | High | 2 |
+| **E14** | Installation Status & Monitoring | High | 1-2 |
 
 ---
 
-## User Story: Softwareverteilung auf inventarisierte Nodes
+## User Story: Software Distribution to Inventoried Nodes
 
-**Als** IT-Administrator / Systembetreiber  
-**möchte ich** Softwarepakete aus einem zentralen Software-Depot auf inventarisierte PCs (Nodes) installieren, aktualisieren und deinstallieren können – sowohl gezielt auf einzelne Nodes als auch auf definierte Node-Gruppen,  
-**damit** ich Software standardisiert, reproduzierbar und kontrolliert über eine zentrale Oberfläche verteilen und verwalten kann, ohne manuelle Eingriffe auf den einzelnen Systemen.
+**As** an IT administrator / system operator  
+**I want to** install, update, and uninstall software packages from a central software depot on inventoried PCs (nodes) — both targeted at individual nodes and defined node groups,  
+**so that** I can distribute and manage software in a standardized, reproducible, and controlled way through a central interface, without manual intervention on individual systems.
 
-**Abhängige Epics:** E11, E12, E13, E14 + bestehende E3, E4, E5
+**Dependent Epics:** E11, E12, E13, E14 + existing E3, E4, E5
 
 ---
 
 ## Phase 1: Foundation Enhancement (Sprint 2-3)
 
 ### Epic E1: Enhanced Inventory
-*Was wir haben: Basic HW/SW/Security collectors*
-*Was wir brauchen: Vollständige Inventory mit History*
+*What we have: Basic HW/SW/Security collectors*
+*What we need: Complete inventory with history*
 
 | ID | Task | Priority | Notes |
 |----|------|----------|-------|
@@ -52,7 +52,7 @@
 | E1-11 | Frontend: Device Timeline view | Medium | Show inventory changes |
 
 ### Epic E2: Device Grouping
-*Statische + Dynamische Gruppen für Targeting*
+*Static + Dynamic Groups for Targeting*
 
 | ID | Task | Priority | Notes |
 |----|------|----------|-------|
@@ -73,62 +73,62 @@
 
 ## Phase 2: Job System (Sprint 4-5)
 
-### Epic E3: Job System Core
-*Agent kann Jobs abholen und ausführen*
+### Epic E3: Job System Core ✅ COMPLETE
+*Agent can poll and execute jobs*
 
-| ID | Task | Priority | Notes |
-|----|------|----------|-------|
-| E3-01 | DB Schema: jobs, job_results | High | Job queue tables |
-| E3-02 | API: Create job (target: device/group) | High | POST /jobs |
-| E3-03 | API: Job poll endpoint for agent | High | GET /jobs/pending?nodeId=X |
-| E3-04 | API: Job result submission | High | POST /jobs/{id}/result |
-| E3-05 | Agent: Job polling loop | High | Check every X seconds |
-| E3-06 | Agent: Job execution engine | High | Run commands, track state |
-| E3-07 | Agent: Job state machine | High | Queued→Running→Success/Failed |
-| E3-08 | Agent: Pre/Post script support | Medium | Run PS/Bash before/after |
-| E3-09 | Agent: Reboot handling | Medium | Schedule reboot, resume after |
-| E3-10 | Agent: Retry logic | Medium | Exponential backoff on failure |
-| E3-11 | Frontend: Job queue view | High | Pending/Running/Completed |
-| E3-12 | Frontend: Job detail + logs | High | Exit code, stdout, duration |
-| E3-13 | Frontend: Create job wizard | Medium | Select target, command |
-| E3-14 | Job types: script, command, reboot | High | Basic job types |
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E3-01 | DB Schema: jobs, job_results | High | ✅ Done |
+| E3-02 | API: Create job (target: device/group) | High | ✅ Done |
+| E3-03 | API: Job poll endpoint for agent | High | ✅ Done |
+| E3-04 | API: Job result submission | High | ✅ Done |
+| E3-05 | Agent: Job polling loop | High | ✅ Done |
+| E3-06 | Agent: Job execution engine | High | ✅ Done |
+| E3-07 | Agent: Job state machine | High | ✅ Done |
+| E3-08 | Agent: Pre/Post script support | Medium | ✅ Done |
+| E3-09 | Agent: Reboot handling | Medium | ✅ Done |
+| E3-10 | Agent: Retry logic | Medium | ✅ Done |
+| E3-11 | Frontend: Job queue view | High | ✅ Done |
+| E3-12 | Frontend: Job detail + logs | High | ✅ Done |
+| E3-13 | Frontend: Create job wizard | Medium | ✅ Done |
+| E3-14 | Job types: script, command, reboot | High | ✅ Done |
 
 ---
 
 ## Phase 3: Package Management (Sprint 6-7)
 
 ### Epic E4: Package Management
-*Pakete definieren und bereitstellen*
+*Define and provide packages*
 
-| ID | Task | Priority | Notes |
-|----|------|----------|-------|
-| E4-01 | DB Schema: packages, package_versions, sources | High | Package catalog |
-| E4-02 | API: CRUD packages | High | Create/manage packages |
-| E4-03 | API: Package versions | High | Multiple versions per package |
-| E4-04 | API: Package sources (Share/URL) | High | Where to download from |
-| E4-05 | Package definition model | High | Name, vendor, OS, commands |
-| E4-06 | Detection Rules: MSI product code | High | Is package installed? |
-| E4-07 | Detection Rules: Registry key | High | Check registry |
-| E4-08 | Detection Rules: File exists/version | Medium | Check file |
-| E4-09 | Detection Rules: Service exists | Medium | Check Windows service |
-| E4-10 | Agent: Package download from Share (UNC) | High | SMB/CIFS support |
-| E4-11 | Agent: Package download from HTTP | High | Web download |
-| E4-12 | Agent: Download with hash verification | High | SHA-256 check |
-| E4-13 | Agent: Local package cache | Medium | Don't re-download |
-| E4-14 | Agent: Fallback logic (Share→Internet) | Medium | Policy-based |
-| E4-15 | Agent: Run detection rules | High | Check if install needed |
-| E4-16 | Agent: Execute install/uninstall | High | Run package commands |
-| E4-17 | Frontend: Package catalog view | High | List all packages |
-| E4-18 | Frontend: Package detail + versions | High | Show package info |
-| E4-19 | Frontend: Package editor | Medium | Create/edit packages |
-| E4-20 | Frontend: Upload package to share | Low | File upload |
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E4-01 | DB Schema: packages, package_versions, sources | High | ✅ Done |
+| E4-02 | API: CRUD packages | High | ✅ Done |
+| E4-03 | API: Package versions | High | ✅ Done |
+| E4-04 | API: Package sources (Share/URL) | High | ✅ Done |
+| E4-05 | Package definition model | High | ✅ Done |
+| E4-06 | Detection Rules: MSI product code | High | ✅ Done |
+| E4-07 | Detection Rules: Registry key | High | ✅ Done |
+| E4-08 | Detection Rules: File exists/version | Medium | ✅ Done |
+| E4-09 | Detection Rules: Service exists | Medium | ✅ Done |
+| E4-10 | Agent: Package download from Share (UNC) | High | ✅ Done |
+| E4-11 | Agent: Package download from HTTP | High | ✅ Done |
+| E4-12 | Agent: Download with hash verification | High | ✅ Done |
+| E4-13 | Agent: Local package cache | Medium | ✅ Done |
+| E4-14 | Agent: Fallback logic (Share→Internet) | Medium | ✅ Done |
+| E4-15 | Agent: Run detection rules | High | ✅ Done |
+| E4-16 | Agent: Execute install/uninstall | High | ✅ Done |
+| E4-17 | Frontend: Package catalog view | High | Todo |
+| E4-18 | Frontend: Package detail + versions | High | Todo |
+| E4-19 | Frontend: Package editor | Medium | Todo |
+| E4-20 | Frontend: Upload package to share | Low | Todo |
 
 ---
 
 ## Phase 4: Deployments (Sprint 8-9)
 
 ### Epic E5: Deployment Engine
-*Pakete an Gruppen ausrollen*
+*Roll out packages to groups*
 
 | ID | Task | Priority | Notes |
 |----|------|----------|-------|
@@ -213,63 +213,63 @@
 ## Phase 6: Software Distribution (Sprint 11-14)
 
 ### Epic E11: Software Depot
-*Zentrales Paket-Repository im lokalen Netzwerk*
+*Central package repository in local network*
 
 | ID | Task | Priority | Notes |
 |----|------|----------|-------|
-| E11-01 | Depot-Architektur definieren (SMB/HTTP/S3) | High | Entscheidung treffen |
-| E11-02 | DB Schema für Depot-Quellen | High | sources table |
-| E11-03 | API: Depot-Quellen CRUD | High | Verwaltung der Quellen |
-| E11-04 | API: Paket-Upload Endpoint | Medium | multipart/form-data |
-| E11-05 | Paket-Metadaten Parser | High | Name, Version, Plattform |
-| E11-06 | Versionierung im Depot | High | Mehrere Versionen pro Paket |
-| E11-07 | Frontend: Depot-Verwaltung Seite | High | Quellen-Übersicht |
-| E11-08 | Frontend: Paket-Upload Dialog | Medium | Drag & Drop Upload |
-| E11-09 | Offline-fähiges Depot | High | Lokales Netzwerk ohne Internet |
+| E11-01 | Define depot architecture (SMB/HTTP/S3) | High | Make decision |
+| E11-02 | DB Schema for depot sources | High | sources table |
+| E11-03 | API: Depot sources CRUD | High | Source management |
+| E11-04 | API: Package upload endpoint | Medium | multipart/form-data |
+| E11-05 | Package metadata parser | High | Name, Version, Platform |
+| E11-06 | Versioning in depot | High | Multiple versions per package |
+| E11-07 | Frontend: Depot management page | High | Sources overview |
+| E11-08 | Frontend: Package upload dialog | Medium | Drag & drop upload |
+| E11-09 | Offline-capable depot | High | Local network without internet |
 
-### Epic E12: Software Zuweisung
-*Pakete zu Nodes und Gruppen zuweisen*
-
-| ID | Task | Priority | Notes |
-|----|------|----------|-------|
-| E12-01 | DB Schema für Zuweisungen | High | assignments table |
-| E12-02 | API: Paket zu Node zuweisen | High | POST /assignments |
-| E12-03 | API: Paket zu Gruppe zuweisen | High | Gruppen-Targeting |
-| E12-04 | API: Mehrfach-Zuweisungen pro Node | Medium | Node kann n Pakete haben |
-| E12-05 | API: Zuweisung entfernen | High | Triggers Deinstallation |
-| E12-06 | Frontend: Zuweisung auf Node-Detail | High | Installierte Pakete anzeigen |
-| E12-07 | Frontend: Zuweisung auf Gruppen-Seite | High | Gruppen-Pakete |
-| E12-08 | Frontend: Bulk-Zuweisung Dialog | Medium | Multi-Select |
-
-### Epic E13: Installation & Deinstallation
-*Agent-seitige Ausführung der Installationen*
+### Epic E12: Software Assignment
+*Assign packages to nodes and groups*
 
 | ID | Task | Priority | Notes |
 |----|------|----------|-------|
-| E13-01 | Agent: software.install Command | High | Neuer Command Handler |
-| E13-02 | Agent: software.uninstall Command | High | Deinstallation |
-| E13-03 | Agent: Paket aus Depot laden (SMB/HTTP) | High | Download-Logik |
-| E13-04 | Agent: MSI/EXE/Script ausführen | High | Universelle Installer-Unterstützung |
-| E13-05 | Agent: Deinstallationsbefehl ausführen | High | MsiExec /x oder custom |
-| E13-06 | Agent: Exit-Code und Logs zurückmelden | High | Rückmeldung an Backend |
-| E13-07 | Agent: Silent/Unattended Install | High | Keine User-Interaktion |
-| E13-08 | Agent: Retry-Logik | Medium | Bei Fehlern wiederholen |
-| E13-09 | Agent: Pre/Post Install Hooks | Low | Custom Scripts vor/nach Install |
+| E12-01 | DB Schema for assignments | High | assignments table |
+| E12-02 | API: Assign package to node | High | POST /assignments |
+| E12-03 | API: Assign package to group | High | Group targeting |
+| E12-04 | API: Multiple assignments per node | Medium | Node can have n packages |
+| E12-05 | API: Remove assignment | High | Triggers uninstallation |
+| E12-06 | Frontend: Assignment on node detail | High | Show installed packages |
+| E12-07 | Frontend: Assignment on group page | High | Group packages |
+| E12-08 | Frontend: Bulk assignment dialog | Medium | Multi-select |
 
-### Epic E14: Installations-Status & Monitoring
-*Zentrale Übersicht über alle Installationen*
+### Epic E13: Installation & Uninstallation
+*Agent-side execution of installations*
 
 | ID | Task | Priority | Notes |
 |----|------|----------|-------|
-| E14-01 | DB Schema: deployment_status | High | Status pro Node/Paket |
-| E14-02 | Status-Werte definieren | High | geplant/in Ausführung/erfolgreich/fehlgeschlagen |
-| E14-03 | API: Status-Update vom Agent | High | Webhook/Polling |
-| E14-04 | API: Installations-Logs speichern | High | STDOUT/STDERR erfassen |
-| E14-05 | API: Exit-Codes erfassen | High | Fehleranalyse |
-| E14-06 | Frontend: Deployment-Status Dashboard | High | Übersicht aller Deployments |
-| E14-07 | Frontend: Status-Badges auf Node-Seite | Medium | Visual Feedback |
-| E14-08 | Frontend: Log-Viewer für Fehler | High | Debugging |
-| E14-09 | API: Aggregierte Statistiken | Medium | Success Rate, Pending Count |
+| E13-01 | Agent: software.install command | High | New command handler |
+| E13-02 | Agent: software.uninstall command | High | Uninstallation |
+| E13-03 | Agent: Load package from depot (SMB/HTTP) | High | Download logic |
+| E13-04 | Agent: Execute MSI/EXE/Script | High | Universal installer support |
+| E13-05 | Agent: Execute uninstall command | High | MsiExec /x or custom |
+| E13-06 | Agent: Report exit code and logs | High | Feedback to backend |
+| E13-07 | Agent: Silent/Unattended install | High | No user interaction |
+| E13-08 | Agent: Retry logic | Medium | Retry on failures |
+| E13-09 | Agent: Pre/Post install hooks | Low | Custom scripts before/after install |
+
+### Epic E14: Installation Status & Monitoring
+*Central overview of all installations*
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E14-01 | DB Schema: deployment_status | High | Status per node/package |
+| E14-02 | Define status values | High | planned/running/success/failed |
+| E14-03 | API: Status update from agent | High | Webhook/Polling |
+| E14-04 | API: Store installation logs | High | Capture STDOUT/STDERR |
+| E14-05 | API: Capture exit codes | High | Error analysis |
+| E14-06 | Frontend: Deployment status dashboard | High | Overview of all deployments |
+| E14-07 | Frontend: Status badges on node page | Medium | Visual feedback |
+| E14-08 | Frontend: Log viewer for errors | High | Debugging |
+| E14-09 | API: Aggregated statistics | Medium | Success rate, pending count |
 
 ---
-*Updated: 2026-02-08 — Software Distribution Epics added*
+*Updated: 2026-02-08 — Software Distribution Epics added, E3 marked complete*
