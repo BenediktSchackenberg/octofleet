@@ -2377,6 +2377,56 @@ async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool
         return version
 
 
+@app.put("/api/v1/packages/{package_id}/versions/{version_id}")
+async def update_package_version(package_id: str, version_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Update a package version"""
+    async with db.acquire() as conn:
+        # Build dynamic UPDATE query
+        updates = []
+        params = []
+        param_idx = 1
+        
+        field_mapping = {
+            "installCommand": "install_command",
+            "installArgs": "install_args",
+            "uninstallCommand": "uninstall_command",
+            "uninstallArgs": "uninstall_args",
+            "requiresReboot": "requires_reboot",
+            "requiresAdmin": "requires_admin",
+            "silentInstall": "silent_install",
+            "isLatest": "is_latest",
+            "isActive": "is_active",
+            "releaseNotes": "release_notes",
+            "sha256Hash": "sha256_hash",
+        }
+        
+        for json_key, db_col in field_mapping.items():
+            if json_key in data:
+                updates.append(f"{db_col} = ${param_idx}")
+                params.append(data[json_key])
+                param_idx += 1
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        params.append(version_id)
+        params.append(package_id)
+        
+        query = f"""
+            UPDATE package_versions 
+            SET {", ".join(updates)}, updated_at = NOW()
+            WHERE id = ${param_idx} AND package_id = ${param_idx + 1}
+            RETURNING version
+        """
+        
+        row = await conn.fetchrow(query, *params)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Version not found")
+        
+        return {"status": "updated", "version": row["version"]}
+
+
 @app.delete("/api/v1/packages/{package_id}/versions/{version_id}")
 async def delete_package_version(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a package version"""
