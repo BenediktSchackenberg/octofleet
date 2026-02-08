@@ -1912,8 +1912,8 @@ async def get_pending_jobs(node_id: str, request: Request):
     
     # Get pending instances for this node, ordered by priority
     cur.execute("""
-        SELECT ji.id, ji.job_id, j.command_type, j.command_data, j.priority,
-               ji.attempt, ji.max_attempts
+        SELECT ji.id, ji.job_id, j.name, j.command_type, j.command_data, j.priority,
+               ji.attempt, ji.max_attempts, j.timeout_seconds
         FROM job_instances ji
         JOIN jobs j ON j.id = ji.job_id
         WHERE ji.node_id = %s 
@@ -1932,14 +1932,19 @@ async def get_pending_jobs(node_id: str, request: Request):
             WHERE id = %s
         """, (str(row[0]),))
         
+        # command_data is already a dict from JSONB
+        command_data = row[4] if row[4] else {}
+        
         jobs.append({
             "instanceId": str(row[0]),
             "jobId": str(row[1]),
-            "commandType": row[2],
-            "commandData": row[3],
-            "priority": row[4],
-            "attempt": row[5],
-            "maxAttempts": row[6]
+            "jobName": row[2] or "Unnamed Job",
+            "commandType": row[3] or "command",
+            "commandPayload": json.dumps(command_data) if isinstance(command_data, dict) else str(command_data),
+            "priority": row[5],
+            "attempt": row[6],
+            "maxAttempts": row[7],
+            "timeoutSeconds": row[8] or 300
         })
     
     conn.commit()

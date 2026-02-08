@@ -48,6 +48,7 @@ try
     // Add our workers
     builder.Services.AddHostedService<NodeWorker>();
     builder.Services.AddHostedService<InventoryScheduler>();
+    builder.Services.AddHostedService<JobPoller>();
 
     var host = builder.Build();
     host.Run();
