@@ -147,8 +147,8 @@ public class NodeWorker : BackgroundService
                 maxProtocol = 3,
                 client = new
                 {
-                    id = "node",  // Must be a known client type
-                    version = "0.3.1",
+                    id = "node-host",  // Must be a known client type from GATEWAY_CLIENT_IDS
+                    version = "0.3.6",
                     platform = "windows",
                     mode = "node",
                     instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}"  // Unique instance identifier
@@ -191,7 +191,7 @@ public class NodeWorker : BackgroundService
                     { "inventory.push", true }
                 },
                 auth = new { token = config.GatewayToken },
-                userAgent = $"openclaw-windows-service/0.3.0 ({config.DisplayName})"
+                userAgent = $"openclaw-windows-service/0.3.6 ({config.DisplayName})"
             }
         };
 
