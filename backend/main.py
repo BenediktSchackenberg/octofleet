@@ -350,7 +350,8 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         
         row = await conn.fetchrow("""
             SELECT users, services, startup_items, scheduled_tasks, 
-                   computer_name, domain, workgroup, domain_role, is_domain_joined, updated_at
+                   computer_name, domain, workgroup, domain_role, is_domain_joined,
+                   uptime_hours, uptime_formatted, last_boot_time, updated_at
             FROM system_current WHERE node_id = $1
         """, node['id'])
         
@@ -363,6 +364,9 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "workgroup": row['workgroup'] if row else None,
             "domainRole": row['domain_role'] if row else None,
             "isDomainJoined": row['is_domain_joined'] if row else None,
+            "uptimeHours": row['uptime_hours'] if row else None,
+            "uptimeFormatted": row['uptime_formatted'] if row else None,
+            "lastBootTime": row['last_boot_time'].isoformat() if row and row['last_boot_time'] else None,
             "users": json.loads(row['users']) if row and row['users'] else [],
             "services": json.loads(row['services']) if row and row['services'] else [],
             "startupItems": json.loads(row['startup_items']) if row and row['startup_items'] else [],
@@ -379,7 +383,7 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Node not found")
         
         row = await conn.fetchrow("""
-            SELECT defender, firewall, tpm, uac, bitlocker, updated_at
+            SELECT defender, firewall, tpm, uac, bitlocker, local_admins, updated_at
             FROM security_current WHERE node_id = $1
         """, node['id'])
         
@@ -391,7 +395,8 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "firewall": json.loads(row['firewall']) if row['firewall'] else [],
             "tpm": json.loads(row['tpm']) if row['tpm'] else {},
             "uac": json.loads(row['uac']) if row['uac'] else {},
-            "bitlocker": json.loads(row['bitlocker']) if row['bitlocker'] else []
+            "bitlocker": json.loads(row['bitlocker']) if row['bitlocker'] else [],
+            "localAdmins": json.loads(row['local_admins']) if row['local_admins'] else {}
         }}
 
 
@@ -815,15 +820,26 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
         os_build=os_info.get("build")
     )
     
+    # Parse lastBootTime to timestamp if present
+    last_boot_time = None
+    if os_info.get("lastBootTime"):
+        try:
+            from datetime import datetime
+            last_boot_time = datetime.fromisoformat(os_info.get("lastBootTime").replace("Z", "+00:00"))
+        except:
+            pass
+    
     async with db.acquire() as conn:
         await conn.execute("""
             INSERT INTO system_current (node_id, users, services, startup_items, scheduled_tasks,
-                os_name, os_version, os_build, computer_name, domain, workgroup, domain_role, is_domain_joined, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+                os_name, os_version, os_build, computer_name, domain, workgroup, domain_role, is_domain_joined,
+                uptime_hours, uptime_formatted, last_boot_time, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
             ON CONFLICT (node_id) DO UPDATE SET
                 users = $2, services = $3, startup_items = $4, scheduled_tasks = $5,
                 os_name = $6, os_version = $7, os_build = $8, computer_name = $9,
-                domain = $10, workgroup = $11, domain_role = $12, is_domain_joined = $13, updated_at = NOW()
+                domain = $10, workgroup = $11, domain_role = $12, is_domain_joined = $13,
+                uptime_hours = $14, uptime_formatted = $15, last_boot_time = $16, updated_at = NOW()
         """,
             uuid,
             json.dumps(data.get("users", [])),
@@ -837,7 +853,10 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
             os_info.get("domain"),
             os_info.get("workgroup"),
             os_info.get("domainRole"),
-            os_info.get("isDomainJoined")
+            os_info.get("isDomainJoined"),
+            os_info.get("uptimeHours"),
+            os_info.get("uptimeFormatted"),
+            last_boot_time
         )
     
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
@@ -853,18 +872,19 @@ async def submit_security(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
     
     async with db.acquire() as conn:
         await conn.execute("""
-            INSERT INTO security_current (node_id, defender, firewall, tpm, uac, bitlocker, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            INSERT INTO security_current (node_id, defender, firewall, tpm, uac, bitlocker, local_admins, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
             ON CONFLICT (node_id) DO UPDATE SET
                 defender = $2, firewall = $3, tpm = $4, 
-                uac = $5, bitlocker = $6, updated_at = NOW()
+                uac = $5, bitlocker = $6, local_admins = $7, updated_at = NOW()
         """,
             uuid,
             json.dumps(data.get("defender", {})),
             json.dumps(data.get("firewall", [])),
             json.dumps(data.get("tpm", {})),
             json.dumps(data.get("uac", {})),
-            json.dumps(data.get("bitlocker", []))
+            json.dumps(data.get("bitlocker", [])),
+            json.dumps(data.get("localAdmins", {}))
         )
     
     return {"status": "ok", "node_id": str(uuid), "type": "security"}
