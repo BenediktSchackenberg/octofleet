@@ -136,6 +136,13 @@ public class NodeWorker : BackgroundService
 
         // Send connect request
         var requestId = Interlocked.Increment(ref _requestId).ToString();
+        // Generate a stable device ID from machine name (for pairing)
+        var deviceId = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes($"openclaw-windows-{Environment.MachineName}")
+            )
+        ).ToLowerInvariant().Substring(0, 40);
+        
         var request = new
         {
             type = "req",
@@ -148,10 +155,11 @@ public class NodeWorker : BackgroundService
                 client = new
                 {
                     id = "node-host",  // Must be a known client type from GATEWAY_CLIENT_IDS
-                    version = "0.3.6",
+                    version = "0.3.8",
                     platform = "windows",
                     mode = "node",
-                    instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}"  // Unique instance identifier
+                    instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}",  // Unique instance identifier
+                    displayName = config.DisplayName ?? Environment.MachineName
                 },
                 role = "node",
                 scopes = Array.Empty<string>(),
@@ -191,7 +199,11 @@ public class NodeWorker : BackgroundService
                     { "inventory.push", true }
                 },
                 auth = new { token = config.GatewayToken },
-                userAgent = $"openclaw-windows-service/0.3.6 ({config.DisplayName})"
+                device = new
+                {
+                    id = deviceId
+                },
+                userAgent = $"openclaw-windows-service/0.3.8 ({config.DisplayName})"
             }
         };
 
