@@ -240,6 +240,12 @@ Write-Step "2/6" "Downloading agent package..."
 
 $tempDir = Join-Path $env:TEMP "OpenClawInstall_$(Get-Random)"
 New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
+
+# Also ensure C:\Temp exists for manual operations
+if (-not (Test-Path "C:\Temp")) {
+    New-Item -Path "C:\Temp" -ItemType Directory -Force | Out-Null
+}
+
 $zipPath = Join-Path $tempDir "agent.zip"
 
 if ($PackageUrl) {
