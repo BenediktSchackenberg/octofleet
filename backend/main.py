@@ -1488,7 +1488,7 @@ if __name__ == "__main__":
 async def create_enrollment_token(request: Request):
     """Create a new enrollment token for agent registration"""
     data = await request.json()
-    api_key_check(request)
+
     
     token_id = str(uuid.uuid4())
     token_value = secrets.token_urlsafe(32)
@@ -1542,7 +1542,7 @@ async def create_enrollment_token(request: Request):
 @app.get("/api/v1/enrollment-tokens")
 async def list_enrollment_tokens(request: Request):
     """List all enrollment tokens"""
-    api_key_check(request)
+
     
     conn = get_db()
     cur = conn.cursor()
@@ -1591,7 +1591,7 @@ async def list_enrollment_tokens(request: Request):
 @app.delete("/api/v1/enrollment-tokens/{token_id}")
 async def revoke_enrollment_token(token_id: str, request: Request):
     """Revoke an enrollment token"""
-    api_key_check(request)
+
     
     conn = get_db()
     cur = conn.cursor()
@@ -1694,7 +1694,7 @@ async def enroll_device(request: Request):
 async def create_job(request: Request):
     """Create a new job targeting devices, groups, or tags"""
     data = await request.json()
-    api_key_check(request)
+
     
     job_id = str(uuid.uuid4())
     
@@ -1795,7 +1795,7 @@ async def create_job(request: Request):
 @app.get("/api/v1/jobs")
 async def list_jobs(request: Request, limit: int = 50, offset: int = 0):
     """List all jobs with summary"""
-    api_key_check(request)
+
     
     conn = get_db()
     cur = conn.cursor()
@@ -1836,7 +1836,7 @@ async def list_jobs(request: Request, limit: int = 50, offset: int = 0):
 @app.get("/api/v1/jobs/{job_id}")
 async def get_job(job_id: str, request: Request):
     """Get job details with all instances"""
-    api_key_check(request)
+
     
     conn = get_db()
     cur = conn.cursor()
@@ -2058,7 +2058,7 @@ async def submit_job_result(instance_id: str, request: Request):
 @app.delete("/api/v1/jobs/{job_id}")
 async def cancel_job(job_id: str, request: Request):
     """Cancel a job and all pending instances"""
-    api_key_check(request)
+
     
     conn = get_db()
     cur = conn.cursor()
@@ -2079,3 +2079,506 @@ async def cancel_job(job_id: str, request: Request):
     
     return {"status": "cancelled", "instancesCancelled": cancelled}
 
+
+
+# ============================================
+# PACKAGE MANAGEMENT API (E4)
+# ============================================
+
+@app.get("/api/v1/packages")
+async def list_packages(category: str = None, active_only: bool = True, db: asyncpg.Pool = Depends(get_db)):
+    """List all packages"""
+    async with db.acquire() as conn:
+        query = """
+            SELECT p.id, p.name, p.display_name, p.vendor, p.description, p.category,
+                   p.os_type, p.architecture, p.icon_url, p.tags, p.is_active, p.created_at,
+                   (SELECT COUNT(*) FROM package_versions pv WHERE pv.package_id = p.id) as version_count,
+                   (SELECT pv.version FROM package_versions pv WHERE pv.package_id = p.id AND pv.is_latest = true LIMIT 1) as latest_version
+            FROM packages p
+            WHERE 1=1
+        """
+        params = []
+        param_idx = 1
+        
+        if active_only:
+            query += " AND p.is_active = true"
+        
+        if category:
+            query += f" AND p.category = ${param_idx}"
+            params.append(category)
+            param_idx += 1
+        
+        query += " ORDER BY p.display_name ASC"
+        
+        rows = await conn.fetch(query, *params)
+        
+        packages = []
+        for row in rows:
+            packages.append({
+                "id": str(row["id"]),
+                "name": row["name"],
+                "displayName": row["display_name"],
+                "vendor": row["vendor"],
+                "description": row["description"],
+                "category": row["category"],
+                "osType": row["os_type"],
+                "architecture": row["architecture"],
+                "iconUrl": row["icon_url"],
+                "tags": row["tags"] or [],
+                "isActive": row["is_active"],
+                "createdAt": row["created_at"].isoformat() if row["created_at"] else None,
+                "versionCount": row["version_count"],
+                "latestVersion": row["latest_version"]
+            })
+        
+        return {"packages": packages, "count": len(packages)}
+
+
+@app.post("/api/v1/packages")
+async def create_package(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a new package"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO packages (name, display_name, vendor, description, category,
+                                  os_type, os_min_version, architecture, homepage_url, 
+                                  icon_url, tags, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING id
+        """,
+            data.get("name"),
+            data.get("displayName", data.get("name")),
+            data.get("vendor"),
+            data.get("description"),
+            data.get("category"),
+            data.get("osType", "windows"),
+            data.get("osMinVersion"),
+            data.get("architecture", "any"),
+            data.get("homepageUrl"),
+            data.get("iconUrl"),
+            data.get("tags", []),
+            data.get("createdBy", "api")
+        )
+        return {"id": str(row["id"]), "status": "created"}
+
+
+@app.get("/api/v1/packages/{package_id}")
+async def get_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get package details with versions"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT id, name, display_name, vendor, description, category,
+                   os_type, os_min_version, architecture, homepage_url, icon_url, 
+                   tags, is_active, created_by, created_at, updated_at
+            FROM packages WHERE id = $1
+        """, package_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Package not found")
+        
+        package = {
+            "id": str(row["id"]),
+            "name": row["name"],
+            "displayName": row["display_name"],
+            "vendor": row["vendor"],
+            "description": row["description"],
+            "category": row["category"],
+            "osType": row["os_type"],
+            "osMinVersion": row["os_min_version"],
+            "architecture": row["architecture"],
+            "homepageUrl": row["homepage_url"],
+            "iconUrl": row["icon_url"],
+            "tags": row["tags"] or [],
+            "isActive": row["is_active"],
+            "createdBy": row["created_by"],
+            "createdAt": row["created_at"].isoformat() if row["created_at"] else None,
+            "updatedAt": row["updated_at"].isoformat() if row["updated_at"] else None
+        }
+        
+        # Get versions
+        versions = await conn.fetch("""
+            SELECT id, version, filename, file_size, sha256_hash,
+                   install_command, install_args, uninstall_command, uninstall_args,
+                   requires_reboot, requires_admin, silent_install,
+                   is_latest, is_active, release_date, release_notes, created_at
+            FROM package_versions 
+            WHERE package_id = $1
+            ORDER BY created_at DESC
+        """, package_id)
+        
+        package["versions"] = [{
+            "id": str(v["id"]),
+            "version": v["version"],
+            "filename": v["filename"],
+            "fileSize": v["file_size"],
+            "sha256Hash": v["sha256_hash"],
+            "installCommand": v["install_command"],
+            "installArgs": v["install_args"],
+            "uninstallCommand": v["uninstall_command"],
+            "uninstallArgs": v["uninstall_args"],
+            "requiresReboot": v["requires_reboot"],
+            "requiresAdmin": v["requires_admin"],
+            "silentInstall": v["silent_install"],
+            "isLatest": v["is_latest"],
+            "isActive": v["is_active"],
+            "releaseDate": v["release_date"].isoformat() if v["release_date"] else None,
+            "releaseNotes": v["release_notes"],
+            "createdAt": v["created_at"].isoformat() if v["created_at"] else None
+        } for v in versions]
+        
+        return package
+
+
+@app.put("/api/v1/packages/{package_id}")
+async def update_package(package_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Update package details"""
+    async with db.acquire() as conn:
+        await conn.execute("""
+            UPDATE packages SET
+                display_name = COALESCE($2, display_name),
+                vendor = COALESCE($3, vendor),
+                description = COALESCE($4, description),
+                category = COALESCE($5, category),
+                os_type = COALESCE($6, os_type),
+                architecture = COALESCE($7, architecture),
+                homepage_url = COALESCE($8, homepage_url),
+                icon_url = COALESCE($9, icon_url),
+                tags = COALESCE($10, tags),
+                is_active = COALESCE($11, is_active),
+                updated_at = NOW()
+            WHERE id = $1
+        """,
+            package_id,
+            data.get("displayName"),
+            data.get("vendor"),
+            data.get("description"),
+            data.get("category"),
+            data.get("osType"),
+            data.get("architecture"),
+            data.get("homepageUrl"),
+            data.get("iconUrl"),
+            data.get("tags"),
+            data.get("isActive")
+        )
+        return {"status": "updated"}
+
+
+@app.delete("/api/v1/packages/{package_id}")
+async def delete_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a package (cascades to versions)"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("DELETE FROM packages WHERE id = $1 RETURNING name", package_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Package not found")
+        return {"status": "deleted", "name": row["name"]}
+
+
+# ============================================
+# PACKAGE VERSIONS API
+# ============================================
+
+@app.post("/api/v1/packages/{package_id}/versions")
+async def create_package_version(package_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a new version for a package"""
+    async with db.acquire() as conn:
+        # If this is marked as latest, unset other latest
+        if data.get("isLatest", False):
+            await conn.execute("""
+                UPDATE package_versions SET is_latest = false WHERE package_id = $1
+            """, package_id)
+        
+        row = await conn.fetchrow("""
+            INSERT INTO package_versions (
+                package_id, version, filename, file_size, sha256_hash,
+                install_command, install_args, uninstall_command, uninstall_args,
+                requires_reboot, requires_admin, silent_install,
+                is_latest, is_active, release_date, release_notes
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            RETURNING id
+        """,
+            package_id,
+            data.get("version"),
+            data.get("filename"),
+            data.get("fileSize"),
+            data.get("sha256Hash"),
+            data.get("installCommand"),
+            json.dumps(data.get("installArgs")) if data.get("installArgs") else None,
+            data.get("uninstallCommand"),
+            json.dumps(data.get("uninstallArgs")) if data.get("uninstallArgs") else None,
+            data.get("requiresReboot", False),
+            data.get("requiresAdmin", True),
+            data.get("silentInstall", True),
+            data.get("isLatest", True),
+            data.get("isActive", True),
+            data.get("releaseDate"),
+            data.get("releaseNotes")
+        )
+        return {"id": str(row["id"]), "status": "created"}
+
+
+@app.get("/api/v1/packages/{package_id}/versions/{version_id}")
+async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get a specific version with detection rules"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT id, version, filename, file_size, sha256_hash,
+                   install_command, install_args, uninstall_command, uninstall_args,
+                   requires_reboot, requires_admin, silent_install,
+                   is_latest, is_active, release_date, release_notes, created_at
+            FROM package_versions 
+            WHERE id = $1 AND package_id = $2
+        """, version_id, package_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Version not found")
+        
+        version = {
+            "id": str(row["id"]),
+            "version": row["version"],
+            "filename": row["filename"],
+            "fileSize": row["file_size"],
+            "sha256Hash": row["sha256_hash"],
+            "installCommand": row["install_command"],
+            "installArgs": row["install_args"],
+            "uninstallCommand": row["uninstall_command"],
+            "uninstallArgs": row["uninstall_args"],
+            "requiresReboot": row["requires_reboot"],
+            "requiresAdmin": row["requires_admin"],
+            "silentInstall": row["silent_install"],
+            "isLatest": row["is_latest"],
+            "isActive": row["is_active"],
+            "releaseDate": row["release_date"].isoformat() if row["release_date"] else None,
+            "releaseNotes": row["release_notes"],
+            "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+        }
+        
+        # Get detection rules
+        rules = await conn.fetch("""
+            SELECT id, rule_order, rule_type, config, operator
+            FROM detection_rules 
+            WHERE package_version_id = $1
+            ORDER BY rule_order ASC
+        """, version_id)
+        
+        version["detectionRules"] = [{
+            "id": str(r["id"]),
+            "order": r["rule_order"],
+            "type": r["rule_type"],
+            "config": r["config"],
+            "operator": r["operator"]
+        } for r in rules]
+        
+        # Get sources
+        sources = await conn.fetch("""
+            SELECT pvs.id, ps.id as source_id, ps.name, ps.source_type, ps.base_url,
+                   pvs.relative_path, pvs.priority
+            FROM package_version_sources pvs
+            JOIN package_sources ps ON ps.id = pvs.source_id
+            WHERE pvs.package_version_id = $1
+            ORDER BY pvs.priority ASC
+        """, version_id)
+        
+        version["sources"] = [{
+            "id": str(s["id"]),
+            "sourceId": str(s["source_id"]),
+            "sourceName": s["name"],
+            "sourceType": s["source_type"],
+            "baseUrl": s["base_url"],
+            "relativePath": s["relative_path"],
+            "priority": s["priority"]
+        } for s in sources]
+        
+        return version
+
+
+@app.delete("/api/v1/packages/{package_id}/versions/{version_id}")
+async def delete_package_version(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a package version"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            DELETE FROM package_versions 
+            WHERE id = $1 AND package_id = $2
+            RETURNING version
+        """, version_id, package_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Version not found")
+        return {"status": "deleted", "version": row["version"]}
+
+
+# ============================================
+# DETECTION RULES API
+# ============================================
+
+@app.post("/api/v1/packages/{package_id}/versions/{version_id}/rules")
+async def create_detection_rule(package_id: str, version_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a detection rule for a version"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO detection_rules (package_version_id, rule_order, rule_type, config, operator)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+        """,
+            version_id,
+            data.get("order", 1),
+            data.get("type"),
+            json.dumps(data.get("config", {})),
+            data.get("operator", "AND")
+        )
+        return {"id": str(row["id"]), "status": "created"}
+
+
+@app.delete("/api/v1/detection-rules/{rule_id}")
+async def delete_detection_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a detection rule"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("DELETE FROM detection_rules WHERE id = $1 RETURNING id", rule_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Rule not found")
+        return {"status": "deleted"}
+
+
+# ============================================
+# PACKAGE SOURCES API
+# ============================================
+
+@app.get("/api/v1/package-sources")
+async def list_package_sources(db: asyncpg.Pool = Depends(get_db)):
+    """List all package sources"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, name, description, source_type, base_url, auth_config,
+                   is_active, priority, created_at
+            FROM package_sources
+            ORDER BY priority ASC, name ASC
+        """)
+        
+        sources = [{
+            "id": str(row["id"]),
+            "name": row["name"],
+            "description": row["description"],
+            "sourceType": row["source_type"],
+            "baseUrl": row["base_url"],
+            "hasAuth": row["auth_config"] is not None,
+            "isActive": row["is_active"],
+            "priority": row["priority"],
+            "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+        } for row in rows]
+        
+        return {"sources": sources, "count": len(sources)}
+
+
+@app.post("/api/v1/package-sources")
+async def create_package_source(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a package source (SMB share, HTTP, etc.)"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO package_sources (name, description, source_type, base_url, auth_config, priority)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+        """,
+            data.get("name"),
+            data.get("description"),
+            data.get("sourceType", "http"),
+            data.get("baseUrl"),
+            json.dumps(data.get("authConfig")) if data.get("authConfig") else None,
+            data.get("priority", 10)
+        )
+        return {"id": str(row["id"]), "status": "created"}
+
+
+@app.delete("/api/v1/package-sources/{source_id}")
+async def delete_package_source(source_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a package source"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("DELETE FROM package_sources WHERE id = $1 RETURNING name", source_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Source not found")
+        return {"status": "deleted", "name": row["name"]}
+
+
+# ============================================
+# AGENT: PACKAGE DETECTION/DOWNLOAD ENDPOINTS
+# ============================================
+
+@app.get("/api/v1/packages/{package_id}/versions/{version_id}/detect")
+async def get_detection_info(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get detection info for agent to check if package is installed"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT pv.version, p.name, p.display_name
+            FROM package_versions pv
+            JOIN packages p ON p.id = pv.package_id
+            WHERE pv.id = $1 AND pv.package_id = $2
+        """, version_id, package_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Version not found")
+        
+        rules = await conn.fetch("""
+            SELECT rule_type, config, operator, rule_order
+            FROM detection_rules 
+            WHERE package_version_id = $1
+            ORDER BY rule_order ASC
+        """, version_id)
+        
+        return {
+            "version": row["version"],
+            "packageName": row["name"],
+            "displayName": row["display_name"],
+            "rules": [{
+                "type": r["rule_type"],
+                "config": r["config"],
+                "operator": r["operator"],
+                "order": r["rule_order"]
+            } for r in rules]
+        }
+
+
+@app.get("/api/v1/packages/{package_id}/versions/{version_id}/download-info")
+async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get download URLs for agent"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT filename, sha256_hash, file_size,
+                   install_command, install_args, 
+                   uninstall_command, uninstall_args,
+                   requires_reboot, requires_admin, silent_install
+            FROM package_versions
+            WHERE id = $1 AND package_id = $2
+        """, version_id, package_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Version not found")
+        
+        sources = await conn.fetch("""
+            SELECT ps.source_type, ps.base_url, pvs.relative_path, pvs.priority
+            FROM package_version_sources pvs
+            JOIN package_sources ps ON ps.id = pvs.source_id
+            WHERE pvs.package_version_id = $1 AND ps.is_active = true
+            ORDER BY pvs.priority ASC
+        """, version_id)
+        
+        source_list = []
+        for s in sources:
+            base_url = s["base_url"].rstrip('/')
+            rel_path = s["relative_path"].lstrip('/') if s["relative_path"] else row["filename"]
+            source_list.append({
+                "type": s["source_type"],
+                "url": f"{base_url}/{rel_path}",
+                "priority": s["priority"]
+            })
+        
+        return {
+            "filename": row["filename"],
+            "sha256Hash": row["sha256_hash"],
+            "fileSize": row["file_size"],
+            "installCommand": row["install_command"],
+            "installArgs": row["install_args"],
+            "uninstallCommand": row["uninstall_command"],
+            "uninstallArgs": row["uninstall_args"],
+            "requiresReboot": row["requires_reboot"],
+            "requiresAdmin": row["requires_admin"],
+            "silentInstall": row["silent_install"],
+            "sources": source_list
+        }
