@@ -1,6 +1,6 @@
 # OpenClaw Windows Agent 🪟🐉
 
-> **Production Ready (v0.3.12)** — Zero-touch installation, hardware/software inventory, browser security analysis, remote command execution. Manage your Windows fleet from anywhere.
+> **Production Ready (v0.4.0)** — Package deployment, job management, zero-touch installation, hardware/software inventory, browser security analysis, remote command execution. Manage your Windows fleet from anywhere.
 
 A native Windows Service + GUI for [OpenClaw](https://openclaw.ai) that turns your Windows PCs into remotely manageable nodes. Talk to your machines via Discord, Telegram, or any AI interface.
 
@@ -8,6 +8,17 @@ A native Windows Service + GUI for [OpenClaw](https://openclaw.ai) that turns yo
 [![Windows](https://img.shields.io/badge/Windows-10%2F11%2FServer-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
 [![Release](https://img.shields.io/github/v/release/BenediktSchackenberg/openclaw-windows-agent?style=flat-square)](https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+---
+
+## ⚠️ Important: Admin Rights Required
+
+The agent **must run as Administrator** for:
+- MSI/EXE software installations
+- Windows Update operations
+- Security-related inventory (BitLocker, etc.)
+
+If running as a service, ensure the service account has admin privileges.
 
 ---
 
@@ -86,6 +97,17 @@ AI: *runs Get-Process | Sort WS -Desc | Select -First 5*
 Beautiful Next.js dashboard showing:
 - All connected nodes with status (Online/Away/Offline)
 - Hardware/Software details per node (8 tabs)
+- **Node Tree navigation** with group hierarchy (NEW in v0.4.0)
+- **Global Search** across all nodes (NEW in v0.4.0)
+- **Inline Node Details** without page navigation (NEW in v0.4.0)
+
+### 📦 Package Deployment (NEW in v0.4.0)
+Deploy software to your fleet:
+- Create packages with download URLs
+- Select target devices or groups
+- Silent MSI/EXE installation
+- Progress tracking and logs
+- Retry failed installations
 - Groups and tags for organization
 - Windows Update history with KB links
 - Browser security warnings
