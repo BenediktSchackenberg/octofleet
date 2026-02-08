@@ -52,8 +52,25 @@ function formatLastSeen(lastSeen: string) {
   });
 }
 
+function getNodeCounts(nodes: NodeSummary[]) {
+  const now = Date.now();
+  let online = 0;
+  let away = 0;
+  let offline = 0;
+  
+  for (const n of nodes) {
+    const diff = (now - new Date(n.last_seen).getTime()) / 1000 / 60;
+    if (diff < 5) online++;
+    else if (diff < 60) away++;
+    else offline++;
+  }
+  
+  return { online, away, offline };
+}
+
 export default async function Dashboard() {
   const nodes = await getNodes();
+  const counts = getNodeCounts(nodes);
   
   return (
     <main className="min-h-screen bg-background p-8">
@@ -90,10 +107,7 @@ export default async function Dashboard() {
             <CardHeader className="pb-2">
               <CardDescription>Online</CardDescription>
               <CardTitle className="text-4xl text-green-500">
-                {nodes.filter(n => {
-                  const diff = (Date.now() - new Date(n.last_seen).getTime()) / 1000 / 60;
-                  return diff < 5;
-                }).length}
+                {counts.online}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -101,10 +115,7 @@ export default async function Dashboard() {
             <CardHeader className="pb-2">
               <CardDescription>Away</CardDescription>
               <CardTitle className="text-4xl text-yellow-500">
-                {nodes.filter(n => {
-                  const diff = (Date.now() - new Date(n.last_seen).getTime()) / 1000 / 60;
-                  return diff >= 5 && diff < 60;
-                }).length}
+                {counts.away}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -112,10 +123,7 @@ export default async function Dashboard() {
             <CardHeader className="pb-2">
               <CardDescription>Offline</CardDescription>
               <CardTitle className="text-4xl text-muted-foreground">
-                {nodes.filter(n => {
-                  const diff = (Date.now() - new Date(n.last_seen).getTime()) / 1000 / 60;
-                  return diff >= 60;
-                }).length}
+                {counts.offline}
               </CardTitle>
             </CardHeader>
           </Card>

@@ -85,7 +85,7 @@ test.describe('Jobs API', () => {
     const list = await listRes.json();
     
     // Find our job
-    const found = list.jobs.find((j: any) => j.id === created.id);
+    const found = list.jobs.find((j: { id: string }) => j.id === created.id);
     expect(found).toBeTruthy();
   });
 });

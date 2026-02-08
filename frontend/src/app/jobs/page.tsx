@@ -38,7 +38,7 @@ interface JobInstance {
 
 interface JobDetail extends Job {
   description: string;
-  commandData: any;
+  commandData: Record<string, unknown>;
   instances: JobInstance[];
 }
 
