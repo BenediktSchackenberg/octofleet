@@ -87,7 +87,7 @@ def api_key_check(request: Request):
         )
 
 
-def get_db():
+def get_sync_db():
     """Get synchronous database connection using psycopg2"""
     import psycopg2
     conn = psycopg2.connect(DATABASE_URL)
@@ -1131,7 +1131,7 @@ async def create_enrollment_token(request: Request):
     
     expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Create table if not exists
@@ -1174,7 +1174,7 @@ async def list_enrollment_tokens(request: Request):
     """List all enrollment tokens"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Check if table exists
@@ -1223,7 +1223,7 @@ async def revoke_enrollment_token(token_id: str, request: Request):
     """Revoke an enrollment token"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1252,7 +1252,7 @@ async def enroll_device(request: Request):
     if not enroll_token:
         raise HTTPException(status_code=400, detail="enrollToken required")
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Find and validate token
@@ -1343,7 +1343,7 @@ async def create_job(request: Request):
     expires_at = data.get("expiresAt")
     created_by = data.get("createdBy", "api")
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Insert job
@@ -1427,7 +1427,7 @@ async def list_jobs(request: Request, limit: int = 50, offset: int = 0):
     """List all jobs with summary"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1468,7 +1468,7 @@ async def get_job(job_id: str, request: Request):
     """Get job details with all instances"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Get job
@@ -1537,7 +1537,7 @@ async def get_pending_jobs(node_id: str, request: Request):
     """Agent endpoint: Get pending jobs for a specific node"""
     # Note: Could add agent auth here instead of API key
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Get pending instances for this node, ordered by priority
@@ -1583,7 +1583,7 @@ async def get_pending_jobs(node_id: str, request: Request):
 async def start_job_instance(instance_id: str, request: Request):
     """Agent endpoint: Mark job as started"""
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1626,7 +1626,7 @@ async def submit_job_result(instance_id: str, request: Request):
     
     status = "success" if success else "failed"
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1685,7 +1685,7 @@ async def cancel_job(job_id: str, request: Request):
     """Cancel a job and all pending instances"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Cancel all pending/queued instances
@@ -1716,7 +1716,7 @@ async def list_package_sources(request: Request):
     """List all package sources"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1752,7 +1752,7 @@ async def create_package_source(request: Request):
     
     source_id = str(uuid.uuid4())
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1777,7 +1777,7 @@ async def list_packages(request: Request, category: str = None, search: str = No
     """List all packages with optional filtering"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     query = """
@@ -1834,7 +1834,7 @@ async def create_package(request: Request):
     
     package_id = str(uuid.uuid4())
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1861,7 +1861,7 @@ async def get_package(package_id: str, request: Request):
     """Get package details with all versions"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Get package
@@ -1933,7 +1933,7 @@ async def update_package(package_id: str, request: Request):
     data = await request.json()
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
@@ -1969,7 +1969,7 @@ async def delete_package(package_id: str, request: Request):
     """Delete a package and all its versions"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("DELETE FROM packages WHERE id = %s RETURNING id", (package_id,))
@@ -1995,7 +1995,7 @@ async def create_package_version(package_id: str, request: Request):
     
     version_id = str(uuid.uuid4())
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Check package exists
@@ -2037,7 +2037,7 @@ async def get_package_version(package_id: str, version_id: str, request: Request
     """Get version details with detection rules and sources"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Get version
@@ -2130,7 +2130,7 @@ async def add_detection_rule(package_id: str, version_id: str, request: Request)
     
     rule_id = str(uuid.uuid4())
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     # Check version exists
@@ -2164,7 +2164,7 @@ async def delete_detection_rule(rule_id: str, request: Request):
     """Delete a detection rule"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("DELETE FROM detection_rules WHERE id = %s RETURNING id", (rule_id,))
@@ -2187,7 +2187,7 @@ async def list_package_categories(request: Request):
     """List all used categories with counts"""
     api_key_check(request)
     
-    conn = get_db()
+    conn = get_sync_db()
     cur = conn.cursor()
     
     cur.execute("""
