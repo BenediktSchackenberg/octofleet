@@ -27,18 +27,18 @@ public static class VssHelper
         }
         catch (IOException)
         {
-            // File is locked, continue with VSS
+            // File is locked, continue with fallbacks
         }
 
-        // Method 2: Use VSS via PowerShell (works as SYSTEM)
-        var vssResult = await CopyViaVssAsync(sourcePath, destPath);
-        if (vssResult != null)
-            return vssResult;
-
-        // Method 3: Use esentutl (built into Windows, can copy locked files)
+        // Method 2: Use esentutl FIRST (most reliable for SQLite)
         var esentResult = await CopyViaEsentutlAsync(sourcePath, destPath);
         if (esentResult != null)
             return esentResult;
+
+        // Method 3: Try VSS as fallback
+        var vssResult = await CopyViaVssAsync(sourcePath, destPath);
+        if (vssResult != null)
+            return vssResult;
 
         return null;
     }
@@ -108,19 +108,34 @@ try {{
                 CreateNoWindow = true
             };
 
+            Console.WriteLine($"[VssHelper] Running esentutl for: {sourcePath}");
+            
             using var process = Process.Start(psi);
             if (process == null)
+            {
+                Console.WriteLine("[VssHelper] Failed to start esentutl.exe");
                 return null;
+            }
 
+            var stdout = await process.StandardOutput.ReadToEndAsync();
+            var stderr = await process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
 
+            Console.WriteLine($"[VssHelper] esentutl exit code: {process.ExitCode}");
+            if (!string.IsNullOrEmpty(stderr))
+                Console.WriteLine($"[VssHelper] esentutl stderr: {stderr}");
+
             if (process.ExitCode == 0 && File.Exists(destPath))
+            {
+                Console.WriteLine($"[VssHelper] Successfully copied to: {destPath}");
                 return destPath;
+            }
 
             return null;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[VssHelper] esentutl exception: {ex.Message}");
             return null;
         }
     }
