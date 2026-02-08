@@ -15,6 +15,7 @@ build/
 
 # NuGet
 packages/
+!frontend/src/app/packages/
 *.nupkg
 project.lock.json
 project.fragment.lock.json
