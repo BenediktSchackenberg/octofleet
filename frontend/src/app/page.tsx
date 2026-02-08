@@ -11,6 +11,7 @@ interface NodeSummary {
   last_seen: string;
   cpu_name: string;
   total_memory_gb: number;
+  agent_version?: string;
 }
 
 async function getNodes(): Promise<NodeSummary[]> {
@@ -163,6 +164,10 @@ export default async function Dashboard() {
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">RAM</span>
                         <span>{node.total_memory_gb ? `${node.total_memory_gb.toFixed(1)} GB` : '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Agent</span>
+                        <span className="font-mono text-xs">{node.agent_version || '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Zuletzt gesehen</span>

@@ -27,6 +27,8 @@ public class OsInfo
     // E1-04: Uptime info
     public double UptimeHours { get; set; }
     public string? UptimeFormatted { get; set; }
+    // Agent version
+    public string? AgentVersion { get; set; }
     public string? Error { get; set; }
 }
 
@@ -189,6 +191,9 @@ public static class SystemCollector
                     break;
                 }
             }
+            
+            // Agent version
+            result.AgentVersion = "0.3.9";
             
             return result;
         }

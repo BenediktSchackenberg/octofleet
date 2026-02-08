@@ -150,7 +150,7 @@ async def list_nodes(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
             SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                   n.first_seen, n.last_seen, n.is_online,
+                   n.first_seen, n.last_seen, n.is_online, n.agent_version,
                    h.cpu->>'name' as cpu_name,
                    (h.ram->>'totalGb')::numeric as total_memory_gb
             FROM nodes n
@@ -167,7 +167,7 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         # Get node basic info
         node = await conn.fetchrow("""
             SELECT id, node_id, hostname, os_name, os_version, os_build, 
-                   first_seen, last_seen, is_online, created_at, updated_at
+                   first_seen, last_seen, is_online, agent_version, created_at, updated_at
             FROM nodes WHERE node_id = $1
         """, node_id)
         
@@ -830,16 +830,19 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
             pass
     
     async with db.acquire() as conn:
+        # Get agent version from os info
+        agent_version = os_info.get("agentVersion")
+        
         await conn.execute("""
             INSERT INTO system_current (node_id, users, services, startup_items, scheduled_tasks,
                 os_name, os_version, os_build, computer_name, domain, workgroup, domain_role, is_domain_joined,
-                uptime_hours, uptime_formatted, last_boot_time, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+                uptime_hours, uptime_formatted, last_boot_time, agent_version, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
             ON CONFLICT (node_id) DO UPDATE SET
                 users = $2, services = $3, startup_items = $4, scheduled_tasks = $5,
                 os_name = $6, os_version = $7, os_build = $8, computer_name = $9,
                 domain = $10, workgroup = $11, domain_role = $12, is_domain_joined = $13,
-                uptime_hours = $14, uptime_formatted = $15, last_boot_time = $16, updated_at = NOW()
+                uptime_hours = $14, uptime_formatted = $15, last_boot_time = $16, agent_version = $17, updated_at = NOW()
         """,
             uuid,
             json.dumps(data.get("users", [])),
@@ -856,8 +859,15 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
             os_info.get("isDomainJoined"),
             os_info.get("uptimeHours"),
             os_info.get("uptimeFormatted"),
-            last_boot_time
+            last_boot_time,
+            agent_version
         )
+        
+        # Also update nodes table with agent_version
+        if agent_version:
+            await conn.execute("""
+                UPDATE nodes SET agent_version = $1 WHERE id = $2
+            """, agent_version, uuid)
     
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
 

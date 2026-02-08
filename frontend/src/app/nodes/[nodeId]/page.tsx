@@ -23,6 +23,7 @@ interface NodeDetails {
   last_seen: string;
   first_seen: string;
   is_online: boolean;
+  agent_version: string | null;
   cpuName: string | null;
   totalMemoryGb: number | null;
   softwareCount: number;
@@ -428,8 +429,8 @@ export default function NodeDetailPage() {
             {/* Timestamps */}
             {node && (
               <Card>
-                <CardHeader><CardTitle>📅 Zeitstempel</CardTitle></CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-3">
+                <CardHeader><CardTitle>📅 Zeitstempel & Version</CardTitle></CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Erste Erfassung</p>
                     <p className="font-medium">{formatDateTime(node.first_seen)}</p>
@@ -441,6 +442,10 @@ export default function NodeDetailPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Änderungen erfasst</p>
                     <p className="font-medium">{history.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Agent Version</p>
+                    <p className="font-medium font-mono">{node.agent_version || '-'}</p>
                   </div>
                 </CardContent>
               </Card>
