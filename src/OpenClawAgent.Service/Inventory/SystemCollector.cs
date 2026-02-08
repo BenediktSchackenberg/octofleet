@@ -24,6 +24,9 @@ public class OsInfo
     public string? Workgroup { get; set; }
     public string? DomainRole { get; set; }
     public bool IsDomainJoined { get; set; }
+    // E1-04: Uptime info
+    public double UptimeHours { get; set; }
+    public string? UptimeFormatted { get; set; }
     public string? Error { get; set; }
 }
 
@@ -149,6 +152,20 @@ public static class SystemCollector
                     result.SerialNumber = obj["SerialNumber"]?.ToString();
                     result.RegisteredUser = obj["RegisteredUser"]?.ToString();
                     result.Organization = obj["Organization"]?.ToString();
+                    
+                    // E1-04: Calculate uptime from LastBootUpTime
+                    var lastBootStr = obj["LastBootUpTime"]?.ToString();
+                    if (!string.IsNullOrEmpty(lastBootStr))
+                    {
+                        try
+                        {
+                            var lastBoot = ManagementDateTimeConverter.ToDateTime(lastBootStr);
+                            var uptime = DateTime.Now - lastBoot;
+                            result.UptimeHours = Math.Round(uptime.TotalHours, 2);
+                            result.UptimeFormatted = FormatUptime(uptime);
+                        }
+                        catch { }
+                    }
                     break;
                 }
             }
@@ -179,6 +196,16 @@ public static class SystemCollector
         {
             return new OsInfo { Error = ex.Message };
         }
+    }
+    
+    private static string FormatUptime(TimeSpan uptime)
+    {
+        if (uptime.TotalDays >= 1)
+            return $"{(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m";
+        else if (uptime.TotalHours >= 1)
+            return $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        else
+            return $"{uptime.Minutes}m";
     }
     
     private static string GetDomainRoleString(int role)

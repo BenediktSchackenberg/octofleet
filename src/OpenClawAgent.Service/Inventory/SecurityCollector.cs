@@ -91,6 +91,23 @@ public class SecureBootInfo
     public string? Reason { get; set; }
 }
 
+// E1-07: Local Admin Info
+public class LocalAdminInfo
+{
+    public string? Name { get; set; }
+    public string? Domain { get; set; }
+    public string? AccountType { get; set; }  // User, Group
+    public string? Sid { get; set; }
+    public bool IsBuiltIn { get; set; }
+}
+
+public class LocalAdminsResult
+{
+    public int Count { get; set; }
+    public List<LocalAdminInfo> Members { get; set; } = new();
+    public string? Error { get; set; }
+}
+
 public class SecurityResult
 {
     public AntivirusResult Antivirus { get; set; } = new();
@@ -99,6 +116,7 @@ public class SecurityResult
     public TpmInfo Tpm { get; set; } = new();
     public UacInfo Uac { get; set; } = new();
     public SecureBootInfo SecureBoot { get; set; } = new();
+    public LocalAdminsResult LocalAdmins { get; set; } = new();  // E1-07
 }
 #endregion
 
@@ -118,7 +136,8 @@ public static class SecurityCollector
             Task.Run(() => result.Bitlocker = GetBitLockerInfo()),
             Task.Run(() => result.Tpm = GetTpmInfo()),
             Task.Run(() => result.Uac = GetUacInfo()),
-            Task.Run(() => result.SecureBoot = GetSecureBootInfo())
+            Task.Run(() => result.SecureBoot = GetSecureBootInfo()),
+            Task.Run(() => result.LocalAdmins = GetLocalAdmins())  // E1-07
         };
 
         await Task.WhenAll(tasks);
@@ -475,5 +494,113 @@ public static class SecurityCollector
             return prop.ToString();
         }
         return null;
+    }
+
+    // E1-07: Get local administrators group members
+    private static LocalAdminsResult GetLocalAdmins()
+    {
+        var result = new LocalAdminsResult();
+        
+        try
+        {
+            // Use WMI to get members of local Administrators group
+            // Win32_GroupUser links groups to users
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT * FROM Win32_GroupUser WHERE GroupComponent=\"Win32_Group.Domain='" + 
+                Environment.MachineName + "',Name='Administrators'\"");
+
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var partComponent = obj["PartComponent"]?.ToString();
+                if (string.IsNullOrEmpty(partComponent)) continue;
+
+                // Parse the PartComponent string
+                // Format: \\HOSTNAME\root\cimv2:Win32_UserAccount.Domain="DOMAIN",Name="Username"
+                var admin = new LocalAdminInfo();
+                
+                if (partComponent.Contains("Win32_UserAccount"))
+                {
+                    admin.AccountType = "User";
+                }
+                else if (partComponent.Contains("Win32_Group"))
+                {
+                    admin.AccountType = "Group";
+                }
+                else
+                {
+                    admin.AccountType = "Unknown";
+                }
+
+                // Extract Domain and Name
+                var domainMatch = System.Text.RegularExpressions.Regex.Match(partComponent, @"Domain=""([^""]+)""");
+                var nameMatch = System.Text.RegularExpressions.Regex.Match(partComponent, @"Name=""([^""]+)""");
+
+                if (domainMatch.Success)
+                    admin.Domain = domainMatch.Groups[1].Value;
+                if (nameMatch.Success)
+                    admin.Name = nameMatch.Groups[1].Value;
+
+                // Check if built-in
+                admin.IsBuiltIn = admin.Name?.Equals("Administrator", StringComparison.OrdinalIgnoreCase) == true ||
+                                  admin.Name?.Equals("Domain Admins", StringComparison.OrdinalIgnoreCase) == true;
+
+                result.Members.Add(admin);
+            }
+
+            result.Count = result.Members.Count;
+        }
+        catch (Exception ex)
+        {
+            result.Error = ex.Message;
+            
+            // Fallback: Try net localgroup command
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "net",
+                    Arguments = "localgroup Administrators",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process != null)
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+
+                    // Parse output - members are listed after "Members" line and before "---" line
+                    var lines = output.Split('\n');
+                    bool inMembers = false;
+                    
+                    foreach (var line in lines)
+                    {
+                        var trimmed = line.Trim();
+                        if (trimmed.StartsWith("---")) 
+                        {
+                            if (inMembers) break;
+                            inMembers = true;
+                            continue;
+                        }
+                        
+                        if (inMembers && !string.IsNullOrEmpty(trimmed) && !trimmed.StartsWith("The command"))
+                        {
+                            result.Members.Add(new LocalAdminInfo
+                            {
+                                Name = trimmed,
+                                AccountType = "Unknown"
+                            });
+                        }
+                    }
+                    result.Count = result.Members.Count;
+                    result.Error = null; // Clear error if fallback worked
+                }
+            }
+            catch { }
+        }
+
+        return result;
     }
 }
