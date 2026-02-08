@@ -314,6 +314,12 @@ export default function NodeDetailPage() {
                   <InfoRow label="BIOS Version" value={hwData.bios?.smbiosVersion || hwData.bios?.name} />
                   <InfoRow label="BIOS Datum" value={hwData.bios?.releaseDate} />
                   <InfoRow label="System UUID" value={hwData.bios?.uuid} />
+                  {sysData.uptimeFormatted && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">⏱️ Uptime</span>
+                      <span className="font-mono">{sysData.uptimeFormatted}</span>
+                    </div>
+                  )}
                   {hwData.bios?.isUefi !== undefined && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Boot Modus</span>
@@ -762,6 +768,52 @@ export default function NodeDetailPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Local Admins - E1-07 */}
+            {secData.localAdmins && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    👑 Lokale Administratoren
+                    <Badge variant="outline">{secData.localAdmins.count || secData.localAdmins.members?.length || 0}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {secData.localAdmins.members?.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Domain</TableHead>
+                          <TableHead>Typ</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {secData.localAdmins.members.map((admin: any, i: number) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-medium">{admin.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{admin.domain || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{admin.accountType || 'User'}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {admin.isBuiltIn && (
+                                <Badge variant="secondary">Built-in</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : secData.localAdmins.error ? (
+                    <p className="text-sm text-destructive">{secData.localAdmins.error}</p>
+                  ) : (
+                    <p className="text-muted-foreground">Keine Daten</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Browser Tab */}
