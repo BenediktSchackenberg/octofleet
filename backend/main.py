@@ -1730,29 +1730,34 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         instances_created = 0
         
         if target_type == "device" and target_id:
-            node = await conn.fetchrow("SELECT node_id FROM system_current WHERE node_id = $1", target_id)
+            # target_id is the text node_id (e.g., "BALTASA")
+            node = await conn.fetchrow("SELECT node_id FROM nodes WHERE node_id = $1", target_id)
             if node:
                 await conn.execute("""
                     INSERT INTO job_instances (job_id, node_id, status)
                     VALUES ($1::uuid, $2, 'pending')
-                """, str(job_uuid), str(node["node_id"]))
+                """, str(job_uuid), node["node_id"])
                 instances_created = 1
         
         elif target_type == "group" and target_id:
+            # device_groups.node_id is UUID, need to join with nodes table
             nodes = await conn.fetch("""
-                SELECT dg.node_id FROM device_groups dg
-                WHERE dg.group_id = $1
+                SELECT n.node_id FROM device_groups dg
+                JOIN nodes n ON n.id = dg.node_id
+                WHERE dg.group_id = $1::uuid
             """, target_id)
             for node in nodes:
                 await conn.execute("""
                     INSERT INTO job_instances (job_id, node_id, status)
                     VALUES ($1::uuid, $2, 'pending')
-                """, str(job_uuid), str(node["node_id"]))
+                """, str(job_uuid), node["node_id"])
                 instances_created += 1
         
         elif target_type == "tag" and target_tag:
+            # device_tags.node_id is also UUID
             nodes = await conn.fetch("""
-                SELECT dt.node_id FROM device_tags dt
+                SELECT n.node_id FROM device_tags dt
+                JOIN nodes n ON n.id = dt.node_id
                 JOIN tags t ON t.id = dt.tag_id
                 WHERE t.name = $1
             """, target_tag)
@@ -1760,16 +1765,21 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
                 await conn.execute("""
                     INSERT INTO job_instances (job_id, node_id, status)
                     VALUES ($1::uuid, $2, 'pending')
-                """, str(job_uuid), str(node["node_id"]))
+                """, str(job_uuid), node["node_id"])
                 instances_created += 1
         
         elif target_type == "all":
-            nodes = await conn.fetch("SELECT DISTINCT node_id FROM system_current")
+            # Get node_id (text) from nodes table via system_current
+            nodes = await conn.fetch("""
+                SELECT n.node_id 
+                FROM nodes n 
+                INNER JOIN system_current sc ON sc.node_id = n.id
+            """)
             for node in nodes:
                 await conn.execute("""
                     INSERT INTO job_instances (job_id, node_id, status)
                     VALUES ($1::uuid, $2, 'pending')
-                """, str(job_uuid), str(node["node_id"]))
+                """, str(job_uuid), node["node_id"])
                 instances_created += 1
         
         return {
@@ -1871,19 +1881,25 @@ async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
 @app.get("/api/v1/jobs/pending/{node_id}")
 async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Get pending jobs for a specific node"""
+    # Support both formats: "win-baltasa" and "BALTASA"
+    # Agent uses win-{hostname.lower()}, DB stores HOSTNAME
+    lookup_id = node_id
+    if node_id.startswith("win-"):
+        lookup_id = node_id[4:].upper()  # win-baltasa -> BALTASA
+    
     async with db.acquire() as conn:
         rows = await conn.fetch("""
             SELECT ji.id, ji.job_id, j.name, j.command_type, j.command_data, j.priority,
                    ji.attempt, ji.max_attempts, j.timeout_seconds
             FROM job_instances ji
             JOIN jobs j ON j.id = ji.job_id
-            WHERE ji.node_id = $1 
+            WHERE UPPER(ji.node_id) = UPPER($1) 
               AND ji.status = 'pending'
               AND (j.scheduled_at IS NULL OR j.scheduled_at <= NOW())
               AND (j.expires_at IS NULL OR j.expires_at > NOW())
             ORDER BY j.priority ASC, ji.queued_at ASC
             LIMIT 10
-        """, node_id)
+        """, lookup_id)
         
         jobs = []
         for row in rows:
