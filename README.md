@@ -1,6 +1,6 @@
 # OpenClaw Windows Agent 🪟🐉
 
-> **Production Ready (v0.3.7)** — Zero-touch installation, hardware/software inventory, browser security analysis, remote command execution. Manage your Windows fleet from anywhere.
+> **Production Ready (v0.3.8)** — Zero-touch installation, hardware/software inventory, browser security analysis, remote command execution. Manage your Windows fleet from anywhere.
 
 A native Windows Service + GUI for [OpenClaw](https://openclaw.ai) that turns your Windows PCs into remotely manageable nodes. Talk to your machines via Discord, Telegram, or any AI interface.
 
@@ -51,7 +51,7 @@ Automatically collects and reports:
 - **Browser** — Extensions, history count, bookmarks, **cookie metadata** (Chrome, Edge, Firefox)
 - **System** — Uptime, boot time, domain/workgroup status, computer name
 
-### 🍪 Browser Security Analysis (NEW in v0.3.7)
+### 🍪 Browser Security Analysis (NEW in v0.3.8)
 - **Multi-user scanning** — Collects browser data from ALL Windows user profiles
 - **Cookie metadata** — Domain, name, path, expiry, security flags (NOT values!)
 - **Critical cookies detection** — Flags cookies from banking, auth, cloud providers
@@ -71,7 +71,7 @@ You: "Get the top 5 processes by memory"
 AI: *runs Get-Process | Sort WS -Desc | Select -First 5*
 ```
 
-### ⏱️ System Monitoring (NEW in v0.3.7)
+### ⏱️ System Monitoring (NEW in v0.3.8)
 - **Uptime tracking** — Shows "3d 12h 45m" since last boot
 - **Boot time** — Exact timestamp of last system start
 - **Local Admins** — Lists all members of local Administrators group
