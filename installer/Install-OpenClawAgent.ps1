@@ -7,7 +7,7 @@
     1. Downloads agent package from GitHub/Repository
     2. Extracts to Program Files
     3. Registers Windows Service
-    4. Writes configuration
+    4. Writes configuration (preserves existing if no new credentials provided)
     5. Starts service
     
 .PARAMETER GatewayUrl
@@ -31,43 +31,52 @@
 .PARAMETER Version
     Version to install (optional, defaults to "latest")
 
+.PARAMETER Force
+    Force overwrite existing config even without new credentials
+
 .EXAMPLE
-    # With direct credentials:
+    # Fresh install with credentials:
     .\Install-OpenClawAgent.ps1 -GatewayUrl "http://192.168.0.5:18789" -GatewayToken "abc123"
 
-    # With enrollment token (recommended):
+    # Update existing installation (keeps config):
+    .\Install-OpenClawAgent.ps1
+
+    # With enrollment token:
     .\Install-OpenClawAgent.ps1 -EnrollToken "abc123xyz..."
 
 .NOTES
     Author: OpenClaw
-    Version: 2.1.0
+    Version: 2.2.0
 #>
 
-[CmdletBinding(DefaultParameterSetName = 'Direct')]
+[CmdletBinding(DefaultParameterSetName = 'Update')]
 param(
-    [Parameter(ParameterSetName = 'Direct', Mandatory = $true)]
+    [Parameter(ParameterSetName = 'Direct')]
     [string]$GatewayUrl,
 
-    [Parameter(ParameterSetName = 'Direct', Mandatory = $true)]
+    [Parameter(ParameterSetName = 'Direct')]
     [string]$GatewayToken,
 
     [Parameter(ParameterSetName = 'Enroll', Mandatory = $true)]
     [string]$EnrollToken,
 
-    [Parameter(ParameterSetName = 'Enroll', Mandatory = $false)]
+    [Parameter(ParameterSetName = 'Enroll')]
     [string]$EnrollApiUrl = "http://192.168.0.5:8080",
 
-    [Parameter(Mandatory = $false)]
+    [Parameter()]
     [string]$InventoryUrl,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter()]
     [string]$DisplayName = $env:COMPUTERNAME,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter()]
     [string]$PackageUrl = "",
 
-    [Parameter(Mandatory = $false)]
-    [string]$Version = "latest"
+    [Parameter()]
+    [string]$Version = "latest",
+
+    [Parameter()]
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -103,9 +112,26 @@ function Write-Err {
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  OpenClaw Node Agent - Full Installer" -ForegroundColor Cyan
-Write-Host "  Version 2.1.0" -ForegroundColor Cyan
+Write-Host "  Version 2.2.0" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
+
+# ============================================
+# Check for existing config
+# ============================================
+$configPath = Join-Path $ConfigDir "service-config.json"
+$existingConfig = $null
+$isUpdate = $false
+
+if (Test-Path $configPath) {
+    try {
+        $existingConfig = Get-Content $configPath -Raw | ConvertFrom-Json
+        Write-Host "Found existing configuration" -ForegroundColor Yellow
+        $isUpdate = $true
+    } catch {
+        Write-Warn "Could not parse existing config, will create new one"
+    }
+}
 
 # ============================================
 # Enrollment Token Flow (if using EnrollToken)
@@ -139,6 +165,33 @@ if ($EnrollToken) {
     }
 }
 
+# ============================================
+# Determine credentials source
+# ============================================
+$hasNewCredentials = $GatewayUrl -and $GatewayToken
+
+if (-not $hasNewCredentials -and $existingConfig) {
+    # Use existing config for update
+    Write-Host "Using existing credentials (update mode)" -ForegroundColor Green
+    $GatewayUrl = $existingConfig.GatewayUrl
+    $GatewayToken = $existingConfig.GatewayToken
+    if ($existingConfig.InventoryApiUrl) {
+        $InventoryUrl = $existingConfig.InventoryApiUrl
+    }
+    if ($existingConfig.DisplayName) {
+        $DisplayName = $existingConfig.DisplayName
+    }
+} elseif (-not $hasNewCredentials -and -not $existingConfig) {
+    Write-Err "No credentials provided and no existing config found!"
+    Write-Host ""
+    Write-Host "For fresh install, provide credentials:" -ForegroundColor Yellow
+    Write-Host "  .\Install-OpenClawAgent.ps1 -GatewayUrl 'http://...' -GatewayToken 'abc...'" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Or use enrollment token:" -ForegroundColor Yellow
+    Write-Host "  .\Install-OpenClawAgent.ps1 -EnrollToken 'xyz...'" -ForegroundColor Gray
+    exit 1
+}
+
 # Derive InventoryUrl from GatewayUrl if not provided
 if (-not $InventoryUrl) {
     try {
@@ -149,11 +202,13 @@ if (-not $InventoryUrl) {
     }
 }
 
+Write-Host ""
 Write-Host "Configuration:" -ForegroundColor Yellow
 Write-Host "  Gateway URL:   $GatewayUrl"
 Write-Host "  Inventory URL: $InventoryUrl"
 Write-Host "  Display Name:  $DisplayName"
 Write-Host "  Install Dir:   $InstallDir"
+Write-Host "  Mode:          $(if ($isUpdate) { 'Update' } else { 'Fresh Install' })"
 Write-Host ""
 
 # Check if running as admin
