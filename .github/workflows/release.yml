@@ -1,0 +1,64 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+      
+      - name: Restore dependencies
+        run: dotnet restore src/OpenClawAgent.Service/OpenClawAgent.Service.csproj
+      
+      - name: Build
+        run: dotnet build src/OpenClawAgent.Service/OpenClawAgent.Service.csproj -c Release --no-restore
+      
+      - name: Publish
+        run: dotnet publish src/OpenClawAgent.Service/OpenClawAgent.Service.csproj -c Release -r win-x64 --self-contained -o publish
+      
+      - name: Create release package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $releaseDir = "openclaw-release-$version"
+          New-Item -ItemType Directory -Path $releaseDir -Force
+          Copy-Item "publish\*" $releaseDir -Recurse
+          Copy-Item "installer\Install-OpenClawAgent.ps1" $releaseDir -ErrorAction SilentlyContinue
+          Compress-Archive -Path $releaseDir -DestinationPath "OpenClawAgent-v$version-win-x64.zip"
+          
+          # Calculate SHA256
+          $hash = (Get-FileHash "OpenClawAgent-v$version-win-x64.zip" -Algorithm SHA256).Hash.ToLower()
+          echo $hash > "OpenClawAgent-v$version-win-x64.zip.sha256"
+          echo "SHA256: $hash"
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            OpenClawAgent-v${{ steps.version.outputs.VERSION }}-win-x64.zip
+            OpenClawAgent-v${{ steps.version.outputs.VERSION }}-win-x64.zip.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false
