@@ -14,7 +14,20 @@
 | **E8** | Security & RBAC | Medium | 1 |
 | **E9** | Rollout Strategies | Low | 1 |
 | **E10** | Zero-Touch Installation | High | 3-4 |
-| **E11** | Performance & Scale | Low | Ongoing |
+| **E11** | Software Depot | High | 2 |
+| **E12** | Software Zuweisung | High | 1-2 |
+| **E13** | Installation & Deinstallation | High | 2 |
+| **E14** | Installations-Status & Monitoring | High | 1-2 |
+
+---
+
+## User Story: Softwareverteilung auf inventarisierte Nodes
+
+**Als** IT-Administrator / Systembetreiber  
+**möchte ich** Softwarepakete aus einem zentralen Software-Depot auf inventarisierte PCs (Nodes) installieren, aktualisieren und deinstallieren können – sowohl gezielt auf einzelne Nodes als auch auf definierte Node-Gruppen,  
+**damit** ich Software standardisiert, reproduzierbar und kontrolliert über eine zentrale Oberfläche verteilen und verwalten kann, ohne manuelle Eingriffe auf den einzelnen Systemen.
+
+**Abhängige Epics:** E11, E12, E13, E14 + bestehende E3, E4, E5
 
 ---
 
@@ -194,3 +207,69 @@
 
 ---
 *Created: 2026-02-07*
+
+---
+
+## Phase 6: Software Distribution (Sprint 11-14)
+
+### Epic E11: Software Depot
+*Zentrales Paket-Repository im lokalen Netzwerk*
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E11-01 | Depot-Architektur definieren (SMB/HTTP/S3) | High | Entscheidung treffen |
+| E11-02 | DB Schema für Depot-Quellen | High | sources table |
+| E11-03 | API: Depot-Quellen CRUD | High | Verwaltung der Quellen |
+| E11-04 | API: Paket-Upload Endpoint | Medium | multipart/form-data |
+| E11-05 | Paket-Metadaten Parser | High | Name, Version, Plattform |
+| E11-06 | Versionierung im Depot | High | Mehrere Versionen pro Paket |
+| E11-07 | Frontend: Depot-Verwaltung Seite | High | Quellen-Übersicht |
+| E11-08 | Frontend: Paket-Upload Dialog | Medium | Drag & Drop Upload |
+| E11-09 | Offline-fähiges Depot | High | Lokales Netzwerk ohne Internet |
+
+### Epic E12: Software Zuweisung
+*Pakete zu Nodes und Gruppen zuweisen*
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E12-01 | DB Schema für Zuweisungen | High | assignments table |
+| E12-02 | API: Paket zu Node zuweisen | High | POST /assignments |
+| E12-03 | API: Paket zu Gruppe zuweisen | High | Gruppen-Targeting |
+| E12-04 | API: Mehrfach-Zuweisungen pro Node | Medium | Node kann n Pakete haben |
+| E12-05 | API: Zuweisung entfernen | High | Triggers Deinstallation |
+| E12-06 | Frontend: Zuweisung auf Node-Detail | High | Installierte Pakete anzeigen |
+| E12-07 | Frontend: Zuweisung auf Gruppen-Seite | High | Gruppen-Pakete |
+| E12-08 | Frontend: Bulk-Zuweisung Dialog | Medium | Multi-Select |
+
+### Epic E13: Installation & Deinstallation
+*Agent-seitige Ausführung der Installationen*
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E13-01 | Agent: software.install Command | High | Neuer Command Handler |
+| E13-02 | Agent: software.uninstall Command | High | Deinstallation |
+| E13-03 | Agent: Paket aus Depot laden (SMB/HTTP) | High | Download-Logik |
+| E13-04 | Agent: MSI/EXE/Script ausführen | High | Universelle Installer-Unterstützung |
+| E13-05 | Agent: Deinstallationsbefehl ausführen | High | MsiExec /x oder custom |
+| E13-06 | Agent: Exit-Code und Logs zurückmelden | High | Rückmeldung an Backend |
+| E13-07 | Agent: Silent/Unattended Install | High | Keine User-Interaktion |
+| E13-08 | Agent: Retry-Logik | Medium | Bei Fehlern wiederholen |
+| E13-09 | Agent: Pre/Post Install Hooks | Low | Custom Scripts vor/nach Install |
+
+### Epic E14: Installations-Status & Monitoring
+*Zentrale Übersicht über alle Installationen*
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E14-01 | DB Schema: deployment_status | High | Status pro Node/Paket |
+| E14-02 | Status-Werte definieren | High | geplant/in Ausführung/erfolgreich/fehlgeschlagen |
+| E14-03 | API: Status-Update vom Agent | High | Webhook/Polling |
+| E14-04 | API: Installations-Logs speichern | High | STDOUT/STDERR erfassen |
+| E14-05 | API: Exit-Codes erfassen | High | Fehleranalyse |
+| E14-06 | Frontend: Deployment-Status Dashboard | High | Übersicht aller Deployments |
+| E14-07 | Frontend: Status-Badges auf Node-Seite | Medium | Visual Feedback |
+| E14-08 | Frontend: Log-Viewer für Fehler | High | Debugging |
+| E14-09 | API: Aggregierte Statistiken | Medium | Success Rate, Pending Count |
+
+---
+*Updated: 2026-02-08 — Software Distribution Epics added*
