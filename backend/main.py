@@ -1707,13 +1707,43 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         # Optional fields
         name = data.get("name", f"Job {job_id[:8]}")
         description = data.get("description", "")
-        target_id = data.get("targetId")
+        target_id_input = data.get("targetId")  # Can be text node_id or UUID string
         target_tag = data.get("targetTag")
         priority = data.get("priority", 5)
         scheduled_at = data.get("scheduledAt")
         expires_at = data.get("expiresAt")
         created_by = data.get("createdBy", "api")
         timeout_seconds = data.get("timeoutSeconds", 300)
+        
+        # For device target type, target_id is a text node_id - look up UUID
+        target_id = None
+        target_node_id = None  # Text node_id for instance creation
+        if target_type == "device" and target_id_input:
+            # Try to find node by text node_id first
+            node = await conn.fetchrow(
+                "SELECT id, node_id FROM nodes WHERE node_id = $1", 
+                target_id_input
+            )
+            if node:
+                target_id = str(node["id"])
+                target_node_id = node["node_id"]
+            else:
+                # Maybe it's already a UUID?
+                try:
+                    uuid.UUID(target_id_input)
+                    target_id = target_id_input
+                    # Look up text node_id
+                    node = await conn.fetchrow(
+                        "SELECT node_id FROM nodes WHERE id = $1::uuid",
+                        target_id_input
+                    )
+                    if node:
+                        target_node_id = node["node_id"]
+                except ValueError:
+                    raise HTTPException(status_code=404, detail=f"Node not found: {target_id_input}")
+        elif target_id_input:
+            # For group/tag target types, expect UUID
+            target_id = target_id_input
         
         # Insert job
         row = await conn.fetchrow("""
@@ -1729,15 +1759,13 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         # Expand job to instances based on target
         instances_created = 0
         
-        if target_type == "device" and target_id:
-            # target_id is the text node_id (e.g., "BALTASA")
-            node = await conn.fetchrow("SELECT node_id FROM nodes WHERE node_id = $1", target_id)
-            if node:
-                await conn.execute("""
-                    INSERT INTO job_instances (job_id, node_id, status)
-                    VALUES ($1::uuid, $2, 'pending')
-                """, str(job_uuid), node["node_id"])
-                instances_created = 1
+        if target_type == "device" and target_node_id:
+            # target_node_id is already resolved text node_id
+            await conn.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES ($1::uuid, $2, 'pending')
+            """, str(job_uuid), target_node_id)
+            instances_created = 1
         
         elif target_type == "group" and target_id:
             # device_groups.node_id is UUID, need to join with nodes table
