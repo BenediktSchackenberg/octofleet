@@ -49,6 +49,7 @@ try
     builder.Services.AddHostedService<NodeWorker>();
     builder.Services.AddHostedService<InventoryScheduler>();
     builder.Services.AddHostedService<JobPoller>();
+    builder.Services.AddHostedService<AutoUpdater>();
 
     var host = builder.Build();
     host.Run();

@@ -160,7 +160,7 @@ public class NodeWorker : BackgroundService
                 client = new
                 {
                     id = "node-host",  // Must be a known client type from GATEWAY_CLIENT_IDS
-                    version = "0.3.10",
+                    version = "0.3.11",
                     platform = "windows",
                     mode = "node",
                     instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}",  // Unique instance identifier
@@ -205,7 +205,7 @@ public class NodeWorker : BackgroundService
                 },
                 auth = new { token = config.GatewayToken },
                 device = deviceObject,
-                userAgent = $"openclaw-windows-service/0.3.10 ({config.DisplayName})"
+                userAgent = $"openclaw-windows-service/0.3.11 ({config.DisplayName})"
             }
         };
 

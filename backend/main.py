@@ -144,6 +144,20 @@ async def health_check():
         return {"status": "degraded", "service": "openclaw-inventory", "database": str(e)}
 
 
+# Agent version management
+AGENT_LATEST_VERSION = "0.3.11"
+AGENT_DOWNLOAD_URL = f"https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v{AGENT_LATEST_VERSION}/OpenClawAgent-v{AGENT_LATEST_VERSION}-win-x64.zip"
+
+@app.get("/api/v1/agent/version")
+async def get_agent_version():
+    """Get the latest agent version for auto-update"""
+    return {
+        "latestVersion": AGENT_LATEST_VERSION,
+        "downloadUrl": AGENT_DOWNLOAD_URL,
+        "releaseNotes": "Auto-update support, device authentication"
+    }
+
+
 @app.get("/api/v1/nodes")
 async def list_nodes(db: asyncpg.Pool = Depends(get_db)):
     """List all known nodes with summary info"""
