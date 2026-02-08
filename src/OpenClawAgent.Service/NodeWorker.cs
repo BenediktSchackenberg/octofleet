@@ -147,10 +147,11 @@ public class NodeWorker : BackgroundService
                 maxProtocol = 3,
                 client = new
                 {
-                    id = $"win-{Environment.MachineName.ToLowerInvariant()}",
+                    id = "node",  // Must be a known client type
                     version = "0.3.1",
                     platform = "windows",
-                    mode = "node"
+                    mode = "node",
+                    instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}"  // Unique instance identifier
                 },
                 role = "node",
                 scopes = Array.Empty<string>(),
