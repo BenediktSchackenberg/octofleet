@@ -4,28 +4,95 @@ using System.Text.Json;
 namespace OpenClawAgent.Service.Inventory;
 
 /// <summary>
-/// Collects browser data (Chrome, Firefox, Edge)
+/// Collects browser data (Chrome, Firefox, Edge) from ALL user profiles on the system
 /// </summary>
 public static class BrowserCollector
 {
-    public static async Task<BrowserResult> CollectAsync(string? browser = null)
+    public static async Task<BrowserResult> CollectAsync(string? browser = null, bool includeCookies = true)
     {
         var results = new BrowserResult();
 
-        if (browser == null || browser == "chrome")
-            results.Chrome = await CollectChromeAsync();
+        // Get all user profile directories
+        var userProfiles = GetAllUserProfiles();
         
-        if (browser == null || browser == "edge")
-            results.Edge = await CollectEdgeAsync();
-        
-        if (browser == null || browser == "firefox")
-            results.Firefox = await CollectFirefoxAsync();
+        foreach (var userProfile in userProfiles)
+        {
+            var userData = new UserBrowserData
+            {
+                Username = Path.GetFileName(userProfile),
+                UserProfilePath = userProfile
+            };
+
+            if (browser == null || browser == "chrome")
+            {
+                var chromePath = Path.Combine(userProfile, "AppData", "Local", "Google", "Chrome", "User Data");
+                userData.Chrome = await CollectChromiumAsync(chromePath, includeCookies);
+            }
+            
+            if (browser == null || browser == "edge")
+            {
+                var edgePath = Path.Combine(userProfile, "AppData", "Local", "Microsoft", "Edge", "User Data");
+                userData.Edge = await CollectChromiumAsync(edgePath, includeCookies);
+            }
+            
+            if (browser == null || browser == "firefox")
+            {
+                var firefoxPath = Path.Combine(userProfile, "AppData", "Roaming", "Mozilla", "Firefox");
+                userData.Firefox = await CollectFirefoxAsync(firefoxPath, includeCookies);
+            }
+
+            // Only add if at least one browser found
+            if (userData.Chrome?.Installed == true || 
+                userData.Edge?.Installed == true || 
+                userData.Firefox?.Installed == true)
+            {
+                results.Users.Add(userData);
+            }
+        }
 
         return results;
     }
 
+    /// <summary>
+    /// Get all user profile directories on the system
+    /// </summary>
+    private static List<string> GetAllUserProfiles()
+    {
+        var profiles = new List<string>();
+        
+        // Try C:\Users first (most common)
+        var usersDir = @"C:\Users";
+        if (Directory.Exists(usersDir))
+        {
+            var excludedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Public", "Default", "Default User", "All Users"
+            };
+
+            foreach (var userDir in Directory.GetDirectories(usersDir))
+            {
+                var dirName = Path.GetFileName(userDir);
+                if (!excludedDirs.Contains(dirName) && 
+                    !dirName.StartsWith(".") &&
+                    Directory.Exists(Path.Combine(userDir, "AppData")))
+                {
+                    profiles.Add(userDir);
+                }
+            }
+        }
+
+        return profiles;
+    }
+
     public class BrowserResult
     {
+        public List<UserBrowserData> Users { get; set; } = new();
+    }
+
+    public class UserBrowserData
+    {
+        public string Username { get; set; } = "";
+        public string UserProfilePath { get; set; } = "";
         public BrowserData? Chrome { get; set; }
         public BrowserData? Edge { get; set; }
         public BrowserData? Firefox { get; set; }
@@ -46,6 +113,7 @@ public static class BrowserCollector
         public int HistoryCount { get; set; }
         public int LoginsCount { get; set; }
         public int BookmarksCount { get; set; }
+        public List<CookieInfo>? Cookies { get; set; }
     }
 
     public class ExtensionData
@@ -57,23 +125,20 @@ public static class BrowserCollector
         public bool? Active { get; set; }
     }
 
-    private static Task<BrowserData> CollectChromeAsync()
+    public class CookieInfo
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var chromePath = Path.Combine(localAppData, "Google", "Chrome", "User Data");
-        
-        return CollectChromiumAsync(chromePath);
+        public string Domain { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "/";
+        public DateTime? ExpiresUtc { get; set; }
+        public bool IsSecure { get; set; }
+        public bool IsHttpOnly { get; set; }
+        public string? SameSite { get; set; }
+        public bool IsSession { get; set; }
+        public bool IsExpired { get; set; }
     }
 
-    private static Task<BrowserData> CollectEdgeAsync()
-    {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var edgePath = Path.Combine(localAppData, "Microsoft", "Edge", "User Data");
-        
-        return CollectChromiumAsync(edgePath);
-    }
-
-    private static Task<BrowserData> CollectChromiumAsync(string userDataPath)
+    private static Task<BrowserData> CollectChromiumAsync(string userDataPath, bool includeCookies)
     {
         return Task.Run(() =>
         {
@@ -103,7 +168,7 @@ public static class BrowserCollector
                     profileData.Extensions = GetChromiumExtensions(extensionsDir);
                 }
 
-                // Cookies count (from SQLite)
+                // Cookies (from SQLite)
                 var cookiesDb = Path.Combine(profileDir, "Network", "Cookies");
                 if (!File.Exists(cookiesDb))
                     cookiesDb = Path.Combine(profileDir, "Cookies");
@@ -111,6 +176,10 @@ public static class BrowserCollector
                 if (File.Exists(cookiesDb))
                 {
                     profileData.CookiesCount = CountSqliteRows(cookiesDb, "cookies");
+                    if (includeCookies)
+                    {
+                        profileData.Cookies = GetChromiumCookies(cookiesDb);
+                    }
                 }
 
                 // History count
@@ -144,6 +213,98 @@ public static class BrowserCollector
                 Profiles = profiles
             };
         });
+    }
+
+    private static List<CookieInfo> GetChromiumCookies(string dbPath)
+    {
+        var cookies = new List<CookieInfo>();
+        
+        try
+        {
+            // Copy to temp to avoid locking issues
+            var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_cookies_{Guid.NewGuid()}.db");
+            File.Copy(dbPath, tempPath, true);
+
+            try
+            {
+                using var conn = new SQLiteConnection($"Data Source={tempPath};Read Only=True;");
+                conn.Open();
+                
+                // Chrome stores expires_utc as microseconds since 1601-01-01
+                // We convert to DateTime
+                using var cmd = new SQLiteCommand(@"
+                    SELECT 
+                        host_key,
+                        name,
+                        path,
+                        expires_utc,
+                        is_secure,
+                        is_httponly,
+                        samesite,
+                        is_persistent
+                    FROM cookies
+                    ORDER BY host_key, name
+                    LIMIT 5000
+                ", conn);
+
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var expiresUtc = reader.GetInt64(3);
+                    DateTime? expires = null;
+                    bool isExpired = false;
+                    bool isSession = reader.GetInt32(7) == 0;
+
+                    if (expiresUtc > 0 && !isSession)
+                    {
+                        // Chrome epoch: microseconds since 1601-01-01
+                        try
+                        {
+                            expires = new DateTime(1601, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                                .AddTicks(expiresUtc * 10);
+                            isExpired = expires < DateTime.UtcNow;
+                        }
+                        catch
+                        {
+                            // Invalid date
+                        }
+                    }
+
+                    var sameSiteValue = reader.GetInt32(6);
+                    string? sameSite = sameSiteValue switch
+                    {
+                        0 => "None",
+                        1 => "Lax",
+                        2 => "Strict",
+                        _ => null
+                    };
+
+                    cookies.Add(new CookieInfo
+                    {
+                        Domain = reader.GetString(0),
+                        Name = reader.GetString(1),
+                        Path = reader.GetString(2),
+                        ExpiresUtc = expires,
+                        IsSecure = reader.GetInt32(4) == 1,
+                        IsHttpOnly = reader.GetInt32(5) == 1,
+                        SameSite = sameSite,
+                        IsSession = isSession,
+                        IsExpired = isExpired
+                    });
+                }
+            }
+            finally
+            {
+                try { File.Delete(tempPath); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Return empty list with error indicator
+            cookies.Add(new CookieInfo { Domain = "ERROR", Name = ex.Message });
+        }
+
+        return cookies;
     }
 
     private static List<ExtensionData> GetChromiumExtensions(string extensionsDir)
@@ -211,12 +372,10 @@ public static class BrowserCollector
         return extensions;
     }
 
-    private static Task<BrowserData> CollectFirefoxAsync()
+    private static Task<BrowserData> CollectFirefoxAsync(string firefoxPath, bool includeCookies)
     {
         return Task.Run(() =>
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var firefoxPath = Path.Combine(appData, "Mozilla", "Firefox");
             var profilesIni = Path.Combine(firefoxPath, "profiles.ini");
 
             if (!File.Exists(profilesIni))
@@ -248,7 +407,7 @@ public static class BrowserCollector
 
                     if (Directory.Exists(fullPath))
                     {
-                        profiles.Add(CollectFirefoxProfile(fullPath, Path.GetFileName(fullPath)));
+                        profiles.Add(CollectFirefoxProfile(fullPath, Path.GetFileName(fullPath), includeCookies));
                     }
 
                     currentPath = null;
@@ -265,7 +424,7 @@ public static class BrowserCollector
 
                 if (Directory.Exists(fullPath))
                 {
-                    profiles.Add(CollectFirefoxProfile(fullPath, Path.GetFileName(fullPath)));
+                    profiles.Add(CollectFirefoxProfile(fullPath, Path.GetFileName(fullPath), includeCookies));
                 }
             }
 
@@ -278,7 +437,7 @@ public static class BrowserCollector
         });
     }
 
-    private static ProfileData CollectFirefoxProfile(string profilePath, string profileName)
+    private static ProfileData CollectFirefoxProfile(string profilePath, string profileName, bool includeCookies)
     {
         var profileData = new ProfileData { Name = profileName };
 
@@ -294,6 +453,10 @@ public static class BrowserCollector
         if (File.Exists(cookiesDb))
         {
             profileData.CookiesCount = CountSqliteRows(cookiesDb, "moz_cookies");
+            if (includeCookies)
+            {
+                profileData.Cookies = GetFirefoxCookies(cookiesDb);
+            }
         }
 
         // History
@@ -323,6 +486,85 @@ public static class BrowserCollector
         }
 
         return profileData;
+    }
+
+    private static List<CookieInfo> GetFirefoxCookies(string dbPath)
+    {
+        var cookies = new List<CookieInfo>();
+        
+        try
+        {
+            var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_ff_cookies_{Guid.NewGuid()}.db");
+            File.Copy(dbPath, tempPath, true);
+
+            try
+            {
+                using var conn = new SQLiteConnection($"Data Source={tempPath};Read Only=True;");
+                conn.Open();
+                
+                // Firefox stores expiry as Unix timestamp in seconds
+                using var cmd = new SQLiteCommand(@"
+                    SELECT 
+                        host,
+                        name,
+                        path,
+                        expiry,
+                        isSecure,
+                        isHttpOnly,
+                        sameSite
+                    FROM moz_cookies
+                    ORDER BY host, name
+                    LIMIT 5000
+                ", conn);
+
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var expiry = reader.GetInt64(3);
+                    DateTime? expires = null;
+                    bool isExpired = false;
+                    bool isSession = expiry == 0;
+
+                    if (expiry > 0)
+                    {
+                        expires = DateTimeOffset.FromUnixTimeSeconds(expiry).UtcDateTime;
+                        isExpired = expires < DateTime.UtcNow;
+                    }
+
+                    var sameSiteValue = reader.GetInt32(6);
+                    string? sameSite = sameSiteValue switch
+                    {
+                        0 => "None",
+                        1 => "Lax",
+                        2 => "Strict",
+                        _ => null
+                    };
+
+                    cookies.Add(new CookieInfo
+                    {
+                        Domain = reader.GetString(0),
+                        Name = reader.GetString(1),
+                        Path = reader.GetString(2),
+                        ExpiresUtc = expires,
+                        IsSecure = reader.GetInt32(4) == 1,
+                        IsHttpOnly = reader.GetInt32(5) == 1,
+                        SameSite = sameSite,
+                        IsSession = isSession,
+                        IsExpired = isExpired
+                    });
+                }
+            }
+            finally
+            {
+                try { File.Delete(tempPath); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            cookies.Add(new CookieInfo { Domain = "ERROR", Name = ex.Message });
+        }
+
+        return cookies;
     }
 
     private static List<ExtensionData> GetFirefoxExtensions(string extensionsJsonPath)

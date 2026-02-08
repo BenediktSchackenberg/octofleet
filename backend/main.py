@@ -428,17 +428,20 @@ async def get_browser(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         
         rows = await conn.fetch("""
             SELECT browser, profile, profile_path, history_count, bookmark_count, 
-                   password_count, extensions
+                   password_count, extensions, username
             FROM browser_current WHERE node_id = $1
         """, node['id'])
         
-        # Group by browser
-        browsers = {}
+        # Group by username -> browser
+        users = {}
         for row in rows:
+            username = row['username'] or 'unknown'
             b = row['browser']
-            if b not in browsers:
-                browsers[b] = {"profiles": [], "extensionCount": 0}
-            browsers[b]["profiles"].append({
+            if username not in users:
+                users[username] = {}
+            if b not in users[username]:
+                users[username][b] = {"profiles": [], "extensionCount": 0}
+            users[username][b]["profiles"].append({
                 "name": row['profile'],
                 "path": row['profile_path'],
                 "historyCount": row['history_count'],
@@ -446,9 +449,81 @@ async def get_browser(node_id: str, db: asyncpg.Pool = Depends(get_db)):
                 "passwordCount": row['password_count']
             })
             exts = json.loads(row['extensions']) if row['extensions'] else []
-            browsers[b]["extensionCount"] += len(exts)
+            users[username][b]["extensionCount"] += len(exts)
         
-        return {"data": browsers}
+        # Get cookies summary
+        cookie_rows = await conn.fetch("""
+            SELECT username, browser, profile, domain, COUNT(*) as count
+            FROM browser_cookies 
+            WHERE node_id = $1
+            GROUP BY username, browser, profile, domain
+            ORDER BY username, browser, profile, count DESC
+        """, node['id'])
+        
+        cookies_by_user = {}
+        for row in cookie_rows:
+            username = row['username']
+            if username not in cookies_by_user:
+                cookies_by_user[username] = []
+            cookies_by_user[username].append({
+                "browser": row['browser'],
+                "profile": row['profile'],
+                "domain": row['domain'],
+                "count": row['count']
+            })
+        
+        return {"data": {"users": users, "cookies": cookies_by_user}}
+
+
+@app.get("/api/v1/inventory/browser/{node_id}/cookies")
+async def get_browser_cookies(node_id: str, username: str = None, browser: str = None, 
+                              domain: str = None, limit: int = 500, db: asyncpg.Pool = Depends(get_db)):
+    """Get detailed cookie data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        query = """
+            SELECT username, browser, profile, domain, name, path, 
+                   expires_utc, is_secure, is_http_only, same_site, is_session, is_expired
+            FROM browser_cookies 
+            WHERE node_id = $1
+        """
+        params = [node['id']]
+        
+        if username:
+            params.append(username)
+            query += f" AND username = ${len(params)}"
+        if browser:
+            params.append(browser)
+            query += f" AND browser = ${len(params)}"
+        if domain:
+            params.append(f"%{domain}%")
+            query += f" AND domain LIKE ${len(params)}"
+        
+        query += f" ORDER BY username, browser, domain, name LIMIT {limit}"
+        
+        rows = await conn.fetch(query, *params)
+        
+        cookies = []
+        for row in rows:
+            cookies.append({
+                "username": row['username'],
+                "browser": row['browser'],
+                "profile": row['profile'],
+                "domain": row['domain'],
+                "name": row['name'],
+                "path": row['path'],
+                "expiresUtc": row['expires_utc'].isoformat() if row['expires_utc'] else None,
+                "isSecure": row['is_secure'],
+                "isHttpOnly": row['is_http_only'],
+                "sameSite": row['same_site'],
+                "isSession": row['is_session'],
+                "isExpired": row['is_expired']
+            })
+        
+        return {"cookies": cookies, "count": len(cookies)}
 
 
 @app.post("/api/v1/inventory/hardware", dependencies=[Depends(verify_api_key)])
@@ -773,6 +848,89 @@ async def submit_browser(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
                         profile.get("savedPasswordCount"),
                         json.dumps(profile.get("extensions", []))
                     )
+    
+    # NEW: Handle new format with users array (from SYSTEM service scanning all users)
+    users = data.get("users", [])
+    if users:
+        await conn.execute("DELETE FROM browser_cookies WHERE node_id = $1", uuid)
+        
+        for user_data in users:
+            username = user_data.get("username", "unknown")
+            
+            for browser_key in ["chrome", "edge", "firefox"]:
+                browser_data = user_data.get(browser_key)
+                if not browser_data or not browser_data.get("installed"):
+                    continue
+                
+                browser_name = browser_key.title()
+                
+                for profile in browser_data.get("profiles", []):
+                    profile_name = profile.get("name", "Default")
+                    
+                    # Store browser profile with username
+                    await conn.execute("""
+                        INSERT INTO browser_current (node_id, browser, profile, username,
+                            history_count, bookmark_count, cookies_count, logins_count, extensions, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                        ON CONFLICT (node_id, browser, profile) DO UPDATE SET
+                            username = EXCLUDED.username,
+                            history_count = EXCLUDED.history_count,
+                            bookmark_count = EXCLUDED.bookmark_count,
+                            cookies_count = EXCLUDED.cookies_count,
+                            logins_count = EXCLUDED.logins_count,
+                            extensions = EXCLUDED.extensions,
+                            updated_at = NOW()
+                    """,
+                        uuid,
+                        browser_name,
+                        profile_name,
+                        username,
+                        profile.get("historyCount"),
+                        profile.get("bookmarksCount"),
+                        profile.get("cookiesCount"),
+                        profile.get("loginsCount"),
+                        json.dumps(profile.get("extensions", []))
+                    )
+                    
+                    # Store cookies
+                    cookies = profile.get("cookies", [])
+                    for cookie in cookies:
+                        if cookie.get("domain") == "ERROR":
+                            continue  # Skip error entries
+                        try:
+                            expires = None
+                            if cookie.get("expiresUtc"):
+                                expires = cookie["expiresUtc"]
+                            
+                            await conn.execute("""
+                                INSERT INTO browser_cookies 
+                                (node_id, username, browser, profile, domain, name, path,
+                                 expires_utc, is_secure, is_http_only, same_site, is_session, is_expired)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                ON CONFLICT (node_id, username, browser, profile, domain, name) DO UPDATE SET
+                                    path = EXCLUDED.path,
+                                    expires_utc = EXCLUDED.expires_utc,
+                                    is_secure = EXCLUDED.is_secure,
+                                    is_http_only = EXCLUDED.is_http_only,
+                                    same_site = EXCLUDED.same_site,
+                                    is_session = EXCLUDED.is_session,
+                                    is_expired = EXCLUDED.is_expired,
+                                    updated_at = NOW()
+                            """,
+                                uuid, username, browser_name, profile_name,
+                                cookie.get("domain", ""),
+                                cookie.get("name", ""),
+                                cookie.get("path", "/"),
+                                expires,
+                                cookie.get("isSecure", False),
+                                cookie.get("isHttpOnly", False),
+                                cookie.get("sameSite"),
+                                cookie.get("isSession", False),
+                                cookie.get("isExpired", False)
+                            )
+                        except Exception as e:
+                            # Log but continue with other cookies
+                            print(f"Cookie insert error: {e}")
     
     return {"status": "ok", "node_id": str(uuid), "type": "browser"}
 
