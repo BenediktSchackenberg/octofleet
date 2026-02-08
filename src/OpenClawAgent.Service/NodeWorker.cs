@@ -168,7 +168,7 @@ public class NodeWorker : BackgroundService
                 client = new
                 {
                     id = "node-host",  // Must be a known client type from GATEWAY_CLIENT_IDS
-                    version = "0.3.14",
+                    version = "0.3.15",
                     platform = "windows",
                     mode = "node",
                     instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}",  // Unique instance identifier
