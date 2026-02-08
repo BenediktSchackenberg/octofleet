@@ -146,8 +146,15 @@ public class NodeWorker : BackgroundService
 
         // Send connect request
         var requestId = Interlocked.Increment(ref _requestId).ToString();
-        // Create device object with signed challenge
-        var deviceObject = _deviceIdentity.CreateDeviceObject(nonce);
+        // Create device object with signed challenge using Gateway's expected payload format
+        var deviceObject = _deviceIdentity.CreateDeviceObject(
+            nonce, 
+            clientId: "node-host",
+            clientMode: "node",
+            role: "node",
+            scopes: Array.Empty<string>(),
+            token: config.GatewayToken
+        );
         
         var request = new
         {
@@ -161,7 +168,7 @@ public class NodeWorker : BackgroundService
                 client = new
                 {
                     id = "node-host",  // Must be a known client type from GATEWAY_CLIENT_IDS
-                    version = "0.3.12",
+                    version = "0.3.13",
                     platform = "windows",
                     mode = "node",
                     instanceId = $"win-{Environment.MachineName.ToLowerInvariant()}",  // Unique instance identifier
@@ -206,7 +213,7 @@ public class NodeWorker : BackgroundService
                 },
                 auth = new { token = config.GatewayToken },
                 device = deviceObject,
-                userAgent = $"openclaw-windows-service/0.3.12 ({config.DisplayName})"
+                userAgent = $"openclaw-windows-service/0.3.13 ({config.DisplayName})"
             }
         };
 

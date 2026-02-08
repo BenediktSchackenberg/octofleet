@@ -72,8 +72,9 @@ public class DeviceIdentity
     
     /// <summary>
     /// Create device object for connect request with signed challenge.
+    /// Gateway expects payload format: v2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce
     /// </summary>
-    public object CreateDeviceObject(string? nonce = null)
+    public object CreateDeviceObject(string? nonce, string clientId, string clientMode, string role, string[] scopes, string? token)
     {
         if (string.IsNullOrEmpty(nonce))
         {
@@ -87,8 +88,11 @@ public class DeviceIdentity
         
         var signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         
-        // Build payload to sign: nonce:signedAt
-        var payload = $"{nonce}:{signedAt}";
+        // Build payload to sign in Gateway format:
+        // v2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce
+        var scopesStr = string.Join(",", scopes);
+        var tokenStr = token ?? "";
+        var payload = $"v2|{Id}|{clientId}|{clientMode}|{role}|{scopesStr}|{signedAt}|{tokenStr}|{nonce}";
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
         
         // Sign with Ed25519
