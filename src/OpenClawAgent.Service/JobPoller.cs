@@ -19,6 +19,10 @@ public class JobPoller : BackgroundService
     private const int DefaultPollIntervalMs = 30000;  // 30 seconds
     private const int ErrorBackoffMs = 60000;         // 1 minute on error
     private const int MaxRetries = 3;                 // Retry failed jobs 3 times
+    
+    // E3-10: Exponential backoff tracking
+    private int _consecutiveErrors = 0;
+    private const int MaxBackoffMinutes = 15;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -76,6 +80,9 @@ public class JobPoller : BackgroundService
                 // Poll for pending jobs
                 var pendingJobs = await GetPendingJobsAsync(baseUrl, nodeId, stoppingToken);
                 
+                // E3-10: Reset backoff on successful poll
+                _consecutiveErrors = 0;
+                
                 if (pendingJobs.Count > 0)
                 {
                     _logger.LogInformation("Found {Count} pending jobs", pendingJobs.Count);
@@ -95,8 +102,15 @@ public class JobPoller : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Job polling error, backing off...");
-                await Task.Delay(ErrorBackoffMs, stoppingToken);
+                // E3-10: Exponential backoff on errors
+                _consecutiveErrors++;
+                var backoffMinutes = Math.Min(Math.Pow(2, _consecutiveErrors - 1), MaxBackoffMinutes);
+                var backoffMs = (int)(backoffMinutes * 60 * 1000);
+                
+                _logger.LogError(ex, "Job polling error (attempt {Attempt}), backing off for {Minutes} minute(s)...", 
+                    _consecutiveErrors, backoffMinutes);
+                    
+                await Task.Delay(backoffMs, stoppingToken);
             }
         }
 
@@ -131,7 +145,8 @@ public class JobPoller : BackgroundService
 
     private async Task ExecuteJobAsync(string baseUrl, PendingJob job, CancellationToken ct)
     {
-        _logger.LogInformation("Executing job: {JobName} (instance: {InstanceId})", job.JobName, job.InstanceId);
+        _logger.LogInformation("Executing job: {JobName} (instance: {InstanceId}, attempt: {Attempt}/{MaxAttempts})", 
+            job.JobName, job.InstanceId, job.Attempt, job.MaxAttempts);
 
         // Mark job as started
         await UpdateJobStatusAsync(baseUrl, job.InstanceId, "start", ct);
@@ -142,19 +157,76 @@ public class JobPoller : BackgroundService
             StartedAt = DateTime.UtcNow
         };
 
+        var stdout = new System.Text.StringBuilder();
+        var stderr = new System.Text.StringBuilder();
+
         try
         {
-            // Parse and execute the command
+            // E3-08: Execute Pre-Script if defined
+            if (!string.IsNullOrWhiteSpace(job.PreScript))
+            {
+                _logger.LogInformation("Executing pre-script for job {InstanceId}", job.InstanceId);
+                stdout.AppendLine("=== PRE-SCRIPT ===");
+                
+                var preResult = await ExecuteScriptContentAsync(job.PreScript, job.TimeoutSeconds / 4, ct);
+                stdout.AppendLine(preResult.Stdout);
+                stderr.AppendLine(preResult.Stderr);
+                
+                if (preResult.ExitCode != 0)
+                {
+                    _logger.LogWarning("Pre-script failed with exit code {ExitCode}", preResult.ExitCode);
+                    result.ExitCode = preResult.ExitCode;
+                    result.Success = false;
+                    result.Stdout = stdout.ToString();
+                    result.Stderr = $"Pre-script failed: {stderr}";
+                    result.CompletedAt = DateTime.UtcNow;
+                    await ReportJobResultAsync(baseUrl, result, ct);
+                    return;
+                }
+            }
+
+            // Execute main command
+            stdout.AppendLine("=== MAIN COMMAND ===");
             var commandResult = await ExecuteCommandAsync(job.CommandType, job.CommandPayload, job.TimeoutSeconds, ct);
             
             result.ExitCode = commandResult.ExitCode;
-            result.Stdout = commandResult.Stdout;
-            result.Stderr = commandResult.Stderr;
-            result.Success = commandResult.ExitCode == 0;
+            stdout.AppendLine(commandResult.Stdout);
+            stderr.AppendLine(commandResult.Stderr);
+            result.Success = commandResult.ExitCode == 0 || commandResult.ExitCode == 3010; // 3010 = reboot required
+
+            // E3-08: Execute Post-Script if main command succeeded
+            if (result.Success && !string.IsNullOrWhiteSpace(job.PostScript))
+            {
+                _logger.LogInformation("Executing post-script for job {InstanceId}", job.InstanceId);
+                stdout.AppendLine("=== POST-SCRIPT ===");
+                
+                var postResult = await ExecuteScriptContentAsync(job.PostScript, job.TimeoutSeconds / 4, ct);
+                stdout.AppendLine(postResult.Stdout);
+                stderr.AppendLine(postResult.Stderr);
+                
+                if (postResult.ExitCode != 0)
+                {
+                    _logger.LogWarning("Post-script failed with exit code {ExitCode}, but main command succeeded", postResult.ExitCode);
+                    // Post-script failure is logged but doesn't fail the job
+                }
+            }
+
+            result.Stdout = stdout.ToString();
+            result.Stderr = stderr.ToString();
             result.CompletedAt = DateTime.UtcNow;
 
             _logger.LogInformation("Job {InstanceId} completed with exit code: {ExitCode}", 
                 job.InstanceId, result.ExitCode);
+
+            // E3-09: Handle reboot if required
+            if (job.RequiresReboot || commandResult.ExitCode == 3010)
+            {
+                _logger.LogInformation("Job requires reboot, scheduling in {Delay} seconds", job.RebootDelaySeconds);
+                result.Stdout += $"\n=== REBOOT SCHEDULED in {job.RebootDelaySeconds}s ===";
+                
+                // Schedule reboot (non-blocking)
+                _ = ScheduleRebootAsync(job.RebootDelaySeconds, ct);
+            }
         }
         catch (Exception ex)
         {
@@ -168,6 +240,84 @@ public class JobPoller : BackgroundService
 
         // Report result back to API
         await ReportJobResultAsync(baseUrl, result, ct);
+    }
+
+    // E3-08: Helper for executing inline script content
+    private async Task<CommandResult> ExecuteScriptContentAsync(string scriptContent, int timeoutSeconds, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        
+        psi.ArgumentList.Add("-NoProfile");
+        psi.ArgumentList.Add("-NonInteractive");
+        psi.ArgumentList.Add("-Command");
+        psi.ArgumentList.Add(scriptContent);
+
+        using var process = Process.Start(psi);
+        if (process == null)
+        {
+            return new CommandResult { ExitCode = -1, Stderr = "Failed to start PowerShell" };
+        }
+
+        var timeout = TimeSpan.FromSeconds(timeoutSeconds > 0 ? timeoutSeconds : 60);
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+        try
+        {
+            var stdout = await process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            var stderr = await process.StandardError.ReadToEndAsync(linkedCts.Token);
+            await process.WaitForExitAsync(linkedCts.Token);
+
+            return new CommandResult
+            {
+                ExitCode = process.ExitCode,
+                Stdout = stdout,
+                Stderr = stderr
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(); } catch { }
+            return new CommandResult { ExitCode = -1, Stderr = "Script timed out" };
+        }
+    }
+
+    // E3-09: Schedule system reboot
+    private async Task ScheduleRebootAsync(int delaySeconds, CancellationToken ct)
+    {
+        try
+        {
+            // shutdown /r /t <seconds> /c "OpenClaw scheduled reboot"
+            var psi = new ProcessStartInfo
+            {
+                FileName = "shutdown.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("/r");
+            psi.ArgumentList.Add("/t");
+            psi.ArgumentList.Add(delaySeconds.ToString());
+            psi.ArgumentList.Add("/c");
+            psi.ArgumentList.Add("OpenClaw Agent: Scheduled reboot after job completion");
+
+            using var process = Process.Start(psi);
+            if (process != null)
+            {
+                await process.WaitForExitAsync(ct);
+                _logger.LogInformation("Reboot scheduled, exit code: {ExitCode}", process.ExitCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to schedule reboot");
+        }
     }
 
     private async Task<CommandResult> ExecuteCommandAsync(string commandType, string commandPayload, int timeoutSeconds, CancellationToken ct)
@@ -478,8 +628,17 @@ public class PendingJob
     public string CommandType { get; set; } = "command";
     public string CommandPayload { get; set; } = "{}";
     public int TimeoutSeconds { get; set; } = 300;
-    public int RetryCount { get; set; } = 0;
+    public int Attempt { get; set; } = 1;
+    public int MaxAttempts { get; set; } = 3;
     public DateTime CreatedAt { get; set; }
+    
+    // E3-08: Pre/Post Scripts
+    public string? PreScript { get; set; }
+    public string? PostScript { get; set; }
+    
+    // E3-09: Reboot Handling
+    public bool RequiresReboot { get; set; } = false;
+    public int RebootDelaySeconds { get; set; } = 60;
 }
 
 public class JobResult
