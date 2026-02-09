@@ -1,7 +1,8 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using OpenClawAgent.Service.Packages;
 
 namespace OpenClawAgent.Service;
 
@@ -12,25 +13,26 @@ namespace OpenClawAgent.Service;
 public class DeploymentPoller : BackgroundService
 {
     private readonly ILogger<DeploymentPoller> _logger;
-    private readonly ServiceConfig _config;
-    private readonly PackageManager _packageManager;
     private readonly HttpClient _httpClient;
+    private readonly string _cacheDir;
     
     private const int PollIntervalMs = 60000;  // 1 minute
     private const int ErrorBackoffMs = 300000; // 5 minutes
     
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         PropertyNameCaseInsensitive = true
     };
 
-    public DeploymentPoller(ILogger<DeploymentPoller> logger, ServiceConfig config)
+    public DeploymentPoller(ILogger<DeploymentPoller> logger)
     {
         _logger = logger;
-        _config = config;
-        _packageManager = new PackageManager(LoggerFactory.Create(b => b.AddConsole()).CreateLogger<PackageManager>());
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        _cacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "OpenClaw", "PackageCache");
+        Directory.CreateDirectory(_cacheDir);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -130,32 +132,28 @@ public class DeploymentPoller : BackgroundService
                 // Uninstall
                 await ReportStatusAsync(baseUrl, apiKey, nodeId, deployment.DeploymentId, "installing", null, null, ct);
                 
-                var uninstallResult = await _packageManager.UninstallPackageAsync(
+                var (exitCode, error) = await RunUninstallAsync(
                     deployment.InstallerType ?? "exe",
                     deployment.UninstallArgs ?? "",
                     ct);
 
                 await ReportStatusAsync(baseUrl, apiKey, nodeId, deployment.DeploymentId,
-                    uninstallResult.ExitCode == 0 ? "success" : "failed",
-                    uninstallResult.ExitCode,
-                    uninstallResult.ExitCode != 0 ? uninstallResult.Error : null,
+                    exitCode == 0 || exitCode == 3010 ? "success" : "failed",
+                    exitCode,
+                    exitCode != 0 && exitCode != 3010 ? error : null,
                     ct);
             }
             else
             {
                 // Install (required or available)
-                // Download package
                 string localPath;
                 if (!string.IsNullOrEmpty(deployment.InstallerUrl))
                 {
-                    localPath = await _packageManager.DownloadPackageAsync(
-                        deployment.InstallerUrl, 
-                        deployment.ExpectedHash,
-                        ct);
+                    localPath = await DownloadFileAsync(deployment.InstallerUrl, deployment.ExpectedHash, ct);
                 }
                 else if (!string.IsNullOrEmpty(deployment.InstallerPath))
                 {
-                    localPath = deployment.InstallerPath; // SMB path
+                    localPath = deployment.InstallerPath; // SMB/UNC path
                 }
                 else
                 {
@@ -165,30 +163,31 @@ public class DeploymentPoller : BackgroundService
                 // Verify hash if provided
                 if (!string.IsNullOrEmpty(deployment.ExpectedHash))
                 {
-                    var valid = await _packageManager.VerifyHashAsync(localPath, deployment.ExpectedHash, ct);
-                    if (!valid)
+                    var actualHash = await ComputeFileHashAsync(localPath, ct);
+                    if (!actualHash.Equals(deployment.ExpectedHash, StringComparison.OrdinalIgnoreCase))
                     {
-                        throw new Exception("Hash verification failed");
+                        throw new Exception($"Hash mismatch: expected {deployment.ExpectedHash}, got {actualHash}");
                     }
                 }
 
                 // Install
                 await ReportStatusAsync(baseUrl, apiKey, nodeId, deployment.DeploymentId, "installing", null, null, ct);
                 
-                var installResult = await _packageManager.InstallPackageAsync(
+                var (exitCode, error) = await RunInstallAsync(
                     localPath,
                     deployment.InstallerType ?? "exe",
                     deployment.InstallArgs ?? "",
                     ct);
 
+                var success = exitCode == 0 || exitCode == 3010; // 3010 = reboot required
                 await ReportStatusAsync(baseUrl, apiKey, nodeId, deployment.DeploymentId,
-                    installResult.ExitCode == 0 ? "success" : "failed",
-                    installResult.ExitCode,
-                    installResult.ExitCode != 0 ? installResult.Error : null,
+                    success ? "success" : "failed",
+                    exitCode,
+                    !success ? error : null,
                     ct);
 
                 _logger.LogInformation("Deployment {Name} completed with exit code {ExitCode}",
-                    deployment.Name, installResult.ExitCode);
+                    deployment.Name, exitCode);
             }
         }
         catch (Exception ex)
@@ -197,6 +196,125 @@ public class DeploymentPoller : BackgroundService
             await ReportStatusAsync(baseUrl, apiKey, nodeId, deployment.DeploymentId, 
                 "failed", -1, ex.Message, ct);
         }
+    }
+
+    private async Task<string> DownloadFileAsync(string url, string? expectedHash, CancellationToken ct)
+    {
+        var fileName = Path.GetFileName(new Uri(url).LocalPath);
+        if (string.IsNullOrEmpty(fileName)) fileName = "package.exe";
+        
+        // Check cache first
+        if (!string.IsNullOrEmpty(expectedHash))
+        {
+            var cachedPath = Path.Combine(_cacheDir, expectedHash, fileName);
+            if (File.Exists(cachedPath))
+            {
+                _logger.LogInformation("Using cached file: {Path}", cachedPath);
+                return cachedPath;
+            }
+        }
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"openclaw_{Guid.NewGuid()}_{fileName}");
+        
+        _logger.LogInformation("Downloading {Url} to {Path}", url, tempPath);
+        
+        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+        
+        await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
+        await using var fileStream = File.Create(tempPath);
+        await contentStream.CopyToAsync(fileStream, ct);
+        
+        // Move to cache if we have a hash
+        if (!string.IsNullOrEmpty(expectedHash))
+        {
+            var cacheSubDir = Path.Combine(_cacheDir, expectedHash);
+            Directory.CreateDirectory(cacheSubDir);
+            var finalPath = Path.Combine(cacheSubDir, fileName);
+            if (File.Exists(finalPath)) File.Delete(finalPath);
+            File.Move(tempPath, finalPath);
+            return finalPath;
+        }
+
+        return tempPath;
+    }
+
+    private async Task<string> ComputeFileHashAsync(string filePath, CancellationToken ct)
+    {
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        await using var stream = File.OpenRead(filePath);
+        var hash = await sha256.ComputeHashAsync(stream, ct);
+        return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+    }
+
+    private async Task<(int ExitCode, string? Error)> RunInstallAsync(
+        string filePath, string installerType, string args, CancellationToken ct)
+    {
+        var isMsi = installerType.Equals("msi", StringComparison.OrdinalIgnoreCase) 
+                    || filePath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+        
+        ProcessStartInfo psi;
+        if (isMsi)
+        {
+            psi = new ProcessStartInfo
+            {
+                FileName = "msiexec",
+                Arguments = $"/i \"{filePath}\" /qn /norestart {args}".Trim(),
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+        }
+        else
+        {
+            psi = new ProcessStartInfo
+            {
+                FileName = filePath,
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+        }
+
+        _logger.LogInformation("Running: {FileName} {Args}", psi.FileName, psi.Arguments);
+
+        using var process = Process.Start(psi);
+        if (process == null)
+            return (-1, "Failed to start process");
+
+        var stderr = await process.StandardError.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+
+        return (process.ExitCode, string.IsNullOrEmpty(stderr) ? null : stderr);
+    }
+
+    private async Task<(int ExitCode, string? Error)> RunUninstallAsync(
+        string installerType, string args, CancellationToken ct)
+    {
+        // For uninstall, args should contain the full command (e.g., product code for msiexec)
+        var psi = new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = $"/c {args}",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        _logger.LogInformation("Running uninstall: {Args}", args);
+
+        using var process = Process.Start(psi);
+        if (process == null)
+            return (-1, "Failed to start process");
+
+        var stderr = await process.StandardError.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+
+        return (process.ExitCode, string.IsNullOrEmpty(stderr) ? null : stderr);
     }
 
     private async Task ReportStatusAsync(
