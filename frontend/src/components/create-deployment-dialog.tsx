@@ -42,6 +42,8 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
   const [targetType, setTargetType] = useState<"all" | "group" | "node">("all");
   const [targetId, setTargetId] = useState("");
   const [mode, setMode] = useState<"required" | "available" | "uninstall">("required");
+  const [scheduledStart, setScheduledStart] = useState("");
+  const [scheduledEnd, setScheduledEnd] = useState("");
   const [loading, setLoading] = useState(false);
   const [packages, setPackages] = useState<Package[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -81,6 +83,8 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           targetType,
           targetId: targetType === "all" ? null : targetId,
           mode,
+          scheduledStart: scheduledStart || null,
+          scheduledEnd: scheduledEnd || null,
         }),
       });
       if (res.ok) {
@@ -102,6 +106,8 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
     setTargetType("all");
     setTargetId("");
     setMode("required");
+    setScheduledStart("");
+    setScheduledEnd("");
   }
 
   return (
@@ -211,6 +217,28 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
                 <SelectItem value="uninstall">Deinstallation</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* E5-05: Scheduling (optional) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="scheduledStart">Startzeit (optional)</Label>
+              <Input
+                id="scheduledStart"
+                type="datetime-local"
+                value={scheduledStart}
+                onChange={(e) => setScheduledStart(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="scheduledEnd">Endzeit (optional)</Label>
+              <Input
+                id="scheduledEnd"
+                type="datetime-local"
+                value={scheduledEnd}
+                onChange={(e) => setScheduledEnd(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 

@@ -121,6 +121,58 @@ export default function DeploymentsPage() {
         </div>
       </div>
 
+      {/* E5-13: Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Gesamt</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{deployments.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Aktiv</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-blue-500">
+              {deployments.filter(d => d.status === "active").length}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Erfolg (Nodes)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-green-500">
+              {deployments.reduce((sum, d) => sum + d.success_count, 0)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Fehlgeschlagen</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-red-500">
+              {deployments.reduce((sum, d) => sum + d.failed_count, 0)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Ausstehend</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-gray-500">
+              {deployments.reduce((sum, d) => sum + d.pending_count + d.in_progress_count, 0)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Alle Deployments</CardTitle>
