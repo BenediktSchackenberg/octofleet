@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link";
 import { Timeline } from "@/components/timeline";
 import { Breadcrumb } from "@/components/ui-components";
+import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 
 const API_BASE = 'http://192.168.0.5:8080/api/v1';
 const API_KEY = 'openclaw-inventory-dev-key';
@@ -394,6 +395,13 @@ export default function NodeDetailPage() {
             )}
           </div>
           <div className="flex gap-2">
+            {node && (
+              <ManageTagsDialog 
+                nodeId={node.id} 
+                nodeTags={node.tags} 
+                onTagsChanged={fetchNodeDetails} 
+              />
+            )}
             <Button 
               variant="outline" 
               onClick={refreshInventory}

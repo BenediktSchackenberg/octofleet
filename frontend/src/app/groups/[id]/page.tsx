@@ -460,6 +460,7 @@ function RuleDisplay({ rule }: { rule: Record<string, unknown> }) {
     agent_version: "Agent Version",
     domain: "Domain",
     is_domain_joined: "Domain-Mitglied",
+    tags: "🏷️ Hat Tag",
   };
 
   const OP_LABELS: Record<string, string> = {
@@ -474,6 +475,7 @@ function RuleDisplay({ rule }: { rule: Record<string, unknown> }) {
     gt: ">",
     lt: "<",
     regex: "entspricht Regex",
+    has_tag: "hat Tag",
   };
 
   const operator = (rule.operator as string) || "AND";

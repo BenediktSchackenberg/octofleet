@@ -200,6 +200,14 @@ async def update_dynamic_group_memberships(db: asyncpg.Pool, node_uuid: UUID, no
     Called after a node checks in with inventory data.
     """
     async with db.acquire() as conn:
+        # Get node's tags for has_tag evaluations
+        tags = await conn.fetch("""
+            SELECT t.name FROM device_tags dt
+            JOIN tags t ON dt.tag_id = t.id
+            WHERE dt.node_id = $1
+        """, node_uuid)
+        node_data["tags"] = [t['name'] for t in tags]
+        
         # Get all dynamic groups
         dynamic_groups = await conn.fetch("""
             SELECT id, name, dynamic_rule FROM groups WHERE is_dynamic = true AND dynamic_rule IS NOT NULL
@@ -1694,6 +1702,17 @@ async def preview_dynamic_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(
             LEFT JOIN system_current s ON n.id = s.node_id
         """)
         
+        # Pre-fetch all tags for all nodes
+        all_tags = await conn.fetch("""
+            SELECT dt.node_id, t.name FROM device_tags dt
+            JOIN tags t ON dt.tag_id = t.id
+        """)
+        node_tags_map = {}
+        for row in all_tags:
+            if row['node_id'] not in node_tags_map:
+                node_tags_map[row['node_id']] = []
+            node_tags_map[row['node_id']].append(row['name'])
+        
         matching = []
         non_matching = []
         
@@ -1706,6 +1725,7 @@ async def preview_dynamic_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(
                 "agent_version": node['agent_version'] or "",
                 "domain": node['domain'] or "",
                 "is_domain_joined": node['is_domain_joined'] or False,
+                "tags": node_tags_map.get(node['id'], []),
             }
             
             if evaluate_dynamic_rule(rule, node_data):
@@ -1759,6 +1779,17 @@ async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_d
             LEFT JOIN system_current s ON n.id = s.node_id
         """)
         
+        # Pre-fetch all tags for all nodes
+        all_tags = await conn.fetch("""
+            SELECT dt.node_id, t.name FROM device_tags dt
+            JOIN tags t ON dt.tag_id = t.id
+        """)
+        node_tags_map = {}
+        for row in all_tags:
+            if row['node_id'] not in node_tags_map:
+                node_tags_map[row['node_id']] = []
+            node_tags_map[row['node_id']].append(row['name'])
+        
         added = 0
         removed = 0
         
@@ -1771,6 +1802,7 @@ async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_d
                 "agent_version": node['agent_version'] or "",
                 "domain": node['domain'] or "",
                 "is_domain_joined": node['is_domain_joined'] or False,
+                "tags": node_tags_map.get(node['id'], []),
             }
             
             should_be_member = evaluate_dynamic_rule(rule, node_data)

@@ -49,6 +49,7 @@ const FIELDS = [
   { value: "agent_version", label: "Agent Version" },
   { value: "domain", label: "Domain" },
   { value: "is_domain_joined", label: "Domain-Mitglied" },
+  { value: "tags", label: "🏷️ Hat Tag" },
 ];
 
 const OPERATORS = [
@@ -61,6 +62,7 @@ const OPERATORS = [
   { value: "gte", label: "≥ (größer/gleich)" },
   { value: "lte", label: "≤ (kleiner/gleich)" },
   { value: "regex", label: "Regex" },
+  { value: "has_tag", label: "hat Tag (exakt)" },
 ];
 
 export function CreateDynamicGroupDialog() {
