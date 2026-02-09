@@ -3983,19 +3983,35 @@ async def update_node_deployment_status(node_id: str, deployment_id: str, data: 
         if not node:
             raise HTTPException(404, "Node not found")
         
+        exit_code = data.get("exitCode")
+        output = data.get("output")
+        error_message = data.get("errorMessage")
+        
+        # Update status - use separate statements to avoid type ambiguity
         await conn.execute("""
             UPDATE deployment_status 
-            SET status = $1, 
+            SET status = $1::text, 
                 exit_code = $2, 
                 output = $3, 
-                error_message = $4,
-                completed_at = CASE WHEN $1 IN ('success', 'failed', 'skipped') THEN NOW() ELSE completed_at END,
-                started_at = CASE WHEN $1 = 'downloading' AND started_at IS NULL THEN NOW() ELSE started_at END,
-                attempts = attempts + CASE WHEN $1 IN ('success', 'failed') THEN 1 ELSE 0 END,
-                last_attempt_at = CASE WHEN $1 IN ('success', 'failed') THEN NOW() ELSE last_attempt_at END
-            WHERE deployment_id = $2 AND node_id = $3
-        """, status, data.get("exitCode"), data.get("output"), data.get("errorMessage"),
-            deployment_id, node["id"])
+                error_message = $4
+            WHERE deployment_id = $5::uuid AND node_id = $6::uuid
+        """, status, exit_code, output, error_message, deployment_id, node["id"])
+        
+        # Update timestamps separately
+        if status == "downloading":
+            await conn.execute("""
+                UPDATE deployment_status 
+                SET started_at = COALESCE(started_at, NOW())
+                WHERE deployment_id = $1::uuid AND node_id = $2::uuid
+            """, deployment_id, node["id"])
+        elif status in ("success", "failed", "skipped"):
+            await conn.execute("""
+                UPDATE deployment_status 
+                SET completed_at = NOW(),
+                    attempts = attempts + 1,
+                    last_attempt_at = NOW()
+                WHERE deployment_id = $1::uuid AND node_id = $2::uuid
+            """, deployment_id, node["id"])
         
         # Check if all nodes completed -> mark deployment as completed
         stats = await conn.fetchrow("""
