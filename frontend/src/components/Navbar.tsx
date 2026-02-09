@@ -9,6 +9,7 @@ const navItems = [
   { href: "/groups", label: "Groups", icon: "📁" },
   { href: "/jobs", label: "Jobs", icon: "🚀" },
   { href: "/packages", label: "Packages", icon: "📦" },
+  { href: "/eventlog", label: "Eventlog", icon: "📋" },
 ];
 
 export function Navbar() {

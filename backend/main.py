@@ -2922,3 +2922,304 @@ async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool =
         }
 
 
+
+
+# ============================================
+# EVENTLOG COLLECTION ENDPOINTS
+# ============================================
+
+@app.post("/api/v1/nodes/{node_id}/eventlog")
+async def push_eventlog(node_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
+    """Receive eventlog entries from agent"""
+    data = await request.json()
+    events = data.get("events", [])
+    
+    if not events:
+        return {"status": "ok", "inserted": 0}
+    
+    async with db.acquire() as conn:
+        # Verify node exists
+        node = await conn.fetchrow("SELECT node_id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        inserted = 0
+        for event in events:
+            try:
+                await conn.execute("""
+                    INSERT INTO eventlog_entries 
+                    (node_id, log_name, event_id, level, level_name, source, message, event_time, raw_data)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                """,
+                    node_id,
+                    sanitize_for_postgres(event.get("logName", "Unknown")),
+                    event.get("eventId", 0),
+                    event.get("level", 4),
+                    sanitize_for_postgres(event.get("levelName")),
+                    sanitize_for_postgres(event.get("source")),
+                    sanitize_for_postgres(event.get("message", ""))[:4000],  # Limit message size
+                    parse_datetime(event.get("eventTime")) or datetime.utcnow(),
+                    json.dumps(sanitize_for_postgres(event.get("rawData"))) if event.get("rawData") else None
+                )
+                inserted += 1
+            except Exception as e:
+                print(f"Error inserting event: {e}")
+                continue
+        
+        return {"status": "ok", "inserted": inserted, "total": len(events)}
+
+
+@app.get("/api/v1/nodes/{node_id}/eventlog")
+async def get_node_eventlog(
+    node_id: str,
+    log_name: Optional[str] = None,
+    level: Optional[int] = None,  # Max level (1=Critical only, 2=+Error, etc.)
+    event_id: Optional[int] = None,
+    hours: int = 24,
+    limit: int = 100,
+    offset: int = 0,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Get eventlog entries for a node with filtering"""
+    async with db.acquire() as conn:
+        # Build query with filters
+        conditions = ["node_id = $1", "collected_at > NOW() - $2 * INTERVAL '1 hour'"]
+        params = [node_id, hours]
+        param_idx = 3
+        
+        if log_name:
+            conditions.append(f"log_name = ${param_idx}")
+            params.append(log_name)
+            param_idx += 1
+        
+        if level:
+            conditions.append(f"level <= ${param_idx}")
+            params.append(level)
+            param_idx += 1
+        
+        if event_id:
+            conditions.append(f"event_id = ${param_idx}")
+            params.append(event_id)
+            param_idx += 1
+        
+        where_clause = " AND ".join(conditions)
+        
+        # Get total count
+        count = await conn.fetchval(f"""
+            SELECT COUNT(*) FROM eventlog_entries WHERE {where_clause}
+        """, *params)
+        
+        # Get events
+        params.extend([limit, offset])
+        rows = await conn.fetch(f"""
+            SELECT id, log_name, event_id, level, level_name, source, 
+                   LEFT(message, 500) as message, event_time, collected_at
+            FROM eventlog_entries 
+            WHERE {where_clause}
+            ORDER BY event_time DESC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """, *params)
+        
+        events = [dict(r) for r in rows]
+        
+        # Convert datetimes to ISO strings
+        for e in events:
+            if e.get("event_time"):
+                e["eventTime"] = e.pop("event_time").isoformat()
+            if e.get("collected_at"):
+                e["collectedAt"] = e.pop("collected_at").isoformat()
+            e["eventId"] = e.pop("event_id")
+            e["logName"] = e.pop("log_name")
+            e["levelName"] = e.pop("level_name")
+        
+        return {
+            "nodeId": node_id,
+            "events": events,
+            "total": count,
+            "limit": limit,
+            "offset": offset
+        }
+
+
+@app.get("/api/v1/eventlog/summary")
+async def get_eventlog_summary(hours: int = 24, db: asyncpg.Pool = Depends(get_db)):
+    """Get eventlog summary across all nodes for dashboard"""
+    async with db.acquire() as conn:
+        # Summary per node
+        rows = await conn.fetch("""
+            SELECT 
+                e.node_id,
+                n.hostname,
+                e.log_name,
+                COUNT(*) FILTER (WHERE e.level = 1) as critical_count,
+                COUNT(*) FILTER (WHERE e.level = 2) as error_count,
+                COUNT(*) FILTER (WHERE e.level = 3) as warning_count,
+                COUNT(*) as total_count,
+                MAX(e.collected_at) as last_collected
+            FROM eventlog_entries e
+            JOIN nodes n ON n.node_id = e.node_id
+            WHERE e.collected_at > NOW() - $1 * INTERVAL '1 hour'
+            GROUP BY e.node_id, n.hostname, e.log_name
+            ORDER BY critical_count DESC, error_count DESC
+        """, hours)
+        
+        summary = [dict(r) for r in rows]
+        for s in summary:
+            if s.get("last_collected"):
+                s["lastCollected"] = s.pop("last_collected").isoformat()
+            s["criticalCount"] = s.pop("critical_count")
+            s["errorCount"] = s.pop("error_count")
+            s["warningCount"] = s.pop("warning_count")
+            s["totalCount"] = s.pop("total_count")
+            s["nodeId"] = s.pop("node_id")
+            s["logName"] = s.pop("log_name")
+        
+        # Recent critical/error events
+        critical_events = await conn.fetch("""
+            SELECT e.id, e.node_id, n.hostname, e.log_name, e.event_id, 
+                   e.level, e.level_name, e.source, LEFT(e.message, 200) as message, e.event_time
+            FROM eventlog_entries e
+            JOIN nodes n ON n.node_id = e.node_id
+            WHERE e.level <= 2 AND e.collected_at > NOW() - $1 * INTERVAL '1 hour'
+            ORDER BY e.event_time DESC
+            LIMIT 20
+        """, hours)
+        
+        recent = []
+        for r in critical_events:
+            event = dict(r)
+            if event.get("event_time"):
+                event["eventTime"] = event.pop("event_time").isoformat()
+            event["eventId"] = event.pop("event_id")
+            event["nodeId"] = event.pop("node_id")
+            event["logName"] = event.pop("log_name")
+            event["levelName"] = event.pop("level_name")
+            recent.append(event)
+        
+        return {
+            "hours": hours,
+            "summaryByNode": summary,
+            "recentCritical": recent
+        }
+
+
+@app.get("/api/v1/eventlog/important-events")
+async def get_important_events(hours: int = 24, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
+    """Get security-relevant events (login failures, user changes, etc.)"""
+    # Important Security Event IDs
+    important_event_ids = [
+        4624,  # Successful login
+        4625,  # Failed login
+        4634,  # Logoff
+        4648,  # Explicit credential logon
+        4720,  # User created
+        4722,  # User enabled
+        4725,  # User disabled
+        4726,  # User deleted
+        4732,  # Member added to security group
+        4733,  # Member removed from security group
+        4672,  # Special privileges assigned
+        4688,  # Process created
+        4697,  # Service installed
+        7045,  # Service installed (System log)
+        1102,  # Audit log cleared
+    ]
+    
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT e.id, e.node_id, n.hostname, e.log_name, e.event_id, 
+                   e.level, e.level_name, e.source, LEFT(e.message, 500) as message, e.event_time
+            FROM eventlog_entries e
+            JOIN nodes n ON n.node_id = e.node_id
+            WHERE e.event_id = ANY($1) 
+              AND e.collected_at > NOW() - $2 * INTERVAL '1 hour'
+            ORDER BY e.event_time DESC
+            LIMIT $3
+        """, important_event_ids, hours, limit)
+        
+        events = []
+        for r in rows:
+            event = dict(r)
+            if event.get("event_time"):
+                event["eventTime"] = event.pop("event_time").isoformat()
+            event["eventId"] = event.pop("event_id")
+            event["nodeId"] = event.pop("node_id")
+            event["logName"] = event.pop("log_name")
+            event["levelName"] = event.pop("level_name")
+            events.append(event)
+        
+        return {
+            "hours": hours,
+            "events": events,
+            "monitoredEventIds": important_event_ids
+        }
+
+
+@app.post("/api/v1/jobs/{job_id}/parse-eventlog")
+async def parse_eventlog_from_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Parse eventlog data from a completed job and store in eventlog_entries"""
+    async with db.acquire() as conn:
+        # Get job instances with stdout
+        instances = await conn.fetch("""
+            SELECT id, node_id, stdout, status
+            FROM job_instances 
+            WHERE job_id = $1 AND status = 'success' AND stdout IS NOT NULL
+        """, job_id)
+        
+        if not instances:
+            return {"status": "no_data", "message": "No successful instances with output found"}
+        
+        total_inserted = 0
+        results = []
+        
+        for inst in instances:
+            node_id = inst["node_id"]
+            stdout = inst["stdout"]
+            
+            # Extract JSON from stdout (skip "=== MAIN COMMAND ===" prefix)
+            json_start = stdout.find('[')
+            if json_start == -1:
+                results.append({"nodeId": node_id, "status": "no_json", "inserted": 0})
+                continue
+            
+            json_data = stdout[json_start:]
+            
+            try:
+                events = json.loads(json_data)
+                if not isinstance(events, list):
+                    events = [events]
+                
+                inserted = 0
+                for event in events:
+                    try:
+                        await conn.execute("""
+                            INSERT INTO eventlog_entries 
+                            (node_id, log_name, event_id, level, level_name, source, message, event_time)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                            ON CONFLICT DO NOTHING
+                        """,
+                            node_id,
+                            sanitize_for_postgres(event.get("logName", "Unknown")),
+                            event.get("eventId", 0),
+                            event.get("level", 4),
+                            sanitize_for_postgres(event.get("levelName")),
+                            sanitize_for_postgres(event.get("source")),
+                            sanitize_for_postgres(event.get("message", ""))[:4000],
+                            parse_datetime(event.get("eventTime")) or datetime.utcnow()
+                        )
+                        inserted += 1
+                    except Exception as e:
+                        print(f"Error inserting event for {node_id}: {e}")
+                        continue
+                
+                total_inserted += inserted
+                results.append({"nodeId": node_id, "status": "ok", "inserted": inserted, "total": len(events)})
+                
+            except json.JSONDecodeError as e:
+                results.append({"nodeId": node_id, "status": "json_error", "error": str(e)})
+        
+        return {
+            "jobId": job_id,
+            "totalInserted": total_inserted,
+            "results": results
+        }
