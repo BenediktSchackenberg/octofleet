@@ -159,18 +159,56 @@ async def get_agent_version():
 
 
 @app.get("/api/v1/nodes")
-async def list_nodes(db: asyncpg.Pool = Depends(get_db)):
-    """List all known nodes with summary info"""
+async def list_nodes(
+    unassigned: bool = False,
+    group_id: Optional[str] = None,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """List all known nodes with summary info.
+    
+    Query params:
+    - unassigned=true: Only return nodes without any group assignment
+    - group_id=<uuid>: Only return nodes in the specified group
+    """
     async with db.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                   n.first_seen, n.last_seen, n.is_online, n.agent_version,
-                   h.cpu->>'name' as cpu_name,
-                   (h.ram->>'totalGb')::numeric as total_memory_gb
-            FROM nodes n
-            LEFT JOIN hardware_current h ON n.id = h.node_id
-            ORDER BY n.last_seen DESC
-        """)
+        if unassigned:
+            # Only nodes without any group
+            rows = await conn.fetch("""
+                SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version,
+                       h.cpu->>'name' as cpu_name,
+                       (h.ram->>'totalGb')::numeric as total_memory_gb
+                FROM nodes n
+                LEFT JOIN hardware_current h ON n.id = h.node_id
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM device_groups dg WHERE dg.node_id = n.id
+                )
+                ORDER BY n.last_seen DESC
+            """)
+        elif group_id:
+            # Only nodes in specific group
+            rows = await conn.fetch("""
+                SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version,
+                       h.cpu->>'name' as cpu_name,
+                       (h.ram->>'totalGb')::numeric as total_memory_gb
+                FROM nodes n
+                LEFT JOIN hardware_current h ON n.id = h.node_id
+                JOIN device_groups dg ON dg.node_id = n.id
+                WHERE dg.group_id = $1
+                ORDER BY n.last_seen DESC
+            """, UUID(group_id))
+        else:
+            # All nodes
+            rows = await conn.fetch("""
+                SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version,
+                       h.cpu->>'name' as cpu_name,
+                       (h.ram->>'totalGb')::numeric as total_memory_gb
+                FROM nodes n
+                LEFT JOIN hardware_current h ON n.id = h.node_id
+                ORDER BY n.last_seen DESC
+            """)
         return {"nodes": [dict(r) for r in rows]}
 
 

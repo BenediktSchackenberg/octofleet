@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -20,6 +21,7 @@ public class PackageManager
     private readonly HttpClient _httpClient;
     private readonly string _cacheDir;
     private readonly string _apiBaseUrl;
+    private readonly bool _isElevated;
 
     public PackageManager(string apiBaseUrl)
     {
@@ -30,6 +32,50 @@ public class PackageManager
             "OpenClaw", "PackageCache"
         );
         Directory.CreateDirectory(_cacheDir);
+        
+        // Check if running with admin rights (E6: Pre-flight check)
+        _isElevated = CheckElevation();
+    }
+
+    /// <summary>
+    /// Check if the current process has administrator privileges (E6)
+    /// </summary>
+    public static bool CheckElevation()
+    {
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Returns whether the agent is running with admin rights
+    /// </summary>
+    public bool IsElevated => _isElevated;
+
+    /// <summary>
+    /// Pre-flight check before package operations (E6)
+    /// </summary>
+    public InstallResult PreFlightCheck(bool requiresAdmin = true)
+    {
+        if (requiresAdmin && !_isElevated)
+        {
+            return new InstallResult
+            {
+                Success = false,
+                ExitCode = -1,
+                Error = "Agent is not running with Administrator privileges. " +
+                        "MSI/EXE installations require the OpenClaw Agent service to run as Local System or an admin account. " +
+                        "Please check the service configuration in services.msc."
+            };
+        }
+        return new InstallResult { Success = true };
     }
 
     #region E4-15: Detection Rules
@@ -456,7 +502,7 @@ public class PackageManager
     #region E4-16: Install/Uninstall
 
     /// <summary>
-    /// Execute package installation
+    /// Execute package installation (E4-16 + E6 improvements)
     /// </summary>
     public async Task<InstallResult> InstallPackage(DownloadResult download, CancellationToken ct = default)
     {
@@ -471,16 +517,32 @@ public class PackageManager
             return new InstallResult { Success = false, Error = "Missing download info" };
         }
 
+        // E6: Pre-flight admin check for MSI/EXE
+        var isMsi = download.LocalPath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+        var isExe = download.LocalPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        
+        if ((isMsi || isExe || info.RequiresAdmin) && !_isElevated)
+        {
+            return new InstallResult
+            {
+                Success = false,
+                ExitCode = 1603,
+                Error = "Installation requires Administrator privileges. " +
+                        "The OpenClaw Agent service must run as Local System or an admin account. " +
+                        "Check services.msc > OpenClawNodeAgent > Log On tab."
+            };
+        }
+
         var command = info.InstallCommand;
         if (string.IsNullOrEmpty(command))
         {
             // Default MSI install
-            if (download.LocalPath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+            if (isMsi)
             {
                 command = "msiexec";
                 info.InstallArgs = JsonSerializer.SerializeToElement(new[] { "/i", download.LocalPath, "/qn", "/norestart" });
             }
-            else if (download.LocalPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            else if (isExe)
             {
                 command = download.LocalPath;
             }
@@ -560,7 +622,8 @@ public class PackageManager
 
             await process.WaitForExitAsync(ct);
 
-            return new InstallResult
+            // E6: Interpret common MSI exit codes
+            var result = new InstallResult
             {
                 Success = process.ExitCode == 0 || process.ExitCode == 3010, // 3010 = reboot required
                 ExitCode = process.ExitCode,
@@ -568,6 +631,27 @@ public class PackageManager
                 Stderr = stderr,
                 RequiresReboot = process.ExitCode == 3010
             };
+
+            // Add helpful error messages for common failure codes
+            if (!result.Success)
+            {
+                result.Error = process.ExitCode switch
+                {
+                    1603 => "MSI error 1603: Installation failed. This usually means insufficient privileges. " +
+                            "Ensure the OpenClaw Agent service runs as Local System or an Administrator account.",
+                    1618 => "MSI error 1618: Another installation is in progress. Wait and retry.",
+                    1619 => "MSI error 1619: Package could not be opened. File may be corrupted or inaccessible.",
+                    1620 => "MSI error 1620: Package could not be opened. Invalid MSI package.",
+                    1625 => "MSI error 1625: Installation prohibited by system policy (GPO).",
+                    1633 => "MSI error 1633: Platform not supported (32-bit vs 64-bit mismatch).",
+                    1638 => "MSI error 1638: Another version of this product is already installed.",
+                    1641 => "MSI code 1641: Installation succeeded, reboot initiated.",
+                    5 => "Error 5: Access denied. The service account lacks required permissions.",
+                    _ => $"Installation failed with exit code {process.ExitCode}. {stderr}".Trim()
+                };
+            }
+
+            return result;
         }
         catch (Exception ex)
         {

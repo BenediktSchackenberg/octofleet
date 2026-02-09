@@ -243,8 +243,19 @@ export default function HomePage() {
                         <InfoRow label="GPUs" value={hardware?.gpu?.length || 0} />
                       </CardContent>
                     </Card>
-                    <Card>
-                      <CardHeader><CardTitle className="text-lg">Gruppen</CardTitle></CardHeader>
+                    <Card className={!nodeData.groups?.length ? "border-yellow-500/50" : ""}>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Gruppen
+                          {!nodeData.groups?.length && (
+                            <Badge variant="outline" className="text-yellow-500 border-yellow-500 ml-auto">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Nicht zugeordnet
+                            </Badge>
+                          )}
+                        </CardTitle>
+                      </CardHeader>
                       <CardContent>
                         {nodeData.groups?.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
@@ -253,7 +264,12 @@ export default function HomePage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-muted-foreground text-sm">Keine Gruppen</p>
+                          <div className="text-sm">
+                            <p className="text-muted-foreground mb-2">Dieser Node ist keiner Gruppe zugeordnet.</p>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href="/groups">Gruppen verwalten →</Link>
+                            </Button>
+                          </div>
                         )}
                       </CardContent>
                     </Card>

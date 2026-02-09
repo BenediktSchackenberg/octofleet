@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronRight, ChevronDown, Monitor, Server, Laptop, Circle } from "lucide-react";
+import { ChevronRight, ChevronDown, Monitor, Server, Laptop, Circle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NodeData {
@@ -161,14 +161,16 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
       </TreeSection>
 
       {/* Unassigned Section */}
-      <TreeSection
-        title="Nicht zugeordnet"
-        icon="❓"
-        expanded={expanded.has("unassigned")}
-        onToggle={() => toggleExpand("unassigned")}
-        count={countNodes(tree.unassigned)}
-        className="mt-2"
-      >
+      {countNodes(tree.unassigned) > 0 && (
+        <TreeSection
+          title="Nicht zugeordnet"
+          icon="⚠️"
+          expanded={expanded.has("unassigned")}
+          onToggle={() => toggleExpand("unassigned")}
+          count={countNodes(tree.unassigned)}
+          className="mt-2 border-t border-yellow-500/30 pt-2"
+          warning={true}
+        >
         {Object.entries(tree.unassigned).map(([osFamily, versions]) => (
           <TreeSection
             key={`unassigned-${osFamily}`}
@@ -202,6 +204,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
           </TreeSection>
         ))}
       </TreeSection>
+      )}
     </div>
   );
 }
@@ -214,16 +217,18 @@ interface TreeSectionProps {
   count?: number;
   indent?: number;
   className?: string;
+  warning?: boolean;
   children?: React.ReactNode;
 }
 
-function TreeSection({ title, icon, expanded, onToggle, count, indent = 0, className, children }: TreeSectionProps) {
+function TreeSection({ title, icon, expanded, onToggle, count, indent = 0, className, warning, children }: TreeSectionProps) {
   return (
     <div className={className}>
       <div
         className={cn(
           "flex items-center gap-1 py-1 px-2 cursor-pointer hover:bg-accent rounded-sm",
-          "transition-colors"
+          "transition-colors",
+          warning && "text-yellow-600 dark:text-yellow-500"
         )}
         style={{ paddingLeft: `${indent * 12 + 8}px` }}
         onClick={onToggle}
@@ -234,9 +239,9 @@ function TreeSection({ title, icon, expanded, onToggle, count, indent = 0, class
           <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
         )}
         {icon && <span className="text-xs">{icon}</span>}
-        <span className="truncate">{title}</span>
+        <span className={cn("truncate", warning && "font-medium")}>{title}</span>
         {count !== undefined && (
-          <span className="text-xs text-muted-foreground ml-auto">({count})</span>
+          <span className={cn("text-xs ml-auto", warning ? "text-yellow-600 dark:text-yellow-500 font-semibold" : "text-muted-foreground")}>({count})</span>
         )}
       </div>
       {expanded && children}

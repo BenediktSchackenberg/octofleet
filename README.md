@@ -330,6 +330,23 @@ The agent needs outbound access to:
 - Gateway server (default port 18789)
 - Package download URLs (for software deployment)
 
+### Troubleshooting Package Installation
+
+| Exit Code | Meaning | Solution |
+|-----------|---------|----------|
+| **1603** | Installation failed (usually permissions) | Ensure service runs as Local System |
+| **1618** | Another installation in progress | Wait and retry |
+| **1625** | Installation blocked by policy | Check Group Policy settings |
+| **1633** | Platform mismatch | Use correct 32/64-bit installer |
+| **1638** | Product already installed | Uninstall first or use update |
+| **5** | Access denied | Service lacks admin rights |
+
+**To check/change service account:**
+1. Open `services.msc`
+2. Find "OpenClawNodeAgent"
+3. Right-click → Properties → Log On tab
+4. Set to "Local System account" for full privileges
+
 ---
 
 ## 📁 Project Structure
