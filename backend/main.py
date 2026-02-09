@@ -1736,7 +1736,7 @@ if __name__ == "__main__":
 async def create_enrollment_token(request: Request):
     """Create a new enrollment token for agent registration"""
     data = await request.json()
-
+    pool = await get_db()
     
     token_id = str(uuid.uuid4())
     token_value = secrets.token_urlsafe(32)
@@ -1749,11 +1749,8 @@ async def create_enrollment_token(request: Request):
     
     expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
     
-    conn = get_db()
-    cur = conn.cursor()
-    
     # Create table if not exists
-    cur.execute("""
+    await pool.execute("""
         CREATE TABLE IF NOT EXISTS enrollment_tokens (
             id UUID PRIMARY KEY,
             token TEXT UNIQUE NOT NULL,
@@ -1767,102 +1764,86 @@ async def create_enrollment_token(request: Request):
         )
     """)
     
-    cur.execute("""
+    row = await pool.fetchrow("""
         INSERT INTO enrollment_tokens (id, token, description, expires_at, max_uses, created_by)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, token, expires_at
-    """, (token_id, token_value, description, expires_at, max_uses, created_by))
-    
-    row = cur.fetchone()
-    conn.commit()
-    cur.close()
-    conn.close()
+    """, token_id, token_value, description, expires_at, max_uses, created_by)
     
     return {
-        "id": str(row[0]),
-        "token": row[1],
-        "expiresAt": row[2].isoformat(),
+        "id": str(row['id']),
+        "token": row['token'],
+        "expiresAt": row['expires_at'].isoformat(),
         "maxUses": max_uses,
         "description": description,
-        "installCommand": f'irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1; .\\Install.ps1 -EnrollToken "{row[1]}"'
+        "installCommand": f'irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1; .\\Install.ps1 -EnrollToken "{row["token"]}"'
     }
 
 @app.get("/api/v1/enrollment-tokens")
 async def list_enrollment_tokens(request: Request):
     """List all enrollment tokens"""
-
-    
-    conn = get_db()
-    cur = conn.cursor()
+    pool = await get_db()
     
     # Check if table exists
-    cur.execute("""
+    table_exists = await pool.fetchval("""
         SELECT EXISTS (
             SELECT FROM information_schema.tables 
             WHERE table_name = 'enrollment_tokens'
         )
     """)
-    if not cur.fetchone()[0]:
-        cur.close()
-        conn.close()
+    
+    if not table_exists:
         return {"tokens": []}
     
-    cur.execute("""
+    rows = await pool.fetch("""
         SELECT id, token, description, expires_at, max_uses, use_count, created_by, created_at, revoked
         FROM enrollment_tokens
         ORDER BY created_at DESC
     """)
     
     tokens = []
-    for row in cur.fetchall():
-        is_expired = row[3] < datetime.now(row[3].tzinfo) if row[3].tzinfo else row[3] < datetime.utcnow()
-        is_exhausted = row[5] >= row[4]
+    for row in rows:
+        expires_at = row['expires_at']
+        is_expired = False
+        if expires_at:
+            is_expired = expires_at < datetime.now(expires_at.tzinfo) if expires_at.tzinfo else expires_at < datetime.utcnow()
+        is_exhausted = row['use_count'] >= row['max_uses']
         
         tokens.append({
-            "id": str(row[0]),
-            "token": row[1][:8] + "..." if row[1] else None,  # Partial token for display
-            "description": row[2],
-            "expiresAt": row[3].isoformat() if row[3] else None,
-            "maxUses": row[4],
-            "useCount": row[5],
-            "createdBy": row[6],
-            "createdAt": row[7].isoformat() if row[7] else None,
-            "revoked": row[8],
-            "status": "revoked" if row[8] else ("expired" if is_expired else ("exhausted" if is_exhausted else "active"))
+            "id": str(row['id']),
+            "token": row['token'][:8] + "..." if row['token'] else None,
+            "description": row['description'],
+            "expiresAt": row['expires_at'].isoformat() if row['expires_at'] else None,
+            "maxUses": row['max_uses'],
+            "useCount": row['use_count'],
+            "createdBy": row['created_by'],
+            "createdAt": row['created_at'].isoformat() if row['created_at'] else None,
+            "revoked": row['revoked'],
+            "status": "revoked" if row['revoked'] else ("expired" if is_expired else ("exhausted" if is_exhausted else "active"))
         })
-    
-    cur.close()
-    conn.close()
     
     return {"tokens": tokens}
 
 @app.delete("/api/v1/enrollment-tokens/{token_id}")
 async def revoke_enrollment_token(token_id: str, request: Request):
     """Revoke an enrollment token"""
-
+    pool = await get_db()
     
-    conn = get_db()
-    cur = conn.cursor()
-    
-    cur.execute("""
-        UPDATE enrollment_tokens SET revoked = TRUE WHERE id = %s
+    row = await pool.fetchrow("""
+        UPDATE enrollment_tokens SET revoked = TRUE WHERE id = $1
         RETURNING id
-    """, (token_id,))
-    
-    row = cur.fetchone()
-    conn.commit()
-    cur.close()
-    conn.close()
+    """, token_id)
     
     if not row:
         raise HTTPException(status_code=404, detail="Token not found")
     
-    return {"status": "revoked", "id": str(row[0])}
+    return {"status": "revoked", "id": str(row['id'])}
 
 @app.post("/api/v1/enroll")
 async def enroll_device(request: Request):
     """Exchange enrollment token for device credentials"""
     data = await request.json()
+    pool = await get_db()
     
     enroll_token = data.get("enrollToken")
     hostname = data.get("hostname", "unknown")
@@ -1870,57 +1851,41 @@ async def enroll_device(request: Request):
     if not enroll_token:
         raise HTTPException(status_code=400, detail="enrollToken required")
     
-    conn = get_db()
-    cur = conn.cursor()
-    
     # Find and validate token
-    cur.execute("""
+    row = await pool.fetchrow("""
         SELECT id, expires_at, max_uses, use_count, revoked
         FROM enrollment_tokens
-        WHERE token = %s
-    """, (enroll_token,))
+        WHERE token = $1
+    """, enroll_token)
     
-    row = cur.fetchone()
     if not row:
-        cur.close()
-        conn.close()
         raise HTTPException(status_code=401, detail="Invalid enrollment token")
     
-    token_id, expires_at, max_uses, use_count, revoked = row
+    token_id = row['id']
+    expires_at = row['expires_at']
+    max_uses = row['max_uses']
+    use_count = row['use_count']
+    revoked = row['revoked']
     
     # Check if token is valid
     if revoked:
-        cur.close()
-        conn.close()
         raise HTTPException(status_code=401, detail="Enrollment token has been revoked")
     
     is_expired = expires_at < datetime.now(expires_at.tzinfo) if expires_at.tzinfo else expires_at < datetime.utcnow()
     if is_expired:
-        cur.close()
-        conn.close()
         raise HTTPException(status_code=401, detail="Enrollment token has expired")
     
     if use_count >= max_uses:
-        cur.close()
-        conn.close()
         raise HTTPException(status_code=401, detail="Enrollment token usage limit reached")
     
     # Increment use count
-    cur.execute("""
-        UPDATE enrollment_tokens SET use_count = use_count + 1 WHERE id = %s
-    """, (token_id,))
+    await pool.execute("""
+        UPDATE enrollment_tokens SET use_count = use_count + 1 WHERE id = $1
+    """, token_id)
     
     # Generate device credentials
     device_token = secrets.token_urlsafe(48)
     device_id = f"dev-{secrets.token_hex(8)}"
-    
-    # TODO: Store device registration in a devices table
-    # For now, return the gateway token directly (from config)
-    # In production, you'd generate a unique device token
-    
-    conn.commit()
-    cur.close()
-    conn.close()
     
     # Return credentials - for now, return the main gateway token
     # In a full implementation, this would be a device-specific token
