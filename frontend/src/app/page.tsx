@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { NodeTree } from "@/components/NodeTree";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
 import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -245,6 +246,7 @@ export default function HomePage() {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="mb-4 flex-wrap h-auto gap-1">
                   <TabsTrigger value="overview" className="gap-1"><Monitor className="h-4 w-4" /> Übersicht</TabsTrigger>
+                  <TabsTrigger value="performance" className="gap-1"><TrendingUp className="h-4 w-4" /> Performance</TabsTrigger>
                   <TabsTrigger value="hardware" className="gap-1"><Cpu className="h-4 w-4" /> Hardware</TabsTrigger>
                   <TabsTrigger value="software" className="gap-1"><Package className="h-4 w-4" /> Software ({software.length})</TabsTrigger>
                   <TabsTrigger value="security" className="gap-1"><Shield className="h-4 w-4" /> Sicherheit</TabsTrigger>
@@ -306,6 +308,11 @@ export default function HomePage() {
                       </CardContent>
                     </Card>
                   </div>
+                </TabsContent>
+
+                {/* Performance Tab */}
+                <TabsContent value="performance">
+                  {selectedNodeId && <PerformanceTab nodeId={selectedNodeId} />}
                 </TabsContent>
 
                 {/* Hardware Tab */}
