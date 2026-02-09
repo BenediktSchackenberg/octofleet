@@ -3788,3 +3788,220 @@ async def get_node_metrics_history(node_id: str, days: int = 7, db: asyncpg.Pool
             "dataPoints": len(data_points),
             "history": data_points
         }
+
+# ========== E5: Deployment Engine ==========
+
+@app.post("/api/v1/deployments", dependencies=[Depends(verify_api_key)])
+async def create_deployment(data: dict):
+    """Create a new deployment (package -> target)"""
+    required = ["name", "packageId", "targetType"]
+    for f in required:
+        if f not in data:
+            raise HTTPException(400, f"Missing required field: {f}")
+    
+    package_id = data["packageId"]
+    target_type = data["targetType"]
+    target_id = data.get("targetId")
+    mode = data.get("mode", "required")
+    
+    if target_type not in ("node", "group", "all"):
+        raise HTTPException(400, "targetType must be node, group, or all")
+    if mode not in ("required", "available", "uninstall"):
+        raise HTTPException(400, "mode must be required, available, or uninstall")
+    if target_type in ("node", "group") and not target_id:
+        raise HTTPException(400, f"targetId required for targetType={target_type}")
+    
+    async with pool.acquire() as conn:
+        # Verify package exists
+        pkg = await conn.fetchrow("SELECT id FROM packages WHERE id = $1", package_id)
+        if not pkg:
+            raise HTTPException(404, "Package not found")
+        
+        # Create deployment
+        dep_id = await conn.fetchval("""
+            INSERT INTO deployments (name, description, package_id, target_type, target_id, mode, 
+                                      status, scheduled_start, scheduled_end, maintenance_window_only, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING id
+        """, data["name"], data.get("description"), package_id, target_type,
+            target_id, mode, data.get("status", "active"),
+            data.get("scheduledStart"), data.get("scheduledEnd"),
+            data.get("maintenanceWindowOnly", False), data.get("createdBy"))
+        
+        # Create deployment_status entries for targeted nodes
+        if target_type == "all":
+            await conn.execute("""
+                INSERT INTO deployment_status (deployment_id, node_id, status)
+                SELECT $1, id, 'pending' FROM nodes
+            """, dep_id)
+        elif target_type == "node":
+            await conn.execute("""
+                INSERT INTO deployment_status (deployment_id, node_id, status)
+                VALUES ($1, $2, 'pending')
+            """, dep_id, target_id)
+        elif target_type == "group":
+            await conn.execute("""
+                INSERT INTO deployment_status (deployment_id, node_id, status)
+                SELECT $1, node_id, 'pending' FROM device_groups WHERE group_id = $2
+            """, dep_id, target_id)
+        
+        return {"id": str(dep_id), "status": "created"}
+
+
+@app.get("/api/v1/deployments", dependencies=[Depends(verify_api_key)])
+async def list_deployments(status: str = None, limit: int = 50):
+    """List all deployments with aggregated status"""
+    async with pool.acquire() as conn:
+        query = """
+            SELECT d.*, p.name as package_name, p.version as package_version,
+                   COUNT(ds.id) as total_nodes,
+                   COUNT(ds.id) FILTER (WHERE ds.status = 'success') as success_count,
+                   COUNT(ds.id) FILTER (WHERE ds.status = 'failed') as failed_count,
+                   COUNT(ds.id) FILTER (WHERE ds.status = 'pending') as pending_count,
+                   COUNT(ds.id) FILTER (WHERE ds.status IN ('downloading', 'installing')) as in_progress_count
+            FROM deployments d
+            JOIN packages p ON d.package_id = p.id
+            LEFT JOIN deployment_status ds ON d.id = ds.deployment_id
+        """
+        params = []
+        if status:
+            query += " WHERE d.status = $1"
+            params.append(status)
+        query += " GROUP BY d.id, p.name, p.version ORDER BY d.created_at DESC LIMIT $" + str(len(params) + 1)
+        params.append(limit)
+        
+        rows = await conn.fetch(query, *params)
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/v1/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
+async def get_deployment(deployment_id: str):
+    """Get deployment details with per-node status"""
+    async with pool.acquire() as conn:
+        dep = await conn.fetchrow("""
+            SELECT d.*, p.name as package_name, p.version as package_version
+            FROM deployments d
+            JOIN packages p ON d.package_id = p.id
+            WHERE d.id = $1
+        """, deployment_id)
+        if not dep:
+            raise HTTPException(404, "Deployment not found")
+        
+        statuses = await conn.fetch("""
+            SELECT ds.*, n.node_id as node_name, n.hostname
+            FROM deployment_status ds
+            JOIN nodes n ON ds.node_id = n.id
+            WHERE ds.deployment_id = $1
+            ORDER BY ds.status, n.hostname
+        """, deployment_id)
+        
+        result = dict(dep)
+        result["nodes"] = [dict(s) for s in statuses]
+        return result
+
+
+@app.patch("/api/v1/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
+async def update_deployment(deployment_id: str, data: dict):
+    """Update deployment (pause, resume, cancel)"""
+    allowed_fields = {"status", "scheduled_start", "scheduled_end", "maintenance_window_only"}
+    updates = {k: v for k, v in data.items() if k in allowed_fields or k.replace("_", "") in ["scheduledStart", "scheduledEnd", "maintenanceWindowOnly"]}
+    
+    if not updates:
+        raise HTTPException(400, "No valid fields to update")
+    
+    async with pool.acquire() as conn:
+        # Convert camelCase to snake_case
+        field_map = {"scheduledStart": "scheduled_start", "scheduledEnd": "scheduled_end", "maintenanceWindowOnly": "maintenance_window_only"}
+        set_clauses = []
+        params = [deployment_id]
+        i = 2
+        for k, v in updates.items():
+            col = field_map.get(k, k)
+            set_clauses.append(f"{col} = ${i}")
+            params.append(v)
+            i += 1
+        
+        set_clauses.append("updated_at = NOW()")
+        await conn.execute(f"UPDATE deployments SET {', '.join(set_clauses)} WHERE id = $1", *params)
+        return {"status": "updated"}
+
+
+@app.delete("/api/v1/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
+async def delete_deployment(deployment_id: str):
+    """Delete a deployment"""
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM deployments WHERE id = $1", deployment_id)
+        if result == "DELETE 0":
+            raise HTTPException(404, "Deployment not found")
+        return {"status": "deleted"}
+
+
+@app.get("/api/v1/nodes/{node_id}/deployments", dependencies=[Depends(verify_api_key)])
+async def get_node_deployments(node_id: str):
+    """Get pending deployments for a specific node (agent polling endpoint)"""
+    async with pool.acquire() as conn:
+        # Get node UUID
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        if not node:
+            raise HTTPException(404, "Node not found")
+        
+        # Get active deployments for this node that are pending
+        deployments = await conn.fetch("""
+            SELECT d.id as deployment_id, d.name, d.mode, d.maintenance_window_only,
+                   p.name as package_name, p.version as package_version,
+                   p.installer_type, p.installer_url, p.installer_path,
+                   p.install_args, p.uninstall_args, p.expected_hash,
+                   ds.status as node_status, ds.attempts
+            FROM deployment_status ds
+            JOIN deployments d ON ds.deployment_id = d.id
+            JOIN packages p ON d.package_id = p.id
+            WHERE ds.node_id = $1
+              AND d.status = 'active'
+              AND ds.status IN ('pending', 'failed')
+              AND (ds.attempts < 3 OR ds.attempts IS NULL)
+              AND (d.scheduled_start IS NULL OR d.scheduled_start <= NOW())
+              AND (d.scheduled_end IS NULL OR d.scheduled_end >= NOW())
+            ORDER BY d.created_at
+        """, node["id"])
+        
+        return [dict(d) for d in deployments]
+
+
+@app.post("/api/v1/nodes/{node_id}/deployments/{deployment_id}/status", dependencies=[Depends(verify_api_key)])
+async def update_node_deployment_status(node_id: str, deployment_id: str, data: dict):
+    """Agent reports deployment status for this node"""
+    status = data.get("status")
+    if status not in ("pending", "downloading", "installing", "success", "failed", "skipped"):
+        raise HTTPException(400, "Invalid status")
+    
+    async with pool.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        if not node:
+            raise HTTPException(404, "Node not found")
+        
+        await conn.execute("""
+            UPDATE deployment_status 
+            SET status = $1, 
+                exit_code = $2, 
+                output = $3, 
+                error_message = $4,
+                completed_at = CASE WHEN $1 IN ('success', 'failed', 'skipped') THEN NOW() ELSE completed_at END,
+                started_at = CASE WHEN $1 = 'downloading' AND started_at IS NULL THEN NOW() ELSE started_at END,
+                attempts = attempts + CASE WHEN $1 IN ('success', 'failed') THEN 1 ELSE 0 END,
+                last_attempt_at = CASE WHEN $1 IN ('success', 'failed') THEN NOW() ELSE last_attempt_at END
+            WHERE deployment_id = $2 AND node_id = $3
+        """, status, data.get("exitCode"), data.get("output"), data.get("errorMessage"),
+            deployment_id, node["id"])
+        
+        # Check if all nodes completed -> mark deployment as completed
+        stats = await conn.fetchrow("""
+            SELECT COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE status IN ('success', 'failed', 'skipped')) as completed
+            FROM deployment_status WHERE deployment_id = $1
+        """, deployment_id)
+        
+        if stats["total"] == stats["completed"]:
+            await conn.execute("UPDATE deployments SET status = 'completed', updated_at = NOW() WHERE id = $1", deployment_id)
+        
+        return {"status": "updated"}
+
