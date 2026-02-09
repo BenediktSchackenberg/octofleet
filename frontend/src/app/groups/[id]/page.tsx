@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
 import { Breadcrumb } from "@/components/ui-components";
+import { RefreshCw, Sparkles } from "lucide-react";
 
 interface GroupMember {
   id: string;
@@ -55,6 +56,7 @@ export default function GroupDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editColor, setEditColor] = useState("");
   const [saving, setSaving] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
 
   useEffect(() => {
     fetchGroup();
@@ -140,6 +142,28 @@ export default function GroupDetailPage() {
     }
   }
 
+  async function handleEvaluate() {
+    setEvaluating(true);
+    try {
+      const res = await fetch(`${API_BASE}/groups/${groupId}/evaluate`, {
+        method: "POST",
+        headers,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await fetchGroup();
+        alert(`Regel neu evaluiert: ${data.added} hinzugefügt, ${data.removed} entfernt`);
+      } else {
+        alert("Fehler bei der Evaluierung");
+      }
+    } catch (e) {
+      console.error("Failed to evaluate group:", e);
+      alert("Fehler bei der Evaluierung");
+    } finally {
+      setEvaluating(false);
+    }
+  }
+
   function getStatusBadge(lastSeen: string) {
     const lastSeenDate = new Date(lastSeen);
     const now = new Date();
@@ -207,6 +231,17 @@ export default function GroupDetailPage() {
             )}
           </div>
           <div className="flex gap-2">
+            {group.is_dynamic && (
+              <Button 
+                variant="outline" 
+                onClick={handleEvaluate}
+                disabled={evaluating}
+                className="gap-1"
+              >
+                <RefreshCw className={`h-4 w-4 ${evaluating ? 'animate-spin' : ''}`} />
+                {evaluating ? "Evaluiere..." : "Neu evaluieren"}
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setShowEditDialog(true)}>
               Bearbeiten
             </Button>
@@ -242,17 +277,18 @@ export default function GroupDetailPage() {
 
         {/* Dynamic Rule (if applicable) */}
         {group.is_dynamic && group.dynamic_rule && (
-          <Card className="mb-8">
+          <Card className="mb-8 border-purple-500/30">
             <CardHeader>
-              <CardTitle>Regel-Definition</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+                Regel-Definition
+              </CardTitle>
               <CardDescription>
                 Diese Regel bestimmt die Gruppenmitgliedschaft automatisch
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                {JSON.stringify(group.dynamic_rule, null, 2)}
-              </pre>
+              <RuleDisplay rule={group.dynamic_rule} />
             </CardContent>
           </Card>
         )}
@@ -411,5 +447,58 @@ export default function GroupDetailPage() {
         </DialogContent>
       </Dialog>
     </main>
+  );
+}
+
+// Helper component to display dynamic rules in a human-readable format
+function RuleDisplay({ rule }: { rule: Record<string, unknown> }) {
+  const FIELD_LABELS: Record<string, string> = {
+    os_name: "Betriebssystem",
+    os_version: "OS Version",
+    os_build: "OS Build",
+    hostname: "Hostname",
+    agent_version: "Agent Version",
+    domain: "Domain",
+    is_domain_joined: "Domain-Mitglied",
+  };
+
+  const OP_LABELS: Record<string, string> = {
+    equals: "ist gleich",
+    not_equals: "ist nicht gleich",
+    contains: "enthält",
+    not_contains: "enthält nicht",
+    startswith: "beginnt mit",
+    endswith: "endet mit",
+    gte: "≥",
+    lte: "≤",
+    gt: ">",
+    lt: "<",
+    regex: "entspricht Regex",
+  };
+
+  const operator = (rule.operator as string) || "AND";
+  const conditions = (rule.conditions as Array<{ field: string; op: string; value: string }>) || [];
+
+  if (conditions.length === 0) {
+    return <p className="text-muted-foreground">Keine Regeln definiert</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {conditions.map((cond, idx) => (
+        <div key={idx} className="flex items-center gap-2 flex-wrap">
+          {idx > 0 && (
+            <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/30">
+              {operator}
+            </Badge>
+          )}
+          <Badge variant="secondary">{FIELD_LABELS[cond.field] || cond.field}</Badge>
+          <span className="text-muted-foreground">{OP_LABELS[cond.op] || cond.op}</span>
+          <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+            {String(cond.value)}
+          </code>
+        </div>
+      ))}
+    </div>
   );
 }
