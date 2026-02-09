@@ -228,7 +228,7 @@ export default function PerformancePage() {
                   {sortedNodes?.map((node) => (
                     <TableRow key={node.id} className="cursor-pointer hover:bg-muted/50">
                       <TableCell className="font-medium">
-                        <Link href={`/nodes/${node.id}?tab=performance`} className="hover:text-primary hover:underline">
+                        <Link href={`/nodes/${node.nodeId}?tab=performance`} className="hover:text-primary hover:underline">
                           {node.hostname}
                         </Link>
                       </TableCell>
