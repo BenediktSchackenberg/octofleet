@@ -638,33 +638,74 @@ export default function HomePage() {
                 </div>
               )}
               
-              {/* Per-Node Metrics Chart */}
+              {/* Fleet Performance Table */}
               {metrics && metrics.nodesWithMetrics > 0 && (
                 <Card className="mb-8">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" /> Ressourcen pro Node
+                      <TrendingUp className="h-5 w-5" /> Fleet Performance
                     </CardTitle>
-                    <CardDescription>RAM & Disk Auslastung</CardDescription>
+                    <CardDescription>
+                      CPU, RAM & Disk pro Node • <Link href="/performance" className="text-primary hover:underline">Vollständige Ansicht →</Link>
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart 
-                          data={metrics.nodes.filter(n => n.cpuPercent !== null).map(n => ({
-                            name: n.hostname,
-                            RAM: n.ramPercent,
-                            Disk: n.diskPercent
-                          }))}
-                          layout="vertical"
-                        >
-                          <XAxis type="number" domain={[0, 100]} />
-                          <YAxis type="category" dataKey="name" width={120} />
-                          <Tooltip />
-                          <Bar dataKey="RAM" fill="#3b82f6" name="RAM %" />
-                          <Bar dataKey="Disk" fill="#10b981" name="Disk %" />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-2 font-medium">Node</th>
+                            <th className="text-left py-2 px-2 font-medium">CPU</th>
+                            <th className="text-left py-2 px-2 font-medium">RAM</th>
+                            <th className="text-left py-2 px-2 font-medium">Disk</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {metrics.nodes
+                            .filter(n => n.cpuPercent !== null || n.ramPercent !== null)
+                            .slice(0, 8)
+                            .map((node, i) => (
+                              <tr key={i} className="border-b border-muted hover:bg-muted/50">
+                                <td className="py-2 px-2">
+                                  <span className="font-medium">{node.hostname}</span>
+                                </td>
+                                <td className="py-2 px-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${(node.cpuPercent || 0) > 90 ? 'bg-red-500' : (node.cpuPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-blue-500'}`}
+                                        style={{ width: `${node.cpuPercent || 0}%` }}
+                                      />
+                                    </div>
+                                    <span className="font-mono text-xs w-10">{node.cpuPercent?.toFixed(0) ?? '-'}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${(node.ramPercent || 0) > 90 ? 'bg-red-500' : (node.ramPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                        style={{ width: `${node.ramPercent || 0}%` }}
+                                      />
+                                    </div>
+                                    <span className="font-mono text-xs w-10">{node.ramPercent?.toFixed(0) ?? '-'}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${(node.diskPercent || 0) > 90 ? 'bg-red-500' : (node.diskPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-purple-500'}`}
+                                        style={{ width: `${node.diskPercent || 0}%` }}
+                                      />
+                                    </div>
+                                    <span className="font-mono text-xs w-10">{node.diskPercent?.toFixed(0) ?? '-'}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
                     </div>
                   </CardContent>
                 </Card>
