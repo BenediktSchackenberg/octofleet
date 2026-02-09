@@ -1,12 +1,32 @@
 # OpenClaw Inventory Platform 🖥️📊
 
-> **Beta (v0.4.0)** — An open-source endpoint management and inventory system for Windows fleets. Collect hardware/software inventory, deploy packages, run remote commands, and monitor your infrastructure from a central dashboard.
+> **Beta (v0.4.1)** — An open-source endpoint management and inventory system for Windows fleets. Collect hardware/software inventory, deploy packages, run remote commands, and monitor your infrastructure from a central dashboard.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11%2FServer-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python)](https://python.org)
-[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=nextdotjs)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs)](https://nextjs.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+---
+
+## 📸 Screenshots
+
+### Dashboard with Fleet Performance
+![Dashboard](docs/screenshots/dashboard.png)
+*Real-time fleet overview with CPU, RAM, and Disk usage across all nodes*
+
+### Deployments
+![Deployments](docs/screenshots/deployments.png)
+*Deploy software packages to individual nodes or groups with progress tracking*
+
+### Node Details
+![Node Details](docs/screenshots/node-details.png)
+*Detailed hardware, software, security, and performance information per node*
+
+### Performance Monitoring
+![Performance](docs/screenshots/performance.png)
+*Historical performance charts with 7/14/30 day views*
 
 ---
 
@@ -17,8 +37,9 @@ OpenClaw Inventory is an **endpoint management platform** that helps you:
 - **See what's installed** on all your Windows machines (hardware, software, updates)
 - **Deploy software** remotely (MSI/EXE packages with silent install)
 - **Run commands** on any machine from a central dashboard
-- **Group and organize** your devices
+- **Group and organize** your devices with dynamic rules
 - **Track security posture** (firewall, BitLocker, UAC, local admins)
+- **Monitor performance** in real-time (CPU, RAM, Disk, Network)
 
 Think of it as a lightweight alternative to SCCM/Intune for smaller environments, labs, or homelabs.
 
@@ -38,7 +59,7 @@ Think of it as a lightweight alternative to SCCM/Intune for smaller environments
 │         http://your-server:8080                              │
 │         • Inventory storage (PostgreSQL + TimescaleDB)       │
 │         • Job queue and execution tracking                   │
-│         • Package catalog                                    │
+│         • Package catalog + Deployment engine                │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -73,14 +94,34 @@ The Windows Agent automatically collects and reports:
 | **Security** | Firewall, BitLocker, UAC, TPM, Secure Boot, Local Admins |
 | **Network** | Adapters, IPs, Active connections, Listening ports |
 | **Browser** | Extensions, Cookies metadata, History count (Chrome/Edge/Firefox) |
+| **Performance** | CPU, RAM, Disk usage (TimescaleDB time-series) |
 
-### 📦 Package Deployment
-Deploy software to your fleet:
-- Create packages with download URLs in the catalog
-- Select target devices or groups
-- Silent MSI/EXE installation
-- Progress tracking and logs
-- Retry failed installations
+### 📦 Package Deployment (NEW in v0.4.1)
+Deploy software to your fleet with the new **Deployment Engine**:
+
+- **Create packages** in the catalog with download URLs
+- **Target options**: All nodes, specific groups, or individual nodes
+- **Deployment modes**: Required (auto-install), Available (self-service), Uninstall
+- **Scheduling**: Set start/end times for maintenance windows
+- **Progress tracking**: Real-time status per node (pending/downloading/installing/success/failed)
+- **Automatic retry**: Failed installations retry up to 3 times
+
+### 📈 Fleet Performance Dashboard (NEW in v0.4.0)
+Monitor your entire fleet's performance:
+
+- **Real-time metrics**: CPU, RAM, Disk usage across all nodes
+- **Fleet averages**: See overall health at a glance
+- **Historical charts**: 7, 14, or 30-day views per node
+- **Auto-refresh**: Updates every 30 seconds
+- **Performance alerts**: Identify overloaded machines quickly
+
+### 🏷️ Dynamic Device Groups (NEW in v0.4.0)
+Organize devices automatically with rule-based groups:
+
+- **Rule builder**: Visual AND/OR condition builder
+- **Operators**: equals, contains, starts_with, ends_with, gt, lt, has_tag
+- **Auto-membership**: Nodes automatically join/leave groups based on inventory
+- **Tags**: Assign custom tags and filter by them
 
 ### 🎮 Remote Command Execution
 Run any command on your Windows machines:
@@ -94,19 +135,92 @@ Modern Next.js dashboard with:
 - **Node Tree** — Browse devices by group hierarchy
 - **Global Search** — Find any device instantly
 - **Inline Details** — View device info without page navigation
-- **8 Detail Tabs** — Overview, Hardware, Software, Security, Network, Browser, Updates, Groups
+- **8 Detail Tabs** — Overview, Hardware, Software, Security, Network, Browser, Updates, Performance
 
 ### 🔗 Persistent Connection
 - Windows Service runs 24/7 in background
 - Auto-reconnects if connection drops
 - Survives reboots
 - Unique node ID per machine
+- **Auto-updater**: Agent updates itself from GitHub releases
 
 ---
 
-## 🚀 Server Setup (Complete Guide)
+## 🚀 Quick Start
 
-This guide walks you through setting up the entire platform on a Linux server.
+### Server (Linux)
+
+```bash
+# Clone repository
+git clone https://github.com/BenediktSchackenberg/openclaw-windows-agent.git
+cd openclaw-windows-agent
+
+# Start backend (requires PostgreSQL + TimescaleDB)
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8080
+
+# Start frontend (in another terminal)
+cd frontend
+npm install && npm run build && npm start
+```
+
+### Windows Agent
+
+```powershell
+# Run as Administrator
+irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1
+.\Install.ps1 -GatewayUrl "http://YOUR-SERVER:18789" -GatewayToken "your-token"
+```
+
+See the full [Server Setup Guide](#-server-setup-complete-guide) below for production deployment.
+
+---
+
+## 🗺️ Roadmap
+
+| Epic | Status | Description |
+|------|--------|-------------|
+| **E1** Inventory | ✅ Complete | 7 collectors, TimescaleDB storage |
+| **E2** Device Grouping | ✅ Complete | Static + dynamic groups, tags, rules |
+| **E3** Job System | ✅ Complete | Remote commands, pre/post scripts, reboot handling |
+| **E4** Package Management | ✅ Complete | Package catalog, SMB/HTTP downloads, verification |
+| **E5** Deployment Engine | ✅ Complete | Package rollouts to groups, scheduling, monitoring |
+| **E6** Linux Agent | 🔜 Planned | Agent for Linux nodes |
+| **E7** Advanced UI | 🔜 Planned | Reports, dashboards, alerts |
+| **E8** RBAC | 🔜 Planned | Role-based access control |
+| **E9** Staged Rollouts | 🔜 Planned | Canary/phased deployments |
+| **E10** Zero-Touch Install | ✅ Complete | Enrollment tokens, PowerShell installer |
+
+See [ROADMAP.md](ROADMAP.md) for the full feature list with task breakdowns.
+
+---
+
+## 📁 Project Structure
+
+```
+openclaw-windows-agent/
+├── src/                      # Windows Agent (.NET 8)
+│   ├── OpenClawAgent/        # WPF Management UI
+│   └── OpenClawAgent.Service/ # Windows Service
+├── backend/                  # FastAPI Backend
+│   ├── main.py              # All API endpoints
+│   └── requirements.txt
+├── frontend/                 # Next.js Dashboard
+│   ├── src/app/             # Pages (dashboard, nodes, groups, jobs, packages, deployments)
+│   └── src/components/      # Reusable UI components
+├── installer/                # Deployment scripts
+│   ├── Install-OpenClawAgent.ps1
+│   └── Build-Release.ps1
+├── docs/                     # Documentation
+│   └── screenshots/         # UI screenshots
+└── .github/workflows/        # CI/CD (auto-build on tag)
+```
+
+---
+
+## 🏗️ Server Setup (Complete Guide)
 
 ### Prerequisites
 
@@ -145,47 +259,15 @@ sudo -u postgres psql -d inventory -c "CREATE EXTENSION IF NOT EXISTS timescaled
 ### Step 2: Clone and Setup Backend
 
 ```bash
-# Clone repository
 git clone https://github.com/BenediktSchackenberg/openclaw-windows-agent.git
-cd openclaw-windows-agent
+cd openclaw-windows-agent/backend
 
-# Setup Python virtual environment
-cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Configure database connection (edit main.py or use environment variables)
 export DATABASE_URL="postgresql://openclaw:your-secure-password@localhost:5432/inventory"
-
-# Initialize database schema (tables are auto-created on first run)
-# Start the backend
 uvicorn main:app --host 0.0.0.0 --port 8080
-```
-
-**For production**, create a systemd service:
-
-```bash
-sudo tee /etc/systemd/system/openclaw-inventory.service << 'EOF'
-[Unit]
-Description=OpenClaw Inventory API
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/path/to/openclaw-windows-agent/backend
-Environment="DATABASE_URL=postgresql://openclaw:your-secure-password@localhost:5432/inventory"
-ExecStart=/path/to/openclaw-windows-agent/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8080
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now openclaw-inventory
 ```
 
 ### Step 3: Setup Frontend
@@ -193,191 +275,43 @@ sudo systemctl enable --now openclaw-inventory
 ```bash
 cd ../frontend
 npm install
-
-# Development
-npm run dev
-
-# Production build
 npm run build
 npm start
 ```
 
-**For production**, create a systemd service:
-
-```bash
-sudo tee /etc/systemd/system/openclaw-inventory-ui.service << 'EOF'
-[Unit]
-Description=OpenClaw Inventory UI
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/path/to/openclaw-windows-agent/frontend
-ExecStart=/usr/bin/npm start
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now openclaw-inventory-ui
-```
-
 ### Step 4: Install OpenClaw Gateway
 
-The Gateway handles communication with Windows Agents.
-
 ```bash
-# Install OpenClaw via npm
 npm install -g openclaw
-
-# Initialize configuration
 openclaw init
-
-# Edit config to enable nodes and set auth token
-nano ~/.openclaw/openclaw.json
-```
-
-**Minimum gateway config** (`~/.openclaw/openclaw.json`):
-
-```json
-{
-  "gateway": {
-    "bind": "lan",
-    "port": 18789
-  },
-  "auth": {
-    "mode": "token",
-    "tokens": ["your-secret-token-here"]
-  },
-  "nodes": {
-    "enabled": true,
-    "allowCommands": ["*"]
-  }
-}
-```
-
-```bash
-# Start the gateway
+# Edit ~/.openclaw/openclaw.json to enable nodes
 openclaw gateway start
 ```
 
 ### Step 5: Configure Firewall
 
 ```bash
-# Allow incoming connections
 sudo ufw allow 3000/tcp    # Frontend
 sudo ufw allow 8080/tcp    # Backend API
-sudo ufw allow 18789/tcp   # Gateway (for Windows Agents)
+sudo ufw allow 18789/tcp   # Gateway
 ```
-
-### Step 6: Verify Installation
-
-| Service | URL | Expected |
-|---------|-----|----------|
-| Frontend | `http://your-server:3000` | Dashboard loads |
-| Backend API | `http://your-server:8080/docs` | Swagger UI |
-| Gateway | `http://your-server:18789` | Connection accepted |
 
 ---
 
 ## 💻 Agent Installation (Windows)
 
-Once the server is running, install agents on your Windows machines:
-
 ```powershell
 # Run as Administrator
 irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1
-.\Install.ps1 -GatewayUrl "http://YOUR-SERVER-IP:18789" -GatewayToken "your-secret-token-here"
+.\Install.ps1 -GatewayUrl "http://YOUR-SERVER-IP:18789" -GatewayToken "your-token"
 ```
 
-The installer:
-1. ✅ Downloads agent from GitHub Releases
-2. ✅ Verifies SHA256 hash
-3. ✅ Installs to `C:\Program Files\OpenClaw\Agent`
-4. ✅ Registers Windows Service (auto-start)
-5. ✅ Connects to Gateway
-
-**Update existing agents:**
-
-```powershell
-.\Install.ps1  # Keeps existing config, updates binary
-```
-
----
-
-## ⚠️ Agent Requirements
-
-### Administrator Rights
-The Windows Agent **should run as Administrator** for full functionality:
-
-| Feature | Requires Admin |
-|---------|----------------|
-| MSI/EXE software installations | ✅ Yes |
-| Windows Update operations | ✅ Yes |
-| BitLocker status | ✅ Yes |
-| Security Event Log | ✅ Yes |
-| Basic inventory (CPU, RAM, Software) | ❌ No |
-| Remote command execution | Depends on command |
-
-**Recommendation:** Run the agent service as `Local System` or a dedicated admin service account.
-
-### Firewall
-The agent needs outbound access to:
-- Gateway server (default port 18789)
-- Package download URLs (for software deployment)
-
-### Troubleshooting Package Installation
-
-| Exit Code | Meaning | Solution |
-|-----------|---------|----------|
-| **1603** | Installation failed (usually permissions) | Ensure service runs as Local System |
-| **1618** | Another installation in progress | Wait and retry |
-| **1625** | Installation blocked by policy | Check Group Policy settings |
-| **1633** | Platform mismatch | Use correct 32/64-bit installer |
-| **1638** | Product already installed | Uninstall first or use update |
-| **5** | Access denied | Service lacks admin rights |
-
-**To check/change service account:**
-1. Open `services.msc`
-2. Find "OpenClawNodeAgent"
-3. Right-click → Properties → Log On tab
-4. Set to "Local System account" for full privileges
-
----
-
-## 📁 Project Structure
-
-```
-openclaw-windows-agent/
-├── agent/                    # Windows Agent (.NET 8)
-│   ├── OpenClawAgent.sln
-│   └── src/
-├── backend/                  # FastAPI Backend
-│   ├── main.py
-│   └── requirements.txt
-├── frontend/                 # Next.js Dashboard
-│   ├── src/app/
-│   └── package.json
-├── installer/                # PowerShell installer scripts
-│   ├── Install-OpenClawAgent.ps1
-│   └── Build-Release.ps1
-└── docs/                     # Documentation
-```
-
----
-
-## 🗺️ Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for the full feature roadmap.
-
-### Coming Soon
-- **E12:** Windows Eventlog Collection (Initial + Delta sync)
-- **E13:** Software Versions Dashboard with CVE/BSI vulnerability tracking
-- **E6:** Native package installation in agent (download progress, hash verification)
+The installer automatically:
+- ✅ Downloads agent from GitHub Releases
+- ✅ Verifies SHA256 hash
+- ✅ Installs to `C:\Program Files\OpenClaw\Agent`
+- ✅ Registers Windows Service (auto-start)
+- ✅ Connects to Gateway
 
 ---
 
