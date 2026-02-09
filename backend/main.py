@@ -3647,3 +3647,144 @@ async def get_metrics_summary(db: asyncpg.Pool = Depends(get_db)):
             "fleetAverages": fleet_avg,
             "nodes": nodes
         }
+
+
+@app.get("/api/v1/metrics/fleet", dependencies=[Depends(verify_api_key)])
+async def get_fleet_performance(hours: int = 1, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Get detailed fleet performance data for the performance overview table.
+    Returns avg/max/min for CPU, RAM, Disk, Network for each node.
+    """
+    async with db.acquire() as conn:
+        # Get aggregated metrics per node for the last N hours
+        rows = await conn.fetch("""
+            SELECT 
+                n.id,
+                n.node_id as text_node_id, 
+                n.hostname,
+                n.os_name,
+                n.last_seen,
+                n.is_online,
+                -- CPU stats
+                ROUND(AVG(m.cpu_percent)::numeric, 1) as avg_cpu,
+                ROUND(MAX(m.cpu_percent)::numeric, 1) as max_cpu,
+                ROUND(MIN(m.cpu_percent)::numeric, 1) as min_cpu,
+                -- RAM stats
+                ROUND(AVG(m.ram_percent)::numeric, 1) as avg_ram,
+                ROUND(MAX(m.ram_percent)::numeric, 1) as max_ram,
+                -- Disk stats
+                ROUND(AVG(m.disk_percent)::numeric, 1) as avg_disk,
+                ROUND(MAX(m.disk_percent)::numeric, 1) as max_disk,
+                -- Network stats
+                ROUND(AVG(m.network_in_mb)::numeric, 2) as avg_net_in,
+                ROUND(AVG(m.network_out_mb)::numeric, 2) as avg_net_out,
+                ROUND(MAX(m.network_in_mb)::numeric, 2) as max_net_in,
+                ROUND(MAX(m.network_out_mb)::numeric, 2) as max_net_out,
+                -- Data point count
+                COUNT(m.*)::int as data_points
+            FROM nodes n
+            LEFT JOIN node_metrics m ON m.node_id = n.id 
+                AND m.time > NOW() - INTERVAL '1 hour' * $1
+            GROUP BY n.id, n.node_id, n.hostname, n.os_name, n.last_seen, n.is_online
+            ORDER BY n.hostname
+        """, hours)
+        
+        nodes = []
+        for row in rows:
+            nodes.append({
+                "id": str(row["id"]),
+                "nodeId": row["text_node_id"],
+                "hostname": row["hostname"],
+                "osName": row["os_name"],
+                "lastSeen": row["last_seen"].isoformat() if row["last_seen"] else None,
+                "isOnline": row["is_online"],
+                "dataPoints": row["data_points"],
+                "cpu": {
+                    "avg": float(row["avg_cpu"]) if row["avg_cpu"] else None,
+                    "max": float(row["max_cpu"]) if row["max_cpu"] else None,
+                    "min": float(row["min_cpu"]) if row["min_cpu"] else None,
+                },
+                "ram": {
+                    "avg": float(row["avg_ram"]) if row["avg_ram"] else None,
+                    "max": float(row["max_ram"]) if row["max_ram"] else None,
+                },
+                "disk": {
+                    "avg": float(row["avg_disk"]) if row["avg_disk"] else None,
+                    "max": float(row["max_disk"]) if row["max_disk"] else None,
+                },
+                "network": {
+                    "avgIn": float(row["avg_net_in"]) if row["avg_net_in"] else None,
+                    "avgOut": float(row["avg_net_out"]) if row["avg_net_out"] else None,
+                    "maxIn": float(row["max_net_in"]) if row["max_net_in"] else None,
+                    "maxOut": float(row["max_net_out"]) if row["max_net_out"] else None,
+                },
+            })
+        
+        # Calculate fleet totals
+        active = [n for n in nodes if n["cpu"]["avg"] is not None]
+        fleet = {
+            "avgCpu": round(sum(n["cpu"]["avg"] for n in active) / len(active), 1) if active else None,
+            "avgRam": round(sum(n["ram"]["avg"] for n in active) / len(active), 1) if active else None,
+            "avgDisk": round(sum(n["disk"]["avg"] for n in active) / len(active), 1) if active else None,
+        }
+        
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "hoursAggregated": hours,
+            "totalNodes": len(nodes),
+            "nodesWithMetrics": len(active),
+            "fleet": fleet,
+            "nodes": nodes
+        }
+
+
+@app.get("/api/v1/nodes/{node_id}/metrics/history", dependencies=[Depends(verify_api_key)])
+async def get_node_metrics_history(node_id: str, days: int = 7, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Get historical metrics for a node aggregated by hour for charts.
+    Returns hourly averages for the last N days.
+    """
+    async with db.acquire() as conn:
+        # Resolve node UUID
+        node = await conn.fetchrow(
+            "SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", 
+            node_id
+        )
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        # Get hourly aggregated data
+        rows = await conn.fetch("""
+            SELECT 
+                time_bucket('1 hour', time) as bucket,
+                ROUND(AVG(cpu_percent)::numeric, 1) as avg_cpu,
+                ROUND(MAX(cpu_percent)::numeric, 1) as max_cpu,
+                ROUND(AVG(ram_percent)::numeric, 1) as avg_ram,
+                ROUND(MAX(ram_percent)::numeric, 1) as max_ram,
+                ROUND(AVG(disk_percent)::numeric, 1) as avg_disk,
+                ROUND(AVG(network_in_mb)::numeric, 2) as avg_net_in,
+                ROUND(AVG(network_out_mb)::numeric, 2) as avg_net_out,
+                COUNT(*)::int as samples
+            FROM node_metrics
+            WHERE node_id = $1 AND time > NOW() - INTERVAL '1 day' * $2
+            GROUP BY bucket
+            ORDER BY bucket ASC
+        """, node["id"], days)
+        
+        data_points = []
+        for row in rows:
+            data_points.append({
+                "time": row["bucket"].isoformat(),
+                "cpu": {"avg": float(row["avg_cpu"]) if row["avg_cpu"] else None, "max": float(row["max_cpu"]) if row["max_cpu"] else None},
+                "ram": {"avg": float(row["avg_ram"]) if row["avg_ram"] else None, "max": float(row["max_ram"]) if row["max_ram"] else None},
+                "disk": {"avg": float(row["avg_disk"]) if row["avg_disk"] else None},
+                "network": {"in": float(row["avg_net_in"]) if row["avg_net_in"] else None, "out": float(row["avg_net_out"]) if row["avg_net_out"] else None},
+                "samples": row["samples"],
+            })
+        
+        return {
+            "nodeId": node_id,
+            "days": days,
+            "dataPoints": len(data_points),
+            "history": data_points
+        }

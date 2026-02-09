@@ -195,6 +195,9 @@ export default function HomePage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild>
+            <Link href="/performance"><Activity className="h-4 w-4 mr-1" /> Performance</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
             <Link href="/jobs"><Briefcase className="h-4 w-4 mr-1" /> Jobs</Link>
           </Button>
           <Button variant="outline" size="sm" asChild>

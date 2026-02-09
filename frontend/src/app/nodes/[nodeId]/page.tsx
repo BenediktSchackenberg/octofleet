@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Timeline } from "@/components/timeline";
 import { Breadcrumb } from "@/components/ui-components";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
+import { PerformanceTab } from "@/components/performance-tab";
 
 const API_BASE = 'http://192.168.0.5:8080/api/v1';
 const API_KEY = 'openclaw-inventory-dev-key';
@@ -417,6 +418,7 @@ export default function NodeDetailPage() {
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="overview">Übersicht</TabsTrigger>
+            <TabsTrigger value="performance">📊 Performance</TabsTrigger>
             <TabsTrigger value="hardware">Hardware</TabsTrigger>
             <TabsTrigger value="software">Software ({software.length})</TabsTrigger>
             <TabsTrigger value="updates">Updates ({totalUpdatesCount})</TabsTrigger>
@@ -549,6 +551,11 @@ export default function NodeDetailPage() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Performance Tab */}
+          <TabsContent value="performance">
+            {node && <PerformanceTab nodeId={node.id} />}
           </TabsContent>
 
           {/* Hardware Tab */}
