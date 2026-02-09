@@ -111,6 +111,133 @@ app.add_middleware(
 
 # === Helper Functions ===
 
+def evaluate_dynamic_rule(rule: dict, node_data: dict) -> bool:
+    """
+    Evaluate a dynamic group rule against node data.
+    
+    Rule format:
+    {
+        "operator": "AND" | "OR",
+        "conditions": [
+            { "field": "os_name", "op": "equals|contains|startswith|endswith|gte|lte|gt|lt", "value": "..." },
+            ...
+        ]
+    }
+    
+    Supported fields:
+    - os_name, os_version, os_build, hostname, agent_version
+    - tags (special: checks if node has tag)
+    - cpu_name, total_memory_gb (from hardware)
+    """
+    if not rule or not isinstance(rule, dict):
+        return False
+    
+    operator = rule.get("operator", "AND").upper()
+    conditions = rule.get("conditions", [])
+    
+    if not conditions:
+        return False
+    
+    results = []
+    for cond in conditions:
+        field = cond.get("field", "")
+        op = cond.get("op", "equals")
+        value = cond.get("value", "")
+        
+        # Get node field value
+        node_value = node_data.get(field)
+        if node_value is None:
+            node_value = ""
+        
+        # Convert to string for comparison
+        node_value_str = str(node_value).lower()
+        value_str = str(value).lower()
+        
+        # Evaluate condition
+        match = False
+        try:
+            if op == "equals":
+                match = node_value_str == value_str
+            elif op == "contains":
+                match = value_str in node_value_str
+            elif op == "startswith":
+                match = node_value_str.startswith(value_str)
+            elif op == "endswith":
+                match = node_value_str.endswith(value_str)
+            elif op == "gte":
+                match = float(node_value) >= float(value)
+            elif op == "lte":
+                match = float(node_value) <= float(value)
+            elif op == "gt":
+                match = float(node_value) > float(value)
+            elif op == "lt":
+                match = float(node_value) < float(value)
+            elif op == "regex":
+                match = bool(re.search(value, str(node_value), re.IGNORECASE))
+            elif op == "not_equals":
+                match = node_value_str != value_str
+            elif op == "not_contains":
+                match = value_str not in node_value_str
+            elif op == "has_tag":
+                # Special: check if node has specific tag
+                tags = node_data.get("tags", [])
+                match = value_str in [t.lower() for t in tags]
+        except (ValueError, TypeError):
+            match = False
+        
+        results.append(match)
+    
+    # Combine results
+    if operator == "AND":
+        return all(results)
+    else:  # OR
+        return any(results)
+
+
+async def update_dynamic_group_memberships(db: asyncpg.Pool, node_uuid: UUID, node_data: dict):
+    """
+    Evaluate all dynamic groups for a node and update memberships.
+    Called after a node checks in with inventory data.
+    """
+    async with db.acquire() as conn:
+        # Get all dynamic groups
+        dynamic_groups = await conn.fetch("""
+            SELECT id, name, dynamic_rule FROM groups WHERE is_dynamic = true AND dynamic_rule IS NOT NULL
+        """)
+        
+        for group in dynamic_groups:
+            group_id = group['id']
+            rule = group['dynamic_rule']
+            
+            # Parse rule if it's a string
+            if isinstance(rule, str):
+                try:
+                    rule = json.loads(rule)
+                except json.JSONDecodeError:
+                    continue
+            
+            should_be_member = evaluate_dynamic_rule(rule, node_data)
+            
+            # Check current membership
+            is_member = await conn.fetchval("""
+                SELECT 1 FROM device_groups WHERE node_id = $1 AND group_id = $2
+            """, node_uuid, group_id)
+            
+            if should_be_member and not is_member:
+                # Add to group
+                await conn.execute("""
+                    INSERT INTO device_groups (node_id, group_id, assigned_by)
+                    VALUES ($1, $2, 'dynamic_rule')
+                    ON CONFLICT (node_id, group_id) DO NOTHING
+                """, node_uuid, group_id)
+            elif not should_be_member and is_member:
+                # Remove from group (only if it was auto-assigned)
+                await conn.execute("""
+                    DELETE FROM device_groups 
+                    WHERE node_id = $1 AND group_id = $2 AND assigned_by = 'dynamic_rule'
+                """, node_uuid, group_id)
+
+
 async def upsert_node(db: asyncpg.Pool, node_id: str, hostname: str, 
                       os_name: str = None, os_version: str = None, os_build: str = None) -> UUID:
     """Insert or update node, return UUID"""
@@ -1107,6 +1234,18 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
                 UPDATE nodes SET agent_version = $1 WHERE id = $2
             """, agent_version, uuid)
     
+    # Evaluate dynamic group memberships
+    node_data_for_rules = {
+        "hostname": hostname,
+        "os_name": os_info.get("name", ""),
+        "os_version": os_info.get("version", ""),
+        "os_build": os_info.get("build", ""),
+        "agent_version": agent_version or "",
+        "domain": os_info.get("domain", ""),
+        "is_domain_joined": os_info.get("isDomainJoined", False),
+    }
+    await update_dynamic_group_memberships(db, uuid, node_data_for_rules)
+    
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
 
 
@@ -1533,6 +1672,136 @@ async def delete_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
         if result == "DELETE 0":
             raise HTTPException(status_code=404, detail="Group not found")
         return {"status": "deleted", "groupId": group_id}
+
+
+@app.post("/api/v1/groups/preview-rule", dependencies=[Depends(verify_api_key)])
+async def preview_dynamic_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """
+    Preview which nodes would match a dynamic rule without creating the group.
+    Use this to test rules before creating dynamic groups.
+    """
+    rule = data.get("rule")
+    if not rule:
+        raise HTTPException(status_code=400, detail="rule is required")
+    
+    async with db.acquire() as conn:
+        # Get all nodes with their basic info
+        nodes = await conn.fetch("""
+            SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
+                   n.agent_version, n.last_seen, n.is_online,
+                   s.domain, s.is_domain_joined
+            FROM nodes n
+            LEFT JOIN system_current s ON n.id = s.node_id
+        """)
+        
+        matching = []
+        non_matching = []
+        
+        for node in nodes:
+            node_data = {
+                "hostname": node['hostname'] or "",
+                "os_name": node['os_name'] or "",
+                "os_version": node['os_version'] or "",
+                "os_build": node['os_build'] or "",
+                "agent_version": node['agent_version'] or "",
+                "domain": node['domain'] or "",
+                "is_domain_joined": node['is_domain_joined'] or False,
+            }
+            
+            if evaluate_dynamic_rule(rule, node_data):
+                matching.append({
+                    "id": str(node['id']),
+                    "hostname": node['hostname'],
+                    "os_name": node['os_name'],
+                    "last_seen": node['last_seen'].isoformat() if node['last_seen'] else None
+                })
+            else:
+                non_matching.append({
+                    "id": str(node['id']),
+                    "hostname": node['hostname'],
+                    "os_name": node['os_name'],
+                })
+        
+        return {
+            "matchingCount": len(matching),
+            "totalNodes": len(nodes),
+            "matching": matching,
+            "nonMatchingSample": non_matching[:5]  # First 5 for debugging
+        }
+
+
+@app.post("/api/v1/groups/{group_id}/evaluate", dependencies=[Depends(verify_api_key)])
+async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Re-evaluate a dynamic group and update memberships.
+    Useful after changing the rule or when you want to force a refresh.
+    """
+    async with db.acquire() as conn:
+        group = await conn.fetchrow("""
+            SELECT id, name, is_dynamic, dynamic_rule FROM groups WHERE id = $1
+        """, UUID(group_id))
+        
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        if not group['is_dynamic']:
+            raise HTTPException(status_code=400, detail="Group is not dynamic")
+        
+        rule = group['dynamic_rule']
+        if isinstance(rule, str):
+            rule = json.loads(rule)
+        
+        # Get all nodes
+        nodes = await conn.fetch("""
+            SELECT n.id, n.hostname, n.os_name, n.os_version, n.os_build, 
+                   n.agent_version, s.domain, s.is_domain_joined
+            FROM nodes n
+            LEFT JOIN system_current s ON n.id = s.node_id
+        """)
+        
+        added = 0
+        removed = 0
+        
+        for node in nodes:
+            node_data = {
+                "hostname": node['hostname'] or "",
+                "os_name": node['os_name'] or "",
+                "os_version": node['os_version'] or "",
+                "os_build": node['os_build'] or "",
+                "agent_version": node['agent_version'] or "",
+                "domain": node['domain'] or "",
+                "is_domain_joined": node['is_domain_joined'] or False,
+            }
+            
+            should_be_member = evaluate_dynamic_rule(rule, node_data)
+            
+            is_member = await conn.fetchval("""
+                SELECT 1 FROM device_groups WHERE node_id = $1 AND group_id = $2
+            """, node['id'], UUID(group_id))
+            
+            if should_be_member and not is_member:
+                await conn.execute("""
+                    INSERT INTO device_groups (node_id, group_id, assigned_by)
+                    VALUES ($1, $2, 'dynamic_rule')
+                    ON CONFLICT DO NOTHING
+                """, node['id'], UUID(group_id))
+                added += 1
+            elif not should_be_member and is_member:
+                result = await conn.execute("""
+                    DELETE FROM device_groups 
+                    WHERE node_id = $1 AND group_id = $2 AND assigned_by = 'dynamic_rule'
+                """, node['id'], UUID(group_id))
+                if result != "DELETE 0":
+                    removed += 1
+        
+        return {
+            "status": "ok",
+            "groupId": group_id,
+            "groupName": group['name'],
+            "added": added,
+            "removed": removed,
+            "evaluated": len(nodes)
+        }
 
 
 # E2-03: Assign devices to groups

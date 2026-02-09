@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { CreateGroupDialog } from "@/components/create-group-dialog";
+import { CreateDynamicGroupDialog } from "@/components/create-dynamic-group-dialog";
 import { CreateTagDialog } from "@/components/create-tag-dialog";
 
 interface Group {
@@ -98,7 +99,10 @@ export default async function GroupsPage() {
         <div className="mb-12">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold">Gruppen</h2>
-            <CreateGroupDialog />
+            <div className="flex gap-2">
+              <CreateGroupDialog />
+              <CreateDynamicGroupDialog />
+            </div>
           </div>
           
           {groups.length === 0 ? (
