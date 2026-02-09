@@ -3789,17 +3789,18 @@ async def get_node_metrics_history(node_id: str, days: int = 7, db: asyncpg.Pool
             "history": data_points
         }
 
+
 # ========== E5: Deployment Engine ==========
 
 @app.post("/api/v1/deployments", dependencies=[Depends(verify_api_key)])
 async def create_deployment(data: dict):
-    """Create a new deployment (package -> target)"""
-    required = ["name", "packageId", "targetType"]
+    """Create a new deployment (package version -> target)"""
+    required = ["name", "packageVersionId", "targetType"]
     for f in required:
         if f not in data:
             raise HTTPException(400, f"Missing required field: {f}")
     
-    package_id = data["packageId"]
+    package_version_id = data["packageVersionId"]
     target_type = data["targetType"]
     target_id = data.get("targetId")
     mode = data.get("mode", "required")
@@ -3811,19 +3812,19 @@ async def create_deployment(data: dict):
     if target_type in ("node", "group") and not target_id:
         raise HTTPException(400, f"targetId required for targetType={target_type}")
     
-    async with pool.acquire() as conn:
-        # Verify package exists
-        pkg = await conn.fetchrow("SELECT id FROM packages WHERE id = $1", package_id)
-        if not pkg:
-            raise HTTPException(404, "Package not found")
+    async with db_pool.acquire() as conn:
+        # Verify package version exists
+        pv = await conn.fetchrow("SELECT id FROM package_versions WHERE id = $1", package_version_id)
+        if not pv:
+            raise HTTPException(404, "Package version not found")
         
         # Create deployment
         dep_id = await conn.fetchval("""
-            INSERT INTO deployments (name, description, package_id, target_type, target_id, mode, 
+            INSERT INTO deployments (name, description, package_version_id, target_type, target_id, mode, 
                                       status, scheduled_start, scheduled_end, maintenance_window_only, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING id
-        """, data["name"], data.get("description"), package_id, target_type,
+        """, data["name"], data.get("description"), package_version_id, target_type,
             target_id, mode, data.get("status", "active"),
             data.get("scheduledStart"), data.get("scheduledEnd"),
             data.get("maintenanceWindowOnly", False), data.get("createdBy"))
@@ -3851,23 +3852,24 @@ async def create_deployment(data: dict):
 @app.get("/api/v1/deployments", dependencies=[Depends(verify_api_key)])
 async def list_deployments(status: str = None, limit: int = 50):
     """List all deployments with aggregated status"""
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         query = """
-            SELECT d.*, p.name as package_name, p.version as package_version,
+            SELECT d.*, p.name as package_name, pv.version as package_version,
                    COUNT(ds.id) as total_nodes,
                    COUNT(ds.id) FILTER (WHERE ds.status = 'success') as success_count,
                    COUNT(ds.id) FILTER (WHERE ds.status = 'failed') as failed_count,
                    COUNT(ds.id) FILTER (WHERE ds.status = 'pending') as pending_count,
                    COUNT(ds.id) FILTER (WHERE ds.status IN ('downloading', 'installing')) as in_progress_count
             FROM deployments d
-            JOIN packages p ON d.package_id = p.id
+            JOIN package_versions pv ON d.package_version_id = pv.id
+            JOIN packages p ON pv.package_id = p.id
             LEFT JOIN deployment_status ds ON d.id = ds.deployment_id
         """
         params = []
         if status:
             query += " WHERE d.status = $1"
             params.append(status)
-        query += " GROUP BY d.id, p.name, p.version ORDER BY d.created_at DESC LIMIT $" + str(len(params) + 1)
+        query += " GROUP BY d.id, p.name, pv.version ORDER BY d.created_at DESC LIMIT $" + str(len(params) + 1)
         params.append(limit)
         
         rows = await conn.fetch(query, *params)
@@ -3877,11 +3879,12 @@ async def list_deployments(status: str = None, limit: int = 50):
 @app.get("/api/v1/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
 async def get_deployment(deployment_id: str):
     """Get deployment details with per-node status"""
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         dep = await conn.fetchrow("""
-            SELECT d.*, p.name as package_name, p.version as package_version
+            SELECT d.*, p.name as package_name, pv.version as package_version
             FROM deployments d
-            JOIN packages p ON d.package_id = p.id
+            JOIN package_versions pv ON d.package_version_id = pv.id
+            JOIN packages p ON pv.package_id = p.id
             WHERE d.id = $1
         """, deployment_id)
         if not dep:
@@ -3909,8 +3912,7 @@ async def update_deployment(deployment_id: str, data: dict):
     if not updates:
         raise HTTPException(400, "No valid fields to update")
     
-    async with pool.acquire() as conn:
-        # Convert camelCase to snake_case
+    async with db_pool.acquire() as conn:
         field_map = {"scheduledStart": "scheduled_start", "scheduledEnd": "scheduled_end", "maintenanceWindowOnly": "maintenance_window_only"}
         set_clauses = []
         params = [deployment_id]
@@ -3929,7 +3931,7 @@ async def update_deployment(deployment_id: str, data: dict):
 @app.delete("/api/v1/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
 async def delete_deployment(deployment_id: str):
     """Delete a deployment"""
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         result = await conn.execute("DELETE FROM deployments WHERE id = $1", deployment_id)
         if result == "DELETE 0":
             raise HTTPException(404, "Deployment not found")
@@ -3939,22 +3941,24 @@ async def delete_deployment(deployment_id: str):
 @app.get("/api/v1/nodes/{node_id}/deployments", dependencies=[Depends(verify_api_key)])
 async def get_node_deployments(node_id: str):
     """Get pending deployments for a specific node (agent polling endpoint)"""
-    async with pool.acquire() as conn:
-        # Get node UUID
+    async with db_pool.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(404, "Node not found")
         
-        # Get active deployments for this node that are pending
         deployments = await conn.fetch("""
             SELECT d.id as deployment_id, d.name, d.mode, d.maintenance_window_only,
-                   p.name as package_name, p.version as package_version,
-                   p.installer_type, p.installer_url, p.installer_path,
-                   p.install_args, p.uninstall_args, p.expected_hash,
+                   p.name as package_name, pv.version as package_version,
+                   pv.install_command as installer_type, 
+                   pv.download_url as installer_url,
+                   pv.install_args,
+                   pv.uninstall_args, 
+                   pv.sha256_hash as expected_hash,
                    ds.status as node_status, ds.attempts
             FROM deployment_status ds
             JOIN deployments d ON ds.deployment_id = d.id
-            JOIN packages p ON d.package_id = p.id
+            JOIN package_versions pv ON d.package_version_id = pv.id
+            JOIN packages p ON pv.package_id = p.id
             WHERE ds.node_id = $1
               AND d.status = 'active'
               AND ds.status IN ('pending', 'failed')
@@ -3974,7 +3978,7 @@ async def update_node_deployment_status(node_id: str, deployment_id: str, data: 
     if status not in ("pending", "downloading", "installing", "success", "failed", "skipped"):
         raise HTTPException(400, "Invalid status")
     
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(404, "Node not found")
@@ -4005,3 +4009,18 @@ async def update_node_deployment_status(node_id: str, deployment_id: str, data: 
         
         return {"status": "updated"}
 
+
+# Get package versions for dropdown
+@app.get("/api/v1/package-versions", dependencies=[Depends(verify_api_key)])
+async def list_package_versions(limit: int = 100):
+    """List package versions for deployment creation"""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT pv.id, pv.version, p.id as package_id, p.name as package_name, p.display_name
+            FROM package_versions pv
+            JOIN packages p ON pv.package_id = p.id
+            WHERE pv.is_active = true
+            ORDER BY p.name, pv.version DESC
+            LIMIT $1
+        """, limit)
+        return [dict(r) for r in rows]

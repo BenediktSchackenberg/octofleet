@@ -12,9 +12,10 @@ import { Loader2 } from "lucide-react";
 const API_BASE = "http://192.168.0.5:8080/api/v1";
 const API_KEY = "openclaw-inventory-dev-key";
 
-interface Package {
+interface PackageVersion {
   id: string;
-  name: string;
+  package_name: string;
+  display_name: string;
   version: string;
 }
 
@@ -38,14 +39,14 @@ interface Props {
 export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [packageId, setPackageId] = useState("");
+  const [packageVersionId, setPackageVersionId] = useState("");
   const [targetType, setTargetType] = useState<"all" | "group" | "node">("all");
   const [targetId, setTargetId] = useState("");
   const [mode, setMode] = useState<"required" | "available" | "uninstall">("required");
   const [scheduledStart, setScheduledStart] = useState("");
   const [scheduledEnd, setScheduledEnd] = useState("");
   const [loading, setLoading] = useState(false);
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [packageVersions, setPackageVersions] = useState<PackageVersion[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
 
@@ -57,18 +58,18 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
   async function fetchData() {
     const headers = { "X-API-Key": API_KEY };
-    const [pkgRes, groupRes, nodeRes] = await Promise.all([
-      fetch(`${API_BASE}/packages`, { headers }),
+    const [pvRes, groupRes, nodeRes] = await Promise.all([
+      fetch(`${API_BASE}/package-versions`, { headers }),
       fetch(`${API_BASE}/groups`, { headers }),
       fetch(`${API_BASE}/nodes`, { headers }),
     ]);
-    if (pkgRes.ok) setPackages(await pkgRes.json());
+    if (pvRes.ok) setPackageVersions(await pvRes.json());
     if (groupRes.ok) setGroups(await groupRes.json());
     if (nodeRes.ok) setNodes(await nodeRes.json());
   }
 
   async function handleSubmit() {
-    if (!name || !packageId) return;
+    if (!name || !packageVersionId) return;
     if (targetType !== "all" && !targetId) return;
 
     setLoading(true);
@@ -79,7 +80,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
         body: JSON.stringify({
           name,
           description: description || null,
-          packageId,
+          packageVersionId,
           targetType,
           targetId: targetType === "all" ? null : targetId,
           mode,
@@ -102,7 +103,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
   function resetForm() {
     setName("");
     setDescription("");
-    setPackageId("");
+    setPackageVersionId("");
     setTargetType("all");
     setTargetId("");
     setMode("required");
@@ -141,14 +142,14 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
           <div className="space-y-2">
             <Label htmlFor="package">Paket *</Label>
-            <Select value={packageId} onValueChange={setPackageId}>
+            <Select value={packageVersionId} onValueChange={setPackageVersionId}>
               <SelectTrigger>
                 <SelectValue placeholder="Paket auswählen..." />
               </SelectTrigger>
               <SelectContent>
-                {packages.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name} v{p.version}
+                {packageVersions.map((pv) => (
+                  <SelectItem key={pv.id} value={pv.id}>
+                    {pv.display_name || pv.package_name} v{pv.version}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -246,7 +247,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
           </Button>
-          <Button onClick={handleSubmit} disabled={loading || !name || !packageId}>
+          <Button onClick={handleSubmit} disabled={loading || !name || !packageVersionId}>
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Deployment erstellen
           </Button>
