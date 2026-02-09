@@ -3223,3 +3223,126 @@ async def parse_eventlog_from_job(job_id: str, db: asyncpg.Pool = Depends(get_db
             "totalInserted": total_inserted,
             "results": results
         }
+
+
+# ============== METRICS API ==============
+
+@app.post("/api/v1/nodes/{node_id}/metrics", dependencies=[Depends(verify_api_key)])
+async def push_metrics(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Receive metrics from a node"""
+    async with db.acquire() as conn:
+        # Get node UUID (case-insensitive)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE UPPER(node_id) = UPPER($1)", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        node_uuid = node["id"]
+        
+        await conn.execute("""
+            INSERT INTO node_metrics (time, node_id, cpu_percent, ram_percent, disk_percent, network_in_mb, network_out_mb)
+            VALUES (NOW(), $1, $2, $3, $4, $5, $6)
+        """, node_uuid, 
+            data.get("cpuPercent"),
+            data.get("ramPercent"),
+            data.get("diskPercent"),
+            data.get("networkInMb"),
+            data.get("networkOutMb")
+        )
+        
+        return {"status": "ok"}
+
+
+@app.get("/api/v1/nodes/{node_id}/metrics", dependencies=[Depends(verify_api_key)])
+async def get_node_metrics(node_id: str, hours: int = 24, db: asyncpg.Pool = Depends(get_db)):
+    """Get metrics for a node with time series data"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        node_uuid = node["id"]
+        
+        # Get raw metrics
+        rows = await conn.fetch("""
+            SELECT time, cpu_percent, ram_percent, disk_percent, network_in_mb, network_out_mb
+            FROM node_metrics
+            WHERE node_id = $1 AND time > NOW() - INTERVAL '%s hours'
+            ORDER BY time ASC
+        """ % hours, node_uuid)
+        
+        metrics = [{
+            "time": row["time"].isoformat(),
+            "cpuPercent": row["cpu_percent"],
+            "ramPercent": row["ram_percent"],
+            "diskPercent": row["disk_percent"],
+            "networkInMb": row["network_in_mb"],
+            "networkOutMb": row["network_out_mb"]
+        } for row in rows]
+        
+        # Calculate averages
+        if metrics:
+            avg_cpu = sum(m["cpuPercent"] or 0 for m in metrics) / len(metrics)
+            avg_ram = sum(m["ramPercent"] or 0 for m in metrics) / len(metrics)
+            avg_disk = sum(m["diskPercent"] or 0 for m in metrics) / len(metrics)
+        else:
+            avg_cpu = avg_ram = avg_disk = None
+        
+        return {
+            "nodeId": node_id,
+            "hours": hours,
+            "dataPoints": len(metrics),
+            "averages": {
+                "cpuPercent": round(avg_cpu, 1) if avg_cpu else None,
+                "ramPercent": round(avg_ram, 1) if avg_ram else None,
+                "diskPercent": round(avg_disk, 1) if avg_disk else None
+            },
+            "metrics": metrics
+        }
+
+
+@app.get("/api/v1/metrics/summary", dependencies=[Depends(verify_api_key)])
+async def get_metrics_summary(db: asyncpg.Pool = Depends(get_db)):
+    """Get metrics summary for all nodes (for dashboard)"""
+    async with db.acquire() as conn:
+        # Get latest metrics per node
+        rows = await conn.fetch("""
+            WITH latest AS (
+                SELECT DISTINCT ON (node_id) 
+                    node_id, time, cpu_percent, ram_percent, disk_percent
+                FROM node_metrics
+                WHERE time > NOW() - INTERVAL '1 hour'
+                ORDER BY node_id, time DESC
+            )
+            SELECT n.node_id as text_node_id, n.hostname, 
+                   l.time, l.cpu_percent, l.ram_percent, l.disk_percent
+            FROM nodes n
+            LEFT JOIN latest l ON l.node_id = n.id
+            ORDER BY n.hostname
+        """)
+        
+        nodes = [{
+            "nodeId": row["text_node_id"],
+            "hostname": row["hostname"],
+            "lastMetricTime": row["time"].isoformat() if row["time"] else None,
+            "cpuPercent": row["cpu_percent"],
+            "ramPercent": row["ram_percent"],
+            "diskPercent": row["disk_percent"]
+        } for row in rows]
+        
+        # Calculate fleet averages
+        active_nodes = [n for n in nodes if n["cpuPercent"] is not None]
+        if active_nodes:
+            fleet_avg = {
+                "cpuPercent": round(sum(n["cpuPercent"] for n in active_nodes) / len(active_nodes), 1),
+                "ramPercent": round(sum(n["ramPercent"] for n in active_nodes) / len(active_nodes), 1),
+                "diskPercent": round(sum(n["diskPercent"] for n in active_nodes) / len(active_nodes), 1)
+            }
+        else:
+            fleet_avg = {"cpuPercent": None, "ramPercent": None, "diskPercent": None}
+        
+        return {
+            "nodesWithMetrics": len(active_nodes),
+            "totalNodes": len(nodes),
+            "fleetAverages": fleet_avg,
+            "nodes": nodes
+        }

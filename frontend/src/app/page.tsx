@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { NodeTree } from "@/components/NodeTree";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface DashboardSummary {
   counts: {
@@ -28,10 +29,28 @@ interface DashboardSummary {
   }>;
 }
 
+interface MetricsSummary {
+  nodesWithMetrics: number;
+  totalNodes: number;
+  fleetAverages: {
+    cpuPercent: number | null;
+    ramPercent: number | null;
+    diskPercent: number | null;
+  };
+  nodes: Array<{
+    nodeId: string;
+    hostname: string;
+    cpuPercent: number | null;
+    ramPercent: number | null;
+    diskPercent: number | null;
+  }>;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [nodeData, setNodeData] = useState<any>(null);
   const [hardware, setHardware] = useState<any>(null);
   const [software, setSoftware] = useState<any[]>([]);
@@ -47,6 +66,7 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchSummary();
+    fetchMetrics();
   }, []);
 
   useEffect(() => {
@@ -72,6 +92,15 @@ export default function HomePage() {
       console.error("Failed to fetch summary:", e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchMetrics() {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/metrics/summary`, { headers });
+      if (res.ok) setMetrics(await res.json());
+    } catch (e) {
+      console.error("Failed to fetch metrics:", e);
     }
   }
 
@@ -536,6 +565,107 @@ export default function HomePage() {
                   </CardHeader>
                 </Card>
               </div>
+
+              {/* Metrics Overview */}
+              {metrics && metrics.nodesWithMetrics > 0 && (
+                <div className="grid gap-4 md:grid-cols-3 mb-8">
+                  {/* Fleet Averages */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription className="flex items-center gap-2">
+                        <Cpu className="h-4 w-4" /> CPU Auslastung (Fleet)
+                      </CardDescription>
+                      <CardTitle className="text-3xl">
+                        {metrics.fleetAverages.cpuPercent?.toFixed(1) || 0}%
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 transition-all" 
+                          style={{ width: `${metrics.fleetAverages.cpuPercent || 0}%` }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription className="flex items-center gap-2">
+                        <MemoryStick className="h-4 w-4" /> RAM Auslastung (Fleet)
+                      </CardDescription>
+                      <CardTitle className="text-3xl">
+                        {metrics.fleetAverages.ramPercent?.toFixed(1) || 0}%
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all ${
+                            (metrics.fleetAverages.ramPercent || 0) > 80 ? 'bg-red-500' :
+                            (metrics.fleetAverages.ramPercent || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${metrics.fleetAverages.ramPercent || 0}%` }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription className="flex items-center gap-2">
+                        <HardDrive className="h-4 w-4" /> Disk Auslastung (Fleet)
+                      </CardDescription>
+                      <CardTitle className="text-3xl">
+                        {metrics.fleetAverages.diskPercent?.toFixed(1) || 0}%
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all ${
+                            (metrics.fleetAverages.diskPercent || 0) > 90 ? 'bg-red-500' :
+                            (metrics.fleetAverages.diskPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${metrics.fleetAverages.diskPercent || 0}%` }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              
+              {/* Per-Node Metrics Chart */}
+              {metrics && metrics.nodesWithMetrics > 0 && (
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5" /> Ressourcen pro Node
+                    </CardTitle>
+                    <CardDescription>RAM & Disk Auslastung</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart 
+                          data={metrics.nodes.filter(n => n.cpuPercent !== null).map(n => ({
+                            name: n.hostname,
+                            RAM: n.ramPercent,
+                            Disk: n.diskPercent
+                          }))}
+                          layout="vertical"
+                        >
+                          <XAxis type="number" domain={[0, 100]} />
+                          <YAxis type="category" dataKey="name" width={120} />
+                          <Tooltip />
+                          <Bar dataKey="RAM" fill="#3b82f6" name="RAM %" />
+                          <Bar dataKey="Disk" fill="#10b981" name="Disk %" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Warnings / Unassigned */}
               {summary && summary.counts.unassigned > 0 && (

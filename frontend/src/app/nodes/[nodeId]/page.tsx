@@ -160,6 +160,17 @@ interface BrowserData {
   };
 }
 
+interface EventlogEntry {
+  id: number;
+  logName: string;
+  eventId: number;
+  level: number;
+  levelName: string;
+  source: string;
+  message: string;
+  eventTime: string;
+}
+
 export default function NodeDetailPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
@@ -175,6 +186,8 @@ export default function NodeDetailPage() {
   const [network, setNetwork] = useState<NetworkData | null>(null);
   const [browser, setBrowser] = useState<BrowserData | null>(null);
   const [criticalCookies, setCriticalCookies] = useState<CriticalCookiesData | null>(null);
+  const [events, setEvents] = useState<EventlogEntry[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   async function refreshInventory() {
@@ -292,6 +305,17 @@ export default function NodeDetailPage() {
         if (critRes.ok) {
           setCriticalCookies(await critRes.json());
         }
+        
+        // Fetch eventlog separately (may not exist for all nodes)
+        try {
+          const eventsRes = await fetch(`${API_BASE}/nodes/${nodeId}/eventlog?limit=100`, { headers });
+          if (eventsRes.ok) {
+            const eventsData = await eventsRes.json();
+            setEvents(eventsData.events || []);
+          }
+        } catch {
+          // Eventlog might not be available
+        }
       } catch (err) {
         console.error("Failed to fetch data:", err);
       } finally {
@@ -390,6 +414,7 @@ export default function NodeDetailPage() {
             <TabsTrigger value="network">Netzwerk</TabsTrigger>
             <TabsTrigger value="security">Sicherheit</TabsTrigger>
             <TabsTrigger value="browser">Browser</TabsTrigger>
+            <TabsTrigger value="events">Events ({events.length})</TabsTrigger>
             <TabsTrigger value="history">Timeline</TabsTrigger>
           </TabsList>
 
@@ -1167,6 +1192,102 @@ export default function NodeDetailPage() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Events Tab */}
+          <TabsContent value="events">
+            <Card>
+              <CardHeader>
+                <CardTitle>📋 Windows Eventlog</CardTitle>
+                <CardDescription>System, Security & Application Events</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {events.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Keine Events gesammelt</p>
+                    <p className="text-sm mt-2">Führe einen Eventlog Collection Job aus</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Summary */}
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="bg-red-500/10 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-red-400">
+                          {events.filter(e => e.level <= 2).length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Critical/Error</div>
+                      </div>
+                      <div className="bg-yellow-500/10 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-yellow-400">
+                          {events.filter(e => e.level === 3).length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Warnings</div>
+                      </div>
+                      <div className="bg-blue-500/10 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-blue-400">
+                          {events.filter(e => e.logName === 'Security').length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Security</div>
+                      </div>
+                      <div className="bg-zinc-500/10 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-zinc-400">
+                          {events.length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Total</div>
+                      </div>
+                    </div>
+                    
+                    {/* Events Table */}
+                    <div className="max-h-[500px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[100px]">Zeit</TableHead>
+                            <TableHead className="w-[80px]">Level</TableHead>
+                            <TableHead className="w-[80px]">Log</TableHead>
+                            <TableHead className="w-[80px]">Event ID</TableHead>
+                            <TableHead>Source</TableHead>
+                            <TableHead>Message</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {events.slice(0, 100).map((event) => (
+                            <TableRow key={event.id}>
+                              <TableCell className="text-xs font-mono">
+                                {new Date(event.eventTime).toLocaleString('de-DE', {
+                                  month: '2-digit', day: '2-digit',
+                                  hour: '2-digit', minute: '2-digit'
+                                })}
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  event.level <= 1 ? 'bg-red-600' :
+                                  event.level === 2 ? 'bg-red-500' :
+                                  event.level === 3 ? 'bg-yellow-500' :
+                                  'bg-zinc-600'
+                                }>
+                                  {event.levelName || `L${event.level}`}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs">{event.logName}</TableCell>
+                              <TableCell>
+                                <code className="text-xs bg-zinc-800 px-1 rounded">{event.eventId}</code>
+                              </TableCell>
+                              <TableCell className="text-xs max-w-[150px] truncate" title={event.source}>
+                                {event.source}
+                              </TableCell>
+                              <TableCell className="text-xs max-w-[300px] truncate" title={event.message}>
+                                {event.message}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* History/Timeline Tab */}
