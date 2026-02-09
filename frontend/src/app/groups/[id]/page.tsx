@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
+import { Breadcrumb } from "@/components/ui-components";
 
 interface GroupMember {
   id: string;
@@ -168,7 +169,9 @@ export default function GroupDetailPage() {
     return (
       <main className="min-h-screen bg-background p-8">
         <div className="max-w-7xl mx-auto">
-          <p className="text-muted-foreground">Laden...</p>
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
         </div>
       </main>
     );
@@ -181,14 +184,12 @@ export default function GroupDetailPage() {
   return (
     <main className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Breadcrumb */}
+        <Breadcrumb items={[{ label: "Groups", href: "/groups" }, { label: group.name }]} />
+        
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <div className="flex items-center gap-4">
-              <Link href="/groups" className="text-muted-foreground hover:text-primary">
-                ← Zurück zu Gruppen
-              </Link>
-            </div>
             <div className="flex items-center gap-3 mt-2">
               {group.color && (
                 <div

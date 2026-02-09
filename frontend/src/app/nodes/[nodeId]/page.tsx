@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { Timeline } from "@/components/timeline";
+import { Breadcrumb } from "@/components/ui-components";
 
 const API_BASE = 'http://192.168.0.5:8080/api/v1';
 const API_KEY = 'openclaw-inventory-dev-key';
@@ -342,12 +343,12 @@ export default function NodeDetailPage() {
   return (
     <main className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Breadcrumb */}
+        <Breadcrumb items={[{ label: "Nodes", href: "/nodes" }, { label: node?.hostname || nodeId }]} />
+        
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <Link href="/" className="text-muted-foreground hover:text-primary text-sm">
-              ← Zurück zum Dashboard
-            </Link>
             <div className="flex items-center gap-4 mt-2">
               <h1 className="text-3xl font-bold">{node?.hostname || nodeId}</h1>
               {node && getStatusBadge(node.last_seen)}

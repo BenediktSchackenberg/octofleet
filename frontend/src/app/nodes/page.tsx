@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 
 const API_URL = "http://192.168.0.5:8080";
 
@@ -77,7 +78,7 @@ export default function NodesPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -85,20 +86,17 @@ export default function NodesPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-6xl mx-auto p-6">
+        {/* Breadcrumb */}
+        <Breadcrumb items={[{ label: "Nodes" }]} />
+        
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Nodes</h1>
+            <h1 className="text-2xl font-bold">🖥️ Nodes</h1>
             <p className="text-zinc-400 text-sm">
               {onlineCount} von {nodes.length} online
             </p>
           </div>
-          <Link
-            href="/"
-            className="text-blue-400 hover:text-blue-300 text-sm"
-          >
-            ← Zurück zur Übersicht
-          </Link>
         </div>
 
         {/* Search */}

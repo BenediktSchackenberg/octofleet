@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 
 const API_URL = "http://192.168.0.5:8080";
 
@@ -667,20 +668,20 @@ export default function PackageDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
-        <div className="text-zinc-400">Lade Paket...</div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   if (!pkg) {
     return (
-      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-xl font-bold text-white">Paket nicht gefunden</h1>
-          <Link href="/packages" className="mt-4 inline-block text-blue-400 hover:underline">
-            ← Zurück zur Übersicht
-          </Link>
+      <div className="min-h-screen bg-zinc-900 p-6">
+        <div className="mx-auto max-w-5xl">
+          <Breadcrumb items={[{ label: "Packages", href: "/packages" }, { label: "Nicht gefunden" }]} />
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">❌</div>
+            <h1 className="text-xl font-bold text-white">Paket nicht gefunden</h1>
+          </div>
         </div>
       </div>
     );
@@ -689,6 +690,9 @@ export default function PackageDetailPage() {
   return (
     <div className="min-h-screen bg-zinc-900 p-6">
       <div className="mx-auto max-w-5xl">
+        {/* Breadcrumb */}
+        <Breadcrumb items={[{ label: "Packages", href: "/packages" }, { label: pkg.displayName || pkg.name }]} />
+        
         {/* Header */}
         <div className="mb-6">
           <Link href="/packages" className="text-zinc-400 hover:text-white text-sm">

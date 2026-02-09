@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 
 const API_URL = "http://192.168.0.5:8080";
 
@@ -169,7 +170,7 @@ export default function JobDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -178,9 +179,7 @@ export default function JobDetailPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
         <div className="max-w-4xl mx-auto">
-          <Link href="/jobs" className="text-blue-400 hover:text-blue-300 mb-4 inline-block">
-            ← Zurück zu Jobs
-          </Link>
+          <Breadcrumb items={[{ label: "Jobs", href: "/jobs" }, { label: "Fehler" }]} />
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
             <p className="text-red-400">{error || "Job nicht gefunden"}</p>
           </div>
@@ -197,11 +196,11 @@ export default function JobDetailPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-6xl mx-auto p-6">
+        {/* Breadcrumb */}
+        <Breadcrumb items={[{ label: "Jobs", href: "/jobs" }, { label: job.name }]} />
+        
         {/* Header */}
         <div className="mb-6">
-          <Link href="/jobs" className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block">
-            ← Zurück zu Jobs
-          </Link>
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-3">
