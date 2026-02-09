@@ -248,83 +248,84 @@ export default function NodeDetailPage() {
     }
   }
 
-  useEffect(() => {
-    async function fetchAll() {
-      setLoading(true);
-      try {
-        const headers = { 'X-API-Key': API_KEY };
-        
-        const [nodeRes, historyRes, hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
-          fetch(`${API_BASE}/nodes/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/nodes/${nodeId}/history?limit=50`, { headers }),
-          fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/inventory/software/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/inventory/hotfixes/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/inventory/system/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers }),
-          fetch(`${API_BASE}/inventory/browser/${nodeId}/critical`, { headers }),
-        ]);
+  async function fetchNodeDetails() {
+    setLoading(true);
+    try {
+      const headers = { 'X-API-Key': API_KEY };
+      
+      const [nodeRes, historyRes, hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
+        fetch(`${API_BASE}/nodes/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/nodes/${nodeId}/history?limit=50`, { headers }),
+        fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/software/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/hotfixes/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/system/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/inventory/browser/${nodeId}/critical`, { headers }),
+      ]);
 
-        if (nodeRes.ok) setNode(await nodeRes.json());
-        if (historyRes.ok) {
-          const data = await historyRes.json();
-          setHistory(data.changes || []);
-        }
-        if (hwRes.ok) {
-          const data = await hwRes.json();
-          setHardware(data.data || {});
-        }
-        if (swRes.ok) {
-          const data = await swRes.json();
-          setSoftware(data.data?.installedPrograms || []);
-        }
-        if (hfRes.ok) {
-          const data = await hfRes.json();
-          setHotfixes({
-            hotfixes: data.data?.hotfixes || [],
-            updateHistory: data.data?.updateHistory || []
-          });
-        }
-        if (sysRes.ok) {
-          const data = await sysRes.json();
-          setSystem(data.data || {});
-        }
-        if (secRes.ok) {
-          const data = await secRes.json();
-          setSecurity(data.data || {});
-        }
-        if (netRes.ok) {
-          const data = await netRes.json();
-          setNetwork(data.data || {});
-        }
-        if (brRes.ok) {
-          const data = await brRes.json();
-          setBrowser(data.data || {});
-        }
-        if (critRes.ok) {
-          setCriticalCookies(await critRes.json());
-        }
-        
-        // Fetch eventlog separately (may not exist for all nodes)
-        try {
-          const eventsRes = await fetch(`${API_BASE}/nodes/${nodeId}/eventlog?limit=100`, { headers });
-          if (eventsRes.ok) {
-            const eventsData = await eventsRes.json();
-            setEvents(eventsData.events || []);
-          }
-        } catch {
-          // Eventlog might not be available
-        }
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-      } finally {
-        setLoading(false);
+      if (nodeRes.ok) setNode(await nodeRes.json());
+      if (historyRes.ok) {
+        const data = await historyRes.json();
+        setHistory(data.changes || []);
       }
+      if (hwRes.ok) {
+        const data = await hwRes.json();
+        setHardware(data.data || {});
+      }
+      if (swRes.ok) {
+        const data = await swRes.json();
+        setSoftware(data.data?.installedPrograms || []);
+      }
+      if (hfRes.ok) {
+        const data = await hfRes.json();
+        setHotfixes({
+          hotfixes: data.data?.hotfixes || [],
+          updateHistory: data.data?.updateHistory || []
+        });
+      }
+      if (sysRes.ok) {
+        const data = await sysRes.json();
+        setSystem(data.data || {});
+      }
+      if (secRes.ok) {
+        const data = await secRes.json();
+        setSecurity(data.data || {});
+      }
+      if (netRes.ok) {
+        const data = await netRes.json();
+        setNetwork(data.data || {});
+      }
+      if (brRes.ok) {
+        const data = await brRes.json();
+        setBrowser(data.data || {});
+      }
+      if (critRes.ok) {
+        setCriticalCookies(await critRes.json());
+      }
+      
+      // Fetch eventlog separately (may not exist for all nodes)
+      try {
+        const eventsRes = await fetch(`${API_BASE}/nodes/${nodeId}/eventlog?limit=100`, { headers });
+        if (eventsRes.ok) {
+          const eventsData = await eventsRes.json();
+          setEvents(eventsData.events || []);
+        }
+      } catch {
+        // Eventlog might not be available
+      }
+    } catch (err) {
+      console.error("Failed to fetch data:", err);
+    } finally {
+      setLoading(false);
     }
-    
-    fetchAll();
+  }
+
+  useEffect(() => {
+    fetchNodeDetails();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
 
   if (loading) {
