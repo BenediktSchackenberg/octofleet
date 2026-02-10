@@ -61,6 +61,15 @@ export default function HomePage() {
   const [hotfixes, setHotfixes] = useState<any>({ hotfixes: [], updateHistory: [] });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [gatewayStatus, setGatewayStatus] = useState<{
+    online: boolean;
+    version: string;
+    uptime: string;
+    connectedNodes: number;
+    pendingJobs: number;
+    lastCheck: string;
+    error?: string;
+  } | null>(null);
 
   const API_BASE = "http://192.168.0.5:8080";
   const headers = { "X-API-Key": "openclaw-inventory-dev-key" };
@@ -68,6 +77,10 @@ export default function HomePage() {
   useEffect(() => {
     fetchSummary();
     fetchMetrics();
+    fetchGatewayStatus();
+    // Refresh gateway status every 10 seconds
+    const interval = setInterval(fetchGatewayStatus, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -102,6 +115,16 @@ export default function HomePage() {
       if (res.ok) setMetrics(await res.json());
     } catch (e) {
       console.error("Failed to fetch metrics:", e);
+    }
+  }
+
+  async function fetchGatewayStatus() {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/gateway/status`, { headers });
+      if (res.ok) setGatewayStatus(await res.json());
+    } catch (e) {
+      console.error("Failed to fetch gateway status:", e);
+      setGatewayStatus({ online: false, version: "unknown", uptime: "unknown", connectedNodes: 0, pendingJobs: 0, lastCheck: new Date().toISOString(), error: String(e) });
     }
   }
 
@@ -547,6 +570,44 @@ export default function HomePage() {
                   <RefreshCw className="h-4 w-4 mr-2" /> Refresh
                 </Button>
               </div>
+
+              {/* Gateway Health Widget */}
+              <Card className={`mb-6 ${gatewayStatus?.online ? 'border-green-500' : 'border-red-500 animate-pulse'}`}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Activity className={`h-5 w-5 ${gatewayStatus?.online ? 'text-green-500' : 'text-red-500'}`} />
+                      Gateway Status
+                    </CardTitle>
+                    <Badge className={gatewayStatus?.online ? 'bg-green-600' : 'bg-red-600'}>
+                      {gatewayStatus?.online ? 'Online' : 'Offline'}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Version</span>
+                      <p className="font-medium">{gatewayStatus?.version || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Uptime</span>
+                      <p className="font-medium">{gatewayStatus?.uptime || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Connected Nodes</span>
+                      <p className="font-medium">{gatewayStatus?.connectedNodes || 0}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Pending Jobs</span>
+                      <p className="font-medium">{gatewayStatus?.pendingJobs || 0}</p>
+                    </div>
+                  </div>
+                  {gatewayStatus?.error && (
+                    <p className="text-red-500 text-xs mt-2">Error: {gatewayStatus.error}</p>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* KPI Cards */}
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">

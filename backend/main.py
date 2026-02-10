@@ -4366,3 +4366,58 @@ async def trigger_health_check():
     """Manually trigger a node health check"""
     await check_node_health(db_pool)
     return {"status": "checked"}
+
+
+# --- Gateway Status Endpoint (E11-05) ---
+
+import aiohttp
+from datetime import datetime
+
+# Track gateway start time for uptime calculation
+GATEWAY_START_TIME = datetime.utcnow()
+
+@app.get("/api/v1/gateway/status", dependencies=[Depends(verify_api_key)])
+async def get_gateway_status():
+    """Get OpenClaw Gateway health status for the dashboard widget"""
+    gateway_url = "http://192.168.0.5:18789"
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Try to get gateway status
+            async with session.get(f"{gateway_url}/status", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return {
+                        "online": True,
+                        "version": data.get("version", "unknown"),
+                        "uptime": data.get("uptime", "unknown"),
+                        "connectedNodes": data.get("connectedNodes", 0),
+                        "pendingJobs": data.get("pendingJobs", 0),
+                        "lastCheck": datetime.utcnow().isoformat() + "Z"
+                    }
+    except Exception as e:
+        pass
+    
+    # Fallback: Try basic connectivity check
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{gateway_url}/", timeout=aiohttp.ClientTimeout(total=3)) as resp:
+                return {
+                    "online": resp.status < 500,
+                    "version": "unknown",
+                    "uptime": "unknown", 
+                    "connectedNodes": 0,
+                    "pendingJobs": 0,
+                    "lastCheck": datetime.utcnow().isoformat() + "Z",
+                    "note": "Basic connectivity only - detailed status unavailable"
+                }
+    except Exception as e:
+        return {
+            "online": False,
+            "version": "unknown",
+            "uptime": "unknown",
+            "connectedNodes": 0,
+            "pendingJobs": 0,
+            "lastCheck": datetime.utcnow().isoformat() + "Z",
+            "error": str(e)
+        }
