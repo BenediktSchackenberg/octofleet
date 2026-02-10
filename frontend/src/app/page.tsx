@@ -11,7 +11,7 @@ import { NodeTree } from "@/components/NodeTree";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, ScrollText } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface DashboardSummary {
@@ -218,6 +218,9 @@ export default function HomePage() {
           <GlobalSearch onNodeSelect={handleNodeSelect} />
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/logs"><ScrollText className="h-4 w-4 mr-1" /> Logs</Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/performance"><Activity className="h-4 w-4 mr-1" /> Performance</Link>
           </Button>

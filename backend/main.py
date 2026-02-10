@@ -4421,3 +4421,52 @@ async def get_gateway_status():
             "lastCheck": datetime.utcnow().isoformat() + "Z",
             "error": str(e)
         }
+
+
+# --- Gateway Logs Endpoint (E11-06) ---
+
+# In-memory log buffer for demo purposes
+# In production, this would read from actual gateway logs
+import collections
+LOG_BUFFER = collections.deque(maxlen=500)
+
+def add_log_entry(level: str, message: str, node_id: str = None, job_id: str = None):
+    """Add a log entry to the buffer"""
+    LOG_BUFFER.append({
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "level": level,
+        "message": message,
+        "node_id": node_id,
+        "job_id": job_id
+    })
+
+# Seed some demo logs
+add_log_entry("info", "Gateway started", None, None)
+add_log_entry("info", "Database connection established", None, None)
+
+@app.get("/api/v1/gateway/logs", dependencies=[Depends(verify_api_key)])
+async def get_gateway_logs(
+    level: Optional[str] = None,
+    node_id: Optional[str] = None,
+    job_id: Optional[str] = None,
+    limit: int = 100
+):
+    """Get gateway logs with optional filters"""
+    logs = list(LOG_BUFFER)
+    
+    # Apply filters
+    if level:
+        logs = [l for l in logs if l["level"] == level]
+    if node_id:
+        logs = [l for l in logs if l.get("node_id") == node_id]
+    if job_id:
+        logs = [l for l in logs if l.get("job_id") == job_id]
+    
+    # Return most recent logs
+    logs = logs[-limit:]
+    
+    return {
+        "logs": logs,
+        "total": len(logs),
+        "filters": {"level": level, "node_id": node_id, "job_id": job_id}
+    }
