@@ -4,3 +4,4 @@ asyncpg>=0.29.0
 pydantic>=2.5.0
 python-multipart>=0.0.6
 psycopg2-binary
+aiohttp>=3.9.0

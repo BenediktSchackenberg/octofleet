@@ -15,6 +15,9 @@ import re
 import secrets
 from datetime import datetime, timedelta
 
+# E7: Alerting imports
+from alerting import get_alert_manager, update_node_health, check_node_health
+
 # Config
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -1560,6 +1563,14 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         }
         await submit_browser(flat_br, db)
         results["submitted"].append("browser")
+    
+    # E7: Update node health timestamp on any inventory push
+    node_id = data.get("nodeId", hostname)
+    try:
+        await update_node_health(db, node_id)
+    except Exception as e:
+        # Don't fail the whole request if health update fails
+        pass
     
     return {"status": "ok", **results}
 
@@ -4040,3 +4051,318 @@ async def list_package_versions(limit: int = 100):
             LIMIT $1
         """, limit)
         return [dict(r) for r in rows]
+
+
+# ============================================================================
+# E7: ALERTING & NOTIFICATIONS
+# ============================================================================
+
+# --- Alert Rules ---
+
+@app.get("/api/v1/alerts/rules", dependencies=[Depends(verify_api_key)])
+async def list_alert_rules():
+    """List all alert rules"""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, name, description, event_type, condition, severity, 
+                   is_enabled, cooldown_minutes, created_at, updated_at
+            FROM alert_rules
+            ORDER BY severity DESC, name
+        """)
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/v1/alerts/rules", dependencies=[Depends(verify_api_key)])
+async def create_alert_rule(data: dict):
+    """Create a new alert rule"""
+    async with db_pool.acquire() as conn:
+        rule_id = await conn.fetchval("""
+            INSERT INTO alert_rules (name, description, event_type, condition, severity, is_enabled, cooldown_minutes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
+        """, data.get("name"), data.get("description"), data.get("event_type"),
+            json.dumps(data.get("condition", {})), data.get("severity", "warning"),
+            data.get("is_enabled", True), data.get("cooldown_minutes", 60))
+        return {"id": str(rule_id)}
+
+
+@app.put("/api/v1/alerts/rules/{rule_id}", dependencies=[Depends(verify_api_key)])
+async def update_alert_rule(rule_id: str, data: dict):
+    """Update an alert rule"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE alert_rules SET
+                name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                event_type = COALESCE($4, event_type),
+                condition = COALESCE($5, condition),
+                severity = COALESCE($6, severity),
+                is_enabled = COALESCE($7, is_enabled),
+                cooldown_minutes = COALESCE($8, cooldown_minutes),
+                updated_at = NOW()
+            WHERE id = $1::uuid
+        """, rule_id, data.get("name"), data.get("description"), data.get("event_type"),
+            json.dumps(data.get("condition")) if data.get("condition") else None,
+            data.get("severity"), data.get("is_enabled"), data.get("cooldown_minutes"))
+        return {"status": "updated"}
+
+
+@app.delete("/api/v1/alerts/rules/{rule_id}", dependencies=[Depends(verify_api_key)])
+async def delete_alert_rule(rule_id: str):
+    """Delete an alert rule"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM alert_rules WHERE id = $1::uuid", rule_id)
+        return {"status": "deleted"}
+
+
+# --- Notification Channels ---
+
+@app.get("/api/v1/alerts/channels", dependencies=[Depends(verify_api_key)])
+async def list_notification_channels():
+    """List all notification channels"""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, name, channel_type, config, is_enabled, created_at, updated_at
+            FROM notification_channels
+            ORDER BY name
+        """)
+        result = []
+        for r in rows:
+            d = dict(r)
+            # Mask webhook URLs for security
+            if d.get("config"):
+                config = json.loads(d["config"]) if isinstance(d["config"], str) else d["config"]
+                if "webhook_url" in config:
+                    url = config["webhook_url"]
+                    config["webhook_url"] = url[:30] + "..." if len(url) > 30 else url
+                d["config"] = config
+            result.append(d)
+        return result
+
+
+@app.post("/api/v1/alerts/channels", dependencies=[Depends(verify_api_key)])
+async def create_notification_channel(data: dict):
+    """Create a notification channel"""
+    async with db_pool.acquire() as conn:
+        channel_id = await conn.fetchval("""
+            INSERT INTO notification_channels (name, channel_type, config, is_enabled)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id
+        """, data.get("name"), data.get("channel_type"), 
+            json.dumps(data.get("config", {})), data.get("is_enabled", True))
+        return {"id": str(channel_id)}
+
+
+@app.put("/api/v1/alerts/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
+async def update_notification_channel(channel_id: str, data: dict):
+    """Update a notification channel"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE notification_channels SET
+                name = COALESCE($2, name),
+                channel_type = COALESCE($3, channel_type),
+                config = COALESCE($4, config),
+                is_enabled = COALESCE($5, is_enabled),
+                updated_at = NOW()
+            WHERE id = $1::uuid
+        """, channel_id, data.get("name"), data.get("channel_type"),
+            json.dumps(data.get("config")) if data.get("config") else None,
+            data.get("is_enabled"))
+        return {"status": "updated"}
+
+
+@app.delete("/api/v1/alerts/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
+async def delete_notification_channel(channel_id: str):
+    """Delete a notification channel"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM notification_channels WHERE id = $1::uuid", channel_id)
+        return {"status": "deleted"}
+
+
+@app.post("/api/v1/alerts/channels/{channel_id}/test", dependencies=[Depends(verify_api_key)])
+async def test_notification_channel(channel_id: str):
+    """Send a test notification to a channel"""
+    async with db_pool.acquire() as conn:
+        channel = await conn.fetchrow(
+            "SELECT name, channel_type, config FROM notification_channels WHERE id = $1::uuid",
+            channel_id
+        )
+        if not channel:
+            raise HTTPException(404, "Channel not found")
+        
+        alert_manager = get_alert_manager(db_pool)
+        try:
+            config = json.loads(channel["config"]) if isinstance(channel["config"], str) else channel["config"]
+            await alert_manager._send_notification(
+                channel_type=channel["channel_type"],
+                config=config,
+                title="🧪 Test Notification",
+                message="This is a test notification from OpenClaw Inventory. If you see this, the channel is configured correctly!",
+                severity="info",
+                node_name="Test",
+                metadata={"test": True}
+            )
+            return {"status": "sent"}
+        except Exception as e:
+            raise HTTPException(400, f"Test failed: {str(e)}")
+
+
+# --- Link Rules to Channels ---
+
+@app.post("/api/v1/alerts/rules/{rule_id}/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
+async def link_rule_to_channel(rule_id: str, channel_id: str):
+    """Link an alert rule to a notification channel"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO alert_rule_channels (rule_id, channel_id)
+            VALUES ($1::uuid, $2::uuid)
+            ON CONFLICT DO NOTHING
+        """, rule_id, channel_id)
+        return {"status": "linked"}
+
+
+@app.delete("/api/v1/alerts/rules/{rule_id}/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
+async def unlink_rule_from_channel(rule_id: str, channel_id: str):
+    """Unlink an alert rule from a notification channel"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            DELETE FROM alert_rule_channels WHERE rule_id = $1::uuid AND channel_id = $2::uuid
+        """, rule_id, channel_id)
+        return {"status": "unlinked"}
+
+
+@app.get("/api/v1/alerts/rules/{rule_id}/channels", dependencies=[Depends(verify_api_key)])
+async def get_rule_channels(rule_id: str):
+    """Get channels linked to a rule"""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT nc.id, nc.name, nc.channel_type
+            FROM notification_channels nc
+            JOIN alert_rule_channels arc ON nc.id = arc.channel_id
+            WHERE arc.rule_id = $1::uuid
+        """, rule_id)
+        return [dict(r) for r in rows]
+
+
+# --- Alert History ---
+
+@app.get("/api/v1/alerts", dependencies=[Depends(verify_api_key)])
+async def list_alerts(
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    event_type: Optional[str] = None,
+    node_id: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """List fired alerts with optional filters"""
+    async with db_pool.acquire() as conn:
+        conditions = ["1=1"]
+        params = []
+        param_idx = 1
+        
+        if status:
+            conditions.append(f"status = ${param_idx}")
+            params.append(status)
+            param_idx += 1
+        
+        if severity:
+            conditions.append(f"severity = ${param_idx}")
+            params.append(severity)
+            param_idx += 1
+        
+        if event_type:
+            conditions.append(f"event_type = ${param_idx}")
+            params.append(event_type)
+            param_idx += 1
+        
+        if node_id:
+            conditions.append(f"(node_id::text = ${param_idx} OR node_name = ${param_idx})")
+            params.append(node_id)
+            param_idx += 1
+        
+        where_clause = " AND ".join(conditions)
+        params.extend([limit, offset])
+        
+        rows = await conn.fetch(f"""
+            SELECT id, rule_name, event_type, severity, title, message, 
+                   node_name, status, fired_at, acknowledged_at, resolved_at, metadata
+            FROM alerts
+            WHERE {where_clause}
+            ORDER BY fired_at DESC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """, *params)
+        
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/v1/alerts/stats", dependencies=[Depends(verify_api_key)])
+async def get_alert_stats():
+    """Get alert statistics"""
+    async with db_pool.acquire() as conn:
+        stats = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE status = 'fired') as active,
+                COUNT(*) FILTER (WHERE status = 'acknowledged') as acknowledged,
+                COUNT(*) FILTER (WHERE status = 'resolved') as resolved,
+                COUNT(*) FILTER (WHERE severity = 'critical' AND status = 'fired') as critical_active,
+                COUNT(*) FILTER (WHERE severity = 'warning' AND status = 'fired') as warning_active,
+                COUNT(*) FILTER (WHERE fired_at > NOW() - INTERVAL '24 hours') as last_24h,
+                COUNT(*) FILTER (WHERE fired_at > NOW() - INTERVAL '7 days') as last_7d
+            FROM alerts
+        """)
+        return dict(stats)
+
+
+@app.post("/api/v1/alerts/{alert_id}/acknowledge", dependencies=[Depends(verify_api_key)])
+async def acknowledge_alert(alert_id: str, data: dict = None):
+    """Acknowledge an alert"""
+    data = data or {}
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE alerts SET 
+                status = 'acknowledged',
+                acknowledged_at = NOW(),
+                acknowledged_by = $2
+            WHERE id = $1::uuid AND status = 'fired'
+        """, alert_id, data.get("by", "API"))
+        return {"status": "acknowledged"}
+
+
+@app.post("/api/v1/alerts/{alert_id}/resolve", dependencies=[Depends(verify_api_key)])
+async def resolve_alert(alert_id: str):
+    """Manually resolve an alert"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE alerts SET status = 'resolved', resolved_at = NOW()
+            WHERE id = $1::uuid AND status IN ('fired', 'acknowledged')
+        """, alert_id)
+        return {"status": "resolved"}
+
+
+# --- Manual Alert Trigger (for testing/external events) ---
+
+@app.post("/api/v1/alerts/fire", dependencies=[Depends(verify_api_key)])
+async def fire_manual_alert(data: dict):
+    """Manually fire an alert"""
+    alert_manager = get_alert_manager(db_pool)
+    alert_id = await alert_manager.fire_alert(
+        event_type=data.get("event_type", "manual"),
+        title=data.get("title", "Manual Alert"),
+        message=data.get("message", ""),
+        severity=data.get("severity", "info"),
+        node_id=data.get("node_id"),
+        node_name=data.get("node_name"),
+        metadata=data.get("metadata")
+    )
+    return {"alert_id": alert_id}
+
+
+# --- Node Health Check Endpoint ---
+
+@app.post("/api/v1/health/check", dependencies=[Depends(verify_api_key)])
+async def trigger_health_check():
+    """Manually trigger a node health check"""
+    await check_node_health(db_pool)
+    return {"status": "checked"}
