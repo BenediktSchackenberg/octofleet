@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { NodeTree } from "@/components/NodeTree";
+import { SavedViews } from "@/components/SavedViews";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
@@ -240,6 +241,7 @@ export default function HomePage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Node Tree */}
         <aside className="w-64 border-r overflow-y-auto bg-muted/30">
+          <SavedViews onApplyFilter={(filter) => console.log("Filter applied:", filter)} />
           <div className="p-2 border-b">
             <h2 className="text-sm font-semibold text-muted-foreground px-2">Nodes</h2>
           </div>
