@@ -1,0 +1,27 @@
+[Unit]
+Description=OpenClaw Linux Agent
+Documentation=https://github.com/BenediktSchackenberg/openclaw-windows-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/openclaw-agent/agent.sh service
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-agent
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/var/log /opt/openclaw-agent
+
+# Environment
+EnvironmentFile=-/opt/openclaw-agent/config.env
+
+[Install]
+WantedBy=multi-user.target
