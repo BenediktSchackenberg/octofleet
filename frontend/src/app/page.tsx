@@ -838,20 +838,35 @@ export default function HomePage() {
                 <CardContent>
                   {summary?.recent_events && summary.recent_events.length > 0 ? (
                     <div className="space-y-3">
-                      {summary.recent_events.slice(0, 10).map((event, i) => (
-                        <div 
-                          key={i} 
-                          className="flex items-center justify-between text-sm py-2 border-b last:border-0 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2"
-                          onClick={() => handleNodeSelect(event.subject_id)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-green-500">●</span>
-                            <span className="font-medium">{event.subject}</span>
-                            <span className="text-muted-foreground">checked in</span>
+                      {summary.recent_events.slice(0, 15).map((event, i) => {
+                        const eventConfig: { [key: string]: { icon: string; color: string; text: string } } = {
+                          'node_checkin': { icon: '●', color: 'text-green-500', text: 'checked in' },
+                          'node_online': { icon: '●', color: 'text-green-500', text: 'came online' },
+                          'node_offline': { icon: '●', color: 'text-gray-400', text: 'went offline' },
+                          'node_registered': { icon: '★', color: 'text-blue-500', text: 'registered' },
+                          'install_started': { icon: '📦', color: 'text-blue-500', text: 'install started' },
+                          'install_completed': { icon: '✓', color: 'text-green-500', text: 'install completed' },
+                          'install_failed': { icon: '✗', color: 'text-red-500', text: 'install failed' },
+                          'job_started': { icon: '▶', color: 'text-blue-500', text: 'job started' },
+                          'job_completed': { icon: '✓', color: 'text-green-500', text: 'job completed' },
+                          'job_failed': { icon: '✗', color: 'text-red-500', text: 'job failed' },
+                        };
+                        const cfg = eventConfig[event.type] || { icon: '●', color: 'text-green-500', text: event.type };
+                        return (
+                          <div 
+                            key={i} 
+                            className="flex items-center justify-between text-sm py-2 border-b last:border-0 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2"
+                            onClick={() => handleNodeSelect(event.subject_id)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={cfg.color}>{cfg.icon}</span>
+                              <span className="font-medium">{event.subject}</span>
+                              <span className="text-muted-foreground">{cfg.text}</span>
+                            </div>
+                            <span className="text-muted-foreground">{formatRelativeTime(event.timestamp)}</span>
                           </div>
-                          <span className="text-muted-foreground">{formatRelativeTime(event.timestamp)}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-muted-foreground text-center py-4">Keine Aktivitäten</p>
