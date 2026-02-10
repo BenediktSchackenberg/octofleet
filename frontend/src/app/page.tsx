@@ -12,7 +12,7 @@ import { SavedViews } from "@/components/SavedViews";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, ScrollText } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, ScrollText, FileText } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface DashboardSummary {
@@ -60,6 +60,7 @@ export default function HomePage() {
   const [network, setNetwork] = useState<any>(null);
   const [browser, setBrowser] = useState<any>(null);
   const [hotfixes, setHotfixes] = useState<any>({ hotfixes: [], updateHistory: [] });
+  const [eventlog, setEventlog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [gatewayStatus, setGatewayStatus] = useState<{
@@ -96,6 +97,7 @@ export default function HomePage() {
       setNetwork(null);
       setBrowser(null);
       setHotfixes({ hotfixes: [], updateHistory: [] });
+      setEventlog([]);
     }
   }, [selectedNodeId]);
 
@@ -132,7 +134,7 @@ export default function HomePage() {
   async function fetchFullNodeData(nodeId: string) {
     try {
       // Fetch all data in parallel - use correct inventory endpoints
-      const [nodeRes, hwRes, swRes, secRes, netRes, brRes, hfRes] = await Promise.all([
+      const [nodeRes, hwRes, swRes, secRes, netRes, brRes, hfRes, evRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/nodes/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/hardware/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/software/${nodeId}`, { headers }),
@@ -140,6 +142,7 @@ export default function HomePage() {
         fetch(`${API_BASE}/api/v1/inventory/network/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/browser/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/hotfixes/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/api/v1/nodes/${nodeId}/eventlog?limit=100`, { headers }),
       ]);
 
       if (nodeRes.ok) setNodeData(await nodeRes.json());
@@ -170,6 +173,10 @@ export default function HomePage() {
           hotfixes: resolved.hotfixes || [],
           updateHistory: resolved.updateHistory || []
         });
+      }
+      if (evRes.ok) {
+        const evData = await evRes.json();
+        setEventlog(evData.events || evData.entries || []);
       }
     } catch (e) {
       console.error("Failed to fetch node data:", e);
@@ -281,6 +288,7 @@ export default function HomePage() {
                   <TabsTrigger value="network" className="gap-1"><Globe className="h-4 w-4" /> Netzwerk</TabsTrigger>
                   <TabsTrigger value="browser" className="gap-1"><Cookie className="h-4 w-4" /> Browser</TabsTrigger>
                   <TabsTrigger value="updates" className="gap-1"><HardDrive className="h-4 w-4" /> Updates ({hotfixes.hotfixes?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="eventlog" className="gap-1"><FileText className="h-4 w-4" /> Eventlog</TabsTrigger>
                 </TabsList>
 
                 {/* Overview Tab */}
@@ -558,6 +566,63 @@ export default function HomePage() {
                           </TableBody>
                         </Table>
                       </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Eventlog Tab */}
+                <TabsContent value="eventlog">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" /> Windows Eventlog
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {eventlog.length > 0 ? (
+                        <div className="max-h-[500px] overflow-y-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Zeit</TableHead>
+                                <TableHead>Level</TableHead>
+                                <TableHead>Quelle</TableHead>
+                                <TableHead>Event ID</TableHead>
+                                <TableHead>Nachricht</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {eventlog.map((ev: any, i: number) => (
+                                <TableRow key={i} className={
+                                  ev.level === 'Error' || ev.level === 'Critical' ? 'bg-red-500/10' :
+                                  ev.level === 'Warning' ? 'bg-yellow-500/10' : ''
+                                }>
+                                  <TableCell className="text-xs whitespace-nowrap">
+                                    {ev.time_created ? new Date(ev.time_created).toLocaleString() : '-'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={
+                                      ev.level === 'Error' || ev.level === 'Critical' ? 'destructive' :
+                                      ev.level === 'Warning' ? 'secondary' : 'outline'
+                                    } className="text-xs">
+                                      {ev.level || '-'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs">{ev.provider_name || '-'}</TableCell>
+                                  <TableCell className="font-mono text-xs">{ev.event_id || '-'}</TableCell>
+                                  <TableCell className="text-xs max-w-md truncate" title={ev.message}>
+                                    {ev.message || '-'}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-8">
+                          Keine Eventlog-Einträge. Führe einen Eventlog-Scan auf diesem Node aus.
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
