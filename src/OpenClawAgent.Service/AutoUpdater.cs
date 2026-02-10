@@ -210,12 +210,48 @@ public class AutoUpdater : BackgroundService
             var extractPath = Path.Combine(tempDir, "extracted");
             ZipFile.ExtractToDirectory(zipPath, extractPath, overwriteFiles: true);
             
-            // Find the release folder (might be nested like openclaw-release-X.X.X)
+            // Find the source directory with the actual files
+            // The ZIP might contain a nested folder like "openclaw-release-X.X.X"
             var sourceDir = extractPath;
-            var subdirs = Directory.GetDirectories(extractPath);
-            if (subdirs.Length == 1)
+            
+            // Keep drilling down until we find the exe
+            while (true)
             {
-                sourceDir = subdirs[0];
+                var exePath = Path.Combine(sourceDir, "OpenClawAgent.Service.exe");
+                if (File.Exists(exePath))
+                {
+                    break; // Found the right directory
+                }
+                
+                var subdirs = Directory.GetDirectories(sourceDir);
+                if (subdirs.Length == 1)
+                {
+                    sourceDir = subdirs[0];
+                }
+                else if (subdirs.Length > 1)
+                {
+                    // Multiple dirs - try to find one with the exe
+                    var found = subdirs.FirstOrDefault(d => File.Exists(Path.Combine(d, "OpenClawAgent.Service.exe")));
+                    if (found != null)
+                    {
+                        sourceDir = found;
+                        break;
+                    }
+                    break; // Give up
+                }
+                else
+                {
+                    break; // No more subdirs
+                }
+            }
+            
+            _logger.LogInformation("Source directory with exe: {SourceDir}", sourceDir);
+            
+            // Verify we found the exe
+            if (!File.Exists(Path.Combine(sourceDir, "OpenClawAgent.Service.exe")))
+            {
+                _logger.LogError("Could not find OpenClawAgent.Service.exe in extracted files");
+                return;
             }
             
             // Get install directory

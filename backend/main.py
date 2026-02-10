@@ -1368,7 +1368,7 @@ async def submit_browser(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
                         )
                         
                         # Store cookies
-                        cookies = profile.get("cookies", [])
+                        cookies = profile.get("cookies") or []
                         for cookie in cookies:
                             if cookie.get("domain") == "ERROR":
                                 continue  # Skip error entries
