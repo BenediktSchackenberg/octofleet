@@ -1,9 +1,10 @@
 # OpenClaw Inventory Platform 🖥️📊
 
-> **Beta (v0.4.1)** — An open-source endpoint management and inventory system for Windows fleets. Collect hardware/software inventory, deploy packages, run remote commands, and monitor your infrastructure from a central dashboard.
+> **v0.4.5** — An open-source endpoint management and inventory system for Windows and Linux fleets. Collect hardware/software inventory, deploy packages, run remote commands, receive alerts, and monitor your infrastructure from a central dashboard.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11%2FServer-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
+[![Linux](https://img.shields.io/badge/Linux-Ubuntu%2FDebian%2FRHEL-FCC624?style=flat-square&logo=linux&logoColor=black)](https://www.linux.org/)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python)](https://python.org)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs)](https://nextjs.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
@@ -60,6 +61,7 @@ Think of it as a lightweight alternative to SCCM/Intune for smaller environments
 │         • Inventory storage (PostgreSQL + TimescaleDB)       │
 │         • Job queue and execution tracking                   │
 │         • Package catalog + Deployment engine                │
+│         • Alerting & Notifications                           │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -73,9 +75,9 @@ Think of it as a lightweight alternative to SCCM/Intune for smaller environments
             ┌─────────────────┼─────────────────┐
             ▼                 ▼                 ▼
       ┌──────────┐      ┌──────────┐      ┌──────────┐
-      │ Windows  │      │ Windows  │      │ Windows  │
+      │ Windows  │      │  Linux   │      │ Windows  │
       │  Agent   │      │  Agent   │      │  Agent   │
-      │  (PC 1)  │      │  (PC 2)  │      │  (PC N)  │
+      │  (PC 1)  │      │ (Server) │      │  (PC N)  │
       └──────────┘      └──────────┘      └──────────┘
 ```
 
@@ -96,7 +98,23 @@ The Windows Agent automatically collects and reports:
 | **Browser** | Extensions, Cookies metadata, History count (Chrome/Edge/Firefox) |
 | **Performance** | CPU, RAM, Disk usage (TimescaleDB time-series) |
 
-### 📦 Package Deployment (NEW in v0.4.1)
+### 🔔 Alerting & Notifications (NEW in v0.4.5)
+Get notified when something goes wrong:
+
+- **Alert Types**: Node offline, deployment failed, disk critical, agent outdated
+- **Notification Channels**: Discord, Slack, Microsoft Teams, generic webhooks
+- **Alert Management**: Acknowledge, resolve, cooldowns to prevent spam
+- **Dashboard**: View active alerts, history, and stats
+
+### 🐧 Linux Agent (NEW in v0.4.5)
+Manage Linux servers alongside your Windows fleet:
+
+- **Supported distros**: Ubuntu, Debian, RHEL, Fedora, CentOS, Arch, Alpine
+- **One-line install**: `curl ... | sudo bash`
+- **Same features**: Inventory, jobs, performance monitoring
+- **Lightweight**: Pure Bash, minimal dependencies (curl, jq)
+
+### 📦 Package Deployment
 Deploy software to your fleet with the new **Deployment Engine**:
 
 - **Create packages** in the catalog with download URLs
@@ -187,8 +205,8 @@ See the full [Server Setup Guide](#-server-setup-complete-guide) below for produ
 | **E3** Job System | ✅ Complete | Remote commands, pre/post scripts, reboot handling |
 | **E4** Package Management | ✅ Complete | Package catalog, SMB/HTTP downloads, verification |
 | **E5** Deployment Engine | ✅ Complete | Package rollouts to groups, scheduling, monitoring |
-| **E6** Linux Agent | 🔜 Planned | Agent for Linux nodes |
-| **E7** Advanced UI | 🔜 Planned | Reports, dashboards, alerts |
+| **E6** Linux Agent | ✅ Complete | Bash agent for Linux nodes |
+| **E7** Alerting | ✅ Complete | Discord/Slack/Teams webhooks, alert rules |
 | **E8** RBAC | 🔜 Planned | Role-based access control |
 | **E9** Staged Rollouts | 🔜 Planned | Canary/phased deployments |
 | **E10** Zero-Touch Install | ✅ Complete | Enrollment tokens, PowerShell installer |
@@ -204,11 +222,16 @@ openclaw-windows-agent/
 ├── src/                      # Windows Agent (.NET 8)
 │   ├── OpenClawAgent/        # WPF Management UI
 │   └── OpenClawAgent.Service/ # Windows Service
+├── linux-agent/              # Linux Agent (Bash)
+│   ├── agent.sh             # Main agent script
+│   ├── install.sh           # One-line installer
+│   └── openclaw-agent.service # Systemd unit
 ├── backend/                  # FastAPI Backend
 │   ├── main.py              # All API endpoints
+│   ├── alerting.py          # Alerting & Notifications
 │   └── requirements.txt
 ├── frontend/                 # Next.js Dashboard
-│   ├── src/app/             # Pages (dashboard, nodes, groups, jobs, packages, deployments)
+│   ├── src/app/             # Pages (dashboard, nodes, groups, jobs, packages, deployments, alerts)
 │   └── src/components/      # Reusable UI components
 ├── installer/                # Deployment scripts
 │   ├── Install-OpenClawAgent.ps1
@@ -312,6 +335,43 @@ The installer automatically:
 - ✅ Installs to `C:\Program Files\OpenClaw\Agent`
 - ✅ Registers Windows Service (auto-start)
 - ✅ Connects to Gateway
+
+---
+
+## 🐧 Agent Installation (Linux)
+
+```bash
+# Run as root
+curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/linux-agent/install.sh | sudo bash -s -- \
+  --api-url http://YOUR-SERVER:8080 \
+  --api-key YOUR-API-KEY \
+  --node-id $(hostname)
+```
+
+The installer automatically:
+- ✅ Installs dependencies (curl, jq)
+- ✅ Downloads agent to `/opt/openclaw-agent/`
+- ✅ Creates systemd service (auto-start)
+- ✅ Starts collecting inventory immediately
+
+**Supported distros**: Ubuntu, Debian, RHEL, Fedora, CentOS, Arch, Alpine
+
+---
+
+## 🔔 Setting Up Alerts
+
+1. Navigate to `http://your-server:3000/alerts`
+2. Go to the **Channels** tab
+3. Click **+ Add Channel**
+4. Select Discord/Slack/Teams and paste your webhook URL
+5. Click **Test** to verify
+6. Go to **Rules** tab and link your rules to the channel
+
+Default alert rules:
+- **Node Offline** — Triggers when a node hasn't reported in 5 minutes
+- **Deployment Failed** — Triggers when a package deployment fails
+- **Disk Critical** — Triggers when disk usage exceeds 90%
+- **Agent Outdated** — Triggers when agents are running old versions
 
 ---
 

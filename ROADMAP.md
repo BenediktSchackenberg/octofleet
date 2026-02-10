@@ -2,22 +2,18 @@
 
 ## Epic Overview
 
-| Epic | Name | Priority | Est. Sprints |
-|------|------|----------|--------------|
-| **E1** | Enhanced Inventory | High | 1 |
-| **E2** | Device Grouping | High | 1-2 |
-| **E3** | Job System Core | High | 2 |
-| **E4** | Package Management | High | 2 |
-| **E5** | Deployment Engine | Medium | 2 |
-| **E6** | Linux Agent | Medium | 2 |
-| **E7** | Advanced UI | Medium | 2 |
-| **E8** | Security & RBAC | Medium | 1 |
-| **E9** | Rollout Strategies | Low | 1 |
-| **E10** | Zero-Touch Installation | High | 3-4 |
-| **E11** | Software Depot | High | 2 |
-| **E12** | Software Assignment | High | 1-2 |
-| **E13** | Installation & Uninstallation | High | 2 |
-| **E14** | Installation Status & Monitoring | High | 1-2 |
+| Epic | Name | Priority | Status |
+|------|------|----------|--------|
+| **E1** | Enhanced Inventory | High | ✅ Complete |
+| **E2** | Device Grouping | High | ✅ Complete |
+| **E3** | Job System Core | High | ✅ Complete |
+| **E4** | Package Management | High | ✅ Complete |
+| **E5** | Deployment Engine | Medium | ✅ Complete |
+| **E6** | Linux Agent | Medium | ✅ Complete |
+| **E7** | Alerting & Notifications | Medium | ✅ Complete |
+| **E8** | Security & RBAC | Medium | 🔜 Planned |
+| **E9** | Rollout Strategies | Low | 🔜 Planned |
+| **E10** | Zero-Touch Installation | High | ✅ Complete |
 
 ---
 
@@ -51,7 +47,7 @@
 | E1-10 | Backend: Inventory History tables | High | Track changes over time |
 | E1-11 | Frontend: Device Timeline view | Medium | Show inventory changes |
 
-### Epic E2: Device Grouping
+### Epic E2: Device Grouping ✅ COMPLETE
 *Static + Dynamic Groups for Targeting*
 
 | ID | Task | Priority | Notes |
@@ -97,7 +93,7 @@
 
 ## Phase 3: Package Management (Sprint 6-7)
 
-### Epic E4: Package Management
+### Epic E4: Package Management ✅ COMPLETE
 *Define and provide packages*
 
 | ID | Task | Priority | Status |
@@ -127,46 +123,54 @@
 
 ## Phase 4: Deployments (Sprint 8-9)
 
-### Epic E5: Deployment Engine
+### Epic E5: Deployment Engine ✅ COMPLETE
 *Roll out packages to groups*
 
-| ID | Task | Priority | Notes |
-|----|------|----------|-------|
-| E5-01 | DB Schema: deployments, deployment_status | High | Deployment tracking |
-| E5-02 | API: Create deployment | High | Package + Target + Mode |
-| E5-03 | API: Deployment status aggregation | High | Success/Failed/Pending counts |
-| E5-04 | Deployment modes: Required/Available/Uninstall | High | Install policy |
-| E5-05 | Deployment scheduling | Medium | Start time, end time |
-| E5-06 | Maintenance Windows | Medium | Only install during window |
-| E5-07 | Network policy per deployment | Medium | Share-only, Internet-allowed |
-| E5-08 | Agent: Check deployments on poll | High | What needs installing? |
-| E5-09 | Agent: Report deployment status | High | Per-device status |
-| E5-10 | Frontend: Deployment list view | High | All deployments |
-| E5-11 | Frontend: Deployment detail | High | Status per device |
-| E5-12 | Frontend: Create deployment wizard | High | Select package, target |
-| E5-13 | Frontend: Deployment monitoring dashboard | Medium | Live progress |
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E5-01 | DB Schema: deployments, deployment_status | High | ✅ Done |
+| E5-02 | API: Create deployment | High | ✅ Done |
+| E5-03 | API: Deployment status aggregation | High | ✅ Done |
+| E5-04 | Deployment modes: Required/Available/Uninstall | High | ✅ Done |
+| E5-05 | Deployment scheduling | Medium | ✅ Done |
+| E5-06 | Maintenance Windows | Medium | Todo |
+| E5-07 | Network policy per deployment | Medium | Todo |
+| E5-08 | Agent: Check deployments on poll | High | ✅ Done |
+| E5-09 | Agent: Report deployment status | High | ✅ Done |
+| E5-10 | Frontend: Deployment list view | High | ✅ Done |
+| E5-11 | Frontend: Deployment detail | High | ✅ Done |
+| E5-12 | Frontend: Create deployment wizard | High | ✅ Done |
+| E5-13 | Frontend: Deployment monitoring dashboard | Medium | ✅ Done |
 
 ---
 
 ## Phase 5: Advanced Features (Sprint 10+)
 
-### Epic E6: Linux Agent
-| ID | Task | Priority |
-|----|------|----------|
-| E6-01 | Linux agent skeleton (Python/Go) | High |
-| E6-02 | Linux inventory collectors | High |
-| E6-03 | Linux job execution | High |
-| E6-04 | Linux package install (apt/yum) | High |
-| E6-05 | systemd service integration | Medium |
+### Epic E6: Linux Agent ✅ COMPLETE
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E6-01 | Linux agent skeleton (Bash) | High | ✅ Done |
+| E6-02 | Linux inventory collectors | High | ✅ Done |
+| E6-03 | Linux job execution | High | ✅ Done |
+| E6-04 | Linux package detection (apt/dnf/pacman) | High | ✅ Done |
+| E6-05 | systemd service integration | Medium | ✅ Done |
+| E6-06 | One-line installer script | High | ✅ Done |
 
-### Epic E7: Advanced UI
-| ID | Task | Priority |
-|----|------|----------|
-| E7-01 | Saved queries/filters | Medium |
-| E7-02 | Compliance views | Medium |
-| E7-03 | Dashboard widgets | Medium |
-| E7-04 | Bulk actions | Medium |
-| E7-05 | Export to CSV/PDF | Low |
+### Epic E7: Alerting & Notifications ✅ COMPLETE
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E7-01 | DB Schema: alert_rules, notification_channels, alerts | High | ✅ Done |
+| E7-02 | Alert types: node_offline, deployment_failed, disk_critical | High | ✅ Done |
+| E7-03 | Discord webhook integration | High | ✅ Done |
+| E7-04 | Slack webhook integration | High | ✅ Done |
+| E7-05 | Microsoft Teams integration | High | ✅ Done |
+| E7-06 | Generic webhook support | Medium | ✅ Done |
+| E7-07 | Alert cooldowns (prevent spam) | Medium | ✅ Done |
+| E7-08 | Node health tracking | High | ✅ Done |
+| E7-09 | Frontend: Alerts page | High | ✅ Done |
+| E7-10 | Frontend: Acknowledge/Resolve actions | High | ✅ Done |
+| E7-11 | Frontend: Channel management | High | ✅ Done |
+| E7-12 | Frontend: Rule-to-channel linking | Medium | ✅ Done |
 
 ### Epic E8: Security & RBAC
 | ID | Task | Priority |
