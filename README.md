@@ -186,6 +186,18 @@ npm install && npm run build && npm start
 
 ### Windows Agent
 
+> ⚠️ **Important: Administrator Rights Required**
+> 
+> The Windows Agent must run as **Administrator** (elevated) for full functionality:
+> - **Software deployment** (MSI/EXE installation) requires admin rights
+> - **Security data collection** (BitLocker, TPM, Local Admins) requires admin rights
+> - **Eventlog access** (Security log) requires admin rights
+> - **Service installation** requires admin rights
+> 
+> If the agent runs without admin rights, software deployments will fail with exit code 1603.
+> 
+> The installer automatically installs the agent as a Windows Service running under LocalSystem, which has the required privileges.
+
 ```powershell
 # Run as Administrator
 irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1
