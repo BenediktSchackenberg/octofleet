@@ -609,6 +609,37 @@ export default function HomePage() {
                 </CardContent>
               </Card>
 
+              {/* Quick Actions */}
+              <div className="grid gap-3 md:grid-cols-3 mb-6">
+                <Button variant="outline" className="h-16 text-left justify-start gap-3" asChild>
+                  <Link href="/packages">
+                    <Package className="h-6 w-6 text-blue-500" />
+                    <div>
+                      <div className="font-semibold">Paket verteilen</div>
+                      <div className="text-xs text-muted-foreground">Software auf Nodes installieren</div>
+                    </div>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-16 text-left justify-start gap-3" asChild>
+                  <Link href="/jobs">
+                    <Briefcase className="h-6 w-6 text-green-500" />
+                    <div>
+                      <div className="font-semibold">Job erstellen</div>
+                      <div className="text-xs text-muted-foreground">Befehle auf Nodes ausführen</div>
+                    </div>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-16 text-left justify-start gap-3" asChild>
+                  <Link href="/settings">
+                    <Users className="h-6 w-6 text-purple-500" />
+                    <div>
+                      <div className="font-semibold">Node hinzufügen</div>
+                      <div className="text-xs text-muted-foreground">Enrollment Token erstellen</div>
+                    </div>
+                  </Link>
+                </Button>
+              </div>
+
               {/* KPI Cards */}
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
                 <Card className="cursor-pointer hover:border-primary transition-colors">
