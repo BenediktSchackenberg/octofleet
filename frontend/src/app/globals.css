@@ -116,6 +116,72 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Light mode - use :root values (default) */
+.light {
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.4 0.2 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.95 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.95 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.55 0.25 25);
+  --border: oklch(0.88 0 0);
+  --input: oklch(0.88 0 0);
+  --ring: oklch(0.4 0.2 260);
+}
+
+/* Light mode overrides for zinc colors */
+.light .bg-zinc-900 {
+  background-color: #ffffff !important;
+}
+.light .bg-zinc-950 {
+  background-color: #fafafa !important;
+}
+.light .bg-zinc-800 {
+  background-color: #f4f4f5 !important;
+}
+.light .bg-zinc-700 {
+  background-color: #e4e4e7 !important;
+}
+.light .text-zinc-100 {
+  color: #18181b !important;
+}
+.light .text-zinc-400 {
+  color: #71717a !important;
+}
+.light .text-zinc-500 {
+  color: #71717a !important;
+}
+.light .text-white {
+  color: #18181b !important;
+}
+.light .border-zinc-800 {
+  border-color: #e4e4e7 !important;
+}
+.light .border-zinc-700 {
+  border-color: #d4d4d8 !important;
+}
+.light .hover\:bg-zinc-800:hover {
+  background-color: #e4e4e7 !important;
+}
+
+/* Hide scrollbar for nav */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

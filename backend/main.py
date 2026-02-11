@@ -4365,6 +4365,372 @@ async def fire_manual_alert(data: dict):
 async def trigger_health_check():
     """Manually trigger a node health check"""
     await check_node_health(db_pool)
+
+
+# ============================================================================
+# Feature 2: Eventlog Charts - Trends over time
+# ============================================================================
+
+@app.get("/api/v1/eventlog/trends", dependencies=[Depends(verify_api_key)])
+async def get_eventlog_trends(days: int = 7, db: asyncpg.Pool = Depends(get_db)):
+    """Get eventlog trends by day for charts"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                DATE(event_time) as day,
+                COUNT(*) FILTER (WHERE level <= 2) as errors,
+                COUNT(*) FILTER (WHERE level = 3) as warnings,
+                COUNT(*) as total
+            FROM windows_eventlog
+            WHERE event_time > NOW() - INTERVAL '%s days'
+            GROUP BY DATE(event_time)
+            ORDER BY day
+        """ % days)
+        
+        return {
+            "days": days,
+            "trends": [
+                {
+                    "day": str(row["day"]),
+                    "errors": row["errors"],
+                    "warnings": row["warnings"],
+                    "total": row["total"]
+                }
+                for row in rows
+            ]
+        }
+
+
+# ============================================================================
+# Feature 3: Software Comparison - Compare versions across nodes
+# ============================================================================
+
+@app.get("/api/v1/software/compare", dependencies=[Depends(verify_api_key)])
+async def compare_software(software_name: str = None, db: asyncpg.Pool = Depends(get_db)):
+    """Compare software versions across nodes"""
+    async with db.acquire() as conn:
+        if software_name:
+            # Find specific software across all nodes
+            rows = await conn.fetch("""
+                SELECT 
+                    n.node_id,
+                    n.hostname,
+                    s.data->'installedPrograms' as programs
+                FROM nodes n
+                LEFT JOIN inventory_software s ON n.node_id = s.node_id
+                WHERE s.data IS NOT NULL
+            """)
+            
+            results = []
+            search = software_name.lower()
+            for row in rows:
+                programs = row["programs"] or []
+                if isinstance(programs, str):
+                    import json
+                    programs = json.loads(programs)
+                
+                for prog in programs:
+                    if search in (prog.get("name", "") or "").lower():
+                        results.append({
+                            "nodeId": str(row["node_id"]),
+                            "hostname": row["hostname"],
+                            "name": prog.get("name"),
+                            "version": prog.get("version"),
+                            "publisher": prog.get("publisher")
+                        })
+            
+            # Group by version
+            versions = {}
+            for r in results:
+                v = r["version"] or "Unknown"
+                if v not in versions:
+                    versions[v] = []
+                versions[v].append({"nodeId": r["nodeId"], "hostname": r["hostname"]})
+            
+            return {
+                "software": software_name,
+                "totalNodes": len(set(r["nodeId"] for r in results)),
+                "versions": versions,
+                "results": results
+            }
+        else:
+            # Get top installed software
+            rows = await conn.fetch("""
+                SELECT 
+                    n.node_id,
+                    s.data->'installedPrograms' as programs
+                FROM nodes n
+                LEFT JOIN inventory_software s ON n.node_id = s.node_id
+                WHERE s.data IS NOT NULL
+            """)
+            
+            software_count = {}
+            for row in rows:
+                programs = row["programs"] or []
+                if isinstance(programs, str):
+                    import json
+                    programs = json.loads(programs)
+                
+                for prog in programs:
+                    name = prog.get("name", "")
+                    if name:
+                        software_count[name] = software_count.get(name, 0) + 1
+            
+            # Sort by count
+            top_software = sorted(software_count.items(), key=lambda x: -x[1])[:50]
+            
+            return {
+                "topSoftware": [{"name": k, "count": v} for k, v in top_software]
+            }
+
+
+# ============================================================================
+# Feature 4: Compliance Dashboard - Security status at a glance
+# ============================================================================
+
+@app.get("/api/v1/compliance/summary", dependencies=[Depends(verify_api_key)])
+async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
+    """Get security compliance summary across all nodes"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                n.node_id,
+                n.hostname,
+                s.data as security
+            FROM nodes n
+            LEFT JOIN inventory_security s ON n.node_id = s.node_id
+        """)
+        
+        compliance = {
+            "totalNodes": len(rows),
+            "defender": {"enabled": 0, "disabled": 0, "unknown": 0},
+            "firewall": {"enabled": 0, "disabled": 0, "unknown": 0},
+            "bitlocker": {"encrypted": 0, "unencrypted": 0, "unknown": 0},
+            "realTimeProtection": {"enabled": 0, "disabled": 0, "unknown": 0},
+            "nodes": []
+        }
+        
+        for row in rows:
+            sec = row["security"] or {}
+            if isinstance(sec, str):
+                import json
+                sec = json.loads(sec)
+            
+            defender = sec.get("defender", {})
+            firewall = sec.get("firewall", {})
+            bitlocker = sec.get("bitlocker", {})
+            
+            # Defender status
+            if defender.get("antivirusEnabled") is True:
+                compliance["defender"]["enabled"] += 1
+            elif defender.get("antivirusEnabled") is False:
+                compliance["defender"]["disabled"] += 1
+            else:
+                compliance["defender"]["unknown"] += 1
+            
+            # Real-time protection
+            if defender.get("realTimeProtection") is True:
+                compliance["realTimeProtection"]["enabled"] += 1
+            elif defender.get("realTimeProtection") is False:
+                compliance["realTimeProtection"]["disabled"] += 1
+            else:
+                compliance["realTimeProtection"]["unknown"] += 1
+            
+            # Firewall
+            profiles = firewall.get("profiles", {})
+            fw_enabled = any(
+                p.get("enabled") for p in (
+                    profiles.values() if isinstance(profiles, dict) else profiles
+                )
+            ) if profiles else None
+            
+            if fw_enabled is True:
+                compliance["firewall"]["enabled"] += 1
+            elif fw_enabled is False:
+                compliance["firewall"]["disabled"] += 1
+            else:
+                compliance["firewall"]["unknown"] += 1
+            
+            # BitLocker
+            volumes = bitlocker.get("volumes", [])
+            bl_encrypted = any(
+                v.get("protectionStatus") == "On" or v.get("encryptionPercentage", 0) == 100
+                for v in volumes
+            ) if volumes else None
+            
+            if bl_encrypted is True:
+                compliance["bitlocker"]["encrypted"] += 1
+            elif bl_encrypted is False:
+                compliance["bitlocker"]["unencrypted"] += 1
+            else:
+                compliance["bitlocker"]["unknown"] += 1
+            
+            # Per-node details
+            compliance["nodes"].append({
+                "nodeId": str(row["node_id"]),
+                "hostname": row["hostname"],
+                "defender": defender.get("antivirusEnabled"),
+                "realTimeProtection": defender.get("realTimeProtection"),
+                "firewall": fw_enabled,
+                "bitlocker": bl_encrypted
+            })
+        
+        return compliance
+
+
+# ============================================================================
+# Feature 5: OS Distribution - Pie chart data
+# ============================================================================
+
+@app.get("/api/v1/nodes/os-distribution", dependencies=[Depends(verify_api_key)])
+async def get_os_distribution(db: asyncpg.Pool = Depends(get_db)):
+    """Get OS distribution for pie chart"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                COALESCE(os_name, 'Unknown') as os_name,
+                COALESCE(os_version, '') as os_version,
+                COUNT(*) as count
+            FROM nodes
+            GROUP BY os_name, os_version
+            ORDER BY count DESC
+        """)
+        
+        # Group by OS name
+        by_os = {}
+        for row in rows:
+            os_name = row["os_name"] or "Unknown"
+            if os_name not in by_os:
+                by_os[os_name] = {"count": 0, "versions": []}
+            by_os[os_name]["count"] += row["count"]
+            if row["os_version"]:
+                by_os[os_name]["versions"].append({
+                    "version": row["os_version"],
+                    "count": row["count"]
+                })
+        
+        return {
+            "distribution": [
+                {"name": k, "count": v["count"], "versions": v["versions"]}
+                for k, v in by_os.items()
+            ]
+        }
+
+
+# ============================================================================
+# Feature 6: Export Functions - CSV/JSON export
+# ============================================================================
+
+from fastapi.responses import StreamingResponse
+import io
+import csv
+
+@app.get("/api/v1/export/nodes", dependencies=[Depends(verify_api_key)])
+async def export_nodes(format: str = "json", db: asyncpg.Pool = Depends(get_db)):
+    """Export all nodes as CSV or JSON"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                node_id, hostname, os_name, os_version, os_build,
+                agent_version, first_seen, last_seen
+            FROM nodes
+            ORDER BY hostname
+        """)
+        
+        data = [
+            {
+                "node_id": str(row["node_id"]),
+                "hostname": row["hostname"],
+                "os_name": row["os_name"],
+                "os_version": row["os_version"],
+                "os_build": row["os_build"],
+                "agent_version": row["agent_version"],
+                "first_seen": row["first_seen"].isoformat() if row["first_seen"] else None,
+                "last_seen": row["last_seen"].isoformat() if row["last_seen"] else None,
+            }
+            for row in rows
+        ]
+        
+        if format == "csv":
+            output = io.StringIO()
+            if data:
+                writer = csv.DictWriter(output, fieldnames=data[0].keys())
+                writer.writeheader()
+                writer.writerows(data)
+            
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=nodes.csv"}
+            )
+        else:
+            return data
+
+
+@app.get("/api/v1/export/software", dependencies=[Depends(verify_api_key)])
+async def export_software(format: str = "json", db: asyncpg.Pool = Depends(get_db)):
+    """Export all software as CSV or JSON"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                n.hostname,
+                s.data->'installedPrograms' as programs
+            FROM nodes n
+            LEFT JOIN inventory_software s ON n.node_id = s.node_id
+            WHERE s.data IS NOT NULL
+        """)
+        
+        data = []
+        for row in rows:
+            programs = row["programs"] or []
+            if isinstance(programs, str):
+                import json
+                programs = json.loads(programs)
+            
+            for prog in programs:
+                data.append({
+                    "hostname": row["hostname"],
+                    "name": prog.get("name"),
+                    "version": prog.get("version"),
+                    "publisher": prog.get("publisher")
+                })
+        
+        if format == "csv":
+            output = io.StringIO()
+            if data:
+                writer = csv.DictWriter(output, fieldnames=["hostname", "name", "version", "publisher"])
+                writer.writeheader()
+                writer.writerows(data)
+            
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=software.csv"}
+            )
+        else:
+            return data
+
+
+@app.get("/api/v1/export/compliance", dependencies=[Depends(verify_api_key)])
+async def export_compliance(format: str = "json", db: asyncpg.Pool = Depends(get_db)):
+    """Export compliance data as CSV or JSON"""
+    summary = await get_compliance_summary(db)
+    data = summary["nodes"]
+    
+    if format == "csv":
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=compliance.csv"}
+        )
+    else:
+        return data
     return {"status": "checked"}
 
 

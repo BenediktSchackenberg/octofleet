@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { EventlogChart } from "@/components/EventlogChart";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const API_URL = "http://192.168.0.5:8080";
 const API_KEY = "openclaw-inventory-dev-key";
@@ -158,6 +160,16 @@ export default function EventlogPage() {
           </div>
         ) : (
           <>
+            {/* Eventlog Trend Chart */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-lg">📈 Error & Warning Trends (Last 7 Days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EventlogChart days={7} chartType="bar" />
+              </CardContent>
+            </Card>
+            
             {/* Node Overview Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {Object.entries(nodeStats).map(([nodeId, stats]) => (

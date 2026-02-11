@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { OsDistributionChart } from "@/components/OsDistributionChart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { NodeTree } from "@/components/NodeTree";
-import { SavedViews } from "@/components/SavedViews";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, ScrollText, FileText } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface DashboardSummary {
@@ -60,18 +60,8 @@ export default function HomePage() {
   const [network, setNetwork] = useState<any>(null);
   const [browser, setBrowser] = useState<any>(null);
   const [hotfixes, setHotfixes] = useState<any>({ hotfixes: [], updateHistory: [] });
-  const [eventlog, setEventlog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
-  const [gatewayStatus, setGatewayStatus] = useState<{
-    online: boolean;
-    version: string;
-    uptime: string;
-    connectedNodes: number;
-    pendingJobs: number;
-    lastCheck: string;
-    error?: string;
-  } | null>(null);
 
   const API_BASE = "http://192.168.0.5:8080";
   const headers = { "X-API-Key": "openclaw-inventory-dev-key" };
@@ -79,10 +69,6 @@ export default function HomePage() {
   useEffect(() => {
     fetchSummary();
     fetchMetrics();
-    fetchGatewayStatus();
-    // Refresh gateway status every 10 seconds
-    const interval = setInterval(fetchGatewayStatus, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -97,7 +83,6 @@ export default function HomePage() {
       setNetwork(null);
       setBrowser(null);
       setHotfixes({ hotfixes: [], updateHistory: [] });
-      setEventlog([]);
     }
   }, [selectedNodeId]);
 
@@ -121,20 +106,10 @@ export default function HomePage() {
     }
   }
 
-  async function fetchGatewayStatus() {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/gateway/status`, { headers });
-      if (res.ok) setGatewayStatus(await res.json());
-    } catch (e) {
-      console.error("Failed to fetch gateway status:", e);
-      setGatewayStatus({ online: false, version: "unknown", uptime: "unknown", connectedNodes: 0, pendingJobs: 0, lastCheck: new Date().toISOString(), error: String(e) });
-    }
-  }
-
   async function fetchFullNodeData(nodeId: string) {
     try {
       // Fetch all data in parallel - use correct inventory endpoints
-      const [nodeRes, hwRes, swRes, secRes, netRes, brRes, hfRes, evRes] = await Promise.all([
+      const [nodeRes, hwRes, swRes, secRes, netRes, brRes, hfRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/nodes/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/hardware/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/software/${nodeId}`, { headers }),
@@ -142,7 +117,6 @@ export default function HomePage() {
         fetch(`${API_BASE}/api/v1/inventory/network/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/browser/${nodeId}`, { headers }),
         fetch(`${API_BASE}/api/v1/inventory/hotfixes/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/api/v1/nodes/${nodeId}/eventlog?limit=100`, { headers }),
       ]);
 
       if (nodeRes.ok) setNodeData(await nodeRes.json());
@@ -173,10 +147,6 @@ export default function HomePage() {
           hotfixes: resolved.hotfixes || [],
           updateHistory: resolved.updateHistory || []
         });
-      }
-      if (evRes.ok) {
-        const evData = await evRes.json();
-        setEventlog(evData.events || evData.entries || []);
       }
     } catch (e) {
       console.error("Failed to fetch node data:", e);
@@ -227,9 +197,6 @@ export default function HomePage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild>
-            <Link href="/logs"><ScrollText className="h-4 w-4 mr-1" /> Logs</Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
             <Link href="/performance"><Activity className="h-4 w-4 mr-1" /> Performance</Link>
           </Button>
           <Button variant="outline" size="sm" asChild>
@@ -248,7 +215,6 @@ export default function HomePage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Node Tree */}
         <aside className="w-64 border-r overflow-y-auto bg-muted/30">
-          <SavedViews onApplyFilter={(filter) => console.log("Filter applied:", filter)} />
           <div className="p-2 border-b">
             <h2 className="text-sm font-semibold text-muted-foreground px-2">Nodes</h2>
           </div>
@@ -288,7 +254,6 @@ export default function HomePage() {
                   <TabsTrigger value="network" className="gap-1"><Globe className="h-4 w-4" /> Netzwerk</TabsTrigger>
                   <TabsTrigger value="browser" className="gap-1"><Cookie className="h-4 w-4" /> Browser</TabsTrigger>
                   <TabsTrigger value="updates" className="gap-1"><HardDrive className="h-4 w-4" /> Updates ({hotfixes.hotfixes?.length || 0})</TabsTrigger>
-                  <TabsTrigger value="eventlog" className="gap-1"><FileText className="h-4 w-4" /> Eventlog</TabsTrigger>
                 </TabsList>
 
                 {/* Overview Tab */}
@@ -569,63 +534,6 @@ export default function HomePage() {
                     </CardContent>
                   </Card>
                 </TabsContent>
-
-                {/* Eventlog Tab */}
-                <TabsContent value="eventlog">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="h-5 w-5" /> Windows Eventlog
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {eventlog.length > 0 ? (
-                        <div className="max-h-[500px] overflow-y-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Zeit</TableHead>
-                                <TableHead>Level</TableHead>
-                                <TableHead>Quelle</TableHead>
-                                <TableHead>Event ID</TableHead>
-                                <TableHead>Nachricht</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {eventlog.map((ev: any, i: number) => (
-                                <TableRow key={i} className={
-                                  ev.level === 'Error' || ev.level === 'Critical' ? 'bg-red-500/10' :
-                                  ev.level === 'Warning' ? 'bg-yellow-500/10' : ''
-                                }>
-                                  <TableCell className="text-xs whitespace-nowrap">
-                                    {ev.time_created ? new Date(ev.time_created).toLocaleString() : '-'}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant={
-                                      ev.level === 'Error' || ev.level === 'Critical' ? 'destructive' :
-                                      ev.level === 'Warning' ? 'secondary' : 'outline'
-                                    } className="text-xs">
-                                      {ev.level || '-'}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-xs">{ev.provider_name || '-'}</TableCell>
-                                  <TableCell className="font-mono text-xs">{ev.event_id || '-'}</TableCell>
-                                  <TableCell className="text-xs max-w-md truncate" title={ev.message}>
-                                    {ev.message || '-'}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground text-center py-8">
-                          Keine Eventlog-Einträge. Führe einen Eventlog-Scan auf diesem Node aus.
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
               </Tabs>
             </div>
           ) : (
@@ -638,75 +546,6 @@ export default function HomePage() {
                 </div>
                 <Button variant="outline" onClick={fetchSummary}>
                   <RefreshCw className="h-4 w-4 mr-2" /> Refresh
-                </Button>
-              </div>
-
-              {/* Gateway Health Widget */}
-              <Card className={`mb-6 ${gatewayStatus?.online ? 'border-green-500' : 'border-red-500 animate-pulse'}`}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Activity className={`h-5 w-5 ${gatewayStatus?.online ? 'text-green-500' : 'text-red-500'}`} />
-                      Gateway Status
-                    </CardTitle>
-                    <Badge className={gatewayStatus?.online ? 'bg-green-600' : 'bg-red-600'}>
-                      {gatewayStatus?.online ? 'Online' : 'Offline'}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Version</span>
-                      <p className="font-medium">{gatewayStatus?.version || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Uptime</span>
-                      <p className="font-medium">{gatewayStatus?.uptime || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Connected Nodes</span>
-                      <p className="font-medium">{gatewayStatus?.connectedNodes || 0}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Pending Jobs</span>
-                      <p className="font-medium">{gatewayStatus?.pendingJobs || 0}</p>
-                    </div>
-                  </div>
-                  {gatewayStatus?.error && (
-                    <p className="text-red-500 text-xs mt-2">Error: {gatewayStatus.error}</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <div className="grid gap-3 md:grid-cols-3 mb-6">
-                <Button variant="outline" className="h-16 text-left justify-start gap-3" asChild>
-                  <Link href="/packages">
-                    <Package className="h-6 w-6 text-blue-500" />
-                    <div>
-                      <div className="font-semibold">Paket verteilen</div>
-                      <div className="text-xs text-muted-foreground">Software auf Nodes installieren</div>
-                    </div>
-                  </Link>
-                </Button>
-                <Button variant="outline" className="h-16 text-left justify-start gap-3" asChild>
-                  <Link href="/jobs">
-                    <Briefcase className="h-6 w-6 text-green-500" />
-                    <div>
-                      <div className="font-semibold">Job erstellen</div>
-                      <div className="text-xs text-muted-foreground">Befehle auf Nodes ausführen</div>
-                    </div>
-                  </Link>
-                </Button>
-                <Button variant="outline" className="h-16 text-left justify-start gap-3" asChild>
-                  <Link href="/settings">
-                    <Users className="h-6 w-6 text-purple-500" />
-                    <div>
-                      <div className="font-semibold">Node hinzufügen</div>
-                      <div className="text-xs text-muted-foreground">Enrollment Token erstellen</div>
-                    </div>
-                  </Link>
                 </Button>
               </div>
 
@@ -898,51 +737,51 @@ export default function HomePage() {
                 </Card>
               )}
 
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" /> Letzte Aktivitäten
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {summary?.recent_events && summary.recent_events.length > 0 ? (
-                    <div className="space-y-3">
-                      {summary.recent_events.slice(0, 15).map((event, i) => {
-                        const eventConfig: { [key: string]: { icon: string; color: string; text: string } } = {
-                          'node_checkin': { icon: '●', color: 'text-green-500', text: 'checked in' },
-                          'node_online': { icon: '●', color: 'text-green-500', text: 'came online' },
-                          'node_offline': { icon: '●', color: 'text-gray-400', text: 'went offline' },
-                          'node_registered': { icon: '★', color: 'text-blue-500', text: 'registered' },
-                          'install_started': { icon: '📦', color: 'text-blue-500', text: 'install started' },
-                          'install_completed': { icon: '✓', color: 'text-green-500', text: 'install completed' },
-                          'install_failed': { icon: '✗', color: 'text-red-500', text: 'install failed' },
-                          'job_started': { icon: '▶', color: 'text-blue-500', text: 'job started' },
-                          'job_completed': { icon: '✓', color: 'text-green-500', text: 'job completed' },
-                          'job_failed': { icon: '✗', color: 'text-red-500', text: 'job failed' },
-                        };
-                        const cfg = eventConfig[event.type] || { icon: '●', color: 'text-green-500', text: event.type };
-                        return (
+              {/* OS Distribution & Recent Activity Row */}
+              <div className="grid gap-6 md:grid-cols-2 mb-8">
+                {/* OS Distribution Pie Chart */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Monitor className="h-5 w-5" /> OS Distribution
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <OsDistributionChart showVersions={true} />
+                  </CardContent>
+                </Card>
+
+                {/* Recent Activity */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5" /> Letzte Aktivitäten
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {summary?.recent_events && summary.recent_events.length > 0 ? (
+                      <div className="space-y-3 max-h-64 overflow-y-auto">
+                        {summary.recent_events.slice(0, 10).map((event, i) => (
                           <div 
                             key={i} 
                             className="flex items-center justify-between text-sm py-2 border-b last:border-0 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2"
                             onClick={() => handleNodeSelect(event.subject_id)}
                           >
                             <div className="flex items-center gap-2">
-                              <span className={cfg.color}>{cfg.icon}</span>
+                              <span className="text-green-500">●</span>
                               <span className="font-medium">{event.subject}</span>
-                              <span className="text-muted-foreground">{cfg.text}</span>
+                              <span className="text-muted-foreground">checked in</span>
                             </div>
                             <span className="text-muted-foreground">{formatRelativeTime(event.timestamp)}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground text-center py-4">Keine Aktivitäten</p>
-                  )}
-                </CardContent>
-              </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-center py-4">Keine Aktivitäten</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
         </main>
