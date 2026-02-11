@@ -83,7 +83,7 @@ export function OsDistributionChart({ showVersions = false }: { showVersions?: b
               cx="50%"
               cy="50%"
               outerRadius={80}
-              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+              label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
               labelLine={false}
             >
               {chartData.map((entry, i) => (
@@ -91,7 +91,7 @@ export function OsDistributionChart({ showVersions = false }: { showVersions?: b
               ))}
             </Pie>
             <Tooltip 
-              formatter={(value: number) => [`${value} nodes`, "Count"]}
+              formatter={(value) => [`${value} nodes`, "Count"]}
               contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333" }}
             />
           </PieChart>
