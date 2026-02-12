@@ -4494,11 +4494,14 @@ async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
             SELECT 
-                n.node_id,
+                n.id as node_id,
                 n.hostname,
-                s.data as security
+                s.defender,
+                s.firewall,
+                s.bitlocker,
+                s.antivirus
             FROM nodes n
-            LEFT JOIN inventory_security s ON n.node_id = s.node_id
+            LEFT JOIN security_current s ON n.id = s.node_id
         """)
         
         compliance = {
@@ -4511,38 +4514,51 @@ async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
         }
         
         for row in rows:
-            sec = row["security"] or {}
-            if isinstance(sec, str):
-                import json
-                sec = json.loads(sec)
+            defender = row["defender"] or row["antivirus"] or {}
+            firewall_data = row["firewall"] or {}
+            bitlocker_data = row["bitlocker"] or {}
             
-            defender = sec.get("defender", {})
-            firewall = sec.get("firewall", {})
-            bitlocker = sec.get("bitlocker", {})
+            # Ensure we have dicts, not lists
+            if isinstance(defender, str):
+                import json
+                defender = json.loads(defender)
+            if isinstance(defender, list):
+                defender = {}
+            if isinstance(firewall_data, str):
+                firewall_data = json.loads(firewall_data)
+            if isinstance(firewall_data, list):
+                firewall_data = {}
+            if isinstance(bitlocker_data, str):
+                bitlocker_data = json.loads(bitlocker_data)
+            if isinstance(bitlocker_data, list):
+                bitlocker_data = {"volumes": bitlocker_data}  # assume it's volumes list
             
             # Defender status
-            if defender.get("antivirusEnabled") is True:
+            av_enabled = defender.get("antivirusEnabled") or defender.get("enabled")
+            if av_enabled is True:
                 compliance["defender"]["enabled"] += 1
-            elif defender.get("antivirusEnabled") is False:
+            elif av_enabled is False:
                 compliance["defender"]["disabled"] += 1
             else:
                 compliance["defender"]["unknown"] += 1
             
             # Real-time protection
-            if defender.get("realTimeProtection") is True:
+            rtp = defender.get("realTimeProtection") or defender.get("realTimeProtectionEnabled")
+            if rtp is True:
                 compliance["realTimeProtection"]["enabled"] += 1
-            elif defender.get("realTimeProtection") is False:
+            elif rtp is False:
                 compliance["realTimeProtection"]["disabled"] += 1
             else:
                 compliance["realTimeProtection"]["unknown"] += 1
             
             # Firewall
-            profiles = firewall.get("profiles", {})
-            fw_enabled = any(
-                p.get("enabled") for p in (
-                    profiles.values() if isinstance(profiles, dict) else profiles
-                )
-            ) if profiles else None
+            profiles = firewall_data.get("profiles", [])
+            fw_enabled = None
+            if profiles:
+                if isinstance(profiles, list):
+                    fw_enabled = any(p.get("enabled") for p in profiles if isinstance(p, dict))
+                elif isinstance(profiles, dict):
+                    fw_enabled = any(p.get("enabled") for p in profiles.values() if isinstance(p, dict))
             
             if fw_enabled is True:
                 compliance["firewall"]["enabled"] += 1
@@ -4552,11 +4568,16 @@ async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
                 compliance["firewall"]["unknown"] += 1
             
             # BitLocker
-            volumes = bitlocker.get("volumes", [])
-            bl_encrypted = any(
-                v.get("protectionStatus") == "On" or v.get("encryptionPercentage", 0) == 100
-                for v in volumes
-            ) if volumes else None
+            volumes = bitlocker_data.get("volumes", [])
+            bl_encrypted = None
+            if volumes and isinstance(volumes, list):
+                # protectionStatus: "1" = On, "0" = Off (can be string or int)
+                bl_encrypted = any(
+                    str(v.get("protectionStatus", "0")) == "1" or 
+                    v.get("encrypted") is True or
+                    v.get("protectionStatus") == "On"
+                    for v in volumes if isinstance(v, dict)
+                )
             
             if bl_encrypted is True:
                 compliance["bitlocker"]["encrypted"] += 1
@@ -4565,12 +4586,11 @@ async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
             else:
                 compliance["bitlocker"]["unknown"] += 1
             
-            # Per-node details
             compliance["nodes"].append({
                 "nodeId": str(row["node_id"]),
                 "hostname": row["hostname"],
-                "defender": defender.get("antivirusEnabled"),
-                "realTimeProtection": defender.get("realTimeProtection"),
+                "defender": av_enabled,
+                "realTimeProtection": rtp,
                 "firewall": fw_enabled,
                 "bitlocker": bl_encrypted
             })
