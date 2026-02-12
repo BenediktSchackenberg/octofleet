@@ -33,7 +33,7 @@ interface Role {
 function getAuthHeader(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (token) return { "Authorization": `Bearer ${token}` };
-  return { "X-API-Key": "openclaw-inventory-dev-key" };
+  return {};
 }
 
 export default function UsersPage() {

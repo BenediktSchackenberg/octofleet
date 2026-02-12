@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -43,7 +44,7 @@ export default function SoftwareComparePage() {
   async function fetchTopSoftware() {
     try {
       const res = await fetch(`${API_URL}/api/v1/software/compare`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         const json = await res.json();
@@ -61,7 +62,7 @@ export default function SoftwareComparePage() {
     setSearchQuery(name);
     try {
       const res = await fetch(`${API_URL}/api/v1/software/compare?software_name=${encodeURIComponent(name)}`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         setCompareResult(await res.json());

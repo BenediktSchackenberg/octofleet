@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 
@@ -121,9 +122,9 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   useEffect(() => {
     // Fetch packages, nodes, and groups
     Promise.all([
-      fetch(`${API_URL}/api/v1/packages`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } }),
-      fetch(`${API_URL}/api/v1/nodes`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } }),
-      fetch(`${API_URL}/api/v1/groups`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } }),
+      fetch(`${API_URL}/api/v1/packages`, { headers: { ...getAuthHeader() } }),
+      fetch(`${API_URL}/api/v1/nodes`, { headers: { ...getAuthHeader() } }),
+      fetch(`${API_URL}/api/v1/groups`, { headers: { ...getAuthHeader() } }),
     ]).then(async ([pkgRes, nodeRes, groupRes]) => {
       if (pkgRes.ok) {
         const data = await pkgRes.json();
@@ -147,7 +148,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
       setVersions([]);
       setSelectedVersionId("");
       fetch(`${API_URL}/api/v1/packages/${selectedPackageId}`, { 
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" } 
+        headers: { ...getAuthHeader() } 
       })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
@@ -203,7 +204,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
 
       const res = await fetch(`${API_URL}/api/v1/jobs`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify(body),
       });
 
@@ -467,7 +468,7 @@ export default function JobsPage() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } });
+      const res = await fetch(`${API_URL}/api/v1/jobs`, { headers: { ...getAuthHeader() } });
       const data = await res.json();
       setJobs(data.jobs || []);
     } catch (err) {
@@ -479,7 +480,7 @@ export default function JobsPage() {
 
   const fetchJobDetail = async (jobId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}`, { headers: { "X-API-Key": "openclaw-inventory-dev-key" } });
+      const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}`, { headers: { ...getAuthHeader() } });
       const data = await res.json();
       setSelectedJob(data);
     } catch (err) {
@@ -491,7 +492,7 @@ export default function JobsPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/jobs/instances/${instanceId}/retry`, {
         method: "POST",
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       if (res.ok) {
         // Refresh the job detail

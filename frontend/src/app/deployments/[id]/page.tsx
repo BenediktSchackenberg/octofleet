@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
@@ -76,7 +77,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
   async function fetchDeployment() {
     try {
       const res = await fetch(`${API_BASE}/deployments/${id}`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         setDeployment(await res.json());
@@ -93,7 +94,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
     const newStatus = deployment.status === "active" ? "paused" : "active";
     await fetch(`${API_BASE}/deployments/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+      headers: { ...getAuthHeader(), "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
     fetchDeployment();
@@ -102,7 +103,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
   async function cancelDeployment() {
     await fetch(`${API_BASE}/deployments/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+      headers: { ...getAuthHeader(), "Content-Type": "application/json" },
       body: JSON.stringify({ status: "cancelled" }),
     });
     fetchDeployment();
@@ -112,7 +113,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
     if (!confirm("Deployment wirklich löschen?")) return;
     await fetch(`${API_BASE}/deployments/${id}`, {
       method: "DELETE",
-      headers: { "X-API-Key": API_KEY },
+      headers: getAuthHeader(),
     });
     router.push("/deployments");
   }

@@ -1,9 +1,15 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { CreateGroupDialog } from "@/components/create-group-dialog";
-import { CreateDynamicGroupDialog } from "@/components/create-dynamic-group-dialog";
-import { CreateTagDialog } from "@/components/create-tag-dialog";
+import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { getAuthHeader } from "@/lib/auth-context";
+import { Plus, FolderTree, Tag, Users } from "lucide-react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.5:8080";
 
 interface Group {
   id: string;
@@ -24,168 +30,200 @@ interface Tag {
   device_count: number;
 }
 
-async function getGroups(): Promise<Group[]> {
-  try {
-    const res = await fetch('http://192.168.0.5:8080/api/v1/groups', {
-      headers: { 'X-API-Key': 'openclaw-inventory-dev-key' },
-      cache: 'no-store'
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.groups || [];
-  } catch {
-    return [];
-  }
-}
+export default function GroupsPage() {
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroup, setNewGroup] = useState({ name: "", description: "", color: "#3b82f6" });
 
-async function getTags(): Promise<Tag[]> {
-  try {
-    const res = await fetch('http://192.168.0.5:8080/api/v1/tags', {
-      headers: { 'X-API-Key': 'openclaw-inventory-dev-key' },
-      cache: 'no-store'
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.tags || [];
-  } catch {
-    return [];
-  }
-}
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-export default async function GroupsPage() {
-  const [groups, tags] = await Promise.all([getGroups(), getTags()]);
-  
+  async function fetchData() {
+    try {
+      const [groupsRes, tagsRes] = await Promise.all([
+        fetch(`${API_URL}/api/v1/groups`, { headers: getAuthHeader() }),
+        fetch(`${API_URL}/api/v1/tags`, { headers: getAuthHeader() }),
+      ]);
+      
+      if (groupsRes.ok) {
+        const data = await groupsRes.json();
+        setGroups(data.groups || []);
+      }
+      if (tagsRes.ok) {
+        const data = await tagsRes.json();
+        setTags(data.tags || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch groups:", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createGroup() {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/groups`, {
+        method: "POST",
+        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify(newGroup),
+      });
+      if (res.ok) {
+        setShowCreateGroup(false);
+        setNewGroup({ name: "", description: "", color: "#3b82f6" });
+        fetchData();
+      }
+    } catch (e) {
+      console.error("Failed to create group:", e);
+    }
+  }
+
+  async function deleteGroup(groupId: string) {
+    if (!confirm("Delete this group?")) return;
+    try {
+      await fetch(`${API_URL}/api/v1/groups/${groupId}`, {
+        method: "DELETE",
+        headers: getAuthHeader(),
+      });
+      fetchData();
+    } catch (e) {
+      console.error("Failed to delete group:", e);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <Breadcrumb items={[{ label: "Groups" }]} />
+        <h1 className="text-2xl font-bold mb-6">📁 Groups</h1>
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="lg" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-4">
-              <Link href="/" className="text-muted-foreground hover:text-primary">
-                ← Zurück
-              </Link>
-            </div>
-            <h1 className="text-4xl font-bold mt-2">📁 Gruppen & Tags</h1>
-            <p className="text-muted-foreground mt-2">Geräte organisieren und gruppieren</p>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Gruppen</CardDescription>
-              <CardTitle className="text-4xl">{groups.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Tags</CardDescription>
-              <CardTitle className="text-4xl">{tags.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Dynamische Gruppen</CardDescription>
-              <CardTitle className="text-4xl text-blue-500">
-                {groups.filter(g => g.is_dynamic).length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        {/* Groups Section */}
-        <div className="mb-12">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">Gruppen</h2>
-            <div className="flex gap-2">
-              <CreateGroupDialog />
-              <CreateDynamicGroupDialog />
-            </div>
-          </div>
-          
-          {groups.length === 0 ? (
-            <Card className="p-8 text-center">
-              <CardContent>
-                <p className="text-muted-foreground mb-2">Noch keine Gruppen erstellt</p>
-                <p className="text-sm text-muted-foreground">
-                  Erstelle Gruppen um Geräte zu organisieren
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {groups.map((group) => (
-                <Link key={group.id} href={`/groups/${group.id}`}>
-                  <Card className="hover:border-primary transition-colors cursor-pointer h-full">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {group.color && (
-                            <div 
-                              className="w-3 h-3 rounded-full" 
-                              style={{ backgroundColor: group.color }}
-                            />
-                          )}
-                          <CardTitle className="text-lg">{group.name}</CardTitle>
-                        </div>
-                        <div className="flex gap-1">
-                          {group.is_dynamic && (
-                            <Badge variant="secondary" className="text-xs">Dynamisch</Badge>
-                          )}
-                        </div>
-                      </div>
-                      {group.description && (
-                        <CardDescription className="line-clamp-2">{group.description}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Mitglieder</span>
-                        <Badge variant="outline">{group.member_count} Geräte</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Tags Section */}
+    <div className="min-h-screen bg-background p-6">
+      <Breadcrumb items={[{ label: "Groups" }]} />
+      
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">Tags</h2>
-            <CreateTagDialog />
-          </div>
-          
-          {tags.length === 0 ? (
-            <Card className="p-8 text-center">
+          <h1 className="text-2xl font-bold">📁 Groups</h1>
+          <p className="text-muted-foreground">{groups.length} groups, {tags.length} tags</p>
+        </div>
+        <Button onClick={() => setShowCreateGroup(true)}>
+          <Plus className="h-4 w-4 mr-2" /> Create Group
+        </Button>
+      </div>
+
+      {/* Create Group Form */}
+      {showCreateGroup && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Create New Group</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="text-sm font-medium">Name *</label>
+                <input
+                  type="text"
+                  value={newGroup.name}
+                  onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 bg-secondary border border-input rounded-md"
+                  placeholder="Production Servers"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Description</label>
+                <input
+                  type="text"
+                  value={newGroup.description}
+                  onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 bg-secondary border border-input rounded-md"
+                  placeholder="All production servers"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Color</label>
+                <input
+                  type="color"
+                  value={newGroup.color}
+                  onChange={(e) => setNewGroup({ ...newGroup, color: e.target.value })}
+                  className="w-full mt-1 h-10 bg-secondary border border-input rounded-md cursor-pointer"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button onClick={createGroup} disabled={!newGroup.name}>
+                Create Group
+              </Button>
+              <Button variant="outline" onClick={() => setShowCreateGroup(false)}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Groups Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
+        {groups.map((group) => (
+          <Link key={group.id} href={`/groups/${group.id}`}>
+            <Card className="hover:border-primary transition-colors cursor-pointer h-full">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: group.color || "#3b82f6" }}
+                    />
+                    <CardTitle className="text-lg">{group.name}</CardTitle>
+                  </div>
+                  {group.is_dynamic && (
+                    <Badge variant="secondary">Dynamic</Badge>
+                  )}
+                </div>
+                <CardDescription>{group.description || "No description"}</CardDescription>
+              </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground mb-2">Noch keine Tags erstellt</p>
-                <p className="text-sm text-muted-foreground">
-                  Tags helfen bei der freien Kategorisierung von Geräten
-                </p>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  <span>{group.member_count} members</span>
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            <div className="flex flex-wrap gap-3">
+          </Link>
+        ))}
+      </div>
+
+      {/* Tags Section */}
+      {tags.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5" /> Tags
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
               {tags.map((tag) => (
-                <Badge 
+                <Badge
                   key={tag.id}
                   variant="outline"
-                  className="text-sm py-2 px-4 cursor-pointer hover:bg-accent"
-                  style={tag.color ? { borderColor: tag.color, color: tag.color } : {}}
+                  className="text-sm py-1 px-3"
+                  style={{ borderColor: tag.color || undefined }}
                 >
-                  {tag.name}
-                  <span className="ml-2 text-muted-foreground">({tag.device_count})</span>
+                  {tag.name} ({tag.device_count})
                 </Badge>
               ))}
             </div>
-          )}
-        </div>
-      </div>
-    </main>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

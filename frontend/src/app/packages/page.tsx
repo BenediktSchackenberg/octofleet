@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -67,7 +68,7 @@ function CreatePackageDialog({ onClose, onCreated }: { onClose: () => void; onCr
     try {
       const res = await fetch(`${API_URL}/api/v1/packages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           name: pkgName,
           displayName: displayName || name,
@@ -204,7 +205,7 @@ export default function PackagesPage() {
       if (search) url += `search=${encodeURIComponent(search)}`;
 
       const res = await fetch(url, {
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       const data = await res.json();
       setPackages(data.packages || []);
@@ -218,7 +219,7 @@ export default function PackagesPage() {
   const fetchCategories = async () => {
     try {
       const res = await fetch(`${API_URL}/api/v1/package-categories`, {
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       const data = await res.json();
       setCategories(data.categories || []);

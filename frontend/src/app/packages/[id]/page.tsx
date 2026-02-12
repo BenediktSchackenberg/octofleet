@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -74,7 +75,7 @@ function EditPackageDialog({ pkg, onClose, onUpdated }: { pkg: Package; onClose:
     try {
       const res = await fetch(`${API_URL}/api/v1/packages/${pkg.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           displayName,
           vendor: vendor || null,
@@ -206,7 +207,7 @@ function EditVersionDialog({ packageId, version, onClose, onUpdated }: { package
     try {
       const res = await fetch(`${API_URL}/api/v1/packages/${packageId}/versions/${version.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           installCommand: installCommand || null,
           uninstallCommand: uninstallCommand || null,
@@ -340,7 +341,7 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
     try {
       const res = await fetch(`${API_URL}/api/v1/packages/${packageId}/versions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           version,
           filename,
@@ -470,7 +471,7 @@ function AddRuleDialog({ packageId, versionId, onClose, onCreated }: { packageId
     try {
       await fetch(`${API_URL}/api/v1/packages/${packageId}/versions/${versionId}/detection-rules`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({ type: ruleType, config }),
       });
       onCreated();
@@ -623,7 +624,7 @@ export default function PackageDetailPage() {
   const fetchPackage = async () => {
     try {
       const res = await fetch(`${API_URL}/api/v1/packages/${packageId}`, {
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       if (res.ok) {
         const data = await res.json();
@@ -639,7 +640,7 @@ export default function PackageDetailPage() {
   const fetchVersionRules = async (versionId: string) => {
     try {
       const res = await fetch(`${API_URL}/api/v1/packages/${packageId}/versions/${versionId}`, {
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       if (res.ok) {
         const data = await res.json();

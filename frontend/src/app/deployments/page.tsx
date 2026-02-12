@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -52,7 +53,7 @@ export default function DeploymentsPage() {
   async function fetchDeployments() {
     try {
       const res = await fetch(`${API_BASE}/deployments`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         setDeployments(await res.json());
@@ -69,7 +70,7 @@ export default function DeploymentsPage() {
     try {
       await fetch(`${API_BASE}/deployments/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
       fetchDeployments();

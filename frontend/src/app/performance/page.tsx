@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -49,7 +50,7 @@ export default function PerformancePage() {
   async function fetchData() {
     try {
       const res = await fetch(`${API_BASE}/metrics/fleet?hours=1`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         const json = await res.json();

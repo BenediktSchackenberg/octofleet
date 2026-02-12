@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 
@@ -77,7 +78,7 @@ export default function AlertsPage() {
 
   const fetchData = async () => {
     try {
-      const headers = { "X-API-Key": API_KEY };
+      const headers = getAuthHeader();
       
       const [alertsRes, rulesRes, channelsRes, statsRes] = await Promise.all([
         fetch(`${API_URL}/api/v1/alerts?limit=50`, { headers }),
@@ -107,7 +108,7 @@ export default function AlertsPage() {
     try {
       await fetch(`${API_URL}/api/v1/alerts/${alertId}/acknowledge`, {
         method: "POST",
-        headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" },
+        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({ by: "UI" }),
       });
       fetchData();
@@ -120,7 +121,7 @@ export default function AlertsPage() {
     try {
       await fetch(`${API_URL}/api/v1/alerts/${alertId}/resolve`, {
         method: "POST",
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       fetchData();
     } catch (error) {
@@ -132,7 +133,7 @@ export default function AlertsPage() {
     try {
       await fetch(`${API_URL}/api/v1/alerts/rules/${ruleId}`, {
         method: "PUT",
-        headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" },
+        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({ is_enabled: !isEnabled }),
       });
       fetchData();
@@ -145,7 +146,7 @@ export default function AlertsPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/alerts/channels/${channelId}/test`, {
         method: "POST",
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         alert("Test notification sent!");
@@ -163,7 +164,7 @@ export default function AlertsPage() {
     try {
       await fetch(`${API_URL}/api/v1/alerts/channels`, {
         method: "POST",
-        headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" },
+        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newChannel.name,
           channel_type: newChannel.channel_type,
@@ -183,7 +184,7 @@ export default function AlertsPage() {
     try {
       await fetch(`${API_URL}/api/v1/alerts/channels/${channelId}`, {
         method: "DELETE",
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       fetchData();
     } catch (error) {
@@ -195,7 +196,7 @@ export default function AlertsPage() {
     try {
       await fetch(`${API_URL}/api/v1/alerts/rules/${ruleId}/channels/${channelId}`, {
         method: "POST",
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       alert("Rule linked to channel!");
     } catch (error) {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { OsDistributionChart } from "@/components/OsDistributionChart";
+import { getAuthHeader } from "@/lib/auth-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,10 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState("overview");
 
   const API_BASE = "http://192.168.0.5:8080";
-  const headers = { "X-API-Key": "openclaw-inventory-dev-key" };
+
+  function getHeaders() {
+    return getAuthHeader();
+  }
 
   useEffect(() => {
     fetchSummary();
@@ -88,7 +92,7 @@ export default function HomePage() {
 
   async function fetchSummary() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/dashboard/summary`, { headers });
+      const res = await fetch(`${API_BASE}/api/v1/dashboard/summary`, { headers: getHeaders() });
       if (res.ok) setSummary(await res.json());
     } catch (e) {
       console.error("Failed to fetch summary:", e);
@@ -99,7 +103,7 @@ export default function HomePage() {
 
   async function fetchMetrics() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/metrics/summary`, { headers });
+      const res = await fetch(`${API_BASE}/api/v1/metrics/summary`, { headers: getHeaders() });
       if (res.ok) setMetrics(await res.json());
     } catch (e) {
       console.error("Failed to fetch metrics:", e);
@@ -110,13 +114,13 @@ export default function HomePage() {
     try {
       // Fetch all data in parallel - use correct inventory endpoints
       const [nodeRes, hwRes, swRes, secRes, netRes, brRes, hfRes] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/nodes/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/api/v1/inventory/hardware/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/api/v1/inventory/software/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/api/v1/inventory/security/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/api/v1/inventory/network/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/api/v1/inventory/browser/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/api/v1/inventory/hotfixes/${nodeId}`, { headers }),
+        fetch(`${API_BASE}/api/v1/nodes/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/api/v1/inventory/hardware/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/api/v1/inventory/software/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/api/v1/inventory/security/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/api/v1/inventory/network/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/api/v1/inventory/browser/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/api/v1/inventory/hotfixes/${nodeId}`, { headers: getHeaders() }),
       ]);
 
       if (nodeRes.ok) setNodeData(await nodeRes.json());

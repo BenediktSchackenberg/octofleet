@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -55,7 +56,7 @@ export default function NodesPage() {
   async function fetchNodes() {
     try {
       const res = await fetch(`${API_URL}/api/v1/nodes`, {
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       const data = await res.json();
       setNodes(data.nodes || []);

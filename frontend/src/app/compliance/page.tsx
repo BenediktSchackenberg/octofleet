@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -46,7 +47,7 @@ export default function CompliancePage() {
   async function fetchData() {
     try {
       const res = await fetch(`${API_URL}/api/v1/compliance/summary`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         setData(await res.json());

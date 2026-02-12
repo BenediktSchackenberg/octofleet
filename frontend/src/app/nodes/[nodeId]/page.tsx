@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -195,7 +196,7 @@ export default function NodeDetailPage() {
   async function refreshInventory() {
     setRefreshing(true);
     try {
-      const headers = { 'X-API-Key': API_KEY };
+      const headers = getAuthHeader();
       
       const [hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
         fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers }),
@@ -252,7 +253,7 @@ export default function NodeDetailPage() {
   async function fetchNodeDetails() {
     setLoading(true);
     try {
-      const headers = { 'X-API-Key': API_KEY };
+      const headers = getAuthHeader();
       
       const [nodeRes, historyRes, hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
         fetch(`${API_BASE}/nodes/${nodeId}`, { headers }),

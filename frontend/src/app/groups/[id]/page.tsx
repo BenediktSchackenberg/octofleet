@@ -14,6 +14,7 @@ import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
 import { Breadcrumb } from "@/components/ui-components";
 import { RefreshCw, Sparkles } from "lucide-react";
+import { getAuthHeader } from "@/lib/auth-context";
 
 interface GroupMember {
   id: string;
@@ -41,7 +42,10 @@ interface GroupDetail {
 }
 
 const API_BASE = "http://192.168.0.5:8080/api/v1";
-const headers = { "X-API-Key": "openclaw-inventory-dev-key", "Content-Type": "application/json" };
+
+function getHeaders(): Record<string, string> {
+  return { ...getAuthHeader(), "Content-Type": "application/json" };
+}
 
 export default function GroupDetailPage() {
   const params = useParams();
@@ -64,7 +68,7 @@ export default function GroupDetailPage() {
 
   async function fetchGroup() {
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}`, { headers });
+      const res = await fetch(`${API_BASE}/groups/${groupId}`, { headers: getHeaders() });
       if (!res.ok) {
         router.push("/groups");
         return;
@@ -87,7 +91,7 @@ export default function GroupDetailPage() {
     try {
       const res = await fetch(`${API_BASE}/groups/${groupId}`, {
         method: "PATCH",
-        headers,
+        headers: getHeaders(),
         body: JSON.stringify({
           name: editName,
           description: editDescription || null,
@@ -113,7 +117,7 @@ export default function GroupDetailPage() {
     try {
       const res = await fetch(`${API_BASE}/groups/${groupId}`, {
         method: "DELETE",
-        headers,
+        headers: getHeaders(),
       });
       if (res.ok) {
         router.push("/groups");
@@ -132,7 +136,7 @@ export default function GroupDetailPage() {
     try {
       const res = await fetch(`${API_BASE}/groups/${groupId}/members/${memberId}`, {
         method: "DELETE",
-        headers,
+        headers: getHeaders(),
       });
       if (res.ok) {
         await fetchGroup();
@@ -147,7 +151,7 @@ export default function GroupDetailPage() {
     try {
       const res = await fetch(`${API_BASE}/groups/${groupId}/evaluate`, {
         method: "POST",
-        headers,
+        headers: getHeaders(),
       });
       if (res.ok) {
         const data = await res.json();

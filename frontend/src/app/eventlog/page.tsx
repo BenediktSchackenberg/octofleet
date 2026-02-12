@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -88,7 +89,7 @@ export default function EventlogPage() {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/v1/eventlog/summary?hours=${hours}`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       const data = await res.json();
       setSummary(data.summaryByNode || []);

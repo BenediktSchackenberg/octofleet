@@ -1,4 +1,5 @@
 "use client";
+import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -124,7 +125,7 @@ export default function JobDetailPage() {
   async function fetchJob() {
     try {
       const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}`, {
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       if (!res.ok) {
         if (res.status === 404) {
@@ -149,7 +150,7 @@ export default function JobDetailPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}/instances/${instanceId}/retry`, {
         method: "POST",
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" },
+        headers: { ...getAuthHeader() },
       });
       if (res.ok) {
         await fetchJob();
