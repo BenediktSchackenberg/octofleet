@@ -4430,31 +4430,26 @@ async def compare_software(software_name: str = None, db: asyncpg.Pool = Depends
             # Find specific software across all nodes
             rows = await conn.fetch("""
                 SELECT 
-                    n.node_id,
+                    n.id as node_id,
                     n.hostname,
-                    s.data->'installedPrograms' as programs
+                    s.name,
+                    s.version,
+                    s.publisher
                 FROM nodes n
-                LEFT JOIN inventory_software s ON n.node_id = s.node_id
-                WHERE s.data IS NOT NULL
-            """)
+                JOIN software_current s ON n.id = s.node_id
+                WHERE LOWER(s.name) LIKE $1
+                ORDER BY s.name, n.hostname
+            """, f"%{software_name.lower()}%")
             
             results = []
-            search = software_name.lower()
             for row in rows:
-                programs = row["programs"] or []
-                if isinstance(programs, str):
-                    import json
-                    programs = json.loads(programs)
-                
-                for prog in programs:
-                    if search in (prog.get("name", "") or "").lower():
-                        results.append({
-                            "nodeId": str(row["node_id"]),
-                            "hostname": row["hostname"],
-                            "name": prog.get("name"),
-                            "version": prog.get("version"),
-                            "publisher": prog.get("publisher")
-                        })
+                results.append({
+                    "nodeId": str(row["node_id"]),
+                    "hostname": row["hostname"],
+                    "name": row["name"],
+                    "version": row["version"],
+                    "publisher": row["publisher"]
+                })
             
             # Group by version
             versions = {}
@@ -4474,30 +4469,17 @@ async def compare_software(software_name: str = None, db: asyncpg.Pool = Depends
             # Get top installed software
             rows = await conn.fetch("""
                 SELECT 
-                    n.node_id,
-                    s.data->'installedPrograms' as programs
-                FROM nodes n
-                LEFT JOIN inventory_software s ON n.node_id = s.node_id
-                WHERE s.data IS NOT NULL
+                    name,
+                    COUNT(DISTINCT node_id) as node_count
+                FROM software_current
+                WHERE name IS NOT NULL AND name != ''
+                GROUP BY name
+                ORDER BY node_count DESC, name
+                LIMIT 50
             """)
             
-            software_count = {}
-            for row in rows:
-                programs = row["programs"] or []
-                if isinstance(programs, str):
-                    import json
-                    programs = json.loads(programs)
-                
-                for prog in programs:
-                    name = prog.get("name", "")
-                    if name:
-                        software_count[name] = software_count.get(name, 0) + 1
-            
-            # Sort by count
-            top_software = sorted(software_count.items(), key=lambda x: -x[1])[:50]
-            
             return {
-                "topSoftware": [{"name": k, "count": v} for k, v in top_software]
+                "topSoftware": [{"name": r["name"], "count": r["node_count"]} for r in rows]
             }
 
 
