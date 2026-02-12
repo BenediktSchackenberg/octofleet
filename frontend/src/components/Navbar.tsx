@@ -16,6 +16,7 @@ const navItems = [
   { href: "/eventlog", label: "Eventlog", icon: "📋" },
   { href: "/compliance", label: "Compliance", icon: "🛡️" },
   { href: "/software-compare", label: "Compare", icon: "📊" },
+  { href: "/users", label: "Users", icon: "👥" },
 ];
 
 export function Navbar() {

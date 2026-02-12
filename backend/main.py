@@ -4836,3 +4836,388 @@ async def get_gateway_logs(
         "total": len(logs),
         "filters": {"level": level, "node_id": node_id, "job_id": job_id}
     }
+
+
+# ============================================
+# E13: RBAC - Role Based Access Control
+# ============================================
+
+from auth import (
+    UserCreate, UserUpdate, UserResponse, LoginRequest, TokenResponse,
+    RoleCreate, RoleResponse, APIKeyCreate, APIKeyResponse,
+    hash_password, verify_password, hash_api_key,
+    create_access_token, create_refresh_token, decode_token,
+    get_current_user, require_auth, require_permission, CurrentUser,
+    get_permissions_for_roles
+)
+
+
+# --- Auth Endpoints ---
+
+@app.post("/api/v1/auth/login", response_model=TokenResponse)
+async def login(request: LoginRequest):
+    """Login with username/password, get JWT token"""
+    async with db_pool.acquire() as conn:
+        user = await conn.fetchrow(
+            "SELECT id, username, password_hash, is_active, is_superuser, email, display_name, created_at, last_login FROM users WHERE username = $1",
+            request.username
+        )
+        
+        if not user or not verify_password(request.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not user["is_active"]:
+            raise HTTPException(status_code=403, detail="Account disabled")
+        
+        # Get user roles
+        roles = await conn.fetch(
+            """SELECT r.name FROM roles r 
+               JOIN user_roles ur ON r.id = ur.role_id 
+               WHERE ur.user_id = $1""",
+            user["id"]
+        )
+        role_names = [r["name"] for r in roles]
+        permissions = get_permissions_for_roles(role_names)
+        if user["is_superuser"]:
+            permissions = ["*"]
+        
+        # Update last login
+        await conn.execute(
+            "UPDATE users SET last_login = NOW() WHERE id = $1",
+            user["id"]
+        )
+        
+        # Create token
+        token = create_access_token(str(user["id"]), user["username"], permissions)
+        
+        return TokenResponse(
+            access_token=token,
+            expires_in=86400,
+            user=UserResponse(
+                id=str(user["id"]),
+                username=user["username"],
+                email=user["email"],
+                display_name=user["display_name"],
+                is_active=user["is_active"],
+                is_superuser=user["is_superuser"],
+                created_at=user["created_at"],
+                last_login=user["last_login"],
+                roles=role_names
+            )
+        )
+
+
+@app.get("/api/v1/auth/me", response_model=UserResponse)
+async def get_current_user_info(user: CurrentUser = Depends(require_auth)):
+    """Get current user info"""
+    if user.id == "system":
+        return UserResponse(
+            id="system",
+            username="system",
+            email=None,
+            display_name="System (API Key)",
+            is_active=True,
+            is_superuser=True,
+            created_at=datetime.utcnow(),
+            last_login=None,
+            roles=["admin"]
+        )
+    
+    async with db_pool.acquire() as conn:
+        db_user = await conn.fetchrow(
+            "SELECT id, username, email, display_name, is_active, is_superuser, created_at, last_login FROM users WHERE id = $1",
+            UUID(user.id)
+        )
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        roles = await conn.fetch(
+            """SELECT r.name FROM roles r 
+               JOIN user_roles ur ON r.id = ur.role_id 
+               WHERE ur.user_id = $1""",
+            db_user["id"]
+        )
+        
+        return UserResponse(
+            id=str(db_user["id"]),
+            username=db_user["username"],
+            email=db_user["email"],
+            display_name=db_user["display_name"],
+            is_active=db_user["is_active"],
+            is_superuser=db_user["is_superuser"],
+            created_at=db_user["created_at"],
+            last_login=db_user["last_login"],
+            roles=[r["name"] for r in roles]
+        )
+
+
+# --- User Management (Admin) ---
+
+@app.get("/api/v1/users")
+async def list_users(user: CurrentUser = Depends(require_permission("users:read"))):
+    """List all users"""
+    async with db_pool.acquire() as conn:
+        users = await conn.fetch(
+            """SELECT u.id, u.username, u.email, u.display_name, u.is_active, u.is_superuser, 
+                      u.created_at, u.last_login,
+                      array_agg(r.name) FILTER (WHERE r.name IS NOT NULL) as roles
+               FROM users u
+               LEFT JOIN user_roles ur ON u.id = ur.user_id
+               LEFT JOIN roles r ON ur.role_id = r.id
+               GROUP BY u.id
+               ORDER BY u.created_at DESC"""
+        )
+        return {
+            "users": [
+                {
+                    "id": str(u["id"]),
+                    "username": u["username"],
+                    "email": u["email"],
+                    "display_name": u["display_name"],
+                    "is_active": u["is_active"],
+                    "is_superuser": u["is_superuser"],
+                    "created_at": u["created_at"].isoformat() if u["created_at"] else None,
+                    "last_login": u["last_login"].isoformat() if u["last_login"] else None,
+                    "roles": u["roles"] or []
+                }
+                for u in users
+            ]
+        }
+
+
+@app.post("/api/v1/users", response_model=UserResponse)
+async def create_user(
+    data: UserCreate,
+    user: CurrentUser = Depends(require_permission("users:write"))
+):
+    """Create new user"""
+    async with db_pool.acquire() as conn:
+        # Check if username exists
+        existing = await conn.fetchval("SELECT 1 FROM users WHERE username = $1", data.username)
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        
+        # Create user
+        new_user = await conn.fetchrow(
+            """INSERT INTO users (username, email, password_hash, display_name)
+               VALUES ($1, $2, $3, $4)
+               RETURNING id, username, email, display_name, is_active, is_superuser, created_at""",
+            data.username,
+            data.email,
+            hash_password(data.password),
+            data.display_name or data.username
+        )
+        
+        return UserResponse(
+            id=str(new_user["id"]),
+            username=new_user["username"],
+            email=new_user["email"],
+            display_name=new_user["display_name"],
+            is_active=new_user["is_active"],
+            is_superuser=new_user["is_superuser"],
+            created_at=new_user["created_at"],
+            last_login=None,
+            roles=[]
+        )
+
+
+@app.put("/api/v1/users/{user_id}")
+async def update_user(
+    user_id: str,
+    data: UserUpdate,
+    user: CurrentUser = Depends(require_permission("users:write"))
+):
+    """Update user"""
+    async with db_pool.acquire() as conn:
+        updates = []
+        params = [UUID(user_id)]
+        param_idx = 2
+        
+        if data.email is not None:
+            updates.append(f"email = ${param_idx}")
+            params.append(data.email)
+            param_idx += 1
+        if data.display_name is not None:
+            updates.append(f"display_name = ${param_idx}")
+            params.append(data.display_name)
+            param_idx += 1
+        if data.is_active is not None:
+            updates.append(f"is_active = ${param_idx}")
+            params.append(data.is_active)
+            param_idx += 1
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No updates provided")
+        
+        updates.append("updated_at = NOW()")
+        
+        await conn.execute(
+            f"UPDATE users SET {', '.join(updates)} WHERE id = $1",
+            *params
+        )
+        
+        return {"status": "updated"}
+
+
+@app.delete("/api/v1/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    user: CurrentUser = Depends(require_permission("users:write"))
+):
+    """Delete user"""
+    if user_id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    async with db_pool.acquire() as conn:
+        deleted = await conn.execute(
+            "DELETE FROM users WHERE id = $1",
+            UUID(user_id)
+        )
+        return {"status": "deleted"}
+
+
+@app.post("/api/v1/users/{user_id}/roles/{role_name}")
+async def assign_role(
+    user_id: str,
+    role_name: str,
+    user: CurrentUser = Depends(require_permission("users:write"))
+):
+    """Assign role to user"""
+    async with db_pool.acquire() as conn:
+        role = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", role_name)
+        if not role:
+            raise HTTPException(status_code=404, detail="Role not found")
+        
+        await conn.execute(
+            """INSERT INTO user_roles (user_id, role_id, assigned_by)
+               VALUES ($1, $2, $3)
+               ON CONFLICT DO NOTHING""",
+            UUID(user_id),
+            role["id"],
+            UUID(user.id) if user.id != "system" else None
+        )
+        return {"status": "role assigned"}
+
+
+@app.delete("/api/v1/users/{user_id}/roles/{role_name}")
+async def remove_role(
+    user_id: str,
+    role_name: str,
+    user: CurrentUser = Depends(require_permission("users:write"))
+):
+    """Remove role from user"""
+    async with db_pool.acquire() as conn:
+        role = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", role_name)
+        if not role:
+            raise HTTPException(status_code=404, detail="Role not found")
+        
+        await conn.execute(
+            "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2",
+            UUID(user_id),
+            role["id"]
+        )
+        return {"status": "role removed"}
+
+
+# --- Role Management ---
+
+@app.get("/api/v1/roles")
+async def list_roles(user: CurrentUser = Depends(require_permission("users:read"))):
+    """List all roles"""
+    async with db_pool.acquire() as conn:
+        roles = await conn.fetch(
+            "SELECT id, name, description, permissions, is_system, created_at FROM roles ORDER BY name"
+        )
+        return {
+            "roles": [
+                {
+                    "id": str(r["id"]),
+                    "name": r["name"],
+                    "description": r["description"],
+                    "permissions": r["permissions"],
+                    "is_system": r["is_system"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None
+                }
+                for r in roles
+            ]
+        }
+
+
+@app.post("/api/v1/roles")
+async def create_role(
+    data: RoleCreate,
+    user: CurrentUser = Depends(require_permission("roles:write"))
+):
+    """Create custom role"""
+    async with db_pool.acquire() as conn:
+        role = await conn.fetchrow(
+            """INSERT INTO roles (name, description, permissions, is_system)
+               VALUES ($1, $2, $3, false)
+               RETURNING id, name, description, permissions, is_system, created_at""",
+            data.name,
+            data.description,
+            data.permissions
+        )
+        return {
+            "id": str(role["id"]),
+            "name": role["name"],
+            "description": role["description"],
+            "permissions": role["permissions"],
+            "is_system": role["is_system"],
+            "created_at": role["created_at"].isoformat()
+        }
+
+
+@app.delete("/api/v1/roles/{role_id}")
+async def delete_role(
+    role_id: str,
+    user: CurrentUser = Depends(require_permission("roles:write"))
+):
+    """Delete custom role (not system roles)"""
+    async with db_pool.acquire() as conn:
+        role = await conn.fetchrow(
+            "SELECT is_system FROM roles WHERE id = $1",
+            UUID(role_id)
+        )
+        if not role:
+            raise HTTPException(status_code=404, detail="Role not found")
+        if role["is_system"]:
+            raise HTTPException(status_code=400, detail="Cannot delete system role")
+        
+        await conn.execute("DELETE FROM roles WHERE id = $1", UUID(role_id))
+        return {"status": "deleted"}
+
+
+# --- Initial Admin Setup ---
+
+@app.post("/api/v1/auth/setup")
+async def setup_admin(data: UserCreate):
+    """
+    One-time admin setup. Only works if no users exist.
+    """
+    async with db_pool.acquire() as conn:
+        count = await conn.fetchval("SELECT COUNT(*) FROM users")
+        if count > 0:
+            raise HTTPException(status_code=400, detail="Setup already completed")
+        
+        # Create admin user
+        user = await conn.fetchrow(
+            """INSERT INTO users (username, email, password_hash, display_name, is_superuser)
+               VALUES ($1, $2, $3, $4, true)
+               RETURNING id""",
+            data.username,
+            data.email,
+            hash_password(data.password),
+            data.display_name or data.username
+        )
+        
+        # Assign admin role
+        admin_role = await conn.fetchval("SELECT id FROM roles WHERE name = 'admin'")
+        if admin_role:
+            await conn.execute(
+                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)",
+                user["id"],
+                admin_role
+            )
+        
+        return {"status": "Admin created", "username": data.username}
