@@ -70,14 +70,31 @@ async def get_db() -> asyncpg.Pool:
     return db_pool
 
 
-async def verify_api_key(x_api_key: str = Header(...)):
-    """Verify API key from header"""
-    if x_api_key != API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key"
-        )
-    return x_api_key
+async def verify_api_key(
+    x_api_key: str = Header(None),
+    authorization: str = Header(None)
+):
+    """Verify API key or JWT token from header"""
+    # Check JWT Bearer token first
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+        try:
+            import jwt
+            from auth import JWT_SECRET
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            return payload  # Valid JWT
+        except Exception:
+            pass  # Fall through to API key check
+    
+    # Check X-API-Key
+    if x_api_key == API_KEY:
+        return x_api_key
+    
+    # Neither valid
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid API key or token"
+    )
 
 
 @asynccontextmanager
