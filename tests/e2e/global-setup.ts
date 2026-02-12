@@ -29,10 +29,16 @@ async function globalSetup(config: FullConfig) {
   const page = await browser.newPage();
   
   await page.goto(`${config.projects[0].use?.baseURL}/login`);
-  await page.fill('input[name="username"]', 'admin');
-  await page.fill('input[name="password"]', 'OpenClaw2026!');
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/');
+  await page.waitForLoadState('networkidle');
+  
+  // Try multiple selector strategies
+  const usernameInput = page.locator('input[name="username"], input[type="text"]').first();
+  const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
+  
+  await usernameInput.fill('admin');
+  await passwordInput.fill('OpenClaw2026!');
+  await page.click('button:has-text("Sign In"), button:has-text("Anmelden"), button[type="submit"]');
+  await page.waitForURL('**/', { timeout: 10000 });
   
   // Save storage state
   await page.context().storageState({ path: './auth-state.json' });

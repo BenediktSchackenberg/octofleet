@@ -1,12 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-
-async function login(page: Page) {
-  await page.goto('/login');
-  await page.fill('input[name="username"]', 'admin');
-  await page.fill('input[name="password"]', 'OpenClaw2026!');
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/');
-}
+import { login } from './helpers';
 
 test.describe('Software Compare', () => {
   test.beforeEach(async ({ page }) => {
