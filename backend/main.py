@@ -5439,3 +5439,356 @@ async def delete_api_key(
     async with db_pool.acquire() as conn:
         await conn.execute("DELETE FROM api_keys WHERE id = $1", UUID(key_id))
         return {"status": "deleted"}
+
+
+# ========== E9: Maintenance Windows ==========
+
+@app.get("/api/v1/maintenance-windows", dependencies=[Depends(verify_api_key)])
+async def list_maintenance_windows():
+    """List all maintenance windows"""
+    async with db_pool.acquire() as conn:
+        # Create table if not exists
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS maintenance_windows (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name TEXT NOT NULL,
+                description TEXT,
+                start_time TIME NOT NULL,
+                end_time TIME NOT NULL,
+                days_of_week INTEGER[] NOT NULL DEFAULT '{1,2,3,4,5}',
+                timezone TEXT DEFAULT 'Europe/Berlin',
+                is_active BOOLEAN DEFAULT true,
+                target_type TEXT CHECK (target_type IN ('all', 'group', 'node')),
+                target_id UUID,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        rows = await conn.fetch("SELECT * FROM maintenance_windows ORDER BY name")
+        return {"windows": [dict(r) for r in rows]}
+
+
+@app.post("/api/v1/maintenance-windows", dependencies=[Depends(verify_api_key)])
+async def create_maintenance_window(data: dict):
+    """Create a maintenance window"""
+    required = ["name", "startTime", "endTime"]
+    for f in required:
+        if f not in data:
+            raise HTTPException(400, f"Missing required field: {f}")
+    
+    async with db_pool.acquire() as conn:
+        window_id = await conn.fetchval("""
+            INSERT INTO maintenance_windows (name, description, start_time, end_time, days_of_week, 
+                                             timezone, target_type, target_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id
+        """, data["name"], data.get("description"),
+            data["startTime"], data["endTime"],
+            data.get("daysOfWeek", [1, 2, 3, 4, 5]),
+            data.get("timezone", "Europe/Berlin"),
+            data.get("targetType", "all"),
+            data.get("targetId"))
+        return {"id": str(window_id), "status": "created"}
+
+
+@app.get("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(verify_api_key)])
+async def get_maintenance_window(window_id: str):
+    """Get a specific maintenance window"""
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM maintenance_windows WHERE id = $1", window_id)
+        if not row:
+            raise HTTPException(404, "Maintenance window not found")
+        return dict(row)
+
+
+@app.put("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(verify_api_key)])
+async def update_maintenance_window(window_id: str, data: dict):
+    """Update a maintenance window"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE maintenance_windows
+            SET name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                start_time = COALESCE($4, start_time),
+                end_time = COALESCE($5, end_time),
+                days_of_week = COALESCE($6, days_of_week),
+                timezone = COALESCE($7, timezone),
+                is_active = COALESCE($8, is_active),
+                target_type = COALESCE($9, target_type),
+                target_id = COALESCE($10, target_id),
+                updated_at = NOW()
+            WHERE id = $1
+        """, window_id, data.get("name"), data.get("description"),
+            data.get("startTime"), data.get("endTime"),
+            data.get("daysOfWeek"), data.get("timezone"),
+            data.get("isActive"), data.get("targetType"), data.get("targetId"))
+        return {"status": "updated"}
+
+
+@app.delete("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(verify_api_key)])
+async def delete_maintenance_window(window_id: str):
+    """Delete a maintenance window"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM maintenance_windows WHERE id = $1", window_id)
+        return {"status": "deleted"}
+
+
+@app.get("/api/v1/maintenance-windows/check/{node_id}", dependencies=[Depends(verify_api_key)])
+async def check_maintenance_window(node_id: str):
+    """Check if a node is currently in a maintenance window"""
+    from datetime import datetime
+    import pytz
+    
+    async with db_pool.acquire() as conn:
+        # Get node's group memberships
+        groups = await conn.fetch(
+            "SELECT group_id FROM device_groups WHERE node_id = $1", node_id
+        )
+        group_ids = [str(g["group_id"]) for g in groups]
+        
+        # Get all active maintenance windows
+        windows = await conn.fetch("""
+            SELECT * FROM maintenance_windows 
+            WHERE is_active = true
+        """)
+        
+        for w in windows:
+            # Check if window applies to this node
+            if w["target_type"] == "node" and str(w["target_id"]) != node_id:
+                continue
+            if w["target_type"] == "group" and str(w["target_id"]) not in group_ids:
+                continue
+            
+            # Check if current time is within window
+            tz = pytz.timezone(w["timezone"] or "Europe/Berlin")
+            now = datetime.now(tz)
+            
+            # Check day of week (1=Monday, 7=Sunday)
+            if now.isoweekday() not in (w["days_of_week"] or [1, 2, 3, 4, 5]):
+                continue
+            
+            # Check time range
+            current_time = now.time()
+            if w["start_time"] <= current_time <= w["end_time"]:
+                return {
+                    "in_maintenance_window": True,
+                    "window_id": str(w["id"]),
+                    "window_name": w["name"],
+                    "ends_at": w["end_time"].isoformat()
+                }
+        
+        return {"in_maintenance_window": False}
+
+
+# ========== E9: Rollout Strategies ==========
+
+@app.get("/api/v1/rollout-strategies", dependencies=[Depends(verify_api_key)])
+async def list_rollout_strategies():
+    """List available rollout strategies"""
+    return {
+        "strategies": [
+            {
+                "id": "immediate",
+                "name": "Sofort (Immediate)",
+                "description": "Alle Zielgeräte gleichzeitig",
+                "config_schema": {}
+            },
+            {
+                "id": "staged",
+                "name": "Gestaffelt (Staged)",
+                "description": "Rollout in Wellen mit Wartezeit zwischen Gruppen",
+                "config_schema": {
+                    "wave_size": {"type": "integer", "default": 10, "description": "Geräte pro Welle"},
+                    "wave_delay_minutes": {"type": "integer", "default": 60, "description": "Wartezeit zwischen Wellen (Minuten)"},
+                    "success_threshold_percent": {"type": "integer", "default": 90, "description": "Min. Erfolgsrate um fortzufahren (%)"}
+                }
+            },
+            {
+                "id": "canary",
+                "name": "Canary",
+                "description": "Erst kleine Testgruppe, dann voller Rollout",
+                "config_schema": {
+                    "canary_count": {"type": "integer", "default": 1, "description": "Anzahl Canary-Geräte"},
+                    "canary_duration_hours": {"type": "integer", "default": 24, "description": "Canary-Beobachtungszeit (Stunden)"},
+                    "auto_proceed": {"type": "boolean", "default": False, "description": "Automatisch fortfahren wenn Canary erfolgreich"}
+                }
+            },
+            {
+                "id": "percentage",
+                "name": "Prozentual",
+                "description": "Schrittweise Erhöhung der Zielgruppe",
+                "config_schema": {
+                    "initial_percent": {"type": "integer", "default": 10, "description": "Startprozent"},
+                    "increment_percent": {"type": "integer", "default": 20, "description": "Erhöhung pro Schritt"},
+                    "step_delay_hours": {"type": "integer", "default": 4, "description": "Wartezeit zwischen Schritten (Stunden)"}
+                }
+            }
+        ]
+    }
+
+
+@app.post("/api/v1/deployments/{deployment_id}/rollout", dependencies=[Depends(verify_api_key)])
+async def configure_rollout_strategy(deployment_id: str, data: dict):
+    """Configure rollout strategy for a deployment"""
+    strategy = data.get("strategy", "immediate")
+    config = data.get("config", {})
+    
+    valid_strategies = ["immediate", "staged", "canary", "percentage"]
+    if strategy not in valid_strategies:
+        raise HTTPException(400, f"Invalid strategy. Must be one of: {valid_strategies}")
+    
+    async with db_pool.acquire() as conn:
+        # Ensure rollout_config column exists
+        await conn.execute("""
+            ALTER TABLE deployments 
+            ADD COLUMN IF NOT EXISTS rollout_strategy TEXT DEFAULT 'immediate',
+            ADD COLUMN IF NOT EXISTS rollout_config JSONB DEFAULT '{}',
+            ADD COLUMN IF NOT EXISTS rollout_state JSONB DEFAULT '{}'
+        """)
+        
+        await conn.execute("""
+            UPDATE deployments 
+            SET rollout_strategy = $2, rollout_config = $3, updated_at = NOW()
+            WHERE id = $1
+        """, deployment_id, strategy, json.dumps(config))
+        
+        return {"status": "configured", "strategy": strategy}
+
+
+@app.get("/api/v1/deployments/{deployment_id}/rollout", dependencies=[Depends(verify_api_key)])
+async def get_rollout_status(deployment_id: str):
+    """Get rollout strategy status for a deployment"""
+    async with db_pool.acquire() as conn:
+        dep = await conn.fetchrow("""
+            SELECT rollout_strategy, rollout_config, rollout_state,
+                   (SELECT COUNT(*) FROM deployment_status WHERE deployment_id = $1) as total,
+                   (SELECT COUNT(*) FROM deployment_status WHERE deployment_id = $1 AND status = 'success') as success,
+                   (SELECT COUNT(*) FROM deployment_status WHERE deployment_id = $1 AND status = 'failed') as failed,
+                   (SELECT COUNT(*) FROM deployment_status WHERE deployment_id = $1 AND status = 'pending') as pending
+            FROM deployments WHERE id = $1
+        """, deployment_id)
+        
+        if not dep:
+            raise HTTPException(404, "Deployment not found")
+        
+        return {
+            "strategy": dep["rollout_strategy"] or "immediate",
+            "config": json.loads(dep["rollout_config"] or "{}"),
+            "state": json.loads(dep["rollout_state"] or "{}"),
+            "progress": {
+                "total": dep["total"],
+                "success": dep["success"],
+                "failed": dep["failed"],
+                "pending": dep["pending"],
+                "success_rate": round(dep["success"] / dep["total"] * 100, 1) if dep["total"] > 0 else 0
+            }
+        }
+
+
+@app.post("/api/v1/deployments/{deployment_id}/rollout/advance", dependencies=[Depends(verify_api_key)])
+async def advance_rollout(deployment_id: str):
+    """Manually advance a staged/canary rollout to the next phase"""
+    async with db_pool.acquire() as conn:
+        dep = await conn.fetchrow("""
+            SELECT rollout_strategy, rollout_config, rollout_state 
+            FROM deployments WHERE id = $1
+        """, deployment_id)
+        
+        if not dep:
+            raise HTTPException(404, "Deployment not found")
+        
+        strategy = dep["rollout_strategy"] or "immediate"
+        config = json.loads(dep["rollout_config"] or "{}")
+        state = json.loads(dep["rollout_state"] or "{}")
+        
+        if strategy == "immediate":
+            return {"message": "Immediate rollout - no phases to advance"}
+        
+        # Get current wave/phase
+        current_wave = state.get("current_wave", 0)
+        
+        if strategy == "canary":
+            if not state.get("canary_complete"):
+                # Mark canary as complete, enable full rollout
+                state["canary_complete"] = True
+                state["full_rollout_started"] = datetime.now().isoformat()
+                
+                # Enable all remaining pending nodes
+                await conn.execute("""
+                    UPDATE deployment_status 
+                    SET status = 'pending', updated_at = NOW()
+                    WHERE deployment_id = $1 AND status = 'pending'
+                """, deployment_id)
+                
+                await conn.execute("""
+                    UPDATE deployments SET rollout_state = $2, updated_at = NOW() WHERE id = $1
+                """, deployment_id, json.dumps(state))
+                
+                return {"message": "Canary complete - full rollout started", "state": state}
+            else:
+                return {"message": "Full rollout already in progress"}
+        
+        elif strategy == "staged":
+            wave_size = config.get("wave_size", 10)
+            
+            # Activate next wave
+            await conn.execute("""
+                UPDATE deployment_status 
+                SET status = 'pending', updated_at = NOW()
+                WHERE deployment_id = $1 
+                AND status = 'waiting'
+                AND id IN (
+                    SELECT id FROM deployment_status 
+                    WHERE deployment_id = $1 AND status = 'waiting'
+                    LIMIT $2
+                )
+            """, deployment_id, wave_size)
+            
+            state["current_wave"] = current_wave + 1
+            state["wave_started_at"] = datetime.now().isoformat()
+            
+            await conn.execute("""
+                UPDATE deployments SET rollout_state = $2, updated_at = NOW() WHERE id = $1
+            """, deployment_id, json.dumps(state))
+            
+            return {"message": f"Advanced to wave {state['current_wave']}", "state": state}
+        
+        elif strategy == "percentage":
+            current_percent = state.get("current_percent", config.get("initial_percent", 10))
+            increment = config.get("increment_percent", 20)
+            new_percent = min(100, current_percent + increment)
+            
+            # Calculate how many more nodes to activate
+            total = await conn.fetchval(
+                "SELECT COUNT(*) FROM deployment_status WHERE deployment_id = $1", deployment_id
+            )
+            target_count = int(total * new_percent / 100)
+            current_active = await conn.fetchval(
+                "SELECT COUNT(*) FROM deployment_status WHERE deployment_id = $1 AND status != 'waiting'",
+                deployment_id
+            )
+            to_activate = target_count - current_active
+            
+            if to_activate > 0:
+                await conn.execute("""
+                    UPDATE deployment_status 
+                    SET status = 'pending', updated_at = NOW()
+                    WHERE deployment_id = $1 
+                    AND status = 'waiting'
+                    AND id IN (
+                        SELECT id FROM deployment_status 
+                        WHERE deployment_id = $1 AND status = 'waiting'
+                        LIMIT $2
+                    )
+                """, deployment_id, to_activate)
+            
+            state["current_percent"] = new_percent
+            state["step_started_at"] = datetime.now().isoformat()
+            
+            await conn.execute("""
+                UPDATE deployments SET rollout_state = $2, updated_at = NOW() WHERE id = $1
+            """, deployment_id, json.dumps(state))
+            
+            return {"message": f"Advanced to {new_percent}%", "state": state}
+        
+        return {"message": "Unknown strategy"}

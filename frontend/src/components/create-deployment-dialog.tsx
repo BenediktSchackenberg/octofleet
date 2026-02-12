@@ -45,6 +45,9 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
   const [mode, setMode] = useState<"required" | "available" | "uninstall">("required");
   const [scheduledStart, setScheduledStart] = useState("");
   const [scheduledEnd, setScheduledEnd] = useState("");
+  const [maintenanceWindowOnly, setMaintenanceWindowOnly] = useState(false);
+  const [rolloutStrategy, setRolloutStrategy] = useState<"immediate" | "staged" | "canary" | "percentage">("immediate");
+  const [rolloutConfig, setRolloutConfig] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [packageVersions, setPackageVersions] = useState<PackageVersion[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -86,9 +89,22 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           mode,
           scheduledStart: scheduledStart || null,
           scheduledEnd: scheduledEnd || null,
+          maintenanceWindowOnly,
         }),
       });
       if (res.ok) {
+        const data = await res.json();
+        // Configure rollout strategy if not immediate
+        if (rolloutStrategy !== "immediate" && data.id) {
+          await fetch(`${API_BASE}/deployments/${data.id}/rollout`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+            body: JSON.stringify({
+              strategy: rolloutStrategy,
+              config: rolloutConfig,
+            }),
+          });
+        }
         onCreated();
         onOpenChange(false);
         resetForm();
@@ -109,6 +125,9 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
     setMode("required");
     setScheduledStart("");
     setScheduledEnd("");
+    setMaintenanceWindowOnly(false);
+    setRolloutStrategy("immediate");
+    setRolloutConfig({});
   }
 
   return (
@@ -241,6 +260,139 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
               />
             </div>
           </div>
+
+          {/* Maintenance Window Only */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="maintenanceWindowOnly"
+              checked={maintenanceWindowOnly}
+              onChange={(e) => setMaintenanceWindowOnly(e.target.checked)}
+              className="rounded"
+            />
+            <Label htmlFor="maintenanceWindowOnly" className="text-sm font-normal">
+              🕐 Nur in Wartungsfenstern ausführen
+            </Label>
+          </div>
+
+          {/* E9: Rollout Strategy */}
+          <div className="space-y-2">
+            <Label>Rollout-Strategie</Label>
+            <Select value={rolloutStrategy} onValueChange={(v) => { setRolloutStrategy(v as any); setRolloutConfig({}); }}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="immediate">⚡ Sofort (alle gleichzeitig)</SelectItem>
+                <SelectItem value="staged">📊 Gestaffelt (in Wellen)</SelectItem>
+                <SelectItem value="canary">🐤 Canary (erst testen, dann alle)</SelectItem>
+                <SelectItem value="percentage">📈 Prozentual (schrittweise erhöhen)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Rollout Config based on strategy */}
+          {rolloutStrategy === "staged" && (
+            <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-blue-500/30">
+              <div className="space-y-2">
+                <Label>Geräte pro Welle</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.wave_size || 10}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, wave_size: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Wartezeit (Min.)</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.wave_delay_minutes || 60}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, wave_delay_minutes: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Min. Erfolgsrate (%)</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.success_threshold_percent || 90}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, success_threshold_percent: parseInt(e.target.value) })}
+                  min={0}
+                  max={100}
+                />
+              </div>
+            </div>
+          )}
+
+          {rolloutStrategy === "canary" && (
+            <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-yellow-500/30">
+              <div className="space-y-2">
+                <Label>Canary-Geräte</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.canary_count || 1}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, canary_count: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Beobachtungszeit (Std.)</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.canary_duration_hours || 24}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, canary_duration_hours: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+              <div className="col-span-2 flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="autoProceed"
+                  checked={rolloutConfig.auto_proceed || false}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, auto_proceed: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="autoProceed" className="text-sm font-normal">
+                  Automatisch fortfahren wenn Canary erfolgreich
+                </Label>
+              </div>
+            </div>
+          )}
+
+          {rolloutStrategy === "percentage" && (
+            <div className="grid grid-cols-3 gap-4 pl-4 border-l-2 border-green-500/30">
+              <div className="space-y-2">
+                <Label>Start (%)</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.initial_percent || 10}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, initial_percent: parseInt(e.target.value) })}
+                  min={1}
+                  max={100}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Erhöhung (%)</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.increment_percent || 20}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, increment_percent: parseInt(e.target.value) })}
+                  min={1}
+                  max={100}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Wartezeit (Std.)</Label>
+                <Input
+                  type="number"
+                  value={rolloutConfig.step_delay_hours || 4}
+                  onChange={(e) => setRolloutConfig({ ...rolloutConfig, step_delay_hours: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

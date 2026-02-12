@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
-import { Key, Users, Shield, Bell } from "lucide-react";
+import { Key, Users, Shield, Bell, Clock, Rocket } from "lucide-react";
 
 const API_URL = "http://192.168.0.5:8080";
 
@@ -118,7 +118,7 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold mb-6">⚙️ Einstellungen</h1>
 
         {/* Quick Links */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           <Link href="/users" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
             <Users className="h-6 w-6 mb-2 text-blue-400" />
             <h3 className="font-medium">Users</h3>
@@ -138,6 +138,16 @@ export default function SettingsPage() {
             <Bell className="h-6 w-6 mb-2 text-red-400" />
             <h3 className="font-medium">Alerts</h3>
             <p className="text-xs text-zinc-500">Notifications & Rules</p>
+          </Link>
+          <Link href="/settings/maintenance-windows" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Clock className="h-6 w-6 mb-2 text-purple-400" />
+            <h3 className="font-medium">Wartungsfenster</h3>
+            <p className="text-xs text-zinc-500">Zeitfenster für Deployments</p>
+          </Link>
+          <Link href="/deployments" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Rocket className="h-6 w-6 mb-2 text-orange-400" />
+            <h3 className="font-medium">Rollout Strategies</h3>
+            <p className="text-xs text-zinc-500">Canary, Staged, Percentage</p>
           </Link>
         </div>
 
