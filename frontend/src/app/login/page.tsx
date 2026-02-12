@@ -41,11 +41,12 @@ export default function LoginPage() {
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
       
-      // Redirect to dashboard
-      router.push("/");
+      // Force reload to reinitialize AuthContext with the new token
+      // router.push doesn't work because AuthContext still has token=null in state
+      // and will redirect back to /login before the state updates
+      window.location.replace("/");
     } catch (err: any) {
       setError(err.message || t("auth.loginError"));
-    } finally {
       setLoading(false);
     }
   }
