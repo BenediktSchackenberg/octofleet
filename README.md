@@ -98,7 +98,7 @@ The Windows Agent automatically collects and reports:
 | **Browser** | Extensions, Cookies metadata, History count (Chrome/Edge/Firefox) |
 | **Performance** | CPU, RAM, Disk usage (TimescaleDB time-series) |
 
-### 🔔 Alerting & Notifications (NEW in v0.4.5)
+### 🔔 Alerting & Notifications (v0.4.5)
 Get notified when something goes wrong:
 
 - **Alert Types**: Node offline, deployment failed, disk critical, agent outdated
@@ -106,7 +106,16 @@ Get notified when something goes wrong:
 - **Alert Management**: Acknowledge, resolve, cooldowns to prevent spam
 - **Dashboard**: View active alerts, history, and stats
 
-### 🐧 Linux Agent (NEW in v0.4.5)
+### 🚀 Rollout Strategies (NEW in v0.4.5)
+Control how software deploys to your fleet:
+
+- **Immediate**: Deploy to all nodes at once (default)
+- **Staged**: Deploy in waves with configurable batch size and delay
+- **Canary**: Test on a few nodes first, then full rollout
+- **Percentage**: Gradually increase from 10% → 30% → 50% → 100%
+- **Maintenance Windows**: Define time windows when deployments can run (e.g., 22:00-06:00 weekdays)
+
+### 🐧 Linux Agent (v0.4.5)
 Manage Linux servers alongside your Windows fleet:
 
 - **Supported distros**: Ubuntu, Debian, RHEL, Fedora, CentOS, Arch, Alpine
@@ -219,8 +228,8 @@ See the full [Server Setup Guide](#-server-setup-complete-guide) below for produ
 | **E5** Deployment Engine | ✅ Complete | Package rollouts to groups, scheduling, monitoring |
 | **E6** Linux Agent | ✅ Complete | Bash agent for Linux nodes |
 | **E7** Alerting | ✅ Complete | Discord/Slack/Teams webhooks, alert rules |
-| **E8** RBAC | 🔜 Planned | Role-based access control |
-| **E9** Staged Rollouts | 🔜 Planned | Canary/phased deployments |
+| **E8** RBAC | ✅ Complete | Role-based access control, JWT auth |
+| **E9** Rollout Strategies | ✅ Complete | Canary, staged, percentage rollouts + maintenance windows |
 | **E10** Zero-Touch Install | ✅ Complete | Enrollment tokens, PowerShell installer |
 
 See [ROADMAP.md](ROADMAP.md) for the full feature list with task breakdowns.
