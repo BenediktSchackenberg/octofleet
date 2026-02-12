@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { AuthProvider } from "@/lib/auth-context";
+import { I18nProvider } from "@/lib/i18n-context";
 import { Navbar } from "@/components/Navbar";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -9,9 +10,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const isLoginPage = pathname === "/login";
 
   return (
-    <AuthProvider>
-      {!isLoginPage && <Navbar />}
-      <main>{children}</main>
-    </AuthProvider>
+    <I18nProvider>
+      <AuthProvider>
+        {!isLoginPage && <Navbar />}
+        <main>{children}</main>
+      </AuthProvider>
+    </I18nProvider>
   );
 }

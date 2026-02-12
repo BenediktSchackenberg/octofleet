@@ -4,35 +4,38 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
 import { ExportDropdown } from "./ExportButtons";
+import { LanguageSelector } from "./LanguageSelector";
 import { useAuth } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n-context";
 import { LogOut, User } from "lucide-react";
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: string;
   icon: string;
   permission?: string;
   adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: "🏠" },
-  { href: "/nodes", label: "Nodes", icon: "🖥️", permission: "nodes:read" },
-  { href: "/groups", label: "Groups", icon: "📁", permission: "groups:read" },
-  { href: "/jobs", label: "Jobs", icon: "🚀", permission: "jobs:read" },
-  { href: "/packages", label: "Packages", icon: "📦", permission: "packages:read" },
-  { href: "/deployments", label: "Deployments", icon: "🎯", permission: "deployments:read" },
-  { href: "/alerts", label: "Alerts", icon: "🔔", permission: "alerts:read" },
-  { href: "/eventlog", label: "Eventlog", icon: "📋", permission: "eventlog:read" },
-  { href: "/compliance", label: "Compliance", icon: "🛡️", permission: "compliance:read" },
-  { href: "/software-compare", label: "Compare", icon: "📊", permission: "nodes:read" },
-  { href: "/users", label: "Users", icon: "👥", permission: "users:read", adminOnly: true },
-  { href: "/audit", label: "Audit", icon: "📜", permission: "audit:read", adminOnly: true },
+  { href: "/", labelKey: "nav.dashboard", icon: "🏠" },
+  { href: "/nodes", labelKey: "nav.nodes", icon: "🖥️", permission: "nodes:read" },
+  { href: "/groups", labelKey: "nav.groups", icon: "📁", permission: "groups:read" },
+  { href: "/jobs", labelKey: "nav.jobs", icon: "🚀", permission: "jobs:read" },
+  { href: "/packages", labelKey: "nav.packages", icon: "📦", permission: "packages:read" },
+  { href: "/deployments", labelKey: "nav.deployments", icon: "🎯", permission: "deployments:read" },
+  { href: "/alerts", labelKey: "nav.alerts", icon: "🔔", permission: "alerts:read" },
+  { href: "/eventlog", labelKey: "nav.eventlog", icon: "📋", permission: "eventlog:read" },
+  { href: "/compliance", labelKey: "nav.compliance", icon: "🛡️", permission: "compliance:read" },
+  { href: "/software-compare", labelKey: "nav.compare", icon: "📊", permission: "nodes:read" },
+  { href: "/users", labelKey: "nav.users", icon: "👥", permission: "users:read", adminOnly: true },
+  { href: "/audit", labelKey: "nav.audit", icon: "📜", permission: "audit:read", adminOnly: true },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
   const { user, logout, hasPermission, isAdmin } = useAuth();
+  const { t } = useI18n();
 
   // Filter nav items based on permissions
   const visibleNavItems = navItems.filter(item => {
@@ -70,7 +73,7 @@ export function Navbar() {
                   }`}
                 >
                   <span className="mr-1.5">{item.icon}</span>
-                  <span className="hidden lg:inline">{item.label}</span>
+                  <span className="hidden lg:inline">{t(item.labelKey)}</span>
                 </Link>
               );
             })}
@@ -80,6 +83,7 @@ export function Navbar() {
           <div className="flex items-center gap-2 shrink-0">
             <ExportDropdown />
             <ThemeToggle />
+            <LanguageSelector />
             
             {/* User Menu */}
             {user && (
@@ -94,7 +98,7 @@ export function Navbar() {
                 <button
                   onClick={logout}
                   className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
-                  title="Logout"
+                  title={t("nav.logout")}
                 >
                   <LogOut className="h-4 w-4" />
                 </button>
@@ -104,7 +108,7 @@ export function Navbar() {
             <Link 
               href="/settings" 
               className="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-zinc-800 transition-colors"
-              title="Einstellungen"
+              title={t("nav.settings")}
             >
               ⚙️
             </Link>
