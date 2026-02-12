@@ -68,7 +68,10 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
     ]);
     if (pvRes.ok) setPackageVersions(await pvRes.json());
     if (groupRes.ok) setGroups(await groupRes.json());
-    if (nodeRes.ok) setNodes(await nodeRes.json());
+    if (nodeRes.ok) {
+      const data = await nodeRes.json();
+      setNodes(data.nodes || data || []);
+    }
   }
 
   async function handleSubmit() {
