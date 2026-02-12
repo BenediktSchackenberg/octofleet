@@ -176,7 +176,11 @@ export function getAuthHeader(): Record<string, string> {
   
   const token = localStorage.getItem("token");
   if (token) {
-    return { "Authorization": `Bearer ${token}` };
+    // Send both headers for maximum compatibility
+    return { 
+      "Authorization": `Bearer ${token}`,
+      "X-API-Key": "openclaw-inventory-dev-key"
+    };
   }
   // Fallback to API key if no token
   return { "X-API-Key": "openclaw-inventory-dev-key" };
