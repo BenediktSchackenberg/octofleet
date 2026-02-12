@@ -1,0 +1,83 @@
+name: E2E & API Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  API_URL: http://192.168.0.5:8080
+  BASE_URL: http://192.168.0.5:3000
+
+jobs:
+  api-tests:
+    name: API Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd tests/api
+          pip install -r requirements.txt
+      
+      - name: Run API tests
+        run: |
+          cd tests
+          pytest api/ -v --html=reports/api/report.html --self-contained-html
+        continue-on-error: true
+      
+      - name: Upload API test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-test-results
+          path: tests/reports/api/
+
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: |
+          cd tests/e2e
+          npm ci
+      
+      - name: Install Playwright browsers
+        run: |
+          cd tests/e2e
+          npx playwright install chromium --with-deps
+      
+      - name: Run E2E tests
+        run: |
+          cd tests/e2e
+          npm test
+        continue-on-error: true
+      
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: tests/reports/playwright/
+      
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: tests/reports/screenshots/
