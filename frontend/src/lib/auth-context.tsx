@@ -172,11 +172,12 @@ export function useAuth() {
 
 // Helper to get auth header for API calls
 export function getAuthHeader(): Record<string, string> {
-  if (typeof window === "undefined") return {};
+  if (typeof window === "undefined") return { "X-API-Key": "openclaw-inventory-dev-key" };
   
   const token = localStorage.getItem("token");
   if (token) {
     return { "Authorization": `Bearer ${token}` };
   }
-  return {};
+  // Fallback to API key if no token
+  return { "X-API-Key": "openclaw-inventory-dev-key" };
 }
