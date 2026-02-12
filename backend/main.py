@@ -5221,3 +5221,202 @@ async def setup_admin(data: UserCreate):
             )
         
         return {"status": "Admin created", "username": data.username}
+
+
+# --- Audit Log Endpoints ---
+
+@app.get("/api/v1/audit")
+async def get_audit_log(
+    limit: int = 100,
+    offset: int = 0,
+    user_id: Optional[str] = None,
+    action: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    user: CurrentUser = Depends(require_permission("audit:read"))
+):
+    """Get audit log entries"""
+    async with db_pool.acquire() as conn:
+        query = """
+            SELECT a.id, a.timestamp, a.user_id, u.username, a.action, 
+                   a.resource_type, a.resource_id, a.details, a.ip_address
+            FROM audit_log a
+            LEFT JOIN users u ON a.user_id = u.id
+            WHERE 1=1
+        """
+        params = []
+        param_idx = 1
+        
+        if user_id:
+            query += f" AND a.user_id = ${param_idx}"
+            params.append(UUID(user_id))
+            param_idx += 1
+        if action:
+            query += f" AND a.action ILIKE ${param_idx}"
+            params.append(f"%{action}%")
+            param_idx += 1
+        if resource_type:
+            query += f" AND a.resource_type = ${param_idx}"
+            params.append(resource_type)
+            param_idx += 1
+        
+        query += f" ORDER BY a.timestamp DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+        params.extend([limit, offset])
+        
+        rows = await conn.fetch(query, *params)
+        total = await conn.fetchval("SELECT COUNT(*) FROM audit_log")
+        
+        return {
+            "entries": [
+                {
+                    "id": r["id"],
+                    "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+                    "user_id": str(r["user_id"]) if r["user_id"] else None,
+                    "username": r["username"],
+                    "action": r["action"],
+                    "resource_type": r["resource_type"],
+                    "resource_id": r["resource_id"],
+                    "details": r["details"],
+                    "ip_address": str(r["ip_address"]) if r["ip_address"] else None
+                }
+                for r in rows
+            ],
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+
+
+async def log_audit(
+    conn,
+    user_id: Optional[str],
+    action: str,
+    resource_type: Optional[str] = None,
+    resource_id: Optional[str] = None,
+    details: Optional[dict] = None,
+    ip_address: Optional[str] = None
+):
+    """Helper to insert audit log entry"""
+    await conn.execute(
+        """INSERT INTO audit_log (user_id, action, resource_type, resource_id, details, ip_address)
+           VALUES ($1, $2, $3, $4, $5, $6)""",
+        UUID(user_id) if user_id and user_id != "system" else None,
+        action,
+        resource_type,
+        resource_id,
+        json.dumps(details) if details else None,
+        ip_address
+    )
+
+
+# --- API Key Management ---
+
+@app.get("/api/v1/api-keys")
+async def list_api_keys(user: CurrentUser = Depends(require_auth)):
+    """List API keys for current user (or all if admin)"""
+    async with db_pool.acquire() as conn:
+        if user.is_superuser or user.has_permission("users:read"):
+            # Admin sees all keys
+            keys = await conn.fetch(
+                """SELECT k.id, k.user_id, u.username, k.name, k.permissions, 
+                          k.expires_at, k.last_used, k.created_at, k.is_active
+                   FROM api_keys k
+                   LEFT JOIN users u ON k.user_id = u.id
+                   ORDER BY k.created_at DESC"""
+            )
+        else:
+            # User sees own keys
+            keys = await conn.fetch(
+                """SELECT id, user_id, name, permissions, expires_at, last_used, created_at, is_active
+                   FROM api_keys WHERE user_id = $1
+                   ORDER BY created_at DESC""",
+                UUID(user.id)
+            )
+        
+        return {
+            "keys": [
+                {
+                    "id": str(k["id"]),
+                    "user_id": str(k["user_id"]) if k["user_id"] else None,
+                    "username": k.get("username"),
+                    "name": k["name"],
+                    "permissions": k["permissions"] or [],
+                    "expires_at": k["expires_at"].isoformat() if k["expires_at"] else None,
+                    "last_used": k["last_used"].isoformat() if k["last_used"] else None,
+                    "created_at": k["created_at"].isoformat() if k["created_at"] else None,
+                    "is_active": k["is_active"]
+                }
+                for k in keys
+            ]
+        }
+
+
+@app.post("/api/v1/api-keys")
+async def create_api_key(
+    data: APIKeyCreate,
+    user: CurrentUser = Depends(require_auth)
+):
+    """Create new API key for current user"""
+    import secrets
+    
+    # Generate key
+    raw_key = f"oci_{secrets.token_hex(24)}"  # oci = openclaw inventory
+    key_hash = hash_api_key(raw_key)
+    
+    expires_at = None
+    if data.expires_days:
+        expires_at = datetime.utcnow() + timedelta(days=data.expires_days)
+    
+    async with db_pool.acquire() as conn:
+        key = await conn.fetchrow(
+            """INSERT INTO api_keys (user_id, key_hash, name, expires_at)
+               VALUES ($1, $2, $3, $4)
+               RETURNING id, name, created_at, expires_at""",
+            UUID(user.id) if user.id != "system" else None,
+            key_hash,
+            data.name,
+            expires_at
+        )
+        
+        # Return key only once (never stored in plain text)
+        return {
+            "id": str(key["id"]),
+            "name": key["name"],
+            "key": raw_key,  # Only shown once!
+            "created_at": key["created_at"].isoformat(),
+            "expires_at": key["expires_at"].isoformat() if key["expires_at"] else None,
+            "warning": "Save this key now! It won't be shown again."
+        }
+
+
+@app.delete("/api/v1/api-keys/{key_id}")
+async def revoke_api_key(
+    key_id: str,
+    user: CurrentUser = Depends(require_auth)
+):
+    """Revoke an API key"""
+    async with db_pool.acquire() as conn:
+        # Check ownership (unless admin)
+        if not user.is_superuser and not user.has_permission("users:write"):
+            key = await conn.fetchrow(
+                "SELECT user_id FROM api_keys WHERE id = $1",
+                UUID(key_id)
+            )
+            if not key or str(key["user_id"]) != user.id:
+                raise HTTPException(status_code=403, detail="Cannot revoke this key")
+        
+        await conn.execute(
+            "UPDATE api_keys SET is_active = false WHERE id = $1",
+            UUID(key_id)
+        )
+        return {"status": "revoked"}
+
+
+@app.delete("/api/v1/api-keys/{key_id}/permanent")
+async def delete_api_key(
+    key_id: str,
+    user: CurrentUser = Depends(require_permission("users:write"))
+):
+    """Permanently delete an API key (admin only)"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM api_keys WHERE id = $1", UUID(key_id))
+        return {"status": "deleted"}

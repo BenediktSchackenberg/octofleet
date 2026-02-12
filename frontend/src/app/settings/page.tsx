@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { getAuthHeader } from "@/lib/auth-context";
+import { Key, Users, Shield, Bell } from "lucide-react";
 
 const API_URL = "http://192.168.0.5:8080";
-const API_KEY = "openclaw-inventory-dev-key";
 
 interface EnrollmentToken {
   id: string;
@@ -44,7 +46,7 @@ export default function SettingsPage() {
   async function fetchTokens() {
     try {
       const res = await fetch(`${API_URL}/api/v1/enrollment-tokens`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -61,7 +63,7 @@ export default function SettingsPage() {
       const res = await fetch(`${API_URL}/api/v1/enrollment-tokens`, {
         method: "POST",
         headers: { 
-          "X-API-Key": API_KEY,
+          ...getAuthHeader(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -89,7 +91,7 @@ export default function SettingsPage() {
     
     await fetch(`${API_URL}/api/v1/enrollment-tokens/${tokenId}`, {
       method: "DELETE",
-      headers: { "X-API-Key": API_KEY },
+      headers: getAuthHeader(),
     });
     fetchTokens();
   }
@@ -114,6 +116,30 @@ export default function SettingsPage() {
         <Breadcrumb items={[{ label: "Settings" }]} />
         
         <h1 className="text-2xl font-bold mb-6">⚙️ Einstellungen</h1>
+
+        {/* Quick Links */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Link href="/users" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Users className="h-6 w-6 mb-2 text-blue-400" />
+            <h3 className="font-medium">Users</h3>
+            <p className="text-xs text-zinc-500">User & Role Management</p>
+          </Link>
+          <Link href="/api-keys" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Key className="h-6 w-6 mb-2 text-yellow-400" />
+            <h3 className="font-medium">API Keys</h3>
+            <p className="text-xs text-zinc-500">Manage access tokens</p>
+          </Link>
+          <Link href="/audit" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Shield className="h-6 w-6 mb-2 text-green-400" />
+            <h3 className="font-medium">Audit Log</h3>
+            <p className="text-xs text-zinc-500">Activity history</p>
+          </Link>
+          <Link href="/alerts" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Bell className="h-6 w-6 mb-2 text-red-400" />
+            <h3 className="font-medium">Alerts</h3>
+            <p className="text-xs text-zinc-500">Notifications & Rules</p>
+          </Link>
+        </div>
 
         {/* System Info */}
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 mb-6">
