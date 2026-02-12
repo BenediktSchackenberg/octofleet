@@ -497,6 +497,42 @@ async def search_nodes(q: str, limit: int = 20, db: asyncpg.Pool = Depends(get_d
         return {"nodes": results}
 
 
+# OS Distribution - MUST be before /api/v1/nodes/{node_id} to avoid route collision
+@app.get("/api/v1/nodes/os-distribution", dependencies=[Depends(verify_api_key)])
+async def get_os_distribution(db: asyncpg.Pool = Depends(get_db)):
+    """Get OS distribution for pie chart"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                COALESCE(os_name, 'Unknown') as os_name,
+                COALESCE(os_version, '') as os_version,
+                COUNT(*) as count
+            FROM nodes
+            GROUP BY os_name, os_version
+            ORDER BY count DESC
+        """)
+        
+        # Group by OS name
+        by_os = {}
+        for row in rows:
+            os_name = row["os_name"] or "Unknown"
+            if os_name not in by_os:
+                by_os[os_name] = {"count": 0, "versions": []}
+            by_os[os_name]["count"] += row["count"]
+            if row["os_version"]:
+                by_os[os_name]["versions"].append({
+                    "version": row["os_version"],
+                    "count": row["count"]
+                })
+        
+        return {
+            "distribution": [
+                {"name": k, "count": v["count"], "versions": v["versions"]}
+                for k, v in by_os.items()
+            ]
+        }
+
+
 @app.get("/api/v1/dashboard/summary")
 async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
@@ -4598,42 +4634,8 @@ async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
 
 
 # ============================================================================
-# Feature 5: OS Distribution - Pie chart data
+# Feature 5: OS Distribution - moved to line ~500 (before /nodes/{node_id})
 # ============================================================================
-
-@app.get("/api/v1/nodes/os-distribution", dependencies=[Depends(verify_api_key)])
-async def get_os_distribution(db: asyncpg.Pool = Depends(get_db)):
-    """Get OS distribution for pie chart"""
-    async with db.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT 
-                COALESCE(os_name, 'Unknown') as os_name,
-                COALESCE(os_version, '') as os_version,
-                COUNT(*) as count
-            FROM nodes
-            GROUP BY os_name, os_version
-            ORDER BY count DESC
-        """)
-        
-        # Group by OS name
-        by_os = {}
-        for row in rows:
-            os_name = row["os_name"] or "Unknown"
-            if os_name not in by_os:
-                by_os[os_name] = {"count": 0, "versions": []}
-            by_os[os_name]["count"] += row["count"]
-            if row["os_version"]:
-                by_os[os_name]["versions"].append({
-                    "version": row["os_version"],
-                    "count": row["count"]
-                })
-        
-        return {
-            "distribution": [
-                {"name": k, "count": v["count"], "versions": v["versions"]}
-                for k, v in by_os.items()
-            ]
-        }
 
 
 # ============================================================================
