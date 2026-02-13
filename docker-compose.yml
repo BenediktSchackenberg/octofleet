@@ -1,0 +1,78 @@
+# OpenClaw Inventory Platform - Docker Compose
+# ⚠️ BETA - For development/testing. Not recommended for production yet.
+#
+# Usage:
+#   docker compose up -d
+#   Open http://localhost:3000
+#
+# Default credentials:
+#   Username: admin
+#   Password: admin (change immediately!)
+
+services:
+  # PostgreSQL with TimescaleDB for inventory storage
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: openclaw-inventory-db
+    environment:
+      POSTGRES_USER: openclaw
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-openclaw-secret-change-me}
+      POSTGRES_DB: inventory
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openclaw -d inventory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: openclaw-inventory-api
+    environment:
+      DATABASE_URL: postgresql://openclaw:${DB_PASSWORD:-openclaw-secret-change-me}@db:5432/inventory
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-please}
+      API_KEY: ${API_KEY:-your-api-key-here}
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: openclaw-inventory-ui
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      # For Docker internal communication:
+      API_URL: http://backend:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: openclaw-inventory

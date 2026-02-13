@@ -1,5 +1,7 @@
 # OpenClaw Inventory Platform 🖥️📊
 
+> **⚠️ BETA** — This project is under active development. Expect breaking changes.
+
 > **v0.4.5** — An open-source endpoint management and inventory system for Windows and Linux fleets. Collect hardware/software inventory, deploy packages, run remote commands, receive alerts, and monitor your infrastructure from a central dashboard.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)

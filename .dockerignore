@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log*
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+.pytest_cache
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Build artifacts
+.next
+out
+dist
+build
+*.egg-info
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Tests
+coverage
+test-results
+playwright-report
+
+# Documentation
+docs/screenshots
+
+# Windows build
+src/*/bin
+src/*/obj
+*.exe
+*.dll
+*.pdb
