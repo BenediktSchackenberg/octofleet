@@ -16,10 +16,10 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     
     <!-- Version - update this for each release -->
-    <Version>0.4.8</Version>
-    <AssemblyVersion>0.4.8.0</AssemblyVersion>
-    <FileVersion>0.4.8.0</FileVersion>
-    <InformationalVersion>0.4.8</InformationalVersion>
+    <Version>0.4.9</Version>
+    <AssemblyVersion>0.4.9.0</AssemblyVersion>
+    <FileVersion>0.4.9.0</FileVersion>
+    <InformationalVersion>0.4.9</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,7 +33,7 @@
     <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
     <PackageReference Include="System.Text.Json" Version="8.0.0" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
-    <PackageReference Include="NSec.Cryptography" Version="24.4.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
   </ItemGroup>
 
 </Project>

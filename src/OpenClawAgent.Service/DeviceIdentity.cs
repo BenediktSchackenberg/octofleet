@@ -1,13 +1,17 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using NSec.Cryptography;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Signers;
+using Org.BouncyCastle.Security;
 
 namespace OpenClawAgent.Service;
 
 /// <summary>
 /// Manages device identity for Gateway authentication using Ed25519.
 /// Compatible with OpenClaw Gateway protocol.
+/// Uses BouncyCastle for pure managed Ed25519 (no native dependencies).
 /// </summary>
 public class DeviceIdentity
 {
@@ -16,6 +20,7 @@ public class DeviceIdentity
     public string Id { get; private set; } = "";
     public string PublicKeyBase64Url { get; private set; } = "";
     private byte[] _privateKeyBytes = Array.Empty<byte>();
+    private byte[] _publicKeyBytes = Array.Empty<byte>();
     
     /// <summary>
     /// Load or create device identity from config directory.
@@ -34,8 +39,9 @@ public class DeviceIdentity
                 if (data != null && !string.IsNullOrEmpty(data.PrivateKey) && !string.IsNullOrEmpty(data.PublicKey))
                 {
                     identity._privateKeyBytes = Base64UrlDecode(data.PrivateKey);
+                    identity._publicKeyBytes = Base64UrlDecode(data.PublicKey);
                     identity.PublicKeyBase64Url = data.PublicKey;
-                    identity.Id = data.Id ?? ComputeFingerprint(Base64UrlDecode(data.PublicKey));
+                    identity.Id = data.Id ?? ComputeFingerprint(identity._publicKeyBytes);
                     return identity;
                 }
             }
@@ -45,17 +51,18 @@ public class DeviceIdentity
             }
         }
         
-        // Generate new Ed25519 keypair
-        var algorithm = SignatureAlgorithm.Ed25519;
-        using var key = Key.Create(algorithm, new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport });
+        // Generate new Ed25519 keypair using BouncyCastle
+        var keyGen = new Ed25519KeyPairGenerator();
+        keyGen.Init(new Ed25519KeyGenerationParameters(new SecureRandom()));
+        var keyPair = keyGen.GenerateKeyPair();
         
-        // Export raw keys (Ed25519 public key is 32 bytes, private is 32 bytes seed)
-        var privateKeyBytes = key.Export(KeyBlobFormat.RawPrivateKey);
-        var publicKeyBytes = key.Export(KeyBlobFormat.RawPublicKey);
+        var privateKeyParams = (Ed25519PrivateKeyParameters)keyPair.Private;
+        var publicKeyParams = (Ed25519PublicKeyParameters)keyPair.Public;
         
-        identity._privateKeyBytes = privateKeyBytes;
-        identity.PublicKeyBase64Url = Base64UrlEncode(publicKeyBytes);
-        identity.Id = ComputeFingerprint(publicKeyBytes);
+        identity._privateKeyBytes = privateKeyParams.GetEncoded();
+        identity._publicKeyBytes = publicKeyParams.GetEncoded();
+        identity.PublicKeyBase64Url = Base64UrlEncode(identity._publicKeyBytes);
+        identity.Id = ComputeFingerprint(identity._publicKeyBytes);
         
         // Save to file
         Directory.CreateDirectory(configDir);
@@ -63,7 +70,7 @@ public class DeviceIdentity
         {
             Id = identity.Id,
             PublicKey = identity.PublicKeyBase64Url,
-            PrivateKey = Base64UrlEncode(privateKeyBytes)
+            PrivateKey = Base64UrlEncode(identity._privateKeyBytes)
         };
         File.WriteAllText(keyPath, JsonSerializer.Serialize(keyData, new JsonSerializerOptions { WriteIndented = true }));
         
@@ -95,10 +102,12 @@ public class DeviceIdentity
         var payload = $"v2|{Id}|{clientId}|{clientMode}|{role}|{scopesStr}|{signedAt}|{tokenStr}|{nonce}";
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
         
-        // Sign with Ed25519
-        var algorithm = SignatureAlgorithm.Ed25519;
-        using var key = Key.Import(algorithm, _privateKeyBytes, KeyBlobFormat.RawPrivateKey);
-        var signatureBytes = algorithm.Sign(key, payloadBytes);
+        // Sign with Ed25519 using BouncyCastle
+        var privateKeyParams = new Ed25519PrivateKeyParameters(_privateKeyBytes, 0);
+        var signer = new Ed25519Signer();
+        signer.Init(true, privateKeyParams);
+        signer.BlockUpdate(payloadBytes, 0, payloadBytes.Length);
+        var signatureBytes = signer.GenerateSignature();
         var signature = Base64UrlEncode(signatureBytes);
         
         return new
