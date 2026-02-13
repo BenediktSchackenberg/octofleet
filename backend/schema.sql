@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS vulnerabilities (
     cvss_vector TEXT,
     severity TEXT, -- CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN
     published_date TIMESTAMPTZ,
-    references JSONB DEFAULT '[]',
+    reference_urls JSONB DEFAULT '[]',
     discovered_at TIMESTAMPTZ DEFAULT NOW(),
     last_checked TIMESTAMPTZ DEFAULT NOW(),
     

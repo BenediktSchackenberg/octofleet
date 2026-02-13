@@ -3,7 +3,7 @@ OpenClaw Inventory Backend
 FastAPI server for receiving and storing inventory data from Windows Agents
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Header, status, Request
+from fastapi import FastAPI, Depends, HTTPException, Header, status, Request, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
 from typing import Optional, Any, Dict
