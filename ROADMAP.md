@@ -181,13 +181,42 @@
 | E8-04 | API keys for agents | Medium |
 | E8-05 | Certificate-based auth | Low |
 
-### Epic E9: Rollout Strategies
-| ID | Task | Priority |
-|----|------|----------|
-| E9-01 | Staged rollout (percentages) | Medium |
-| E9-02 | Pilot groups | Medium |
-| E9-03 | Auto-pause on failure threshold | Medium |
-| E9-04 | Rollback support | Low |
+### Epic E9: Rollout Strategies ✅ COMPLETE
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E9-01 | Staged rollout (percentages) | Medium | ✅ Done |
+| E9-02 | Pilot groups | Medium | ✅ Done |
+| E9-03 | Auto-pause on failure threshold | Medium | ✅ Done |
+| E9-04 | Rollback support | Low | ✅ Done |
+
+### Epic E14: Auto-Remediation 🆕
+*Automatically fix vulnerabilities through deployments*
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| **E14-01** | DB Schema: remediation_packages | High | Map CVE → Fix Package |
+| **E14-02** | DB Schema: remediation_rules | High | Severity-based auto-fix rules |
+| **E14-03** | DB Schema: remediation_history | High | Track what was auto-fixed |
+| **E14-04** | API: Link package to CVE/software | High | "7zip-update fixes CVE-2024-11477" |
+| **E14-05** | API: Remediation rules CRUD | High | Define when to auto-fix |
+| **E14-06** | API: Trigger remediation scan | High | Check vulns → create jobs |
+| **E14-07** | API: Remediation status endpoint | High | What's pending/fixed |
+| **E14-08** | Remediation Engine: Severity filter | High | Only CRITICAL/HIGH auto-fix |
+| **E14-09** | Remediation Engine: Package Matcher | High | Find fix-package for vuln |
+| **E14-10** | Remediation Engine: Job Creator | High | Create deployment jobs |
+| **E14-11** | Remediation Engine: Maintenance Window | Medium | Only deploy in safe windows |
+| **E14-12** | Remediation Engine: Health Check | Medium | Verify fix worked |
+| **E14-13** | Remediation Engine: Rollback on Failure | Medium | Auto-revert if broken |
+| **E14-14** | winget/choco Detection | Medium | Auto-detect package manager |
+| **E14-15** | winget Upgrade Support | Medium | `winget upgrade` as fix method |
+| **E14-16** | choco Upgrade Support | Medium | `choco upgrade` as fix method |
+| **E14-17** | Frontend: Remediation Dashboard | High | Overview of auto-fixes |
+| **E14-18** | Frontend: Fix-Package Editor | High | Map packages to CVEs |
+| **E14-19** | Frontend: One-Click Fix Button | High | Manual trigger per CVE |
+| **E14-20** | Frontend: Remediation Rules Config | Medium | Configure auto-fix rules |
+| **E14-21** | Frontend: Remediation History | Medium | What was fixed when |
+| **E14-22** | Alert: Remediation Failed | Medium | Notify on failed auto-fix |
+| **E14-23** | Alert: New Critical CVE | Medium | Notify when new CRITICAL found |
 
 ---
 
