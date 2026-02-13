@@ -276,9 +276,24 @@ public class RemediationPoller : BackgroundService
         {
             // Winget not found - try to use Chocolatey as fallback
             var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
+            
+            // Auto-install Chocolatey if not present
+            if (!File.Exists(chocoPath))
+            {
+                _logger.LogWarning("Neither winget nor choco found - auto-installing Chocolatey...");
+                if (TryInstallChocolatey())
+                {
+                    _logger.LogInformation("Chocolatey installed successfully!");
+                }
+                else
+                {
+                    _logger.LogError("Failed to auto-install Chocolatey");
+                }
+            }
+            
             if (File.Exists(chocoPath))
             {
-                _logger.LogWarning("Winget not found, converting to Chocolatey command");
+                _logger.LogInformation("Winget not found, converting to Chocolatey command");
                 command = ConvertWingetToChoco(command, chocoPath);
             }
             else
@@ -347,6 +362,79 @@ public class RemediationPoller : BackgroundService
         // Can't parse - return original (will fail, but logs will show why)
         _logger.LogWarning("Could not parse winget command for choco conversion: {Command}", wingetCommand);
         return wingetCommand;
+    }
+
+    /// <summary>
+    /// Auto-install Chocolatey if not present.
+    /// </summary>
+    private bool TryInstallChocolatey()
+    {
+        try
+        {
+            var installScript = @"
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+";
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+            psi.ArgumentList.Add("-Command");
+            psi.ArgumentList.Add(installScript);
+
+            _logger.LogInformation("Running Chocolatey install script...");
+            
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                _logger.LogError("Failed to start PowerShell for Chocolatey install");
+                return false;
+            }
+
+            // 5 minute timeout for install
+            var completed = process.WaitForExit(300000);
+            if (!completed)
+            {
+                try { process.Kill(true); } catch { }
+                _logger.LogError("Chocolatey install timed out (5 min)");
+                return false;
+            }
+
+            var stdout = process.StandardOutput.ReadToEnd();
+            var stderr = process.StandardError.ReadToEnd();
+            
+            if (process.ExitCode != 0)
+            {
+                _logger.LogError("Chocolatey install failed (exit {ExitCode}): {Stderr}", process.ExitCode, stderr);
+                return false;
+            }
+
+            // Verify installation
+            var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
+            if (File.Exists(chocoPath))
+            {
+                _logger.LogInformation("Chocolatey verified at: {Path}", chocoPath);
+                return true;
+            }
+            
+            _logger.LogError("Chocolatey install completed but choco.exe not found");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception during Chocolatey install");
+            return false;
+        }
     }
 
     private async Task ReportRemediationResultAsync(
