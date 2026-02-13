@@ -5800,6 +5800,8 @@ async def advance_rollout(deployment_id: str):
 # ============================================
 
 from vulnerability import VulnerabilityScanner, get_vulnerability_summary, get_node_vulnerabilities
+import logging
+logger = logging.getLogger(__name__)
 
 @app.get("/api/v1/vulnerabilities/summary")
 async def vulnerability_summary():
@@ -5889,6 +5891,18 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
                     result["high"],
                     scan_id
                 )
+            
+            # AUTO-REMEDIATION: After vuln scan completes, create remediation jobs
+            try:
+                engine = RemediationEngine(db_pool)
+                remediation_result = await engine.scan_and_create_jobs(
+                    severity_filter=['CRITICAL', 'HIGH'],
+                    dry_run=False
+                )
+                logger.info(f"Auto-remediation: Created {remediation_result['jobs_created']} jobs for {remediation_result['with_fix_available']} fixable vulns")
+            except Exception as re:
+                logger.error(f"Auto-remediation failed: {re}")
+                
         except Exception as e:
             async with db_pool.acquire() as conn:
                 await conn.execute("""
@@ -6318,6 +6332,110 @@ async def one_click_fix(
         "fix_package": fix_pkg,
         "command": command,
         "message": f"Remediation job created. Execute: {command}"
+    }
+
+
+# --- Agent Endpoint for Remediation Jobs ---
+
+@app.get("/api/v1/remediation/jobs/pending/{node_id}")
+async def get_pending_remediation_jobs(node_id: str):
+    """
+    Agent endpoint: Get pending remediation jobs for a node.
+    
+    The agent polls this endpoint and executes the fix commands.
+    """
+    # Resolve node_id to UUID
+    async with db_pool.acquire() as conn:
+        # Support both formats: "win-baltasa" and "BALTASA"
+        lookup_id = node_id
+        if node_id.startswith("win-"):
+            lookup_id = node_id[4:].upper()
+        
+        # Find node UUID
+        node_row = await conn.fetchrow("""
+            SELECT id FROM nodes WHERE UPPER(hostname) = UPPER($1) OR UPPER(node_id) = UPPER($1)
+        """, lookup_id)
+        
+        if not node_row:
+            return {"jobs": [], "count": 0}
+        
+        node_uuid = node_row['id']
+        
+        # Get approved remediation jobs for this node
+        jobs = await conn.fetch("""
+            SELECT rj.*, rp.name as package_name, rp.fix_method, rp.fix_command
+            FROM remediation_jobs rj
+            JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
+            WHERE rj.node_id = $1 
+              AND rj.status = 'approved'
+            ORDER BY rj.created_at ASC
+            LIMIT 5
+        """, node_uuid)
+        
+        result = []
+        for job in jobs:
+            # Mark as running
+            await conn.execute("""
+                UPDATE remediation_jobs 
+                SET status = 'running', started_at = NOW(), updated_at = NOW()
+                WHERE id = $1
+            """, job['id'])
+            
+            # Generate the command based on fix method
+            fix_cmd = job['fix_command']
+            if not fix_cmd:
+                method = job['fix_method']
+                software = job['software_name']
+                if method == 'winget':
+                    fix_cmd = f'winget upgrade --name "{software}" --silent --accept-source-agreements'
+                elif method == 'choco':
+                    fix_cmd = f'choco upgrade {software} -y'
+                else:
+                    fix_cmd = f'echo "No fix command for {software}"'
+            
+            result.append({
+                "jobId": job['id'],
+                "cveId": job['cve_id'],
+                "softwareName": job['software_name'],
+                "softwareVersion": job['software_version'],
+                "fixMethod": job['fix_method'],
+                "fixCommand": fix_cmd,
+                "packageName": job['package_name']
+            })
+        
+        return {"jobs": result, "count": len(result)}
+
+
+@app.post("/api/v1/remediation/jobs/{job_id}/result")
+async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
+    """
+    Agent endpoint: Submit remediation job result.
+    
+    Called by agent after executing the fix command.
+    """
+    exit_code = data.get("exitCode", -1)
+    output = data.get("output", "")
+    error = data.get("error", "")
+    
+    success = exit_code == 0
+    status = "success" if success else "failed"
+    
+    job = await update_remediation_job_status(
+        db_pool,
+        job_id=job_id,
+        status=status,
+        exit_code=exit_code,
+        output_log=output[:10000] if output else None,
+        error_message=error[:1000] if error else None
+    )
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Remediation job not found")
+    
+    return {
+        "status": status,
+        "jobId": job_id,
+        "success": success
     }
 
 
