@@ -19,17 +19,25 @@
 ![Dashboard](docs/screenshots/dashboard.png)
 *Real-time fleet overview with CPU, RAM, and Disk usage across all nodes*
 
-### Deployments
-![Deployments](docs/screenshots/deployments.png)
-*Deploy software packages to individual nodes or groups with progress tracking*
-
 ### Node Details
 ![Node Details](docs/screenshots/node-details.png)
 *Detailed hardware, software, security, and performance information per node*
 
-### Performance Monitoring
-![Performance](docs/screenshots/performance.png)
-*Historical performance charts with 7/14/30 day views*
+### Jobs (Remote Commands)
+![Jobs](docs/screenshots/jobs.png)
+*Execute remote commands across your fleet with real-time progress tracking*
+
+### Package Catalog
+![Packages](docs/screenshots/packages.png)
+*Software catalog with categorized packages for deployment*
+
+### Software Compare
+![Software Compare](docs/screenshots/software-compare.png)
+*Compare software versions across all nodes - quickly identify outdated installations*
+
+### Deployment Dialog
+![Deployment Dialog](docs/screenshots/deployment-dialog.png)
+*Create deployments with rollout strategies, maintenance windows, and scheduling*
 
 ---
 
