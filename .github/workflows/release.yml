@@ -42,16 +42,23 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.VERSION }}"
-          $releaseDir = "openclaw-release-$version"
-          New-Item -ItemType Directory -Path $releaseDir -Force
-          Copy-Item "publish\*" $releaseDir -Recurse
-          Copy-Item "installer\Install-OpenClawAgent.ps1" $releaseDir -ErrorAction SilentlyContinue
-          Compress-Archive -Path $releaseDir -DestinationPath "OpenClawAgent-v$version-win-x64.zip"
+          
+          # Copy installer script to publish folder
+          Copy-Item "installer\Install-OpenClawAgent.ps1" "publish\" -ErrorAction SilentlyContinue
+          
+          # Create ZIP with files at root (not in subdirectory)
+          # This allows: Expand-Archive ... -DestinationPath "C:\Program Files\OpenClaw\Agent"
+          Compress-Archive -Path "publish\*" -DestinationPath "OpenClawAgent-v$version-win-x64.zip"
           
           # Calculate SHA256
           $hash = (Get-FileHash "OpenClawAgent-v$version-win-x64.zip" -Algorithm SHA256).Hash.ToLower()
           echo $hash > "OpenClawAgent-v$version-win-x64.zip.sha256"
           echo "SHA256: $hash"
+          
+          # Verify ZIP structure
+          echo "ZIP contents:"
+          Expand-Archive "OpenClawAgent-v$version-win-x64.zip" -DestinationPath "verify" -Force
+          Get-ChildItem "verify" -Recurse | Select-Object -First 10
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
