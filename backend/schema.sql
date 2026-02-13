@@ -83,3 +83,161 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     updated_by TEXT
 );
+
+-- ============================================
+-- E14: Auto-Remediation
+-- ============================================
+
+-- Fix packages that can remediate vulnerabilities
+CREATE TABLE IF NOT EXISTS remediation_packages (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,                    -- e.g. "7zip-update"
+    description TEXT,
+    
+    -- What this package fixes
+    target_software TEXT NOT NULL,         -- e.g. "7-Zip" (matches software_name pattern)
+    min_fixed_version TEXT,                -- e.g. "24.09" - versions >= this are safe
+    
+    -- How to fix
+    fix_method TEXT NOT NULL CHECK (fix_method IN ('winget', 'choco', 'package', 'script')),
+    fix_command TEXT,                      -- e.g. "winget upgrade 7zip.7zip --silent"
+    package_id UUID REFERENCES packages(id),  -- if fix_method = 'package'
+    
+    -- Metadata
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    UNIQUE(name)
+);
+
+-- Rules for automatic remediation
+CREATE TABLE IF NOT EXISTS remediation_rules (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    
+    -- Conditions
+    min_severity TEXT NOT NULL CHECK (min_severity IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')),
+    software_pattern TEXT,                 -- NULL = all software, or regex pattern
+    
+    -- Actions
+    auto_remediate BOOLEAN DEFAULT false,  -- true = auto-fix, false = alert only
+    require_approval BOOLEAN DEFAULT true, -- require manual approval before fix
+    maintenance_window_only BOOLEAN DEFAULT true, -- only during maintenance windows
+    
+    -- Notifications
+    notify_on_new_vuln BOOLEAN DEFAULT true,
+    notify_on_fix_success BOOLEAN DEFAULT true,
+    notify_on_fix_failure BOOLEAN DEFAULT true,
+    notification_channel_id INTEGER,       -- FK to notification_channels if exists
+    
+    -- Metadata
+    priority INTEGER DEFAULT 100,          -- lower = higher priority
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Remediation jobs/history
+CREATE TABLE IF NOT EXISTS remediation_jobs (
+    id SERIAL PRIMARY KEY,
+    
+    -- What triggered this
+    vulnerability_id INTEGER REFERENCES vulnerabilities(id),
+    remediation_package_id INTEGER REFERENCES remediation_packages(id),
+    rule_id INTEGER REFERENCES remediation_rules(id),
+    
+    -- Target
+    node_id UUID REFERENCES nodes(id),
+    software_name TEXT NOT NULL,
+    software_version TEXT NOT NULL,
+    cve_id TEXT NOT NULL,
+    
+    -- Execution
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
+        'pending',           -- waiting for approval or maintenance window
+        'approved',          -- approved, waiting to execute
+        'running',           -- currently executing
+        'success',           -- fix applied successfully
+        'failed',            -- fix failed
+        'rolled_back',       -- rolled back after failure
+        'skipped'            -- skipped (e.g. already fixed)
+    )),
+    
+    -- Approval workflow
+    requires_approval BOOLEAN DEFAULT false,
+    approved_by TEXT,
+    approved_at TIMESTAMPTZ,
+    
+    -- Execution details
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    exit_code INTEGER,
+    output_log TEXT,
+    error_message TEXT,
+    
+    -- Rollback info
+    rollback_attempted BOOLEAN DEFAULT false,
+    rollback_success BOOLEAN,
+    
+    -- Health check
+    health_check_passed BOOLEAN,
+    health_check_message TEXT,
+    
+    -- Metadata
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for remediation
+CREATE INDEX IF NOT EXISTS idx_remediation_packages_software ON remediation_packages(target_software);
+CREATE INDEX IF NOT EXISTS idx_remediation_jobs_status ON remediation_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_remediation_jobs_node ON remediation_jobs(node_id);
+CREATE INDEX IF NOT EXISTS idx_remediation_jobs_cve ON remediation_jobs(cve_id);
+
+-- Maintenance windows for safe remediation
+CREATE TABLE IF NOT EXISTS maintenance_windows (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    
+    -- Schedule (cron-like)
+    day_of_week INTEGER[],                 -- 0=Sunday, 1=Monday, etc. NULL=every day
+    start_time TIME NOT NULL,              -- e.g. '02:00'
+    end_time TIME NOT NULL,                -- e.g. '06:00'
+    timezone TEXT DEFAULT 'UTC',
+    
+    -- Scope
+    applies_to_all BOOLEAN DEFAULT true,
+    group_ids INTEGER[],                   -- specific groups if not all
+    
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- View: Vulnerable software with available fixes
+CREATE OR REPLACE VIEW v_remediable_vulnerabilities AS
+SELECT 
+    v.id as vulnerability_id,
+    v.software_name,
+    v.software_version,
+    v.cve_id,
+    v.cvss_score,
+    v.severity,
+    rp.id as remediation_package_id,
+    rp.name as fix_package_name,
+    rp.fix_method,
+    rp.fix_command,
+    rp.min_fixed_version,
+    CASE 
+        WHEN rp.id IS NOT NULL THEN true 
+        ELSE false 
+    END as has_fix_available
+FROM vulnerabilities v
+LEFT JOIN remediation_packages rp ON (
+    v.software_name ILIKE '%' || rp.target_software || '%'
+    AND rp.enabled = true
+)
+WHERE v.severity IN ('CRITICAL', 'HIGH')
+ORDER BY v.cvss_score DESC NULLS LAST;

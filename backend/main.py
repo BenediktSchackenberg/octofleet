@@ -5995,3 +5995,336 @@ async def delete_setting(key: str):
         if result == "DELETE 0":
             raise HTTPException(status_code=404, detail="Setting not found")
     return {"status": "deleted", "key": key}
+
+@app.get("/api/v1/test/nvd")
+async def test_nvd():
+    """Test NVD API connectivity."""
+    import httpx
+    from urllib.parse import quote
+    
+    keyword = "Google Chrome"
+    url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={quote(keyword)}&resultsPerPage=1"
+    headers = {"User-Agent": "OpenClaw-Inventory/1.0"}
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers)
+            return {
+                "status_code": response.status_code,
+                "response_length": len(response.text),
+                "first_100": response.text[:100]
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================
+# E14: Auto-Remediation API
+# ============================================
+
+from remediation import (
+    RemediationPackageCreate, RemediationPackageUpdate,
+    RemediationRuleCreate, RemediationRuleUpdate,
+    MaintenanceWindowCreate, TriggerRemediationRequest, ApproveRemediationRequest,
+    get_remediation_packages, get_remediation_package, create_remediation_package,
+    update_remediation_package, delete_remediation_package,
+    get_remediation_rules, get_remediation_rule, create_remediation_rule,
+    update_remediation_rule, delete_remediation_rule,
+    get_maintenance_windows, create_maintenance_window, is_in_maintenance_window,
+    get_remediation_jobs, get_remediation_job, approve_remediation_jobs,
+    update_remediation_job_status, get_remediation_summary,
+    RemediationEngine
+)
+
+
+# --- Remediation Packages (Fix Mappings) ---
+
+@app.get("/api/v1/remediation/packages")
+async def list_remediation_packages(
+    enabled_only: bool = False,
+    _: str = Depends(verify_api_key)
+):
+    """List all remediation packages (fix mappings)."""
+    packages = await get_remediation_packages(db_pool, enabled_only)
+    return {"packages": packages}
+
+
+@app.get("/api/v1/remediation/packages/{package_id}")
+async def get_remediation_package_by_id(
+    package_id: int,
+    _: str = Depends(verify_api_key)
+):
+    """Get a specific remediation package."""
+    pkg = await get_remediation_package(db_pool, package_id)
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Remediation package not found")
+    return pkg
+
+
+@app.post("/api/v1/remediation/packages", status_code=201)
+async def create_remediation_package_endpoint(
+    data: RemediationPackageCreate,
+    _: str = Depends(verify_api_key)
+):
+    """Create a new remediation package (CVE → Fix mapping)."""
+    try:
+        pkg = await create_remediation_package(db_pool, data)
+        return pkg
+    except Exception as e:
+        if "duplicate key" in str(e):
+            raise HTTPException(status_code=409, detail="Package with this name already exists")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.patch("/api/v1/remediation/packages/{package_id}")
+async def update_remediation_package_endpoint(
+    package_id: int,
+    data: RemediationPackageUpdate,
+    _: str = Depends(verify_api_key)
+):
+    """Update a remediation package."""
+    pkg = await update_remediation_package(db_pool, package_id, data)
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Remediation package not found")
+    return pkg
+
+
+@app.delete("/api/v1/remediation/packages/{package_id}")
+async def delete_remediation_package_endpoint(
+    package_id: int,
+    _: str = Depends(verify_api_key)
+):
+    """Delete a remediation package."""
+    deleted = await delete_remediation_package(db_pool, package_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Remediation package not found")
+    return {"status": "deleted", "id": package_id}
+
+
+# --- Remediation Rules ---
+
+@app.get("/api/v1/remediation/rules")
+async def list_remediation_rules(
+    enabled_only: bool = False,
+    _: str = Depends(verify_api_key)
+):
+    """List all remediation rules."""
+    rules = await get_remediation_rules(db_pool, enabled_only)
+    return {"rules": rules}
+
+
+@app.get("/api/v1/remediation/rules/{rule_id}")
+async def get_remediation_rule_by_id(
+    rule_id: int,
+    _: str = Depends(verify_api_key)
+):
+    """Get a specific remediation rule."""
+    rule = await get_remediation_rule(db_pool, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Remediation rule not found")
+    return rule
+
+
+@app.post("/api/v1/remediation/rules", status_code=201)
+async def create_remediation_rule_endpoint(
+    data: RemediationRuleCreate,
+    _: str = Depends(verify_api_key)
+):
+    """Create a new remediation rule."""
+    rule = await create_remediation_rule(db_pool, data)
+    return rule
+
+
+@app.patch("/api/v1/remediation/rules/{rule_id}")
+async def update_remediation_rule_endpoint(
+    rule_id: int,
+    data: RemediationRuleUpdate,
+    _: str = Depends(verify_api_key)
+):
+    """Update a remediation rule."""
+    rule = await update_remediation_rule(db_pool, rule_id, data)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Remediation rule not found")
+    return rule
+
+
+@app.delete("/api/v1/remediation/rules/{rule_id}")
+async def delete_remediation_rule_endpoint(
+    rule_id: int,
+    _: str = Depends(verify_api_key)
+):
+    """Delete a remediation rule."""
+    deleted = await delete_remediation_rule(db_pool, rule_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Remediation rule not found")
+    return {"status": "deleted", "id": rule_id}
+
+
+# --- Maintenance Windows ---
+
+@app.get("/api/v1/remediation/maintenance-windows")
+async def list_maintenance_windows(_: str = Depends(verify_api_key)):
+    """List all maintenance windows."""
+    windows = await get_maintenance_windows(db_pool)
+    return {"windows": windows}
+
+
+@app.post("/api/v1/remediation/maintenance-windows", status_code=201)
+async def create_maintenance_window_endpoint(
+    data: MaintenanceWindowCreate,
+    _: str = Depends(verify_api_key)
+):
+    """Create a new maintenance window."""
+    window = await create_maintenance_window(db_pool, data)
+    return window
+
+
+@app.get("/api/v1/remediation/maintenance-windows/active")
+async def check_maintenance_window(_: str = Depends(verify_api_key)):
+    """Check if we're currently in a maintenance window."""
+    in_window = await is_in_maintenance_window(db_pool)
+    return {"in_maintenance_window": in_window}
+
+
+# --- Remediation Jobs ---
+
+@app.get("/api/v1/remediation/jobs")
+async def list_remediation_jobs(
+    status: Optional[str] = None,
+    node_id: Optional[UUID] = None,
+    limit: int = 100,
+    _: str = Depends(verify_api_key)
+):
+    """List remediation jobs with filters."""
+    jobs = await get_remediation_jobs(db_pool, status, node_id, limit)
+    return {"jobs": jobs}
+
+
+@app.get("/api/v1/remediation/jobs/{job_id}")
+async def get_remediation_job_by_id(
+    job_id: int,
+    _: str = Depends(verify_api_key)
+):
+    """Get a specific remediation job."""
+    job = await get_remediation_job(db_pool, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Remediation job not found")
+    return job
+
+
+@app.post("/api/v1/remediation/jobs/approve")
+async def approve_jobs(
+    data: ApproveRemediationRequest,
+    _: str = Depends(verify_api_key)
+):
+    """Approve pending remediation jobs."""
+    count = await approve_remediation_jobs(db_pool, data.job_ids, data.approved_by)
+    return {"approved_count": count}
+
+
+@app.patch("/api/v1/remediation/jobs/{job_id}/status")
+async def update_job_status(
+    job_id: int,
+    status: str,
+    exit_code: Optional[int] = None,
+    output_log: Optional[str] = None,
+    error_message: Optional[str] = None,
+    _: str = Depends(verify_api_key)
+):
+    """Update remediation job status (called by agent after execution)."""
+    job = await update_remediation_job_status(
+        db_pool, job_id, status, exit_code, output_log, error_message
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Remediation job not found")
+    return job
+
+
+# --- Remediation Engine ---
+
+@app.post("/api/v1/remediation/scan")
+async def trigger_remediation_scan(
+    data: TriggerRemediationRequest,
+    background_tasks: BackgroundTasks,
+    _: str = Depends(verify_api_key)
+):
+    """
+    Scan vulnerabilities and create remediation jobs.
+    
+    This will:
+    1. Find all vulnerabilities matching the filter
+    2. Match them to available fix packages
+    3. Apply rules to determine action
+    4. Create remediation jobs (or show dry-run results)
+    """
+    engine = RemediationEngine(db_pool)
+    results = await engine.scan_and_create_jobs(
+        severity_filter=data.severity_filter,
+        software_filter=data.software_filter,
+        node_ids=data.node_ids,
+        dry_run=data.dry_run
+    )
+    return results
+
+
+@app.post("/api/v1/remediation/fix/{vulnerability_id}")
+async def one_click_fix(
+    vulnerability_id: int,
+    node_id: UUID,
+    _: str = Depends(verify_api_key)
+):
+    """
+    One-click fix for a specific vulnerability on a node.
+    
+    Creates a remediation job immediately (no approval required).
+    """
+    # Get the vulnerability
+    async with db_pool.acquire() as conn:
+        vuln = await conn.fetchrow(
+            "SELECT * FROM vulnerabilities WHERE id = $1", vulnerability_id
+        )
+        if not vuln:
+            raise HTTPException(status_code=404, detail="Vulnerability not found")
+        vuln = dict(vuln)
+    
+    # Find fix package
+    engine = RemediationEngine(db_pool)
+    fix_pkg = await engine.find_fix_for_vulnerability(vuln)
+    if not fix_pkg:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"No fix package available for {vuln['software_name']}"
+        )
+    
+    # Create job without approval requirement
+    from remediation import create_remediation_job
+    job = await create_remediation_job(
+        db_pool,
+        vulnerability_id=vulnerability_id,
+        remediation_package_id=fix_pkg['id'],
+        rule_id=None,  # Manual trigger, no rule
+        node_id=node_id,
+        software_name=vuln['software_name'],
+        software_version=vuln['software_version'],
+        cve_id=vuln['cve_id'],
+        requires_approval=False
+    )
+    
+    # Generate the fix command
+    command = await engine.generate_fix_command(job, fix_pkg)
+    
+    return {
+        "job": job,
+        "fix_package": fix_pkg,
+        "command": command,
+        "message": f"Remediation job created. Execute: {command}"
+    }
+
+
+# --- Dashboard Summary ---
+
+@app.get("/api/v1/remediation/summary")
+async def remediation_dashboard(_: str = Depends(verify_api_key)):
+    """Get remediation dashboard summary."""
+    summary = await get_remediation_summary(db_pool)
+    return summary
