@@ -38,6 +38,7 @@
     "packages": "Pakete",
     "deployments": "Deployments",
     "alerts": "Alarme",
+    "vulnerabilities": "Vulnerabilities",
     "eventlog": "Eventlog",
     "compliance": "Compliance",
     "compare": "Vergleichen",

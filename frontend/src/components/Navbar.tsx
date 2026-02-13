@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { href: "/packages", labelKey: "nav.packages", icon: "📦", permission: "packages:read" },
   { href: "/deployments", labelKey: "nav.deployments", icon: "🎯", permission: "deployments:read" },
   { href: "/alerts", labelKey: "nav.alerts", icon: "🔔", permission: "alerts:read" },
+  { href: "/vulnerabilities", labelKey: "nav.vulnerabilities", icon: "🐛", permission: "vulnerabilities:read" },
   { href: "/eventlog", labelKey: "nav.eventlog", icon: "📋", permission: "eventlog:read" },
   { href: "/compliance", labelKey: "nav.compliance", icon: "🛡️", permission: "compliance:read" },
   { href: "/software-compare", labelKey: "nav.compare", icon: "📊", permission: "nodes:read" },

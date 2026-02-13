@@ -5794,3 +5794,147 @@ async def advance_rollout(deployment_id: str):
             return {"message": f"Advanced to {new_percent}%", "state": state}
         
         return {"message": "Unknown strategy"}
+
+# ============================================
+# E13: Vulnerability Tracking API
+# ============================================
+
+from vulnerability import VulnerabilityScanner, get_vulnerability_summary, get_node_vulnerabilities
+
+@app.get("/api/v1/vulnerabilities/summary")
+async def vulnerability_summary():
+    """Get vulnerability dashboard summary."""
+    return await get_vulnerability_summary(db_pool)
+
+@app.get("/api/v1/vulnerabilities/node/{node_id}")
+async def node_vulnerabilities(node_id: str):
+    """Get all vulnerabilities affecting a specific node."""
+    vulns = await get_node_vulnerabilities(db_pool, node_id)
+    return {"vulnerabilities": vulns, "count": len(vulns)}
+
+@app.get("/api/v1/vulnerabilities")
+async def list_vulnerabilities(
+    severity: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """List all discovered vulnerabilities with optional filtering."""
+    async with db_pool.acquire() as conn:
+        query = """
+            SELECT 
+                v.*,
+                COUNT(DISTINCT s.node_id) as affected_nodes
+            FROM vulnerabilities v
+            LEFT JOIN software s ON s.name = v.software_name AND s.version = v.software_version
+        """
+        params = []
+        
+        if severity:
+            query += " WHERE v.severity = $1"
+            params.append(severity.upper())
+        
+        query += """
+            GROUP BY v.id
+            ORDER BY v.cvss_score DESC NULLS LAST, v.discovered_at DESC
+            LIMIT $%d OFFSET $%d
+        """ % (len(params) + 1, len(params) + 2)
+        params.extend([limit, offset])
+        
+        rows = await conn.fetch(query, *params)
+        
+        # Get total count
+        count_query = "SELECT COUNT(*) FROM vulnerabilities"
+        if severity:
+            count_query += " WHERE severity = $1"
+            total = await conn.fetchval(count_query, severity.upper()) if severity else await conn.fetchval(count_query)
+        else:
+            total = await conn.fetchval(count_query)
+        
+        return {
+            "vulnerabilities": [dict(row) for row in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+
+@app.post("/api/v1/vulnerabilities/scan")
+async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
+    """Trigger a full vulnerability scan of all software inventory."""
+    nvd_api_key = os.environ.get("NVD_API_KEY")
+    scanner = VulnerabilityScanner(db_pool, nvd_api_key)
+    
+    # Create scan record
+    async with db_pool.acquire() as conn:
+        scan_id = await conn.fetchval("""
+            INSERT INTO vulnerability_scans (status) VALUES ('running') RETURNING id
+        """)
+    
+    async def run_scan():
+        try:
+            result = await scanner.scan_all_nodes()
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE vulnerability_scans SET
+                        completed_at = NOW(),
+                        packages_scanned = $1,
+                        vulnerabilities_found = $2,
+                        critical_count = $3,
+                        high_count = $4,
+                        status = 'completed'
+                    WHERE id = $5
+                """, 
+                    result["scanned_packages"],
+                    result["total_vulnerabilities"],
+                    result["critical"],
+                    result["high"],
+                    scan_id
+                )
+        except Exception as e:
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE vulnerability_scans SET
+                        completed_at = NOW(),
+                        status = 'failed',
+                        error_message = $1
+                    WHERE id = $2
+                """, str(e), scan_id)
+    
+    background_tasks.add_task(run_scan)
+    
+    return {"scan_id": scan_id, "status": "started", "message": "Vulnerability scan started in background"}
+
+@app.get("/api/v1/vulnerabilities/scans")
+async def list_vulnerability_scans(limit: int = 10):
+    """Get vulnerability scan history."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT * FROM vulnerability_scans
+            ORDER BY started_at DESC
+            LIMIT $1
+        """, limit)
+        return {"scans": [dict(row) for row in rows]}
+
+@app.post("/api/v1/vulnerabilities/{cve_id}/suppress")
+async def suppress_vulnerability(
+    cve_id: str,
+    reason: str = Body(...),
+    software_name: Optional[str] = Body(None),
+    expires_days: Optional[int] = Body(None)
+):
+    """Suppress a vulnerability (mark as accepted risk or false positive)."""
+    expires_at = None
+    if expires_days:
+        expires_at = datetime.utcnow() + timedelta(days=expires_days)
+    
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO vulnerability_suppressions (cve_id, software_name, reason, suppressed_by, expires_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (cve_id, software_name) DO UPDATE SET
+                reason = EXCLUDED.reason,
+                suppressed_by = EXCLUDED.suppressed_by,
+                suppressed_at = NOW(),
+                expires_at = EXCLUDED.expires_at
+        """, cve_id, software_name, reason, "admin", expires_at)  # TODO: Get actual user
+        
+    return {"status": "suppressed", "cve_id": cve_id}
