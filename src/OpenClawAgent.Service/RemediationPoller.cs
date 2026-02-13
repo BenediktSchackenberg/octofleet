@@ -162,6 +162,9 @@ public class RemediationPoller : BackgroundService
 
     private async Task<CommandResult> ExecuteFixCommandAsync(string command, CancellationToken ct)
     {
+        // Resolve winget/choco paths for SYSTEM context
+        command = ResolvePackageManagerPaths(command);
+        
         // Wrap command in PowerShell for proper execution
         var psi = new ProcessStartInfo
         {
@@ -209,6 +212,85 @@ public class RemediationPoller : BackgroundService
             try { process.Kill(true); } catch { }
             return new CommandResult { ExitCode = -1, Stderr = "Command timed out (10 min)" };
         }
+    }
+
+    /// <summary>
+    /// Resolve winget/choco to full paths since SYSTEM service doesn't have them in PATH.
+    /// </summary>
+    private string ResolvePackageManagerPaths(string command)
+    {
+        // Common winget locations (for SYSTEM context)
+        var wingetPaths = new[]
+        {
+            @"C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe",
+            @"C:\Users\*\AppData\Local\Microsoft\WindowsApps\winget.exe",
+            Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe"),
+            @"C:\Windows\System32\winget.exe"
+        };
+
+        // Find actual winget path
+        string? wingetPath = null;
+        foreach (var pattern in wingetPaths)
+        {
+            if (pattern.Contains('*'))
+            {
+                var dir = Path.GetDirectoryName(pattern);
+                var file = Path.GetFileName(pattern);
+                if (dir != null && Directory.Exists(Path.GetDirectoryName(dir)))
+                {
+                    try
+                    {
+                        var matches = Directory.GetDirectories(Path.GetDirectoryName(dir)!, Path.GetFileName(dir))
+                            .OrderByDescending(d => d)
+                            .FirstOrDefault();
+                        if (matches != null)
+                        {
+                            var candidate = Path.Combine(matches, file.Replace("*", ""));
+                            // For WindowsApps, just look in the dir
+                            var exePath = Directory.GetFiles(matches, "winget.exe").FirstOrDefault();
+                            if (exePath != null && File.Exists(exePath))
+                            {
+                                wingetPath = exePath;
+                                break;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            else if (File.Exists(pattern))
+            {
+                wingetPath = pattern;
+                break;
+            }
+        }
+
+        // Replace "winget" with full path if found
+        if (wingetPath != null && command.StartsWith("winget ", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug("Resolved winget to: {Path}", wingetPath);
+            command = $"\"{wingetPath}\" {command[7..]}";
+        }
+        else if (command.StartsWith("winget ", StringComparison.OrdinalIgnoreCase))
+        {
+            // Try using Add-AppxPackage method as fallback
+            _logger.LogWarning("Could not find winget.exe, using AppxPackage fallback");
+            
+            // Use: & (Get-Command winget -ErrorAction SilentlyContinue).Source
+            command = $"& (Resolve-Path 'C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\\winget.exe' | Select-Object -Last 1).Path {command[7..]}";
+        }
+
+        // Choco is usually in PATH, but check anyway
+        if (command.StartsWith("choco ", StringComparison.OrdinalIgnoreCase))
+        {
+            var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
+            if (File.Exists(chocoPath))
+            {
+                command = $"\"{chocoPath}\" {command[6..]}";
+            }
+        }
+
+        return command;
     }
 
     private async Task ReportRemediationResultAsync(
