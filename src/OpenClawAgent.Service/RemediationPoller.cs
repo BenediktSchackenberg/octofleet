@@ -266,18 +266,17 @@ public class RemediationPoller : BackgroundService
         }
 
         // Replace "winget" with full path if found
+        // PowerShell needs & operator to execute paths with spaces
         if (wingetPath != null && command.StartsWith("winget ", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogDebug("Resolved winget to: {Path}", wingetPath);
-            command = $"\"{wingetPath}\" {command[7..]}";
+            command = $"& \"{wingetPath}\" {command[7..]}";
         }
         else if (command.StartsWith("winget ", StringComparison.OrdinalIgnoreCase))
         {
-            // Try using Add-AppxPackage method as fallback
-            _logger.LogWarning("Could not find winget.exe, using AppxPackage fallback");
-            
-            // Use: & (Get-Command winget -ErrorAction SilentlyContinue).Source
-            command = $"& (Resolve-Path 'C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\\winget.exe' | Select-Object -Last 1).Path {command[7..]}";
+            // Fallback: use Resolve-Path to find winget dynamically
+            _logger.LogWarning("Could not find winget.exe, using Resolve-Path fallback");
+            command = $"& (Resolve-Path 'C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\\winget.exe' -ErrorAction SilentlyContinue | Select-Object -Last 1).Path {command[7..]}";
         }
 
         // Choco is usually in PATH, but check anyway
@@ -286,7 +285,7 @@ public class RemediationPoller : BackgroundService
             var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
             if (File.Exists(chocoPath))
             {
-                command = $"\"{chocoPath}\" {command[6..]}";
+                command = $"& \"{chocoPath}\" {command[6..]}";
             }
         }
 
