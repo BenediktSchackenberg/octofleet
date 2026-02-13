@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { Navbar } from '@/components/Navbar';
 import { 
   Shield, Package, FileText, Clock, Play, CheckCircle, 
   XCircle, AlertTriangle, Settings, Plus, Trash2, RefreshCw 
@@ -68,10 +67,16 @@ export default function RemediationPage() {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080';
 
   const fetchData = async () => {
-    if (!token) return;
+    console.log('[Remediation] fetchData called, token:', token ? 'present' : 'missing');
+    if (!token) {
+      console.log('[Remediation] No token, skipping fetch');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const headers = { 'Authorization': `Bearer ${token}` };
+      console.log('[Remediation] Fetching from:', API_BASE);
       
       const [summaryRes, packagesRes, rulesRes, jobsRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/remediation/summary`, { headers }),
@@ -80,7 +85,15 @@ export default function RemediationPage() {
         fetch(`${API_BASE}/api/v1/remediation/jobs?limit=50`, { headers }),
       ]);
 
-      if (summaryRes.ok) setSummary(await summaryRes.json());
+      console.log('[Remediation] Response status:', summaryRes.status, packagesRes.status, rulesRes.status, jobsRes.status);
+
+      if (summaryRes.ok) {
+        const data = await summaryRes.json();
+        console.log('[Remediation] Summary:', data);
+        setSummary(data);
+      } else {
+        console.error('[Remediation] Summary failed:', await summaryRes.text());
+      }
       if (packagesRes.ok) {
         const data = await packagesRes.json();
         setPackages(data.packages || []);
@@ -168,7 +181,6 @@ export default function RemediationPage() {
   if (loading && !summary) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100">
-        <Navbar />
         <div className="flex items-center justify-center h-[calc(100vh-64px)]">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
@@ -178,7 +190,6 @@ export default function RemediationPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <Navbar />
       
       <main className="container mx-auto px-4 py-8">
         {/* Header */}

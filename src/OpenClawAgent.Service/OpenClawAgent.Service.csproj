@@ -12,11 +12,14 @@
     <AssemblyName>OpenClawAgent.Service</AssemblyName>
     <RootNamespace>OpenClawAgent.Service</RootNamespace>
     
+    <!-- Include native libraries (libsodium) in single-file bundle -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    
     <!-- Version - update this for each release -->
-    <Version>0.4.5</Version>
-    <AssemblyVersion>0.4.5.0</AssemblyVersion>
-    <FileVersion>0.4.5.0</FileVersion>
-    <InformationalVersion>0.4.5</InformationalVersion>
+    <Version>0.4.8</Version>
+    <AssemblyVersion>0.4.8.0</AssemblyVersion>
+    <FileVersion>0.4.8.0</FileVersion>
+    <InformationalVersion>0.4.8</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
