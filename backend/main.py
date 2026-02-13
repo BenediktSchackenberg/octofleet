@@ -5938,3 +5938,60 @@ async def suppress_vulnerability(
         """, cve_id, software_name, reason, "admin", expires_at)  # TODO: Get actual user
         
     return {"status": "suppressed", "cve_id": cve_id}
+
+# ============================================
+# System Settings API
+# ============================================
+
+@app.get("/api/v1/settings")
+async def get_settings():
+    """Get all system settings (values masked for secrets)."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("SELECT key, value, updated_at FROM system_settings")
+        settings = {}
+        for row in rows:
+            key = row["key"]
+            value = row["value"]
+            # Mask sensitive values
+            if "key" in key.lower() or "secret" in key.lower() or "password" in key.lower():
+                settings[key] = {"value": "***" + (value[-4:] if value and len(value) > 4 else ""), "masked": True, "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None}
+            else:
+                settings[key] = {"value": value, "masked": False, "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None}
+        return settings
+
+@app.get("/api/v1/settings/{key}")
+async def get_setting(key: str):
+    """Get a specific setting."""
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT value, updated_at FROM system_settings WHERE key = $1", key)
+        if not row:
+            raise HTTPException(status_code=404, detail="Setting not found")
+        return {"key": key, "value": row["value"], "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None}
+
+@app.put("/api/v1/settings/{key}")
+async def update_setting(key: str, value: str = Body(..., embed=True)):
+    """Update or create a setting."""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO system_settings (key, value, updated_at, updated_by)
+            VALUES ($1, $2, NOW(), 'admin')
+            ON CONFLICT (key) DO UPDATE SET
+                value = EXCLUDED.value,
+                updated_at = NOW(),
+                updated_by = EXCLUDED.updated_by
+        """, key, value)
+    
+    # Special handling: if NVD_API_KEY changed, update the scanner
+    if key == "nvd_api_key":
+        os.environ["NVD_API_KEY"] = value
+    
+    return {"status": "updated", "key": key}
+
+@app.delete("/api/v1/settings/{key}")
+async def delete_setting(key: str):
+    """Delete a setting."""
+    async with db_pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM system_settings WHERE key = $1", key)
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Setting not found")
+    return {"status": "deleted", "key": key}

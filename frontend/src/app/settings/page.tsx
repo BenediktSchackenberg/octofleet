@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
-import { Key, Users, Shield, Bell, Clock, Rocket } from "lucide-react";
+import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff } from "lucide-react";
 
 const API_URL = "http://192.168.0.5:8080";
 
@@ -34,6 +34,12 @@ export default function SettingsPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newToken, setNewToken] = useState<{token: string; installCommand: string} | null>(null);
 
+  // System Settings
+  const [nvdApiKey, setNvdApiKey] = useState("");
+  const [nvdApiKeyMasked, setNvdApiKeyMasked] = useState(true);
+  const [nvdApiKeySaved, setNvdApiKeySaved] = useState(false);
+  const [savingNvdKey, setSavingNvdKey] = useState(false);
+
   // Create token form
   const [description, setDescription] = useState("");
   const [expiresHours, setExpiresHours] = useState(24);
@@ -41,7 +47,45 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchTokens();
+    fetchSettings();
   }, []);
+
+  async function fetchSettings() {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/settings/nvd_api_key`, {
+        headers: getAuthHeader(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.value) {
+          setNvdApiKey(data.value);
+          setNvdApiKeySaved(true);
+        }
+      }
+    } catch (e) {
+      // Setting doesn't exist yet, that's ok
+    }
+  }
+
+  async function saveNvdApiKey() {
+    setSavingNvdKey(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/settings/nvd_api_key`, {
+        method: "PUT",
+        headers: {
+          ...getAuthHeader(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ value: nvdApiKey }),
+      });
+      if (res.ok) {
+        setNvdApiKeySaved(true);
+        setNvdApiKeyMasked(true);
+      }
+    } finally {
+      setSavingNvdKey(false);
+    }
+  }
 
   async function fetchTokens() {
     try {
@@ -144,11 +188,65 @@ export default function SettingsPage() {
             <h3 className="font-medium">Wartungsfenster</h3>
             <p className="text-xs text-zinc-500">Zeitfenster für Deployments</p>
           </Link>
+          <Link href="/vulnerabilities" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Bug className="h-6 w-6 mb-2 text-red-400" />
+            <h3 className="font-medium">Vulnerabilities</h3>
+            <p className="text-xs text-zinc-500">CVE Tracking & NVD Scan</p>
+          </Link>
           <Link href="/deployments" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
             <Rocket className="h-6 w-6 mb-2 text-orange-400" />
             <h3 className="font-medium">Rollout Strategies</h3>
             <p className="text-xs text-zinc-500">Canary, Staged, Percentage</p>
           </Link>
+        </div>
+
+        {/* Integrations / API Keys */}
+        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 mb-6">
+          <h2 className="text-lg font-semibold mb-4">🔌 Integrationen</h2>
+          
+          {/* NVD API Key */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              NVD API Key
+              <span className="text-zinc-500 font-normal ml-2">
+                (für schnellere Vulnerability Scans)
+              </span>
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={nvdApiKeyMasked && nvdApiKeySaved ? "password" : "text"}
+                  value={nvdApiKey}
+                  onChange={(e) => { setNvdApiKey(e.target.value); setNvdApiKeySaved(false); }}
+                  placeholder="z.B. 45022E44-0009-F111-8368-129478FCB64D"
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white font-mono text-sm pr-10"
+                />
+                {nvdApiKeySaved && (
+                  <button
+                    onClick={() => setNvdApiKeyMasked(!nvdApiKeyMasked)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                  >
+                    {nvdApiKeyMasked ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={saveNvdApiKey}
+                disabled={savingNvdKey || !nvdApiKey || nvdApiKeySaved}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white rounded flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {savingNvdKey ? "..." : nvdApiKeySaved ? "Gespeichert" : "Speichern"}
+              </button>
+            </div>
+            <p className="text-xs text-zinc-500 mt-2">
+              Kostenlos holen: <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">nvd.nist.gov/developers/request-an-api-key</a>
+              {" "}— Mit API Key: 10x schnellere Scans!
+            </p>
+            {nvdApiKeySaved && (
+              <p className="text-xs text-green-400 mt-1">✓ API Key konfiguriert</p>
+            )}
+          </div>
         </div>
 
         {/* System Info */}

@@ -75,3 +75,11 @@ CREATE TABLE IF NOT EXISTS vulnerability_suppressions (
     
     UNIQUE(cve_id, software_name)
 );
+
+-- System settings (key-value store)
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
