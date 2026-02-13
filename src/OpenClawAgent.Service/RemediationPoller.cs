@@ -274,9 +274,19 @@ public class RemediationPoller : BackgroundService
         }
         else if (command.StartsWith("winget ", StringComparison.OrdinalIgnoreCase))
         {
-            // Fallback: use Resolve-Path to find winget dynamically
-            _logger.LogWarning("Could not find winget.exe, using Resolve-Path fallback");
-            command = $"& (Resolve-Path 'C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\\winget.exe' -ErrorAction SilentlyContinue | Select-Object -Last 1).Path {command[7..]}";
+            // Winget not found - try to use Chocolatey as fallback
+            var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
+            if (File.Exists(chocoPath))
+            {
+                _logger.LogWarning("Winget not found, converting to Chocolatey command");
+                command = ConvertWingetToChoco(command, chocoPath);
+            }
+            else
+            {
+                // Last resort: try Resolve-Path for winget
+                _logger.LogWarning("Could not find winget.exe or choco.exe, using Resolve-Path fallback");
+                command = $"& (Resolve-Path 'C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\\winget.exe' -ErrorAction SilentlyContinue | Select-Object -Last 1).Path {command[7..]}";
+            }
         }
 
         // Choco is usually in PATH, but check anyway
@@ -290,6 +300,53 @@ public class RemediationPoller : BackgroundService
         }
 
         return command;
+    }
+
+    /// <summary>
+    /// Convert a winget command to equivalent Chocolatey command.
+    /// </summary>
+    private string ConvertWingetToChoco(string wingetCommand, string chocoPath)
+    {
+        // Map common winget package IDs to choco package names
+        var packageMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Git.Git", "git" },
+            { "7zip.7zip", "7zip" },
+            { "Google.Chrome", "googlechrome" },
+            { "Mozilla.Firefox", "firefox" },
+            { "VideoLAN.VLC", "vlc" },
+            { "Notepad++.Notepad++", "notepadplusplus" },
+            { "Python.Python.3", "python" },
+            { "Oracle.JDK.17", "openjdk17" },
+            { "Oracle.JDK.21", "openjdk21" },
+            { "Microsoft.VisualStudioCode", "vscode" },
+            { "Adobe.Acrobat.Reader.64-bit", "adobereader" },
+        };
+
+        // Parse winget command: winget upgrade <PackageId> --silent ...
+        var parts = wingetCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 3 && parts[1].Equals("upgrade", StringComparison.OrdinalIgnoreCase))
+        {
+            var wingetPackageId = parts[2];
+            
+            // Try to find choco equivalent
+            if (packageMap.TryGetValue(wingetPackageId, out var chocoPackage))
+            {
+                _logger.LogInformation("Mapped winget {WingetId} to choco {ChocoId}", wingetPackageId, chocoPackage);
+                return $"& \"{chocoPath}\" upgrade {chocoPackage} -y";
+            }
+            else
+            {
+                // Try using the winget ID directly (sometimes works)
+                var guessedName = wingetPackageId.Split('.').Last().ToLowerInvariant();
+                _logger.LogWarning("No mapping for {WingetId}, guessing choco package: {Guess}", wingetPackageId, guessedName);
+                return $"& \"{chocoPath}\" upgrade {guessedName} -y";
+            }
+        }
+
+        // Can't parse - return original (will fail, but logs will show why)
+        _logger.LogWarning("Could not parse winget command for choco conversion: {Command}", wingetCommand);
+        return wingetCommand;
     }
 
     private async Task ReportRemediationResultAsync(
