@@ -2,7 +2,7 @@
 
 > **⚠️ BETA** — This project is under active development. Expect breaking changes.
 
-> **v0.4.5** — An open-source endpoint management and inventory system for Windows and Linux fleets. Collect hardware/software inventory, deploy packages, run remote commands, receive alerts, and monitor your infrastructure from a central dashboard.
+> **v0.4.14** — An open-source endpoint management and inventory system for Windows and Linux fleets. Collect hardware/software inventory, deploy packages, run remote commands, scan vulnerabilities, auto-remediate security issues, and monitor your infrastructure from a central dashboard.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11%2FServer-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
@@ -125,6 +125,33 @@ Control how software deploys to your fleet:
 - **Percentage**: Gradually increase from 10% → 30% → 50% → 100%
 - **Maintenance Windows**: Define time windows when deployments can run (e.g., 22:00-06:00 weekdays)
 
+### 🔒 Vulnerability Scanning (NEW in v0.4.12)
+Automatically identify security vulnerabilities in your fleet:
+
+- **NVD Integration**: Scans against NIST National Vulnerability Database
+- **CVE Detection**: Matches installed software versions against known CVEs
+- **CVSS Scoring**: Severity ratings (Critical/High/Medium/Low)
+- **Dashboard**: View vulnerabilities by node, software, or CVE
+- **Fixable Detection**: Identifies which vulnerabilities have available fixes
+
+### 🛡️ Auto-Remediation (NEW in v0.4.14)
+Automatically fix security vulnerabilities:
+
+- **Rule-based**: Define rules like "auto-fix all CRITICAL vulnerabilities"
+- **Package Mapping**: Map CVEs to fix packages (winget/choco updates)
+- **Fully Automatic**: Agent polls for fix jobs and executes them
+- **Smart Fallback**: Uses winget on Windows 10/11, auto-installs Chocolatey on Windows Server
+- **Dry Run Mode**: Preview what would be fixed before running
+- **Audit Trail**: Full logging of all remediation actions
+
+```
+[INF] Found 5 remediation jobs to execute
+[INF] Executing remediation: Git (CVE-2016-7794) via winget
+[INF] Winget not found, converting to Chocolatey command
+[INF] Mapped winget Git.Git to choco git
+[INF] Remediation 176 completed with exit code: 0
+```
+
 ### 🐧 Linux Agent (v0.4.5)
 Manage Linux servers alongside your Windows fleet:
 
@@ -241,6 +268,8 @@ See the full [Server Setup Guide](#-server-setup-complete-guide) below for produ
 | **E8** RBAC | ✅ Complete | Role-based access control, JWT auth |
 | **E9** Rollout Strategies | ✅ Complete | Canary, staged, percentage rollouts + maintenance windows |
 | **E10** Zero-Touch Install | ✅ Complete | Enrollment tokens, PowerShell installer |
+| **E13** Vulnerability Tracking | ✅ Complete | NVD integration, CVE scanning, CVSS scoring |
+| **E14** Auto-Remediation | ✅ Complete | Automatic vulnerability fixes via winget/choco |
 
 See [ROADMAP.md](ROADMAP.md) for the full feature list with task breakdowns.
 
