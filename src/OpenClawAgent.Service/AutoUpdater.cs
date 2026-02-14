@@ -17,9 +17,9 @@ public class AutoUpdater : BackgroundService
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
     
-    // Check interval: every hour (more reasonable than 5 minutes)
-    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(1);
-    private static readonly TimeSpan InitialDelay = TimeSpan.FromMinutes(2);
+    // Check interval: every 15 minutes for faster rollouts
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(30);
     
     private const string GitHubReleasesUrl = "https://api.github.com/repos/BenediktSchackenberg/openclaw-windows-agent/releases/latest";
     private const string ServiceName = "OpenClawNodeAgent";
