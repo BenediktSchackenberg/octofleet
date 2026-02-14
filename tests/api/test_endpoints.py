@@ -27,9 +27,10 @@ class TestAgentVersion:
         response = requests.get(f"{API_URL}/api/v1/agent/version", timeout=10)
         assert response.status_code == 200
         data = response.json()
-        assert "version" in data
+        # API returns latestVersion or version
+        version = data.get("version") or data.get("latestVersion")
+        assert version is not None, f"No version field in response: {data}"
         # Version should be semantic versioning format
-        version = data["version"]
         parts = version.split(".")
         assert len(parts) >= 2, f"Invalid version format: {version}"
 

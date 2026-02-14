@@ -692,3 +692,25 @@ CREATE TABLE IF NOT EXISTS node_snapshots (
 -- ============================================
 -- Done!
 -- ============================================
+
+-- ============================================
+-- Views for API compatibility
+-- ============================================
+
+-- Job summary view
+CREATE OR REPLACE VIEW job_summary AS
+SELECT 
+    j.id,
+    j.name,
+    j.job_type,
+    j.is_enabled,
+    j.created_at,
+    COUNT(ji.id) as total_runs,
+    COUNT(CASE WHEN ji.status = 'completed' THEN 1 END) as successful_runs,
+    MAX(ji.completed_at) as last_run
+FROM jobs j
+LEFT JOIN job_instances ji ON j.id = ji.job_id
+GROUP BY j.id, j.name, j.job_type, j.is_enabled, j.created_at;
+
+-- Add missing columns
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS display_name TEXT;
