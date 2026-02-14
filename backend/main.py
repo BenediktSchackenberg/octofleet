@@ -300,7 +300,7 @@ async def health_check():
 
 
 # Agent version management
-AGENT_LATEST_VERSION = "0.4.14"
+AGENT_LATEST_VERSION = "0.4.15"
 AGENT_DOWNLOAD_URL = f"https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v{AGENT_LATEST_VERSION}/OpenClawAgent-v{AGENT_LATEST_VERSION}-win-x64.zip"
 AGENT_RELEASE_NOTES = "Auto-remediation, vulnerability tracking, improved stability"
 
