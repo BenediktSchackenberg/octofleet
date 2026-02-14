@@ -3,7 +3,7 @@ OpenClaw Inventory Backend
 FastAPI server for receiving and storing inventory data from Windows Agents
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Header, status, Request, BackgroundTasks, Body
+from fastapi import FastAPI, Depends, HTTPException, Header, status, Request, BackgroundTasks, Body, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
 from typing import Optional, Any, Dict
@@ -7183,3 +7183,267 @@ async def export_node_hardware(
             )
         
         return data
+
+
+# =============================================================================
+# E17: Screen Mirroring Endpoints
+# =============================================================================
+
+from screen_session import screen_session_manager, ScreenSessionState
+
+@app.on_event("startup")
+async def start_screen_manager():
+    await screen_session_manager.start()
+
+@app.on_event("shutdown")
+async def stop_screen_manager():
+    await screen_session_manager.stop()
+
+
+@app.post("/api/v1/screen/start/{node_id}")
+async def start_screen_session(
+    node_id: str,
+    quality: str = "medium",
+    max_fps: int = 15,
+    resolution: str = "auto",
+    monitor: int = 0,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Start a screen viewing session for a node.
+    
+    The session enters PENDING state until the agent connects.
+    """
+    try:
+        session = await screen_session_manager.create_session(
+            node_id=node_id.upper(),
+            user_id=user.id,
+            quality=quality,
+            max_fps=max_fps,
+            resolution=resolution,
+            monitor_index=monitor
+        )
+        
+        # Log audit event
+        await log_audit(
+            db_pool, 
+            action="screen_session_start",
+            user_id=user.id,
+            resource_type="screen_session",
+            resource_id=session.id,
+            details={"node_id": node_id, "quality": quality}
+        )
+        
+        return {
+            "session_id": session.id,
+            "state": session.state.value,
+            "node_id": session.node_id,
+            "websocket_url": f"/api/v1/screen/ws/{session.id}"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/api/v1/screen/sessions")
+async def list_screen_sessions(_: str = Depends(verify_api_key)):
+    """List all active screen sessions."""
+    return {
+        "sessions": screen_session_manager.list_sessions(),
+        "count": len([s for s in screen_session_manager.sessions.values() 
+                     if s.state != ScreenSessionState.CLOSED])
+    }
+
+
+@app.get("/api/v1/screen/session/{session_id}")
+async def get_screen_session(session_id: str, _: str = Depends(verify_api_key)):
+    """Get details of a screen session."""
+    session = screen_session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {
+        "id": session.id,
+        "node_id": session.node_id,
+        "user_id": session.user_id,
+        "state": session.state.value,
+        "quality": session.quality,
+        "max_fps": session.max_fps,
+        "resolution": session.resolution,
+        "monitor_index": session.monitor_index,
+        "created_at": session.created_at.isoformat(),
+        "started_at": session.started_at.isoformat() if session.started_at else None,
+        "frames_sent": session.frames_sent,
+        "bytes_sent": session.bytes_sent
+    }
+
+
+@app.delete("/api/v1/screen/session/{session_id}")
+async def stop_screen_session(
+    session_id: str, 
+    user: dict = Depends(get_current_user)
+):
+    """Stop a screen viewing session."""
+    success = await screen_session_manager.close_session(session_id, "user_request")
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    await log_audit(
+        db_pool,
+        action="screen_session_stop",
+        user_id=user.id,
+        resource_type="screen_session",
+        resource_id=session_id
+    )
+    
+    return {"status": "stopped", "session_id": session_id}
+
+
+@app.get("/api/v1/screen/pending/{node_id}")
+async def get_pending_screen_session(node_id: str, _: str = Depends(verify_api_key)):
+    """
+    Agent endpoint: Check if there's a pending screen session for this node.
+    
+    Agent polls this to know when to start capturing.
+    """
+    session = screen_session_manager.get_pending_session_for_node(node_id.upper())
+    if not session:
+        return {"pending": False}
+    
+    return {
+        "pending": True,
+        "session_id": session.id,
+        "quality": session.quality,
+        "max_fps": session.max_fps,
+        "resolution": session.resolution,
+        "monitor_index": session.monitor_index,
+        "websocket_url": f"/api/v1/screen/ws/agent/{session.id}"
+    }
+
+
+@app.websocket("/api/v1/screen/ws/{session_id}")
+async def screen_viewer_websocket(websocket: WebSocket, session_id: str):
+    """
+    WebSocket endpoint for browser viewers to receive screen frames.
+    
+    Protocol:
+    - Server sends: {"type": "frame", "data": "<base64 jpeg>"} 
+    - Server sends: {"type": "info", "resolution": "1920x1080", "fps": 15}
+    - Server sends: {"type": "closed", "reason": "..."}
+    """
+    await websocket.accept()
+    
+    session = screen_session_manager.get_session(session_id)
+    if not session:
+        await websocket.send_json({"type": "error", "message": "Session not found"})
+        await websocket.close()
+        return
+    
+    session.viewer_ws = websocket
+    logger.info(f"Viewer connected to screen session {session_id}")
+    
+    try:
+        # Send initial info
+        await websocket.send_json({
+            "type": "info",
+            "session_id": session_id,
+            "node_id": session.node_id,
+            "state": session.state.value,
+            "quality": session.quality
+        })
+        
+        # Keep connection alive, frames are pushed by agent websocket handler
+        while True:
+            try:
+                # Receive keep-alive pings from client
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=30)
+                if data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except asyncio.TimeoutError:
+                # Send keep-alive
+                await websocket.send_json({"type": "ping"})
+                
+    except WebSocketDisconnect:
+        logger.info(f"Viewer disconnected from screen session {session_id}")
+    except Exception as e:
+        logger.error(f"Viewer WebSocket error: {e}")
+    finally:
+        session.viewer_ws = None
+
+
+@app.websocket("/api/v1/screen/ws/agent/{session_id}")
+async def screen_agent_websocket(websocket: WebSocket, session_id: str):
+    """
+    WebSocket endpoint for agents to send screen frames.
+    
+    Protocol:
+    - Agent sends: {"type": "frame", "data": "<base64 jpeg>", "width": 1920, "height": 1080}
+    - Agent sends: {"type": "ready"} when capture started
+    - Server sends: {"type": "stop"} to end session
+    """
+    await websocket.accept()
+    
+    session = screen_session_manager.get_session(session_id)
+    if not session:
+        await websocket.send_json({"type": "error", "message": "Session not found"})
+        await websocket.close()
+        return
+    
+    if session.state != ScreenSessionState.PENDING:
+        await websocket.send_json({"type": "error", "message": "Session not in pending state"})
+        await websocket.close()
+        return
+    
+    session.agent_ws = websocket
+    await screen_session_manager.activate_session(session_id)
+    logger.info(f"Agent connected to screen session {session_id}")
+    
+    try:
+        # Send config
+        await websocket.send_json({
+            "type": "config",
+            "quality": session.quality,
+            "max_fps": session.max_fps,
+            "resolution": session.resolution,
+            "monitor_index": session.monitor_index
+        })
+        
+        while True:
+            data = await websocket.receive_json()
+            
+            if data.get("type") == "frame":
+                session.frames_sent += 1
+                session.bytes_sent += len(data.get("data", ""))
+                
+                # Forward to viewer
+                if session.viewer_ws:
+                    try:
+                        await session.viewer_ws.send_json(data)
+                    except:
+                        pass  # Viewer disconnected
+                        
+            elif data.get("type") == "ready":
+                logger.info(f"Agent ready for screen capture: {session_id}")
+                if session.viewer_ws:
+                    await session.viewer_ws.send_json({
+                        "type": "info",
+                        "state": "active",
+                        "message": "Agent started capturing"
+                    })
+                    
+    except WebSocketDisconnect:
+        logger.info(f"Agent disconnected from screen session {session_id}")
+    except Exception as e:
+        logger.error(f"Agent WebSocket error: {e}")
+    finally:
+        session.agent_ws = None
+        await screen_session_manager.close_session(session_id, "agent_disconnected")
+        
+        # Notify viewer
+        if session.viewer_ws:
+            try:
+                await session.viewer_ws.send_json({
+                    "type": "closed",
+                    "reason": "Agent disconnected"
+                })
+            except:
+                pass

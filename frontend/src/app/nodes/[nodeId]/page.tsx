@@ -410,6 +410,11 @@ export default function NodeDetailPage() {
                 🔴 Live View
               </Button>
             </Link>
+            <Link href={`/nodes/${nodeId}/screen`}>
+              <Button variant="outline" className="bg-purple-500/10 border-purple-500 text-purple-500 hover:bg-purple-500/20">
+                🖥️ Screen
+              </Button>
+            </Link>
             <Button 
               variant="outline" 
               onClick={refreshInventory}

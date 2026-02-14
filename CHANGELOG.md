@@ -1,8 +1,25 @@
 # Changelog
 
-## [0.4.20] - 2026-02-14
+## [0.4.24] — 2026-02-14
 
-### Fixed
+### Added
+- **E17: Screen Mirroring** (MVP)
+  - Real-time desktop streaming from Windows agents to browser
+  - GDI+ based screen capture (DXGI planned for Phase 2)
+  - WebSocket relay through Gateway
+  - Quality presets: Low (720p), Medium (1080p), High (1440p)
+  - Configurable FPS (5-30)
+  - Multi-monitor support
+- **Backend**: Screen session management API (`/api/v1/screen/*`)
+- **Agent**: `ScreenStreamService` background service
+- **Frontend**: Screen viewer page (`/nodes/{id}/screen`)
+- **UI**: "🖥️ Screen" button on node detail page
+
+### Technical
+- JPEG compression for bandwidth efficiency (30-75% quality)
+- Session state management (pending → active → closed)
+- Auto-cleanup of stale sessions
+
 ## [0.4.23] — 2026-02-14
 
 ### Added

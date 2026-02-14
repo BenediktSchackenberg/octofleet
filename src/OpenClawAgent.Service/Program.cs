@@ -53,6 +53,7 @@ try
     builder.Services.AddHostedService<RemediationPoller>();
     builder.Services.AddHostedService<AutoUpdater>();
     builder.Services.AddHostedService<LiveDataPoller>();
+    builder.Services.AddHostedService<Screen.ScreenStreamService>();
 
     var host = builder.Build();
     host.Run();
