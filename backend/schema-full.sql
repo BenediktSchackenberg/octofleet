@@ -379,7 +379,7 @@ CREATE TABLE public.jobs (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     timeout_seconds integer DEFAULT 300,
-    CONSTRAINT jobs_command_type_check CHECK ((command_type = ANY (ARRAY['run'::text, 'script'::text, 'inventory'::text, 'install_package'::text, 'uninstall_package'::text, 'update_package'::text]))),
+    CONSTRAINT jobs_command_type_check CHECK ((command_type = ANY (ARRAY['run'::text, 'script'::text, 'inventory'::text, 'install_package'::text, 'uninstall_package'::text, 'update_package'::text, 'restart-agent'::text]))),
     CONSTRAINT jobs_target_type_check CHECK ((target_type = ANY (ARRAY['device'::text, 'group'::text, 'tag'::text, 'all'::text])))
 );
 CREATE VIEW public.job_summary AS

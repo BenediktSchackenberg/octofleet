@@ -345,6 +345,9 @@ public class JobPoller : BackgroundService
                 
             case "msi":
                 return await ExecuteMsiAsync(payload, timeoutSeconds, ct);
+            
+            case "restart-agent":
+                return await ExecuteRestartAgentAsync(ct);
                 
             default:
                 // Default to script/command execution
@@ -554,6 +557,67 @@ public class JobPoller : BackgroundService
             {
                 ExitCode = -1,
                 Stderr = $"MSI installation timed out after {timeout.TotalSeconds}s"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Restarts the OpenClaw Agent service by spawning an external process
+    /// that will restart the service after this process exits.
+    /// </summary>
+    private async Task<CommandResult> ExecuteRestartAgentAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("Agent restart requested - spawning restart script...");
+        
+        const string serviceName = "OpenClawNodeAgent";
+        
+        // Create a PowerShell script that will restart the service
+        // The script runs in the background and waits for the service to stop before restarting
+        var restartScript = $@"
+Start-Sleep -Seconds 2
+$svc = Get-Service -Name '{serviceName}' -ErrorAction SilentlyContinue
+if ($svc) {{
+    Stop-Service -Name '{serviceName}' -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 3
+    Start-Service -Name '{serviceName}' -ErrorAction SilentlyContinue
+}}
+";
+        
+        // Write script to temp file
+        var scriptPath = Path.Combine(Path.GetTempPath(), $"openclaw-restart-{Guid.NewGuid():N}.ps1");
+        await File.WriteAllTextAsync(scriptPath, restartScript, ct);
+        
+        // Start the script detached (it will outlive this process)
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = $"-ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+            UseShellExecute = true,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        
+        try
+        {
+            Process.Start(psi);
+            _logger.LogInformation("Restart script spawned. Agent will restart in ~5 seconds.");
+            
+            // Give script time to start, then signal success
+            await Task.Delay(500, ct);
+            
+            return new CommandResult
+            {
+                ExitCode = 0,
+                Stdout = "Agent restart initiated. Service will restart in approximately 5 seconds."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to spawn restart script");
+            return new CommandResult
+            {
+                ExitCode = -1,
+                Stderr = $"Failed to initiate restart: {ex.Message}"
             };
         }
     }
