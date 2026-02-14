@@ -98,6 +98,44 @@ async def verify_api_key(
     )
 
 
+async def verify_api_key_or_query(
+    request: Request,
+    x_api_key: str = Header(None),
+    authorization: str = Header(None),
+):
+    """Verify API key or JWT token from header OR query param (for SSE)"""
+    # Check query param token first (for EventSource which can't send headers)
+    token = request.query_params.get("token")
+    if token:
+        try:
+            import jwt
+            from auth import JWT_SECRET
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            return payload  # Valid JWT from query
+        except Exception:
+            pass
+    
+    # Check JWT Bearer token
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization[7:]
+        try:
+            import jwt
+            from auth import JWT_SECRET
+            payload = jwt.decode(auth_token, JWT_SECRET, algorithms=["HS256"])
+            return payload
+        except Exception:
+            pass
+    
+    # Check X-API-Key
+    if x_api_key == API_KEY:
+        return x_api_key
+    
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid API key or token"
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
@@ -6819,7 +6857,7 @@ async def live_data_generator(node_id: str, session_id: str):
 
 
 @app.get("/api/v1/live/{node_id}")
-async def live_stream(node_id: str, _: str = Depends(verify_api_key)):
+async def live_stream(node_id: str, _: str = Depends(verify_api_key_or_query)):
     """
     SSE endpoint for live node data streaming.
     
