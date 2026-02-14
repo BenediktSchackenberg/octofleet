@@ -24,6 +24,14 @@ jobs:
         run: |
           docker compose -f docker-compose.ci.yml up -d --build
           echo "Waiting for services to be healthy..."
+          # Give containers a moment to start or fail
+          sleep 10
+          # Check if backend is running
+          if ! docker compose -f docker-compose.ci.yml ps backend | grep -q "Up"; then
+            echo "❌ Backend failed to start. Logs:"
+            docker compose -f docker-compose.ci.yml logs backend
+            exit 1
+          fi
 
       - name: Wait for backend
         run: |
