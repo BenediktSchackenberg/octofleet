@@ -25,6 +25,7 @@ services:
       DATABASE_URL: postgresql://openclaw:ci-test-password@db:5432/inventory
       JWT_SECRET: ci-test-jwt-secret-not-for-production
       API_KEY: ci-test-api-key
+      INVENTORY_API_KEY: ci-test-api-key
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     ports:
       - "8080:8080"
