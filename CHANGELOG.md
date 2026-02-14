@@ -124,3 +124,11 @@ All notable changes to the OpenClaw Windows Agent.
 
 ---
 *Format based on [Keep a Changelog](https://keepachangelog.com/)*
+
+## [0.4.17] - 2026-02-14
+
+### Added
+- **Remote Agent Restart**: New `restart-agent` job command type
+  - Restart agent service remotely via job system
+  - Spawns detached PowerShell script for safe restart
+  - Usage: `POST /api/v1/jobs { "commandType": "restart-agent", "targetType": "device", "targetId": "<uuid>" }`
