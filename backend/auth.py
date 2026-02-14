@@ -3,6 +3,8 @@ RBAC Authentication & Authorization Module
 """
 import hashlib
 import secrets
+import os
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List
 from functools import wraps
@@ -13,8 +15,18 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
-# Config
-JWT_SECRET = secrets.token_hex(32)  # In production: load from env
+# Config - Load persistent JWT secret
+def _load_jwt_secret():
+    secret_file = Path(__file__).parent / ".jwt_secret"
+    if secret_file.exists():
+        return secret_file.read_text().strip()
+    # Fallback: generate and save
+    secret = secrets.token_hex(32)
+    secret_file.write_text(secret)
+    secret_file.chmod(0o600)
+    return secret
+
+JWT_SECRET = os.environ.get("JWT_SECRET") or _load_jwt_secret()
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours for dev
 REFRESH_TOKEN_EXPIRE_DAYS = 7
