@@ -4,6 +4,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.5:8080";
+
 interface ScreenMessage {
   type: 'info' | 'frame' | 'error' | 'closed' | 'ping' | 'pong';
   data?: string;
@@ -40,7 +42,7 @@ export default function ScreenViewerPage() {
     
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/v1/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {
+      const response = await fetch(`${API_URL}/api/v1/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -67,7 +69,7 @@ export default function ScreenViewerPage() {
   
   const connectWebSocket = (sid: string, token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:8080/api/v1/screen/ws/${sid}?token=${token}`;
+    const wsUrl = `${protocol}//${window.location.hostname.includes('localhost') ? 'localhost' : '192.168.0.5'}:8080/api/v1/screen/ws/${sid}?token=${token}`;
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -164,7 +166,7 @@ export default function ScreenViewerPage() {
     if (sessionId) {
       try {
         const token = localStorage.getItem('auth_token');
-        await fetch(`/api/v1/screen/session/${sessionId}`, {
+        await fetch(`${API_URL}/api/v1/screen/session/${sessionId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -221,7 +223,7 @@ export default function ScreenViewerPage() {
             <select
               value={quality}
               onChange={(e) => setQuality(e.target.value)}
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
+              className="bg-zinc-800 text-white border border-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="low">Low (720p, 30%)</option>
               <option value="medium">Medium (1080p, 50%)</option>
@@ -234,7 +236,7 @@ export default function ScreenViewerPage() {
             <select
               value={maxFps}
               onChange={(e) => setMaxFps(parseInt(e.target.value))}
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
+              className="bg-zinc-800 text-white border border-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="5">5 FPS</option>
               <option value="10">10 FPS</option>
@@ -248,14 +250,14 @@ export default function ScreenViewerPage() {
           {status === 'idle' || status === 'error' || status === 'closed' ? (
             <button
               onClick={startSession}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-medium"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
             >
               ▶️ Start Viewing
             </button>
           ) : (
             <button
               onClick={stopSession}
-              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-medium"
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
             >
               ⏹️ Stop
             </button>

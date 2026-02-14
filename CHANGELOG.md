@@ -1,4 +1,11 @@
 # Changelog
+## [0.4.25] — 2026-02-14
+
+### Fixed
+- **Chocolatey auto-install in remediation**: If `choco.exe` not found, auto-install Chocolatey before running remediation
+- Fallback to refreshed PATH if Chocolatey install fails
+- This fixes all "choco not recognized" remediation failures
+
 
 ## [0.4.24] — 2026-02-14
 

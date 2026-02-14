@@ -337,13 +337,27 @@ public class RemediationPoller : BackgroundService
             }
         }
 
-        // Choco is usually in PATH, but check anyway
+        // Handle choco commands - ensure Chocolatey is installed and use full path
         if (command.StartsWith("choco ", StringComparison.OrdinalIgnoreCase))
         {
             var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
+            
+            // If Chocolatey not installed, try to install it first
+            if (!File.Exists(chocoPath))
+            {
+                _logger.LogWarning("Chocolatey not found at {Path} - attempting auto-install", chocoPath);
+                TryInstallChocolatey();
+            }
+            
             if (File.Exists(chocoPath))
             {
                 command = $"& \"{chocoPath}\" {command[6..]}";
+            }
+            else
+            {
+                // Chocolatey still not available - try with refreshed PATH
+                _logger.LogWarning("Chocolatey install may have failed, trying with refreshed environment");
+                command = $"$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine'); choco {command[6..]}";
             }
         }
 
