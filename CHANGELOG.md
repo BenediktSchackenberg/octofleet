@@ -1,4 +1,19 @@
 # CHANGELOG.md — Release History
+## [0.4.19] - 2026-02-14
+
+### Added
+- **E16 Live View**: Real-time monitoring dashboard
+  - SSE streaming endpoint for live data
+  - Tab-based UI: Overview | Logs | Processes
+  - Live event logs with filter/search
+  - Top 20 processes by CPU usage
+  - Sparkline charts for CPU/Memory history
+- **LiveDataPoller**: Agent sends metrics every 5 seconds
+- **ProcessCollector**: Captures process CPU%, memory, user, threads
+
+### Changed
+- Live View button (🔴) added to node detail page
+
 
 All notable changes to the OpenClaw Windows Agent.
 
