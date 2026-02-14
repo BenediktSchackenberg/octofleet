@@ -714,3 +714,8 @@ GROUP BY j.id, j.name, j.job_type, j.is_enabled, j.created_at;
 
 -- Add missing columns
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS display_name TEXT;
+
+-- Additional columns for API compatibility
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS vendor TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_id UUID;
+ALTER TABLE job_results ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE CASCADE;
