@@ -4056,56 +4056,7 @@ async def get_fleet_performance(hours: int = 1, db: asyncpg.Pool = Depends(get_d
         }
 
 
-@app.get("/api/v1/nodes/{node_id}/metrics/history", dependencies=[Depends(verify_api_key)])
-async def get_node_metrics_history(node_id: str, days: int = 7, db: asyncpg.Pool = Depends(get_db)):
-    """
-    Get historical metrics for a node aggregated by hour for charts.
-    Returns hourly averages for the last N days.
-    """
-    async with db.acquire() as conn:
-        # Resolve node UUID
-        node = await conn.fetchrow(
-            "SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", 
-            node_id
-        )
-        if not node:
-            raise HTTPException(status_code=404, detail="Node not found")
-        
-        # Get hourly aggregated data
-        rows = await conn.fetch("""
-            SELECT 
-                time_bucket('1 hour', time) as bucket,
-                ROUND(AVG(cpu_percent)::numeric, 1) as avg_cpu,
-                ROUND(MAX(cpu_percent)::numeric, 1) as max_cpu,
-                ROUND(AVG(ram_percent)::numeric, 1) as avg_ram,
-                ROUND(MAX(ram_percent)::numeric, 1) as max_ram,
-                ROUND(AVG(disk_percent)::numeric, 1) as avg_disk,
-                ROUND(AVG(network_in_mb)::numeric, 2) as avg_net_in,
-                ROUND(AVG(network_out_mb)::numeric, 2) as avg_net_out,
-                COUNT(*)::int as samples
-            FROM node_metrics
-            WHERE node_id = $1 AND time > NOW() - INTERVAL '1 day' * $2
-            GROUP BY bucket
-            ORDER BY bucket ASC
-        """, node["id"], days)
-        
-        data_points = []
-        for row in rows:
-            data_points.append({
-                "time": row["bucket"].isoformat(),
-                "cpu": {"avg": float(row["avg_cpu"]) if row["avg_cpu"] else None, "max": float(row["max_cpu"]) if row["max_cpu"] else None},
-                "ram": {"avg": float(row["avg_ram"]) if row["avg_ram"] else None, "max": float(row["max_ram"]) if row["max_ram"] else None},
-                "disk": {"avg": float(row["avg_disk"]) if row["avg_disk"] else None},
-                "network": {"in": float(row["avg_net_in"]) if row["avg_net_in"] else None, "out": float(row["avg_net_out"]) if row["avg_net_out"] else None},
-                "samples": row["samples"],
-            })
-        
-        return {
-            "nodeId": node_id,
-            "days": days,
-            "dataPoints": len(data_points),
-            "history": data_points
-        }
+# NOTE: metrics/history endpoint moved to Line ~6990 with more parameters
 
 
 # ========== E5: Deployment Engine ==========
@@ -6724,6 +6675,7 @@ async def live_data_generator(node_id: str, session_id: str):
     last_metrics_time = 0
     last_processes_time = 0
     last_logs_time = 0
+    last_network_time = 0
     last_log_id = 0  # Track last seen log ID
     
     try:
@@ -6834,14 +6786,15 @@ async def live_data_generator(node_id: str, session_id: str):
                 last_logs_time = now
             
             # Send network data every 5 seconds (from cache)
-            if now - last_processes_time >= 5:  # Reuse processes timer
-                if node_id in live_network_cache:
-                    net_data = live_network_cache[node_id]
-                    data = {
-                        "type": "network",
-                        "data": net_data
-                    }
-                    yield f"event: network\ndata: {json.dumps(data)}\n\n"
+            # NOTE: Check BEFORE updating last_processes_time below
+            if node_id in live_network_cache and now - last_network_time >= 5:
+                net_data = live_network_cache[node_id]
+                data = {
+                    "type": "network",
+                    "data": net_data
+                }
+                yield f"event: network\ndata: {json.dumps(data)}\n\n"
+                last_network_time = now
             
             # Heartbeat every 10 seconds
             yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"

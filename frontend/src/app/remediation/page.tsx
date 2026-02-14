@@ -119,10 +119,16 @@ export default function RemediationPage() {
   }, [token]);
 
   const runScan = async (dryRun: boolean = true) => {
-    if (!token) return;
+    console.log('[Remediation] runScan called, dryRun:', dryRun, 'token:', token ? 'present' : 'MISSING');
+    if (!token) {
+      console.error('[Remediation] No token available for scan!');
+      alert('Not authenticated. Please log in again.');
+      return;
+    }
     setScanning(true);
     setScanResult(null);
     try {
+      console.log('[Remediation] Making POST request to:', `${API_BASE}/api/v1/remediation/scan`);
       const res = await fetch(`${API_BASE}/api/v1/remediation/scan`, {
         method: 'POST',
         headers: {
@@ -134,15 +140,22 @@ export default function RemediationPage() {
           dry_run: dryRun,
         }),
       });
+      console.log('[Remediation] Response status:', res.status);
       if (res.ok) {
         const result = await res.json();
+        console.log('[Remediation] Scan result:', result);
         setScanResult(result);
         if (!dryRun) {
           fetchData(); // Refresh after real scan
         }
+      } else {
+        const errorText = await res.text();
+        console.error('[Remediation] Scan failed:', res.status, errorText);
+        alert(`Scan failed: ${res.status} - ${errorText}`);
       }
     } catch (error) {
       console.error('Scan error:', error);
+      alert(`Scan error: ${error}`);
     }
     setScanning(false);
   };
@@ -203,6 +216,7 @@ export default function RemediationPage() {
           </div>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => runScan(true)}
               disabled={scanning}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center gap-2 disabled:opacity-50"
@@ -211,6 +225,7 @@ export default function RemediationPage() {
               Dry Run
             </button>
             <button
+              type="button"
               onClick={() => runScan(false)}
               disabled={scanning}
               className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg flex items-center gap-2 disabled:opacity-50"
