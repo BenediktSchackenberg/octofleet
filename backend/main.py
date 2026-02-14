@@ -775,7 +775,16 @@ async def get_fleet_hardware(db: asyncpg.Pool = Depends(get_db)):
             # Storage aggregation
             if row['disks']:
                 disks = json.loads(row['disks'])
-                for vol in disks.get('volumes', []):
+                # Handle both dict with 'volumes' key and direct list
+                volumes = []
+                if isinstance(disks, dict):
+                    volumes = disks.get('volumes', [])
+                elif isinstance(disks, list):
+                    volumes = disks
+                
+                for vol in volumes:
+                    if not isinstance(vol, dict):
+                        continue
                     size_gb = vol.get('sizeGB', 0)
                     free_gb = vol.get('freeGB', 0)
                     total_storage_tb += size_gb / 1024
