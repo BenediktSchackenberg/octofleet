@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -17,19 +18,17 @@ namespace OpenClawAgent.Service;
 public class LiveDataPoller : BackgroundService
 {
     private readonly ILogger<LiveDataPoller> _logger;
+    private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
-    private readonly string _nodeId;
-    private readonly string _backendUrl;
     private readonly ProcessCollector _processCollector;
 
     private const int PollIntervalSeconds = 5;
 
-    public LiveDataPoller(ILogger<LiveDataPoller> logger, IHttpClientFactory httpClientFactory, ConfigService config)
+    public LiveDataPoller(ILogger<LiveDataPoller> logger, ServiceConfig config)
     {
         _logger = logger;
-        _httpClient = httpClientFactory.CreateClient("Backend");
-        _nodeId = config.NodeId;
-        _backendUrl = config.BackendUrl;
+        _config = config;
+        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         _processCollector = new ProcessCollector(logger);
     }
 
@@ -37,7 +36,13 @@ public class LiveDataPoller : BackgroundService
     {
         _logger.LogInformation("LiveDataPoller started, polling every {Interval}s", PollIntervalSeconds);
 
-        // Wait a bit before starting
+        // Wait for config to be ready
+        while (!stoppingToken.IsCancellationRequested && string.IsNullOrEmpty(_config.NodeId))
+        {
+            await Task.Delay(1000, stoppingToken);
+        }
+
+        // Initial delay
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -57,6 +62,11 @@ public class LiveDataPoller : BackgroundService
 
     private async Task PushLiveData(CancellationToken ct)
     {
+        if (string.IsNullOrEmpty(_config.BackendUrl) || string.IsNullOrEmpty(_config.NodeId))
+        {
+            return;
+        }
+
         // Get processes
         var processes = _processCollector.GetTopProcesses(20);
 
@@ -65,7 +75,7 @@ public class LiveDataPoller : BackgroundService
 
         var payload = new
         {
-            nodeId = _nodeId,
+            nodeId = _config.NodeId,
             timestamp = DateTime.UtcNow.ToString("o"),
             metrics = new
             {
@@ -87,7 +97,7 @@ public class LiveDataPoller : BackgroundService
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var response = await _httpClient.PostAsync($"{_backendUrl}/api/v1/live-data", content, ct);
+        var response = await _httpClient.PostAsync($"{_config.BackendUrl}/api/v1/live-data", content, ct);
         
         if (response.IsSuccessStatusCode)
         {
