@@ -9,7 +9,7 @@
 #>
 
 BeforeAll {
-    $InstallerPath = Join-Path $PSScriptRoot "..\..\scripts\Install-OpenClawAgent.ps1"
+    $InstallerPath = Join-Path $PSScriptRoot "..\..\installer\Install-OpenClawAgent.ps1"
     
     # Mock functions for testing without side effects
     function Get-InstallerContent {
