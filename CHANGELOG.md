@@ -1,4 +1,13 @@
-# CHANGELOG.md — Release History
+# Changelog
+
+## [0.4.20] - 2026-02-14
+
+### Fixed
+- AutoUpdater now accepts ZIP assets without `win-x64` in filename
+- This allows updates from releases with simplified asset naming
+
+## [0.4.19] - 2026-02-14
+
 ## [0.4.19] - 2026-02-14
 
 ### Added

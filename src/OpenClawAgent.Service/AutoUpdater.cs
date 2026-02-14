@@ -165,13 +165,17 @@ public class AutoUpdater : BackgroundService
                 return null;
             }
             
-            // Find Windows x64 ZIP asset
+            // Find Windows x64 ZIP asset (try specific name first, then fallback to any ZIP)
             var zipAsset = release.Assets?.FirstOrDefault(a => 
                 a.Name?.Contains("win-x64") == true && a.Name.EndsWith(".zip"));
             
+            // Fallback: any .zip that's not a checksum file
+            zipAsset ??= release.Assets?.FirstOrDefault(a =>
+                a.Name?.EndsWith(".zip") == true && !a.Name.Contains(".sha256"));
+            
             if (zipAsset?.BrowserDownloadUrl == null)
             {
-                _logger.LogWarning("No Windows x64 ZIP found in GitHub release");
+                _logger.LogWarning("No ZIP asset found in GitHub release");
                 return null;
             }
             
