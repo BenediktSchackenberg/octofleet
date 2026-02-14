@@ -192,8 +192,9 @@ public static class SystemCollector
                 }
             }
             
-            // Agent version
-            result.AgentVersion = "0.3.12";
+            // Agent version - read from assembly
+            result.AgentVersion = System.Reflection.Assembly.GetExecutingAssembly()
+                .GetName().Version?.ToString(3) ?? "unknown";
             
             return result;
         }
