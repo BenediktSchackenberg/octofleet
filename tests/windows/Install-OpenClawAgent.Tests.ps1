@@ -54,9 +54,9 @@ Describe "Install-OpenClawAgent.ps1 Script Validation" {
             $content | Should -Match '\[string\]\s*\$EnrollToken'
         }
         
-        It "Has InstallPath parameter with default" {
+        It "Has InstallDir variable with default" {
             $content = Get-InstallerContent
-            $content | Should -Match '\$InstallPath.*=.*"C:\\Program Files\\OpenClaw"'
+            $content | Should -Match '\$InstallDir.*=.*"C:\\Program Files\\OpenClaw'
         }
         
         It "Has Force switch parameter" {
