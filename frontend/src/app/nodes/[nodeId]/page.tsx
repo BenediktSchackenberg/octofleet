@@ -405,11 +405,6 @@ export default function NodeDetailPage() {
                 onTagsChanged={fetchNodeDetails} 
               />
             )}
-            <Link href={`/nodes/${nodeId}/live`}>
-              <Button variant="outline" className="bg-red-500/10 border-red-500 text-red-500 hover:bg-red-500/20">
-                🔴 Live View
-              </Button>
-            </Link>
             <Link href={`/nodes/${nodeId}/screen`}>
               <Button variant="outline" className="bg-purple-500/10 border-purple-500 text-purple-500 hover:bg-purple-500/20">
                 🖥️ Screen
@@ -566,7 +561,7 @@ export default function NodeDetailPage() {
 
           {/* Performance Tab */}
           <TabsContent value="performance">
-            {node && <PerformanceTab nodeId={node.id} />}
+            {node && <PerformanceTab nodeId={node.node_id} />}
           </TabsContent>
 
           {/* Hardware Tab */}
