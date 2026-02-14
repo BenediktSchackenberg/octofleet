@@ -748,6 +748,10 @@ async def get_fleet_hardware(db: asyncpg.Pool = Depends(get_db)):
         total_storage_tb = 0
         total_free_storage_tb = 0
         disk_health = {"healthy": 0, "warning": 0, "critical": 0}
+        physical_disk_health = {"healthy": 0, "warning": 0, "unhealthy": 0, "unknown": 0}
+        disk_types = {"ssd": 0, "hdd": 0, "unknown": 0}
+        bus_types = {}
+        physical_disks = []
         nodes_with_issues = []
         
         for row in rows:
@@ -777,10 +781,65 @@ async def get_fleet_hardware(db: asyncpg.Pool = Depends(get_db)):
                 disks = json.loads(row['disks'])
                 # Handle both dict with 'volumes' key and direct list
                 volumes = []
+                physical = []
                 if isinstance(disks, dict):
                     volumes = disks.get('volumes', [])
+                    physical = disks.get('physical', [])
                 elif isinstance(disks, list):
                     volumes = disks
+                
+                # Process physical disks (SMART data)
+                for pdisk in physical:
+                    if not isinstance(pdisk, dict):
+                        continue
+                    
+                    health = (pdisk.get('healthStatus') or 'unknown').lower()
+                    if health == 'healthy':
+                        physical_disk_health['healthy'] += 1
+                    elif health == 'warning':
+                        physical_disk_health['warning'] += 1
+                        nodes_with_issues.append({
+                            "nodeId": row['node_id'],
+                            "hostname": row['hostname'],
+                            "issue": f"Disk {pdisk.get('model', '?')} health warning",
+                            "severity": "warning"
+                        })
+                    elif health == 'unhealthy':
+                        physical_disk_health['unhealthy'] += 1
+                        nodes_with_issues.append({
+                            "nodeId": row['node_id'],
+                            "hostname": row['hostname'],
+                            "issue": f"Disk {pdisk.get('model', '?')} UNHEALTHY!",
+                            "severity": "critical"
+                        })
+                    else:
+                        physical_disk_health['unknown'] += 1
+                    
+                    # SSD vs HDD
+                    is_ssd = pdisk.get('isSsd')
+                    if is_ssd is True:
+                        disk_types['ssd'] += 1
+                    elif is_ssd is False:
+                        disk_types['hdd'] += 1
+                    else:
+                        disk_types['unknown'] += 1
+                    
+                    # Bus types
+                    bus = pdisk.get('busType', 'Unknown')
+                    bus_types[bus] = bus_types.get(bus, 0) + 1
+                    
+                    # Track individual physical disks
+                    physical_disks.append({
+                        "nodeId": row['node_id'],
+                        "hostname": row['hostname'],
+                        "model": pdisk.get('model'),
+                        "sizeGB": pdisk.get('sizeGB', 0),
+                        "busType": bus,
+                        "isSsd": is_ssd,
+                        "healthStatus": pdisk.get('healthStatus', 'Unknown'),
+                        "temperature": pdisk.get('temperature'),
+                        "wearLevel": pdisk.get('wearLevel')
+                    })
                 
                 for vol in volumes:
                     if not isinstance(vol, dict):
@@ -813,6 +872,13 @@ async def get_fleet_hardware(db: asyncpg.Pool = Depends(get_db)):
         
         # Sort CPU types by count
         top_cpus = sorted(cpu_types.items(), key=lambda x: x[1], reverse=True)[:10]
+        top_bus_types = sorted(bus_types.items(), key=lambda x: x[1], reverse=True)
+        
+        # Sort physical disks by health (unhealthy first), then by hostname
+        physical_disks.sort(key=lambda d: (
+            0 if d['healthStatus'] == 'Unhealthy' else 1 if d['healthStatus'] == 'Warning' else 2,
+            d['hostname']
+        ))
         
         return {
             "nodeCount": len(rows),
@@ -825,6 +891,10 @@ async def get_fleet_hardware(db: asyncpg.Pool = Depends(get_db)):
                 "usedPercent": round((total_storage_tb - total_free_storage_tb) / total_storage_tb * 100, 1) if total_storage_tb > 0 else 0
             },
             "diskHealth": disk_health,
+            "physicalDiskHealth": physical_disk_health,
+            "diskTypes": disk_types,
+            "busTypes": [{"name": name, "count": count} for name, count in top_bus_types],
+            "physicalDisks": physical_disks[:50],  # Top 50 disks
             "issues": nodes_with_issues[:20]  # Top 20 issues
         }
 

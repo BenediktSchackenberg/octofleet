@@ -50,6 +50,13 @@ public class DiskInfo
     public string? MediaType { get; set; }
     public int Partitions { get; set; }
     public string? DeviceId { get; set; }
+    // SMART / Health data
+    public string? HealthStatus { get; set; }  // Healthy, Warning, Unhealthy, Unknown
+    public string? BusType { get; set; }       // NVMe, SATA, SAS, USB
+    public bool? IsSsd { get; set; }
+    public int? Temperature { get; set; }      // Celsius (if available)
+    public int? PowerOnHours { get; set; }     // Total hours powered on
+    public int? WearLevel { get; set; }        // SSD wear percentage (0-100)
 }
 
 public class VolumeInfo
@@ -287,24 +294,50 @@ public static class HardwareCollector
 
         try
         {
-            // Physical disks
+            // Get SMART/Health data from Storage WMI provider (MSFT_PhysicalDisk)
+            var healthData = GetDiskHealthData();
+            
+            // Physical disks from Win32_DiskDrive
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_DiskDrive"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
                     var sizeBytes = Convert.ToInt64(obj["Size"] ?? 0);
+                    var model = obj["Model"]?.ToString()?.Trim() ?? "";
+                    var serialNumber = obj["SerialNumber"]?.ToString()?.Trim();
                     
-                    result.Physical.Add(new DiskInfo
+                    var disk = new DiskInfo
                     {
-                        Model = obj["Model"]?.ToString()?.Trim(),
+                        Model = model,
                         Manufacturer = obj["Manufacturer"]?.ToString()?.Trim(),
-                        SerialNumber = obj["SerialNumber"]?.ToString()?.Trim(),
+                        SerialNumber = serialNumber,
                         SizeGB = Math.Round(sizeBytes / 1024.0 / 1024.0 / 1024.0, 2),
                         InterfaceType = obj["InterfaceType"]?.ToString(),
                         MediaType = obj["MediaType"]?.ToString(),
                         Partitions = Convert.ToInt32(obj["Partitions"] ?? 0),
                         DeviceId = obj["DeviceID"]?.ToString()
-                    });
+                    };
+                    
+                    // Try to match with SMART data by serial number or model
+                    var matchKey = serialNumber ?? model;
+                    if (!string.IsNullOrEmpty(matchKey) && healthData.TryGetValue(matchKey, out var health))
+                    {
+                        disk.HealthStatus = health.HealthStatus;
+                        disk.BusType = health.BusType;
+                        disk.IsSsd = health.IsSsd;
+                        disk.Temperature = health.Temperature;
+                        disk.PowerOnHours = health.PowerOnHours;
+                        disk.WearLevel = health.WearLevel;
+                    }
+                    // Also try matching by model if serial didn't match
+                    else if (!string.IsNullOrEmpty(model) && healthData.TryGetValue(model, out health))
+                    {
+                        disk.HealthStatus = health.HealthStatus;
+                        disk.BusType = health.BusType;
+                        disk.IsSsd = health.IsSsd;
+                    }
+                    
+                    result.Physical.Add(disk);
                 }
             }
 
@@ -336,6 +369,142 @@ public static class HardwareCollector
         {
             return result;
         }
+    }
+
+    private static Dictionary<string, DiskHealthInfo> GetDiskHealthData()
+    {
+        var healthData = new Dictionary<string, DiskHealthInfo>(StringComparer.OrdinalIgnoreCase);
+        
+        try
+        {
+            // Use Storage WMI provider for SMART data
+            var scope = new ManagementScope(@"\\.\root\Microsoft\Windows\Storage");
+            scope.Connect();
+            
+            using var searcher = new ManagementObjectSearcher(scope, 
+                new ObjectQuery("SELECT * FROM MSFT_PhysicalDisk"));
+            
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var serialNumber = obj["SerialNumber"]?.ToString()?.Trim();
+                var model = obj["Model"]?.ToString()?.Trim();
+                var key = serialNumber ?? model ?? "";
+                
+                if (string.IsNullOrEmpty(key)) continue;
+                
+                var health = new DiskHealthInfo
+                {
+                    HealthStatus = GetHealthStatus(obj["HealthStatus"]),
+                    BusType = GetBusType(obj["BusType"]),
+                    IsSsd = IsSolidStateDrive(obj["MediaType"])
+                };
+                
+                healthData[key] = health;
+                
+                // Also index by model for fallback matching
+                if (!string.IsNullOrEmpty(model) && !healthData.ContainsKey(model))
+                {
+                    healthData[model] = health;
+                }
+            }
+        }
+        catch
+        {
+            // Storage WMI provider not available (older Windows, minimal installs)
+        }
+        
+        // Try to get temperature from MSFT_StorageReliabilityCounter
+        try
+        {
+            var scope = new ManagementScope(@"\\.\root\Microsoft\Windows\Storage");
+            scope.Connect();
+            
+            using var searcher = new ManagementObjectSearcher(scope,
+                new ObjectQuery("SELECT * FROM MSFT_StorageReliabilityCounter"));
+            
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var deviceId = obj["DeviceId"]?.ToString() ?? "";
+                var temp = obj["Temperature"];
+                var powerOn = obj["PowerOnHours"];
+                var wear = obj["Wear"];
+                
+                // Try to find matching disk in our health data
+                foreach (var kvp in healthData)
+                {
+                    if (deviceId.Contains(kvp.Key) || kvp.Key.Contains(deviceId.Split('\\').LastOrDefault() ?? ""))
+                    {
+                        if (temp != null) kvp.Value.Temperature = Convert.ToInt32(temp);
+                        if (powerOn != null) kvp.Value.PowerOnHours = Convert.ToInt32(powerOn);
+                        if (wear != null) kvp.Value.WearLevel = Convert.ToInt32(wear);
+                        break;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Reliability counters not available
+        }
+        
+        return healthData;
+    }
+
+    private class DiskHealthInfo
+    {
+        public string? HealthStatus { get; set; }
+        public string? BusType { get; set; }
+        public bool? IsSsd { get; set; }
+        public int? Temperature { get; set; }
+        public int? PowerOnHours { get; set; }
+        public int? WearLevel { get; set; }
+    }
+
+    private static string GetHealthStatus(object? status)
+    {
+        if (status == null) return "Unknown";
+        return Convert.ToInt32(status) switch
+        {
+            0 => "Healthy",
+            1 => "Warning",
+            2 => "Unhealthy",
+            5 => "Unknown",
+            _ => "Unknown"
+        };
+    }
+
+    private static string GetBusType(object? busType)
+    {
+        if (busType == null) return "Unknown";
+        return Convert.ToInt32(busType) switch
+        {
+            1 => "SCSI",
+            2 => "ATAPI",
+            3 => "ATA",
+            4 => "1394",
+            5 => "SSA",
+            6 => "Fibre Channel",
+            7 => "USB",
+            8 => "RAID",
+            9 => "iSCSI",
+            10 => "SAS",
+            11 => "SATA",
+            12 => "SD",
+            13 => "MMC",
+            14 => "MAX",
+            15 => "File Backed Virtual",
+            16 => "Storage Spaces",
+            17 => "NVMe",
+            18 => "Microsoft Reserved",
+            _ => "Unknown"
+        };
+    }
+
+    private static bool IsSolidStateDrive(object? mediaType)
+    {
+        if (mediaType == null) return false;
+        // 4 = SSD, 3 = HDD
+        return Convert.ToInt32(mediaType) == 4;
     }
 
     private static MainboardInfo GetMainboardInfo()
