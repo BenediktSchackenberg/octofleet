@@ -729,6 +729,97 @@ async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         }}
 
 
+@app.get("/api/v1/hardware/fleet")
+async def get_fleet_hardware(db: asyncpg.Pool = Depends(get_db)):
+    """Get aggregated hardware data across all nodes for fleet dashboard"""
+    async with db.acquire() as conn:
+        # Get all hardware data
+        rows = await conn.fetch("""
+            SELECT n.id, n.hostname, n.node_id, n.last_seen,
+                   h.cpu, h.ram, h.disks, h.gpu, h.updated_at
+            FROM nodes n
+            LEFT JOIN hardware_current h ON n.id = h.node_id
+            WHERE n.last_seen > NOW() - INTERVAL '30 days'
+        """)
+        
+        # Aggregations
+        cpu_types = {}
+        ram_distribution = {"8GB": 0, "16GB": 0, "32GB": 0, "64GB+": 0}
+        total_storage_tb = 0
+        total_free_storage_tb = 0
+        disk_health = {"healthy": 0, "warning": 0, "critical": 0}
+        nodes_with_issues = []
+        
+        for row in rows:
+            # CPU aggregation
+            if row['cpu']:
+                cpu = json.loads(row['cpu'])
+                cpu_name = cpu.get('name', 'Unknown')
+                # Normalize CPU name
+                cpu_short = cpu_name.split('@')[0].strip() if '@' in cpu_name else cpu_name
+                cpu_types[cpu_short] = cpu_types.get(cpu_short, 0) + 1
+            
+            # RAM aggregation
+            if row['ram']:
+                ram = json.loads(row['ram'])
+                total_gb = ram.get('totalGB', 0)
+                if total_gb >= 64:
+                    ram_distribution["64GB+"] += 1
+                elif total_gb >= 32:
+                    ram_distribution["32GB"] += 1
+                elif total_gb >= 16:
+                    ram_distribution["16GB"] += 1
+                else:
+                    ram_distribution["8GB"] += 1
+            
+            # Storage aggregation
+            if row['disks']:
+                disks = json.loads(row['disks'])
+                for vol in disks.get('volumes', []):
+                    size_gb = vol.get('sizeGB', 0)
+                    free_gb = vol.get('freeGB', 0)
+                    total_storage_tb += size_gb / 1024
+                    total_free_storage_tb += free_gb / 1024
+                    
+                    # Check disk health
+                    used_percent = vol.get('usedPercent', 0)
+                    if used_percent > 95:
+                        disk_health["critical"] += 1
+                        nodes_with_issues.append({
+                            "nodeId": row['node_id'],
+                            "hostname": row['hostname'],
+                            "issue": f"Disk {vol.get('driveLetter', '?')} at {used_percent:.0f}% full",
+                            "severity": "critical"
+                        })
+                    elif used_percent > 85:
+                        disk_health["warning"] += 1
+                        nodes_with_issues.append({
+                            "nodeId": row['node_id'],
+                            "hostname": row['hostname'],
+                            "issue": f"Disk {vol.get('driveLetter', '?')} at {used_percent:.0f}% full",
+                            "severity": "warning"
+                        })
+                    else:
+                        disk_health["healthy"] += 1
+        
+        # Sort CPU types by count
+        top_cpus = sorted(cpu_types.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        return {
+            "nodeCount": len(rows),
+            "cpuTypes": [{"name": name, "count": count} for name, count in top_cpus],
+            "ramDistribution": ram_distribution,
+            "storage": {
+                "totalTB": round(total_storage_tb, 2),
+                "freeTB": round(total_free_storage_tb, 2),
+                "usedTB": round(total_storage_tb - total_free_storage_tb, 2),
+                "usedPercent": round((total_storage_tb - total_free_storage_tb) / total_storage_tb * 100, 1) if total_storage_tb > 0 else 0
+            },
+            "diskHealth": disk_health,
+            "issues": nodes_with_issues[:20]  # Top 20 issues
+        }
+
+
 @app.get("/api/v1/inventory/software/{node_id}")
 async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get software data for a node"""

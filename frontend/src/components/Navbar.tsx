@@ -58,6 +58,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/nodes", labelKey: "nav.nodes", icon: "🖥️", permission: "nodes:read" },
       { href: "/groups", labelKey: "nav.groups", icon: "📁", permission: "groups:read" },
+      { href: "/hardware", labelKey: "nav.hardware", icon: "🔧", permission: "nodes:read" },
       { href: "/software-compare", labelKey: "nav.compare", icon: "📊", permission: "nodes:read" },
     ]
   },

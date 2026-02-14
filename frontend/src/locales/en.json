@@ -34,6 +34,7 @@
     "dashboard": "Dashboard",
     "nodes": "Nodes",
     "groups": "Groups",
+    "hardware": "Hardware Fleet",
     "jobs": "Jobs",
     "packages": "Packages",
     "deployments": "Deployments",
