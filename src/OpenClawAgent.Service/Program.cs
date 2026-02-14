@@ -52,6 +52,7 @@ try
     builder.Services.AddHostedService<DeploymentPoller>();
     builder.Services.AddHostedService<RemediationPoller>();
     builder.Services.AddHostedService<AutoUpdater>();
+    builder.Services.AddHostedService<LiveDataPoller>();
 
     var host = builder.Build();
     host.Run();

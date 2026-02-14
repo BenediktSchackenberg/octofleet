@@ -6837,3 +6837,64 @@ async def stop_live_session(session_id: str, _: str = Depends(verify_api_key)):
         del live_sessions[session_id]
         return {"status": "stopped", "sessionId": session_id}
     raise HTTPException(status_code=404, detail="Session not found")
+
+
+@app.post("/api/v1/live-data")
+async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """
+    Receives live monitoring data from agents.
+    Stores metrics in node_metrics and processes in node_processes.
+    """
+    node_id_text = data.get("nodeId")
+    if not node_id_text:
+        raise HTTPException(status_code=400, detail="nodeId required")
+    
+    async with db.acquire() as conn:
+        # Get node UUID
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id_text)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        node_uuid = node['id']
+        now = dt.utcnow()
+        
+        # Store metrics
+        metrics = data.get("metrics", {})
+        if metrics:
+            await conn.execute("""
+                INSERT INTO node_metrics (time, node_id, cpu_percent, ram_percent, disk_percent)
+                VALUES ($1, $2, $3, $4, $5)
+            """, now, node_uuid, 
+                metrics.get("cpuPercent"),
+                metrics.get("memoryPercent"),
+                metrics.get("diskPercent")
+            )
+        
+        # Store processes (replace old data)
+        processes = data.get("processes", [])
+        if processes:
+            # Delete old process data for this node
+            await conn.execute(
+                "DELETE FROM node_processes WHERE node_id = $1 AND collected_at < NOW() - INTERVAL '30 seconds'",
+                node_uuid
+            )
+            
+            # Insert new process data
+            for proc in processes:
+                await conn.execute("""
+                    INSERT INTO node_processes (node_id, process_name, pid, cpu_percent, memory_mb, user_name, collected_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """, node_uuid, 
+                    proc.get("name", "unknown"),
+                    proc.get("pid", 0),
+                    proc.get("cpuPercent"),
+                    proc.get("memoryMb"),
+                    proc.get("userName"),
+                    now
+                )
+        
+        return {
+            "status": "ok",
+            "metricsStored": bool(metrics),
+            "processesStored": len(processes)
+        }
