@@ -6655,6 +6655,8 @@ async def live_data_generator(node_id: str, session_id: str):
     
     last_metrics_time = 0
     last_processes_time = 0
+    last_logs_time = 0
+    last_log_id = 0  # Track last seen log ID
     
     try:
         while session_id in live_sessions:
@@ -6716,6 +6718,52 @@ async def live_data_generator(node_id: str, session_id: str):
                         yield f"event: processes\ndata: {json.dumps(data)}\n\n"
                 
                 last_processes_time = now
+            
+            # Send new logs every 3 seconds
+            if now - last_logs_time >= 3:
+                async with db_pool.acquire() as conn:
+                    # Get new logs since last check
+                    if last_log_id == 0:
+                        # First fetch - get last 50 logs
+                        logs = await conn.fetch("""
+                            SELECT id, log_name, event_id, level, level_name, source, 
+                                   LEFT(message, 500) as message, event_time
+                            FROM eventlog_entries
+                            WHERE node_id = $1
+                            ORDER BY id DESC LIMIT 50
+                        """, node_id)
+                        logs = list(reversed(logs))  # Oldest first
+                    else:
+                        # Incremental - only new logs
+                        logs = await conn.fetch("""
+                            SELECT id, log_name, event_id, level, level_name, source,
+                                   LEFT(message, 500) as message, event_time
+                            FROM eventlog_entries
+                            WHERE node_id = $1 AND id > $2
+                            ORDER BY id ASC LIMIT 100
+                        """, node_id, last_log_id)
+                    
+                    if logs:
+                        last_log_id = logs[-1]['id']
+                        data = {
+                            "type": "logs",
+                            "data": [
+                                {
+                                    "id": log['id'],
+                                    "logName": log['log_name'],
+                                    "eventId": log['event_id'],
+                                    "level": log['level'],
+                                    "levelName": log['level_name'],
+                                    "source": log['source'],
+                                    "message": log['message'],
+                                    "timestamp": log['event_time'].isoformat() if log['event_time'] else None
+                                }
+                                for log in logs
+                            ]
+                        }
+                        yield f"event: logs\ndata: {json.dumps(data)}\n\n"
+                
+                last_logs_time = now
             
             # Heartbeat every 10 seconds
             yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"
