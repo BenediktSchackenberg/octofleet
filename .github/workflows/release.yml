@@ -10,6 +10,9 @@ on:
         description: 'Version number (e.g., 0.4.18)'
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
