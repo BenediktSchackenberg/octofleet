@@ -7,7 +7,7 @@ import httpx
 import os
 from datetime import datetime
 
-API_URL = os.getenv("API_URL", "http://192.168.0.5:8080")
+API_URL = os.getenv("API_URL", "http://localhost:8080")
 API_KEY = os.getenv("API_KEY", "openclaw-inventory-dev-key")
 
 @pytest.fixture
