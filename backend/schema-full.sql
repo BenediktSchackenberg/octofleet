@@ -1,7 +1,6 @@
 -- OpenClaw Inventory Platform - Full Database Schema
--- Extracted from production: 2026-02-14T13:56:07+00:00
--- Excludes TimescaleDB internal schemas
--- DO NOT EDIT MANUALLY
+-- Extracted from production: 2026-02-14T13:58:45+00:00
+-- Excludes TimescaleDB internal schemas and psql meta-commands
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -1202,4 +1201,3 @@ ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-\unrestrict xIzZHzf7ka3Fk1bXTpesVEBWUDyk4bn4Luih1EkmaSkVJOlhCUPYts1LNnZNKah
