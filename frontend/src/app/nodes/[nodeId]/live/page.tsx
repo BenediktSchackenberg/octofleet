@@ -46,6 +46,17 @@ interface LogEntry {
   timestamp: string | null;
 }
 
+interface NetworkInterface {
+  name: string;
+  description: string;
+  linkUp: boolean;
+  speedMbps: number;
+  rxBytesPerSec: number;
+  txBytesPerSec: number;
+  rxTotalMb: number;
+  txTotalMb: number;
+}
+
 export default function LiveViewPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
@@ -54,11 +65,12 @@ export default function LiveViewPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [processes, setProcesses] = useState<Process[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [network, setNetwork] = useState<NetworkInterface[]>([]);
   const [history, setHistory] = useState<MetricHistory[]>([]);
   const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance' | 'network'>('overview');
   const [logFilter, setLogFilter] = useState('');
   
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -119,6 +131,13 @@ export default function LiveViewPage() {
         setTimeout(() => {
           logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
+      }
+    });
+    
+    es.addEventListener('network', (e) => {
+      const { data } = JSON.parse(e.data);
+      if (data?.interfaces) {
+        setNetwork(data.interfaces);
       }
     });
     
@@ -220,7 +239,7 @@ export default function LiveViewPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-1 mb-6 border-b">
-          {(['overview', 'logs', 'processes', 'performance'] as const).map(tab => (
+          {(['overview', 'logs', 'processes', 'performance', 'network'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -234,6 +253,7 @@ export default function LiveViewPage() {
               {tab === 'logs' && `📜 Logs (${logs.length})`}
               {tab === 'processes' && `⚙️ Processes (${processes.length})`}
               {tab === 'performance' && '📈 Performance'}
+              {tab === 'network' && `🌐 Network (${network.length})`}
             </button>
           ))}
         </div>
@@ -436,9 +456,77 @@ export default function LiveViewPage() {
         {activeTab === 'performance' && (
           <PerformanceChart nodeId={nodeId} />
         )}
+
+        {/* Network Tab */}
+        {activeTab === 'network' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>🌐 Network Interfaces</CardTitle>
+              <CardDescription>
+                {network.length > 0 ? `${network.length} interfaces` : 'Waiting for data...'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {network.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {network.map((iface, i) => (
+                    <Card key={i} className={!iface.linkUp ? 'opacity-50 border-red-500' : ''}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg">{iface.name}</CardTitle>
+                          <Badge variant={iface.linkUp ? "default" : "destructive"} className={iface.linkUp ? "bg-green-500" : ""}>
+                            {iface.linkUp ? '🟢 Up' : '🔴 Down'}
+                          </Badge>
+                        </div>
+                        <CardDescription className="text-xs truncate">{iface.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Speed</span>
+                            <div className="font-mono">{iface.speedMbps > 0 ? `${iface.speedMbps} Mbps` : '-'}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Total</span>
+                            <div className="font-mono">
+                              ↓{iface.rxTotalMb.toFixed(0)}MB ↑{iface.txTotalMb.toFixed(0)}MB
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-green-500">↓ Download</span>
+                            <div className="font-mono text-lg font-bold">
+                              {formatBytesPerSec(iface.rxBytesPerSec)}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-blue-500">↑ Upload</span>
+                            <div className="font-mono text-lg font-bold">
+                              {formatBytesPerSec(iface.txBytesPerSec)}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {connected ? 'Waiting for network data...' : 'Connect to see network interfaces'}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </main>
   );
+}
+
+// Helper to format bytes/sec
+function formatBytesPerSec(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB/s`;
+  return `${bytes.toFixed(0)} B/s`;
 }
 
 // Separate component for Performance Charts

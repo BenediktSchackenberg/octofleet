@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -21,6 +23,9 @@ public class LiveDataPoller : BackgroundService
     private readonly HttpClient _httpClient;
     private readonly ProcessCollector _processCollector;
     private readonly string _nodeId;
+    
+    // Network rate calculation cache
+    private Dictionary<string, (long rxBytes, long txBytes, DateTime time)> _lastNetworkStats = new();
 
     private const int PollIntervalSeconds = 5;
 
@@ -100,6 +105,52 @@ public class LiveDataPoller : BackgroundService
             _logger.LogDebug(ex, "Could not get system metrics");
         }
 
+        // Get network interface stats
+        var networkInterfaces = new List<object>();
+        try
+        {
+            var now = DateTime.UtcNow;
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                if (nic.OperationalStatus != OperationalStatus.Up && 
+                    nic.OperationalStatus != OperationalStatus.Down) continue;
+
+                var stats = nic.GetIPv4Statistics();
+                var rxBytes = stats.BytesReceived;
+                var txBytes = stats.BytesSent;
+                
+                double rxBytesPerSec = 0, txBytesPerSec = 0;
+                
+                if (_lastNetworkStats.TryGetValue(nic.Name, out var last))
+                {
+                    var elapsed = (now - last.time).TotalSeconds;
+                    if (elapsed > 0)
+                    {
+                        rxBytesPerSec = (rxBytes - last.rxBytes) / elapsed;
+                        txBytesPerSec = (txBytes - last.txBytes) / elapsed;
+                    }
+                }
+                _lastNetworkStats[nic.Name] = (rxBytes, txBytes, now);
+
+                networkInterfaces.Add(new
+                {
+                    name = nic.Name,
+                    description = nic.Description,
+                    linkUp = nic.OperationalStatus == OperationalStatus.Up,
+                    speedMbps = nic.Speed / 1_000_000,
+                    rxBytesPerSec = Math.Round(rxBytesPerSec, 0),
+                    txBytesPerSec = Math.Round(txBytesPerSec, 0),
+                    rxTotalMb = Math.Round(rxBytes / (1024.0 * 1024.0), 1),
+                    txTotalMb = Math.Round(txBytes / (1024.0 * 1024.0), 1)
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not get network stats");
+        }
+
         var payload = new
         {
             nodeId = _nodeId,
@@ -118,7 +169,8 @@ public class LiveDataPoller : BackgroundService
                 memoryMb = p.MemoryMb,
                 userName = p.UserName,
                 threadCount = p.ThreadCount
-            })
+            }),
+            network = networkInterfaces
         };
 
         var json = JsonSerializer.Serialize(payload);

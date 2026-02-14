@@ -6647,6 +6647,9 @@ from datetime import datetime as dt
 # Store active live sessions
 live_sessions: Dict[str, Dict] = {}
 
+# Cache for live network data (node_id -> network data)
+live_network_cache: Dict[str, Dict] = {}
+
 async def live_data_generator(node_id: str, session_id: str):
     """Generator for SSE live data stream"""
     
@@ -6764,6 +6767,16 @@ async def live_data_generator(node_id: str, session_id: str):
                         yield f"event: logs\ndata: {json.dumps(data)}\n\n"
                 
                 last_logs_time = now
+            
+            # Send network data every 5 seconds (from cache)
+            if now - last_processes_time >= 5:  # Reuse processes timer
+                if node_id in live_network_cache:
+                    net_data = live_network_cache[node_id]
+                    data = {
+                        "type": "network",
+                        "data": net_data
+                    }
+                    yield f"event: network\ndata: {json.dumps(data)}\n\n"
             
             # Heartbeat every 10 seconds
             yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"
@@ -6893,10 +6906,19 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
                     now
                 )
         
+        # Cache network data for SSE streaming
+        network = data.get("network", [])
+        if network:
+            live_network_cache[node_id_text] = {
+                "timestamp": now.isoformat(),
+                "interfaces": network
+            }
+        
         return {
             "status": "ok",
             "metricsStored": bool(metrics),
-            "processesStored": len(processes)
+            "processesStored": len(processes),
+            "networkCached": len(network)
         }
 
 
