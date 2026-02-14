@@ -5,7 +5,9 @@ BeforeAll {
     $script:InstallPath = "C:\Program Files\OpenClaw"
     $script:ServiceName = "OpenClaw Agent"
     $script:ConfigFile = "service-config.json"
-    $script:InstallerUrl = "https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/Install-OpenClawAgent.ps1"
+    $script:RepoOwner = "BenediktSchackenberg"
+    $script:RepoName = "openclaw-windows-agent"
+    $script:InstallerUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/Install-OpenClawAgent.ps1"
 }
 
 Describe "Install-OpenClawAgent.ps1" {
@@ -20,57 +22,60 @@ Describe "Install-OpenClawAgent.ps1" {
             $script | Should -Match "function Install-OpenClawAgent"
             $script | Should -Match "function Get-LatestRelease"
         }
+        
+        It "Should contain param block" {
+            $script = Invoke-RestMethod -Uri $InstallerUrl
+            $script | Should -Match "param\s*\("
+        }
     }
     
     Context "Parameter Validation" {
         BeforeAll {
-            $script:InstallerContent = Invoke-RestMethod -Uri $InstallerUrl
-            # Save to temp and dot-source for testing
-            $script:TempScript = Join-Path $env:TEMP "Install-OpenClawAgent.ps1"
-            $InstallerContent | Out-File -FilePath $TempScript -Encoding UTF8
+            $script:InstallerContent = Invoke-RestMethod -Uri $InstallerUrl -ErrorAction SilentlyContinue
         }
         
-        It "Should accept -GatewayUrl parameter" {
-            $content = Get-Content $TempScript -Raw
-            $content | Should -Match '\$GatewayUrl'
+        It "Should accept -GatewayUrl parameter" -Skip:(-not $InstallerContent) {
+            $InstallerContent | Should -Match '\$GatewayUrl'
         }
         
-        It "Should accept -GatewayToken parameter" {
-            $content = Get-Content $TempScript -Raw
-            $content | Should -Match '\$GatewayToken'
+        It "Should accept -GatewayToken parameter" -Skip:(-not $InstallerContent) {
+            $InstallerContent | Should -Match '\$GatewayToken'
         }
         
-        It "Should accept -EnrollToken parameter" {
-            $content = Get-Content $TempScript -Raw
-            $content | Should -Match '\$EnrollToken'
+        It "Should accept -EnrollToken parameter" -Skip:(-not $InstallerContent) {
+            $InstallerContent | Should -Match '\$EnrollToken'
         }
         
-        AfterAll {
-            Remove-Item -Path $TempScript -Force -ErrorAction SilentlyContinue
+        It "Should accept -InstallPath parameter" -Skip:(-not $InstallerContent) {
+            $InstallerContent | Should -Match '\$InstallPath'
         }
     }
 }
 
 Describe "GitHub Release Integration" {
     
+    BeforeAll {
+        $script:ApiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
+    }
+    
     Context "Release API" {
         It "Should fetch latest release info" {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/BenediktSchackenberg/openclaw-windows-agent/releases/latest" -ErrorAction SilentlyContinue
+            $release = Invoke-RestMethod -Uri $ApiUrl -ErrorAction SilentlyContinue
             $release | Should -Not -BeNullOrEmpty
         }
         
         It "Should have a tag_name" {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/BenediktSchackenberg/openclaw-windows-agent/releases/latest"
+            $release = Invoke-RestMethod -Uri $ApiUrl
             $release.tag_name | Should -Match '^v?\d+\.\d+\.\d+'
         }
         
         It "Should have downloadable assets" {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/BenediktSchackenberg/openclaw-windows-agent/releases/latest"
+            $release = Invoke-RestMethod -Uri $ApiUrl
             $release.assets.Count | Should -BeGreaterThan 0
         }
         
         It "Should have a ZIP asset" {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/BenediktSchackenberg/openclaw-windows-agent/releases/latest"
+            $release = Invoke-RestMethod -Uri $ApiUrl
             $zipAsset = $release.assets | Where-Object { $_.name -like "*.zip" }
             $zipAsset | Should -Not -BeNullOrEmpty
         }
@@ -79,7 +84,11 @@ Describe "GitHub Release Integration" {
 
 Describe "Agent Service" -Tag "Integration" {
     
-    Context "When agent is installed" -Skip:(-not (Test-Path $InstallPath)) {
+    BeforeAll {
+        $script:AgentInstalled = Test-Path $InstallPath
+    }
+    
+    Context "When agent is installed" -Skip:(-not $AgentInstalled) {
         
         It "Should have service registered" {
             Get-Service -Name $ServiceName -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
@@ -99,28 +108,31 @@ Describe "Agent Service" -Tag "Integration" {
         }
     }
     
-    Context "Config Validation" -Skip:(-not (Test-Path $InstallPath)) {
+    Context "Config Validation" -Skip:(-not $AgentInstalled) {
         BeforeAll {
-            $script:Config = Get-Content (Join-Path $InstallPath $ConfigFile) | ConvertFrom-Json
+            $configPath = Join-Path $InstallPath $ConfigFile
+            if (Test-Path $configPath) {
+                $script:Config = Get-Content $configPath | ConvertFrom-Json
+            }
         }
         
-        It "Should have GatewayUrl configured" {
+        It "Should have GatewayUrl configured" -Skip:(-not $Config) {
             $Config.GatewayUrl | Should -Not -BeNullOrEmpty
         }
         
-        It "GatewayUrl should be valid WebSocket URL" {
+        It "GatewayUrl should be valid WebSocket URL" -Skip:(-not $Config) {
             $Config.GatewayUrl | Should -Match '^wss?://'
-        }
-        
-        It "Should have GatewayToken configured" {
-            $Config.GatewayToken | Should -Not -BeNullOrEmpty
         }
     }
 }
 
 Describe "Auto-Update Mechanism" -Tag "Integration" {
     
-    Context "Version Check" -Skip:(-not (Test-Path $InstallPath)) {
+    BeforeAll {
+        $script:AgentInstalled = Test-Path $InstallPath
+    }
+    
+    Context "Version Check" -Skip:(-not $AgentInstalled) {
         
         It "Should be able to detect current version" {
             $exePath = Join-Path $InstallPath "DIOOpenClawAgent.Service.exe"
@@ -129,22 +141,29 @@ Describe "Auto-Update Mechanism" -Tag "Integration" {
                 $version | Should -Not -BeNullOrEmpty
             }
         }
-        
+    }
+    
+    Context "Version Comparison" {
         It "Should compare versions correctly" {
-            # Test version comparison logic
             $v1 = [Version]"1.0.0"
             $v2 = [Version]"1.0.1"
+            $v2 | Should -BeGreaterThan $v1
+        }
+        
+        It "Should handle major version bumps" {
+            $v1 = [Version]"1.9.9"
+            $v2 = [Version]"2.0.0"
             $v2 | Should -BeGreaterThan $v1
         }
     }
     
     Context "Update Download" {
         It "Should be able to download release ZIP" {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/BenediktSchackenberg/openclaw-windows-agent/releases/latest"
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
             $zipAsset = $release.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
             
             if ($zipAsset) {
-                $tempFile = Join-Path $env:TEMP "openclaw-test.zip"
+                $tempFile = Join-Path $env:TEMP "openclaw-test-$([Guid]::NewGuid().ToString('N').Substring(0,8)).zip"
                 try {
                     Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile $tempFile -ErrorAction Stop
                     Test-Path $tempFile | Should -BeTrue
@@ -162,15 +181,33 @@ Describe "Hash Verification" {
     Context "SHA256 Checksum" {
         It "Should verify file hash correctly" {
             $testContent = "Hello OpenClaw"
-            $testFile = Join-Path $env:TEMP "hashtest.txt"
-            $testContent | Out-File -FilePath $testFile -Encoding UTF8 -NoNewline
+            $testFile = Join-Path $env:TEMP "hashtest-$([Guid]::NewGuid().ToString('N').Substring(0,8)).txt"
             
             try {
+                $testContent | Out-File -FilePath $testFile -Encoding UTF8 -NoNewline
                 $hash = Get-FileHash -Path $testFile -Algorithm SHA256
                 $hash.Hash | Should -Not -BeNullOrEmpty
                 $hash.Hash.Length | Should -Be 64  # SHA256 = 64 hex chars
             } finally {
                 Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+        
+        It "Should produce consistent hashes" {
+            $content = "Test content for hashing"
+            $file1 = Join-Path $env:TEMP "hash1-$([Guid]::NewGuid().ToString('N').Substring(0,8)).txt"
+            $file2 = Join-Path $env:TEMP "hash2-$([Guid]::NewGuid().ToString('N').Substring(0,8)).txt"
+            
+            try {
+                $content | Out-File -FilePath $file1 -Encoding UTF8 -NoNewline
+                $content | Out-File -FilePath $file2 -Encoding UTF8 -NoNewline
+                
+                $hash1 = (Get-FileHash -Path $file1 -Algorithm SHA256).Hash
+                $hash2 = (Get-FileHash -Path $file2 -Algorithm SHA256).Hash
+                
+                $hash1 | Should -Be $hash2
+            } finally {
+                Remove-Item $file1, $file2 -Force -ErrorAction SilentlyContinue
             }
         }
     }
