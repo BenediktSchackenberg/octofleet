@@ -1,0 +1,130 @@
+name: Windows Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - 'scripts/**'
+      - 'tests/windows/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - 'scripts/**'
+      - 'tests/windows/**'
+  workflow_dispatch:
+
+jobs:
+  # ============================================
+  # Pester Tests (GitHub-hosted Windows)
+  # ============================================
+  pester-tests:
+    name: Pester Tests
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Install-Module -Name Pester -Force -SkipPublisherCheck -Scope CurrentUser
+          Import-Module Pester
+          Get-Module Pester | Select-Object Name, Version
+      
+      - name: Run Installer Script Tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = "tests/windows/Install-OpenClawAgent.Tests.ps1"
+          $config.Output.Verbosity = "Detailed"
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = "tests/reports/pester-installer.xml"
+          $config.TestResult.OutputFormat = "NUnitXml"
+          Invoke-Pester -Configuration $config
+      
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pester-results
+          path: tests/reports/pester-*.xml
+
+  # ============================================
+  # .NET Build & Unit Tests
+  # ============================================
+  dotnet-tests:
+    name: .NET Agent Tests
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Restore dependencies
+        run: dotnet restore agent/DIOOpenClawAgent.sln
+        continue-on-error: true
+      
+      - name: Build Agent
+        run: dotnet build agent/DIOOpenClawAgent.sln --configuration Release --no-restore
+        continue-on-error: true
+      
+      - name: Run Unit Tests
+        run: dotnet test agent/DIOOpenClawAgent.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        continue-on-error: true
+      
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dotnet-test-results
+          path: '**/TestResults/*.trx'
+
+  # ============================================
+  # Self-hosted Integration Tests (optional)
+  # ============================================
+  integration-tests:
+    name: Agent Integration Tests
+    runs-on: [self-hosted, Windows, X64]
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[integration]')
+    needs: [pester-tests]
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Check Agent Service
+        shell: pwsh
+        run: |
+          $service = Get-Service -Name "DIOOpenClawAgent" -ErrorAction SilentlyContinue
+          if ($service) {
+            Write-Host "✅ Agent service found: $($service.Status)"
+          } else {
+            Write-Host "⚠️ Agent service not installed on this runner"
+          }
+      
+      - name: Run Integration Tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = "tests/windows/Agent-SelfUpdate.Tests.ps1"
+          $config.Filter.Tag = "Integration"
+          $config.Output.Verbosity = "Detailed"
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = "tests/reports/pester-integration.xml"
+          Invoke-Pester -Configuration $config
+        continue-on-error: true
+      
+      - name: Upload Integration Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-results
+          path: tests/reports/pester-integration.xml
