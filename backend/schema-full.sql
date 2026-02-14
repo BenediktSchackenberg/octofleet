@@ -1,7 +1,7 @@
 -- OpenClaw Inventory Platform - Full Database Schema
--- Extracted from production: 2026-02-14T13:53:07+00:00
--- DO NOT EDIT MANUALLY - sync from production with:
---   docker exec openclaw-inventory-db pg_dump -U openclaw -d inventory --schema-only
+-- Extracted from production: 2026-02-14T13:56:07+00:00
+-- Excludes TimescaleDB internal schemas
+-- DO NOT EDIT MANUALLY
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -15,8 +15,6 @@ SET client_min_messages = warning;
 SET row_security = off;
 SET default_tablespace = '';
 SET default_table_access_method = heap;
-);
-);
 CREATE TABLE public.hardware_changes (
     "time" timestamp with time zone NOT NULL,
     node_id uuid NOT NULL,
@@ -25,12 +23,6 @@ CREATE TABLE public.hardware_changes (
     old_value jsonb,
     new_value jsonb
 );
-    CONSTRAINT constraint_1 CHECK ((("time" >= '2026-02-05 00:00:00+00'::timestamp with time zone) AND ("time" < '2026-02-12 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.hardware_changes);
-    CONSTRAINT constraint_6 CHECK ((("time" >= '2026-02-12 00:00:00+00'::timestamp with time zone) AND ("time" < '2026-02-19 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.hardware_changes);
 CREATE TABLE public.node_metrics (
     "time" timestamp with time zone NOT NULL,
     node_id uuid NOT NULL,
@@ -40,12 +32,6 @@ CREATE TABLE public.node_metrics (
     network_in_mb real,
     network_out_mb real
 );
-    CONSTRAINT constraint_3 CHECK ((("time" >= '2026-02-05 00:00:00+00'::timestamp with time zone) AND ("time" < '2026-02-12 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.node_metrics);
-    CONSTRAINT constraint_7 CHECK ((("time" >= '2026-02-12 00:00:00+00'::timestamp with time zone) AND ("time" < '2026-02-19 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.node_metrics);
 CREATE TABLE public.eventlog_entries (
     id bigint NOT NULL,
     node_id text NOT NULL,
@@ -59,30 +45,6 @@ CREATE TABLE public.eventlog_entries (
     collected_at timestamp with time zone DEFAULT now() NOT NULL,
     raw_data jsonb
 );
-    CONSTRAINT constraint_10 CHECK (((collected_at >= '2026-02-14 00:00:00+00'::timestamp with time zone) AND (collected_at < '2026-02-15 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.eventlog_entries);
-    CONSTRAINT constraint_2 CHECK (((collected_at >= '2026-02-09 00:00:00+00'::timestamp with time zone) AND (collected_at < '2026-02-10 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.eventlog_entries);
-    CONSTRAINT constraint_4 CHECK (((collected_at >= '2026-02-10 00:00:00+00'::timestamp with time zone) AND (collected_at < '2026-02-11 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.eventlog_entries);
-    CONSTRAINT constraint_5 CHECK (((collected_at >= '2026-02-11 00:00:00+00'::timestamp with time zone) AND (collected_at < '2026-02-12 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.eventlog_entries);
-    CONSTRAINT constraint_8 CHECK (((collected_at >= '2026-02-12 00:00:00+00'::timestamp with time zone) AND (collected_at < '2026-02-13 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.eventlog_entries);
-    CONSTRAINT constraint_9 CHECK (((collected_at >= '2026-02-13 00:00:00+00'::timestamp with time zone) AND (collected_at < '2026-02-14 00:00:00+00'::timestamp with time zone)))
-)
-INHERITS (public.eventlog_entries);
-    _ts_meta_count integer,
-    node_id uuid,
-    _ts_meta_min_1 timestamp with time zone,
-    _ts_meta_max_1 timestamp with time zone,
-)
-WITH (toast_tuple_target='128');
 CREATE TABLE public.alert_rule_channels (
     rule_id uuid NOT NULL,
     channel_id uuid NOT NULL
@@ -956,12 +918,6 @@ ALTER TABLE ONLY public.software_current ALTER COLUMN id SET DEFAULT nextval('pu
 ALTER TABLE ONLY public.vulnerabilities ALTER COLUMN id SET DEFAULT nextval('public.vulnerabilities_id_seq'::regclass);
 ALTER TABLE ONLY public.vulnerability_scans ALTER COLUMN id SET DEFAULT nextval('public.vulnerability_scans_id_seq'::regclass);
 ALTER TABLE ONLY public.vulnerability_suppressions ALTER COLUMN id SET DEFAULT nextval('public.vulnerability_suppressions_id_seq'::regclass);
-    ADD CONSTRAINT "11_12_eventlog_entries_pkey" PRIMARY KEY (id, collected_at);
-    ADD CONSTRAINT "2_2_eventlog_entries_pkey" PRIMARY KEY (id, collected_at);
-    ADD CONSTRAINT "4_4_eventlog_entries_pkey" PRIMARY KEY (id, collected_at);
-    ADD CONSTRAINT "5_6_eventlog_entries_pkey" PRIMARY KEY (id, collected_at);
-    ADD CONSTRAINT "8_8_eventlog_entries_pkey" PRIMARY KEY (id, collected_at);
-    ADD CONSTRAINT "9_10_eventlog_entries_pkey" PRIMARY KEY (id, collected_at);
 ALTER TABLE ONLY public.alert_rule_channels
     ADD CONSTRAINT alert_rule_channels_pkey PRIMARY KEY (rule_id, channel_id);
 ALTER TABLE ONLY public.alert_rules
@@ -1158,12 +1114,6 @@ CREATE INDEX idx_vulnerabilities_software ON public.vulnerabilities USING btree 
 CREATE INDEX node_metrics_time_idx ON public.node_metrics USING btree ("time" DESC);
 CREATE INDEX node_snapshots_time_idx ON public.node_snapshots USING btree ("time" DESC);
 CREATE INDEX software_changes_time_idx ON public.software_changes USING btree ("time" DESC);
-    ADD CONSTRAINT "11_11_eventlog_entries_node_id_fkey" FOREIGN KEY (node_id) REFERENCES public.nodes(node_id) ON DELETE CASCADE;
-    ADD CONSTRAINT "2_1_eventlog_entries_node_id_fkey" FOREIGN KEY (node_id) REFERENCES public.nodes(node_id) ON DELETE CASCADE;
-    ADD CONSTRAINT "4_3_eventlog_entries_node_id_fkey" FOREIGN KEY (node_id) REFERENCES public.nodes(node_id) ON DELETE CASCADE;
-    ADD CONSTRAINT "5_5_eventlog_entries_node_id_fkey" FOREIGN KEY (node_id) REFERENCES public.nodes(node_id) ON DELETE CASCADE;
-    ADD CONSTRAINT "8_7_eventlog_entries_node_id_fkey" FOREIGN KEY (node_id) REFERENCES public.nodes(node_id) ON DELETE CASCADE;
-    ADD CONSTRAINT "9_9_eventlog_entries_node_id_fkey" FOREIGN KEY (node_id) REFERENCES public.nodes(node_id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.alert_rule_channels
     ADD CONSTRAINT alert_rule_channels_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.notification_channels(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.alert_rule_channels
@@ -1252,4 +1202,4 @@ ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-\unrestrict l975NqundZt8TwUqlna58H7zpPZZiJnaisrniVzu67shTZQmxCnpzGA5xnz7HjL
+\unrestrict xIzZHzf7ka3Fk1bXTpesVEBWUDyk4bn4Luih1EkmaSkVJOlhCUPYts1LNnZNKah
