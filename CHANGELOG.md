@@ -6,6 +6,30 @@ All notable changes to the OpenClaw Windows Agent.
 
 ---
 
+## [0.4.18] — 2026-02-14
+
+### Added
+- **SMART/Health Monitoring** — Physical disk health data collection
+  - Health status (Healthy/Warning/Unhealthy) via MSFT_PhysicalDisk
+  - Bus type detection (NVMe, SATA, SAS, USB, etc.)
+  - SSD vs HDD identification
+  - Temperature monitoring (where available)
+  - Power-on hours tracking
+  - SSD wear level percentage
+
+### Changed
+- Hardware inventory now includes detailed physical disk health data
+
+---
+
+## [0.4.17] — 2026-02-14
+
+### Added
+- **Remote Restart Command** — `restart-agent` job type for remote agent restarts
+  - Uses detached PowerShell script to ensure job completion before restart
+
+---
+
 ## [0.4.16] — 2026-02-14
 
 ### Changed
