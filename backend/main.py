@@ -7453,3 +7453,71 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key:
                 })
             except:
                 pass
+
+
+# === Remediation Live SSE ===
+@app.get("/api/v1/remediation/live")
+async def remediation_live_sse(request: Request, token: str = None, api_key: str = Header(None, alias="X-API-Key")):
+    """
+    SSE endpoint for live remediation job updates.
+    Broadcasts job status changes in real-time.
+    """
+    # Validate auth
+    valid_api_key = os.getenv("API_KEY", "openclaw-inventory-dev-key")
+    if api_key != valid_api_key and not token:
+        raise HTTPException(401, "Unauthorized")
+    
+    async def event_generator():
+        # Track last seen job states
+        last_states = {}
+        
+        while True:
+            if await request.is_disconnected():
+                break
+            
+            try:
+                async with db_pool.acquire() as conn:
+                    rows = await conn.fetch("""
+                        SELECT id, status, exit_code, software_name, cve_id, node_id,
+                               created_at, completed_at, error_message
+                        FROM remediation_jobs
+                        WHERE updated_at > NOW() - INTERVAL '30 seconds'
+                        ORDER BY updated_at DESC
+                        LIMIT 20
+                    """)
+                    
+                    for row in rows:
+                        job_id = row['id']
+                        current_state = f"{row['status']}:{row['exit_code']}"
+                        
+                        if last_states.get(job_id) != current_state:
+                            last_states[job_id] = current_state
+                            job_data = {
+                                "type": "job_update",
+                                "job": {
+                                    "id": row['id'],
+                                    "status": row['status'],
+                                    "exit_code": row['exit_code'],
+                                    "software_name": row['software_name'],
+                                    "cve_id": row['cve_id'],
+                                    "node_id": row['node_id'],
+                                    "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                                    "completed_at": row['completed_at'].isoformat() if row['completed_at'] else None,
+                                    "error_message": row['error_message']
+                                }
+                            }
+                            yield f"data: {json.dumps(job_data)}\n\n"
+            except Exception as e:
+                logger.error(f"Remediation SSE error: {e}")
+            
+            await asyncio.sleep(2)  # Poll every 2 seconds
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )

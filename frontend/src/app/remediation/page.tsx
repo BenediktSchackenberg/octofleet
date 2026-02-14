@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
 import { 
   Shield, Package, FileText, Clock, Play, CheckCircle, 
-  XCircle, AlertTriangle, Settings, Plus, Trash2, RefreshCw 
+  XCircle, AlertTriangle, Settings, Plus, Trash2, RefreshCw,
+  Wifi, WifiOff
 } from 'lucide-react';
 
 interface RemediationJob {
@@ -54,7 +54,6 @@ interface Summary {
 }
 
 export default function RemediationPage() {
-  const { token } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [packages, setPackages] = useState<RemediationPackage[]>([]);
   const [rules, setRules] = useState<RemediationRule[]>([]);
@@ -63,20 +62,21 @@ export default function RemediationPage() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
+  const [liveConnected, setLiveConnected] = useState(false);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080';
 
+  const getToken = () => localStorage.getItem('token');
+
   const fetchData = async () => {
-    console.log('[Remediation] fetchData called, token:', token ? 'present' : 'missing');
+    const token = getToken();
     if (!token) {
-      console.log('[Remediation] No token, skipping fetch');
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
       const headers = { 'Authorization': `Bearer ${token}` };
-      console.log('[Remediation] Fetching from:', API_BASE);
       
       const [summaryRes, packagesRes, rulesRes, jobsRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/remediation/summary`, { headers }),
@@ -85,14 +85,9 @@ export default function RemediationPage() {
         fetch(`${API_BASE}/api/v1/remediation/jobs?limit=50`, { headers }),
       ]);
 
-      console.log('[Remediation] Response status:', summaryRes.status, packagesRes.status, rulesRes.status, jobsRes.status);
-
       if (summaryRes.ok) {
         const data = await summaryRes.json();
-        console.log('[Remediation] Summary:', data);
         setSummary(data);
-      } else {
-        console.error('[Remediation] Summary failed:', await summaryRes.text());
       }
       if (packagesRes.ok) {
         const data = await packagesRes.json();
@@ -112,14 +107,76 @@ export default function RemediationPage() {
     setLoading(false);
   };
 
+  // SSE for live job updates
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+
+    const eventSource = new EventSource(
+      `${API_BASE}/api/v1/remediation/live?token=${token}`
+    );
+
+    eventSource.onopen = () => {
+      setLiveConnected(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'job_update') {
+          // Update single job in list
+          setJobs(prev => {
+            const idx = prev.findIndex(j => j.id === data.job.id);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = data.job;
+              return updated;
+            }
+            return [data.job, ...prev].slice(0, 50);
+          });
+          // Refresh summary when job status changes
+          fetchSummary();
+        }
+      } catch (e) {
+        console.error('SSE parse error:', e);
+      }
+    };
+
+    eventSource.onerror = () => {
+      setLiveConnected(false);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+      setLiveConnected(false);
+    };
+  }, []);
+
+  const fetchSummary = async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/remediation/summary`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setSummary(await res.json());
+      }
+    } catch (e) {}
+  };
+
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    // Fallback polling if SSE not connected
+    const interval = setInterval(() => {
+      if (!liveConnected) fetchData();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, []);
 
   const runScan = async (dryRun: boolean = true) => {
-    console.log('[Remediation] runScan called, dryRun:', dryRun, 'token:', token ? 'present' : 'MISSING');
+    const token = getToken();
     if (!token) {
       console.error('[Remediation] No token available for scan!');
       alert('Not authenticated. Please log in again.');
@@ -210,7 +267,18 @@ export default function RemediationPage() {
           <div className="flex items-center gap-3">
             <Shield className="h-8 w-8 text-green-500" />
             <div>
-              <h1 className="text-2xl font-bold">Auto-Remediation</h1>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                Auto-Remediation
+                {liveConnected ? (
+                  <span className="flex items-center gap-1 text-xs font-normal text-green-400 bg-green-900/30 px-2 py-0.5 rounded">
+                    <Wifi className="h-3 w-3" /> Live
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-xs font-normal text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+                    <WifiOff className="h-3 w-3" /> Offline
+                  </span>
+                )}
+              </h1>
               <p className="text-gray-400 text-sm">Automatically fix vulnerabilities across your fleet</p>
             </div>
           </div>
