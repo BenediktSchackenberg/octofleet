@@ -1,6 +1,5 @@
 using System;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -21,6 +20,7 @@ public class LiveDataPoller : BackgroundService
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
     private readonly ProcessCollector _processCollector;
+    private readonly string _nodeId;
 
     private const int PollIntervalSeconds = 5;
 
@@ -30,14 +30,15 @@ public class LiveDataPoller : BackgroundService
         _config = config;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         _processCollector = new ProcessCollector(logger);
+        _nodeId = Environment.MachineName.ToUpperInvariant(); // Same as inventory reports
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("LiveDataPoller started, polling every {Interval}s", PollIntervalSeconds);
+        _logger.LogInformation("LiveDataPoller started for node {NodeId}, polling every {Interval}s", _nodeId, PollIntervalSeconds);
 
         // Wait for config to be ready
-        while (!stoppingToken.IsCancellationRequested && string.IsNullOrEmpty(_config.NodeId))
+        while (!stoppingToken.IsCancellationRequested && !_config.IsConfigured)
         {
             await Task.Delay(1000, stoppingToken);
         }
@@ -62,7 +63,8 @@ public class LiveDataPoller : BackgroundService
 
     private async Task PushLiveData(CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(_config.BackendUrl) || string.IsNullOrEmpty(_config.NodeId))
+        var config = ServiceConfig.Load();
+        if (string.IsNullOrEmpty(config.InventoryApiUrl))
         {
             return;
         }
@@ -70,12 +72,37 @@ public class LiveDataPoller : BackgroundService
         // Get processes
         var processes = _processCollector.GetTopProcesses(20);
 
-        // Get system metrics
-        var (cpu, memory, disk) = _processCollector.GetSystemMetrics();
+        // Get system metrics (simplified - skip PerformanceCounter for now)
+        double cpu = 0, memory = 0, disk = 0;
+        try
+        {
+            // Memory via GC
+            var gcMemory = GC.GetGCMemoryInfo();
+            // Use simple WMI for memory
+            var query = "SELECT * FROM Win32_OperatingSystem";
+            using var searcher = new System.Management.ManagementObjectSearcher(query);
+            foreach (System.Management.ManagementObject obj in searcher.Get())
+            {
+                var total = Convert.ToDouble(obj["TotalVisibleMemorySize"]);
+                var free = Convert.ToDouble(obj["FreePhysicalMemory"]);
+                memory = Math.Round(((total - free) / total) * 100, 1);
+            }
+            
+            // Disk (C:)
+            var drive = new System.IO.DriveInfo("C");
+            if (drive.IsReady)
+            {
+                disk = Math.Round(((drive.TotalSize - drive.AvailableFreeSpace) / (double)drive.TotalSize) * 100, 1);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not get system metrics");
+        }
 
         var payload = new
         {
-            nodeId = _config.NodeId,
+            nodeId = _nodeId,
             timestamp = DateTime.UtcNow.ToString("o"),
             metrics = new
             {
@@ -96,13 +123,14 @@ public class LiveDataPoller : BackgroundService
 
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var baseUrl = config.InventoryApiUrl.TrimEnd('/');
 
-        var response = await _httpClient.PostAsync($"{_config.BackendUrl}/api/v1/live-data", content, ct);
+        var response = await _httpClient.PostAsync($"{baseUrl}/api/v1/live-data", content, ct);
         
         if (response.IsSuccessStatusCode)
         {
-            _logger.LogDebug("Pushed live data: {ProcessCount} processes, CPU={Cpu}%, Mem={Mem}%", 
-                processes.Count, cpu, memory);
+            _logger.LogDebug("Pushed live data: {ProcessCount} processes, Mem={Mem}%, Disk={Disk}%", 
+                processes.Count, memory, disk);
         }
         else
         {

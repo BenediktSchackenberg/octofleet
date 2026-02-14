@@ -166,20 +166,7 @@ public class ProcessCollector
 
         try
         {
-            // CPU - use PerformanceCounter
-            using var cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
-            cpuCounter.NextValue(); // First call always returns 0
-            System.Threading.Thread.Sleep(100);
-            cpu = cpuCounter.NextValue();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not get CPU metrics");
-        }
-
-        try
-        {
-            // Memory
+            // Memory via WMI
             var query = "SELECT * FROM Win32_OperatingSystem";
             using var searcher = new ManagementObjectSearcher(query);
             foreach (ManagementObject obj in searcher.Get())
@@ -206,6 +193,36 @@ public class ProcessCollector
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Could not get disk metrics");
+        }
+
+        // CPU - calculate from total process CPU time (rough estimate)
+        try
+        {
+            var processes = Process.GetProcesses();
+            double totalCpu = 0;
+            foreach (var proc in processes)
+            {
+                try
+                {
+                    // This is a rough approximation
+                    if (_processCache.TryGetValue(proc.Id, out var cached))
+                    {
+                        var elapsed = (DateTime.UtcNow - cached.StartTime).TotalMilliseconds;
+                        if (elapsed > 0)
+                        {
+                            var cpuUsed = (proc.TotalProcessorTime - cached.LastCpu).TotalMilliseconds;
+                            totalCpu += (cpuUsed / elapsed) * 100;
+                        }
+                    }
+                }
+                catch { }
+                finally { proc.Dispose(); }
+            }
+            cpu = totalCpu / Environment.ProcessorCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not get CPU metrics");
         }
 
         return (Math.Round(cpu, 1), Math.Round(memory, 1), Math.Round(disk, 1));
