@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ci-test-password
       POSTGRES_DB: inventory
     volumes:
-      - ./backend/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./backend/schema-full.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U openclaw -d inventory"]
       interval: 5s
