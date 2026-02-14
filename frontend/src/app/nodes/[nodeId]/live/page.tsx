@@ -186,7 +186,7 @@ export default function LiveViewPage() {
             <CardHeader className="pb-2">
               <CardDescription>CPU Usage</CardDescription>
               <CardTitle className="text-3xl">
-                {metrics?.cpu !== null ? `${metrics.cpu.toFixed(1)}%` : '-'}
+                {metrics && metrics.cpu !== null ? `${metrics.cpu.toFixed(1)}%` : '-'}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -198,7 +198,7 @@ export default function LiveViewPage() {
             <CardHeader className="pb-2">
               <CardDescription>Memory Usage</CardDescription>
               <CardTitle className="text-3xl">
-                {metrics?.memory !== null ? `${metrics.memory.toFixed(1)}%` : '-'}
+                {metrics && metrics.memory !== null ? `${metrics.memory.toFixed(1)}%` : '-'}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -210,14 +210,14 @@ export default function LiveViewPage() {
             <CardHeader className="pb-2">
               <CardDescription>Disk Usage</CardDescription>
               <CardTitle className="text-3xl">
-                {metrics?.disk !== null ? `${metrics.disk.toFixed(1)}%` : '-'}
+                {metrics && metrics.disk !== null ? `${metrics.disk.toFixed(1)}%` : '-'}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
                 <div 
-                  className={`h-full ${(metrics?.disk || 0) > 90 ? 'bg-red-500' : (metrics?.disk || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                  style={{ width: `${metrics?.disk || 0}%` }}
+                  className={`h-full ${(metrics?.disk ?? 0) > 90 ? 'bg-red-500' : (metrics?.disk ?? 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                  style={{ width: `${metrics?.disk ?? 0}%` }}
                 />
               </div>
             </CardContent>
@@ -227,9 +227,9 @@ export default function LiveViewPage() {
             <CardHeader className="pb-2">
               <CardDescription>Network</CardDescription>
               <CardTitle className="text-xl">
-                ↓ {metrics?.netIn !== null ? `${metrics.netIn.toFixed(1)} MB` : '-'} 
+                ↓ {metrics && metrics.netIn !== null ? `${metrics.netIn.toFixed(1)} MB` : '-'} 
                 <span className="mx-2">|</span>
-                ↑ {metrics?.netOut !== null ? `${metrics.netOut.toFixed(1)} MB` : '-'}
+                ↑ {metrics && metrics.netOut !== null ? `${metrics.netOut.toFixed(1)} MB` : '-'}
               </CardTitle>
             </CardHeader>
             <CardContent>
