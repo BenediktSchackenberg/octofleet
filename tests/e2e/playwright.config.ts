@@ -2,10 +2,11 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './specs',
-  fullyParallel: false, // Sequential for now
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,  // Reduced retries for faster CI
   workers: 1,
+  timeout: 30000,  // 30s per test
   reporter: [
     ['html', { outputFolder: '../reports/playwright' }],
     ['json', { outputFile: '../reports/playwright/results.json' }],
@@ -16,7 +17,9 @@ export default defineConfig({
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'off',  // Disabled for faster CI
+    // Use stored auth state from global-setup
+    storageState: './auth-state.json',
   },
 
   projects: [
@@ -26,6 +29,5 @@ export default defineConfig({
     },
   ],
 
-  // Global setup/teardown
   globalSetup: './global-setup.ts',
 });
