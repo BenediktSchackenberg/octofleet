@@ -405,6 +405,11 @@ export default function NodeDetailPage() {
                 onTagsChanged={fetchNodeDetails} 
               />
             )}
+            <Link href={`/nodes/${nodeId}/live`}>
+              <Button variant="outline" className="bg-red-500/10 border-red-500 text-red-500 hover:bg-red-500/20">
+                🔴 Live View
+              </Button>
+            </Link>
             <Button 
               variant="outline" 
               onClick={refreshInventory}

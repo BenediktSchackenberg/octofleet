@@ -6635,3 +6635,157 @@ async def remediation_dashboard(_: str = Depends(verify_api_key)):
     """Get remediation dashboard summary."""
     summary = await get_remediation_summary(db_pool)
     return summary
+
+
+# ============================================================================
+# E16: Live View - Real-time Node Monitoring
+# ============================================================================
+
+import asyncio
+from datetime import datetime as dt
+
+# Store active live sessions
+live_sessions: Dict[str, Dict] = {}
+
+async def live_data_generator(node_id: str, session_id: str):
+    """Generator for SSE live data stream"""
+    
+    # Initial connection event
+    yield f"event: connected\ndata: {json.dumps({'nodeId': node_id, 'sessionId': session_id})}\n\n"
+    
+    last_metrics_time = 0
+    last_processes_time = 0
+    
+    try:
+        while session_id in live_sessions:
+            now = time.time()
+            
+            # Send metrics every 2 seconds
+            if now - last_metrics_time >= 2:
+                async with db_pool.acquire() as conn:
+                    # Get latest metrics from timescale
+                    metrics = await conn.fetchrow("""
+                        SELECT cpu_percent, ram_percent, disk_percent,
+                               network_in_mb, network_out_mb, time as timestamp
+                        FROM node_metrics
+                        WHERE node_id = (SELECT id FROM nodes WHERE node_id = $1)
+                        ORDER BY time DESC LIMIT 1
+                    """, node_id)
+                    
+                    if metrics:
+                        data = {
+                            "type": "metrics",
+                            "data": {
+                                "cpu": metrics['cpu_percent'],
+                                "memory": metrics['ram_percent'],
+                                "disk": metrics['disk_percent'],
+                                "netIn": metrics['network_in_mb'],
+                                "netOut": metrics['network_out_mb'],
+                                "timestamp": metrics['timestamp'].isoformat() if metrics['timestamp'] else None
+                            }
+                        }
+                        yield f"event: metrics\ndata: {json.dumps(data)}\n\n"
+                
+                last_metrics_time = now
+            
+            # Send processes every 5 seconds
+            if now - last_processes_time >= 5:
+                async with db_pool.acquire() as conn:
+                    procs = await conn.fetch("""
+                        SELECT process_name, pid, cpu_percent, memory_mb, user_name
+                        FROM node_processes
+                        WHERE node_id = (SELECT id FROM nodes WHERE node_id = $1)
+                          AND collected_at > NOW() - INTERVAL '30 seconds'
+                        ORDER BY cpu_percent DESC NULLS LAST LIMIT 20
+                    """, node_id)
+                    
+                    if procs:
+                        data = {
+                            "type": "processes",
+                            "data": [
+                                {
+                                    "name": p['process_name'],
+                                    "pid": p['pid'],
+                                    "cpu": p['cpu_percent'],
+                                    "memoryMb": p['memory_mb'],
+                                    "user": p['user_name']
+                                }
+                                for p in procs
+                            ]
+                        }
+                        yield f"event: processes\ndata: {json.dumps(data)}\n\n"
+                
+                last_processes_time = now
+            
+            # Heartbeat every 10 seconds
+            yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"
+            
+            await asyncio.sleep(1)
+            
+    except asyncio.CancelledError:
+        pass
+    finally:
+        if session_id in live_sessions:
+            del live_sessions[session_id]
+        yield f"event: disconnected\ndata: {json.dumps({'reason': 'session_ended'})}\n\n"
+
+
+@app.get("/api/v1/live/{node_id}")
+async def live_stream(node_id: str, _: str = Depends(verify_api_key)):
+    """
+    SSE endpoint for live node data streaming.
+    
+    Returns Server-Sent Events with:
+    - metrics: CPU, RAM, Disk, Network (every 2s)
+    - processes: Top 20 processes by CPU (every 5s)
+    - heartbeat: Connection keepalive (every 10s)
+    """
+    # Verify node exists
+    async with db_pool.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+    
+    # Create session
+    session_id = str(uuid.uuid4())
+    live_sessions[session_id] = {
+        "node_id": node_id,
+        "started_at": dt.utcnow(),
+        "last_activity": dt.utcnow()
+    }
+    
+    return StreamingResponse(
+        live_data_generator(node_id, session_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@app.get("/api/v1/live-sessions")
+async def list_live_sessions(_: str = Depends(verify_api_key)):
+    """List active live monitoring sessions"""
+    return {
+        "sessions": [
+            {
+                "sessionId": sid,
+                "nodeId": data["node_id"],
+                "startedAt": data["started_at"].isoformat(),
+                "lastActivity": data["last_activity"].isoformat()
+            }
+            for sid, data in live_sessions.items()
+        ],
+        "count": len(live_sessions)
+    }
+
+
+@app.delete("/api/v1/live/{session_id}")
+async def stop_live_session(session_id: str, _: str = Depends(verify_api_key)):
+    """Stop a live monitoring session"""
+    if session_id in live_sessions:
+        del live_sessions[session_id]
+        return {"status": "stopped", "sessionId": session_id}
+    raise HTTPException(status_code=404, detail="Session not found")
