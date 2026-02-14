@@ -3,6 +3,15 @@
 ## [0.4.20] - 2026-02-14
 
 ### Fixed
+## [0.4.21] — 2026-02-14
+
+### Fixed
+- **Network SSE events** now properly streamed (timer bug fixed)
+- **LiveDataPoller** includes network interface stats (was missing in v0.4.19)
+
+### Changed
+- Removed duplicate `/metrics/history` endpoint
+
 - AutoUpdater now accepts ZIP assets without `win-x64` in filename
 - This allows updates from releases with simplified asset naming
 

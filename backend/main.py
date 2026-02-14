@@ -6880,6 +6880,11 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
     if not node_id_text:
         raise HTTPException(status_code=400, detail="nodeId required")
     
+    # Debug: log network data presence
+    network_data = data.get("network", [])
+    if network_data:
+        logger.info(f"[LIVE-DATA] {node_id_text}: {len(network_data)} network interfaces received")
+    
     async with db.acquire() as conn:
         # Get node UUID
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id_text)
