@@ -2,8 +2,11 @@
 
 > **⚠️ BETA** — This project is under active development. Expect breaking changes.
 
-> **v0.4.14** — An open-source endpoint management and inventory system for Windows and Linux fleets. Collect hardware/software inventory, deploy packages, run remote commands, scan vulnerabilities, auto-remediate security issues, and monitor your infrastructure from a central dashboard.
+> **v0.4.16** — An open-source endpoint management and inventory system for Windows and Linux fleets. Collect hardware/software inventory, deploy packages, run remote commands, scan vulnerabilities, auto-remediate security issues, and monitor your infrastructure from a central dashboard.
 
+[![CI Tests](https://img.shields.io/github/actions/workflow/status/BenediktSchackenberg/openclaw-windows-agent/tests.yml?branch=main&style=flat-square&label=CI%20Tests)](https://github.com/BenediktSchackenberg/openclaw-windows-agent/actions/workflows/tests.yml)
+[![Windows Tests](https://img.shields.io/github/actions/workflow/status/BenediktSchackenberg/openclaw-windows-agent/windows-tests.yml?branch=main&style=flat-square&label=Windows%20Tests)](https://github.com/BenediktSchackenberg/openclaw-windows-agent/actions/workflows/windows-tests.yml)
+[![Release](https://img.shields.io/github/v/release/BenediktSchackenberg/openclaw-windows-agent?style=flat-square&label=Latest)](https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/latest)
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11%2FServer-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
 [![Linux](https://img.shields.io/badge/Linux-Ubuntu%2FDebian%2FRHEL-FCC624?style=flat-square&logo=linux&logoColor=black)](https://www.linux.org/)

@@ -6,6 +6,50 @@ All notable changes to the OpenClaw Windows Agent.
 
 ---
 
+## [0.4.16] — 2026-02-14
+
+### Changed
+- **Faster Auto-Updates** — Check interval reduced from 1 hour to 15 minutes
+- Initial update check now 30 seconds after service start (was 2 minutes)
+
+---
+
+## [0.4.15] — 2026-02-14
+
+### Fixed
+- **Version Reporting** — Agent now reports actual version from assembly
+  - Previously hardcoded as "0.3.12" regardless of installed version
+  - Now correctly shows installed version in Inventory Platform
+
+---
+
+## [0.4.14] — 2026-02-13
+
+### Added
+- **Auto-Remediation** — Automatic vulnerability fixes
+  - Winget → Chocolatey fallback for package updates
+  - Auto-install Chocolatey if needed
+  - RemediationPoller for scheduled scans
+
+---
+
+## [0.4.0 - 0.4.13] — 2026-02-09 to 2026-02-13
+
+### Added
+- **Vulnerability Tracking** — NVD API integration, CVSS scoring
+- **Eventlog Collection** — Windows Event Log forwarding
+- **Zero-Touch Installation** — Enrollment tokens, one-liner install
+- **RBAC** — JWT auth, 4 roles, audit logging, API keys
+- **Rollout Strategies** — Canary, Staged, Percentage deployments
+- **Maintenance Windows** — Scheduled deployment windows
+- **Alerting System** — Alert rules, notification channels
+
+### Changed
+- Backend API dynamically reads agent version from database
+- Improved CI/CD pipeline with Docker Compose tests
+
+---
+
 ## [0.3.0] — 2026-02-07
 
 ### Added
