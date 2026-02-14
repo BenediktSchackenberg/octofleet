@@ -135,6 +135,7 @@ public class RemediationPoller : BackgroundService
         var stdout = new System.Text.StringBuilder();
         var stderr = new System.Text.StringBuilder();
         int exitCode = -1;
+        bool usedFallback = false;
 
         try
         {
@@ -144,9 +145,41 @@ public class RemediationPoller : BackgroundService
             stdout.Append(result.Stdout);
             stderr.Append(result.Stderr);
 
+            // Check if winget failed with "No installed package found" - try Chocolatey fallback
+            if (exitCode != 0 && job.FixCommand.StartsWith("winget ", StringComparison.OrdinalIgnoreCase))
+            {
+                var output = result.Stdout + result.Stderr;
+                if (output.Contains("No installed package found", StringComparison.OrdinalIgnoreCase) ||
+                    output.Contains("No applicable update found", StringComparison.OrdinalIgnoreCase) ||
+                    output.Contains("No package found", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Winget failed to find package - attempting Chocolatey fallback");
+                    stdout.AppendLine("\n=== Winget failed, trying Chocolatey fallback ===");
+                    
+                    // Ensure Chocolatey is installed
+                    await EnsureChocolateyInstalledAsync();
+                    
+                    var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
+                    if (File.Exists(chocoPath))
+                    {
+                        var chocoCommand = ConvertWingetToChoco(job.FixCommand, chocoPath);
+                        _logger.LogInformation("Fallback command: {Command}", chocoCommand);
+                        stdout.AppendLine($"Fallback: {chocoCommand}");
+                        
+                        var fallbackResult = await ExecuteFixCommandAsync(chocoCommand, ct);
+                        exitCode = fallbackResult.ExitCode;
+                        stdout.Append(fallbackResult.Stdout);
+                        stderr.Append(fallbackResult.Stderr);
+                        usedFallback = true;
+                        
+                        _logger.LogInformation("Chocolatey fallback completed with exit code: {ExitCode}", exitCode);
+                    }
+                }
+            }
+
             _logger.LogInformation(
-                "Remediation {JobId} completed with exit code: {ExitCode}", 
-                job.JobId, exitCode);
+                "Remediation {JobId} completed with exit code: {ExitCode}{Fallback}", 
+                job.JobId, exitCode, usedFallback ? " (via Chocolatey fallback)" : "");
         }
         catch (Exception ex)
         {
@@ -362,6 +395,31 @@ public class RemediationPoller : BackgroundService
         // Can't parse - return original (will fail, but logs will show why)
         _logger.LogWarning("Could not parse winget command for choco conversion: {Command}", wingetCommand);
         return wingetCommand;
+    }
+
+    /// <summary>
+    /// Ensure Chocolatey is installed (async wrapper).
+    /// </summary>
+    private async Task EnsureChocolateyInstalledAsync()
+    {
+        var chocoPath = @"C:\ProgramData\chocolatey\bin\choco.exe";
+        if (File.Exists(chocoPath))
+        {
+            _logger.LogDebug("Chocolatey already installed at {Path}", chocoPath);
+            return;
+        }
+
+        _logger.LogWarning("Chocolatey not found - auto-installing...");
+        await Task.Run(() => TryInstallChocolatey());
+        
+        if (File.Exists(chocoPath))
+        {
+            _logger.LogInformation("Chocolatey installed successfully!");
+        }
+        else
+        {
+            _logger.LogError("Failed to install Chocolatey");
+        }
     }
 
     /// <summary>

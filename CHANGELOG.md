@@ -3,6 +3,15 @@
 ## [0.4.20] - 2026-02-14
 
 ### Fixed
+## [0.4.22] — 2026-02-14
+
+### Added
+- **Auto-fallback to Chocolatey**: When winget fails with "No installed package found", automatically tries Chocolatey
+- **Auto-install Chocolatey**: If Chocolatey not present, installs it automatically before fallback
+
+### Fixed
+- Chrome/other software not installed via winget can now be remediated via Chocolatey fallback
+
 ## [0.4.21] — 2026-02-14
 
 ### Fixed
