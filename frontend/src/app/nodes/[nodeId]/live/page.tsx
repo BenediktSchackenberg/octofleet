@@ -58,7 +58,7 @@ export default function LiveViewPage() {
   const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance'>('overview');
   const [logFilter, setLogFilter] = useState('');
   
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -220,7 +220,7 @@ export default function LiveViewPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-1 mb-6 border-b">
-          {(['overview', 'logs', 'processes'] as const).map(tab => (
+          {(['overview', 'logs', 'processes', 'performance'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -233,6 +233,7 @@ export default function LiveViewPage() {
               {tab === 'overview' && '📊 Overview'}
               {tab === 'logs' && `📜 Logs (${logs.length})`}
               {tab === 'processes' && `⚙️ Processes (${processes.length})`}
+              {tab === 'performance' && '📈 Performance'}
             </button>
           ))}
         </div>
@@ -430,7 +431,162 @@ export default function LiveViewPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Performance Tab */}
+        {activeTab === 'performance' && (
+          <PerformanceChart nodeId={nodeId} />
+        )}
       </div>
     </main>
+  );
+}
+
+// Separate component for Performance Charts
+function PerformanceChart({ nodeId }: { nodeId: string }) {
+  const [historyData, setHistoryData] = useState<Array<{
+    timestamp: string;
+    cpu: number | null;
+    memory: number | null;
+    disk: number | null;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [hours, setHours] = useState(24);
+  const [interval, setInterval] = useState('5m');
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080/api/v1';
+
+  useEffect(() => {
+    fetchHistory();
+  }, [nodeId, hours, interval]);
+
+  const fetchHistory = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(
+        `${API_BASE}/nodes/${nodeId}/metrics/history?hours=${hours}&interval=${interval}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setHistoryData(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch history:', err);
+    }
+    setLoading(false);
+  };
+
+  // Simple line chart using SVG
+  const LineChart = ({ data, dataKey, color, label }: { 
+    data: typeof historyData, 
+    dataKey: 'cpu' | 'memory' | 'disk',
+    color: string,
+    label: string 
+  }) => {
+    const values = data.map(d => d[dataKey]).filter((v): v is number => v !== null);
+    if (values.length < 2) return <div className="text-muted-foreground text-center py-8">Not enough data</div>;
+    
+    const max = Math.max(...values, 100);
+    const min = 0;
+    const width = 800;
+    const height = 200;
+    const padding = 40;
+    
+    const points = data.map((d, i) => {
+      const v = d[dataKey];
+      if (v === null) return null;
+      const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+      const y = height - padding - ((v - min) / (max - min)) * (height - padding * 2);
+      return { x, y, value: v, time: d.timestamp };
+    }).filter(Boolean) as Array<{ x: number; y: number; value: number; time: string }>;
+    
+    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    
+    // Area fill
+    const areaD = pathD + ` L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+    
+    return (
+      <div className="relative">
+        <div className="text-sm font-medium mb-2">{label}</div>
+        <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+          {/* Grid lines */}
+          {[0, 25, 50, 75, 100].map(v => {
+            const y = height - padding - (v / 100) * (height - padding * 2);
+            return (
+              <g key={v}>
+                <line x1={padding} y1={y} x2={width - padding} y2={y} stroke="#333" strokeDasharray="2,2" opacity={0.3} />
+                <text x={padding - 5} y={y + 4} textAnchor="end" fontSize="10" fill="#888">{v}%</text>
+              </g>
+            );
+          })}
+          
+          {/* Area */}
+          <path d={areaD} fill={color} opacity={0.1} />
+          
+          {/* Line */}
+          <path d={pathD} fill="none" stroke={color} strokeWidth="2" />
+          
+          {/* Current value */}
+          {points.length > 0 && (
+            <text x={width - padding} y={20} textAnchor="end" fontSize="14" fontWeight="bold" fill={color}>
+              {points[points.length - 1].value.toFixed(1)}%
+            </text>
+          )}
+        </svg>
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>📈 Performance History</CardTitle>
+          <div className="flex gap-2">
+            <select 
+              value={hours} 
+              onChange={(e) => setHours(Number(e.target.value))}
+              className="px-2 py-1 border rounded text-sm bg-background"
+            >
+              <option value={1}>Last 1h</option>
+              <option value={6}>Last 6h</option>
+              <option value={24}>Last 24h</option>
+              <option value={72}>Last 3d</option>
+              <option value={168}>Last 7d</option>
+            </select>
+            <select 
+              value={interval} 
+              onChange={(e) => setInterval(e.target.value)}
+              className="px-2 py-1 border rounded text-sm bg-background"
+            >
+              <option value="1m">1 min</option>
+              <option value="5m">5 min</option>
+              <option value="15m">15 min</option>
+              <option value="1h">1 hour</option>
+            </select>
+            <Button variant="outline" size="sm" onClick={fetchHistory}>
+              🔄 Refresh
+            </Button>
+          </div>
+        </div>
+        <CardDescription>
+          {loading ? 'Loading...' : `${historyData.length} data points`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {loading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading historical data...</div>
+        ) : historyData.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">No historical data available</div>
+        ) : (
+          <>
+            <LineChart data={historyData} dataKey="cpu" color="#3b82f6" label="CPU Usage" />
+            <LineChart data={historyData} dataKey="memory" color="#10b981" label="Memory Usage" />
+            <LineChart data={historyData} dataKey="disk" color="#f59e0b" label="Disk Usage" />
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -6898,3 +6898,76 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
             "metricsStored": bool(metrics),
             "processesStored": len(processes)
         }
+
+
+@app.get("/api/v1/nodes/{node_id}/metrics/history")
+async def get_metrics_history(
+    node_id: str, 
+    hours: int = 24,
+    interval: str = "5m",
+    _: str = Depends(verify_api_key),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Get historical metrics for a node with time bucketing.
+    
+    Args:
+        node_id: Node identifier
+        hours: How many hours back (default 24)
+        interval: Bucket size - 1m, 5m, 15m, 1h (default 5m)
+    
+    Returns time-series data for charts.
+    """
+    # Map interval to TimescaleDB time_bucket
+    interval_map = {
+        "1m": "1 minute",
+        "5m": "5 minutes",
+        "15m": "15 minutes",
+        "30m": "30 minutes",
+        "1h": "1 hour",
+        "6h": "6 hours",
+        "1d": "1 day"
+    }
+    bucket = interval_map.get(interval, "5 minutes")
+    
+    async with db.acquire() as conn:
+        # Get node UUID
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        node_uuid = node['id']
+        
+        # Use time_bucket for aggregation (TimescaleDB)
+        rows = await conn.fetch(f"""
+            SELECT 
+                time_bucket('{bucket}', time) as bucket,
+                AVG(cpu_percent) as cpu,
+                AVG(ram_percent) as memory,
+                AVG(disk_percent) as disk,
+                AVG(network_in_mb) as net_in,
+                AVG(network_out_mb) as net_out
+            FROM node_metrics
+            WHERE node_id = $1 
+              AND time > NOW() - INTERVAL '{hours} hours'
+            GROUP BY bucket
+            ORDER BY bucket ASC
+        """, node_uuid)
+        
+        return {
+            "nodeId": node_id,
+            "hours": hours,
+            "interval": interval,
+            "dataPoints": len(rows),
+            "data": [
+                {
+                    "timestamp": row['bucket'].isoformat(),
+                    "cpu": round(row['cpu'], 1) if row['cpu'] else None,
+                    "memory": round(row['memory'], 1) if row['memory'] else None,
+                    "disk": round(row['disk'], 1) if row['disk'] else None,
+                    "netIn": round(row['net_in'], 2) if row['net_in'] else None,
+                    "netOut": round(row['net_out'], 2) if row['net_out'] else None
+                }
+                for row in rows
+            ]
+        }
