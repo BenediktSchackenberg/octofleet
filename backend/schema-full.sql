@@ -249,7 +249,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
     permissions JSONB DEFAULT '["*"]',
     expires_at TIMESTAMPTZ,
     last_used TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT true
 );
 
 -- Audit log
@@ -262,6 +263,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     resource_id TEXT,
     details JSONB,
     ip_address TEXT,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
