@@ -41,7 +41,7 @@ export default function ScreenViewerPage() {
     setError(null);
     
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/api/v1/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {
         method: 'POST',
         headers: {
@@ -165,7 +165,7 @@ export default function ScreenViewerPage() {
   const stopSession = async () => {
     if (sessionId) {
       try {
-        const token = localStorage.getItem('auth_token');
+        const token = localStorage.getItem('token');
         await fetch(`${API_URL}/api/v1/screen/session/${sessionId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }

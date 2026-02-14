@@ -1,4 +1,10 @@
 # Changelog
+## [0.4.26] — 2026-02-14
+
+### Fixed
+- **Screen sharing auth**: Agent now sends API key when polling and connecting WebSocket
+- Backend validates API key on agent WebSocket connection
+
 ## [0.4.25] — 2026-02-14
 
 ### Fixed

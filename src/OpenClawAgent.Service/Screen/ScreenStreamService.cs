@@ -76,7 +76,9 @@ public class ScreenStreamService : BackgroundService
         try
         {
             var url = $"{_config.InventoryApiUrl}/api/v1/screen/pending/{_nodeId}";
-            var response = await _httpClient.GetAsync(url, cancellationToken);
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("X-API-Key", _config.InventoryApiKey);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             
             if (!response.IsSuccessStatusCode)
                 return;
@@ -147,7 +149,7 @@ public class ScreenStreamService : BackgroundService
             var wsUrl = _config.InventoryApiUrl
                 .Replace("http://", "ws://")
                 .Replace("https://", "wss://");
-            wsUrl += $"/api/v1/screen/ws/agent/{sessionId}";
+            wsUrl += $"/api/v1/screen/ws/agent/{sessionId}?api_key={_config.InventoryApiKey}";
             
             _webSocket = new ClientWebSocket();
             await _webSocket.ConnectAsync(new Uri(wsUrl), cancellationToken);

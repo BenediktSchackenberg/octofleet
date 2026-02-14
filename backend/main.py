@@ -7371,7 +7371,7 @@ async def screen_viewer_websocket(websocket: WebSocket, session_id: str):
 
 
 @app.websocket("/api/v1/screen/ws/agent/{session_id}")
-async def screen_agent_websocket(websocket: WebSocket, session_id: str):
+async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key: str = None):
     """
     WebSocket endpoint for agents to send screen frames.
     
@@ -7380,6 +7380,12 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str):
     - Agent sends: {"type": "ready"} when capture started
     - Server sends: {"type": "stop"} to end session
     """
+    # Validate API key
+    valid_api_key = os.getenv("API_KEY", "openclaw-inventory-dev-key")
+    if api_key != valid_api_key:
+        await websocket.close(code=4001, reason="Invalid API key")
+        return
+    
     await websocket.accept()
     
     session = screen_session_manager.get_session(session_id)
