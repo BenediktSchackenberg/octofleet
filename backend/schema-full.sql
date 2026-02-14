@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS groups (
 CREATE TABLE IF NOT EXISTS node_groups (
     node_id UUID REFERENCES nodes(id) ON DELETE CASCADE,
     group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+    assigned_by TEXT,
+    PRIMARY KEY (node_id, group_id)
+);
+
+-- Alias for compatibility
+CREATE TABLE IF NOT EXISTS device_groups (
+    node_id UUID REFERENCES nodes(id) ON DELETE CASCADE,
+    group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+    assigned_by TEXT,
     PRIMARY KEY (node_id, group_id)
 );
 
@@ -430,3 +439,121 @@ CREATE INDEX IF NOT EXISTS idx_perf_node_time ON performance_metrics(node_id, ti
 -- ============================================
 -- Done!
 -- ============================================
+
+-- ============================================
+-- Additional tables for API compatibility
+-- ============================================
+
+-- Network info
+CREATE TABLE IF NOT EXISTS network_current (
+    node_id UUID PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+    adapters JSONB DEFAULT '[]',
+    connections JSONB DEFAULT '[]',
+    listening_ports JSONB DEFAULT '[]',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- System info
+CREATE TABLE IF NOT EXISTS system_current (
+    node_id UUID PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+    uptime_hours NUMERIC(10,2),
+    uptime_formatted TEXT,
+    last_boot_time TIMESTAMPTZ,
+    agent_version TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Hotfixes
+CREATE TABLE IF NOT EXISTS hotfixes_current (
+    node_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    kb_id TEXT NOT NULL,
+    description TEXT,
+    installed_on TEXT,
+    installed_by TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (node_id, kb_id)
+);
+
+-- Eventlog entries (Windows events)
+CREATE TABLE IF NOT EXISTS eventlog_entries (
+    id SERIAL PRIMARY KEY,
+    node_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    log_name TEXT,
+    event_id INTEGER,
+    level TEXT,
+    source TEXT,
+    message TEXT,
+    time_created TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Browser info
+CREATE TABLE IF NOT EXISTS browser_current (
+    node_id UUID PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+    browsers JSONB DEFAULT '[]',
+    extensions JSONB DEFAULT '[]',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tags
+CREATE TABLE IF NOT EXISTS tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL UNIQUE,
+    color TEXT DEFAULT '#808080',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS device_tags (
+    node_id UUID REFERENCES nodes(id) ON DELETE CASCADE,
+    tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (node_id, tag_id)
+);
+
+-- Node metrics (for performance tracking)  
+CREATE TABLE IF NOT EXISTS node_metrics (
+    time TIMESTAMPTZ NOT NULL,
+    node_id UUID NOT NULL,
+    cpu_percent NUMERIC(5,2),
+    ram_percent NUMERIC(5,2),
+    disk_percent NUMERIC(5,2),
+    PRIMARY KEY (time, node_id)
+);
+
+-- Notification channels
+CREATE TABLE IF NOT EXISTS notification_channels (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL, -- email, slack, webhook, teams
+    config JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Alert rules
+CREATE TABLE IF NOT EXISTS alert_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    condition JSONB NOT NULL,
+    severity TEXT DEFAULT 'warning',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS alert_rule_channels (
+    rule_id UUID REFERENCES alert_rules(id) ON DELETE CASCADE,
+    channel_id UUID REFERENCES notification_channels(id) ON DELETE CASCADE,
+    PRIMARY KEY (rule_id, channel_id)
+);
+
+-- Remediation jobs
+CREATE TABLE IF NOT EXISTS remediation_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id UUID REFERENCES nodes(id) ON DELETE CASCADE,
+    package_id INTEGER REFERENCES remediation_packages(id),
+    status TEXT DEFAULT 'pending',
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    logs TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
