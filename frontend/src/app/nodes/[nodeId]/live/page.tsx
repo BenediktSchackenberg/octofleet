@@ -62,6 +62,8 @@ export default function LiveViewPage() {
   const nodeId = params.nodeId as string;
   
   const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(true);
+  const [reconnectCount, setReconnectCount] = useState(0);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [processes, setProcesses] = useState<Process[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -75,9 +77,18 @@ export default function LiveViewPage() {
   
   const eventSourceRef = useRef<EventSource | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (paused) return;
+  const connect = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    
+    setConnecting(true);
+    setError(null);
     
     const token = localStorage.getItem('token');
     const url = `${API_BASE}/live/${nodeId}?token=${token}`;
@@ -87,12 +98,25 @@ export default function LiveViewPage() {
     
     es.onopen = () => {
       setConnected(true);
+      setConnecting(false);
+      setReconnectCount(0);
       setError(null);
     };
     
     es.onerror = () => {
       setConnected(false);
-      setError("Connection lost. Retrying...");
+      setConnecting(false);
+      
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+      const backoff = Math.min(1000 * Math.pow(2, reconnectCount), 30000);
+      setError(`Connection lost. Reconnecting in ${backoff / 1000}s...`);
+      setReconnectCount(prev => prev + 1);
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (!paused) {
+          connect();
+        }
+      }, backoff);
     };
     
     es.addEventListener('connected', (e) => {
@@ -149,17 +173,39 @@ export default function LiveViewPage() {
     es.addEventListener('disconnected', () => {
       setConnected(false);
     });
+  };
+
+  useEffect(() => {
+    if (paused) return;
+    connect();
     
     return () => {
-      es.close();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
     };
-  }, [nodeId, paused, activeTab]);
+  }, [nodeId, paused]);
 
   const togglePause = () => {
     if (!paused && eventSourceRef.current) {
       eventSourceRef.current.close();
     }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
     setPaused(!paused);
+    if (paused) {
+      setReconnectCount(0);
+      connect();
+    }
+  };
+
+  const manualReconnect = () => {
+    setReconnectCount(0);
+    connect();
   };
 
   const clearLogs = () => setLogs([]);
@@ -212,8 +258,11 @@ export default function LiveViewPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold">🔴 Live View</h1>
-            <Badge variant={connected ? "default" : "destructive"} className={connected ? "bg-green-500" : ""}>
-              {connected ? "● Connected" : "○ Disconnected"}
+            <Badge 
+              variant={connected ? "default" : connecting ? "outline" : "destructive"} 
+              className={connected ? "bg-green-500" : connecting ? "border-yellow-500 text-yellow-500" : ""}
+            >
+              {connected ? "● Connected" : connecting ? "◐ Connecting..." : "○ Disconnected"}
             </Badge>
             {lastHeartbeat > 0 && (
               <span className="text-sm text-muted-foreground">
@@ -232,8 +281,24 @@ export default function LiveViewPage() {
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-500">
-            {error}
+          <div className="mb-4 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-500 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span>⚠️ {error}</span>
+              {reconnectCount > 0 && (
+                <Badge variant="outline" className="text-red-500 border-red-500">
+                  Retry #{reconnectCount}
+                </Badge>
+              )}
+            </div>
+            <Button variant="outline" size="sm" onClick={manualReconnect} className="border-red-500 text-red-500">
+              🔄 Reconnect Now
+            </Button>
+          </div>
+        )}
+
+        {connecting && !connected && !error && (
+          <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500 rounded-lg text-yellow-500">
+            ⏳ Connecting to live stream...
           </div>
         )}
 
