@@ -1,0 +1,105 @@
+# Build-Release.ps1
+# Builds and packages the OpenClaw Windows Agent for release
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$Version,
+    
+    [switch]$CreateRelease,
+    
+    [string]$OutputPath = ".\release"
+)
+
+$ErrorActionPreference = "Stop"
+
+# Find solution/project
+$projectPath = "$PSScriptRoot\..\src\OpenClawAgent.Service\OpenClawAgent.Service.csproj"
+if (-not (Test-Path $projectPath)) {
+    Write-Error "Project not found: $projectPath"
+    exit 1
+}
+
+Write-Host "Building OpenClaw Windows Agent v$Version..." -ForegroundColor Cyan
+
+# Clean output
+if (Test-Path $OutputPath) {
+    Remove-Item $OutputPath -Recurse -Force
+}
+New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
+
+# Build paths
+$publishPath = "$OutputPath\publish"
+$zipPath = "$OutputPath\OpenClawAgent-v$Version.zip"
+
+# Publish (self-contained, single file)
+Write-Host "Publishing..." -ForegroundColor Yellow
+dotnet publish $projectPath `
+    -c Release `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:Version=$Version `
+    -p:AssemblyVersion=$Version.0 `
+    -p:FileVersion=$Version.0 `
+    -o $publishPath
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Build failed!"
+    exit 1
+}
+
+# Copy installer script
+$installerSrc = "$PSScriptRoot\Install-OpenClawAgent.ps1"
+if (Test-Path $installerSrc) {
+    Copy-Item $installerSrc -Destination $publishPath
+}
+
+# Create ZIP
+Write-Host "Creating ZIP archive..." -ForegroundColor Yellow
+Compress-Archive -Path "$publishPath\*" -DestinationPath $zipPath -Force
+
+# Calculate hash
+$hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash
+Write-Host "SHA256: $hash" -ForegroundColor Green
+
+# Save hash to file
+$hash | Out-File "$OutputPath\OpenClawAgent-v$Version.sha256" -NoNewline
+
+Write-Host "`nBuild complete!" -ForegroundColor Green
+Write-Host "  ZIP: $zipPath"
+Write-Host "  Hash: $hash"
+
+# Create GitHub release if requested
+if ($CreateRelease) {
+    Write-Host "`nCreating GitHub release..." -ForegroundColor Yellow
+    
+    # Check for gh CLI
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        Write-Warning "GitHub CLI (gh) not found. Please create release manually."
+        Write-Host "  gh release create v$Version '$zipPath' --title 'v$Version' --notes 'See CHANGELOG.md'"
+        exit 0
+    }
+    
+    # Create release
+    $releaseNotes = @"
+## OpenClaw Windows Agent v$Version
+
+See [CHANGELOG.md](https://github.com/BenediktSchackenberg/openclaw-windows-agent/blob/main/CHANGELOG.md) for details.
+
+### Installation
+``````powershell
+irm https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v$Version/Install-OpenClawAgent.ps1 | iex
+``````
+
+### SHA256
+``$hash``
+"@
+    
+    gh release create "v$Version" $zipPath `
+        --title "v$Version" `
+        --notes $releaseNotes
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Release created successfully!" -ForegroundColor Green
+    }
+}
