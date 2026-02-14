@@ -338,6 +338,12 @@ async def health_check():
         return {"status": "degraded", "service": "openclaw-inventory", "database": str(e)}
 
 
+@app.get("/api/v1/health")
+async def api_health_check():
+    """Health check endpoint (API versioned path)"""
+    return await health_check()
+
+
 # Agent version management
 AGENT_LATEST_VERSION = "0.4.16"
 AGENT_DOWNLOAD_URL = f"https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v{AGENT_LATEST_VERSION}/OpenClawAgent-v{AGENT_LATEST_VERSION}-win-x64.zip"
