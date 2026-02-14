@@ -47,7 +47,8 @@
     "audit": "Audit",
     "settings": "Settings",
     "apiKeys": "API Keys",
-    "logout": "Logout"
+    "logout": "Logout",
+    "remediation": "Auto-Remediation"
   },
   "auth": {
     "login": "Login",
