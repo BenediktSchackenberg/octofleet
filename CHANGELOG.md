@@ -3,6 +3,13 @@
 ## [0.4.20] - 2026-02-14
 
 ### Fixed
+## [0.4.23] — 2026-02-14
+
+### Added
+- **Agent Service Logs**: LiveDataPoller now collects and streams logs from the OpenClaw Agent Windows Event Log
+- **Agent Logs Tab**: New "🤖 Agent" tab in Live View showing agent service logs
+- Logs include timestamp, level (Info/Warning/Error), source, and message
+
 ## [0.4.22] — 2026-02-14
 
 ### Added

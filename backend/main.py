@@ -6671,6 +6671,7 @@ live_sessions: Dict[str, Dict] = {}
 
 # Cache for live network data (node_id -> network data)
 live_network_cache: Dict[str, Dict] = {}
+live_agent_logs_cache: Dict[str, Dict] = {}  # Cache for agent service logs
 
 async def live_data_generator(node_id: str, session_id: str):
     """Generator for SSE live data stream"""
@@ -6801,6 +6802,15 @@ async def live_data_generator(node_id: str, session_id: str):
                 }
                 yield f"event: network\ndata: {json.dumps(data)}\n\n"
                 last_network_time = now
+            
+            # Send agent logs every 5 seconds (from cache)
+            if node_id in live_agent_logs_cache and now - last_network_time >= 5:
+                agent_logs_data = live_agent_logs_cache[node_id]
+                data = {
+                    "type": "agentLogs",
+                    "data": agent_logs_data
+                }
+                yield f"event: agentLogs\ndata: {json.dumps(data)}\n\n"
             
             # Heartbeat every 10 seconds
             yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"
@@ -6943,11 +6953,20 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
                 "interfaces": network
             }
         
+        # Cache agent logs for SSE streaming
+        agent_logs = data.get("agentLogs", [])
+        if agent_logs:
+            live_agent_logs_cache[node_id_text] = {
+                "timestamp": now.isoformat(),
+                "logs": agent_logs
+            }
+        
         return {
             "status": "ok",
             "metricsStored": bool(metrics),
             "processesStored": len(processes),
-            "networkCached": len(network)
+            "networkCached": len(network),
+            "agentLogsCached": len(agent_logs)
         }
 
 

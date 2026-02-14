@@ -57,6 +57,14 @@ interface NetworkInterface {
   txTotalMb: number;
 }
 
+interface AgentLogEntry {
+  timestamp: string;
+  level: string;
+  source: string;
+  message: string;
+  eventId?: number;
+}
+
 export default function LiveViewPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
@@ -68,11 +76,12 @@ export default function LiveViewPage() {
   const [processes, setProcesses] = useState<Process[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [network, setNetwork] = useState<NetworkInterface[]>([]);
+  const [agentLogs, setAgentLogs] = useState<AgentLogEntry[]>([]);
   const [history, setHistory] = useState<MetricHistory[]>([]);
   const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance' | 'network'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance' | 'network' | 'agentLogs'>('overview');
   const [logFilter, setLogFilter] = useState('');
   
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -162,6 +171,13 @@ export default function LiveViewPage() {
       const { data } = JSON.parse(e.data);
       if (data?.interfaces) {
         setNetwork(data.interfaces);
+      }
+    });
+    
+    es.addEventListener('agentLogs', (e) => {
+      const { data } = JSON.parse(e.data);
+      if (data?.logs) {
+        setAgentLogs(data.logs);
       }
     });
     
@@ -304,7 +320,7 @@ export default function LiveViewPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-1 mb-6 border-b">
-          {(['overview', 'logs', 'processes', 'performance', 'network'] as const).map(tab => (
+          {(['overview', 'logs', 'processes', 'performance', 'network', 'agentLogs'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -319,6 +335,7 @@ export default function LiveViewPage() {
               {tab === 'processes' && `⚙️ Processes (${processes.length})`}
               {tab === 'performance' && '📈 Performance'}
               {tab === 'network' && `🌐 Network (${network.length})`}
+              {tab === 'agentLogs' && `🤖 Agent (${agentLogs.length})`}
             </button>
           ))}
         </div>
@@ -577,6 +594,50 @@ export default function LiveViewPage() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   {connected ? 'Waiting for network data...' : 'Connect to see network interfaces'}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Agent Logs Tab */}
+        {activeTab === 'agentLogs' && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>🤖 Agent Service Logs</CardTitle>
+                  <CardDescription>Logs from the OpenClaw Agent service</CardDescription>
+                </div>
+                <span className="text-sm text-muted-foreground">{agentLogs.length} entries</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {agentLogs.length > 0 ? (
+                <div className="space-y-2 font-mono text-sm max-h-[600px] overflow-y-auto">
+                  {agentLogs.map((log, i) => (
+                    <div key={i} className="flex gap-2 p-2 rounded hover:bg-muted/50 border-b border-muted">
+                      <span className="text-muted-foreground whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </span>
+                      <Badge 
+                        variant={log.level === 'Error' ? 'destructive' : log.level === 'Warning' ? 'secondary' : 'outline'}
+                        className={`min-w-[80px] justify-center ${
+                          log.level === 'Information' ? 'bg-blue-500/20 text-blue-400' :
+                          log.level === 'Warning' ? 'bg-yellow-500/20 text-yellow-400' :
+                          log.level === 'Error' ? 'bg-red-500/20 text-red-400' : ''
+                        }`}
+                      >
+                        {log.level}
+                      </Badge>
+                      <span className="text-muted-foreground">[{log.source}]</span>
+                      <span className="flex-1 break-all">{log.message}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {connected ? 'Waiting for agent logs... (requires agent v0.4.23+)' : 'Connect to see agent logs'}
                 </div>
               )}
             </CardContent>

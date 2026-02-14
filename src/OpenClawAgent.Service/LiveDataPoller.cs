@@ -151,6 +151,17 @@ public class LiveDataPoller : BackgroundService
             _logger.LogDebug(ex, "Could not get network stats");
         }
 
+        // Get agent service logs from Windows Event Log
+        var agentLogs = new List<object>();
+        try
+        {
+            agentLogs = GetAgentServiceLogs(50);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not get agent logs");
+        }
+
         var payload = new
         {
             nodeId = _nodeId,
@@ -170,7 +181,8 @@ public class LiveDataPoller : BackgroundService
                 userName = p.UserName,
                 threadCount = p.ThreadCount
             }),
-            network = networkInterfaces
+            network = networkInterfaces,
+            agentLogs = agentLogs
         };
 
         var json = JsonSerializer.Serialize(payload);
@@ -188,5 +200,49 @@ public class LiveDataPoller : BackgroundService
         {
             _logger.LogWarning("Failed to push live data: {Status}", response.StatusCode);
         }
+    }
+
+    /// <summary>
+    /// Get recent agent service logs from Windows Event Log.
+    /// </summary>
+    private List<object> GetAgentServiceLogs(int maxEntries)
+    {
+        var logs = new List<object>();
+        
+        try
+        {
+            // Try to read from Application log with source filter
+            using var eventLog = new System.Diagnostics.EventLog("Application");
+            
+            // Get entries, newest first
+            var entries = eventLog.Entries.Cast<System.Diagnostics.EventLogEntry>()
+                .Where(e => e.Source.Contains("OpenClaw", StringComparison.OrdinalIgnoreCase) ||
+                           e.Source.Contains("DIOOpenClawAgent", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(e => e.TimeWritten)
+                .Take(maxEntries);
+
+            foreach (var entry in entries)
+            {
+                logs.Add(new
+                {
+                    timestamp = entry.TimeWritten.ToString("o"),
+                    level = entry.EntryType.ToString(),
+                    source = entry.Source,
+                    message = entry.Message.Length > 500 ? entry.Message.Substring(0, 500) + "..." : entry.Message,
+                    eventId = entry.InstanceId
+                });
+            }
+        }
+        catch (System.Security.SecurityException)
+        {
+            // No permission to read event log - this is expected for some services
+            _logger.LogDebug("No permission to read Application event log");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not read agent logs from Event Log");
+        }
+
+        return logs;
     }
 }
