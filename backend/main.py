@@ -383,7 +383,33 @@ async def list_nodes(
                 LEFT JOIN hardware_current h ON n.id = h.node_id
                 ORDER BY n.last_seen DESC
             """)
-        return {"nodes": [dict(r) for r in rows]}
+        
+        # Enrich with health info
+        nodes_list = []
+        for r in rows:
+            node = dict(r)
+            # Get active alerts count for this node
+            alert_counts = await conn.fetchrow("""
+                SELECT 
+                    COUNT(*) FILTER (WHERE severity = 'critical' AND status = 'fired') as critical_count,
+                    COUNT(*) FILTER (WHERE severity = 'warning' AND status = 'fired') as warning_count
+                FROM alerts WHERE node_id = $1
+            """, r['id'])
+            
+            critical = alert_counts['critical_count'] or 0
+            warning = alert_counts['warning_count'] or 0
+            
+            if critical > 0:
+                node['health_status'] = 'critical'
+            elif warning > 0:
+                node['health_status'] = 'warning'
+            else:
+                node['health_status'] = 'healthy'
+            
+            node['alert_count'] = critical + warning
+            nodes_list.append(node)
+        
+        return {"nodes": nodes_list}
 
 
 def _get_os_family(os_name: str | None) -> str:
@@ -6993,3 +7019,145 @@ async def get_metrics_history(
                 for row in rows
             ]
         }
+
+
+# ============================================================================
+# E15-06: Hardware Export Endpoints
+# ============================================================================
+
+@app.get("/api/v1/hardware/export")
+async def export_fleet_hardware(
+    format: str = "json",
+    _: str = Depends(verify_api_key),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Export fleet hardware data as JSON or CSV.
+    
+    Query params:
+    - format: json (default) or csv
+    """
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                n.node_id,
+                n.hostname,
+                n.os_name,
+                n.is_online,
+                h.cpu->>'name' as cpu_name,
+                (h.cpu->>'cores')::int as cpu_cores,
+                (h.ram->>'totalGb')::numeric as ram_gb,
+                jsonb_array_length(COALESCE(h.disks->'physical', '[]'::jsonb)) as disk_count,
+                h.updated_at
+            FROM nodes n
+            LEFT JOIN hardware_current h ON n.id = h.node_id
+            ORDER BY n.hostname
+        """)
+        
+        if format.lower() == "csv":
+            import io
+            import csv
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['node_id', 'hostname', 'os_name', 'is_online', 'cpu_name', 'cpu_cores', 'ram_gb', 'disk_count', 'updated_at'])
+            for r in rows:
+                writer.writerow([
+                    r['node_id'], r['hostname'], r['os_name'], r['is_online'],
+                    r['cpu_name'], r['cpu_cores'], float(r['ram_gb']) if r['ram_gb'] else None,
+                    r['disk_count'], r['updated_at'].isoformat() if r['updated_at'] else None
+                ])
+            from fastapi.responses import Response
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=fleet-hardware.csv"}
+            )
+        
+        # JSON format
+        return {
+            "exportedAt": dt.utcnow().isoformat(),
+            "nodeCount": len(rows),
+            "nodes": [
+                {
+                    "nodeId": r['node_id'],
+                    "hostname": r['hostname'],
+                    "osName": r['os_name'],
+                    "isOnline": r['is_online'],
+                    "cpu": {"name": r['cpu_name'], "cores": r['cpu_cores']},
+                    "ramGb": float(r['ram_gb']) if r['ram_gb'] else None,
+                    "diskCount": r['disk_count'],
+                    "updatedAt": r['updated_at'].isoformat() if r['updated_at'] else None
+                }
+                for r in rows
+            ]
+        }
+
+
+@app.get("/api/v1/nodes/{node_id}/hardware/export")
+async def export_node_hardware(
+    node_id: str,
+    format: str = "json",
+    _: str = Depends(verify_api_key),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Export single node hardware data as JSON or CSV.
+    """
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id, hostname FROM nodes WHERE node_id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        hw = await conn.fetchrow("""
+            SELECT cpu, ram, disks, mainboard, bios, gpu, nics, updated_at
+            FROM hardware_current WHERE node_id = $1
+        """, node['id'])
+        
+        if not hw:
+            raise HTTPException(status_code=404, detail="No hardware data")
+        
+        data = {
+            "nodeId": node_id,
+            "hostname": node['hostname'],
+            "exportedAt": dt.utcnow().isoformat(),
+            "cpu": json.loads(hw['cpu']) if hw['cpu'] else {},
+            "ram": json.loads(hw['ram']) if hw['ram'] else {},
+            "disks": json.loads(hw['disks']) if hw['disks'] else {},
+            "mainboard": json.loads(hw['mainboard']) if hw['mainboard'] else {},
+            "bios": json.loads(hw['bios']) if hw['bios'] else {},
+            "gpu": json.loads(hw['gpu']) if hw['gpu'] else [],
+            "nics": json.loads(hw['nics']) if hw['nics'] else [],
+            "updatedAt": hw['updated_at'].isoformat() if hw['updated_at'] else None
+        }
+        
+        if format.lower() == "csv":
+            # Flatten for CSV
+            import io
+            import csv
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # CPU row
+            cpu = data.get('cpu', {})
+            writer.writerow(['Component', 'Property', 'Value'])
+            writer.writerow(['CPU', 'Name', cpu.get('name', '')])
+            writer.writerow(['CPU', 'Cores', cpu.get('cores', '')])
+            writer.writerow(['CPU', 'Threads', cpu.get('logicalProcessors', '')])
+            
+            # RAM
+            ram = data.get('ram', {})
+            writer.writerow(['RAM', 'Total GB', ram.get('totalGb', '')])
+            
+            # Disks
+            for i, disk in enumerate(data.get('disks', {}).get('physical', [])):
+                writer.writerow([f'Disk {i+1}', 'Model', disk.get('model', '')])
+                writer.writerow([f'Disk {i+1}', 'Size GB', disk.get('sizeGB', '')])
+            
+            from fastapi.responses import Response
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={node_id}-hardware.csv"}
+            )
+        
+        return data

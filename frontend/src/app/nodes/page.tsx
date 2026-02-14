@@ -18,6 +18,8 @@ interface Node {
   agent_version: string;
   cpu_name: string | null;
   total_memory_gb: number | null;
+  health_status?: 'healthy' | 'warning' | 'critical';
+  alert_count?: number;
 }
 
 function StatusDot({ online }: { online: boolean }) {
@@ -27,6 +29,23 @@ function StatusDot({ online }: { online: boolean }) {
         online ? "bg-green-500" : "bg-zinc-500"
       }`}
     />
+  );
+}
+
+function HealthBadge({ status, count }: { status?: string; count?: number }) {
+  if (!status || status === 'healthy') return null;
+  
+  const colors = {
+    warning: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
+    critical: 'bg-red-500/20 text-red-400 border-red-500/50'
+  };
+  
+  const icons = { warning: '⚠️', critical: '🔴' };
+  
+  return (
+    <span className={`ml-2 px-2 py-0.5 text-xs rounded border ${colors[status as keyof typeof colors] || ''}`}>
+      {icons[status as keyof typeof icons]} {count || 1}
+    </span>
   );
 }
 
@@ -48,6 +67,7 @@ export default function NodesPage() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showOnlyIssues, setShowOnlyIssues] = useState(false);
 
   useEffect(() => {
     fetchNodes();
@@ -68,13 +88,20 @@ export default function NodesPage() {
   }
 
   const filteredNodes = nodes.filter(
-    (node) =>
-      node.hostname.toLowerCase().includes(search.toLowerCase()) ||
-      node.node_id.toLowerCase().includes(search.toLowerCase()) ||
-      (node.os_name && node.os_name.toLowerCase().includes(search.toLowerCase()))
+    (node) => {
+      const matchesSearch = node.hostname.toLowerCase().includes(search.toLowerCase()) ||
+        node.node_id.toLowerCase().includes(search.toLowerCase()) ||
+        (node.os_name && node.os_name.toLowerCase().includes(search.toLowerCase()));
+      
+      const matchesIssueFilter = !showOnlyIssues || 
+        (node.health_status && node.health_status !== 'healthy');
+      
+      return matchesSearch && matchesIssueFilter;
+    }
   );
 
   const onlineCount = nodes.filter((n) => n.is_online).length;
+  const issueCount = nodes.filter((n) => n.health_status && n.health_status !== 'healthy').length;
 
   if (loading) {
     return (
@@ -100,8 +127,8 @@ export default function NodesPage() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="mb-4">
+        {/* Search & Filters */}
+        <div className="mb-4 flex flex-wrap gap-4 items-center">
           <input
             type="text"
             placeholder="Suchen..."
@@ -109,6 +136,19 @@ export default function NodesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full md:w-80 px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
           />
+          
+          {issueCount > 0 && (
+            <button
+              onClick={() => setShowOnlyIssues(!showOnlyIssues)}
+              className={`px-4 py-2 rounded-lg border transition-colors ${
+                showOnlyIssues 
+                  ? 'bg-red-500/20 border-red-500 text-red-400' 
+                  : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-red-500'
+              }`}
+            >
+              🔴 Nur Probleme ({issueCount})
+            </button>
+          )}
         </div>
 
         {/* Nodes Table */}
@@ -139,6 +179,7 @@ export default function NodesPage() {
                     >
                       {node.hostname}
                     </Link>
+                    <HealthBadge status={node.health_status} count={node.alert_count} />
                   </td>
                   <td className="p-4 hidden md:table-cell text-sm text-zinc-400">
                     {node.os_name}
