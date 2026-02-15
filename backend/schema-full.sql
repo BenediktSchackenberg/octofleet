@@ -1201,3 +1201,103 @@ ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+-- ============================================================================
+-- E18: Service Orchestration Schema
+-- ============================================================================
+
+-- Service Classes define templates for services (e.g., nginx-webservice, postgresql-cluster)
+CREATE TABLE public.service_classes (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name character varying(100) NOT NULL UNIQUE,
+    description text,
+    -- Service type: single (1 node) or cluster (N nodes)
+    service_type character varying(20) DEFAULT 'single' CHECK (service_type IN ('single', 'cluster')),
+    -- Node requirements
+    min_nodes integer DEFAULT 1,
+    max_nodes integer DEFAULT 1,
+    -- Available roles for this service class (JSON array)
+    roles jsonb DEFAULT '["primary"]'::jsonb,
+    -- Required packages to install (JSON array)
+    required_packages jsonb DEFAULT '[]'::jsonb,
+    -- Config template (Jinja2-style with variables)
+    config_template text,
+    -- Health check definition
+    health_check jsonb DEFAULT '{"type": "tcp", "port": 80}'::jsonb,
+    -- Drift policy: strict (auto-fix) or tolerant (alert-only)
+    drift_policy character varying(20) DEFAULT 'strict' CHECK (drift_policy IN ('strict', 'tolerant')),
+    -- Update strategy: rolling, one-by-one, all-at-once
+    update_strategy character varying(20) DEFAULT 'rolling' CHECK (update_strategy IN ('rolling', 'one-by-one', 'all-at-once')),
+    -- Metadata
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    created_by character varying(100)
+);
+
+-- Services are instances of service classes
+CREATE TABLE public.services (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    class_id uuid NOT NULL REFERENCES public.service_classes(id) ON DELETE RESTRICT,
+    name character varying(100) NOT NULL,
+    description text,
+    -- Service status: provisioning, healthy, degraded, failed, stopped
+    status character varying(20) DEFAULT 'provisioning' CHECK (status IN ('provisioning', 'healthy', 'degraded', 'failed', 'stopped')),
+    -- Desired state version (incremented on config changes)
+    desired_state_version integer DEFAULT 1,
+    -- Current config values (variables for template)
+    config_values jsonb DEFAULT '{}'::jsonb,
+    -- Secrets reference (encrypted or vault path)
+    secrets_ref text,
+    -- Metadata
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    created_by character varying(100),
+    UNIQUE(name)
+);
+
+-- Service node assignments link services to nodes with roles
+CREATE TABLE public.service_node_assignments (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    service_id uuid NOT NULL REFERENCES public.services(id) ON DELETE CASCADE,
+    node_id uuid NOT NULL REFERENCES public.nodes(id) ON DELETE CASCADE,
+    -- Role within the service (e.g., primary, replica, web-node)
+    role character varying(50) DEFAULT 'primary',
+    -- Assignment status: pending, provisioning, active, draining, removed
+    status character varying(20) DEFAULT 'pending' CHECK (status IN ('pending', 'provisioning', 'active', 'draining', 'removed')),
+    -- Last reconciliation
+    last_reconciled_at timestamp with time zone,
+    last_reconciled_version integer,
+    -- Health status from last check
+    health_status character varying(20) DEFAULT 'unknown' CHECK (health_status IN ('healthy', 'unhealthy', 'unknown')),
+    health_message text,
+    -- Metadata
+    assigned_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE(service_id, node_id)
+);
+
+-- Service reconciliation history
+CREATE TABLE public.service_reconciliation_log (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    service_id uuid NOT NULL REFERENCES public.services(id) ON DELETE CASCADE,
+    node_id uuid REFERENCES public.nodes(id) ON DELETE SET NULL,
+    -- Action: provision, configure, health-check, drift-fix, scale-up, scale-down
+    action character varying(50) NOT NULL,
+    status character varying(20) NOT NULL CHECK (status IN ('started', 'success', 'failed', 'skipped')),
+    -- Details
+    message text,
+    details jsonb,
+    -- Timing
+    started_at timestamp with time zone DEFAULT now(),
+    completed_at timestamp with time zone,
+    duration_ms integer
+);
+
+-- Indexes for E18
+CREATE INDEX idx_services_class ON public.services(class_id);
+CREATE INDEX idx_services_status ON public.services(status);
+CREATE INDEX idx_service_node_assignments_service ON public.service_node_assignments(service_id);
+CREATE INDEX idx_service_node_assignments_node ON public.service_node_assignments(node_id);
+CREATE INDEX idx_service_reconciliation_log_service ON public.service_reconciliation_log(service_id);
+CREATE INDEX idx_service_reconciliation_log_time ON public.service_reconciliation_log(started_at DESC);
+

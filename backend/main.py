@@ -2858,6 +2858,7 @@ try {{
                         command_type = "run"
             
             jobs.append({
+                # camelCase (new agents)
                 "instanceId": str(row["id"]),
                 "jobId": str(row["job_id"]),
                 "jobName": row["name"] or "Unnamed Job",
@@ -2866,7 +2867,13 @@ try {{
                 "priority": row["priority"],
                 "attempt": row["attempt"],
                 "maxAttempts": row["max_attempts"],
-                "timeoutSeconds": row["timeout_seconds"] or 300
+                "timeoutSeconds": row["timeout_seconds"] or 300,
+                # snake_case (legacy Linux agent compatibility)
+                "instance_id": str(row["id"]),
+                "job_id": str(row["job_id"]),
+                "job_name": row["name"] or "Unnamed Job",
+                "command_type": command_type,
+                "command_payload": json.dumps(command_payload) if isinstance(command_payload, dict) else str(command_payload),
             })
         
         return {"jobs": jobs, "count": len(jobs)}
@@ -2942,6 +2949,39 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
             "instanceId": instance_id,
             "willRetry": should_retry
         }
+
+
+# Legacy endpoint for old Linux agent (snake_case fields, different path)
+@app.post("/api/v1/jobs/result")
+async def submit_job_result_legacy(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Legacy agent endpoint: Submit job result (old format with instance_id in body)"""
+    instance_id = data.get("instance_id")
+    if not instance_id:
+        raise HTTPException(status_code=400, detail="instance_id required")
+    
+    # Support both old (snake_case) and new (camelCase) field names
+    exit_code = data.get("exit_code", data.get("exitCode", -1))
+    status = data.get("status", "failed")
+    stdout = data.get("output", data.get("stdout", ""))
+    stderr = data.get("stderr", "")
+    
+    success = status == "success" or exit_code == 0
+    
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE job_instances 
+            SET status = $1, completed_at = NOW(), updated_at = NOW(),
+                exit_code = $2, stdout = $3, stderr = $4
+            WHERE id = $5
+            RETURNING id
+        """, "success" if success else "failed", exit_code, 
+             stdout[:50000] if stdout else None, stderr[:50000] if stderr else None, 
+             instance_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        
+        return {"status": "success" if success else "failed", "instanceId": instance_id}
 
 
 @app.post("/api/v1/jobs/instances/{instance_id}/retry")
