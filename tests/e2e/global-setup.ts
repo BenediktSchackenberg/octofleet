@@ -4,7 +4,7 @@ const API_URL = process.env.API_URL || 'http://localhost:8080';
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const ADMIN_USER = {
   username: 'admin',
-  password: 'admin',
+  password: 'OpenClaw2026!',
   email: 'admin@test.local',
   display_name: 'Test Admin'
 };
