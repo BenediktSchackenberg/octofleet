@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
-VERSION="0.1.0"
+VERSION="0.4.26-linux"
 
 # Load config
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -20,7 +20,13 @@ API_KEY="${API_KEY:-openclaw-inventory-dev-key}"
 NODE_ID="${NODE_ID:-$(hostname)}"
 PUSH_INTERVAL="${PUSH_INTERVAL:-1800}"
 JOB_POLL_INTERVAL="${JOB_POLL_INTERVAL:-60}"
+LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
 LOG_FILE="${LOG_FILE:-/var/log/openclaw-agent.log}"
+
+# Network stats cache for rate calculation
+declare -A LAST_RX_BYTES
+declare -A LAST_TX_BYTES
+LAST_NET_TIME=0
 
 # Colors for output
 RED='\033[0;31m'
@@ -249,6 +255,159 @@ EOF
 }
 
 # ============================================================================
+# Live Data Collection (for Real-time Dashboard)
+# ============================================================================
+
+collect_live_metrics() {
+    # CPU - average across all cores (1 second sample)
+    local cpu_percent=0
+    if [[ -f /proc/stat ]]; then
+        local cpu1=$(head -1 /proc/stat)
+        sleep 0.5
+        local cpu2=$(head -1 /proc/stat)
+        
+        local idle1=$(echo "$cpu1" | awk '{print $5}')
+        local total1=$(echo "$cpu1" | awk '{sum=0; for(i=2;i<=NF;i++) sum+=$i; print sum}')
+        local idle2=$(echo "$cpu2" | awk '{print $5}')
+        local total2=$(echo "$cpu2" | awk '{sum=0; for(i=2;i<=NF;i++) sum+=$i; print sum}')
+        
+        local idle_diff=$((idle2 - idle1))
+        local total_diff=$((total2 - total1))
+        
+        if [[ $total_diff -gt 0 ]]; then
+            cpu_percent=$(echo "scale=1; 100 * (1 - $idle_diff / $total_diff)" | bc 2>/dev/null || echo 0)
+        fi
+    fi
+    
+    # Memory
+    local mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+    local mem_available=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}')
+    local mem_percent=0
+    if [[ -n "$mem_total" ]] && [[ "$mem_total" -gt 0 ]]; then
+        mem_percent=$(echo "scale=1; 100 * (1 - $mem_available / $mem_total)" | bc 2>/dev/null || echo 0)
+    fi
+    
+    # Disk (root filesystem)
+    local disk_percent=$(df / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print $5}' || echo 0)
+    
+    cat << EOF
+{
+    "cpuPercent": $cpu_percent,
+    "memoryPercent": $mem_percent,
+    "diskPercent": $disk_percent
+}
+EOF
+}
+
+collect_live_processes() {
+    # Top 20 processes by CPU usage
+    ps aux --sort=-%cpu 2>/dev/null | head -21 | tail -20 | awk 'BEGIN {print "["} 
+        NR>1 {
+            if (NR>2) print ","
+            gsub(/"/, "\\\"", $11)
+            printf "{\"name\":\"%s\",\"pid\":%d,\"cpuPercent\":%.1f,\"memoryMb\":%.1f,\"userName\":\"%s\"}", 
+                   $11, $2, $3, $6/1024, $1
+        } 
+        END {print "]"}' 2>/dev/null || echo "[]"
+}
+
+collect_live_network() {
+    local now=$(date +%s)
+    local interfaces="["
+    local first=1
+    
+    for iface in /sys/class/net/*/; do
+        local name=$(basename "$iface")
+        [[ "$name" == "lo" ]] && continue
+        
+        local rx_bytes=$(cat "$iface/statistics/rx_bytes" 2>/dev/null || echo 0)
+        local tx_bytes=$(cat "$iface/statistics/tx_bytes" 2>/dev/null || echo 0)
+        local link_up="false"
+        [[ "$(cat "$iface/operstate" 2>/dev/null)" == "up" ]] && link_up="true"
+        local speed=$(cat "$iface/speed" 2>/dev/null || echo 0)
+        [[ "$speed" -lt 0 ]] && speed=0
+        
+        # Calculate rates
+        local rx_rate=0 tx_rate=0
+        local last_rx="${LAST_RX_BYTES[$name]:-0}"
+        local last_tx="${LAST_TX_BYTES[$name]:-0}"
+        
+        if [[ $LAST_NET_TIME -gt 0 ]]; then
+            local elapsed=$((now - LAST_NET_TIME))
+            if [[ $elapsed -gt 0 ]]; then
+                rx_rate=$(( (rx_bytes - last_rx) / elapsed ))
+                tx_rate=$(( (tx_bytes - last_tx) / elapsed ))
+            fi
+        fi
+        
+        LAST_RX_BYTES[$name]=$rx_bytes
+        LAST_TX_BYTES[$name]=$tx_bytes
+        
+        [[ $first -eq 0 ]] && interfaces+=","
+        first=0
+        
+        local rx_mb=$(echo "scale=1; $rx_bytes / 1048576" | bc 2>/dev/null || echo 0)
+        local tx_mb=$(echo "scale=1; $tx_bytes / 1048576" | bc 2>/dev/null || echo 0)
+        
+        interfaces+="{\"name\":\"$name\",\"linkUp\":$link_up,\"speedMbps\":$speed,\"rxBytesPerSec\":$rx_rate,\"txBytesPerSec\":$tx_rate,\"rxTotalMb\":$rx_mb,\"txTotalMb\":$tx_mb}"
+    done
+    
+    LAST_NET_TIME=$now
+    interfaces+="]"
+    echo "$interfaces"
+}
+
+collect_agent_logs() {
+    # Get recent logs from journal or log file
+    local logs="[]"
+    
+    if command -v journalctl &>/dev/null; then
+        logs=$(journalctl -u openclaw-agent --no-pager -n 20 --output=json 2>/dev/null | \
+            jq -s '[.[] | {
+                timestamp: (.__REALTIME_TIMESTAMP | tonumber / 1000000 | strftime("%Y-%m-%dT%H:%M:%SZ")),
+                level: (if .PRIORITY == "3" then "Error" elif .PRIORITY == "4" then "Warning" else "Information" end),
+                source: "openclaw-agent",
+                message: .MESSAGE[0:500]
+            }]' 2>/dev/null || echo '[]')
+    elif [[ -f "$LOG_FILE" ]]; then
+        logs=$(tail -20 "$LOG_FILE" 2>/dev/null | \
+            jq -R -s 'split("\n") | map(select(. != "") | {
+                timestamp: (capture("^\\[(?<ts>[^\\]]+)\\]") | .ts // ""),
+                level: (capture("\\[(?<lvl>INFO|WARN|ERROR)\\]") | .lvl // "INFO"),
+                source: "openclaw-agent",
+                message: .
+            })' 2>/dev/null || echo '[]')
+    fi
+    
+    echo "$logs"
+}
+
+push_live_data() {
+    local metrics=$(collect_live_metrics)
+    local processes=$(collect_live_processes)
+    local network=$(collect_live_network)
+    local logs=$(collect_agent_logs)
+    
+    local payload=$(cat << EOF
+{
+    "nodeId": "$NODE_ID",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "metrics": $metrics,
+    "processes": $processes,
+    "network": $network,
+    "agentLogs": $logs
+}
+EOF
+)
+    
+    curl -sS -X POST \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: $API_KEY" \
+        -d "$payload" \
+        "${API_URL}/api/v1/live-data" >/dev/null 2>&1 || true
+}
+
+# ============================================================================
 # Full Inventory
 # ============================================================================
 
@@ -391,10 +550,11 @@ run_service() {
     info "OpenClaw Linux Agent v$VERSION starting..."
     info "Node ID: $NODE_ID"
     info "API URL: $API_URL"
-    info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s"
+    info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"
     
     local last_push=0
     local last_poll=0
+    local last_live=0
     
     # Initial push
     push_inventory || true
@@ -402,6 +562,12 @@ run_service() {
     
     while true; do
         local now=$(date +%s)
+        
+        # Push live data (every 5 seconds for real-time dashboard)
+        if (( now - last_live >= LIVE_DATA_INTERVAL )); then
+            push_live_data
+            last_live=$now
+        fi
         
         # Push inventory
         if (( now - last_push >= PUSH_INTERVAL )); then
@@ -415,7 +581,7 @@ run_service() {
             last_poll=$now
         fi
         
-        sleep 10
+        sleep 1
     done
 }
 
