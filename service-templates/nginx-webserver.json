@@ -1,68 +1,46 @@
 {
   "name": "nginx-webserver",
-  "description": "Nginx web server for static content and reverse proxy",
-  "serviceType": "cluster",
-  "minNodes": 1,
-  "maxNodes": 50,
-  "roles": ["web-node"],
-  "requiredPackages": {
-    "linux": ["nginx"],
+  "displayName": "Nginx Web Server",
+  "description": "Production-ready nginx reverse proxy / web server",
+  "version": "1.0.0",
+  "category": "web",
+  "packages": {
+    "debian": ["nginx"],
+    "rhel": ["nginx"],
     "windows": ["nginx"]
   },
-  "configTemplate": {
-    "files": [
-      {
-        "path": {
-          "linux": "/etc/nginx/sites-available/{{serviceName}}",
-          "windows": "C:\\nginx\\conf\\sites\\{{serviceName}}.conf"
-        },
-        "content": "server {\n    listen {{port|default:80}};\n    server_name {{domain|default:_}};\n    root {{documentRoot|default:/var/www/html}};\n    \n    location /healthz {\n        access_log off;\n        return 200 'OK';\n        add_header Content-Type text/plain;\n    }\n    \n    location / {\n        try_files $uri $uri/ =404;\n    }\n}\n",
-        "mode": "0644"
-      }
-    ],
-    "commands": {
-      "linux": [
-        "ln -sf /etc/nginx/sites-available/{{serviceName}} /etc/nginx/sites-enabled/{{serviceName}}",
-        "nginx -t",
-        "systemctl reload nginx"
-      ],
-      "windows": [
-        "nginx -t",
-        "nginx -s reload"
-      ]
+  "configFiles": [
+    {
+      "path": "/etc/nginx/sites-available/{{service_name}}",
+      "template": "server {\n    listen {{port|default:80}};\n    server_name {{domain|default:_}};\n\n    {{#if ssl}}\n    listen 443 ssl;\n    ssl_certificate /etc/ssl/certs/{{domain}}.crt;\n    ssl_certificate_key /etc/ssl/private/{{domain}}.key;\n    {{/if}}\n\n    location / {\n        {{#if upstream}}\n        proxy_pass http://{{upstream}};\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        {{else}}\n        root {{root|default:/var/www/html}};\n        index index.html index.htm;\n        {{/if}}\n    }\n\n    location /healthz {\n        access_log off;\n        return 200 'healthy';\n        add_header Content-Type text/plain;\n    }\n}\n",
+      "enableCommand": "ln -sf /etc/nginx/sites-available/{{service_name}} /etc/nginx/sites-enabled/",
+      "reloadCommand": "nginx -t && systemctl reload nginx"
     }
+  ],
+  "services": {
+    "linux": "nginx",
+    "windows": "nginx"
   },
   "healthCheck": {
     "type": "http",
-    "port": "{{port|default:80}}",
     "path": "/healthz",
+    "port": "{{port|default:80}}",
     "expectedStatus": 200,
     "intervalSeconds": 30,
     "timeoutSeconds": 5
   },
-  "installCommands": {
-    "linux": {
-      "debian": ["apt-get update", "apt-get install -y nginx"],
-      "rhel": ["yum install -y nginx"]
+  "commands": {
+    "start": {
+      "linux": "systemctl start nginx",
+      "windows": "Start-Service nginx"
     },
-    "windows": ["choco install nginx -y"]
-  },
-  "serviceCommands": {
-    "linux": {
-      "start": "systemctl start nginx",
-      "stop": "systemctl stop nginx",
-      "enable": "systemctl enable nginx",
-      "status": "systemctl is-active nginx"
+    "stop": {
+      "linux": "systemctl stop nginx",
+      "windows": "Stop-Service nginx"
     },
-    "windows": {
-      "start": "Start-Service nginx",
-      "stop": "Stop-Service nginx",
-      "status": "(Get-Service nginx).Status"
+    "reload": {
+      "linux": "systemctl reload nginx",
+      "windows": "nginx -s reload"
     }
-  },
-  "defaultConfigValues": {
-    "port": 80,
-    "domain": "_",
-    "documentRoot": "/var/www/html"
   }
 }

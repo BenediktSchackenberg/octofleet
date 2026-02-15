@@ -1,0 +1,69 @@
+{
+  "name": "postgresql-cluster",
+  "displayName": "PostgreSQL Database",
+  "description": "PostgreSQL database server with replication support",
+  "version": "1.0.0",
+  "category": "database",
+  "packages": {
+    "debian": ["postgresql", "postgresql-contrib"],
+    "rhel": ["postgresql-server", "postgresql-contrib"],
+    "windows": ["postgresql"]
+  },
+  "roles": {
+    "primary": {
+      "description": "Primary PostgreSQL server (read-write)",
+      "configFiles": [
+        {
+          "path": "/etc/postgresql/{{pg_version|default:16}}/main/postgresql.conf",
+          "template": "# PostgreSQL Primary Configuration\nlisten_addresses = '{{listen_addresses|default:*}}'\nport = {{port|default:5432}}\nmax_connections = {{max_connections|default:100}}\nshared_buffers = {{shared_buffers|default:256MB}}\nwork_mem = {{work_mem|default:4MB}}\nmaintenance_work_mem = {{maintenance_work_mem|default:64MB}}\neffective_cache_size = {{effective_cache_size|default:1GB}}\n\n# WAL Settings\nwal_level = replica\nmax_wal_senders = 5\nwal_keep_size = 1GB\n\n# Logging\nlog_destination = 'stderr'\nlogging_collector = on\nlog_directory = 'log'\nlog_filename = 'postgresql-%Y-%m-%d.log'\nlog_min_duration_statement = 1000\n"
+        },
+        {
+          "path": "/etc/postgresql/{{pg_version|default:16}}/main/pg_hba.conf",
+          "template": "# PostgreSQL Client Authentication\nlocal   all             postgres                                peer\nlocal   all             all                                     peer\nhost    all             all             127.0.0.1/32            scram-sha-256\nhost    all             all             ::1/128                 scram-sha-256\nhost    all             all             {{allowed_networks|default:0.0.0.0/0}}    scram-sha-256\nhost    replication     all             {{replication_network|default:10.0.0.0/8}}   scram-sha-256\n"
+        }
+      ]
+    },
+    "replica": {
+      "description": "PostgreSQL replica (read-only)",
+      "configFiles": [
+        {
+          "path": "/etc/postgresql/{{pg_version|default:16}}/main/postgresql.conf",
+          "template": "# PostgreSQL Replica Configuration\nlisten_addresses = '{{listen_addresses|default:*}}'\nport = {{port|default:5432}}\nmax_connections = {{max_connections|default:100}}\nshared_buffers = {{shared_buffers|default:256MB}}\nhot_standby = on\nhot_standby_feedback = on\n\n# Primary Connection\nprimary_conninfo = 'host={{primary_host}} port={{primary_port|default:5432}} user=replicator password={{replication_password}}'\n"
+        }
+      ]
+    }
+  },
+  "services": {
+    "linux": "postgresql",
+    "windows": "postgresql-x64-{{pg_version|default:16}}"
+  },
+  "healthCheck": {
+    "type": "tcp",
+    "port": "{{port|default:5432}}",
+    "intervalSeconds": 30,
+    "timeoutSeconds": 5
+  },
+  "commands": {
+    "start": {
+      "linux": "systemctl start postgresql",
+      "windows": "Start-Service postgresql-x64-{{pg_version|default:16}}"
+    },
+    "stop": {
+      "linux": "systemctl stop postgresql",
+      "windows": "Stop-Service postgresql-x64-{{pg_version|default:16}}"
+    },
+    "initdb": {
+      "linux": "sudo -u postgres /usr/lib/postgresql/{{pg_version|default:16}}/bin/initdb -D /var/lib/postgresql/{{pg_version|default:16}}/main",
+      "windows": "initdb -D \"C:\\Program Files\\PostgreSQL\\{{pg_version|default:16}}\\data\""
+    }
+  },
+  "postInstall": {
+    "linux": [
+      "systemctl enable postgresql",
+      "systemctl start postgresql"
+    ],
+    "windows": [
+      "Set-Service -Name 'postgresql-x64-{{pg_version|default:16}}' -StartupType Automatic"
+    ]
+  }
+}

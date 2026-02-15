@@ -348,6 +348,9 @@ public class JobPoller : BackgroundService
             
             case "restart-agent":
                 return await ExecuteRestartAgentAsync(ct);
+            
+            case "service_reconcile":
+                return await ExecuteServiceReconcileAsync(payload, timeoutSeconds, ct);
                 
             default:
                 // Default to script/command execution
@@ -672,6 +675,260 @@ if ($svc) {{
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reporting job result for {InstanceId}", result.InstanceId);
+        }
+    }
+
+    /// <summary>
+    /// Execute service reconciliation: install packages, deploy configs, start services
+    /// </summary>
+    private async Task<CommandResult> ExecuteServiceReconcileAsync(JsonElement payload, int timeoutSeconds, CancellationToken ct)
+    {
+        var output = new System.Text.StringBuilder();
+        var errors = new System.Text.StringBuilder();
+        var exitCode = 0;
+
+        try
+        {
+            var serviceName = payload.TryGetProperty("serviceName", out var sn) ? sn.GetString() : "unknown";
+            var role = payload.TryGetProperty("role", out var r) ? r.GetString() : "default";
+            
+            output.AppendLine($"=== Reconciling Service: {serviceName} (role: {role}) ===");
+            output.AppendLine();
+
+            // Step 1: Install packages
+            if (payload.TryGetProperty("packages", out var packages))
+            {
+                output.AppendLine("--- Step 1: Installing packages ---");
+                
+                // Check for windows-specific packages
+                string[]? pkgList = null;
+                if (packages.TryGetProperty("windows", out var winPkgs))
+                {
+                    pkgList = winPkgs.EnumerateArray().Select(p => p.GetString() ?? "").ToArray();
+                }
+                else if (packages.ValueKind == JsonValueKind.Array)
+                {
+                    pkgList = packages.EnumerateArray().Select(p => p.GetString() ?? "").ToArray();
+                }
+
+                if (pkgList != null)
+                {
+                    foreach (var pkg in pkgList.Where(p => !string.IsNullOrEmpty(p)))
+                    {
+                        output.AppendLine($"Installing: {pkg}");
+                        
+                        // Try chocolatey first, then winget
+                        var chocoResult = await RunProcessAsync("choco", $"install {pkg} -y --no-progress", timeoutSeconds, ct);
+                        
+                        if (chocoResult.ExitCode == 0)
+                        {
+                            output.AppendLine($"Installed via choco: {pkg}");
+                        }
+                        else
+                        {
+                            // Fallback to winget
+                            var wingetResult = await RunProcessAsync("winget", $"install --id {pkg} --silent --accept-package-agreements --accept-source-agreements", timeoutSeconds, ct);
+                            
+                            if (wingetResult.ExitCode == 0)
+                            {
+                                output.AppendLine($"Installed via winget: {pkg}");
+                            }
+                            else
+                            {
+                                output.AppendLine($"Warning: Could not install {pkg}");
+                                errors.AppendLine($"Package install failed: {pkg}");
+                            }
+                        }
+                    }
+                }
+                output.AppendLine();
+            }
+
+            // Step 2: Apply configuration files
+            if (payload.TryGetProperty("configFiles", out var configFiles) && configFiles.ValueKind == JsonValueKind.Array)
+            {
+                output.AppendLine("--- Step 2: Applying configuration ---");
+                
+                foreach (var configFile in configFiles.EnumerateArray())
+                {
+                    var path = configFile.TryGetProperty("path", out var p) ? p.GetString() : null;
+                    var content = configFile.TryGetProperty("content", out var c) ? c.GetString() : null;
+                    
+                    if (!string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(content))
+                    {
+                        // Render template variables
+                        if (payload.TryGetProperty("configValues", out var configValues))
+                        {
+                            content = RenderTemplate(content, configValues);
+                            path = RenderTemplate(path, configValues);
+                        }
+                        
+                        output.AppendLine($"Writing config: {path}");
+                        
+                        try
+                        {
+                            var dir = Path.GetDirectoryName(path);
+                            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                            {
+                                Directory.CreateDirectory(dir);
+                            }
+                            await File.WriteAllTextAsync(path, content, ct);
+                            output.AppendLine($"Config written: {path}");
+                        }
+                        catch (Exception ex)
+                        {
+                            errors.AppendLine($"Failed to write config {path}: {ex.Message}");
+                            exitCode = 1;
+                        }
+                    }
+                }
+                output.AppendLine();
+            }
+
+            // Step 3: Start/Enable service
+            if (payload.TryGetProperty("services", out var services))
+            {
+                output.AppendLine("--- Step 3: Starting service ---");
+                
+                var winService = services.TryGetProperty("windows", out var ws) ? ws.GetString() : null;
+                
+                if (!string.IsNullOrEmpty(winService))
+                {
+                    // Try to start Windows service
+                    var startResult = await RunProcessAsync("powershell", $"-Command \"Start-Service -Name '{winService}' -ErrorAction SilentlyContinue; Set-Service -Name '{winService}' -StartupType Automatic -ErrorAction SilentlyContinue\"", 60, ct);
+                    
+                    if (startResult.ExitCode == 0)
+                    {
+                        output.AppendLine($"{winService} service started and enabled");
+                    }
+                    else
+                    {
+                        output.AppendLine($"Note: Service {winService} may need manual configuration");
+                    }
+                }
+                output.AppendLine();
+            }
+
+            // Step 4: Health check
+            if (payload.TryGetProperty("healthCheck", out var healthCheck))
+            {
+                output.AppendLine("--- Step 4: Health check ---");
+                
+                var checkType = healthCheck.TryGetProperty("type", out var t) ? t.GetString() : "http";
+                var port = healthCheck.TryGetProperty("port", out var pt) ? pt.GetString() ?? "80" : "80";
+                var path = healthCheck.TryGetProperty("path", out var pa) ? pa.GetString() ?? "/" : "/";
+                var expectedStatus = healthCheck.TryGetProperty("expectedStatus", out var es) ? es.GetInt32() : 200;
+                
+                // Render port if it's a template
+                if (payload.TryGetProperty("configValues", out var cv))
+                {
+                    port = RenderTemplate(port, cv);
+                }
+                
+                if (checkType == "http")
+                {
+                    try
+                    {
+                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                        var response = await client.GetAsync($"http://localhost:{port}{path}", ct);
+                        
+                        if ((int)response.StatusCode == expectedStatus)
+                        {
+                            output.AppendLine($"Health: healthy (HTTP {(int)response.StatusCode})");
+                        }
+                        else
+                        {
+                            output.AppendLine($"Health: unhealthy (HTTP {(int)response.StatusCode}, expected {expectedStatus})");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        output.AppendLine($"Health: unreachable ({ex.Message})");
+                    }
+                }
+            }
+
+            output.AppendLine();
+            output.AppendLine("=== Reconciliation complete ===");
+        }
+        catch (Exception ex)
+        {
+            errors.AppendLine($"Reconciliation error: {ex.Message}");
+            exitCode = 1;
+        }
+
+        return new CommandResult
+        {
+            ExitCode = exitCode,
+            Stdout = output.ToString(),
+            Stderr = errors.ToString()
+        };
+    }
+
+    /// <summary>
+    /// Simple template rendering for {{key}} placeholders
+    /// </summary>
+    private string RenderTemplate(string template, JsonElement values)
+    {
+        var result = template;
+        
+        if (values.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in values.EnumerateObject())
+            {
+                result = result.Replace($"{{{{{prop.Name}}}}}", prop.Value.ToString());
+                result = result.Replace($"{{{{{prop.Name}|default:", $"{{{{{prop.Name}|default:"); // Keep defaults
+            }
+        }
+        
+        // Handle defaults: {{key|default:value}}
+        var defaultPattern = new System.Text.RegularExpressions.Regex(@"\{\{(\w+)\|default:([^}]+)\}\}");
+        result = defaultPattern.Replace(result, m => m.Groups[2].Value);
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Run a process and capture output
+    /// </summary>
+    private async Task<CommandResult> RunProcessAsync(string fileName, string arguments, int timeoutSeconds, CancellationToken ct)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                return new CommandResult { ExitCode = -1, Stderr = $"Failed to start {fileName}" };
+            }
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+            var stdout = await process.StandardOutput.ReadToEndAsync(cts.Token);
+            var stderr = await process.StandardError.ReadToEndAsync(cts.Token);
+            
+            await process.WaitForExitAsync(cts.Token);
+
+            return new CommandResult
+            {
+                ExitCode = process.ExitCode,
+                Stdout = stdout,
+                Stderr = stderr
+            };
+        }
+        catch (Exception ex)
+        {
+            return new CommandResult { ExitCode = -1, Stderr = ex.Message };
         }
     }
 }

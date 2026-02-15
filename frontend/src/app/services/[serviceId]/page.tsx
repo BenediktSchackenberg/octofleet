@@ -52,6 +52,7 @@ const statusColors: Record<string, string> = {
   pending: 'bg-gray-100 text-gray-800',
   active: 'bg-green-100 text-green-800',
   draining: 'bg-yellow-100 text-yellow-800',
+  reconciling: 'bg-blue-100 text-blue-800',
 };
 
 const healthColors: Record<string, string> = {
@@ -70,6 +71,7 @@ export default function ServiceDetailPage() {
   const [allNodes, setAllNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddNodeModal, setShowAddNodeModal] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
 
   useEffect(() => {
     fetchService();
@@ -153,6 +155,34 @@ export default function ServiceDetailPage() {
     }
   };
 
+  const handleReconcile = async () => {
+    if (service?.nodes.length === 0) {
+      alert('No nodes assigned to this service');
+      return;
+    }
+    
+    setReconciling(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/reconcile`, {
+        method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Reconciliation triggered! ${data.jobsCreated} job(s) created.`);
+        fetchLogs();
+      } else {
+        const error = await res.text();
+        alert(`Reconciliation failed: ${error}`);
+      }
+    } catch (error) {
+      alert('Failed to trigger reconciliation');
+    } finally {
+      setReconciling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -194,6 +224,28 @@ export default function ServiceDetailPage() {
           <span className={`px-3 py-1 rounded text-sm font-medium ${statusColors[service.status]}`}>
             {service.status}
           </span>
+          <button
+            onClick={handleReconcile}
+            disabled={reconciling || service.nodes.length === 0}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {reconciling ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Reconciling...
+              </>
+            ) : (
+              <>
+                <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reconcile
+              </>
+            )}
+          </button>
           <button
             onClick={handleDeleteService}
             className="px-3 py-1 text-red-600 border border-red-300 rounded hover:bg-red-50"
