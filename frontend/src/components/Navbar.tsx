@@ -73,6 +73,14 @@ const navGroups: NavGroup[] = [
     ]
   },
   {
+    label: "Services",
+    icon: "🔗",
+    color: "amber",
+    items: [
+      { href: "/services", labelKey: "nav.services", icon: "🔗", permission: "services:read" },
+    ]
+  },
+  {
     label: "Security",
     icon: "🛡️",
     color: "red",
