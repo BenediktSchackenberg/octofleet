@@ -97,10 +97,68 @@ export function PerformanceTab({ nodeId }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'network' | 'agent'>('overview');
   const [logFilter, setLogFilter] = useState('');
   const [processSort, setProcessSort] = useState<'cpu' | 'memory' | 'name'>('cpu');
+  const [timeRange, setTimeRange] = useState<'live' | '24h' | '7d' | '14d' | '30d'>('live');
+  const [historicalData, setHistoricalData] = useState<MetricHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Load historical data when timeRange changes
+  const loadHistoricalData = async (range: '24h' | '7d' | '14d' | '30d') => {
+    setLoadingHistory(true);
+    const hoursMap = { '24h': 24, '7d': 168, '14d': 336, '30d': 720 };
+    const intervalMap = { '24h': '15m', '7d': '1h', '14d': '6h', '30d': '1d' };
+    const hours = hoursMap[range];
+    const interval = intervalMap[range];
+    
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(
+        `${API_BASE}/nodes/${nodeId}/metrics/history?hours=${hours}&interval=${interval}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data.map((d: any) => ({
+          timestamp: new Date(d.timestamp).getTime(),
+          time: new Date(d.timestamp).toLocaleString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          cpu: d.cpu,
+          memory: d.memory,
+          disk: d.disk,
+          netIn: d.netIn,
+          netOut: d.netOut
+        }));
+        setHistoricalData(data);
+      }
+    } catch (e) {
+      console.error('Failed to load historical data:', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (timeRange !== 'live') {
+      loadHistoricalData(timeRange);
+      // Pause live stream when viewing historical
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        setConnected(false);
+      }
+    } else {
+      setHistoricalData([]);
+      if (!paused) {
+        connect();
+      }
+    }
+  }, [timeRange]);
 
   const connect = () => {
     if (eventSourceRef.current) {
@@ -378,16 +436,50 @@ export function PerformanceTab({ nodeId }: Props) {
           {/* Live CPU & Memory Chart */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">CPU & RAM Live</CardTitle>
-              <CardDescription>Echtzeit-Auslastung (letzte 5 Minuten)</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">CPU & RAM {timeRange === 'live' ? 'Live' : 'Verlauf'}</CardTitle>
+                  <CardDescription>
+                    {timeRange === 'live' && 'Echtzeit-Auslastung (letzte 5 Minuten)'}
+                    {timeRange === '24h' && 'Letzte 24 Stunden (15 Min Intervall)'}
+                    {timeRange === '7d' && 'Letzte 7 Tage (1 Std Intervall)'}
+                    {timeRange === '14d' && 'Letzte 14 Tage (6 Std Intervall)'}
+                    {timeRange === '30d' && 'Letzte 30 Tage (Tages-Durchschnitt)'}
+                  </CardDescription>
+                </div>
+                <div className="flex gap-1">
+                  {(['live', '24h', '7d', '14d', '30d'] as const).map(range => (
+                    <Button
+                      key={range}
+                      variant={timeRange === range ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setTimeRange(range)}
+                      disabled={loadingHistory}
+                    >
+                      {range === 'live' ? '⚡ Live' : range}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="h-64">
-                {history.length > 0 ? (
+                {loadingHistory ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <RefreshCw className="h-5 w-5 animate-spin mr-2" /> Lade historische Daten...
+                  </div>
+                ) : (timeRange === 'live' ? history : historicalData).length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={history}>
+                    <AreaChart data={timeRange === 'live' ? history : historicalData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                      <XAxis 
+                        dataKey="time" 
+                        tick={{ fontSize: 10 }} 
+                        interval="preserveStartEnd"
+                        angle={timeRange !== 'live' ? -45 : 0}
+                        textAnchor={timeRange !== 'live' ? 'end' : 'middle'}
+                        height={timeRange !== 'live' ? 60 : 30}
+                      />
                       <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
                       <Tooltip
                         contentStyle={{ backgroundColor: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
