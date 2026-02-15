@@ -1,0 +1,68 @@
+{
+  "name": "nginx-webserver",
+  "description": "Nginx web server for static content and reverse proxy",
+  "serviceType": "cluster",
+  "minNodes": 1,
+  "maxNodes": 50,
+  "roles": ["web-node"],
+  "requiredPackages": {
+    "linux": ["nginx"],
+    "windows": ["nginx"]
+  },
+  "configTemplate": {
+    "files": [
+      {
+        "path": {
+          "linux": "/etc/nginx/sites-available/{{serviceName}}",
+          "windows": "C:\\nginx\\conf\\sites\\{{serviceName}}.conf"
+        },
+        "content": "server {\n    listen {{port|default:80}};\n    server_name {{domain|default:_}};\n    root {{documentRoot|default:/var/www/html}};\n    \n    location /healthz {\n        access_log off;\n        return 200 'OK';\n        add_header Content-Type text/plain;\n    }\n    \n    location / {\n        try_files $uri $uri/ =404;\n    }\n}\n",
+        "mode": "0644"
+      }
+    ],
+    "commands": {
+      "linux": [
+        "ln -sf /etc/nginx/sites-available/{{serviceName}} /etc/nginx/sites-enabled/{{serviceName}}",
+        "nginx -t",
+        "systemctl reload nginx"
+      ],
+      "windows": [
+        "nginx -t",
+        "nginx -s reload"
+      ]
+    }
+  },
+  "healthCheck": {
+    "type": "http",
+    "port": "{{port|default:80}}",
+    "path": "/healthz",
+    "expectedStatus": 200,
+    "intervalSeconds": 30,
+    "timeoutSeconds": 5
+  },
+  "installCommands": {
+    "linux": {
+      "debian": ["apt-get update", "apt-get install -y nginx"],
+      "rhel": ["yum install -y nginx"]
+    },
+    "windows": ["choco install nginx -y"]
+  },
+  "serviceCommands": {
+    "linux": {
+      "start": "systemctl start nginx",
+      "stop": "systemctl stop nginx",
+      "enable": "systemctl enable nginx",
+      "status": "systemctl is-active nginx"
+    },
+    "windows": {
+      "start": "Start-Service nginx",
+      "stop": "Stop-Service nginx",
+      "status": "(Get-Service nginx).Status"
+    }
+  },
+  "defaultConfigValues": {
+    "port": 80,
+    "domain": "_",
+    "documentRoot": "/var/www/html"
+  }
+}

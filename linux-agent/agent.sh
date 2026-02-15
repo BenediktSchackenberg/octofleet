@@ -487,6 +487,236 @@ poll_jobs() {
     fi
 }
 
+# ============================================================================
+# E18: Service Reconciliation
+# ============================================================================
+
+detect_distro() {
+    if [[ -f /etc/debian_version ]]; then
+        echo "debian"
+    elif [[ -f /etc/redhat-release ]]; then
+        echo "rhel"
+    elif [[ -f /etc/arch-release ]]; then
+        echo "arch"
+    else
+        echo "unknown"
+    fi
+}
+
+install_package() {
+    local pkg="$1"
+    local distro=$(detect_distro)
+    
+    info "Installing package: $pkg (distro: $distro)"
+    
+    case "$distro" in
+        debian)
+            DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg" 2>&1
+            ;;
+        rhel)
+            yum install -y "$pkg" 2>&1
+            ;;
+        arch)
+            pacman -S --noconfirm "$pkg" 2>&1
+            ;;
+        *)
+            echo "Unsupported distro for package installation"
+            return 1
+            ;;
+    esac
+}
+
+render_template() {
+    local template="$1"
+    local config_values="$2"
+    
+    # Simple template rendering: replace {{key}} with values
+    local result="$template"
+    
+    # Extract keys from config_values JSON and replace
+    for key in $(echo "$config_values" | jq -r 'keys[]' 2>/dev/null); do
+        local value=$(echo "$config_values" | jq -r ".[\"$key\"]")
+        # Handle {{key}} and {{key|default:value}}
+        result=$(echo "$result" | sed "s/{{${key}[^}]*}}/${value}/g")
+    done
+    
+    # Handle remaining defaults: {{key|default:value}} -> value
+    result=$(echo "$result" | sed -E 's/\{\{[^|]+\|default:([^}]+)\}\}/\1/g')
+    
+    echo "$result"
+}
+
+check_service_health() {
+    local health_check="$1"
+    local config_values="$2"
+    
+    local check_type=$(echo "$health_check" | jq -r '.type // "tcp"')
+    local port=$(echo "$health_check" | jq -r '.port // "80"')
+    local path=$(echo "$health_check" | jq -r '.path // "/"')
+    local expected=$(echo "$health_check" | jq -r '.expectedStatus // 200')
+    
+    # Render port if it's a template variable
+    port=$(render_template "$port" "$config_values")
+    
+    case "$check_type" in
+        http)
+            local status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${port}${path}" 2>/dev/null || echo "000")
+            if [[ "$status" == "$expected" ]]; then
+                echo "healthy"
+                return 0
+            else
+                echo "unhealthy (HTTP $status, expected $expected)"
+                return 1
+            fi
+            ;;
+        tcp)
+            if nc -z localhost "$port" 2>/dev/null; then
+                echo "healthy"
+                return 0
+            else
+                echo "unhealthy (port $port not responding)"
+                return 1
+            fi
+            ;;
+        *)
+            echo "unknown check type: $check_type"
+            return 1
+            ;;
+    esac
+}
+
+reconcile_service() {
+    local payload="$1"
+    local output=""
+    
+    # Parse service definition
+    local service_def=$(echo "$payload" | jq -r '.serviceDefinition')
+    local role=$(echo "$payload" | jq -r '.role')
+    local assignment_id=$(echo "$payload" | jq -r '.assignmentId')
+    
+    local service_id=$(echo "$service_def" | jq -r '.serviceId')
+    local service_name=$(echo "$service_def" | jq -r '.serviceName')
+    local class_name=$(echo "$service_def" | jq -r '.className')
+    local config_values=$(echo "$service_def" | jq -r '.configValues')
+    local required_packages=$(echo "$service_def" | jq -r '.requiredPackages')
+    local config_template=$(echo "$service_def" | jq -r '.configTemplate')
+    local health_check=$(echo "$service_def" | jq -r '.healthCheck')
+    local desired_version=$(echo "$service_def" | jq -r '.desiredStateVersion')
+    
+    output+="=== Reconciling Service: $service_name (role: $role) ===\n"
+    
+    # Step 1: Install required packages
+    output+="\n--- Step 1: Installing packages ---\n"
+    for pkg in $(echo "$required_packages" | jq -r '.[]' 2>/dev/null); do
+        if ! command -v "$pkg" &>/dev/null && ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+            output+="Installing: $pkg\n"
+            install_output=$(install_package "$pkg" 2>&1) || {
+                output+="FAILED to install $pkg: $install_output\n"
+                report_service_status "$service_id" "failed" "unhealthy" "Package installation failed: $pkg"
+                echo -e "$output"
+                return 1
+            }
+            output+="Installed: $pkg\n"
+        else
+            output+="Already installed: $pkg\n"
+        fi
+    done
+    
+    # Step 2: Apply configuration (if template exists)
+    if [[ "$config_template" != "null" && -n "$config_template" ]]; then
+        output+="\n--- Step 2: Applying configuration ---\n"
+        
+        local files=$(echo "$config_template" | jq -r '.files // []')
+        for file_entry in $(echo "$files" | jq -c '.[]' 2>/dev/null); do
+            local file_path=$(echo "$file_entry" | jq -r '.path.linux // .path')
+            local file_content=$(echo "$file_entry" | jq -r '.content')
+            local file_mode=$(echo "$file_entry" | jq -r '.mode // "0644"')
+            
+            # Render templates
+            file_path=$(render_template "$file_path" "$config_values")
+            file_content=$(render_template "$file_content" "$config_values")
+            
+            output+="Writing config: $file_path\n"
+            mkdir -p "$(dirname "$file_path")"
+            echo -e "$file_content" > "$file_path"
+            chmod "$file_mode" "$file_path"
+        done
+        
+        # Execute post-config commands
+        local commands=$(echo "$config_template" | jq -r '.commands.linux // []')
+        for cmd in $(echo "$commands" | jq -r '.[]' 2>/dev/null); do
+            cmd=$(render_template "$cmd" "$config_values")
+            output+="Running: $cmd\n"
+            cmd_output=$(bash -c "$cmd" 2>&1) || {
+                output+="Command failed: $cmd_output\n"
+                report_service_status "$service_id" "failed" "unhealthy" "Config command failed"
+                echo -e "$output"
+                return 1
+            }
+        done
+    fi
+    
+    # Step 3: Start/Enable service
+    output+="\n--- Step 3: Starting service ---\n"
+    
+    # For nginx specifically
+    if [[ "$class_name" == "nginx"* ]]; then
+        if ! systemctl is-active nginx &>/dev/null; then
+            output+="Starting nginx...\n"
+            systemctl start nginx 2>&1 || true
+        fi
+        systemctl enable nginx 2>&1 || true
+        output+="nginx service enabled\n"
+    fi
+    
+    # Step 4: Health check
+    output+="\n--- Step 4: Health check ---\n"
+    sleep 2  # Give service time to start
+    
+    if [[ "$health_check" != "null" && -n "$health_check" ]]; then
+        local health_result=$(check_service_health "$health_check" "$config_values")
+        output+="Health: $health_result\n"
+        
+        if [[ "$health_result" == "healthy" ]]; then
+            report_service_status "$service_id" "active" "healthy" "Reconciliation completed" "$desired_version"
+        else
+            report_service_status "$service_id" "active" "unhealthy" "Health check failed: $health_result"
+        fi
+    else
+        report_service_status "$service_id" "active" "unknown" "No health check defined" "$desired_version"
+    fi
+    
+    output+="\n=== Reconciliation complete ===\n"
+    echo -e "$output"
+    return 0
+}
+
+report_service_status() {
+    local service_id="$1"
+    local status="$2"
+    local health_status="$3"
+    local message="$4"
+    local state_version="${5:-}"
+    
+    local payload=$(cat << EOF
+{
+    "status": "$status",
+    "healthStatus": "$health_status",
+    "message": "$message",
+    "action": "reconcile",
+    "result": "$([ "$health_status" == "healthy" ] && echo 'success' || echo 'warning')",
+    "stateVersion": $([[ -n "$state_version" ]] && echo "$state_version" || echo "null")
+}
+EOF
+)
+    
+    curl -sS -X POST \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: $API_KEY" \
+        -d "$payload" \
+        "${API_URL}/api/v1/services/${service_id}/nodes/${NODE_ID}/status" >/dev/null 2>&1 || warn "Failed to report service status"
+}
+
 execute_job() {
     local job="$1"
     local instance_id=$(echo "$job" | jq -r '.instanceId // .instance_id')
@@ -515,6 +745,9 @@ execute_job() {
         inventory_push)
             push_inventory && exit_code=0 || exit_code=1
             output="Inventory push completed"
+            ;;
+        service_reconcile)
+            output=$(reconcile_service "$command_payload") || exit_code=$?
             ;;
         *)
             warn "Unknown command type: $command_type"

@@ -7914,3 +7914,221 @@ async def get_service_logs(
             LIMIT $2
         """, service_id, limit)
         return {"logs": [dict(r) for r in rows]}
+
+
+# ============================================================================
+# E18-03: Service Reconciliation Engine
+# ============================================================================
+
+@app.post("/api/v1/services/{service_id}/reconcile")
+async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Trigger reconciliation for a service - creates jobs for all assigned nodes"""
+    async with db.acquire() as conn:
+        # Get service with class details
+        service = await conn.fetchrow("""
+            SELECT s.*, sc.name as class_name, sc.service_type, sc.roles,
+                   sc.required_packages, sc.config_template, sc.health_check
+            FROM services s
+            JOIN service_classes sc ON s.class_id = sc.id
+            WHERE s.id = $1
+        """, service_id)
+        
+        if not service:
+            raise HTTPException(status_code=404, detail="Service not found")
+        
+        # Get all node assignments
+        assignments = await conn.fetch("""
+            SELECT sna.*, n.id as node_uuid, n.hostname, n.os_name
+            FROM service_node_assignments sna
+            JOIN nodes n ON sna.node_id = n.id
+            WHERE sna.service_id = $1
+        """, service_id)
+        
+        if not assignments:
+            raise HTTPException(status_code=400, detail="No nodes assigned to service")
+        
+        # Build service definition
+        service_def = {
+            "serviceId": service_id,
+            "serviceName": service["name"],
+            "className": service["class_name"],
+            "serviceType": service["service_type"],
+            "requiredPackages": json.loads(service["required_packages"]) if service["required_packages"] else [],
+            "configTemplate": service["config_template"],
+            "configValues": json.loads(service["config_values"]) if service["config_values"] else {},
+            "healthCheck": json.loads(service["health_check"]) if service["health_check"] else {},
+            "desiredStateVersion": service["desired_state_version"]
+        }
+        
+        # Create reconciliation jobs for each node
+        jobs_created = []
+        for assignment in assignments:
+            # Create job with service definition
+            job_data = {
+                "type": "service_reconcile",
+                "serviceDefinition": service_def,
+                "role": assignment["role"],
+                "assignmentId": str(assignment["id"])
+            }
+            
+            job = await conn.fetchrow("""
+                INSERT INTO jobs (name, command_type, command_data, target_type, target_id, created_by)
+                VALUES ($1, 'service_reconcile', $2, 'node', $3, 'system')
+                RETURNING id, name
+            """, f"Reconcile: {service['name']} on {assignment['hostname']}", json.dumps(job_data), assignment['node_uuid'])
+            
+            # Create job instance for this node
+            instance = await conn.fetchrow("""
+                INSERT INTO job_instances (job_id, node_id)
+                VALUES ($1, $2)
+                RETURNING id
+            """, job["id"], assignment["hostname"])
+            
+            # Log reconciliation start
+            await conn.execute("""
+                INSERT INTO service_reconciliation_log 
+                    (service_id, node_id, action, status, message)
+                VALUES ($1, $2, 'reconcile', 'started', $3)
+            """, service_id, assignment["node_uuid"], f"Reconciliation triggered for role: {assignment['role']}")
+            
+            jobs_created.append({
+                "jobId": str(job["id"]),
+                "instanceId": str(instance["id"]),
+                "nodeId": assignment["hostname"],
+                "role": assignment["role"]
+            })
+        
+        # Update service status
+        await conn.execute("""
+            UPDATE services SET status = 'reconciling', updated_at = NOW()
+            WHERE id = $1
+        """, service_id)
+        
+        return {
+            "status": "reconciliation_triggered",
+            "serviceId": service_id,
+            "jobsCreated": len(jobs_created),
+            "jobs": jobs_created
+        }
+
+
+@app.get("/api/v1/nodes/{node_id}/service-assignments")
+async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get all services assigned to a node - for agent polling"""
+    async with db.acquire() as conn:
+        assignments = await conn.fetch("""
+            SELECT 
+                sna.id as assignment_id,
+                sna.role,
+                sna.status as assignment_status,
+                sna.current_state_version,
+                s.id as service_id,
+                s.name as service_name,
+                s.status as service_status,
+                s.config_values,
+                s.desired_state_version,
+                sc.name as class_name,
+                sc.service_type,
+                sc.required_packages,
+                sc.config_template,
+                sc.health_check,
+                sc.drift_policy
+            FROM service_node_assignments sna
+            JOIN services s ON sna.service_id = s.id
+            JOIN service_classes sc ON s.class_id = sc.id
+            WHERE sna.node_id = $1
+            ORDER BY s.name
+        """, node_id)
+        
+        services = []
+        for a in assignments:
+            services.append({
+                "assignmentId": str(a["assignment_id"]),
+                "serviceId": str(a["service_id"]),
+                "serviceName": a["service_name"],
+                "className": a["class_name"],
+                "role": a["role"],
+                "status": a["assignment_status"],
+                "serviceType": a["service_type"],
+                "requiredPackages": json.loads(a["required_packages"]) if a["required_packages"] else [],
+                "configTemplate": a["config_template"],
+                "configValues": json.loads(a["config_values"]) if a["config_values"] else {},
+                "healthCheck": json.loads(a["health_check"]) if a["health_check"] else {},
+                "driftPolicy": a["drift_policy"],
+                "currentVersion": a["current_state_version"],
+                "desiredVersion": a["desired_state_version"],
+                "needsReconcile": a["current_state_version"] < a["desired_state_version"]
+            })
+        
+        return {"nodeId": node_id, "services": services}
+
+
+@app.post("/api/v1/services/{service_id}/nodes/{node_id}/status")
+async def update_node_service_status(
+    service_id: str,
+    node_id: str,
+    data: Dict[str, Any],
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Agent reports service status after reconciliation"""
+    async with db.acquire() as conn:
+        # Update assignment status
+        result = await conn.execute("""
+            UPDATE service_node_assignments SET
+                status = $3,
+                health_status = $4,
+                current_state_version = COALESCE($5, current_state_version),
+                last_health_check = NOW(),
+                updated_at = NOW()
+            WHERE service_id = $1 AND node_id = $2
+        """,
+            service_id,
+            node_id,
+            data.get("status", "active"),
+            data.get("healthStatus", "unknown"),
+            data.get("stateVersion")
+        )
+        
+        # Log the status update
+        await conn.execute("""
+            INSERT INTO service_reconciliation_log 
+                (service_id, node_id, action, status, message, details)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """,
+            service_id,
+            node_id,
+            data.get("action", "status_update"),
+            data.get("result", "success"),
+            data.get("message", "Status updated"),
+            json.dumps(data.get("details", {}))
+        )
+        
+        # Check overall service health
+        health_counts = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE health_status = 'healthy') as healthy,
+                COUNT(*) FILTER (WHERE health_status = 'unhealthy') as unhealthy
+            FROM service_node_assignments
+            WHERE service_id = $1
+        """, service_id)
+        
+        # Determine service status
+        if health_counts["total"] == health_counts["healthy"]:
+            new_status = "healthy"
+        elif health_counts["unhealthy"] > 0:
+            new_status = "degraded" if health_counts["healthy"] > 0 else "failed"
+        else:
+            new_status = "provisioning"
+        
+        await conn.execute("""
+            UPDATE services SET status = $2, updated_at = NOW()
+            WHERE id = $1
+        """, service_id, new_status)
+        
+        return {
+            "status": "updated",
+            "serviceStatus": new_status,
+            "healthyNodes": health_counts["healthy"],
+            "totalNodes": health_counts["total"]
+        }
