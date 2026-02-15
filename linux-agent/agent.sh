@@ -489,12 +489,17 @@ poll_jobs() {
 
 execute_job() {
     local job="$1"
-    local instance_id=$(echo "$job" | jq -r '.instance_id')
-    local job_name=$(echo "$job" | jq -r '.job_name')
-    local command_type=$(echo "$job" | jq -r '.command_type')
-    local command_payload=$(echo "$job" | jq -r '.command_payload')
+    local instance_id=$(echo "$job" | jq -r '.instanceId // .instance_id')
+    local job_name=$(echo "$job" | jq -r '.jobName // .job_name')
+    local command_type=$(echo "$job" | jq -r '.commandType // .command_type')
+    local command_payload=$(echo "$job" | jq -r '.commandPayload // .command_payload')
     
     info "Executing job: $job_name ($instance_id)"
+    
+    # Mark job as started
+    curl -sS -X POST \
+        -H "X-API-Key: $API_KEY" \
+        "${API_URL}/api/v1/jobs/instances/${instance_id}/start" >/dev/null 2>&1 || true
     
     local start_time=$(date +%s)
     local output=""
@@ -524,11 +529,10 @@ execute_job() {
     # Report result
     local result=$(cat << EOF
 {
-    "instance_id": "$instance_id",
     "status": "$([ $exit_code -eq 0 ] && echo 'success' || echo 'failed')",
-    "exit_code": $exit_code,
-    "output": $(echo "$output" | jq -Rs '.'),
-    "duration_seconds": $duration
+    "exitCode": $exit_code,
+    "stdout": $(echo "$output" | jq -Rs '.'),
+    "stderr": ""
 }
 EOF
 )
@@ -537,7 +541,7 @@ EOF
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
         -d "$result" \
-        "${API_URL}/api/v1/jobs/result" >/dev/null 2>&1 || warn "Failed to report job result"
+        "${API_URL}/api/v1/jobs/instances/${instance_id}/result" >/dev/null 2>&1 || warn "Failed to report job result"
     
     info "Job $instance_id completed: exit_code=$exit_code, duration=${duration}s"
 }
