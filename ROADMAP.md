@@ -11,9 +11,16 @@
 | **E5** | Deployment Engine | Medium | ✅ Complete |
 | **E6** | Linux Agent | Medium | ✅ Complete |
 | **E7** | Alerting & Notifications | Medium | ✅ Complete |
-| **E8** | Security & RBAC | Medium | 🔜 Planned |
-| **E9** | Rollout Strategies | Low | 🔜 Planned |
+| **E8** | Security & RBAC | Medium | ✅ Complete |
+| **E9** | Rollout Strategies | Low | ✅ Complete |
 | **E10** | Zero-Touch Installation | High | ✅ Complete |
+| **E12** | Eventlog Collection | Medium | ✅ Complete |
+| **E13** | Vulnerability Tracking | High | ✅ Complete |
+| **E14** | Auto-Remediation | High | ✅ Complete |
+| **E15** | Hardware Fleet Dashboard | Medium | ✅ Complete |
+| **E16** | Live View (SSE) | Medium | ✅ Complete |
+| **E17** | Screen Mirroring | Low | ✅ Complete |
+| **E18** | Service Orchestration | High | 🔜 Planned |
 
 ---
 
@@ -305,4 +312,119 @@
 | E14-09 | API: Aggregated statistics | Medium | Success rate, pending count |
 
 ---
-*Updated: 2026-02-08 — Software Distribution Epics added, E3 marked complete*
+
+## Phase 6: Service Orchestration (Sprint 12-15)
+
+### Epic E18: Service-Klassen & Desired State Orchestrierung 🆕
+*Define services, enforce desired state, auto-heal*
+
+**Complexity: XL (3-4 Sprints) | Priority: High**
+
+**Goal:** Define Service Classes (e.g., nginx-webservice, postgresql-cluster), assign nodes to services with roles, and let agents autonomously enforce the desired state with drift detection and auto-remediation.
+
+#### E18-01: Service-Class Management
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-01a | DB Schema: service_classes, services, service_node_assignments | High | Core data model |
+| E18-01b | API: CRUD for ServiceClass | High | Templates for services |
+| E18-01c | ServiceClass parameters: Min/Max nodes, Roles, Packages | High | Cluster requirements |
+| E18-01d | ServiceClass: Config templates (Jinja2-style) | High | postgresql.conf, nginx.conf |
+| E18-01e | ServiceClass: Health check definitions | High | Port, HTTP, DB query checks |
+| E18-01f | ServiceClass: Update/Rollout strategy | Medium | rolling, one-by-one |
+| E18-01g | ServiceClass: Drift policy (strict/tolerant) | Medium | Auto-fix vs. alert-only |
+| E18-01h | Frontend: ServiceClass CRUD UI | High | Create/edit service templates |
+
+#### E18-02: Service Instances & Node Assignment
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-02a | API: CRUD for Service instances | High | Instantiate a ServiceClass |
+| E18-02b | API: Assign nodes to service | High | Manual selection |
+| E18-02c | API: Rule-based node assignment | Medium | Tags, OS, location, resources |
+| E18-02d | API: Role assignment per node | High | Primary/Replica, Web-Node |
+| E18-02e | Frontend: Service instance wizard | High | Create service from class |
+| E18-02f | Frontend: Node assignment UI | High | Drag & drop or checkboxes |
+
+#### E18-03: Agent Reconciliation Loop (Desired State)
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-03a | Agent: Receive ServiceDefinition + NodeRole | High | From Gateway |
+| E18-03b | Agent: Install required packages | High | MSI/apt/yum/zip |
+| E18-03c | Agent: Apply config templates | High | Variable substitution |
+| E18-03d | Agent: Start/Enable services (systemd/Windows Services) | High | Service lifecycle |
+| E18-03e | Agent: Execute health checks | High | Verify deployment |
+| E18-03f | Agent: Drift detection loop | High | Compare actual vs. desired |
+| E18-03g | Agent: Auto-remediation on drift | Medium | Per drift policy |
+| E18-03h | Agent: Idempotent operations | High | Safe re-runs |
+| E18-03i | Agent: Report reconciliation status | High | Success/Failed/Degraded |
+
+#### E18-04: Reference Service: nginx-webservice
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-04a | ServiceClass template: nginx-webservice | High | 1..N web nodes |
+| E18-04b | Nginx installation (apt/yum/chocolatey) | High | Cross-platform |
+| E18-04c | Nginx config template (nginx.conf, vhost) | High | Variable-based |
+| E18-04d | Health endpoint setup (/healthz) | High | HTTP 200 check |
+| E18-04e | Optional: Deploy static content artifact | Medium | tar/zip deployment |
+| E18-04f | E2E test: Create nginx service, verify health | High | Acceptance test |
+
+#### E18-05: Reference Service: postgresql (Single & Cluster)
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-05a | ServiceClass template: postgresql-single | High | Single node DB |
+| E18-05b | ServiceClass template: postgresql-cluster | High | Primary + Replicas |
+| E18-05c | PostgreSQL installation (apt/yum/chocolatey) | High | Cross-platform |
+| E18-05d | Config templates: postgresql.conf, pg_hba.conf | High | Streaming replication |
+| E18-05e | Primary initialization workflow | High | initdb, create roles |
+| E18-05f | Replica binding workflow | High | pg_basebackup, recovery.conf |
+| E18-05g | Health checks: Port, replication lag, query | High | Multi-level checks |
+| E18-05h | Scaling action: Add replica node | High | Scale 2→3 nodes |
+| E18-05i | E2E test: Create cluster, verify replication | High | Acceptance test |
+
+#### E18-06: Service Dashboard & Health
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-06a | Frontend: Services overview page | High | List all services |
+| E18-06b | Service cards: Status, Availability, Node count | High | At-a-glance health |
+| E18-06c | Service detail: Node list with roles | High | Drilldown view |
+| E18-06d | Service detail: Desired vs. Actual state | High | Drift visualization |
+| E18-06e | Service detail: Reconciliation history | High | Recent runs/actions |
+| E18-06f | Availability calculation | Medium | SLA-style metrics |
+| E18-06g | Service alerts integration | Medium | Alert on degraded state |
+
+#### E18-07: Service Actions & Requests
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-07a | API: Scale service (add/remove nodes) | High | Horizontal scaling |
+| E18-07b | API: Upgrade service version | Medium | Rolling upgrade |
+| E18-07c | API: Restart service | Medium | Controlled restart |
+| E18-07d | API: Deploy artifact | Medium | Push new content |
+| E18-07e | Action creates Job with audit trail | High | Full traceability |
+| E18-07f | Frontend: Action buttons on service page | High | One-click operations |
+
+#### E18-08: Security & Config Management
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| E18-08a | Secrets management: DB passwords, TLS keys | High | Encrypted storage |
+| E18-08b | Secret injection to agents (short-lived tokens) | High | Secure delivery |
+| E18-08c | Config versioning | Medium | Track config changes |
+| E18-08d | Preflight checks: OS, ports, resources | Medium | Guardrails |
+| E18-08e | Rollback on failure | Medium | Degraded state handling |
+| E18-08f | Service-level locking (no concurrent changes) | Medium | Prevent conflicts |
+
+**Definition of Done:**
+- [ ] ServiceClass + Service CRUD in frontend
+- [ ] Agent can provision Nginx & PostgreSQL (Single + Cluster) to desired state
+- [ ] Dashboard shows service availability + drilldown
+- [ ] Scaling: PostgreSQL Cluster 2→3 nodes via UI action
+- [ ] Full audit trail (who/what/when) + agent logs per run visible
+
+---
+*Updated: 2026-02-15 — E18 Service Orchestration Epic added*
