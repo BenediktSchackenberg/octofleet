@@ -63,6 +63,7 @@ export default function HomePage() {
   const [hotfixes, setHotfixes] = useState<any>({ hotfixes: [], updateHistory: [] });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
 
   const API_BASE = "http://192.168.0.5:8080";
 
@@ -73,6 +74,7 @@ export default function HomePage() {
   useEffect(() => {
     fetchSummary();
     fetchMetrics();
+    fetchSystemHealth();
   }, []);
 
   useEffect(() => {
@@ -98,6 +100,15 @@ export default function HomePage() {
       console.error("Failed to fetch summary:", e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchSystemHealth() {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/health`);
+      if (res.ok) setSystemHealth(await res.json());
+    } catch (e) {
+      setSystemHealth({ status: 'error', database: 'unknown' });
     }
   }
 
@@ -740,6 +751,31 @@ export default function HomePage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* System Health Status */}
+              <Card className="mb-6">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Activity className="h-5 w-5" /> System Health
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${systemHealth?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className="text-sm">API: {systemHealth?.status || 'checking...'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${systemHealth?.database === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className="text-sm">Database: {systemHealth?.database || 'checking...'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${(summary?.counts.online || 0) > 0 ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                      <span className="text-sm">Agents: {summary?.counts.online || 0} connected</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* OS Distribution & Recent Activity Row */}
               <div className="grid gap-6 md:grid-cols-2 mb-8">

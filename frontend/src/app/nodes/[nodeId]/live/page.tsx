@@ -81,7 +81,11 @@ export default function LiveViewPage() {
   const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance' | 'network' | 'agentLogs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance' | 'network' | 'agentLogs' | 'screen'>('overview');
+  const [screenActive, setScreenActive] = useState(false);
+  const [screenImage, setScreenImage] = useState<string | null>(null);
+  const [screenQuality, setScreenQuality] = useState(50);
+  const screenIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [logFilter, setLogFilter] = useState('');
   
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -320,7 +324,7 @@ export default function LiveViewPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-1 mb-6 border-b">
-          {(['overview', 'logs', 'processes', 'performance', 'network', 'agentLogs'] as const).map(tab => (
+          {(['overview', 'logs', 'processes', 'performance', 'network', 'agentLogs', 'screen'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -336,6 +340,7 @@ export default function LiveViewPage() {
               {tab === 'performance' && '📈 Performance'}
               {tab === 'network' && `🌐 Network (${network.length})`}
               {tab === 'agentLogs' && `🤖 Agent (${agentLogs.length})`}
+              {tab === 'screen' && '🖥️ Screen'}
             </button>
           ))}
         </div>
@@ -640,6 +645,140 @@ export default function LiveViewPage() {
                   {connected ? 'Waiting for agent logs... (requires agent v0.4.23+)' : 'Connect to see agent logs'}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Screen Mirroring Tab */}
+        {activeTab === 'screen' && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>🖥️ Remote Screen</CardTitle>
+                  <CardDescription>View the remote desktop in real-time</CardDescription>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Quality:</span>
+                    <select 
+                      value={screenQuality}
+                      onChange={(e) => setScreenQuality(Number(e.target.value))}
+                      className="border rounded px-2 py-1 text-sm"
+                      disabled={screenActive}
+                    >
+                      <option value={30}>Low (30%)</option>
+                      <option value={50}>Medium (50%)</option>
+                      <option value={70}>High (70%)</option>
+                      <option value={90}>Best (90%)</option>
+                    </select>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (screenActive) {
+                        // Stop streaming
+                        setScreenActive(false);
+                        if (screenIntervalRef.current) {
+                          clearInterval(screenIntervalRef.current);
+                          screenIntervalRef.current = null;
+                        }
+                        // Stop session on server
+                        try {
+                          const token = localStorage.getItem('token');
+                          await fetch(`${API_BASE}/screen/stop/${nodeId}`, {
+                            method: 'POST',
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                        } catch (e) {}
+                      } else {
+                        // Start streaming
+                        setScreenActive(true);
+                        setScreenImage(null);
+                        
+                        try {
+                          const token = localStorage.getItem('token');
+                          // Start session
+                          const startRes = await fetch(`${API_BASE}/screen/start/${nodeId}`, {
+                            method: 'POST',
+                            headers: { 
+                              Authorization: `Bearer ${token}`,
+                              'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ quality: screenQuality })
+                          });
+                          
+                          if (startRes.ok) {
+                            const data = await startRes.json();
+                            
+                            // Poll for frames
+                            screenIntervalRef.current = setInterval(async () => {
+                              try {
+                                const frameRes = await fetch(`${API_BASE}/screen/frame/${data.sessionId}`, {
+                                  headers: { Authorization: `Bearer ${token}` }
+                                });
+                                if (frameRes.ok) {
+                                  const blob = await frameRes.blob();
+                                  if (blob.size > 0) {
+                                    const url = URL.createObjectURL(blob);
+                                    setScreenImage(prev => {
+                                      if (prev) URL.revokeObjectURL(prev);
+                                      return url;
+                                    });
+                                  }
+                                }
+                              } catch (e) {}
+                            }, 1000);
+                          }
+                        } catch (e) {
+                          console.error('Failed to start screen:', e);
+                          setScreenActive(false);
+                        }
+                      }
+                    }}
+                    variant={screenActive ? 'destructive' : 'default'}
+                  >
+                    {screenActive ? '⏹️ Stop' : '▶️ Start Viewing'}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-black rounded-lg overflow-hidden min-h-[400px] flex items-center justify-center">
+                {screenImage ? (
+                  <img 
+                    src={screenImage} 
+                    alt="Remote Screen" 
+                    className="max-w-full max-h-[70vh] object-contain"
+                  />
+                ) : (
+                  <div className="text-center text-gray-500 py-16">
+                    {screenActive ? (
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                        <p>Waiting for screen data...</p>
+                        <p className="text-sm text-gray-600">Make sure the agent is running and has screen capture capability</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-4">
+                        <svg className="w-16 h-16 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <p>Click "Start Viewing" to connect</p>
+                        <p className="text-sm text-gray-600">
+                          Requires: Windows (DXGI) or Linux (scrot/gnome-screenshot/grim)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 text-sm text-muted-foreground">
+                <p>⚠️ Screen mirroring requires:</p>
+                <ul className="list-disc list-inside ml-2">
+                  <li><strong>Windows:</strong> Agent v0.4.24+ with DXGI support</li>
+                  <li><strong>Linux:</strong> Display server (X11/Wayland) + scrot, gnome-screenshot, or grim</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         )}

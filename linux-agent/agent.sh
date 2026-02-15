@@ -780,6 +780,88 @@ EOF
 }
 
 # ============================================================================
+# Screen Capture (E17-03)
+# ============================================================================
+
+SCREEN_CAPTURE_TOOL=""
+SCREEN_SESSION_ID=""
+SCREEN_INTERVAL=1
+
+detect_screen_capture_tool() {
+    if command -v gnome-screenshot &>/dev/null; then
+        SCREEN_CAPTURE_TOOL="gnome-screenshot"
+    elif command -v scrot &>/dev/null; then
+        SCREEN_CAPTURE_TOOL="scrot"
+    elif command -v import &>/dev/null; then
+        SCREEN_CAPTURE_TOOL="import"  # ImageMagick
+    elif command -v grim &>/dev/null; then
+        SCREEN_CAPTURE_TOOL="grim"  # Wayland
+    else
+        SCREEN_CAPTURE_TOOL=""
+    fi
+}
+
+capture_screenshot() {
+    local output_file="/tmp/openclaw-screen-${NODE_ID}.jpg"
+    local quality="${1:-50}"
+    
+    case "$SCREEN_CAPTURE_TOOL" in
+        gnome-screenshot)
+            gnome-screenshot -f "$output_file" 2>/dev/null
+            ;;
+        scrot)
+            scrot -q "$quality" "$output_file" 2>/dev/null
+            ;;
+        import)
+            import -window root -quality "$quality" "$output_file" 2>/dev/null
+            ;;
+        grim)
+            grim -t jpeg -q "$quality" "$output_file" 2>/dev/null
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    
+    if [[ -f "$output_file" ]]; then
+        echo "$output_file"
+        return 0
+    fi
+    return 1
+}
+
+check_screen_requests() {
+    # Poll for screen capture requests
+    local response=$(curl -sS -H "X-API-Key: $API_KEY" \
+        "${API_URL}/api/v1/screen/pending/${NODE_ID}" 2>/dev/null)
+    
+    if [[ -z "$response" ]] || [[ "$response" == "null" ]]; then
+        return
+    fi
+    
+    local session_id=$(echo "$response" | jq -r '.sessionId // empty')
+    local quality=$(echo "$response" | jq -r '.quality // 50')
+    
+    if [[ -n "$session_id" ]]; then
+        SCREEN_SESSION_ID="$session_id"
+        
+        # Capture screenshot
+        local screenshot=$(capture_screenshot "$quality")
+        
+        if [[ -n "$screenshot" && -f "$screenshot" ]]; then
+            # Upload screenshot
+            curl -sS -X POST \
+                -H "X-API-Key: $API_KEY" \
+                -H "Content-Type: image/jpeg" \
+                --data-binary "@$screenshot" \
+                "${API_URL}/api/v1/screen/frame/${session_id}" >/dev/null 2>&1
+            
+            rm -f "$screenshot" 2>/dev/null
+        fi
+    fi
+}
+
+# ============================================================================
 # Service Loop
 # ============================================================================
 
@@ -789,9 +871,16 @@ run_service() {
     info "API URL: $API_URL"
     info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"
     
+    # Detect screen capture tool
+    detect_screen_capture_tool
+    if [[ -n "$SCREEN_CAPTURE_TOOL" ]]; then
+        info "Screen capture available via: $SCREEN_CAPTURE_TOOL"
+    fi
+    
     local last_push=0
     local last_poll=0
     local last_live=0
+    local last_screen=0
     
     # Initial push
     push_inventory || true
@@ -816,6 +905,12 @@ run_service() {
         if (( now - last_poll >= JOB_POLL_INTERVAL )); then
             poll_jobs || true
             last_poll=$now
+        fi
+        
+        # Check screen capture requests (every second if tool available)
+        if [[ -n "$SCREEN_CAPTURE_TOOL" ]] && (( now - last_screen >= SCREEN_INTERVAL )); then
+            check_screen_requests 2>/dev/null || true
+            last_screen=$now
         fi
         
         sleep 1
