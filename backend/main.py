@@ -7561,3 +7561,356 @@ async def remediation_live_sse(request: Request, token: str = None, api_key: str
             "X-Accel-Buffering": "no"
         }
     )
+
+
+# ============================================================================
+# E18: Service Orchestration API
+# ============================================================================
+
+# --- Service Classes ---
+
+@app.get("/api/v1/service-classes")
+async def list_service_classes(db: asyncpg.Pool = Depends(get_db)):
+    """List all service class templates"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT sc.*, 
+                   (SELECT COUNT(*) FROM services s WHERE s.class_id = sc.id) as service_count
+            FROM service_classes sc
+            ORDER BY sc.name
+        """)
+        return {"serviceClasses": [dict(r) for r in rows]}
+
+
+@app.post("/api/v1/service-classes")
+async def create_service_class(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a new service class template"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO service_classes (
+                name, description, service_type, min_nodes, max_nodes,
+                roles, required_packages, config_template, health_check,
+                drift_policy, update_strategy, created_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING *
+        """,
+            data.get("name"),
+            data.get("description"),
+            data.get("serviceType", "single"),
+            data.get("minNodes", 1),
+            data.get("maxNodes", 1),
+            json.dumps(data.get("roles", ["primary"])),
+            json.dumps(data.get("requiredPackages", [])),
+            data.get("configTemplate"),
+            json.dumps(data.get("healthCheck", {"type": "tcp", "port": 80})),
+            data.get("driftPolicy", "strict"),
+            data.get("updateStrategy", "rolling"),
+            data.get("createdBy")
+        )
+        return dict(row)
+
+
+@app.get("/api/v1/service-classes/{class_id}")
+async def get_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get a service class by ID"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT * FROM service_classes WHERE id = $1
+        """, class_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Service class not found")
+        return dict(row)
+
+
+@app.put("/api/v1/service-classes/{class_id}")
+async def update_service_class(class_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Update a service class"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE service_classes SET
+                name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                service_type = COALESCE($4, service_type),
+                min_nodes = COALESCE($5, min_nodes),
+                max_nodes = COALESCE($6, max_nodes),
+                roles = COALESCE($7, roles),
+                required_packages = COALESCE($8, required_packages),
+                config_template = COALESCE($9, config_template),
+                health_check = COALESCE($10, health_check),
+                drift_policy = COALESCE($11, drift_policy),
+                update_strategy = COALESCE($12, update_strategy),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+        """,
+            class_id,
+            data.get("name"),
+            data.get("description"),
+            data.get("serviceType"),
+            data.get("minNodes"),
+            data.get("maxNodes"),
+            json.dumps(data["roles"]) if "roles" in data else None,
+            json.dumps(data["requiredPackages"]) if "requiredPackages" in data else None,
+            data.get("configTemplate"),
+            json.dumps(data["healthCheck"]) if "healthCheck" in data else None,
+            data.get("driftPolicy"),
+            data.get("updateStrategy")
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Service class not found")
+        return dict(row)
+
+
+@app.delete("/api/v1/service-classes/{class_id}")
+async def delete_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a service class (only if no services use it)"""
+    async with db.acquire() as conn:
+        # Check for existing services
+        count = await conn.fetchval(
+            "SELECT COUNT(*) FROM services WHERE class_id = $1", class_id
+        )
+        if count > 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot delete: {count} service(s) still using this class"
+            )
+        
+        result = await conn.execute(
+            "DELETE FROM service_classes WHERE id = $1", class_id
+        )
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Service class not found")
+        return {"status": "deleted", "id": class_id}
+
+
+# --- Services ---
+
+@app.get("/api/v1/services")
+async def list_services(
+    status: str = None,
+    class_id: str = None,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """List all services with optional filters"""
+    async with db.acquire() as conn:
+        query = """
+            SELECT s.*, sc.name as class_name,
+                   (SELECT COUNT(*) FROM service_node_assignments sna 
+                    WHERE sna.service_id = s.id AND sna.status = 'active') as active_nodes
+            FROM services s
+            JOIN service_classes sc ON s.class_id = sc.id
+            WHERE 1=1
+        """
+        params = []
+        param_idx = 1
+        
+        if status:
+            query += f" AND s.status = ${param_idx}"
+            params.append(status)
+            param_idx += 1
+        
+        if class_id:
+            query += f" AND s.class_id = ${param_idx}"
+            params.append(class_id)
+            param_idx += 1
+        
+        query += " ORDER BY s.name"
+        
+        rows = await conn.fetch(query, *params)
+        return {"services": [dict(r) for r in rows]}
+
+
+@app.post("/api/v1/services")
+async def create_service(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a new service instance"""
+    class_id = data.get("classId")
+    if not class_id:
+        raise HTTPException(status_code=400, detail="classId required")
+    
+    async with db.acquire() as conn:
+        # Verify class exists
+        class_row = await conn.fetchrow(
+            "SELECT * FROM service_classes WHERE id = $1", class_id
+        )
+        if not class_row:
+            raise HTTPException(status_code=404, detail="Service class not found")
+        
+        row = await conn.fetchrow("""
+            INSERT INTO services (
+                class_id, name, description, config_values, secrets_ref, created_by
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+        """,
+            class_id,
+            data.get("name"),
+            data.get("description"),
+            json.dumps(data.get("configValues", {})),
+            data.get("secretsRef"),
+            data.get("createdBy")
+        )
+        return dict(row)
+
+
+@app.get("/api/v1/services/{service_id}")
+async def get_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get a service with its node assignments"""
+    async with db.acquire() as conn:
+        service = await conn.fetchrow("""
+            SELECT s.*, sc.name as class_name, sc.roles as available_roles,
+                   sc.health_check, sc.drift_policy, sc.update_strategy
+            FROM services s
+            JOIN service_classes sc ON s.class_id = sc.id
+            WHERE s.id = $1
+        """, service_id)
+        
+        if not service:
+            raise HTTPException(status_code=404, detail="Service not found")
+        
+        # Get node assignments
+        assignments = await conn.fetch("""
+            SELECT sna.*, n.hostname, n.os_name, n.agent_version
+            FROM service_node_assignments sna
+            JOIN nodes n ON sna.node_id = n.id
+            WHERE sna.service_id = $1
+            ORDER BY sna.role, n.hostname
+        """, service_id)
+        
+        result = dict(service)
+        result["nodes"] = [dict(a) for a in assignments]
+        return result
+
+
+@app.put("/api/v1/services/{service_id}")
+async def update_service(service_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Update a service"""
+    async with db.acquire() as conn:
+        # Increment desired_state_version if config changes
+        version_increment = 1 if "configValues" in data else 0
+        
+        row = await conn.fetchrow("""
+            UPDATE services SET
+                name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                status = COALESCE($4, status),
+                config_values = COALESCE($5, config_values),
+                secrets_ref = COALESCE($6, secrets_ref),
+                desired_state_version = desired_state_version + $7,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+        """,
+            service_id,
+            data.get("name"),
+            data.get("description"),
+            data.get("status"),
+            json.dumps(data["configValues"]) if "configValues" in data else None,
+            data.get("secretsRef"),
+            version_increment
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Service not found")
+        return dict(row)
+
+
+@app.delete("/api/v1/services/{service_id}")
+async def delete_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a service and all its assignments"""
+    async with db.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM services WHERE id = $1", service_id
+        )
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Service not found")
+        return {"status": "deleted", "id": service_id}
+
+
+# --- Service Node Assignments ---
+
+@app.post("/api/v1/services/{service_id}/nodes")
+async def assign_node_to_service(
+    service_id: str, 
+    data: Dict[str, Any], 
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Assign a node to a service with a role"""
+    node_id = data.get("nodeId")
+    role = data.get("role", "primary")
+    
+    if not node_id:
+        raise HTTPException(status_code=400, detail="nodeId required")
+    
+    async with db.acquire() as conn:
+        # Verify service and node exist
+        service = await conn.fetchrow("SELECT * FROM services WHERE id = $1", service_id)
+        if not service:
+            raise HTTPException(status_code=404, detail="Service not found")
+        
+        node = await conn.fetchrow("SELECT * FROM nodes WHERE id = $1", node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        # Create assignment
+        try:
+            row = await conn.fetchrow("""
+                INSERT INTO service_node_assignments (service_id, node_id, role)
+                VALUES ($1, $2, $3)
+                RETURNING *
+            """, service_id, node_id, role)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=400, detail="Node already assigned to this service")
+        
+        # Log the assignment
+        await conn.execute("""
+            INSERT INTO service_reconciliation_log 
+                (service_id, node_id, action, status, message)
+            VALUES ($1, $2, 'assign', 'success', $3)
+        """, service_id, node_id, f"Node assigned with role: {role}")
+        
+        return dict(row)
+
+
+@app.delete("/api/v1/services/{service_id}/nodes/{node_id}")
+async def remove_node_from_service(
+    service_id: str, 
+    node_id: str, 
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Remove a node from a service"""
+    async with db.acquire() as conn:
+        result = await conn.execute("""
+            DELETE FROM service_node_assignments 
+            WHERE service_id = $1 AND node_id = $2
+        """, service_id, node_id)
+        
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Assignment not found")
+        
+        # Log removal
+        await conn.execute("""
+            INSERT INTO service_reconciliation_log 
+                (service_id, node_id, action, status, message)
+            VALUES ($1, $2, 'remove', 'success', 'Node removed from service')
+        """, service_id, node_id)
+        
+        return {"status": "removed", "serviceId": service_id, "nodeId": node_id}
+
+
+# --- Service Reconciliation Log ---
+
+@app.get("/api/v1/services/{service_id}/logs")
+async def get_service_logs(
+    service_id: str,
+    limit: int = 50,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Get reconciliation logs for a service"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT srl.*, n.hostname
+            FROM service_reconciliation_log srl
+            LEFT JOIN nodes n ON srl.node_id = n.id
+            WHERE srl.service_id = $1
+            ORDER BY srl.started_at DESC
+            LIMIT $2
+        """, service_id, limit)
+        return {"logs": [dict(r) for r in rows]}
