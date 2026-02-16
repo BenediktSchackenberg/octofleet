@@ -612,7 +612,7 @@ export default function LiveViewPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>🤖 Agent Service Logs</CardTitle>
-                  <CardDescription>Logs from the OpenClaw Agent service</CardDescription>
+                  <CardDescription>Logs from the Octofleet Agent service</CardDescription>
                 </div>
                 <span className="text-sm text-muted-foreground">{agentLogs.length} entries</span>
               </div>

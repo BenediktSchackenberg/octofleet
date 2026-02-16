@@ -60,7 +60,7 @@ export default function LoginPage() {
       
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="text-4xl mb-2">🦎</div>
+          <div className="text-4xl mb-2">🐙</div>
           <CardTitle className="text-2xl">{t("auth.loginTitle")}</CardTitle>
           <CardDescription>{t("auth.loginSubtitle")}</CardDescription>
         </CardHeader>
