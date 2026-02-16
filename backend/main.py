@@ -687,7 +687,7 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         node = await conn.fetchrow("""
             SELECT id, node_id, hostname, os_name, os_version, os_build, 
                    first_seen, last_seen, is_online, agent_version, created_at, updated_at
-            FROM nodes WHERE node_id = $1
+            FROM nodes WHERE node_id = $1 OR id::text = $1
         """, node_id)
         
         if not node:
@@ -739,7 +739,7 @@ async def get_node_history(node_id: str, limit: int = 50, db: asyncpg.Pool = Dep
     """Get change history for a node (hardware snapshots)"""
     async with db.acquire() as conn:
         # Get node UUID
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -775,7 +775,7 @@ async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get hardware data for a node"""
     async with db.acquire() as conn:
         # Find node by node_id string or UUID
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -974,7 +974,7 @@ async def get_fleet_hardware(db: asyncpg.Pool = Depends(get_db)):
 async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get software data for a node"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -990,7 +990,7 @@ async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get hotfix data for a node (classic hotfixes + Windows Update History)"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -1032,7 +1032,7 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get system data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("""
-            SELECT id, os_name, os_version, os_build FROM nodes WHERE node_id = $1
+            SELECT id, os_name, os_version, os_build FROM nodes WHERE node_id = $1 OR id::text = $1
         """, node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
@@ -1067,7 +1067,7 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get security data for a node"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -1093,7 +1093,7 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get network data for a node"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -1116,7 +1116,7 @@ async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 async def get_browser(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get browser data for a node"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -1174,7 +1174,7 @@ async def get_browser_cookies(node_id: str, username: str = None, browser: str =
                               domain: str = None, limit: int = 500, db: asyncpg.Pool = Depends(get_db)):
     """Get detailed cookie data for a node"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -1267,7 +1267,7 @@ def is_critical_domain(domain: str) -> bool:
 async def get_critical_cookies(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get critical/sensitive cookies for security analysis"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR hostname = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1 OR hostname = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -2268,7 +2268,7 @@ async def add_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Pool =
     
     async with db.acquire() as conn:
         # Find node by node_id string
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -2293,7 +2293,7 @@ async def remove_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Poo
     tag_ids = data.get("tagIds", [])
     
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -2315,7 +2315,7 @@ async def remove_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Poo
 async def get_device_groups(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get groups a device belongs to"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -2334,7 +2334,7 @@ async def get_device_groups(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 async def get_device_tags(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get tags assigned to a device"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -2560,7 +2560,7 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         if target_type == "device" and target_id_input:
             # Try to find node by text node_id first
             node = await conn.fetchrow(
-                "SELECT id, node_id FROM nodes WHERE node_id = $1", 
+                "SELECT id, node_id FROM nodes WHERE node_id = $1 OR id::text = $1", 
                 target_id_input
             )
             if node:
@@ -3626,7 +3626,7 @@ async def push_eventlog(node_id: str, request: Request, db: asyncpg.Pool = Depen
     
     async with db.acquire() as conn:
         # Verify node exists
-        node = await conn.fetchrow("SELECT node_id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT node_id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -3943,7 +3943,7 @@ async def push_metrics(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = De
 async def get_node_metrics(node_id: str, hours: int = 24, db: asyncpg.Pool = Depends(get_db)):
     """Get metrics for a node with time series data"""
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -4279,7 +4279,7 @@ async def delete_deployment(deployment_id: str):
 async def get_node_deployments(node_id: str):
     """Get pending deployments for a specific node (agent polling endpoint)"""
     async with db_pool.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(404, "Node not found")
         
@@ -4316,7 +4316,7 @@ async def update_node_deployment_status(node_id: str, deployment_id: str, data: 
         raise HTTPException(400, "Invalid status")
     
     async with db_pool.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(404, "Node not found")
         
@@ -6492,7 +6492,7 @@ async def live_data_generator(node_id: str, session_id: str):
                         SELECT cpu_percent, ram_percent, disk_percent,
                                network_in_mb, network_out_mb, time as timestamp
                         FROM node_metrics
-                        WHERE node_id = (SELECT id FROM nodes WHERE node_id = $1)
+                        WHERE node_id = (SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1)
                         ORDER BY time DESC LIMIT 1
                     """, node_id)
                     
@@ -6518,7 +6518,7 @@ async def live_data_generator(node_id: str, session_id: str):
                     procs = await conn.fetch("""
                         SELECT process_name, pid, cpu_percent, memory_mb, user_name
                         FROM node_processes
-                        WHERE node_id = (SELECT id FROM nodes WHERE node_id = $1)
+                        WHERE node_id = (SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1)
                           AND collected_at > NOW() - INTERVAL '30 seconds'
                         ORDER BY cpu_percent DESC NULLS LAST LIMIT 20
                     """, node_id)
@@ -6632,7 +6632,7 @@ async def live_stream(node_id: str, _: str = Depends(verify_api_key_or_query)):
     """
     # Verify node exists
     async with db_pool.acquire() as conn:
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
     
@@ -6698,7 +6698,7 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
     
     async with db.acquire() as conn:
         # Get node UUID
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id_text)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id_text)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -6797,7 +6797,7 @@ async def get_metrics_history(
     
     async with db.acquire() as conn:
         # Get node UUID
-        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
@@ -6921,7 +6921,7 @@ async def export_node_hardware(
     Export single node hardware data as JSON or CSV.
     """
     async with db.acquire() as conn:
-        node = await conn.fetchrow("SELECT id, hostname FROM nodes WHERE node_id = $1", node_id)
+        node = await conn.fetchrow("SELECT id, hostname FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node:
             raise HTTPException(status_code=404, detail="Node not found")
         
