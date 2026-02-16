@@ -5,20 +5,16 @@
       "origin": "http://localhost:3000",
       "localStorage": [
         {
+          "name": "authToken",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTRmZTVlMi0xZDQ1LTRmYTEtYmE1ZS1iMTkxYjhkY2JkMGYiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzEzNDMxODMsInR5cGUiOiJhY2Nlc3MifQ.o9WwtpW3SDuVZ4hCfNzTyS_fqOHnLGcIBmE3dW9p60c"
+        },
+        {
           "name": "token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTRmZTVlMi0xZDQ1LTRmYTEtYmE1ZS1iMTkxYjhkY2JkMGYiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzEzNDE3NjIsInR5cGUiOiJhY2Nlc3MifQ.2XxlJGuP0XJhxbw4HCA-6I4hOTL0a0hhxl88P2Xf-Gs"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTRmZTVlMi0xZDQ1LTRmYTEtYmE1ZS1iMTkxYjhkY2JkMGYiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzEzNDMxODMsInR5cGUiOiJhY2Nlc3MifQ.o9WwtpW3SDuVZ4hCfNzTyS_fqOHnLGcIBmE3dW9p60c"
         },
         {
           "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTRmZTVlMi0xZDQ1LTRmYTEtYmE1ZS1iMTkxYjhkY2JkMGYiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzEzNDE3NjEsInR5cGUiOiJhY2Nlc3MifQ.X1eoiAuZ7Bd19Yb9I6lm4o6FPiOSpHmR37uleR6yLNQ"
-        },
-        {
-          "name": "authToken",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTRmZTVlMi0xZDQ1LTRmYTEtYmE1ZS1iMTkxYjhkY2JkMGYiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzEzNDE3NjEsInR5cGUiOiJhY2Nlc3MifQ.X1eoiAuZ7Bd19Yb9I6lm4o6FPiOSpHmR37uleR6yLNQ"
-        },
-        {
-          "name": "user",
-          "value": "{\"id\":\"054fe5e2-1d45-4fa1-ba5e-b191b8dcbd0f\",\"username\":\"admin\",\"email\":\"admin@openclaw.local\",\"display_name\":\"Administrator\",\"is_active\":true,\"is_superuser\":true,\"created_at\":\"2026-02-12T08:57:32.404492Z\",\"last_login\":\"2026-02-16T15:22:41.013829Z\",\"roles\":[\"admin\"]}"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTRmZTVlMi0xZDQ1LTRmYTEtYmE1ZS1iMTkxYjhkY2JkMGYiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzEzNDMxODMsInR5cGUiOiJhY2Nlc3MifQ.o9WwtpW3SDuVZ4hCfNzTyS_fqOHnLGcIBmE3dW9p60c"
         }
       ]
     }

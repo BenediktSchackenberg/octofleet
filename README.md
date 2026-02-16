@@ -1,13 +1,13 @@
-# 🖥️ OpenClaw Inventory Platform
+# 🐙 Octofleet
 
 <p align="center">
-  <img src="docs/screenshot-dashboard.png" alt="Dashboard" width="800">
+  <img src="docs/octofleet-banner.svg" alt="Octofleet Banner" width="800">
 </p>
 
 **Open-source endpoint management platform** for Windows and Linux systems. Monitor your fleet, deploy software, track vulnerabilities, and manage devices from a single dashboard.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/BenediktSchackenberg/openclaw-windows-agent)](https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases)
+[![GitHub release](https://img.shields.io/github/v/release/BenediktSchackenberg/octofleet)](https://github.com/BenediktSchackenberg/octofleet/releases)
 
 ---
 
@@ -76,8 +76,8 @@
 ### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/BenediktSchackenberg/openclaw-windows-agent.git
-cd openclaw-windows-agent
+git clone https://github.com/BenediktSchackenberg/octofleet.git
+cd octofleet
 
 # Copy environment templates
 cp .env.example .env
@@ -107,12 +107,12 @@ cd frontend && npm install && npm run dev
 
 **Windows (PowerShell as Admin):**
 ```powershell
-irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/scripts/Install-OpenClawAgent.ps1 | iex
+irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/scripts/Install-OpenClawAgent.ps1 | iex
 ```
 
 **Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/linux-agent/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash
 ```
 
 ---
@@ -126,6 +126,30 @@ curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-window
 | API Reference | [Wiki: API-Reference](../../wiki/API-Reference) |
 | Agent Setup | [Wiki: Agent-Configuration](../../wiki/Agent-Configuration) |
 | Troubleshooting | [Wiki: Troubleshooting](../../wiki/Troubleshooting) |
+
+---
+
+## 📸 Screenshots
+
+<details>
+<summary>📈 Dashboard</summary>
+<img src="docs/screenshot-dashboard.png" alt="Dashboard">
+</details>
+
+<details>
+<summary>🖥️ Node Details</summary>
+<img src="docs/screenshot-node.png" alt="Node Details">
+</details>
+
+<details>
+<summary>🔒 Vulnerability Scanner</summary>
+<img src="docs/screenshot-vulns.png" alt="Vulnerabilities">
+</details>
+
+<details>
+<summary>🔔 Alerts</summary>
+<img src="docs/screenshot-alerts.png" alt="Alerts">
+</details>
 
 ---
 
@@ -168,30 +192,6 @@ cd tests/windows && ./Run-LocalTests.ps1
 
 ---
 
-## 📊 Screenshots
-
-<details>
-<summary>📈 Dashboard</summary>
-<img src="docs/screenshot-dashboard.png" alt="Dashboard">
-</details>
-
-<details>
-<summary>🖥️ Node Details</summary>
-<img src="docs/screenshot-node.png" alt="Node Details">
-</details>
-
-<details>
-<summary>📦 Package Management</summary>
-<img src="docs/screenshot-packages.png" alt="Packages">
-</details>
-
-<details>
-<summary>🔒 Vulnerability Scanner</summary>
-<img src="docs/screenshot-vulns.png" alt="Vulnerabilities">
-</details>
-
----
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
@@ -219,5 +219,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-  Made with ❤️ by the OpenClaw community
+  <b>🐙 Reach every endpoint in your fleet</b><br>
+  Made with ❤️ by <a href="https://schackenberg.com">Benedikt Schackenberg</a>
 </p>
