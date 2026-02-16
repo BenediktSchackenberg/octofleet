@@ -6,7 +6,7 @@ BeforeAll {
     $script:ServiceName = "Octofleet Agent"
     $script:ConfigFile = "service-config.json"
     $script:RepoOwner = "BenediktSchackenberg"
-    $script:RepoName = "octofleet-windows-agent"
+    $script:RepoName = "octofleet"
     $script:InstallerUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/Install-OctofleetAgent.ps1"
 }
 
