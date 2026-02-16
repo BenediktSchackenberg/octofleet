@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/ui-components";
 import { Terminal, Play, Square, Trash2 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
 
 export default function TerminalPage() {
   const params = useParams();
@@ -35,7 +35,7 @@ export default function TerminalPage() {
   // Helper for API headers
   const getHeaders = (contentType = false): Record<string, string> => {
     const headers: Record<string, string> = {
-      'X-API-Key': 'openclaw-inventory-dev-key'
+      'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || 'openclaw-inventory-dev-key'
     };
     const token = localStorage.getItem('token');
     if (token) headers['Authorization'] = `Bearer ${token}`;

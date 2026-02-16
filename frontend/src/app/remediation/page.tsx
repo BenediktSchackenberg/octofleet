@@ -64,7 +64,7 @@ export default function RemediationPage() {
   const [scanResult, setScanResult] = useState<any>(null);
   const [liveConnected, setLiveConnected] = useState(false);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080';
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
   const getToken = () => localStorage.getItem('token');
 

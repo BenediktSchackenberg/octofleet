@@ -7,8 +7,8 @@ import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { EventlogChart } from "@/components/EventlogChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const API_URL = "http://192.168.0.5:8080";
-const API_KEY = "openclaw-inventory-dev-key";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key";
 
 interface EventlogSummary {
   nodeId: string;

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getAuthHeader } from "@/lib/auth-context";
 import { Breadcrumb } from "@/components/ui-components";
 
-const API_URL = "http://192.168.0.5:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 interface MaintenanceWindow {
   id: string;

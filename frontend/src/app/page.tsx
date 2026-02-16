@@ -66,7 +66,7 @@ export default function HomePage() {
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
 
-  const API_BASE = "http://192.168.0.5:8080";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
   function getHeaders() {
     return getAuthHeader();

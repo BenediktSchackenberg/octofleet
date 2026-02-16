@@ -1,93 +1,131 @@
-# Contributing to OpenClaw Inventory
+# Contributing to OpenClaw Inventory Platform
 
 Thank you for your interest in contributing! 🎉
 
-## Getting Started
+## 🚀 Getting Started
 
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR-USERNAME/openclaw-windows-agent.git`
-3. Create a branch: `git checkout -b feature/your-feature`
+1. **Fork** the repository
+2. **Clone** your fork locally
+3. **Create** a feature branch
+4. **Make** your changes
+5. **Test** thoroughly
+6. **Submit** a Pull Request
 
-## Development Setup
+## 📋 Development Setup
 
-### Backend
+### Prerequisites
+- Node.js 18+
+- Python 3.11+
+- .NET 8 SDK
+- Docker (for database)
+- PostgreSQL 16 + TimescaleDB
 
+### Quick Setup
 ```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/openclaw-windows-agent.git
+cd openclaw-windows-agent
+
+# Backend
 cd backend
-python3 -m venv venv
+python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-pip install pytest pytest-asyncio  # For tests
 
-# Run tests
-pytest
-
-# Run with hot reload
-uvicorn main:app --reload --port 8080
-```
-
-### Frontend
-
-```bash
-cd frontend
+# Frontend
+cd ../frontend
 npm install
 
-# Run dev server
-npm run dev
-
-# Run tests
-npm test
-
-# Run E2E tests
-npx playwright test
+# Start development
+npm run dev  # Frontend
+uvicorn main:app --reload  # Backend
 ```
 
-### Windows Agent
+## 🎯 What to Contribute
 
+### Good First Issues
+- Documentation improvements
+- Bug fixes
+- UI/UX enhancements
+- Test coverage
+
+### Feature Ideas
+- New inventory collectors
+- Additional alert channels (Slack, Teams, Email)
+- Dashboard widgets
+- Agent improvements
+
+## 📝 Code Style
+
+### Python (Backend)
+- Follow PEP 8
+- Use type hints
+- Document functions with docstrings
+
+### TypeScript (Frontend)
+- Use functional components
+- Prefer `const` over `let`
+- Use TypeScript interfaces
+
+### C# (Agent)
+- Follow Microsoft naming conventions
+- Use async/await for I/O operations
+- Document public APIs
+
+## 🧪 Testing
+
+### Run All Tests
 ```bash
-cd src
-dotnet build
-dotnet test
+# API Tests
+cd tests/api && pytest
+
+# E2E Tests  
+cd tests/e2e && npx playwright test
+
+# Windows Tests
+cd tests/windows && ./Run-LocalTests.ps1
 ```
 
-## Code Style
+### Write Tests
+- Add tests for new features
+- Maintain existing test coverage
+- Use meaningful test names
 
-- **Python**: Black formatter, isort for imports
-- **TypeScript**: Prettier + ESLint
-- **C#**: Standard .NET conventions
+## 📤 Pull Request Process
 
-## Pull Request Process
+1. **Update** documentation if needed
+2. **Add** tests for new functionality
+3. **Ensure** all tests pass
+4. **Update** CHANGELOG.md
+5. **Request** review from maintainers
 
-1. Ensure tests pass
-2. Update documentation if needed
-3. Add entry to CHANGELOG.md
-4. Request review from maintainers
-
-## Commit Messages
-
-Follow conventional commits:
-
+### PR Title Format
 ```
-feat: add new feature
-fix: fix bug
-docs: update documentation
-test: add tests
-refactor: code refactoring
+feat: Add new feature
+fix: Fix bug in component
+docs: Update documentation
+test: Add missing tests
+refactor: Improve code structure
 ```
 
-## Reporting Issues
+## 🐛 Reporting Bugs
 
-Please include:
-- OS and version
+Use GitHub Issues with:
+- Clear title
 - Steps to reproduce
 - Expected vs actual behavior
-- Logs/screenshots if applicable
+- Screenshots if applicable
+- Environment details
 
-## Questions?
+## 💬 Questions?
 
-- Open an issue
-- Join [Discord](https://discord.com/invite/clawd)
+- Open a [Discussion](https://github.com/BenediktSchackenberg/openclaw-windows-agent/discussions)
+- Check existing issues first
 
-## License
+## 📜 License
 
-By contributing, you agree your contributions are licensed under MIT.
+By contributing, you agree that your contributions will be licensed under the MIT License.
+
+---
+
+Thank you for making OpenClaw better! 🙏

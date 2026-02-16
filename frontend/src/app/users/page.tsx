@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { Plus, Trash2, Shield, User as UserIcon, Key } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.5:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 interface User {
   id: string;

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.5:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 interface ScreenMessage {
   type: 'info' | 'frame' | 'error' | 'closed' | 'ping' | 'pong';
@@ -69,7 +69,7 @@ export default function ScreenViewerPage() {
   
   const connectWebSocket = (sid: string, token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname.includes('localhost') ? 'localhost' : '192.168.0.5'}:8080/api/v1/screen/ws/${sid}?token=${token}`;
+    const wsUrl = `${protocol}//${window.location.hostname.includes('localhost') ? 'localhost' : window.location.hostname}:8080/api/v1/screen/ws/${sid}?token=${token}`;
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

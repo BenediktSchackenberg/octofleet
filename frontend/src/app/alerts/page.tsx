@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Breadcrumb } from "@/components/ui-components";
 import { Bell, Plus, Trash2, TestTube, Check, X } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
 
 interface AlertChannel {
   id: string;

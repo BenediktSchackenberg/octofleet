@@ -43,3 +43,32 @@ appsettings.Local.json
 backend/venv/
 backend/__pycache__/
 *.pyc
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+!frontend/.env.example
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test results
+test-results/
+playwright-report/
+
+# Build artifacts
+*.zip

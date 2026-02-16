@@ -14,8 +14,8 @@ import { Breadcrumb } from "@/components/ui-components";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 
-const API_BASE = 'http://192.168.0.5:8080/api/v1';
-const API_KEY = 'openclaw-inventory-dev-key';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'openclaw-inventory-dev-key';
 
 interface NodeDetails {
   id: string;

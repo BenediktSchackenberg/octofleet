@@ -11,8 +11,8 @@ import { Breadcrumb } from "@/components/ui-components";
 import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play } from "lucide-react";
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
 
-const API_BASE = "http://192.168.0.5:8080/api/v1";
-const API_KEY = "openclaw-inventory-dev-key";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key";
 
 interface Deployment {
   id: string;

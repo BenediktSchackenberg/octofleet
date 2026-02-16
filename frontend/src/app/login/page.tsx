@@ -8,7 +8,7 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { useI18n } from "@/lib/i18n-context";
 import { Lock, User, AlertCircle } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.5:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export default function LoginPage() {
   const router = useRouter();

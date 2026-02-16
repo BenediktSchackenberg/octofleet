@@ -6,7 +6,7 @@ import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff } from "lucide-react";
 
-const API_URL = "http://192.168.0.5:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 interface EnrollmentToken {
   id: string;
@@ -255,11 +255,11 @@ export default function SettingsPage() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-zinc-500">Gateway URL:</span>
-              <div className="font-mono">http://192.168.0.5:18789</div>
+              <div className="font-mono">{typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:18789` : 'http://localhost:18789'}</div>
             </div>
             <div>
               <span className="text-zinc-500">API URL:</span>
-              <div className="font-mono">http://192.168.0.5:8080</div>
+              <div className="font-mono">{process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}</div>
             </div>
           </div>
         </div>

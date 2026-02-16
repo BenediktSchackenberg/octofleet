@@ -37,8 +37,9 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
 
   async function fetchTree() {
     try {
-      const res = await fetch("http://192.168.0.5:8080/api/v1/nodes/tree", {
-        headers: { "X-API-Key": "openclaw-inventory-dev-key" }
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      const res = await fetch(`${apiUrl}/api/v1/nodes/tree`, {
+        headers: { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key" }
       });
       if (res.ok) {
         const data = await res.json();

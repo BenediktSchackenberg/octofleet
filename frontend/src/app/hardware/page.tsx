@@ -5,7 +5,7 @@ import { Breadcrumb } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import Link from "next/link";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
 
 interface FleetHardware {
   nodeCount: number;
