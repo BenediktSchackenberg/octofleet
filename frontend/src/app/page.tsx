@@ -64,6 +64,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
+  const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
 
   const API_BASE = "http://192.168.0.5:8080";
 
@@ -75,6 +76,7 @@ export default function HomePage() {
     fetchSummary();
     fetchMetrics();
     fetchSystemHealth();
+    fetchRecentAlerts();
   }, []);
 
   useEffect(() => {
@@ -109,6 +111,15 @@ export default function HomePage() {
       if (res.ok) setSystemHealth(await res.json());
     } catch (e) {
       setSystemHealth({ status: 'error', database: 'unknown' });
+    }
+  }
+
+  async function fetchRecentAlerts() {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/alert-history?limit=5`, { headers: getHeaders() });
+      if (res.ok) setRecentAlerts(await res.json());
+    } catch (e) {
+      console.error("Failed to fetch alerts:", e);
     }
   }
 
@@ -591,6 +602,44 @@ export default function HomePage() {
                   </CardHeader>
                 </Card>
               </div>
+
+              {/* Recent Alerts */}
+              {recentAlerts.length > 0 && (
+                <Card className="mb-8">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5 text-orange-500" />
+                        Letzte Alerts
+                      </CardTitle>
+                      <Link href="/alerts">
+                        <Button variant="ghost" size="sm">Alle anzeigen →</Button>
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {recentAlerts.slice(0, 3).map((alert: any) => (
+                        <div key={alert.id} className="flex items-center justify-between p-2 rounded bg-muted/50">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-2 h-2 rounded-full ${
+                              alert.event_type === 'node_offline' ? 'bg-red-500' :
+                              alert.event_type === 'node_online' ? 'bg-green-500' :
+                              alert.event_type === 'job_failed' ? 'bg-orange-500' : 'bg-blue-500'
+                            }`} />
+                            <span className="text-sm">{alert.message || alert.event_type}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(alert.sent_at).toLocaleString('de-DE', { 
+                              hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Metrics Overview */}
               {metrics && metrics.nodesWithMetrics > 0 && (
