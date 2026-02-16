@@ -26,7 +26,6 @@ public static class InventoryPusher
     {
         config ??= ServiceConfig.Load();
         
-        Console.WriteLine($"[InventoryPusher] Using API URL: {config.InventoryApiUrl}");
         
         if (string.IsNullOrEmpty(config.InventoryApiUrl))
         {
@@ -40,7 +39,6 @@ public static class InventoryPusher
         try
         {
             var url = $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/inventory/{type}";
-            Console.WriteLine($"[InventoryPusher] POST to: {url}");
             
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
             request.Headers.Add("X-API-Key", config.InventoryApiKey);

@@ -39,18 +39,15 @@ public class ServiceConfig
             if (File.Exists(ConfigPath))
             {
                 var json = File.ReadAllText(ConfigPath);
-                Console.WriteLine($"Loading config from {ConfigPath}: {json}");
                 var config = JsonSerializer.Deserialize<ServiceConfig>(json, LoadOptions);
                 if (config != null)
                 {
-                    Console.WriteLine($"Loaded InventoryApiUrl: {config.InventoryApiUrl}");
                     return config;
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to load config: {ex.Message}");
         }
         return new ServiceConfig();
     }
@@ -65,7 +62,6 @@ public class ServiceConfig
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to save config: {ex.Message}");
         }
     }
 

@@ -1,4 +1,9 @@
 # Changelog
+## [0.4.35] - 2026-02-16
+
+### Fixed
+- Removed ALL debug console output (clean UI)
+
 ## [0.4.34] - 2026-02-16
 
 ### Changed

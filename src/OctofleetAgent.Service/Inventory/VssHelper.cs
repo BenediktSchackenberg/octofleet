@@ -53,7 +53,6 @@ public static class VssHelper
             var driveLetter = Path.GetPathRoot(sourcePath)?.TrimEnd('\\') ?? "C:";
             var relativePath = sourcePath.Substring(3); // Remove "C:\" prefix
             
-            Console.WriteLine($"[VssHelper] Creating VSS snapshot for {driveLetter}");
             
             // Create shadow copy via WMI
             var createScript = $@"
@@ -66,11 +65,9 @@ $shadow.DeviceObject
             
             if (string.IsNullOrEmpty(deviceObject) || !deviceObject.Contains("HarddiskVolumeShadowCopy"))
             {
-                Console.WriteLine($"[VssHelper] VSS create failed, no device object returned");
                 return null;
             }
             
-            Console.WriteLine($"[VssHelper] VSS device: {deviceObject}");
             
             // Use cmd.exe copy (PowerShell Copy-Item has issues with these paths)
             var vssSourcePath = $"{deviceObject}\\{relativePath}";
@@ -88,7 +85,6 @@ $shadow.DeviceObject
             if (copyProcess != null)
             {
                 await copyProcess.WaitForExitAsync();
-                Console.WriteLine($"[VssHelper] cmd copy exit code: {copyProcess.ExitCode}");
             }
             
             // Cleanup: delete the shadow copy
@@ -100,7 +96,6 @@ if ($shadow) {{ $shadow.Delete() }}
             
             if (File.Exists(destPath))
             {
-                Console.WriteLine($"[VssHelper] VSS copy successful: {destPath}");
                 return destPath;
             }
 
@@ -108,7 +103,6 @@ if ($shadow) {{ $shadow.Delete() }}
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VssHelper] VSS exception: {ex.Message}");
             return null;
         }
     }
@@ -131,12 +125,10 @@ if ($shadow) {{ $shadow.Delete() }}
                 CreateNoWindow = true
             };
 
-            Console.WriteLine($"[VssHelper] Running esentutl for: {sourcePath}");
             
             using var process = Process.Start(psi);
             if (process == null)
             {
-                Console.WriteLine("[VssHelper] Failed to start esentutl.exe");
                 return null;
             }
 
@@ -144,13 +136,10 @@ if ($shadow) {{ $shadow.Delete() }}
             var stderr = await process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
 
-            Console.WriteLine($"[VssHelper] esentutl exit code: {process.ExitCode}");
             if (!string.IsNullOrEmpty(stderr))
-                Console.WriteLine($"[VssHelper] esentutl stderr: {stderr}");
 
             if (process.ExitCode == 0 && File.Exists(destPath))
             {
-                Console.WriteLine($"[VssHelper] Successfully copied to: {destPath}");
                 return destPath;
             }
 
@@ -158,7 +147,6 @@ if ($shadow) {{ $shadow.Delete() }}
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VssHelper] esentutl exception: {ex.Message}");
             return null;
         }
     }
