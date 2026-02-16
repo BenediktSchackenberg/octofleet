@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/ui-components";
 import { Terminal, Play, Square, Trash2 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
 
 export default function TerminalPage() {
   const params = useParams();
