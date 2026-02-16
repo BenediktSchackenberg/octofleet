@@ -36,7 +36,7 @@ export function SavedViews({ onApplyFilter }: SavedViewsProps) {
 
   useEffect(() => {
     // Load from localStorage
-    const stored = localStorage.getItem("openclaw-saved-views");
+    const stored = localStorage.getItem("octofleet-saved-views");
     if (stored) {
       try {
         setViews(JSON.parse(stored));
@@ -50,7 +50,7 @@ export function SavedViews({ onApplyFilter }: SavedViewsProps) {
 
   function saveViews(newViews: SavedView[]) {
     setViews(newViews);
-    localStorage.setItem("openclaw-saved-views", JSON.stringify(newViews));
+    localStorage.setItem("octofleet-saved-views", JSON.stringify(newViews));
   }
 
   function addView() {

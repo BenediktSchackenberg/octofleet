@@ -216,7 +216,7 @@ export default function HomePage() {
       {/* Header */}
       <header className="border-b px-4 py-3 flex items-center gap-4">
         <h1 className="text-xl font-bold flex items-center gap-2">
-          🦎 OpenClaw Inventory
+          🐙 Octofleet Dashboard
         </h1>
         <div className="flex-1 max-w-md">
           <GlobalSearch onNodeSelect={handleNodeSelect} />

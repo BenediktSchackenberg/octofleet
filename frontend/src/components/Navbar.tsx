@@ -188,8 +188,8 @@ export function Navbar() {
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 font-bold text-white shrink-0">
-            <span className="text-xl">🦎</span>
-            <span className="hidden md:inline">OpenClaw Inventory</span>
+            <img src="/octofleet-logo.svg" alt="Octofleet" className="w-8 h-8" />
+            <span className="hidden md:inline text-purple-400">Octofleet</span>
           </Link>
 
           {/* Navigation */}

@@ -14,8 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenClaw Inventory",
-  description: "Endpoint Management for Windows Fleets",
+  title: "Octofleet",
+  description: "Open-source endpoint management for Windows & Linux fleets",
+  icons: {
+    icon: "/octofleet-logo.svg",
+  },
 };
 
 export default function RootLayout({

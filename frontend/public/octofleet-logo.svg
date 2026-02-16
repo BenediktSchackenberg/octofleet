@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" style="image-rendering: pixelated;">
+  <style>
+    .pixel { shape-rendering: crispEdges; }
+  </style>
+  <!-- Background -->
+  <rect width="32" height="32" fill="#1a1a2e"/>
+  
+  <!-- Octopus Body (purple/magenta) -->
+  <rect class="pixel" x="12" y="4" width="8" height="2" fill="#9333ea"/>
+  <rect class="pixel" x="10" y="6" width="12" height="2" fill="#9333ea"/>
+  <rect class="pixel" x="9" y="8" width="14" height="4" fill="#9333ea"/>
+  <rect class="pixel" x="10" y="12" width="12" height="2" fill="#9333ea"/>
+  
+  <!-- Eyes -->
+  <rect class="pixel" x="11" y="9" width="2" height="2" fill="#ffffff"/>
+  <rect class="pixel" x="19" y="9" width="2" height="2" fill="#ffffff"/>
+  <rect class="pixel" x="12" y="10" width="1" height="1" fill="#000000"/>
+  <rect class="pixel" x="20" y="10" width="1" height="1" fill="#000000"/>
+  
+  <!-- Tentacles -->
+  <!-- Left tentacles -->
+  <rect class="pixel" x="6" y="14" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="4" y="16" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="3" y="18" width="2" height="4" fill="#7c3aed"/>
+  <rect class="pixel" x="4" y="22" width="2" height="2" fill="#7c3aed"/>
+  
+  <rect class="pixel" x="8" y="14" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="7" y="16" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="6" y="18" width="2" height="4" fill="#7c3aed"/>
+  <rect class="pixel" x="7" y="22" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="8" y="25" width="2" height="2" fill="#7c3aed"/>
+  
+  <!-- Middle tentacles -->
+  <rect class="pixel" x="11" y="14" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="11" y="16" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="10" y="19" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="9" y="22" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="10" y="25" width="2" height="3" fill="#7c3aed"/>
+  
+  <rect class="pixel" x="19" y="14" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="19" y="16" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="20" y="19" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="21" y="22" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="20" y="25" width="2" height="3" fill="#7c3aed"/>
+  
+  <!-- Right tentacles -->
+  <rect class="pixel" x="22" y="14" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="23" y="16" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="24" y="18" width="2" height="4" fill="#7c3aed"/>
+  <rect class="pixel" x="23" y="22" width="2" height="3" fill="#7c3aed"/>
+  <rect class="pixel" x="22" y="25" width="2" height="2" fill="#7c3aed"/>
+  
+  <rect class="pixel" x="24" y="14" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="26" y="16" width="2" height="2" fill="#7c3aed"/>
+  <rect class="pixel" x="27" y="18" width="2" height="4" fill="#7c3aed"/>
+  <rect class="pixel" x="26" y="22" width="2" height="2" fill="#7c3aed"/>
+</svg>
