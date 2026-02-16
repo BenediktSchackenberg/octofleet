@@ -379,17 +379,41 @@ public class RemediationPoller : BackgroundService
             { "VideoLAN.VLC", "vlc" },
             { "Notepad++.Notepad++", "notepadplusplus" },
             { "Python.Python.3", "python" },
+            { "Python.Python.3.12", "python312" },
             { "Oracle.JDK.17", "openjdk17" },
             { "Oracle.JDK.21", "openjdk21" },
             { "Microsoft.VisualStudioCode", "vscode" },
+            { "Microsoft.Edge", "microsoft-edge" },
+            { "OpenJS.NodeJS.LTS", "nodejs-lts" },
+            { "ShiningLight.OpenSSL", "openssl" },
             { "Adobe.Acrobat.Reader.64-bit", "adobereader" },
         };
 
-        // Parse winget command: winget upgrade <PackageId> --silent ...
+        // Parse winget command: winget upgrade --id <PackageId> --silent ...
+        // or legacy: winget upgrade <PackageId> --silent ...
         var parts = wingetCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 3 && parts[1].Equals("upgrade", StringComparison.OrdinalIgnoreCase))
+        string? wingetPackageId = null;
+        
+        // Find --id flag and get the package ID after it
+        for (int i = 0; i < parts.Length - 1; i++)
         {
-            var wingetPackageId = parts[2];
+            if (parts[i].Equals("--id", StringComparison.OrdinalIgnoreCase))
+            {
+                wingetPackageId = parts[i + 1];
+                break;
+            }
+        }
+        
+        // Fallback: legacy format without --id
+        if (wingetPackageId == null && parts.Length >= 3 && 
+            parts[1].Equals("upgrade", StringComparison.OrdinalIgnoreCase) &&
+            !parts[2].StartsWith("-"))
+        {
+            wingetPackageId = parts[2];
+        }
+        
+        if (wingetPackageId != null)
+        {
             
             // Try to find choco equivalent
             if (packageMap.TryGetValue(wingetPackageId, out var chocoPackage))
