@@ -21,7 +21,7 @@ public class TerminalPoller : BackgroundService
     {
         _logger = logger;
         _configuration = configuration;
-        _nodeId = DeviceIdentity.GetNodeId();
+        _nodeId = Environment.MachineName;  // Use hostname as node ID
         _httpClient = new HttpClient();
     }
 
