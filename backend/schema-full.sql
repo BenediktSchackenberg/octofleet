@@ -1348,3 +1348,39 @@ SELECT create_hypertable('hardware_changes', 'time', if_not_exists => TRUE);
 -- eventlog_entries skipped: PK doesn't include event_time column
 
 -- Done
+
+-- Live View tables (E16)
+CREATE TABLE IF NOT EXISTS node_processes (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    node_id uuid NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    process_name text NOT NULL,
+    pid integer NOT NULL,
+    cpu_percent numeric(5,2),
+    memory_mb numeric(10,2),
+    user_name text,
+    collected_at timestamptz DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_node_processes_node ON node_processes(node_id);
+CREATE INDEX IF NOT EXISTS idx_node_processes_time ON node_processes(collected_at);
+
+-- Terminal tables (E20)
+CREATE TABLE IF NOT EXISTS terminal_sessions (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    node_id uuid NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    shell text DEFAULT 'powershell',
+    status text DEFAULT 'active',
+    created_at timestamptz DEFAULT NOW(),
+    last_activity timestamptz DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS terminal_history (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    session_id uuid NOT NULL REFERENCES terminal_sessions(id) ON DELETE CASCADE,
+    direction text NOT NULL,
+    content text,
+    timestamp timestamptz DEFAULT NOW()
+);
+
+-- Alert rules channel_id (E19 legacy support)
+ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS channel_id uuid REFERENCES alert_channels(id);
+ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS enabled boolean DEFAULT true;

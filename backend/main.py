@@ -5833,7 +5833,7 @@ async def list_vulnerabilities(
                 v.*,
                 COUNT(DISTINCT s.node_id) as affected_nodes
             FROM vulnerabilities v
-            LEFT JOIN software s ON s.name = v.software_name AND s.version = v.software_version
+            LEFT JOIN software_current s ON s.name = v.software_name AND s.version = v.software_version
         """
         params = []
         
