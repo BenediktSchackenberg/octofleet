@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
-VERSION="0.4.27-linux"
+VERSION="0.4.28-linux"
 
 # Load config
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -862,6 +862,51 @@ check_screen_requests() {
 }
 
 # ============================================================================
+# Terminal Support (E20)
+# ============================================================================
+
+poll_terminal_commands() {
+    local response=$(curl -sS -H "X-API-Key: $API_KEY" \
+        "${API_URL}/api/v1/terminal/pending/${NODE_ID}" 2>/dev/null)
+    
+    if [[ -z "$response" ]] || [[ "$response" == "null" ]]; then
+        return
+    fi
+    
+    # Parse commands
+    local sessions=$(echo "$response" | jq -r '.commands // [] | .[]' 2>/dev/null)
+    
+    echo "$response" | jq -c '.commands[]?' 2>/dev/null | while read -r session; do
+        local session_id=$(echo "$session" | jq -r '.sessionId')
+        local shell=$(echo "$session" | jq -r '.shell // "bash"')
+        
+        echo "$session" | jq -r '.commands[]?' 2>/dev/null | while read -r cmd; do
+            if [[ -n "$cmd" && "$cmd" != "null" ]]; then
+                info "Executing terminal command: $cmd"
+                
+                # Execute command
+                local output
+                case "$shell" in
+                    bash)
+                        output=$(bash -c "$cmd" 2>&1)
+                        ;;
+                    *)
+                        output=$(eval "$cmd" 2>&1)
+                        ;;
+                esac
+                
+                # Send output back
+                curl -sS -X POST \
+                    -H "Content-Type: application/json" \
+                    -H "X-API-Key: $API_KEY" \
+                    -d "$(jq -n --arg o "$output" '{output: $o}')" \
+                    "${API_URL}/api/v1/terminal/output/${session_id}" >/dev/null 2>&1
+            fi
+        done
+    done
+}
+
+# ============================================================================
 # Service Loop
 # ============================================================================
 
@@ -912,6 +957,9 @@ run_service() {
             check_screen_requests 2>/dev/null || true
             last_screen=$now
         fi
+        
+        # Poll terminal commands (every iteration for responsiveness)
+        poll_terminal_commands 2>/dev/null || true
         
         sleep 1
     done
