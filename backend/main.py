@@ -107,6 +107,11 @@ async def verify_api_key_or_query(
     # Check query param token first (for EventSource which can't send headers)
     token = request.query_params.get("token")
     if token:
+        # First check if it's the API key
+        if token == API_KEY:
+            return token
+        
+        # Then try JWT
         try:
             import jwt
             from auth import JWT_SECRET

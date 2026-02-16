@@ -103,7 +103,8 @@ export default function LiveViewPage() {
     setConnecting(true);
     setError(null);
     
-    const token = localStorage.getItem('token');
+    // Use JWT token if available, otherwise fall back to API key
+    const token = localStorage.getItem('token') || process.env.NEXT_PUBLIC_API_KEY || '';
     const url = `${API_BASE}/live/${nodeId}?token=${token}`;
     
     const es = new EventSource(url);
