@@ -77,15 +77,21 @@ public class LiveDataPoller : BackgroundService
         // Get processes
         var processes = _processCollector.GetTopProcesses(20);
 
-        // Get system metrics (simplified - skip PerformanceCounter for now)
+        // Get system metrics
         double cpu = 0, memory = 0, disk = 0;
         try
         {
-            // Memory via GC
-            var gcMemory = GC.GetGCMemoryInfo();
-            // Use simple WMI for memory
-            var query = "SELECT * FROM Win32_OperatingSystem";
-            using var searcher = new System.Management.ManagementObjectSearcher(query);
+            // CPU via WMI
+            var cpuQuery = "SELECT PercentProcessorTime FROM Win32_PerfFormattedData_PerfOS_Processor WHERE Name='_Total'";
+            using var cpuSearcher = new System.Management.ManagementObjectSearcher(cpuQuery);
+            foreach (System.Management.ManagementObject obj in cpuSearcher.Get())
+            {
+                cpu = Convert.ToDouble(obj["PercentProcessorTime"]);
+            }
+            
+            // Memory via WMI
+            var memQuery = "SELECT * FROM Win32_OperatingSystem";
+            using var searcher = new System.Management.ManagementObjectSearcher(memQuery);
             foreach (System.Management.ManagementObject obj in searcher.Get())
             {
                 var total = Convert.ToDouble(obj["TotalVisibleMemorySize"]);
