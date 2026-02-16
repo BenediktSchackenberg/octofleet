@@ -188,8 +188,27 @@ export function Navbar() {
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 font-bold text-white shrink-0">
-            <img src="/octofleet-logo.svg" alt="Octofleet" className="w-8 h-8" />
-            <span className="hidden md:inline text-purple-400">Octofleet</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="28" height="28" style={{imageRendering: "pixelated"}}>
+              <rect x="12" y="4" width="8" height="2" fill="#9333ea"/>
+              <rect x="10" y="6" width="12" height="2" fill="#9333ea"/>
+              <rect x="9" y="8" width="14" height="4" fill="#9333ea"/>
+              <rect x="10" y="12" width="12" height="2" fill="#9333ea"/>
+              <rect x="11" y="9" width="2" height="2" fill="#ffffff"/>
+              <rect x="19" y="9" width="2" height="2" fill="#ffffff"/>
+              <rect x="12" y="10" width="1" height="1" fill="#000000"/>
+              <rect x="20" y="10" width="1" height="1" fill="#000000"/>
+              <rect x="8" y="14" width="2" height="4" fill="#a855f7"/>
+              <rect x="6" y="18" width="2" height="4" fill="#a855f7"/>
+              <rect x="11" y="14" width="2" height="4" fill="#a855f7"/>
+              <rect x="10" y="18" width="2" height="4" fill="#a855f7"/>
+              <rect x="14" y="14" width="4" height="4" fill="#a855f7"/>
+              <rect x="14" y="18" width="4" height="4" fill="#a855f7"/>
+              <rect x="19" y="14" width="2" height="4" fill="#a855f7"/>
+              <rect x="20" y="18" width="2" height="4" fill="#a855f7"/>
+              <rect x="22" y="14" width="2" height="4" fill="#a855f7"/>
+              <rect x="24" y="18" width="2" height="4" fill="#a855f7"/>
+            </svg>
+            <span className="hidden md:inline bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent font-bold">Octofleet</span>
           </Link>
 
           {/* Navigation */}
