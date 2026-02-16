@@ -4,110 +4,108 @@
   <img src="docs/octofleet-banner.svg" alt="Octofleet Banner" width="800">
 </p>
 
-**Open-source endpoint management platform** for Windows and Linux systems. Monitor your fleet, deploy software, track vulnerabilities, and manage devices from a single dashboard.
+<p align="center">
+  <b>Open-source endpoint management platform</b><br>
+  Monitor your fleet, deploy software, track vulnerabilities, and manage devices from a single dashboard.
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/BenediktSchackenberg/octofleet)](https://github.com/BenediktSchackenberg/octofleet/releases)
+<p align="center">
+  <a href="https://github.com/BenediktSchackenberg/octofleet/releases"><img src="https://img.shields.io/github/v/release/BenediktSchackenberg/octofleet?style=flat-square&color=blue" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="License"></a>
+  <a href="https://github.com/BenediktSchackenberg/octofleet/stargazers"><img src="https://img.shields.io/github/stars/BenediktSchackenberg/octofleet?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/BenediktSchackenberg/octofleet/issues"><img src="https://img.shields.io/github/issues/BenediktSchackenberg/octofleet?style=flat-square" alt="Issues"></a>
+  <a href="https://github.com/BenediktSchackenberg/octofleet/actions"><img src="https://img.shields.io/github/actions/workflow/status/BenediktSchackenberg/octofleet/tests.yml?style=flat-square&label=tests" alt="Tests"></a>
+</p>
+
+<p align="center">
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-features">Features</a> •
+  <a href="../../wiki">Documentation</a> •
+  <a href="#-contributing">Contributing</a> •
+  <a href="../../wiki/Roadmap">Roadmap</a>
+</p>
+
+---
+
+## 🎯 Why Octofleet?
+
+- **🚀 5-Minute Setup** — Docker Compose up and you're running
+- **💯 100% Self-Hosted** — Your data stays on your infrastructure
+- **🔓 Fully Open Source** — No license fees, no vendor lock-in
+- **🪶 Lightweight Agents** — < 20MB footprint, minimal resource usage
+- **🔌 API-First** — Everything accessible via REST API
+- **🌐 Cross-Platform** — Windows and Linux support
 
 ---
 
 ## ✨ Features
 
-### 📊 Inventory & Monitoring
-- **Real-time dashboard** with fleet overview
-- **Hardware inventory** (CPU, RAM, Disks, Network)
-- **Software inventory** with version tracking
-- **Performance metrics** (CPU, RAM, Disk usage)
-- **Live view** with process and network monitoring
+<table>
+<tr>
+<td width="50%">
 
-### 🚀 Deployment & Management
-- **Remote job execution** (PowerShell, CMD, Bash)
-- **Package management** with deployment tracking
-- **Rollout strategies** (Canary, Staged, Percentage)
-- **Maintenance windows** for controlled deployments
-- **Auto-remediation** for vulnerable software
+### 📊 Inventory & Monitoring
+- Real-time fleet dashboard
+- Hardware inventory (CPU, RAM, Disks, Network)
+- Software inventory with version tracking
+- Live performance metrics
+- Process and network monitoring
+
+</td>
+<td width="50%">
+
+### 🚀 Deployment & Jobs
+- Remote job execution (PowerShell, Bash)
+- Package management with tracking
+- Rollout strategies (Canary, Staged)
+- Maintenance windows
+- Service orchestration
+
+</td>
+</tr>
+<tr>
+<td width="50%">
 
 ### 🔐 Security
-- **Vulnerability scanning** via NVD API
-- **CVSS scoring** with severity badges
-- **Windows Update tracking**
-- **Browser extension inventory**
-- **Role-based access control** (RBAC)
+- Vulnerability scanning (NVD/CVE)
+- Auto-remediation (winget/Chocolatey)
+- CVSS severity scoring
+- Windows Update tracking
+- Role-based access control (RBAC)
 
-### 🔔 Alerts & Notifications
-- **Discord webhook integration**
-- **Node offline/online alerts**
-- **Job failure notifications**
-- **Configurable alert rules**
+</td>
+<td width="50%">
 
 ### 🖥️ Remote Access
-- **Screen mirroring** (live view of remote desktops)
-- **Remote terminal** (PowerShell/CMD/Bash in browser)
-- **Event log viewer**
+- Screen mirroring (live view)
+- Remote terminal in browser
+- Event log viewer
+- Discord alert notifications
+- Node health monitoring
 
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Web Frontend  │────▶│  Backend API    │────▶│   PostgreSQL    │
-│   (Next.js)     │     │  (FastAPI)      │     │  + TimescaleDB  │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                               ▲
-                               │
-              ┌────────────────┼────────────────┐
-              │                │                │
-       ┌──────┴──────┐  ┌──────┴──────┐  ┌──────┴──────┐
-       │  Windows    │  │  Windows    │  │   Linux     │
-       │   Agent     │  │   Agent     │  │   Agent     │
-       └─────────────┘  └─────────────┘  └─────────────┘
-```
+</td>
+</tr>
+</table>
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- Node.js 18+ (for frontend development)
-- Python 3.11+ (for backend development)
-
-### 1. Clone & Configure
+### Option 1: Docker (Recommended)
 
 ```bash
 git clone https://github.com/BenediktSchackenberg/octofleet.git
 cd octofleet
-
-# Copy environment templates
-cp .env.example .env
-cp frontend/.env.example frontend/.env.local
-
-# Edit .env with your settings
-nano .env
+docker compose up -d
 ```
 
-### 2. Start with Docker
+Open http://localhost:3000 — Login: `admin` / `admin`
 
-```bash
-# Start PostgreSQL + TimescaleDB
-docker-compose up -d db
-
-# Run database migrations
-python backend/migrate.py
-
-# Start backend
-cd backend && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8080
-
-# Start frontend (new terminal)
-cd frontend && npm install && npm run dev
-```
-
-### 3. Install Agents
+### Option 2: Install Agent
 
 **Windows (PowerShell as Admin):**
 ```powershell
-irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/scripts/Install-OctofleetAgent.ps1 | iex
+iwr "https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1" -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
 ```
 
 **Linux:**
@@ -115,17 +113,40 @@ irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/script
 curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash
 ```
 
+📖 **[Full Installation Guide →](../../wiki/Installation)**
+
 ---
 
-## 📖 Documentation
+## 🏗️ Architecture
 
-| Topic | Link |
-|-------|------|
-| Installation Guide | [Wiki: Installation](../../wiki/Installation) |
-| Configuration | [Wiki: Configuration](../../wiki/Configuration) |
-| API Reference | [Wiki: API-Reference](../../wiki/API-Reference) |
-| Agent Setup | [Wiki: Agent-Configuration](../../wiki/Agent-Configuration) |
-| Troubleshooting | [Wiki: Troubleshooting](../../wiki/Troubleshooting) |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                              │
+│                    (Next.js + React)                        │
+│                     localhost:3000                          │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ REST API
+┌─────────────────────▼───────────────────────────────────────┐
+│                        Backend                               │
+│                 (FastAPI + Python 3.12)                     │
+│                     localhost:8080                          │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ SQL
+┌─────────────────────▼───────────────────────────────────────┐
+│                       Database                               │
+│               (PostgreSQL 16 + TimescaleDB)                 │
+│                     localhost:5432                          │
+└─────────────────────────────────────────────────────────────┘
+
+         ┌──────────┐  ┌──────────┐  ┌──────────┐
+         │ Windows  │  │ Windows  │  │  Linux   │
+         │  Agent   │  │  Agent   │  │  Agent   │
+         │ (.NET 8) │  │ (.NET 8) │  │  (Bash)  │
+         └────┬─────┘  └────┬─────┘  └────┬─────┘
+              │             │             │
+              └─────────────┴─────────────┘
+                    HTTPS to Backend
+```
 
 ---
 
@@ -147,78 +168,94 @@ curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/
 </details>
 
 <details>
-<summary>🔔 Alerts</summary>
-<img src="docs/screenshot-alerts.png" alt="Alerts">
+<summary>⚡ Live View</summary>
+<img src="docs/screenshot-live.png" alt="Live View">
 </details>
+
+---
+
+## 📚 Documentation
+
+| Topic | Link |
+|-------|------|
+| Quick Start | [Wiki: Quick-Start](../../wiki/Quick-Start) |
+| Installation | [Wiki: Installation](../../wiki/Installation) |
+| Configuration | [Wiki: Configuration](../../wiki/Configuration) |
+| API Reference | [Wiki: API-Reference](../../wiki/API-Reference) |
+| Agent Setup | [Wiki: Agent-Configuration](../../wiki/Agent-Configuration) |
+| Troubleshooting | [Wiki: Troubleshooting](../../wiki/Troubleshooting) |
+| **Roadmap** | [Wiki: Roadmap](../../wiki/Roadmap) |
 
 ---
 
 ## 🛠️ Development
 
-### Backend (FastAPI)
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+# Backend (FastAPI)
+cd backend && python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8080
-```
+uvicorn main:app --reload --port 8080
 
-### Frontend (Next.js)
-```bash
-cd frontend
-npm install
-npm run dev
-```
+# Frontend (Next.js)
+cd frontend && npm install && npm run dev
 
-### Windows Agent (.NET 8)
-```bash
-cd src/OctofleetAgent.Service
-dotnet build
-dotnet run
-```
+# Windows Agent (.NET 8)
+cd src/OctofleetAgent.Service && dotnet run
 
-### Run Tests
-```bash
-# API Tests
+# Run Tests
 cd tests/api && pytest
-
-# E2E Tests
 cd tests/e2e && npx playwright test
-
-# Windows Agent Tests
-cd tests/windows && ./Run-LocalTests.ps1
 ```
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
+We love contributions! Octofleet is built by the community, for the community.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+**🌟 First time?** Check out issues labeled [`good first issue`](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+
+**📖 Read the [Contributing Guide](CONTRIBUTING.md)** for setup instructions and guidelines.
+
+### Ways to Contribute
+- 🐛 Report bugs and request features
+- 📝 Improve documentation
+- 💻 Submit pull requests
+- 🌍 Translate to other languages
+- ⭐ Star the repo to show support!
+
+---
+
+## 🗺️ Roadmap
+
+See our [public roadmap](../../wiki/Roadmap) for planned features:
+
+- **Q1 2026:** Multi-tenancy, Reporting & Analytics
+- **Q2 2026:** macOS Agent, Mobile App
+- **Q3 2026:** Compliance Frameworks, Enterprise SSO
+- **Q4 2026:** AI-Powered Insights, Predictive Maintenance
+
+[View Full Roadmap →](../../wiki/Roadmap)
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- Built with [FastAPI](https://fastapi.tiangolo.com/), [Next.js](https://nextjs.org/), and [.NET 8](https://dotnet.microsoft.com/)
-- Vulnerability data from [NVD](https://nvd.nist.gov/)
-- Icons by [Lucide](https://lucide.dev/)
+Built with [FastAPI](https://fastapi.tiangolo.com/), [Next.js](https://nextjs.org/), [.NET 8](https://dotnet.microsoft.com/), [TimescaleDB](https://www.timescale.com/)
+
+Vulnerability data from [NVD](https://nvd.nist.gov/) • Icons by [Lucide](https://lucide.dev/)
 
 ---
 
 <p align="center">
-  <b>🐙 Reach every endpoint in your fleet</b><br>
-  Made with ❤️ by <a href="https://schackenberg.com">Benedikt Schackenberg</a>
+  <b>🐙 Reach every endpoint in your fleet</b><br><br>
+  <a href="https://github.com/BenediktSchackenberg/octofleet/stargazers">⭐ Star us on GitHub</a> · 
+  <a href="../../issues/new">🐛 Report Bug</a> · 
+  <a href="../../issues/new">💡 Request Feature</a>
 </p>
