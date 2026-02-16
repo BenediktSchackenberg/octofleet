@@ -332,6 +332,16 @@ async def upsert_node(db: asyncpg.Pool, node_id: str, hostname: str,
 
 # === API Endpoints ===
 
+@app.get("/api/v1/test-sse")
+async def test_sse():
+    async def generate():
+        for i in range(5):
+            yield f"event: tick\ndata: {i}\n\n"
+            await asyncio.sleep(1)
+        yield f"event: done\ndata: finished\n\n"
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -341,6 +351,16 @@ async def health_check():
         return {"status": "ok", "service": "octofleet", "database": "connected"}
     except Exception as e:
         return {"status": "degraded", "service": "octofleet", "database": str(e)}
+
+
+@app.get("/api/v1/test-sse")
+async def test_sse():
+    async def generate():
+        for i in range(5):
+            yield f"event: tick\ndata: {i}\n\n"
+            await asyncio.sleep(1)
+        yield f"event: done\ndata: finished\n\n"
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.get("/api/v1/health")
@@ -6473,8 +6493,9 @@ live_sessions: Dict[str, Dict] = {}
 live_network_cache: Dict[str, Dict] = {}
 live_agent_logs_cache: Dict[str, Dict] = {}  # Cache for agent service logs
 
-async def live_data_generator(node_id: str, session_id: str):
+async def live_data_generator(node_id: str, session_id: str, pool):
     """Generator for SSE live data stream"""
+    global live_sessions
     
     # Initial connection event
     yield f"event: connected\ndata: {json.dumps({'nodeId': node_id, 'sessionId': session_id})}\n\n"
@@ -6485,13 +6506,14 @@ async def live_data_generator(node_id: str, session_id: str):
     last_network_time = 0
     last_log_id = 0  # Track last seen log ID
     
+    
     try:
         while session_id in live_sessions:
             now = time.time()
             
             # Send metrics every 2 seconds
             if now - last_metrics_time >= 2:
-                async with db_pool.acquire() as conn:
+                async with pool.acquire() as conn:
                     # Get latest metrics from timescale
                     metrics = await conn.fetchrow("""
                         SELECT cpu_percent, ram_percent, disk_percent,
@@ -6505,11 +6527,11 @@ async def live_data_generator(node_id: str, session_id: str):
                         data = {
                             "type": "metrics",
                             "data": {
-                                "cpu": metrics['cpu_percent'],
-                                "memory": metrics['ram_percent'],
-                                "disk": metrics['disk_percent'],
-                                "netIn": metrics['network_in_mb'],
-                                "netOut": metrics['network_out_mb'],
+                                "cpu": float(metrics['cpu_percent']) if metrics['cpu_percent'] else 0,
+                                "memory": float(metrics['ram_percent']) if metrics['ram_percent'] else 0,
+                                "disk": float(metrics['disk_percent']) if metrics['disk_percent'] else 0,
+                                "netIn": float(metrics['network_in_mb']) if metrics['network_in_mb'] else None,
+                                "netOut": float(metrics['network_out_mb']) if metrics['network_out_mb'] else None,
                                 "timestamp": metrics['timestamp'].isoformat() if metrics['timestamp'] else None
                             }
                         }
@@ -6519,7 +6541,7 @@ async def live_data_generator(node_id: str, session_id: str):
             
             # Send processes every 5 seconds
             if now - last_processes_time >= 5:
-                async with db_pool.acquire() as conn:
+                async with pool.acquire() as conn:
                     procs = await conn.fetch("""
                         SELECT process_name, pid, cpu_percent, memory_mb, user_name
                         FROM node_processes
@@ -6535,8 +6557,8 @@ async def live_data_generator(node_id: str, session_id: str):
                                 {
                                     "name": p['process_name'],
                                     "pid": p['pid'],
-                                    "cpu": p['cpu_percent'],
-                                    "memoryMb": p['memory_mb'],
+                                    "cpu": float(p['cpu_percent']) if p['cpu_percent'] else 0,
+                                    "memoryMb": float(p['memory_mb']) if p['memory_mb'] else 0,
                                     "user": p['user_name']
                                 }
                                 for p in procs
@@ -6548,7 +6570,7 @@ async def live_data_generator(node_id: str, session_id: str):
             
             # Send new logs every 3 seconds
             if now - last_logs_time >= 3:
-                async with db_pool.acquire() as conn:
+                async with pool.acquire() as conn:
                     # Get new logs since last check
                     if last_log_id == 0:
                         # First fetch - get last 50 logs
@@ -6556,7 +6578,7 @@ async def live_data_generator(node_id: str, session_id: str):
                             SELECT id, log_name, event_id, level, level_name, source, 
                                    LEFT(message, 500) as message, event_time
                             FROM eventlog_entries
-                            WHERE node_id = $1
+                            WHERE node_id = (SELECT id::text FROM nodes WHERE node_id = $1 OR id::text = $1)
                             ORDER BY id DESC LIMIT 50
                         """, node_id)
                         logs = list(reversed(logs))  # Oldest first
@@ -6566,7 +6588,7 @@ async def live_data_generator(node_id: str, session_id: str):
                             SELECT id, log_name, event_id, level, level_name, source,
                                    LEFT(message, 500) as message, event_time
                             FROM eventlog_entries
-                            WHERE node_id = $1 AND id > $2
+                            WHERE node_id = (SELECT id::text FROM nodes WHERE node_id = $1 OR id::text = $1) AND id > $2
                             ORDER BY id ASC LIMIT 100
                         """, node_id, last_log_id)
                     
@@ -6578,8 +6600,8 @@ async def live_data_generator(node_id: str, session_id: str):
                                 {
                                     "id": log['id'],
                                     "logName": log['log_name'],
-                                    "eventId": log['event_id'],
-                                    "level": log['level'],
+                                    "eventId": int(log['event_id']) if log['event_id'] else 0,
+                                    "level": int(log['level']) if log['level'] else 0,
                                     "levelName": log['level_name'],
                                     "source": log['source'],
                                     "message": log['message'],
@@ -6619,6 +6641,8 @@ async def live_data_generator(node_id: str, session_id: str):
             
     except asyncio.CancelledError:
         pass
+    except Exception as e:
+        pass
     finally:
         if session_id in live_sessions:
             del live_sessions[session_id]
@@ -6650,7 +6674,7 @@ async def live_stream(node_id: str, _: str = Depends(verify_api_key_or_query)):
     }
     
     return StreamingResponse(
-        live_data_generator(node_id, session_id),
+        live_data_generator(node_id, session_id, db_pool),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
