@@ -113,17 +113,22 @@ function Install-OctofleetAgent {
     $release = Get-LatestRelease
     $tagName = $release.tag_name
     $version = $tagName -replace '^v', ''
+    # Clean version - remove git hash suffix (e.g., "0.4.29+abc123" -> "0.4.29")
+    $versionClean = ($version -split '\+')[0]
     
-    Write-Status "Latest version: $version"
+    Write-Status "Latest version: $versionClean"
     
     # Check if already installed
     $installedVersion = Get-InstalledVersion
-    if ($installedVersion -and -not $Force) {
-        if ([Version]$installedVersion -ge [Version]$version) {
-            Write-Status "Already up to date (v$installedVersion)" "Success"
+    # Clean installed version too
+    $installedVersionClean = if ($installedVersion) { ($installedVersion -split '\+')[0] } else { $null }
+    
+    if ($installedVersionClean -and -not $Force) {
+        if ([Version]$installedVersionClean -ge [Version]$versionClean) {
+            Write-Status "Already up to date (v$installedVersionClean)" "Success"
             return
         }
-        Write-Status "Upgrading from v$installedVersion to v$version" "Info"
+        Write-Status "Upgrading from v$installedVersionClean to v$versionClean" "Info"
     }
     
     # Find ZIP asset
@@ -205,7 +210,7 @@ function Install-OctofleetAgent {
     # Verify
     $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($service -and $service.Status -eq "Running") {
-        Write-Status "Octofleet Agent v$version installed successfully!" "Success"
+        Write-Status "Octofleet Agent v$versionClean installed successfully!" "Success"
         Write-Host ""
         Write-Host "Service Status: Running"
         Write-Host "Install Path:   $InstallPath"
