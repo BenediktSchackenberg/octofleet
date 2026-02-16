@@ -1,5 +1,9 @@
 -- Octofleet Platform - Full Database Schema
--- Extracted from production: 2026-02-14T13:58:45+00:00
+-- CI/CD compatible with TimescaleDB
+
+-- Enable TimescaleDB extension
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
 -- Excludes TimescaleDB internal schemas and psql meta-commands
 
 SET statement_timeout = 0;
@@ -1337,3 +1341,10 @@ CREATE TABLE IF NOT EXISTS alert_history (
 
 CREATE INDEX IF NOT EXISTS idx_alert_history_created ON alert_history(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_rules_event ON alert_rules(event_type);
+
+-- TimescaleDB Hypertables (using legacy syntax for compatibility)
+SELECT create_hypertable('node_metrics', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('hardware_changes', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('eventlog_entries', 'event_time', if_not_exists => TRUE);
+
+-- Done
