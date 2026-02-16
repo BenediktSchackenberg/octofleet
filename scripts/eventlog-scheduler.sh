@@ -4,9 +4,9 @@
 
 set -e
 
-API_URL="http://192.168.0.5:8080"
-API_KEY="openclaw-inventory-dev-key"
-LOG_FILE="/home/benedikt/.openclaw/workspace/openclaw-windows-agent/logs/eventlog-scheduler.log"
+API_URL="${OCTOFLEET_API_URL:-http://192.168.0.5:8080}"
+API_KEY="${OCTOFLEET_API_KEY:-}"
+LOG_FILE="${LOG_DIR:-/var/log}/octofleet-eventlog-scheduler.log"
 
 mkdir -p "$(dirname "$LOG_FILE")"
 

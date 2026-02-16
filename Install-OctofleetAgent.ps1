@@ -31,20 +31,20 @@
 
 .EXAMPLE
     # Install with enrollment token (auto-registers)
-    $env:OPENCLAW_ENROLL_TOKEN = "enrollment-token"
-    irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/Install-OctofleetAgent.ps1 | iex
+    $env:OCTOFLEET_ENROLL_TOKEN = "enrollment-token"
+    irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1 | iex
 #>
 
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$GatewayUrl = $env:OPENCLAW_GATEWAY_URL,
+    [string]$GatewayUrl = $env:OCTOFLEET_GATEWAY_URL,
     
     [Parameter()]
-    [string]$GatewayToken = $env:OPENCLAW_GATEWAY_TOKEN,
+    [string]$GatewayToken = $env:OCTOFLEET_GATEWAY_TOKEN,
     
     [Parameter()]
-    [string]$EnrollToken = $env:OPENCLAW_ENROLL_TOKEN,
+    [string]$EnrollToken = $env:OCTOFLEET_ENROLL_TOKEN,
     
     [Parameter()]
     [string]$InstallPath = "C:\Program Files\Octofleet",
@@ -58,9 +58,9 @@ $ProgressPreference = "SilentlyContinue"  # Faster downloads
 
 # Constants
 $RepoOwner = "BenediktSchackenberg"
-$RepoName = "openclaw-windows-agent"
+$RepoName = "octofleet"
 $ServiceName = "Octofleet Agent"
-$ServiceExe = "DIOOctofleetAgent.Service.exe"
+$ServiceExe = "OctofleetAgent.Service.exe"
 
 function Write-Status {
     param([string]$Message, [string]$Type = "Info")

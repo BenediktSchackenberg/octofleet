@@ -1,25 +1,30 @@
-# Octofleet Agent Installer
+# Octofleet Agent Installer 🐙
 
 Zero-Touch / One-Click installation for the Octofleet Agent.
 
 ## Quick Start (PowerShell)
 
-**For existing service installation** (config only):
+**One-liner from GitHub:**
 ```powershell
 # Run as Administrator!
-.\Install-OpenClawAgent.ps1 -GatewayUrl "http://192.168.0.5:18789" -GatewayToken "your-token-here"
+irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1 | iex
+```
+
+**With parameters:**
+```powershell
+.\Install-OctofleetAgent.ps1 -GatewayUrl "http://192.168.0.5:18789" -GatewayToken "your-token"
 ```
 
 **One-liner from network share:**
 ```powershell
-& "\\server\share\Install-OpenClawAgent.ps1" -GatewayUrl "http://192.168.0.5:18789" -GatewayToken "abc123"
+& "\\server\share\Install-OctofleetAgent.ps1" -GatewayUrl "http://192.168.0.5:18789" -GatewayToken "abc123"
 ```
 
 ## MSI Installation
 
 **Silent install with parameters:**
 ```powershell
-msiexec /i openclaw-agent.msi GATEWAY_URL="http://192.168.0.5:18789" GATEWAY_TOKEN="abc123" /qn
+msiexec /i OctofleetAgent.msi GATEWAY_URL="http://192.168.0.5:18789" GATEWAY_TOKEN="abc123" /qn
 ```
 
 **All MSI parameters:**
@@ -50,7 +55,7 @@ cd installer
 dotnet build -c Release
 ```
 
-The MSI will be at: `installer\bin\Release\OpenClawAgent.Installer.msi`
+The MSI will be at: `installer\bin\Release\OctofleetAgent.Installer.msi`
 
 ## Deployment Methods
 
@@ -61,17 +66,29 @@ The MSI will be at: `installer\bin\Release\OpenClawAgent.Installer.msi`
 
 ### SCCM/Intune
 ```powershell
-msiexec /i "\\server\share\openclaw-agent.msi" GATEWAY_URL="http://gw:18789" GATEWAY_TOKEN="xxx" /qn
+msiexec /i "\\server\share\OctofleetAgent.msi" GATEWAY_URL="http://gw:18789" GATEWAY_TOKEN="xxx" /qn
 ```
 
 ### PDQ Deploy
 Use the PowerShell script or MSI with parameters.
 
+## Migration from Legacy Agent
+
+Run the migration script to cleanly remove old "OpenClaw" agents:
+
+```powershell
+# Just uninstall old agent
+.\Uninstall-LegacyAgent.ps1
+
+# Uninstall and install new Octofleet agent
+.\Uninstall-LegacyAgent.ps1 -InstallNew
+```
+
 ## Files Created
 
 | Path | Description |
 |------|-------------|
-| `C:\Program Files\Octofleet\Agent\` | Service binaries |
+| `C:\Program Files\Octofleet\` | Service binaries |
 | `C:\ProgramData\Octofleet\service-config.json` | Configuration |
 | `C:\ProgramData\Octofleet\logs\` | Log files |
 
@@ -106,15 +123,15 @@ Get-Content "C:\ProgramData\Octofleet\logs\*.log" -Tail 50
 │  └──────────┘    └───────────┘    └────────────────────┘    │
 │       │                                     │               │
 │       ▼                                     ▼               │
-│  ┌──────────┐                    ┌──────────────────┐       │
-│  │ Service  │◄───────────────────│  Service Start   │       │
-│  │ Binaries │                    │  (auto)          │       │
-│  └──────────┘                    └──────────────────┘       │
+│  ┌──────────┐                    ┌──────────────────────┐   │
+│  │ Service  │◄───────────────────│  Service Start       │   │
+│  │ Binaries │                    │  (auto)              │   │
+│  └──────────┘                    └──────────────────────┘   │
 │                                          │                  │
 │                                          ▼                  │
 │                               ┌──────────────────┐          │
 │                               │ Connect to       │          │
-│                               │ Gateway          │          │
+│                               │ Gateway + API    │          │
 │                               └──────────────────┘          │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘

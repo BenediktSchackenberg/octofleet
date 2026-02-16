@@ -56,9 +56,9 @@ import requests
 import psutil
 
 # Configuration
-API_URL = os.environ.get("OPENCLAW_API_URL", "http://192.168.0.5:8080/api/v1")
-API_KEY = os.environ.get("OPENCLAW_API_KEY", "octofleet-inventory-dev-key")
-POLL_INTERVAL = int(os.environ.get("OPENCLAW_POLL_INTERVAL", "30"))
+API_URL = os.environ.get("OCTOFLEET_API_URL", "http://192.168.0.5:8080/api/v1")
+API_KEY = os.environ.get("OCTOFLEET_API_KEY", "")
+POLL_INTERVAL = int(os.environ.get("OCTOFLEET_POLL_INTERVAL", "30"))
 HOSTNAME = socket.gethostname()
 
 logging.basicConfig(
@@ -338,9 +338,9 @@ chmod +x agent.py
 
 # Create config file
 cat > config.env << EOF
-OPENCLAW_API_URL=$API_URL
-OPENCLAW_API_KEY=$API_KEY
-OPENCLAW_POLL_INTERVAL=30
+OCTOFLEET_API_URL=$API_URL
+OCTOFLEET_API_KEY=$API_KEY
+OCTOFLEET_POLL_INTERVAL=30
 EOF
 
 # Create systemd service

@@ -83,7 +83,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"  # Speed up downloads
 
 # Constants
-$GitHubRepo = "BenediktSchackenberg/openclaw-windows-agent"
+$GitHubRepo = "BenediktSchackenberg/octofleet"
 $ServiceName = "OctofleetNodeAgent"
 $InstallDir = "C:\Program Files\Octofleet\Agent"
 $ConfigDir = "C:\ProgramData\Octofleet"
