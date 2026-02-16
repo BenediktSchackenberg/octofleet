@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# OpenClaw Linux Agent
-# Collects inventory and pushes to the OpenClaw Inventory API
+# Octofleet Linux Agent
+# Collects inventory and pushes to the Octofleet API
 #
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
-VERSION="0.4.28-linux"
+VERSION="0.4.30-linux"
 
 # Load config
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -32,7 +32,31 @@ LAST_NET_TIME=0
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+GRAY='\033[0;90m'
 NC='\033[0m'
+
+show_banner() {
+    echo -e "${PURPLE}"
+    cat << 'BANNER'
+        ████████████        
+      ██            ██      
+    ██  ██      ██    ██    
+    ██  ██      ██    ██    
+    ██                ██    
+      ██            ██      
+    ██  ██  ██  ██  ██  ██  
+    █    █  █    █  █    █  
+    █    █  █    █  █    █  
+BANNER
+    echo -e "${CYAN}    ╔═════════════════════════╗"
+    echo -e "    ║  ${WHITE}O C T O F L E E T${CYAN}      ║"
+    echo -e "    ║  ${GRAY}v${VERSION}${CYAN}        ║"
+    echo -e "    ╚═════════════════════════╝${NC}"
+    echo ""
+}
 
 log() {
     local level="$1"
@@ -911,7 +935,8 @@ poll_terminal_commands() {
 # ============================================================================
 
 run_service() {
-    info "OpenClaw Linux Agent v$VERSION starting..."
+    show_banner
+    info "Octofleet Linux Agent v$VERSION starting..."
     info "Node ID: $NODE_ID"
     info "API URL: $API_URL"
     info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"

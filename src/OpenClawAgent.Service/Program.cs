@@ -28,7 +28,12 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("=== OpenClaw Node Agent Service starting ===");
+    // Show ASCII banner
+    var version = System.Reflection.Assembly.GetExecutingAssembly()
+        .GetName().Version?.ToString(3) ?? "0.0.0";
+    Banner.Show(version);
+    
+    Log.Information("=== Octofleet Agent Service starting ===");
     Log.Information("Log directory: {LogDir}", logDir);
 
     var builder = Host.CreateApplicationBuilder(args);
