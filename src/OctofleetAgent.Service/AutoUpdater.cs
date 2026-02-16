@@ -21,7 +21,7 @@ public class AutoUpdater : BackgroundService
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(30);
     
-    private const string GitHubReleasesUrl = "https://api.github.com/repos/BenediktSchackenberg/octofleet-windows-agent/releases/latest";
+    private const string GitHubReleasesUrl = "https://api.github.com/repos/BenediktSchackenberg/octofleet/releases/latest";
     private const string ServiceName = "OctofleetNodeAgent";
     
     public AutoUpdater(ILogger<AutoUpdater> logger, IHostApplicationLifetime lifetime, ServiceConfig config)
