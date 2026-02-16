@@ -1,4 +1,21 @@
 # Changelog
+## [0.4.32] - 2026-02-16
+
+### Added
+- **Beautiful Console UI Dashboard** 🐙
+  - Live dashboard with connection status (Gateway, Inventory API)
+  - Statistics panel (bytes sent/received, requests, errors)
+  - Activity log with color-coded entries
+  - Keyboard shortcuts: [P]ush inventory, [L]ive data, [R]efresh, [C]lear log, [Q]uit
+  - Shows current user account and active operation
+  - Last action timestamps (inventory, live data, job poll)
+- **Uninstall-LegacyAgent.ps1** script for clean migration from OpenClaw to Octofleet
+
+### Changed
+- All docs and scripts now use `OCTOFLEET_*` environment variables
+- Installer points to new `octofleet` repo name
+- Console output now feeds unified dashboard in interactive mode
+
 ## [0.4.27] - 2026-02-16
 
 ### Added
