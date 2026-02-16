@@ -8,6 +8,9 @@ test.describe('Authentication', () => {
     // Clear any existing auth to test fresh login
     await page.context().clearCookies();
     await page.context().clearPermissions();
+    // Also clear localStorage (where JWT token is stored)
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => localStorage.clear());
   });
 
   test('should show login page when not authenticated', async ({ page }) => {
