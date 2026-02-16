@@ -44,13 +44,25 @@ public static class InventoryPusher
             
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
             request.Headers.Add("X-API-Key", config.InventoryApiKey);
-            request.Content = JsonContent.Create(data, options: JsonOptions);
+            var jsonContent = JsonSerializer.Serialize(data, JsonOptions);
+            request.Content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+            
+            // Track bytes sent
+            var bytesSent = System.Text.Encoding.UTF8.GetByteCount(jsonContent);
+            ConsoleUI.AddBytesSent(bytesSent);
+            ConsoleUI.SetOperation($"Pushing {type} ({bytesSent / 1024}KB)...");
             
             var response = await _httpClient.SendAsync(request);
             var responseBody = await response.Content.ReadAsStringAsync();
             
+            // Track bytes received
+            ConsoleUI.AddBytesReceived(System.Text.Encoding.UTF8.GetByteCount(responseBody));
+            ConsoleUI.SetOperation(null);
+            
             if (response.IsSuccessStatusCode)
             {
+                ConsoleUI.LastInventoryPush = DateTime.Now;
+                ConsoleUI.InventoryApiConnected = true;
                 return new PushResult 
                 { 
                     Success = true, 
@@ -60,6 +72,7 @@ public static class InventoryPusher
             }
             else
             {
+                ConsoleUI.AddError();
                 return new PushResult 
                 { 
                     Success = false, 
@@ -70,6 +83,9 @@ public static class InventoryPusher
         }
         catch (Exception ex)
         {
+            ConsoleUI.AddError();
+            ConsoleUI.SetOperation(null);
+            ConsoleUI.InventoryApiConnected = false;
             return new PushResult 
             { 
                 Success = false, 

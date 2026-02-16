@@ -189,15 +189,21 @@ public class LiveDataPoller : BackgroundService
         var content = new StringContent(json, Encoding.UTF8, "application/json");
         var baseUrl = config.InventoryApiUrl.TrimEnd('/');
 
+        // Track stats
+        ConsoleUI.AddBytesSent(Encoding.UTF8.GetByteCount(json));
+        
         var response = await _httpClient.PostAsync($"{baseUrl}/api/v1/live-data", content, ct);
         
         if (response.IsSuccessStatusCode)
         {
+            ConsoleUI.LastLiveDataPush = DateTime.Now;
+            ConsoleUI.InventoryApiConnected = true;
             _logger.LogDebug("Pushed live data: {ProcessCount} processes, Mem={Mem}%, Disk={Disk}%", 
                 processes.Count, memory, disk);
         }
         else
         {
+            ConsoleUI.AddError();
             _logger.LogWarning("Failed to push live data: {Status}", response.StatusCode);
         }
     }

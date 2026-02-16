@@ -86,6 +86,7 @@ public class NodeWorker : BackgroundService
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
                 _reconnectAttempts++;
+                ConsoleUI.GatewayConnected = false;
                 _logger.LogError(ex, "Connection failed (attempt {Attempt}), retrying in {Delay}ms...", 
                     _reconnectAttempts, _currentReconnectDelayMs);
                 
@@ -243,6 +244,7 @@ public class NodeWorker : BackgroundService
             // Mark as connected and reset backoff
             _wasConnected = true;
             _lastConnectedTime = DateTime.UtcNow;
+            ConsoleUI.GatewayConnected = true;
             ResetReconnectBackoff();
         }
         else

@@ -124,6 +124,7 @@ public class JobPoller : BackgroundService
         try
         {
             var response = await _httpClient.GetAsync(url, ct);
+            ConsoleUI.LastJobPoll = DateTime.Now;
             
             if (!response.IsSuccessStatusCode)
             {
@@ -132,12 +133,14 @@ public class JobPoller : BackgroundService
             }
 
             var content = await response.Content.ReadAsStringAsync(ct);
+            ConsoleUI.AddBytesReceived(System.Text.Encoding.UTF8.GetByteCount(content));
             var result = JsonSerializer.Deserialize<PendingJobsResponse>(content, JsonOptions);
             
             return result?.Jobs ?? new List<PendingJob>();
         }
         catch (HttpRequestException ex)
         {
+            ConsoleUI.AddError();
             _logger.LogWarning("HTTP error getting pending jobs: {Message}", ex.Message);
             return new List<PendingJob>();
         }
