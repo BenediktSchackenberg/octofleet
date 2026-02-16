@@ -1345,6 +1345,6 @@ CREATE INDEX IF NOT EXISTS idx_alert_rules_event ON alert_rules(event_type);
 -- TimescaleDB Hypertables (using legacy syntax for compatibility)
 SELECT create_hypertable('node_metrics', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('hardware_changes', 'time', if_not_exists => TRUE);
-SELECT create_hypertable('eventlog_entries', 'event_time', if_not_exists => TRUE);
+-- eventlog_entries skipped: PK doesn't include event_time column
 
 -- Done
