@@ -1,473 +1,372 @@
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Breadcrumb } from "@/components/ui-components";
+import { Bell, Plus, Trash2, TestTube, Check, X } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.5:8080";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080/api/v1';
 
-interface Alert {
+interface AlertChannel {
   id: string;
-  rule_name: string;
-  event_type: string;
-  severity: string;
-  title: string;
-  message: string;
-  node_name: string | null;
-  status: string;
-  fired_at: string;
-  acknowledged_at: string | null;
-  resolved_at: string | null;
+  name: string;
+  channel_type: string;
+  config: { webhook_url?: string };
+  enabled: boolean;
+  created_at: string;
 }
 
 interface AlertRule {
   id: string;
   name: string;
-  description: string;
   event_type: string;
-  severity: string;
-  is_enabled: boolean;
+  channel_id: string;
+  channel_name: string;
   cooldown_minutes: number;
+  enabled: boolean;
 }
 
-interface NotificationChannel {
+interface AlertHistoryEntry {
   id: string;
-  name: string;
-  channel_type: string;
-  is_enabled: boolean;
+  rule_name: string;
+  channel_name: string;
+  event_type: string;
+  event_data: any;
+  status: string;
+  created_at: string;
 }
 
-interface AlertStats {
-  total: number;
-  active: number;
-  acknowledged: number;
-  resolved: number;
-  critical_active: number;
-  warning_active: number;
-  last_24h: number;
-  last_7d: number;
-}
-
-const severityColors: Record<string, string> = {
-  critical: "bg-red-500",
-  warning: "bg-yellow-500",
-  info: "bg-blue-500",
-};
-
-const severityBadges: Record<string, string> = {
-  critical: "bg-red-600 text-white",
-  warning: "bg-yellow-600 text-black",
-  info: "bg-blue-600 text-white",
-};
-
-const statusBadges: Record<string, string> = {
-  fired: "bg-red-900 text-red-200 border border-red-700",
-  acknowledged: "bg-yellow-900 text-yellow-200 border border-yellow-700",
-  resolved: "bg-green-900 text-green-200 border border-green-700",
-};
+const EVENT_TYPES = [
+  { value: 'node_offline', label: '🔴 Node Offline' },
+  { value: 'node_online', label: '🟢 Node Online' },
+  { value: 'job_failed', label: '❌ Job Failed' },
+  { value: 'job_success', label: '✅ Job Success' },
+  { value: 'disk_warning', label: '💾 Disk Warning' },
+  { value: 'vulnerability_critical', label: '🛡️ Critical Vulnerability' },
+];
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [channels, setChannels] = useState<AlertChannel[]>([]);
   const [rules, setRules] = useState<AlertRule[]>([]);
-  const [channels, setChannels] = useState<NotificationChannel[]>([]);
-  const [stats, setStats] = useState<AlertStats | null>(null);
+  const [history, setHistory] = useState<AlertHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"alerts" | "rules" | "channels">("alerts");
-  const [showAddChannel, setShowAddChannel] = useState(false);
-  const [newChannel, setNewChannel] = useState({ name: "", channel_type: "discord", webhook_url: "" });
-
-  const fetchData = async () => {
-    try {
-      const headers = getAuthHeader();
-      
-      const [alertsRes, rulesRes, channelsRes, statsRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/alerts?limit=50`, { headers }),
-        fetch(`${API_URL}/api/v1/alerts/rules`, { headers }),
-        fetch(`${API_URL}/api/v1/alerts/channels`, { headers }),
-        fetch(`${API_URL}/api/v1/alerts/stats`, { headers }),
-      ]);
-
-      if (alertsRes.ok) setAlerts(await alertsRes.json());
-      if (rulesRes.ok) setRules(await rulesRes.json());
-      if (channelsRes.ok) setChannels(await channelsRes.json());
-      if (statsRes.ok) setStats(await statsRes.json());
-    } catch (error) {
-      console.error("Failed to fetch alerts data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+  // New channel form
+  const [showNewChannel, setShowNewChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newWebhookUrl, setNewWebhookUrl] = useState('');
+  
+  // New rule form
+  const [showNewRule, setShowNewRule] = useState(false);
+  const [newRuleName, setNewRuleName] = useState('');
+  const [newRuleEvent, setNewRuleEvent] = useState('job_failed');
+  const [newRuleChannel, setNewRuleChannel] = useState('');
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
   }, []);
 
-  const acknowledgeAlert = async (alertId: string) => {
+  async function fetchData() {
+    const token = localStorage.getItem('token');
+    const headers = { Authorization: `Bearer ${token}` };
+    
     try {
-      await fetch(`${API_URL}/api/v1/alerts/${alertId}/acknowledge`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ by: "UI" }),
-      });
+      const [channelsRes, rulesRes, historyRes] = await Promise.all([
+        fetch(`${API_BASE}/alert-channels`, { headers }),
+        fetch(`${API_BASE}/alert-rules`, { headers }),
+        fetch(`${API_BASE}/alert-history?limit=20`, { headers }),
+      ]);
+      
+      if (channelsRes.ok) setChannels(await channelsRes.json());
+      if (rulesRes.ok) setRules(await rulesRes.json());
+      if (historyRes.ok) setHistory(await historyRes.json());
+    } catch (e) {
+      console.error('Failed to fetch alerts:', e);
+    }
+    setLoading(false);
+  }
+
+  async function createChannel() {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE}/alert-channels`, {
+      method: 'POST',
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: newChannelName,
+        channel_type: 'discord',
+        config: { webhook_url: newWebhookUrl },
+        enabled: true
+      })
+    });
+    if (res.ok) {
+      setShowNewChannel(false);
+      setNewChannelName('');
+      setNewWebhookUrl('');
       fetchData();
-    } catch (error) {
-      console.error("Failed to acknowledge alert:", error);
     }
-  };
+  }
 
-  const resolveAlert = async (alertId: string) => {
-    try {
-      await fetch(`${API_URL}/api/v1/alerts/${alertId}/resolve`, {
-        method: "POST",
-        headers: getAuthHeader(),
-      });
+  async function createRule() {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE}/alert-rules`, {
+      method: 'POST',
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: newRuleName,
+        event_type: newRuleEvent,
+        channel_id: newRuleChannel,
+        cooldown_minutes: 15,
+        enabled: true
+      })
+    });
+    if (res.ok) {
+      setShowNewRule(false);
+      setNewRuleName('');
       fetchData();
-    } catch (error) {
-      console.error("Failed to resolve alert:", error);
     }
-  };
+  }
 
-  const toggleRule = async (ruleId: string, isEnabled: boolean) => {
-    try {
-      await fetch(`${API_URL}/api/v1/alerts/rules/${ruleId}`, {
-        method: "PUT",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ is_enabled: !isEnabled }),
-      });
-      fetchData();
-    } catch (error) {
-      console.error("Failed to toggle rule:", error);
-    }
-  };
+  async function deleteChannel(id: string) {
+    if (!confirm('Delete this channel?')) return;
+    const token = localStorage.getItem('token');
+    await fetch(`${API_BASE}/alert-channels/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    fetchData();
+  }
 
-  const testChannel = async (channelId: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/v1/alerts/channels/${channelId}/test`, {
-        method: "POST",
-        headers: getAuthHeader(),
-      });
-      if (res.ok) {
-        alert("Test notification sent!");
-      } else {
-        const data = await res.json();
-        alert(`Test failed: ${data.detail || "Unknown error"}`);
-      }
-    } catch (error) {
-      console.error("Failed to test channel:", error);
-      alert("Test failed: Network error");
-    }
-  };
+  async function deleteRule(id: string) {
+    if (!confirm('Delete this rule?')) return;
+    const token = localStorage.getItem('token');
+    await fetch(`${API_BASE}/alert-rules/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    fetchData();
+  }
 
-  const addChannel = async () => {
-    try {
-      await fetch(`${API_URL}/api/v1/alerts/channels`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newChannel.name,
-          channel_type: newChannel.channel_type,
-          config: { webhook_url: newChannel.webhook_url },
-        }),
-      });
-      setShowAddChannel(false);
-      setNewChannel({ name: "", channel_type: "discord", webhook_url: "" });
-      fetchData();
-    } catch (error) {
-      console.error("Failed to add channel:", error);
-    }
-  };
-
-  const deleteChannel = async (channelId: string) => {
-    if (!confirm("Delete this notification channel?")) return;
-    try {
-      await fetch(`${API_URL}/api/v1/alerts/channels/${channelId}`, {
-        method: "DELETE",
-        headers: getAuthHeader(),
-      });
-      fetchData();
-    } catch (error) {
-      console.error("Failed to delete channel:", error);
-    }
-  };
-
-  const linkRuleToChannel = async (ruleId: string, channelId: string) => {
-    try {
-      await fetch(`${API_URL}/api/v1/alerts/rules/${ruleId}/channels/${channelId}`, {
-        method: "POST",
-        headers: getAuthHeader(),
-      });
-      alert("Rule linked to channel!");
-    } catch (error) {
-      console.error("Failed to link:", error);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">🔔 Alerts</h1>
-        <div className="animate-pulse bg-zinc-800 h-64 rounded-lg"></div>
-      </div>
-    );
+  async function testChannel(id: string) {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE}/alert-channels/${id}/test`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    alert(data.status === 'sent' ? '✅ Test sent!' : '❌ Test failed');
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">🔔 Alerts & Notifications</h1>
-
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-zinc-800 rounded-lg p-4">
-            <div className="text-3xl font-bold text-red-500">{stats.critical_active}</div>
-            <div className="text-zinc-400 text-sm">Critical Active</div>
-          </div>
-          <div className="bg-zinc-800 rounded-lg p-4">
-            <div className="text-3xl font-bold text-yellow-500">{stats.warning_active}</div>
-            <div className="text-zinc-400 text-sm">Warnings Active</div>
-          </div>
-          <div className="bg-zinc-800 rounded-lg p-4">
-            <div className="text-3xl font-bold text-blue-500">{stats.last_24h}</div>
-            <div className="text-zinc-400 text-sm">Last 24h</div>
-          </div>
-          <div className="bg-zinc-800 rounded-lg p-4">
-            <div className="text-3xl font-bold text-zinc-400">{stats.resolved}</div>
-            <div className="text-zinc-400 text-sm">Resolved</div>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-zinc-700 pb-2">
-        {["alerts", "rules", "channels"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab as typeof activeTab)}
-            className={`px-4 py-2 rounded-t-lg font-medium capitalize ${
-              activeTab === tab
-                ? "bg-zinc-700 text-white"
-                : "text-zinc-400 hover:text-white hover:bg-zinc-800"
-            }`}
-          >
-            {tab === "alerts" && `Alerts (${alerts.length})`}
-            {tab === "rules" && `Rules (${rules.length})`}
-            {tab === "channels" && `Channels (${channels.length})`}
-          </button>
-        ))}
+    <main className="min-h-screen bg-background p-8">
+      <Breadcrumb items={[{ label: 'Dashboard', href: '/' }, { label: 'Alerts' }]} />
+      
+      <div className="flex items-center gap-3 mb-8">
+        <Bell className="h-8 w-8" />
+        <h1 className="text-3xl font-bold">Alerts</h1>
       </div>
 
-      {/* Alerts Tab */}
-      {activeTab === "alerts" && (
-        <div className="space-y-3">
-          {alerts.length === 0 ? (
-            <div className="bg-zinc-800 rounded-lg p-8 text-center text-zinc-400">
-              <div className="text-4xl mb-2">✅</div>
-              <div>No alerts - everything looks good!</div>
-            </div>
-          ) : (
-            alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={`bg-zinc-800 rounded-lg p-4 border-l-4 ${severityColors[alert.severity] || "border-zinc-600"}`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${severityBadges[alert.severity]}`}>
-                        {alert.severity.toUpperCase()}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded text-xs ${statusBadges[alert.status]}`}>
-                        {alert.status}
-                      </span>
-                      {alert.node_name && (
-                        <span className="text-zinc-400 text-sm">📍 {alert.node_name}</span>
-                      )}
-                    </div>
-                    <h3 className="font-semibold text-white">{alert.title}</h3>
-                    <p className="text-zinc-400 text-sm mt-1">{alert.message}</p>
-                    <div className="text-zinc-500 text-xs mt-2">
-                      Fired: {new Date(alert.fired_at).toLocaleString()}
-                      {alert.resolved_at && ` • Resolved: ${new Date(alert.resolved_at).toLocaleString()}`}
-                    </div>
-                  </div>
-                  {alert.status === "fired" && (
-                    <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => acknowledgeAlert(alert.id)}
-                        className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm"
-                      >
-                        Acknowledge
-                      </button>
-                      <button
-                        onClick={() => resolveAlert(alert.id)}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm"
-                      >
-                        Resolve
-                      </button>
-                    </div>
-                  )}
-                  {alert.status === "acknowledged" && (
-                    <button
-                      onClick={() => resolveAlert(alert.id)}
-                      className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm ml-4"
-                    >
-                      Resolve
-                    </button>
-                  )}
-                </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Channels */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>📡 Channels</CardTitle>
+                <CardDescription>Where alerts are sent</CardDescription>
               </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Rules Tab */}
-      {activeTab === "rules" && (
-        <div className="space-y-3">
-          {rules.map((rule) => (
-            <div key={rule.id} className="bg-zinc-800 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-white">{rule.name}</h3>
-                    <span className={`px-2 py-0.5 rounded text-xs ${severityBadges[rule.severity]}`}>
-                      {rule.severity}
-                    </span>
-                    <span className="text-zinc-500 text-xs">({rule.event_type})</span>
-                  </div>
-                  <p className="text-zinc-400 text-sm mt-1">{rule.description}</p>
-                  <p className="text-zinc-500 text-xs mt-1">Cooldown: {rule.cooldown_minutes} min</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <select
-                    className="bg-zinc-700 rounded px-2 py-1 text-sm"
-                    onChange={(e) => e.target.value && linkRuleToChannel(rule.id, e.target.value)}
-                    defaultValue=""
-                  >
-                    <option value="">Link to channel...</option>
-                    {channels.map((ch) => (
-                      <option key={ch.id} value={ch.id}>
-                        {ch.name} ({ch.channel_type})
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => toggleRule(rule.id, rule.is_enabled)}
-                    className={`px-3 py-1 rounded text-sm font-medium ${
-                      rule.is_enabled
-                        ? "bg-green-600 hover:bg-green-700"
-                        : "bg-zinc-600 hover:bg-zinc-700"
-                    }`}
-                  >
-                    {rule.is_enabled ? "Enabled" : "Disabled"}
-                  </button>
-                </div>
-              </div>
+              <Button size="sm" onClick={() => setShowNewChannel(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Discord
+              </Button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Channels Tab */}
-      {activeTab === "channels" && (
-        <div className="space-y-3">
-          <button
-            onClick={() => setShowAddChannel(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium mb-4"
-          >
-            + Add Channel
-          </button>
-
-          {showAddChannel && (
-            <div className="bg-zinc-800 rounded-lg p-4 mb-4 border border-zinc-600">
-              <h3 className="font-semibold mb-3">Add Notification Channel</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input
-                  type="text"
-                  placeholder="Channel Name"
-                  value={newChannel.name}
-                  onChange={(e) => setNewChannel({ ...newChannel, name: e.target.value })}
-                  className="bg-zinc-700 rounded px-3 py-2"
+          </CardHeader>
+          <CardContent>
+            {showNewChannel && (
+              <div className="mb-4 p-4 border rounded-lg bg-muted/50 space-y-3">
+                <Input 
+                  placeholder="Channel Name (e.g. #alerts)" 
+                  value={newChannelName}
+                  onChange={e => setNewChannelName(e.target.value)}
                 />
-                <select
-                  value={newChannel.channel_type}
-                  onChange={(e) => setNewChannel({ ...newChannel, channel_type: e.target.value })}
-                  className="bg-zinc-700 rounded px-3 py-2"
-                >
-                  <option value="discord">Discord</option>
-                  <option value="slack">Slack</option>
-                  <option value="teams">Microsoft Teams</option>
-                  <option value="webhook">Generic Webhook</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Webhook URL"
-                  value={newChannel.webhook_url}
-                  onChange={(e) => setNewChannel({ ...newChannel, webhook_url: e.target.value })}
-                  className="bg-zinc-700 rounded px-3 py-2"
+                <Input 
+                  placeholder="Discord Webhook URL" 
+                  value={newWebhookUrl}
+                  onChange={e => setNewWebhookUrl(e.target.value)}
                 />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={createChannel} disabled={!newChannelName || !newWebhookUrl}>
+                    Create
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowNewChannel(false)}>
+                    Cancel
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={addChannel}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setShowAddChannel(false)}
-                  className="px-4 py-2 bg-zinc-600 hover:bg-zinc-700 rounded"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {channels.length === 0 ? (
-            <div className="bg-zinc-800 rounded-lg p-8 text-center text-zinc-400">
-              <div className="text-4xl mb-2">📭</div>
-              <div>No notification channels configured</div>
-              <div className="text-sm mt-1">Add a Discord, Slack, or Teams webhook to receive alerts</div>
-            </div>
-          ) : (
-            channels.map((channel) => (
-              <div key={channel.id} className="bg-zinc-800 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
+            )}
+            
+            {channels.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No channels configured</p>
+            ) : (
+              <div className="space-y-2">
+                {channels.map(ch => (
+                  <div key={ch.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🎮</span>
+                      <div>
+                        <p className="font-medium">{ch.name}</p>
+                        <p className="text-xs text-muted-foreground">{ch.channel_type}</p>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">
-                        {channel.channel_type === "discord" && "💬"}
-                        {channel.channel_type === "slack" && "📨"}
-                        {channel.channel_type === "teams" && "👥"}
-                        {channel.channel_type === "webhook" && "🔗"}
-                      </span>
-                      <h3 className="font-semibold text-white">{channel.name}</h3>
-                      <span className="text-zinc-500 text-sm capitalize">({channel.channel_type})</span>
+                      <Badge variant={ch.enabled ? 'default' : 'secondary'}>
+                        {ch.enabled ? 'Active' : 'Disabled'}
+                      </Badge>
+                      <Button size="icon" variant="ghost" onClick={() => testChannel(ch.id)}>
+                        <TestTube className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => deleteChannel(ch.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => testChannel(channel.id)}
-                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm"
-                    >
-                      Test
-                    </button>
-                    <button
-                      onClick={() => deleteChannel(channel.id)}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Rules */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>📋 Rules</CardTitle>
+                <CardDescription>When to send alerts</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setShowNewRule(true)} disabled={channels.length === 0}>
+                <Plus className="h-4 w-4 mr-1" /> Add Rule
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {showNewRule && (
+              <div className="mb-4 p-4 border rounded-lg bg-muted/50 space-y-3">
+                <Input 
+                  placeholder="Rule Name" 
+                  value={newRuleName}
+                  onChange={e => setNewRuleName(e.target.value)}
+                />
+                <select 
+                  className="w-full border rounded px-3 py-2"
+                  value={newRuleEvent}
+                  onChange={e => setNewRuleEvent(e.target.value)}
+                >
+                  {EVENT_TYPES.map(et => (
+                    <option key={et.value} value={et.value}>{et.label}</option>
+                  ))}
+                </select>
+                <select 
+                  className="w-full border rounded px-3 py-2"
+                  value={newRuleChannel}
+                  onChange={e => setNewRuleChannel(e.target.value)}
+                >
+                  <option value="">Select Channel...</option>
+                  {channels.map(ch => (
+                    <option key={ch.id} value={ch.id}>{ch.name}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={createRule} disabled={!newRuleName || !newRuleChannel}>
+                    Create
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowNewRule(false)}>
+                    Cancel
+                  </Button>
                 </div>
               </div>
-            ))
+            )}
+            
+            {rules.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No rules configured</p>
+            ) : (
+              <div className="space-y-2">
+                {rules.map(rule => (
+                  <div key={rule.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{rule.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {EVENT_TYPES.find(e => e.value === rule.event_type)?.label || rule.event_type}
+                        {' → '}{rule.channel_name}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={rule.enabled ? 'default' : 'secondary'}>
+                        {rule.enabled ? 'Active' : 'Disabled'}
+                      </Badge>
+                      <Button size="icon" variant="ghost" onClick={() => deleteRule(rule.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* History */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>📜 Alert History</CardTitle>
+          <CardDescription>Recent alerts sent</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {history.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No alerts sent yet</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Rule</TableHead>
+                  <TableHead>Channel</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map(h => (
+                  <TableRow key={h.id}>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(h.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell>{h.event_type.replace('_', ' ')}</TableCell>
+                    <TableCell>{h.rule_name || '-'}</TableCell>
+                    <TableCell>{h.channel_name || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={h.status === 'sent' ? 'default' : h.status === 'throttled' ? 'secondary' : 'destructive'}>
+                        {h.status === 'sent' && <Check className="h-3 w-3 mr-1" />}
+                        {h.status === 'failed' && <X className="h-3 w-3 mr-1" />}
+                        {h.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
-        </div>
-      )}
-    </div>
+        </CardContent>
+      </Card>
+    </main>
   );
 }

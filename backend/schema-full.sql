@@ -1301,3 +1301,39 @@ CREATE INDEX idx_service_node_assignments_node ON public.service_node_assignment
 CREATE INDEX idx_service_reconciliation_log_service ON public.service_reconciliation_log(service_id);
 CREATE INDEX idx_service_reconciliation_log_time ON public.service_reconciliation_log(started_at DESC);
 
+
+-- E19: Alert System
+CREATE TABLE IF NOT EXISTS alert_channels (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    channel_type VARCHAR(20) NOT NULL, -- 'discord', 'telegram', 'email', 'webhook'
+    config JSONB NOT NULL DEFAULT '{}', -- webhook_url, chat_id, etc.
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS alert_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    event_type VARCHAR(50) NOT NULL, -- 'node_offline', 'job_failed', 'disk_warning', 'vulnerability_critical'
+    condition JSONB DEFAULT '{}', -- optional filters
+    channel_id UUID REFERENCES alert_channels(id) ON DELETE CASCADE,
+    cooldown_minutes INT DEFAULT 15, -- prevent spam
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS alert_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rule_id UUID REFERENCES alert_rules(id) ON DELETE SET NULL,
+    channel_id UUID REFERENCES alert_channels(id) ON DELETE SET NULL,
+    event_type VARCHAR(50) NOT NULL,
+    event_data JSONB DEFAULT '{}',
+    status VARCHAR(20) DEFAULT 'sent', -- 'sent', 'failed', 'throttled'
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_history_created ON alert_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_event ON alert_rules(event_type);

@@ -354,7 +354,7 @@ async def get_agent_version():
     """Get the latest agent version for auto-update"""
     # Try to get from database first
     try:
-        async with pool.acquire() as conn:
+        async with db_pool.acquire() as conn:
             row = await conn.fetchrow("""
                 SELECT 
                     (SELECT value FROM system_settings WHERE key = 'agent_latest_version') as version,
@@ -2934,6 +2934,28 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
         """, instance_id, "info" if success else "error", 
              f"Job completed: exit_code={exit_code}")
         
+        # Trigger alert on failure
+        if not success:
+            # Get job and node info for alert
+            job_info = await conn.fetchrow("""
+                SELECT j.name as job_name, n.hostname 
+                FROM job_instances ji
+                JOIN jobs j ON ji.job_id = j.id
+                JOIN nodes n ON ji.node_id = n.node_id
+                WHERE ji.id = $1
+            """, instance_id)
+            if job_info:
+                try:
+                    await trigger_alert('job_failed', {
+                        'message': f"Job '{job_info['job_name']}' failed on {job_info['hostname']}",
+                        'job_name': job_info['job_name'],
+                        'hostname': job_info['hostname'],
+                        'exit_code': exit_code,
+                        'error': error_message or stderr[:500] if stderr else 'Unknown error'
+                    })
+                except Exception as e:
+                    print(f"Alert trigger error: {e}")
+        
         # Check if should retry
         should_retry = False
         if not success and row["attempt"] < row["max_attempts"]:
@@ -4361,314 +4383,47 @@ async def list_package_versions(limit: int = 100):
 # E7: ALERTING & NOTIFICATIONS
 # ============================================================================
 
-# --- Alert Rules ---
+# --- Alert Rules (Legacy - Replaced by E19) ---
+# These endpoints use old schema, replaced by /api/v1/alert-* endpoints
 
-@app.get("/api/v1/alerts/rules", dependencies=[Depends(verify_api_key)])
-async def list_alert_rules():
-    """List all alert rules"""
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT id, name, description, event_type, condition, severity, 
-                   is_enabled, cooldown_minutes, created_at, updated_at
-            FROM alert_rules
-            ORDER BY severity DESC, name
-        """)
-        return [dict(r) for r in rows]
+# @app.get("/api/v1/alerts/rules", dependencies=[Depends(verify_api_key)])
+# async def list_alert_rules_legacy():
+#     """Legacy: List all alert rules"""
+#     pass
 
 
-@app.post("/api/v1/alerts/rules", dependencies=[Depends(verify_api_key)])
-async def create_alert_rule(data: dict):
-    """Create a new alert rule"""
-    async with db_pool.acquire() as conn:
-        rule_id = await conn.fetchval("""
-            INSERT INTO alert_rules (name, description, event_type, condition, severity, is_enabled, cooldown_minutes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id
-        """, data.get("name"), data.get("description"), data.get("event_type"),
-            json.dumps(data.get("condition", {})), data.get("severity", "warning"),
-            data.get("is_enabled", True), data.get("cooldown_minutes", 60))
-        return {"id": str(rule_id)}
+# --- Notification Channels (Legacy - Replaced by E19 /api/v1/alert-channels) ---
+# Old endpoints that use notification_channels table - replaced by alert_channels
+
+# Legacy endpoints commented out - use /api/v1/alert-channels, /api/v1/alert-rules instead
 
 
-@app.put("/api/v1/alerts/rules/{rule_id}", dependencies=[Depends(verify_api_key)])
-async def update_alert_rule(rule_id: str, data: dict):
-    """Update an alert rule"""
-    async with db_pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE alert_rules SET
-                name = COALESCE($2, name),
-                description = COALESCE($3, description),
-                event_type = COALESCE($4, event_type),
-                condition = COALESCE($5, condition),
-                severity = COALESCE($6, severity),
-                is_enabled = COALESCE($7, is_enabled),
-                cooldown_minutes = COALESCE($8, cooldown_minutes),
-                updated_at = NOW()
-            WHERE id = $1::uuid
-        """, rule_id, data.get("name"), data.get("description"), data.get("event_type"),
-            json.dumps(data.get("condition")) if data.get("condition") else None,
-            data.get("severity"), data.get("is_enabled"), data.get("cooldown_minutes"))
-        return {"status": "updated"}
+@app.get("/api/v1/alerts/test-legacy")
+async def test_legacy_endpoint():
+    """Placeholder to maintain route prefix"""
+    return {"message": "Use /api/v1/alert-channels and /api/v1/alert-rules instead"}
 
 
-@app.delete("/api/v1/alerts/rules/{rule_id}", dependencies=[Depends(verify_api_key)])
-async def delete_alert_rule(rule_id: str):
-    """Delete an alert rule"""
-    async with db_pool.acquire() as conn:
-        await conn.execute("DELETE FROM alert_rules WHERE id = $1::uuid", rule_id)
-        return {"status": "deleted"}
+# --- Link Rules to Channels (Legacy) ---
+# Removed old link_rule_to_channel endpoints
 
 
-# --- Notification Channels ---
-
-@app.get("/api/v1/alerts/channels", dependencies=[Depends(verify_api_key)])
-async def list_notification_channels():
-    """List all notification channels"""
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT id, name, channel_type, config, is_enabled, created_at, updated_at
-            FROM notification_channels
-            ORDER BY name
-        """)
-        result = []
-        for r in rows:
-            d = dict(r)
-            # Mask webhook URLs for security
-            if d.get("config"):
-                config = json.loads(d["config"]) if isinstance(d["config"], str) else d["config"]
-                if "webhook_url" in config:
-                    url = config["webhook_url"]
-                    config["webhook_url"] = url[:30] + "..." if len(url) > 30 else url
-                d["config"] = config
-            result.append(d)
-        return result
-
-
-@app.post("/api/v1/alerts/channels", dependencies=[Depends(verify_api_key)])
-async def create_notification_channel(data: dict):
-    """Create a notification channel"""
-    async with db_pool.acquire() as conn:
-        channel_id = await conn.fetchval("""
-            INSERT INTO notification_channels (name, channel_type, config, is_enabled)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id
-        """, data.get("name"), data.get("channel_type"), 
-            json.dumps(data.get("config", {})), data.get("is_enabled", True))
-        return {"id": str(channel_id)}
-
-
-@app.put("/api/v1/alerts/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
-async def update_notification_channel(channel_id: str, data: dict):
-    """Update a notification channel"""
-    async with db_pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE notification_channels SET
-                name = COALESCE($2, name),
-                channel_type = COALESCE($3, channel_type),
-                config = COALESCE($4, config),
-                is_enabled = COALESCE($5, is_enabled),
-                updated_at = NOW()
-            WHERE id = $1::uuid
-        """, channel_id, data.get("name"), data.get("channel_type"),
-            json.dumps(data.get("config")) if data.get("config") else None,
-            data.get("is_enabled"))
-        return {"status": "updated"}
-
-
-@app.delete("/api/v1/alerts/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
-async def delete_notification_channel(channel_id: str):
-    """Delete a notification channel"""
-    async with db_pool.acquire() as conn:
-        await conn.execute("DELETE FROM notification_channels WHERE id = $1::uuid", channel_id)
-        return {"status": "deleted"}
-
-
-@app.post("/api/v1/alerts/channels/{channel_id}/test", dependencies=[Depends(verify_api_key)])
-async def test_notification_channel(channel_id: str):
-    """Send a test notification to a channel"""
-    async with db_pool.acquire() as conn:
-        channel = await conn.fetchrow(
-            "SELECT name, channel_type, config FROM notification_channels WHERE id = $1::uuid",
-            channel_id
-        )
-        if not channel:
-            raise HTTPException(404, "Channel not found")
-        
-        alert_manager = get_alert_manager(db_pool)
-        try:
-            config = json.loads(channel["config"]) if isinstance(channel["config"], str) else channel["config"]
-            await alert_manager._send_notification(
-                channel_type=channel["channel_type"],
-                config=config,
-                title="🧪 Test Notification",
-                message="This is a test notification from OpenClaw Inventory. If you see this, the channel is configured correctly!",
-                severity="info",
-                node_name="Test",
-                metadata={"test": True}
-            )
-            return {"status": "sent"}
-        except Exception as e:
-            raise HTTPException(400, f"Test failed: {str(e)}")
-
-
-# --- Link Rules to Channels ---
-
-@app.post("/api/v1/alerts/rules/{rule_id}/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
-async def link_rule_to_channel(rule_id: str, channel_id: str):
-    """Link an alert rule to a notification channel"""
-    async with db_pool.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO alert_rule_channels (rule_id, channel_id)
-            VALUES ($1::uuid, $2::uuid)
-            ON CONFLICT DO NOTHING
-        """, rule_id, channel_id)
-        return {"status": "linked"}
-
-
-@app.delete("/api/v1/alerts/rules/{rule_id}/channels/{channel_id}", dependencies=[Depends(verify_api_key)])
-async def unlink_rule_from_channel(rule_id: str, channel_id: str):
-    """Unlink an alert rule from a notification channel"""
-    async with db_pool.acquire() as conn:
-        await conn.execute("""
-            DELETE FROM alert_rule_channels WHERE rule_id = $1::uuid AND channel_id = $2::uuid
-        """, rule_id, channel_id)
-        return {"status": "unlinked"}
-
-
-@app.get("/api/v1/alerts/rules/{rule_id}/channels", dependencies=[Depends(verify_api_key)])
-async def get_rule_channels(rule_id: str):
-    """Get channels linked to a rule"""
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT nc.id, nc.name, nc.channel_type
-            FROM notification_channels nc
-            JOIN alert_rule_channels arc ON nc.id = arc.channel_id
-            WHERE arc.rule_id = $1::uuid
-        """, rule_id)
-        return [dict(r) for r in rows]
-
-
-# --- Alert History ---
+# --- Alert History (Legacy) ---
+# Old alert history endpoint - replaced by /api/v1/alert-history
 
 @app.get("/api/v1/alerts", dependencies=[Depends(verify_api_key)])
-async def list_alerts(
-    status: Optional[str] = None,
-    severity: Optional[str] = None,
-    event_type: Optional[str] = None,
-    node_id: Optional[str] = None,
-    limit: int = 100,
-    offset: int = 0
-):
-    """List fired alerts with optional filters"""
-    async with db_pool.acquire() as conn:
-        conditions = ["1=1"]
-        params = []
-        param_idx = 1
-        
-        if status:
-            conditions.append(f"status = ${param_idx}")
-            params.append(status)
-            param_idx += 1
-        
-        if severity:
-            conditions.append(f"severity = ${param_idx}")
-            params.append(severity)
-            param_idx += 1
-        
-        if event_type:
-            conditions.append(f"event_type = ${param_idx}")
-            params.append(event_type)
-            param_idx += 1
-        
-        if node_id:
-            conditions.append(f"(node_id::text = ${param_idx} OR node_name = ${param_idx})")
-            params.append(node_id)
-            param_idx += 1
-        
-        where_clause = " AND ".join(conditions)
-        params.extend([limit, offset])
-        
-        rows = await conn.fetch(f"""
-            SELECT id, rule_name, event_type, severity, title, message, 
-                   node_name, status, fired_at, acknowledged_at, resolved_at, metadata
-            FROM alerts
-            WHERE {where_clause}
-            ORDER BY fired_at DESC
-            LIMIT ${param_idx} OFFSET ${param_idx + 1}
-        """, *params)
-        
-        return [dict(r) for r in rows]
+async def list_alerts_legacy():
+    """Legacy: Redirects to new alert-history endpoint"""
+    return {"message": "Use /api/v1/alert-history instead"}
 
 
 @app.get("/api/v1/alerts/stats", dependencies=[Depends(verify_api_key)])
-async def get_alert_stats():
-    """Get alert statistics"""
-    async with db_pool.acquire() as conn:
-        stats = await conn.fetchrow("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE status = 'fired') as active,
-                COUNT(*) FILTER (WHERE status = 'acknowledged') as acknowledged,
-                COUNT(*) FILTER (WHERE status = 'resolved') as resolved,
-                COUNT(*) FILTER (WHERE severity = 'critical' AND status = 'fired') as critical_active,
-                COUNT(*) FILTER (WHERE severity = 'warning' AND status = 'fired') as warning_active,
-                COUNT(*) FILTER (WHERE fired_at > NOW() - INTERVAL '24 hours') as last_24h,
-                COUNT(*) FILTER (WHERE fired_at > NOW() - INTERVAL '7 days') as last_7d
-            FROM alerts
-        """)
-        return dict(stats)
+async def get_alert_stats_legacy():
+    """Legacy: Alert statistics placeholder"""
+    return {"message": "Use new E19 alert system"}
 
 
-@app.post("/api/v1/alerts/{alert_id}/acknowledge", dependencies=[Depends(verify_api_key)])
-async def acknowledge_alert(alert_id: str, data: dict = None):
-    """Acknowledge an alert"""
-    data = data or {}
-    async with db_pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE alerts SET 
-                status = 'acknowledged',
-                acknowledged_at = NOW(),
-                acknowledged_by = $2
-            WHERE id = $1::uuid AND status = 'fired'
-        """, alert_id, data.get("by", "API"))
-        return {"status": "acknowledged"}
-
-
-@app.post("/api/v1/alerts/{alert_id}/resolve", dependencies=[Depends(verify_api_key)])
-async def resolve_alert(alert_id: str):
-    """Manually resolve an alert"""
-    async with db_pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE alerts SET status = 'resolved', resolved_at = NOW()
-            WHERE id = $1::uuid AND status IN ('fired', 'acknowledged')
-        """, alert_id)
-        return {"status": "resolved"}
-
-
-# --- Manual Alert Trigger (for testing/external events) ---
-
-@app.post("/api/v1/alerts/fire", dependencies=[Depends(verify_api_key)])
-async def fire_manual_alert(data: dict):
-    """Manually fire an alert"""
-    alert_manager = get_alert_manager(db_pool)
-    alert_id = await alert_manager.fire_alert(
-        event_type=data.get("event_type", "manual"),
-        title=data.get("title", "Manual Alert"),
-        message=data.get("message", ""),
-        severity=data.get("severity", "info"),
-        node_id=data.get("node_id"),
-        node_name=data.get("node_name"),
-        metadata=data.get("metadata")
-    )
-    return {"alert_id": alert_id}
-
-
-# --- Node Health Check Endpoint ---
-
-@app.post("/api/v1/health/check", dependencies=[Depends(verify_api_key)])
-async def trigger_health_check():
-    """Manually trigger a node health check"""
-    await check_node_health(db_pool)
+# Legacy alert endpoints removed - use /api/v1/alert-* endpoints
 
 
 # ============================================================================
@@ -8132,3 +7887,204 @@ async def update_node_service_status(
             "healthyNodes": health_counts["healthy"],
             "totalNodes": health_counts["total"]
         }
+
+# ============================================================================
+# E19: Alert System
+# ============================================================================
+
+import aiohttp
+
+async def send_discord_webhook(webhook_url: str, embed: dict) -> bool:
+    """Send a Discord webhook message."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            payload = {"embeds": [embed]}
+            async with session.post(webhook_url, json=payload) as resp:
+                return resp.status in (200, 204)
+    except Exception as e:
+        print(f"Discord webhook error: {e}")
+        return False
+
+async def trigger_alert(event_type: str, event_data: dict):
+    """Check alert rules and send notifications."""
+    async with db_pool.acquire() as conn:
+        # Find matching enabled rules
+        rules = await conn.fetch("""
+            SELECT r.*, c.channel_type, c.config, c.name as channel_name
+            FROM alert_rules r
+            JOIN alert_channels c ON r.channel_id = c.id
+            WHERE r.event_type = $1 
+            AND r.enabled = true 
+            AND c.enabled = true
+        """, event_type)
+        
+        for rule in rules:
+            # Check cooldown
+            last_alert = await conn.fetchval("""
+                SELECT created_at FROM alert_history
+                WHERE rule_id = $1 AND status = 'sent'
+                ORDER BY created_at DESC LIMIT 1
+            """, rule['id'])
+            
+            if last_alert:
+                from datetime import timedelta
+                cooldown = timedelta(minutes=rule['cooldown_minutes'])
+                if datetime.utcnow().replace(tzinfo=None) - last_alert.replace(tzinfo=None) < cooldown:
+                    # Throttled
+                    await conn.execute("""
+                        INSERT INTO alert_history (rule_id, channel_id, event_type, event_data, status)
+                        VALUES ($1, $2, $3, $4, 'throttled')
+                    """, rule['id'], rule['channel_id'], event_type, json.dumps(event_data))
+                    continue
+            
+            # Send alert based on channel type
+            success = False
+            error_msg = None
+            
+            if rule['channel_type'] == 'discord':
+                webhook_url = rule['config'].get('webhook_url')
+                if webhook_url:
+                    # Build Discord embed
+                    color = {
+                        'node_offline': 0xFF0000,  # Red
+                        'node_online': 0x00FF00,   # Green
+                        'job_failed': 0xFF6600,    # Orange
+                        'job_success': 0x00FF00,   # Green
+                        'disk_warning': 0xFFFF00,  # Yellow
+                        'vulnerability_critical': 0xFF0000,  # Red
+                    }.get(event_type, 0x0099FF)
+                    
+                    embed = {
+                        "title": f"🔔 {event_type.replace('_', ' ').title()}",
+                        "description": event_data.get('message', str(event_data)),
+                        "color": color,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "footer": {"text": "OpenClaw Inventory"},
+                        "fields": []
+                    }
+                    
+                    # Add fields from event_data
+                    for key, value in event_data.items():
+                        if key != 'message' and value:
+                            embed["fields"].append({
+                                "name": key.replace('_', ' ').title(),
+                                "value": str(value)[:1024],
+                                "inline": True
+                            })
+                    
+                    success = await send_discord_webhook(webhook_url, embed)
+                    if not success:
+                        error_msg = "Webhook request failed"
+            
+            # Log alert
+            await conn.execute("""
+                INSERT INTO alert_history (rule_id, channel_id, event_type, event_data, status, error_message)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            """, rule['id'], rule['channel_id'], event_type, json.dumps(event_data),
+                'sent' if success else 'failed', error_msg)
+
+
+# Alert Channels CRUD
+@app.get("/api/v1/alert-channels")
+async def list_alert_channels(_: str = Depends(verify_api_key)):
+    """List all alert channels."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, name, channel_type, config, enabled, created_at, updated_at
+            FROM alert_channels ORDER BY created_at DESC
+        """)
+        return [dict(r) for r in rows]
+
+@app.post("/api/v1/alert-channels")
+async def create_alert_channel(request: Request, _: str = Depends(verify_api_key)):
+    """Create a new alert channel."""
+    data = await request.json()
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO alert_channels (name, channel_type, config, enabled)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, name, channel_type, config, enabled, created_at
+        """, data['name'], data['channel_type'], json.dumps(data.get('config', {})), 
+            data.get('enabled', True))
+        return dict(row)
+
+@app.delete("/api/v1/alert-channels/{channel_id}")
+async def delete_alert_channel(channel_id: str, _: str = Depends(verify_api_key)):
+    """Delete an alert channel."""
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM alert_channels WHERE id = $1", channel_id)
+        return {"status": "deleted"}
+
+# Alert Rules CRUD
+@app.get("/api/v1/alert-rules")
+async def list_alert_rules(_: str = Depends(verify_api_key)):
+    """List all alert rules."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT r.*, c.name as channel_name
+            FROM alert_rules r
+            LEFT JOIN alert_channels c ON r.channel_id = c.id
+            ORDER BY r.created_at DESC
+        """)
+        return [dict(r) for r in rows]
+
+@app.post("/api/v1/alert-rules")
+async def create_alert_rule(request: Request, _: str = Depends(verify_api_key)):
+    """Create a new alert rule."""
+    data = await request.json()
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO alert_rules (name, event_type, condition, channel_id, cooldown_minutes, enabled)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+        """, data['name'], data['event_type'], json.dumps(data.get('condition', {})),
+            data['channel_id'], data.get('cooldown_minutes', 15), data.get('enabled', True))
+        return dict(row)
+
+@app.delete("/api/v1/alert-rules/{rule_id}")
+async def delete_alert_rule(rule_id: str, _: str = Depends(verify_api_key)):
+    """Delete an alert rule."""
+    async with db_pool.acquire() as conn:
+        await conn.execute("DELETE FROM alert_rules WHERE id = $1", rule_id)
+        return {"status": "deleted"}
+
+# Alert History
+@app.get("/api/v1/alert-history")
+async def list_alert_history(limit: int = 50, _: str = Depends(verify_api_key)):
+    """Get recent alert history."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT h.*, r.name as rule_name, c.name as channel_name
+            FROM alert_history h
+            LEFT JOIN alert_rules r ON h.rule_id = r.id
+            LEFT JOIN alert_channels c ON h.channel_id = c.id
+            ORDER BY h.created_at DESC
+            LIMIT $1
+        """, limit)
+        return [dict(r) for r in rows]
+
+# Test alert endpoint
+@app.post("/api/v1/alert-channels/{channel_id}/test")
+async def test_alert_channel(channel_id: str, _: str = Depends(verify_api_key)):
+    """Send a test alert to a channel."""
+    async with db_pool.acquire() as conn:
+        channel = await conn.fetchrow(
+            "SELECT * FROM alert_channels WHERE id = $1", channel_id)
+        
+        if not channel:
+            raise HTTPException(404, "Channel not found")
+        
+        if channel['channel_type'] == 'discord':
+            webhook_url = channel['config'].get('webhook_url')
+            if webhook_url:
+                embed = {
+                    "title": "🔔 Test Alert",
+                    "description": "This is a test alert from OpenClaw Inventory.",
+                    "color": 0x0099FF,
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "footer": {"text": "OpenClaw Inventory"}
+                }
+                success = await send_discord_webhook(webhook_url, embed)
+                return {"status": "sent" if success else "failed"}
+        
+        return {"status": "unsupported_channel_type"}

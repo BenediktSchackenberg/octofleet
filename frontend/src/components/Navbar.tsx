@@ -99,6 +99,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/users", labelKey: "nav.users", icon: "👥", permission: "users:read", adminOnly: true },
       { href: "/audit", labelKey: "nav.audit", icon: "📜", permission: "audit:read", adminOnly: true },
+      { href: "/alerts", labelKey: "nav.alerts", icon: "🔔" },
       { href: "/settings", labelKey: "nav.settings", icon: "⚙️" },
     ]
   }
