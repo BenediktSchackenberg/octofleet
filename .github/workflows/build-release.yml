@@ -1,0 +1,30 @@
+name: Build Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Publish
+      run: dotnet publish src/OpenClawAgent.Service -c Release -o publish
+    
+    - name: Create ZIP
+      run: Compress-Archive -Path publish/* -DestinationPath OpenClawAgent-${{ github.event.release.tag_name }}.zip
+    
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: OpenClawAgent-${{ github.event.release.tag_name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
