@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 
@@ -10,19 +11,18 @@ namespace OpenClawAgent.Service;
 public class TerminalPoller : BackgroundService
 {
     private readonly ILogger<TerminalPoller> _logger;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly string _nodeId;
+    private readonly HttpClient _httpClient;
 
     public TerminalPoller(
         ILogger<TerminalPoller> logger,
-        IHttpClientFactory httpClientFactory,
         IConfiguration configuration)
     {
         _logger = logger;
-        _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _nodeId = DeviceIdentity.GetNodeId();
+        _httpClient = new HttpClient();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -46,14 +46,13 @@ public class TerminalPoller : BackgroundService
 
     private async Task PollAndExecuteCommands(CancellationToken ct)
     {
-        var client = _httpClientFactory.CreateClient("InventoryApi");
         var apiUrl = _configuration["OpenClaw:ApiUrl"] ?? "http://localhost:8080";
         var apiKey = _configuration["OpenClaw:ApiKey"] ?? "";
 
         var request = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}/api/v1/terminal/pending/{_nodeId}");
         request.Headers.Add("X-API-Key", apiKey);
 
-        var response = await client.SendAsync(request, ct);
+        var response = await _httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode) return;
 
         var json = await response.Content.ReadAsStringAsync(ct);
@@ -127,7 +126,6 @@ public class TerminalPoller : BackgroundService
 
     private async Task SendOutput(string sessionId, string output, CancellationToken ct)
     {
-        var client = _httpClientFactory.CreateClient("InventoryApi");
         var apiUrl = _configuration["OpenClaw:ApiUrl"] ?? "http://localhost:8080";
         var apiKey = _configuration["OpenClaw:ApiKey"] ?? "";
 
@@ -139,7 +137,7 @@ public class TerminalPoller : BackgroundService
             "application/json"
         );
 
-        await client.SendAsync(request, ct);
+        await _httpClient.SendAsync(request, ct);
     }
 
     private class TerminalPendingResponse
