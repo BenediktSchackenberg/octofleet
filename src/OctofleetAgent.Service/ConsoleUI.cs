@@ -12,6 +12,31 @@ public static class ConsoleUI
     private static int _maxLogEntries = 10;
     private static bool _initialized = false;
     private static DateTime _lastStatsRender = DateTime.MinValue;
+    private static bool? _isConsoleAvailable;
+    
+    /// <summary>
+    /// Check if console is available (not running as Windows Service)
+    /// </summary>
+    public static bool IsConsoleAvailable
+    {
+        get
+        {
+            if (_isConsoleAvailable.HasValue)
+                return _isConsoleAvailable.Value;
+            
+            try
+            {
+                // Try to access console - will throw if not available
+                _ = Console.WindowWidth;
+                _isConsoleAvailable = !Console.IsOutputRedirected && Environment.UserInteractive;
+            }
+            catch
+            {
+                _isConsoleAvailable = false;
+            }
+            return _isConsoleAvailable.Value;
+        }
+    }
     
     // Stats
     public static long BytesSent { get; private set; }
@@ -46,7 +71,8 @@ public static class ConsoleUI
         CurrentUser = $"{Environment.UserDomainName}\\{Environment.UserName}";
         _initialized = true;
         
-        RenderFull();
+        if (IsConsoleAvailable)
+            RenderFull();
     }
     
     public static void Log(string level, string message)
@@ -66,8 +92,8 @@ public static class ConsoleUI
         while (_logEntries.Count > _maxLogEntries)
             _logEntries.TryDequeue(out _);
         
-        if (_initialized && ShowLog)
-            RenderLogSection();
+        if (_initialized && ShowLog && IsConsoleAvailable)
+            try { RenderLogSection(); } catch { }
     }
 
     public static void AddBytesSent(long bytes)
@@ -91,32 +117,34 @@ public static class ConsoleUI
     
     private static void TryRenderStats()
     {
+        if (!IsConsoleAvailable) return;
+        
         // Throttle stats rendering to avoid flicker
         if (_initialized && (DateTime.Now - _lastStatsRender).TotalMilliseconds > 500)
         {
             _lastStatsRender = DateTime.Now;
-            RenderStatsSection();
+            try { RenderStatsSection(); } catch { }
         }
     }
 
     public static void SetOperation(string? operation)
     {
         CurrentOperation = operation;
-        if (_initialized)
-            RenderStatusSection();
+        if (_initialized && IsConsoleAvailable)
+            try { RenderStatusSection(); } catch { }
     }
     
     public static void Refresh()
     {
-        if (_initialized)
+        if (_initialized && IsConsoleAvailable)
             RenderFull();
     }
     
     public static void ClearLog()
     {
         while (_logEntries.TryDequeue(out _)) { }
-        if (_initialized && ShowLog)
-            RenderLogSection();
+        if (_initialized && ShowLog && IsConsoleAvailable)
+            try { RenderLogSection(); } catch { }
     }
     
     public static void ToggleLog()
@@ -127,15 +155,21 @@ public static class ConsoleUI
 
     private static void RenderFull()
     {
+        if (!IsConsoleAvailable) return;
+        
         lock (_renderLock)
         {
-            Console.Clear();
-            RenderBanner();
-            RenderStatusSection();
-            RenderStatsSection();
-            if (ShowLog)
-                RenderLogSection();
-            RenderHelpBar();
+            try
+            {
+                Console.Clear();
+                RenderBanner();
+                RenderStatusSection();
+                RenderStatsSection();
+                if (ShowLog)
+                    RenderLogSection();
+                RenderHelpBar();
+            }
+            catch { /* Ignore console errors */ }
         }
     }
 
