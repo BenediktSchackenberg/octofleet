@@ -107,7 +107,7 @@ cd frontend && npm install && npm run dev
 
 **Windows (PowerShell as Admin):**
 ```powershell
-irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/scripts/Install-OpenClawAgent.ps1 | iex
+irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/scripts/Install-OctofleetAgent.ps1 | iex
 ```
 
 **Linux:**
@@ -173,7 +173,7 @@ npm run dev
 
 ### Windows Agent (.NET 8)
 ```bash
-cd src/OpenClawAgent.Service
+cd src/OctofleetAgent.Service
 dotnet build
 dotnet run
 ```

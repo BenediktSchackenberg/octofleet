@@ -35,7 +35,7 @@ export default function TerminalPage() {
   // Helper for API headers
   const getHeaders = (contentType = false): Record<string, string> => {
     const headers: Record<string, string> = {
-      'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || 'openclaw-inventory-dev-key'
+      'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key'
     };
     const token = localStorage.getItem('token');
     if (token) headers['Authorization'] = `Bearer ${token}`;

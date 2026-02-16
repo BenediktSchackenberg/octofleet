@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.VERSION }}"
-          $projectPath = "src\OpenClawAgent.Service\OpenClawAgent.Service.csproj"
+          $projectPath = "src\OctofleetAgent.Service\OctofleetAgent.Service.csproj"
           
           dotnet publish $projectPath `
             -c Release `
@@ -58,18 +58,18 @@ jobs:
       - name: Copy Installer Script
         shell: pwsh
         run: |
-          if (Test-Path "scripts\Install-OpenClawAgent.ps1") {
-            Copy-Item "scripts\Install-OpenClawAgent.ps1" -Destination ./publish/
+          if (Test-Path "scripts\Install-OctofleetAgent.ps1") {
+            Copy-Item "scripts\Install-OctofleetAgent.ps1" -Destination ./publish/
           }
       
       - name: Create ZIP
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.VERSION }}"
-          Compress-Archive -Path "./publish/*" -DestinationPath "./OpenClawAgent-v$version.zip"
-          $hash = (Get-FileHash "./OpenClawAgent-v$version.zip" -Algorithm SHA256).Hash
+          Compress-Archive -Path "./publish/*" -DestinationPath "./OctofleetAgent-v$version.zip"
+          $hash = (Get-FileHash "./OctofleetAgent-v$version.zip" -Algorithm SHA256).Hash
           echo "SHA256=$hash" >> $env:GITHUB_OUTPUT
-          $hash | Out-File "./OpenClawAgent-v$version.sha256" -NoNewline
+          $hash | Out-File "./OctofleetAgent-v$version.sha256" -NoNewline
           Write-Host "SHA256: $hash"
         id: zip
       
@@ -78,16 +78,16 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            ./OpenClawAgent-v${{ steps.version.outputs.VERSION }}.zip
-            ./OpenClawAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
+            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256
           body: |
-            ## OpenClaw Windows Agent v${{ steps.version.outputs.VERSION }}
+            ## Octofleet Windows Agent v${{ steps.version.outputs.VERSION }}
             
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
             
             ### Quick Install
             ```powershell
-            irm https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/Install-OpenClawAgent.ps1 | iex
+            irm https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/Install-OctofleetAgent.ps1 | iex
             ```
             
             ### SHA256
@@ -97,7 +97,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClawAgent-v${{ steps.version.outputs.VERSION }}
+          name: OctofleetAgent-v${{ steps.version.outputs.VERSION }}
           path: |
-            ./OpenClawAgent-v${{ steps.version.outputs.VERSION }}.zip
-            ./OpenClawAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
+            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256

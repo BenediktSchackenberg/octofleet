@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <OutputType>Library</OutputType>
-    <RootNamespace>OpenClawAgent.Installer.CustomActions</RootNamespace>
+    <RootNamespace>OctofleetAgent.Installer.CustomActions</RootNamespace>
     <AssemblyName>CustomActions</AssemblyName>
     <LangVersion>9.0</LangVersion>
     <Nullable>disable</Nullable>

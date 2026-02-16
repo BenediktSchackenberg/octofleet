@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2, Sparkles, Eye } from "lucide-react";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface Condition {
   id: string;

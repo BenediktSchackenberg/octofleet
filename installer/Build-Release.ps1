@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    Build and package the OpenClaw Agent Service for release
+    Build and package the Octofleet Agent Service for release
 
 .DESCRIPTION
     Builds the service in Release mode and creates a ZIP for distribution.
 
 .EXAMPLE
     .\Build-Release.ps1
-    Creates: OpenClawAgent.Service.zip
+    Creates: OctofleetAgent.Service.zip
 
 .EXAMPLE
     .\Build-Release.ps1 -Version "0.3.0" -CreateGitHubRelease
@@ -26,12 +26,12 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$serviceProject = Join-Path $repoRoot "src\OpenClawAgent.Service\OpenClawAgent.Service.csproj"
+$serviceProject = Join-Path $repoRoot "src\OctofleetAgent.Service\OctofleetAgent.Service.csproj"
 $publishDir = Join-Path $repoRoot "publish"
-$outputZip = Join-Path $repoRoot "OpenClawAgent.Service.zip"
+$outputZip = Join-Path $repoRoot "OctofleetAgent.Service.zip"
 
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  OpenClaw Agent - Release Builder" -ForegroundColor Cyan
+Write-Host "  Octofleet Agent - Release Builder" -ForegroundColor Cyan
 Write-Host "  Version: $Version" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
@@ -66,10 +66,10 @@ if ($CreateGitHubRelease) {
         Write-Host "  Skipping GitHub release creation." -ForegroundColor Yellow
     } else {
         $tagName = "v$Version"
-        $releaseName = "OpenClaw Agent v$Version"
+        $releaseName = "Octofleet Agent v$Version"
         
         # Create release and upload asset
-        gh release create $tagName $outputZip --title $releaseName --notes "OpenClaw Node Agent v$Version`n`nDownload and run the installer script for automatic installation."
+        gh release create $tagName $outputZip --title $releaseName --notes "Octofleet Node Agent v$Version`n`nDownload and run the installer script for automatic installation."
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  GitHub Release created: $tagName" -ForegroundColor Green

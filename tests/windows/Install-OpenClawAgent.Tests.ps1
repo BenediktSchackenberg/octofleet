@@ -2,14 +2,14 @@
 
 <#
 .SYNOPSIS
-    Pester tests for Install-OpenClawAgent.ps1 installer script.
+    Pester tests for Install-OctofleetAgent.ps1 installer script.
 .DESCRIPTION
     Tests the installer script logic, parameter handling, and basic functionality.
     Does NOT test actual installation (requires elevated permissions and real system).
 #>
 
 BeforeAll {
-    $InstallerPath = Join-Path $PSScriptRoot "..\..\installer\Install-OpenClawAgent.ps1"
+    $InstallerPath = Join-Path $PSScriptRoot "..\..\installer\Install-OctofleetAgent.ps1"
     
     # Mock functions for testing without side effects
     function Get-InstallerContent {
@@ -17,7 +17,7 @@ BeforeAll {
     }
 }
 
-Describe "Install-OpenClawAgent.ps1 Script Validation" {
+Describe "Install-OctofleetAgent.ps1 Script Validation" {
     
     Context "Script Structure" {
         It "Script file exists" {
@@ -56,7 +56,7 @@ Describe "Install-OpenClawAgent.ps1 Script Validation" {
         
         It "Has InstallDir variable with default" {
             $content = Get-InstallerContent
-            $content | Should -Match '\$InstallDir.*=.*"C:\\Program Files\\OpenClaw'
+            $content | Should -Match '\$InstallDir.*=.*"C:\\Program Files\\Octofleet'
         }
         
         It "Has Force switch parameter" {

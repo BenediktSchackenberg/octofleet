@@ -1,5 +1,5 @@
 # Build-Release.ps1
-# Builds and packages the OpenClaw Windows Agent for release
+# Builds and packages the Octofleet Windows Agent for release
 param(
     [Parameter(Mandatory=$true)]
     [string]$Version,
@@ -12,13 +12,13 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Find solution/project
-$projectPath = "$PSScriptRoot\..\src\OpenClawAgent.Service\OpenClawAgent.Service.csproj"
+$projectPath = "$PSScriptRoot\..\src\OctofleetAgent.Service\OctofleetAgent.Service.csproj"
 if (-not (Test-Path $projectPath)) {
     Write-Error "Project not found: $projectPath"
     exit 1
 }
 
-Write-Host "Building OpenClaw Windows Agent v$Version..." -ForegroundColor Cyan
+Write-Host "Building Octofleet Windows Agent v$Version..." -ForegroundColor Cyan
 
 # Clean output
 if (Test-Path $OutputPath) {
@@ -28,7 +28,7 @@ New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 
 # Build paths
 $publishPath = "$OutputPath\publish"
-$zipPath = "$OutputPath\OpenClawAgent-v$Version.zip"
+$zipPath = "$OutputPath\OctofleetAgent-v$Version.zip"
 
 # Publish (self-contained, single file)
 Write-Host "Publishing..." -ForegroundColor Yellow
@@ -49,7 +49,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Copy installer script
-$installerSrc = "$PSScriptRoot\Install-OpenClawAgent.ps1"
+$installerSrc = "$PSScriptRoot\Install-OctofleetAgent.ps1"
 if (Test-Path $installerSrc) {
     Copy-Item $installerSrc -Destination $publishPath
 }
@@ -63,7 +63,7 @@ $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash
 Write-Host "SHA256: $hash" -ForegroundColor Green
 
 # Save hash to file
-$hash | Out-File "$OutputPath\OpenClawAgent-v$Version.sha256" -NoNewline
+$hash | Out-File "$OutputPath\OctofleetAgent-v$Version.sha256" -NoNewline
 
 Write-Host "`nBuild complete!" -ForegroundColor Green
 Write-Host "  ZIP: $zipPath"
@@ -82,13 +82,13 @@ if ($CreateRelease) {
     
     # Create release
     $releaseNotes = @"
-## OpenClaw Windows Agent v$Version
+## Octofleet Windows Agent v$Version
 
-See [CHANGELOG.md](https://github.com/BenediktSchackenberg/openclaw-windows-agent/blob/main/CHANGELOG.md) for details.
+See [CHANGELOG.md](https://github.com/BenediktSchackenberg/octofleet-windows-agent/blob/main/CHANGELOG.md) for details.
 
 ### Installation
 ``````powershell
-irm https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v$Version/Install-OpenClawAgent.ps1 | iex
+irm https://github.com/BenediktSchackenberg/octofleet-windows-agent/releases/download/v$Version/Install-OctofleetAgent.ps1 | iex
 ``````
 
 ### SHA256

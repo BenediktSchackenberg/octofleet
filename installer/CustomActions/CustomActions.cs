@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using WixToolset.Dtf.WindowsInstaller;
 
-namespace OpenClawAgent.Installer.CustomActions
+namespace OctofleetAgent.Installer.CustomActions
 {
     public class CustomActions
     {
@@ -23,7 +23,7 @@ namespace OpenClawAgent.Installer.CustomActions
                 var gatewayToken = customData.ContainsKey("GATEWAY_TOKEN") ? customData["GATEWAY_TOKEN"] : "";
                 var inventoryUrl = customData.ContainsKey("INVENTORY_URL") ? customData["INVENTORY_URL"] : "";
                 var displayName = customData.ContainsKey("DISPLAY_NAME") ? customData["DISPLAY_NAME"] : "";
-                var configDir = customData.ContainsKey("CONFIGDIR") ? customData["CONFIGDIR"] : @"C:\ProgramData\OpenClaw";
+                var configDir = customData.ContainsKey("CONFIGDIR") ? customData["CONFIGDIR"] : @"C:\ProgramData\Octofleet";
 
                 // Skip if no gateway URL provided
                 if (string.IsNullOrWhiteSpace(gatewayUrl))

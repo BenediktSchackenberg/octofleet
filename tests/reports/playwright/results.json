@@ -1,10 +1,10 @@
 {
   "config": {
-    "configFile": "/home/benedikt/.openclaw/workspace/openclaw-windows-agent/tests/e2e/playwright.config.ts",
-    "rootDir": "/home/benedikt/.openclaw/workspace/openclaw-windows-agent/tests/e2e/specs",
+    "configFile": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/playwright.config.ts",
+    "rootDir": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/specs",
     "forbidOnly": false,
     "fullyParallel": false,
-    "globalSetup": "/home/benedikt/.openclaw/workspace/openclaw-windows-agent/tests/e2e/global-setup.ts",
+    "globalSetup": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/global-setup.ts",
     "globalTeardown": null,
     "globalTimeout": 0,
     "grep": {},
@@ -16,7 +16,7 @@
     "preserveOutput": "always",
     "projects": [
       {
-        "outputDir": "/home/benedikt/.openclaw/workspace/openclaw-windows-agent/tests/e2e/test-results",
+        "outputDir": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -24,7 +24,7 @@
         },
         "id": "chromium",
         "name": "chromium",
-        "testDir": "/home/benedikt/.openclaw/workspace/openclaw-windows-agent/tests/e2e/specs",
+        "testDir": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/specs",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"

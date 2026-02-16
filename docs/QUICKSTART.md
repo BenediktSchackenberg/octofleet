@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get OpenClaw Inventory running in under 5 minutes!
+Get Octofleet Inventory running in under 5 minutes!
 
 ## Option 1: Docker Compose (Recommended)
 
@@ -8,8 +8,8 @@ The fastest way to get started:
 
 ```bash
 # Clone the repository
-git clone https://github.com/BenediktSchackenberg/openclaw-windows-agent.git
-cd openclaw-windows-agent
+git clone https://github.com/BenediktSchackenberg/octofleet-windows-agent.git
+cd octofleet-windows-agent
 
 # Copy and edit environment variables
 cp .env.example .env
@@ -32,7 +32,7 @@ Open http://localhost:3000 - Default login: `admin` / `admin`
 - PostgreSQL 16 with TimescaleDB
 - Python 3.12+
 - Node.js 20+
-- OpenClaw Gateway
+- Octofleet Gateway
 
 ### Step 1: Database
 
@@ -51,14 +51,14 @@ sudo systemctl restart postgresql
 
 # Create database
 sudo -u postgres psql << EOF
-CREATE USER openclaw WITH PASSWORD 'your-password';
-CREATE DATABASE inventory OWNER openclaw;
+CREATE USER octofleet WITH PASSWORD 'your-password';
+CREATE DATABASE inventory OWNER octofleet;
 \c inventory
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 EOF
 
 # Apply schema
-psql -U openclaw -d inventory -f backend/schema.sql
+psql -U octofleet -d inventory -f backend/schema.sql
 ```
 
 ### Step 2: Backend
@@ -69,7 +69,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-export DATABASE_URL="postgresql://openclaw:your-password@localhost:5432/inventory"
+export DATABASE_URL="postgresql://octofleet:your-password@localhost:5432/inventory"
 export JWT_SECRET="$(openssl rand -base64 32)"
 export API_KEY="your-api-key"
 
@@ -85,12 +85,12 @@ npm run build
 npm start
 ```
 
-### Step 4: OpenClaw Gateway
+### Step 4: Octofleet Gateway
 
 ```bash
-npm install -g openclaw
-openclaw init
-openclaw gateway start
+npm install -g octofleet
+octofleet init
+octofleet gateway start
 ```
 
 ## Installing Agents
@@ -100,14 +100,14 @@ openclaw gateway start
 Run as Administrator:
 
 ```powershell
-irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1
+irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet-windows-agent/main/installer/Install-OctofleetAgent.ps1 -OutFile Install.ps1
 .\Install.ps1 -GatewayUrl "http://YOUR-SERVER:18789" -GatewayToken "your-token"
 ```
 
 ### Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/linux-agent/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet-windows-agent/main/linux-agent/install.sh | \
   sudo bash -s -- --api-url http://YOUR-SERVER:8080 --api-key YOUR-API-KEY
 ```
 
@@ -123,13 +123,13 @@ curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windo
 ### Agent won't connect
 
 - Check firewall: ports 8080, 3000, 18789 must be open
-- Verify Gateway is running: `openclaw status`
-- Check agent logs: `journalctl -u openclaw-agent` (Linux) or Event Viewer (Windows)
+- Verify Gateway is running: `octofleet status`
+- Check agent logs: `journalctl -u octofleet-agent` (Linux) or Event Viewer (Windows)
 
 ### Database errors
 
 - Ensure TimescaleDB extension is enabled: `\dx` in psql should show `timescaledb`
-- Check connection: `psql -U openclaw -d inventory -c "SELECT 1"`
+- Check connection: `psql -U octofleet -d inventory -c "SELECT 1"`
 
 ### Frontend shows "Unauthorized"
 

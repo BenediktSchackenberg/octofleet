@@ -1,4 +1,4 @@
-# Contributing to OpenClaw Inventory Platform
+# Contributing to Octofleet Inventory Platform
 
 Thank you for your interest in contributing! 🎉
 
@@ -23,8 +23,8 @@ Thank you for your interest in contributing! 🎉
 ### Quick Setup
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/openclaw-windows-agent.git
-cd openclaw-windows-agent
+git clone https://github.com/YOUR_USERNAME/octofleet-windows-agent.git
+cd octofleet-windows-agent
 
 # Backend
 cd backend
@@ -119,7 +119,7 @@ Use GitHub Issues with:
 
 ## 💬 Questions?
 
-- Open a [Discussion](https://github.com/BenediktSchackenberg/openclaw-windows-agent/discussions)
+- Open a [Discussion](https://github.com/BenediktSchackenberg/octofleet-windows-agent/discussions)
 - Check existing issues first
 
 ## 📜 License
@@ -128,4 +128,4 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ---
 
-Thank you for making OpenClaw better! 🙏
+Thank you for making Octofleet better! 🙏

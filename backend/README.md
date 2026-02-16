@@ -1,4 +1,4 @@
-# OpenClaw Inventory Backend
+# Octofleet Backend
 
 FastAPI server that receives and stores inventory data from Windows Agents.
 
@@ -19,8 +19,8 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 ## Configuration
 
 Environment variables:
-- `DATABASE_URL` - PostgreSQL connection string (default: `postgresql://openclaw:openclaw_inventory_2026@127.0.0.1:5432/inventory`)
-- `INVENTORY_API_KEY` - API key for authentication (default: `openclaw-inventory-dev-key`)
+- `DATABASE_URL` - PostgreSQL connection string (default: `postgresql://octofleet:octofleet_2026@127.0.0.1:5432/inventory`)
+- `INVENTORY_API_KEY` - API key for authentication (default: `octofleet-dev-key`)
 
 ## API Endpoints
 
@@ -44,7 +44,7 @@ All POST endpoints require `X-API-Key` header.
 ```bash
 curl -X POST http://localhost:8080/api/v1/inventory/hardware \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: openclaw-inventory-dev-key" \
+  -H "X-API-Key: octofleet-dev-key" \
   -d '{
     "nodeId": "my-pc",
     "hostname": "DESKTOP-ABC",

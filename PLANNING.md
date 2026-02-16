@@ -1,4 +1,4 @@
-# OpenClaw Inventory System — Planungsdokument
+# Octofleet System — Planungsdokument
 
 > ⚠️ **STATUS: PLANNING** — Dieses Dokument beschreibt das Zielbild für das Inventory-System.
 
@@ -29,7 +29,7 @@ Ein zentrales Inventar-System für **1000+ Windows Nodes** mit:
 │   │                     LINUX SERVER (Gateway Host)                       │ │
 │   │                                                                       │ │
 │   │  ┌─────────────────┐                                                  │ │
-│   │  │  OpenClaw       │◄─── Du chattest hier (Discord/Telegram/etc)     │ │
+│   │  │  Octofleet       │◄─── Du chattest hier (Discord/Telegram/etc)     │ │
 │   │  │  Gateway        │                                                  │ │
 │   │  │  :18789         │                                                  │ │
 │   │  └────────┬────────┘                                                  │ │
@@ -409,7 +409,7 @@ SELECT add_compression_policy('node_metrics', INTERVAL '1 day');
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ 🦀 OpenClaw Inventory                          🔍 Search...    👤 Admin  ⚙️ │
+│ 🦀 Octofleet                          🔍 Search...    👤 Admin  ⚙️ │
 ├────────────┬─────────────────────────────────────────────────────────────────┤
 │            │                                                                  │
 │ 📊 Dashbo  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌───────────┐ │
@@ -444,7 +444,7 @@ SELECT add_compression_policy('node_metrics', INTERVAL '1 day');
 ### Tägliche Inventur (03:00 Uhr)
 
 ```
-1. OpenClaw Cron Job triggert
+1. Octofleet Cron Job triggert
    │
 2. Für jeden Online Node:
    │  ├── nodes invoke inventory.full
@@ -522,7 +522,7 @@ User klickt "Refresh" im Dashboard
 - [ ] DB Models (SQLAlchemy)
 - [ ] Collector Logic (Parse + Store + Diff)
 - [ ] REST API Endpoints
-- [ ] OpenClaw Integration (Cron Job)
+- [ ] Octofleet Integration (Cron Job)
 
 ### Phase 3: Frontend MVP (5-7 Tage)
 - [ ] Vue 3 + Vite Setup
@@ -579,4 +579,4 @@ PostgreSQL + TimescaleDB sind relativ effizient, aber bei 1000 Nodes mit Browser
 
 ---
 
-*Teil des [OpenClaw](https://openclaw.ai) Ecosystems* 🦀
+*Teil des [Octofleet](https://octofleet.dev) Ecosystems* 🦀

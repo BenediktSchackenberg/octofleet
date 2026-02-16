@@ -53,7 +53,7 @@
 ## [0.4.23] — 2026-02-14
 
 ### Added
-- **Agent Service Logs**: LiveDataPoller now collects and streams logs from the OpenClaw Agent Windows Event Log
+- **Agent Service Logs**: LiveDataPoller now collects and streams logs from the Octofleet Agent Windows Event Log
 - **Agent Logs Tab**: New "🤖 Agent" tab in Live View showing agent service logs
 - Logs include timestamp, level (Info/Warning/Error), source, and message
 
@@ -96,7 +96,7 @@
 - Live View button (🔴) added to node detail page
 
 
-All notable changes to the OpenClaw Windows Agent.
+All notable changes to the Octofleet Windows Agent.
 
 ## [Unreleased]
 
@@ -185,7 +185,7 @@ All notable changes to the OpenClaw Windows Agent.
   - Hot-reload of config changes
   - Push count tracking
 - **File Logging** — Serilog with daily rolling files
-  - Log path: `C:\ProgramData\OpenClaw\logs\`
+  - Log path: `C:\ProgramData\Octofleet\logs\`
   - 14 days retention, 10 MB max per file
 - **UI Icons** — Segoe Fluent Icons throughout (replacing emojis)
 - **App Icon** — Custom openclaw.ico for EXE and window
@@ -213,7 +213,7 @@ All notable changes to the OpenClaw Windows Agent.
   - Gateway status, Service status, Sessions, Cron Jobs
   - Auto-refresh every 5 seconds
 - **Background mode for system.run** — Start GUI apps without blocking
-- Service config stored in `C:\ProgramData\OpenClaw\service-config.json`
+- Service config stored in `C:\ProgramData\Octofleet\service-config.json`
 
 ### Fixed
 - Node invoke result format (id/nodeId/payload structure)

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Local test runner for OpenClaw Windows Agent.
+    Local test runner for Octofleet Windows Agent.
 .DESCRIPTION
     Runs all Pester tests locally on a Windows machine with the agent installed.
     Useful for testing before CI or when self-hosted runner isn't available.
@@ -26,7 +26,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "OpenClaw Agent Local Test Suite" -ForegroundColor Cyan
+Write-Host "Octofleet Agent Local Test Suite" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 

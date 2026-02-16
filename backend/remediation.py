@@ -1,5 +1,5 @@
 """
-Auto-Remediation Module for OpenClaw Inventory
+Auto-Remediation Module for Octofleet Inventory
 ===============================================
 
 Automatically fixes vulnerabilities by:

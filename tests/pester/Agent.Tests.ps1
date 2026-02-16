@@ -1,16 +1,16 @@
-# Pester Tests for OpenClaw Windows Agent
+# Pester Tests for Octofleet Windows Agent
 # Run with: Invoke-Pester -Path .\Tests\Agent.Tests.ps1 -Output Detailed
 
 BeforeAll {
-    $script:InstallPath = "C:\Program Files\OpenClaw"
-    $script:ServiceName = "OpenClaw Agent"
+    $script:InstallPath = "C:\Program Files\Octofleet"
+    $script:ServiceName = "Octofleet Agent"
     $script:ConfigFile = "service-config.json"
     $script:RepoOwner = "BenediktSchackenberg"
-    $script:RepoName = "openclaw-windows-agent"
-    $script:InstallerUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/Install-OpenClawAgent.ps1"
+    $script:RepoName = "octofleet-windows-agent"
+    $script:InstallerUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/Install-OctofleetAgent.ps1"
 }
 
-Describe "Install-OpenClawAgent.ps1" {
+Describe "Install-OctofleetAgent.ps1" {
     
     Context "Script Download" {
         It "Should download installer script without errors" {
@@ -19,7 +19,7 @@ Describe "Install-OpenClawAgent.ps1" {
         
         It "Should contain required functions" {
             $script = Invoke-RestMethod -Uri $InstallerUrl
-            $script | Should -Match "function Install-OpenClawAgent"
+            $script | Should -Match "function Install-OctofleetAgent"
             $script | Should -Match "function Get-LatestRelease"
         }
         
@@ -135,7 +135,7 @@ Describe "Auto-Update Mechanism" -Tag "Integration" {
     Context "Version Check" -Skip:(-not $AgentInstalled) {
         
         It "Should be able to detect current version" {
-            $exePath = Join-Path $InstallPath "DIOOpenClawAgent.Service.exe"
+            $exePath = Join-Path $InstallPath "DIOOctofleetAgent.Service.exe"
             if (Test-Path $exePath) {
                 $version = (Get-Item $exePath).VersionInfo.ProductVersion
                 $version | Should -Not -BeNullOrEmpty
@@ -163,7 +163,7 @@ Describe "Auto-Update Mechanism" -Tag "Integration" {
             $zipAsset = $release.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
             
             if ($zipAsset) {
-                $tempFile = Join-Path $env:TEMP "openclaw-test-$([Guid]::NewGuid().ToString('N').Substring(0,8)).zip"
+                $tempFile = Join-Path $env:TEMP "octofleet-test-$([Guid]::NewGuid().ToString('N').Substring(0,8)).zip"
                 try {
                     Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile $tempFile -ErrorAction Stop
                     Test-Path $tempFile | Should -BeTrue
@@ -180,7 +180,7 @@ Describe "Hash Verification" {
     
     Context "SHA256 Checksum" {
         It "Should verify file hash correctly" {
-            $testContent = "Hello OpenClaw"
+            $testContent = "Hello Octofleet"
             $testFile = Join-Path $env:TEMP "hashtest-$([Guid]::NewGuid().ToString('N').Substring(0,8)).txt"
             
             try {

@@ -8,7 +8,7 @@
 
 ## User Story
 
-> Als OpenClaw-Administrator möchte ich neue Endgeräte mit dem OpenClaw Windows Agent maximal einfach onboarden (idealerweise 1 Klick oder 1 Kommando), damit der Agent aus einem zentralen Repository (HTTP Download) installiert wird und sofort mit einer vorkonfigurierten `service-config.json` startet, ohne manuelles Nacharbeiten am Client.
+> Als Octofleet-Administrator möchte ich neue Endgeräte mit dem Octofleet Windows Agent maximal einfach onboarden (idealerweise 1 Klick oder 1 Kommando), damit der Agent aus einem zentralen Repository (HTTP Download) installiert wird und sofort mit einer vorkonfigurierten `service-config.json` startet, ohne manuelles Nacharbeiten am Client.
 
 ---
 
@@ -20,7 +20,7 @@
 - [ ] Download ist integriert — keine manuellen Datei-Suchen
 
 ### B) Vorkonfigurierte Config wird automatisch geschrieben
-- [ ] Gültige UTF-8 `C:\ProgramData\OpenClaw\service-config.json` wird erstellt
+- [ ] Gültige UTF-8 `C:\ProgramData\Octofleet\service-config.json` wird erstellt
 - [ ] Enthält: GatewayUrl, GatewayToken, DisplayName, InventoryApiUrl
 - [ ] Service wird nach Config-Schreiben neu gestartet
 - [ ] Agent verbindet sich automatisch mit Gateway
@@ -48,7 +48,7 @@
 ```
 /repo/windows-agent/
 ├── latest/
-│   ├── openclaw-agent.msi
+│   ├── octofleet-agent.msi
 │   ├── manifest.json
 │   └── config-template.json (optional)
 ├── 1.3.0/
@@ -60,24 +60,24 @@
 ### Manifest Format (`manifest.json`)
 ```json
 {
-  "name": "OpenClawNodeAgent",
+  "name": "OctofleetNodeAgent",
   "version": "1.3.0",
   "releaseDate": "2026-02-10",
   "installer": {
     "type": "msi",
-    "filename": "openclaw-agent.msi",
+    "filename": "octofleet-agent.msi",
     "sha256": "abc123...",
     "size": 15728640,
     "silentArgs": "/qn /norestart"
   },
   "config": {
-    "path": "C:\\ProgramData\\OpenClaw\\service-config.json",
+    "path": "C:\\ProgramData\\Octofleet\\service-config.json",
     "encoding": "utf8",
     "mode": "render-template"
   },
   "service": {
-    "name": "OpenClawNodeAgent",
-    "displayName": "OpenClaw Node Agent",
+    "name": "OctofleetNodeAgent",
+    "displayName": "Octofleet Node Agent",
     "restartAfterInstall": true
   }
 }
@@ -183,7 +183,7 @@ irm https://repo.example.com/install.ps1 | iex -EnrollToken "ENROLL-ABC123"
 ### 1. Start mit Variante 2 (MSI + Parameter)
 Das ist der schnellste Weg zu einer funktionierenden Lösung:
 ```powershell
-msiexec /i \\server\share\openclaw-agent.msi GATEWAY_URL="http://192.168.0.5:18789" GATEWAY_TOKEN="abc123" /qn
+msiexec /i \\server\share\octofleet-agent.msi GATEWAY_URL="http://192.168.0.5:18789" GATEWAY_TOKEN="abc123" /qn
 ```
 - Funktioniert mit SCCM, Intune, GPO, PDQ Deploy
 - Keine Web-Infrastruktur nötig

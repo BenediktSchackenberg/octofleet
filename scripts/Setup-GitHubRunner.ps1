@@ -5,7 +5,7 @@
     Downloads, configures, and installs a GitHub Actions self-hosted runner
     as a Windows service for running integration tests.
 .PARAMETER RepoUrl
-    GitHub repository URL (e.g., https://github.com/BenediktSchackenberg/openclaw-windows-agent)
+    GitHub repository URL (e.g., https://github.com/BenediktSchackenberg/octofleet-windows-agent)
 .PARAMETER Token
     Runner registration token from GitHub (Settings > Actions > Runners > New self-hosted runner)
 .PARAMETER RunnerName
@@ -13,10 +13,10 @@
 .PARAMETER Labels
     Comma-separated labels for the runner (default: Windows,X64,self-hosted)
 .EXAMPLE
-    .\Setup-GitHubRunner.ps1 -RepoUrl "https://github.com/BenediktSchackenberg/openclaw-windows-agent" -Token "AXXXX..."
+    .\Setup-GitHubRunner.ps1 -RepoUrl "https://github.com/BenediktSchackenberg/octofleet-windows-agent" -Token "AXXXX..."
 .NOTES
     Requires: Administrator privileges, PowerShell 5.1+
-    Get your token from: https://github.com/BenediktSchackenberg/openclaw-windows-agent/settings/actions/runners/new
+    Get your token from: https://github.com/BenediktSchackenberg/octofleet-windows-agent/settings/actions/runners/new
 #>
 
 [CmdletBinding()]

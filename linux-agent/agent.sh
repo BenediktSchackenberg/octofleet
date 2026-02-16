@@ -16,12 +16,12 @@ fi
 
 # Defaults
 API_URL="${API_URL:-http://localhost:8080}"
-API_KEY="${API_KEY:-openclaw-inventory-dev-key}"
+API_KEY="${API_KEY:-octofleet-inventory-dev-key}"
 NODE_ID="${NODE_ID:-$(hostname)}"
 PUSH_INTERVAL="${PUSH_INTERVAL:-1800}"
 JOB_POLL_INTERVAL="${JOB_POLL_INTERVAL:-60}"
 LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
-LOG_FILE="${LOG_FILE:-/var/log/openclaw-agent.log}"
+LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
 
 # Network stats cache for rate calculation
 declare -A LAST_RX_BYTES
@@ -386,11 +386,11 @@ collect_agent_logs() {
     local logs="[]"
     
     if command -v journalctl &>/dev/null; then
-        logs=$(journalctl -u openclaw-agent --no-pager -n 20 --output=json 2>/dev/null | \
+        logs=$(journalctl -u octofleet-agent --no-pager -n 20 --output=json 2>/dev/null | \
             jq -s '[.[] | {
                 timestamp: (.__REALTIME_TIMESTAMP | tonumber / 1000000 | strftime("%Y-%m-%dT%H:%M:%SZ")),
                 level: (if .PRIORITY == "3" then "Error" elif .PRIORITY == "4" then "Warning" else "Information" end),
-                source: "openclaw-agent",
+                source: "octofleet-agent",
                 message: .MESSAGE[0:500]
             }]' 2>/dev/null || echo '[]')
     elif [[ -f "$LOG_FILE" ]]; then
@@ -398,7 +398,7 @@ collect_agent_logs() {
             jq -R -s 'split("\n") | map(select(. != "") | {
                 timestamp: (capture("^\\[(?<ts>[^\\]]+)\\]") | .ts // ""),
                 level: (capture("\\[(?<lvl>INFO|WARN|ERROR)\\]") | .lvl // "INFO"),
-                source: "openclaw-agent",
+                source: "octofleet-agent",
                 message: .
             })' 2>/dev/null || echo '[]')
     fi
@@ -826,7 +826,7 @@ detect_screen_capture_tool() {
 }
 
 capture_screenshot() {
-    local output_file="/tmp/openclaw-screen-${NODE_ID}.jpg"
+    local output_file="/tmp/octofleet-screen-${NODE_ID}.jpg"
     local quality="${1:-50}"
     
     case "$SCREEN_CAPTURE_TOOL" in
@@ -1008,7 +1008,7 @@ case "${1:-service}" in
         run_service
         ;;
     version)
-        echo "OpenClaw Linux Agent v$VERSION"
+        echo "Octofleet Linux Agent v$VERSION"
         ;;
     *)
         echo "Usage: $0 {push|poll|collect|service|version}"

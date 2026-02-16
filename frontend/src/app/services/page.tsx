@@ -24,7 +24,7 @@ interface Service {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'openclaw-inventory-dev-key';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 const statusColors: Record<string, string> = {
   provisioning: 'bg-yellow-100 text-yellow-800',

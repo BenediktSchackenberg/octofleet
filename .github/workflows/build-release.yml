@@ -20,12 +20,12 @@ jobs:
         dotnet-version: '8.0.x'
     
     - name: Publish
-      run: dotnet publish src/OpenClawAgent.Service -c Release -o publish
+      run: dotnet publish src/OctofleetAgent.Service -c Release -o publish
     
     - name: Create ZIP
-      run: Compress-Archive -Path publish/* -DestinationPath OpenClawAgent-${{ github.event.release.tag_name }}.zip
+      run: Compress-Archive -Path publish/* -DestinationPath OctofleetAgent-${{ github.event.release.tag_name }}.zip
     
     - name: Upload to Release
       uses: softprops/action-gh-release@v2
       with:
-        files: OpenClawAgent-${{ github.event.release.tag_name }}.zip
+        files: OctofleetAgent-${{ github.event.release.tag_name }}.zip

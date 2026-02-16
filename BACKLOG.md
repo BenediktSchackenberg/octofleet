@@ -7,7 +7,7 @@ Ideen und Features die noch nicht in einem Sprint geplant sind.
 ### Agent/Service
 - [ ] **Auto-Reconnect** — Service reconnected automatisch bei Gateway-Neustart
 - [ ] **Health Endpoint** — Lokaler HTTP-Endpoint für Service-Status
-- [ ] **Logging to File** — Service schreibt Logs nach `C:\ProgramData\OpenClaw\logs\`
+- [ ] **Logging to File** — Service schreibt Logs nach `C:\ProgramData\Octofleet\logs\`
 - [ ] **Config Hot-Reload** — Service lädt Config neu ohne Neustart
 
 ### Inventory System
@@ -52,7 +52,7 @@ Ideen und Features die noch nicht in einem Sprint geplant sind.
 - [ ] **Multi-Gateway** — Ein Agent, mehrere Gateways
 - [ ] **Plugin System** — Custom Collectors
 - [ ] **Remote Desktop** — VNC/RDP Integration
-- [ ] **Ansible Integration** — Playbooks über OpenClaw ausführen
+- [ ] **Ansible Integration** — Playbooks über Octofleet ausführen
 
 ## ❌ Won't Do (Out of Scope)
 

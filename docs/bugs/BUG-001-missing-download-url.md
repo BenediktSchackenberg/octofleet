@@ -11,7 +11,7 @@ Package installation jobs fail with cryptic error when `download_url` is not set
 - Exit code: `-1`
 - Error message:
 ```
-An error occurred trying to start process 'echo' with working directory 'C:\Program Files\OpenClaw'. 
+An error occurred trying to start process 'echo' with working directory 'C:\Program Files\Octofleet'. 
 Das System kann die angegebene Datei nicht finden.
 ```
 

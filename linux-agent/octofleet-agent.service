@@ -1,0 +1,27 @@
+[Unit]
+Description=Octofleet Linux Agent
+Documentation=https://github.com/BenediktSchackenberg/octofleet-windows-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/octofleet-agent/agent.sh service
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=octofleet-agent
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/var/log /opt/octofleet-agent
+
+# Environment
+EnvironmentFile=-/opt/octofleet-agent/config.env
+
+[Install]
+WantedBy=multi-user.target

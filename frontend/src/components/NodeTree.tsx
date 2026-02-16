@@ -39,7 +39,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
       const res = await fetch(`${apiUrl}/api/v1/nodes/tree`, {
-        headers: { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key" }
+        headers: { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" }
       });
       if (res.ok) {
         const data = await res.json();

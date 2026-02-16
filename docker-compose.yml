@@ -1,4 +1,4 @@
-# OpenClaw Inventory Platform - Docker Compose
+# Octofleet Platform - Docker Compose
 # ⚠️ BETA - For development/testing. Not recommended for production yet.
 #
 # Usage:
@@ -13,10 +13,10 @@ services:
   # PostgreSQL with TimescaleDB for inventory storage
   db:
     image: timescale/timescaledb:latest-pg16
-    container_name: openclaw-inventory-db
+    container_name: octofleet-inventory-db
     environment:
-      POSTGRES_USER: openclaw
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-openclaw-secret-change-me}
+      POSTGRES_USER: octofleet
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-octofleet-secret-change-me}
       POSTGRES_DB: inventory
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -24,7 +24,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openclaw -d inventory"]
+      test: ["CMD-SHELL", "pg_isready -U octofleet -d inventory"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,9 +35,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: openclaw-inventory-api
+    container_name: octofleet-inventory-api
     environment:
-      DATABASE_URL: postgresql://openclaw:${DB_PASSWORD:-openclaw-secret-change-me}@db:5432/inventory
+      DATABASE_URL: postgresql://octofleet:${DB_PASSWORD:-octofleet-secret-change-me}@db:5432/inventory
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-please}
       API_KEY: ${API_KEY:-your-api-key-here}
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
@@ -58,7 +58,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: openclaw-inventory-ui
+    container_name: octofleet-inventory-ui
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
       # For Docker internal communication:
@@ -75,4 +75,4 @@ volumes:
 
 networks:
   default:
-    name: openclaw-inventory
+    name: octofleet-inventory

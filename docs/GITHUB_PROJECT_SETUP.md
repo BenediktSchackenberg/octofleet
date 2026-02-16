@@ -2,11 +2,11 @@
 
 ## 1. Project erstellen (30 Sekunden)
 
-1. Geh zu: https://github.com/BenediktSchackenberg/openclaw-windows-agent
+1. Geh zu: https://github.com/BenediktSchackenberg/octofleet-windows-agent
 2. Klick **Projects** Tab
 3. Klick **Link a project** → **New project**
 4. Template: **Board** wählen
-5. Name: `OpenClaw Windows Agent`
+5. Name: `Octofleet Windows Agent`
 6. Klick **Create project**
 
 ## 2. Spalten einrichten (30 Sekunden)

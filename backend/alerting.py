@@ -184,7 +184,7 @@ class AlertManager:
             "description": message,
             "color": colors.get(severity, 0x808080),
             "timestamp": datetime.utcnow().isoformat(),
-            "footer": {"text": "OpenClaw Inventory"},
+            "footer": {"text": "Octofleet Inventory"},
             "fields": []
         }
         

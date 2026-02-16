@@ -1,6 +1,6 @@
 # VISION.md — Endpoint Management Platform
 
-## Projektname: OpenClaw Endpoint Manager (OEM)
+## Projektname: Octofleet Endpoint Manager
 
 Eine zentrale, webbasierte Endpoint-Management-Plattform für Windows und Linux.
 

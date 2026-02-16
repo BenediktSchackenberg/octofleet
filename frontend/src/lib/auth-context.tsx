@@ -172,16 +172,16 @@ export function useAuth() {
 
 // Helper to get auth header for API calls
 export function getAuthHeader(): Record<string, string> {
-  if (typeof window === "undefined") return { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key" };
+  if (typeof window === "undefined") return { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" };
   
   const token = localStorage.getItem("token");
   if (token) {
     // Send both headers for maximum compatibility
     return { 
       "Authorization": `Bearer ${token}`,
-      "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key"
+      "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key"
     };
   }
   // Fallback to API key if no token
-  return { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key" };
+  return { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" };
 }

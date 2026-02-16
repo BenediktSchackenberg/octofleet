@@ -4,13 +4,13 @@ on:
   push:
     paths:
       - 'src/**'
-      - 'Install-OpenClawAgent.ps1'
+      - 'Install-OctofleetAgent.ps1'
       - 'tests/pester/**'
       - '.github/workflows/windows-tests.yml'
   pull_request:
     paths:
       - 'src/**'
-      - 'Install-OpenClawAgent.ps1'
+      - 'Install-OctofleetAgent.ps1'
   workflow_dispatch:
 
 jobs:
@@ -79,9 +79,9 @@ jobs:
       - name: Check Installer Script
         shell: pwsh
         run: |
-          if (Test-Path "./Install-OpenClawAgent.ps1") {
-            Write-Host "Checking Install-OpenClawAgent.ps1..."
-            $content = Get-Content "./Install-OpenClawAgent.ps1" -Raw
+          if (Test-Path "./Install-OctofleetAgent.ps1") {
+            Write-Host "Checking Install-OctofleetAgent.ps1..."
+            $content = Get-Content "./Install-OctofleetAgent.ps1" -Raw
             
             # Check for required elements
             $checks = @(
@@ -99,5 +99,5 @@ jobs:
               }
             }
           } else {
-            Write-Host "Install-OpenClawAgent.ps1 not found in repo root" -ForegroundColor Yellow
+            Write-Host "Install-OctofleetAgent.ps1 not found in repo root" -ForegroundColor Yellow
           }

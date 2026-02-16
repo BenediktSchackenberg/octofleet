@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Integration tests for OpenClaw Windows Agent self-update functionality.
+    Integration tests for Octofleet Windows Agent self-update functionality.
 .DESCRIPTION
     Tests that run on a real Windows system with the agent installed.
     Requires: Agent installed, network access to API.
@@ -12,12 +12,12 @@
 
 param(
     [string]$ApiUrl = "http://localhost:8080",
-    [string]$InstallPath = "C:\Program Files\OpenClaw"
+    [string]$InstallPath = "C:\Program Files\Octofleet"
 )
 
 BeforeAll {
-    $ServiceName = "DIOOpenClawAgent"
-    $ExePath = Join-Path $InstallPath "DIOOpenClawAgent.Service.exe"
+    $ServiceName = "DIOOctofleetAgent"
+    $ExePath = Join-Path $InstallPath "DIOOctofleetAgent.Service.exe"
     
     function Get-AgentVersion {
         if (Test-Path $ExePath) {

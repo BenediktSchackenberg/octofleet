@@ -9,7 +9,7 @@ API_URL = os.getenv("API_URL", "http://localhost:8080")
 
 ADMIN_USER = {
     "username": "admin",
-    "password": "OpenClaw2026!",
+    "password": "Octofleet2026!",
     "email": "admin@test.local",
     "display_name": "Test Admin"
 }

@@ -5,13 +5,13 @@ services:
   db:
     image: timescale/timescaledb:latest-pg16
     environment:
-      POSTGRES_USER: openclaw
+      POSTGRES_USER: octofleet
       POSTGRES_PASSWORD: ci-test-password
       POSTGRES_DB: inventory
     volumes:
       - ./backend/schema-full.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openclaw -d inventory"]
+      test: ["CMD-SHELL", "pg_isready -U octofleet -d inventory"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -22,7 +22,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql://openclaw:ci-test-password@db:5432/inventory
+      DATABASE_URL: postgresql://octofleet:ci-test-password@db:5432/inventory
       JWT_SECRET: ci-test-jwt-secret-not-for-production
       API_KEY: ci-test-api-key
       INVENTORY_API_KEY: ci-test-api-key
@@ -60,4 +60,4 @@ services:
 
 networks:
   default:
-    name: openclaw-ci
+    name: octofleet-ci

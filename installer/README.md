@@ -1,6 +1,6 @@
-# OpenClaw Agent Installer
+# Octofleet Agent Installer
 
-Zero-Touch / One-Click installation for the OpenClaw Node Agent.
+Zero-Touch / One-Click installation for the Octofleet Agent.
 
 ## Quick Start (PowerShell)
 
@@ -25,7 +25,7 @@ msiexec /i openclaw-agent.msi GATEWAY_URL="http://192.168.0.5:18789" GATEWAY_TOK
 **All MSI parameters:**
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `GATEWAY_URL` | Yes | OpenClaw Gateway URL |
+| `GATEWAY_URL` | Yes | Octofleet Gateway URL |
 | `GATEWAY_TOKEN` | Yes | Authentication token |
 | `INVENTORY_URL` | No | Inventory API URL (default: Gateway host:8080) |
 | `DISPLAY_NAME` | No | Node display name (default: hostname) |
@@ -71,15 +71,15 @@ Use the PowerShell script or MSI with parameters.
 
 | Path | Description |
 |------|-------------|
-| `C:\Program Files\OpenClaw\Agent\` | Service binaries |
-| `C:\ProgramData\OpenClaw\service-config.json` | Configuration |
-| `C:\ProgramData\OpenClaw\logs\` | Log files |
+| `C:\Program Files\Octofleet\Agent\` | Service binaries |
+| `C:\ProgramData\Octofleet\service-config.json` | Configuration |
+| `C:\ProgramData\Octofleet\logs\` | Log files |
 
 ## Troubleshooting
 
 **Service not starting:**
 ```powershell
-Get-Content "C:\ProgramData\OpenClaw\logs\*.log" -Tail 50
+Get-Content "C:\ProgramData\Octofleet\logs\*.log" -Tail 50
 ```
 
 **Config not written:**

@@ -1,5 +1,5 @@
 #!/bin/bash
-# OpenClaw Inventory - Full Test Suite Runner
+# Octofleet - Full Test Suite Runner
 # Runs both E2E (Playwright) and API (pytest) tests
 
 set -e
@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║        OpenClaw Inventory - Full Test Suite                 ║"
+echo "║        Octofleet - Full Test Suite                 ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 

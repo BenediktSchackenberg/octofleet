@@ -1,4 +1,4 @@
--- OpenClaw Inventory Platform - Full Database Schema
+-- Octofleet Platform - Full Database Schema
 -- Extracted from production: 2026-02-14T13:58:45+00:00
 -- Excludes TimescaleDB internal schemas and psql meta-commands
 

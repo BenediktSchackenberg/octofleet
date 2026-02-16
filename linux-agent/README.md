@@ -1,6 +1,6 @@
-# OpenClaw Linux Agent
+# Octofleet Linux Agent
 
-Lightweight bash-based agent for Linux systems. Collects inventory and pushes to the OpenClaw Inventory API.
+Lightweight bash-based agent for Linux systems. Collects inventory and pushes to the Octofleet API.
 
 ## Features
 

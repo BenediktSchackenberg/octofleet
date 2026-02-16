@@ -12,7 +12,7 @@ import { Breadcrumb } from "@/components/ui-components";
 import { Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Trash2, ArrowLeft, Download, Package } from "lucide-react";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface NodeStatus {
   id: string;

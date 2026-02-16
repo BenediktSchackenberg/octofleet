@@ -30,7 +30,7 @@ test.describe('Authentication', () => {
     }
     
     await usernameInput.fill('admin');
-    await passwordInput.fill('OpenClaw2026!');
+    await passwordInput.fill('Octofleet2026!');
     
     const submitBtn = page.locator('button[type="submit"], button:has-text("Sign In"), button:has-text("Anmelden")').first();
     await submitBtn.click();
@@ -80,7 +80,7 @@ test.describe('Authentication', () => {
     }
     
     await usernameInput.fill('admin');
-    await page.locator('input[type="password"]').first().fill('OpenClaw2026!');
+    await page.locator('input[type="password"]').first().fill('Octofleet2026!');
     await page.locator('button[type="submit"], button:has-text("Sign In")').first().click();
     
     await page.waitForTimeout(3000);

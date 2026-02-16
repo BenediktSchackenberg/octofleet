@@ -1,5 +1,5 @@
 # Force-AgentUpdate.ps1
-# Forces immediate update of OpenClaw Agent to latest version
+# Forces immediate update of Octofleet Agent to latest version
 # Run on remote machines via: Invoke-Command -ComputerName SERVER -FilePath .\Force-AgentUpdate.ps1
 
 param(
@@ -8,10 +8,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ServiceName = "OpenClawNodeAgent"
-$InstallDir = "C:\Program Files\OpenClaw\Agent"
-$LogDir = "C:\ProgramData\OpenClaw\logs"
-$DownloadUrl = "https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v$Version/OpenClawAgent-v$Version-win-x64.zip"
+$ServiceName = "OctofleetNodeAgent"
+$InstallDir = "C:\Program Files\Octofleet\Agent"
+$LogDir = "C:\ProgramData\Octofleet\logs"
+$DownloadUrl = "https://github.com/BenediktSchackenberg/octofleet-windows-agent/releases/download/v$Version/OctofleetAgent-v$Version-win-x64.zip"
 
 function Write-Log {
     param([string]$Message)
@@ -22,7 +22,7 @@ function Write-Log {
 }
 
 # Check current version
-$currentExe = Join-Path $InstallDir "OpenClawAgent.Service.exe"
+$currentExe = Join-Path $InstallDir "OctofleetAgent.Service.exe"
 if (Test-Path $currentExe) {
     $currentVersion = (Get-Item $currentExe).VersionInfo.FileVersion
     Write-Log "Current version: $currentVersion"
@@ -38,7 +38,7 @@ if (Test-Path $currentExe) {
 Write-Log "Starting update to v$Version..."
 
 # Download
-$tempZip = Join-Path $env:TEMP "OpenClawAgent-v$Version.zip"
+$tempZip = Join-Path $env:TEMP "OctofleetAgent-v$Version.zip"
 Write-Log "Downloading from $DownloadUrl..."
 Invoke-WebRequest -Uri $DownloadUrl -OutFile $tempZip -UseBasicParsing
 Write-Log "Downloaded: $((Get-Item $tempZip).Length / 1MB) MB"
@@ -52,7 +52,7 @@ Start-Sleep -Seconds 3
 $backupDir = Join-Path $InstallDir "backup"
 New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
 if (Test-Path $currentExe) {
-    Copy-Item $currentExe (Join-Path $backupDir "OpenClawAgent.Service.exe.bak") -Force
+    Copy-Item $currentExe (Join-Path $backupDir "OctofleetAgent.Service.exe.bak") -Force
 }
 
 # Extract
@@ -60,7 +60,7 @@ Write-Log "Extracting to $InstallDir..."
 Expand-Archive -Path $tempZip -DestinationPath $InstallDir -Force
 
 # Verify
-$newExe = Join-Path $InstallDir "OpenClawAgent.Service.exe"
+$newExe = Join-Path $InstallDir "OctofleetAgent.Service.exe"
 if (Test-Path $newExe) {
     $newVersion = (Get-Item $newExe).VersionInfo.FileVersion
     Write-Log "New version installed: $newVersion"

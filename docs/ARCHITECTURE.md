@@ -1,6 +1,6 @@
 # Architecture Overview
 
-This document describes the architecture of OpenClaw Inventory Platform.
+This document describes the architecture of Octofleet Inventory Platform.
 
 ## High-Level Architecture
 
@@ -30,7 +30,7 @@ This document describes the architecture of OpenClaw Inventory Platform.
                       │                        │                        │
                       ▼                        ▼                        ▼
            ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-           │   PostgreSQL     │    │ OpenClaw Gateway │    │    Webhooks      │
+           │   PostgreSQL     │    │ Octofleet Gateway │    │    Webhooks      │
            │   + TimescaleDB  │    │   Port 18789     │    │ (Discord/Slack)  │
            │   Port 5432      │    │                  │    │                  │
            └──────────────────┘    └────────┬─────────┘    └──────────────────┘
@@ -115,7 +115,7 @@ PostgreSQL 16 with TimescaleDB extension for time-series data.
 | `api_keys` | API key registry |
 | `audit_log` | Action audit trail |
 
-### OpenClaw Gateway
+### Octofleet Gateway
 
 The communication hub that manages agent connections:
 

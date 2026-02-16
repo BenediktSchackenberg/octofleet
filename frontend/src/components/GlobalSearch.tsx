@@ -60,7 +60,7 @@ export function GlobalSearch({ onNodeSelect }: GlobalSearchProps) {
       try {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/v1/nodes/search?q=${encodeURIComponent(query)}`,
-          { headers: { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key" } }
+          { headers: { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" } }
         );
         if (res.ok) {
           const data = await res.json();

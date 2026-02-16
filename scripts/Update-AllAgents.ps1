@@ -11,13 +11,13 @@ param(
 $scriptBlock = {
     param($Version)
     
-    $ServiceName = "OpenClawNodeAgent"
-    $InstallDir = "C:\Program Files\OpenClaw\Agent"
-    $Url = "https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v$Version/OpenClawAgent-v$Version-win-x64.zip"
-    $tempZip = "$env:TEMP\OpenClawAgent.zip"
+    $ServiceName = "OctofleetNodeAgent"
+    $InstallDir = "C:\Program Files\Octofleet\Agent"
+    $Url = "https://github.com/BenediktSchackenberg/octofleet-windows-agent/releases/download/v$Version/OctofleetAgent-v$Version-win-x64.zip"
+    $tempZip = "$env:TEMP\OctofleetAgent.zip"
     
     # Check current version
-    $exe = "$InstallDir\OpenClawAgent.Service.exe"
+    $exe = "$InstallDir\OctofleetAgent.Service.exe"
     if (Test-Path $exe) {
         $current = (Get-Item $exe).VersionInfo.FileVersion
         if ($current -like "$Version*") {
@@ -37,7 +37,7 @@ $scriptBlock = {
     return "Updated to v$newVer"
 }
 
-Write-Host "=== OpenClaw Agent Fleet Update ===" -ForegroundColor Cyan
+Write-Host "=== Octofleet Agent Fleet Update ===" -ForegroundColor Cyan
 Write-Host "Target version: v$Version"
 Write-Host "Targets: $($ComputerNames -join ', ')"
 Write-Host ""

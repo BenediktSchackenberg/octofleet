@@ -11,7 +11,7 @@ import { Shield, ShieldCheck, ShieldX, Lock, Unlock, Flame, FlameKindling } from
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface ComplianceData {
   totalNodes: number;

@@ -167,7 +167,7 @@ async def get_current_user(
     api_key = request.headers.get("X-API-Key")
     if api_key:
         # Legacy dev key - full access
-        if api_key == "openclaw-inventory-dev-key":
+        if api_key == "octofleet-inventory-dev-key":
             return CurrentUser(
                 id="system",
                 username="system",

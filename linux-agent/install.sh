@@ -1,16 +1,16 @@
 #!/bin/bash
-# OpenClaw Linux Agent Installer
+# Octofleet Linux Agent Installer
 # Usage: curl -sSL https://raw.githubusercontent.com/.../install.sh | sudo bash
 
 set -e
 
-INSTALL_DIR="/opt/openclaw-agent"
-SERVICE_NAME="openclaw-agent"
+INSTALL_DIR="/opt/octofleet-agent"
+SERVICE_NAME="octofleet-agent"
 API_URL="${API_URL:-http://192.168.0.5:8080/api/v1}"
-API_KEY="${API_KEY:-openclaw-inventory-dev-key}"
+API_KEY="${API_KEY:-octofleet-inventory-dev-key}"
 
 echo "═══════════════════════════════════════════════════════════"
-echo "   OpenClaw Linux Agent Installer"
+echo "   Octofleet Linux Agent Installer"
 echo "═══════════════════════════════════════════════════════════"
 
 # Check root
@@ -39,7 +39,7 @@ pip install --quiet requests psutil netifaces
 echo "📝 Installing agent..."
 cat > agent.py << 'AGENT_EOF'
 #!/usr/bin/env python3
-"""OpenClaw Linux Agent - Inventory & Monitoring"""
+"""Octofleet Linux Agent - Inventory & Monitoring"""
 
 import os
 import sys
@@ -57,7 +57,7 @@ import psutil
 
 # Configuration
 API_URL = os.environ.get("OPENCLAW_API_URL", "http://192.168.0.5:8080/api/v1")
-API_KEY = os.environ.get("OPENCLAW_API_KEY", "openclaw-inventory-dev-key")
+API_KEY = os.environ.get("OPENCLAW_API_KEY", "octofleet-inventory-dev-key")
 POLL_INTERVAL = int(os.environ.get("OPENCLAW_POLL_INTERVAL", "30"))
 HOSTNAME = socket.gethostname()
 
@@ -66,7 +66,7 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('/var/log/openclaw-agent.log')
+        logging.FileHandler('/var/log/octofleet-agent.log')
     ]
 )
 log = logging.getLogger(__name__)
@@ -300,7 +300,7 @@ def send_metrics():
 
 def main():
     log.info("═" * 50)
-    log.info(f"OpenClaw Linux Agent v0.4.26")
+    log.info(f"Octofleet Linux Agent v0.4.26")
     log.info(f"Hostname: {HOSTNAME}")
     log.info(f"API: {API_URL}")
     log.info("═" * 50)
@@ -347,7 +347,7 @@ EOF
 echo "⚙️ Creating systemd service..."
 cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
 [Unit]
-Description=OpenClaw Linux Agent
+Description=Octofleet Linux Agent
 After=network.target
 
 [Service]
@@ -373,7 +373,7 @@ systemctl start $SERVICE_NAME
 sleep 2
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo "   ✅ OpenClaw Linux Agent Installed!"
+echo "   ✅ Octofleet Linux Agent Installed!"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 echo "Service Status:"
@@ -382,5 +382,5 @@ echo ""
 echo "Commands:"
 echo "  sudo systemctl status $SERVICE_NAME"
 echo "  sudo journalctl -u $SERVICE_NAME -f"
-echo "  sudo tail -f /var/log/openclaw-agent.log"
+echo "  sudo tail -f /var/log/octofleet-agent.log"
 echo ""

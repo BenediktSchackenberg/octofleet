@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Download, FileJson, FileSpreadsheet } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "openclaw-inventory-dev-key";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 type ExportType = "nodes" | "software" | "compliance";
 

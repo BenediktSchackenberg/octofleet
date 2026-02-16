@@ -1,5 +1,5 @@
 """
-OpenClaw Inventory Backend
+Octofleet Inventory Backend
 FastAPI server for receiving and storing inventory data from Windows Agents
 """
 from contextlib import asynccontextmanager
@@ -22,9 +22,9 @@ from alerting import get_alert_manager, update_node_health, check_node_health
 # Config
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://openclaw:openclaw_inventory_2026@127.0.0.1:5432/inventory"
+    "postgresql://octofleet:octofleet_inventory_2026@127.0.0.1:5432/inventory"
 )
-API_KEY = os.getenv("INVENTORY_API_KEY", "openclaw-inventory-dev-key")
+API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-dev-key")
 
 # Database pool
 db_pool: Optional[asyncpg.Pool] = None
@@ -152,7 +152,7 @@ async def lifespan(app: FastAPI):
 
 # Create app
 app = FastAPI(
-    title="OpenClaw Inventory API",
+    title="Octofleet API",
     description="Receives and stores inventory data from Windows Agents",
     version="1.0.0",
     lifespan=lifespan
@@ -333,9 +333,9 @@ async def health_check():
     try:
         async with db_pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        return {"status": "ok", "service": "openclaw-inventory", "database": "connected"}
+        return {"status": "ok", "service": "octofleet", "database": "connected"}
     except Exception as e:
-        return {"status": "degraded", "service": "openclaw-inventory", "database": str(e)}
+        return {"status": "degraded", "service": "octofleet", "database": str(e)}
 
 
 @app.get("/api/v1/health")
@@ -346,7 +346,7 @@ async def api_health_check():
 
 # Agent version management
 AGENT_LATEST_VERSION = "0.4.16"
-AGENT_DOWNLOAD_URL = f"https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/download/v{AGENT_LATEST_VERSION}/OpenClawAgent-v{AGENT_LATEST_VERSION}-win-x64.zip"
+AGENT_DOWNLOAD_URL = f"https://github.com/BenediktSchackenberg/octofleet-windows-agent/releases/download/v{AGENT_LATEST_VERSION}/OctofleetAgent-v{AGENT_LATEST_VERSION}-win-x64.zip"
 AGENT_RELEASE_NOTES = "Auto-remediation, vulnerability tracking, improved stability"
 
 @app.get("/api/v1/agent/version")
@@ -2401,7 +2401,7 @@ async def create_enrollment_token(request: Request):
         "expiresAt": row['expires_at'].isoformat(),
         "maxUses": max_uses,
         "description": description,
-        "installCommand": f'irm https://raw.githubusercontent.com/BenediktSchackenberg/openclaw-windows-agent/main/installer/Install-OpenClawAgent.ps1 -OutFile Install.ps1; .\\Install.ps1 -EnrollToken "{row["token"]}"'
+        "installCommand": f'irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet-windows-agent/main/installer/Install-OctofleetAgent.ps1 -OutFile Install.ps1; .\\Install.ps1 -EnrollToken "{row["token"]}"'
     }
 
 @app.get("/api/v1/enrollment-tokens")
@@ -4771,7 +4771,7 @@ GATEWAY_START_TIME = datetime.utcnow()
 
 @app.get("/api/v1/gateway/status", dependencies=[Depends(verify_api_key)])
 async def get_gateway_status():
-    """Get OpenClaw Gateway health status for the dashboard widget"""
+    """Get Octofleet Gateway health status for the dashboard widget"""
     gateway_url = "http://192.168.0.5:18789"
     
     try:
@@ -5386,7 +5386,7 @@ async def create_api_key(
     import secrets
     
     # Generate key
-    raw_key = f"oci_{secrets.token_hex(24)}"  # oci = openclaw inventory
+    raw_key = f"oci_{secrets.token_hex(24)}"  # oci = octofleet inventory
     key_hash = hash_api_key(raw_key)
     
     expires_at = None
@@ -6024,7 +6024,7 @@ async def test_nvd():
     
     keyword = "Google Chrome"
     url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={quote(keyword)}&resultsPerPage=1"
-    headers = {"User-Agent": "OpenClaw-Inventory/1.0"}
+    headers = {"User-Agent": "Octofleet-Inventory/1.0"}
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -7176,7 +7176,7 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key:
     - Server sends: {"type": "stop"} to end session
     """
     # Validate API key
-    valid_api_key = os.getenv("API_KEY", "openclaw-inventory-dev-key")
+    valid_api_key = os.getenv("API_KEY", "octofleet-dev-key")
     if api_key != valid_api_key:
         await websocket.close(code=4001, reason="Invalid API key")
         return
@@ -7258,7 +7258,7 @@ async def remediation_live_sse(request: Request, token: str = None, api_key: str
     Broadcasts job status changes in real-time.
     """
     # Validate auth
-    valid_api_key = os.getenv("API_KEY", "openclaw-inventory-dev-key")
+    valid_api_key = os.getenv("API_KEY", "octofleet-dev-key")
     if api_key != valid_api_key and not token:
         raise HTTPException(401, "Unauthorized")
     
@@ -7959,7 +7959,7 @@ async def trigger_alert(event_type: str, event_data: dict):
                         "description": event_data.get('message', str(event_data)),
                         "color": color,
                         "timestamp": datetime.utcnow().isoformat() + "Z",
-                        "footer": {"text": "OpenClaw Inventory"},
+                        "footer": {"text": "Octofleet Inventory"},
                         "fields": []
                     }
                     
@@ -8084,10 +8084,10 @@ async def test_alert_channel(channel_id: str, _: str = Depends(verify_api_key)):
             if webhook_url:
                 embed = {
                     "title": "🔔 Test Alert",
-                    "description": "This is a test alert from OpenClaw Inventory.",
+                    "description": "This is a test alert from Octofleet Inventory.",
                     "color": 0x0099FF,
                     "timestamp": datetime.utcnow().isoformat() + "Z",
-                    "footer": {"text": "OpenClaw Inventory"}
+                    "footer": {"text": "Octofleet Inventory"}
                 }
                 success = await send_discord_webhook(webhook_url, embed)
                 return {"status": "sent" if success else "failed"}

@@ -58,7 +58,7 @@ Full multi-user authentication and authorization system implemented.
 
 ```
 Username: admin
-Password: OpenClaw2026!
+Password: Octofleet2026!
 ```
 
 ## Permissions

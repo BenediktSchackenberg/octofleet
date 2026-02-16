@@ -1,6 +1,6 @@
 # API Documentation
 
-OpenClaw Inventory Platform exposes a RESTful API for all operations.
+Octofleet Inventory Platform exposes a RESTful API for all operations.
 
 ## Base URL
 
