@@ -8074,8 +8074,13 @@ async def test_alert_channel(channel_id: str, _: str = Depends(verify_api_key)):
         if not channel:
             raise HTTPException(404, "Channel not found")
         
+        # Parse config if it's a string
+        config = channel['config']
+        if isinstance(config, str):
+            config = json.loads(config)
+        
         if channel['channel_type'] == 'discord':
-            webhook_url = channel['config'].get('webhook_url')
+            webhook_url = config.get('webhook_url')
             if webhook_url:
                 embed = {
                     "title": "🔔 Test Alert",

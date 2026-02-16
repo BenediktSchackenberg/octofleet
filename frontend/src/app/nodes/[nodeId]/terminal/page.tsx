@@ -32,14 +32,24 @@ export default function TerminalPage() {
     }
   }, [output]);
 
+  // Helper for API headers
+  const getHeaders = (contentType = false): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'X-API-Key': 'openclaw-inventory-dev-key'
+    };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (contentType) headers['Content-Type'] = 'application/json';
+    return headers;
+  };
+
   // Poll for output
   useEffect(() => {
     if (sessionId) {
       pollRef.current = setInterval(async () => {
         try {
-          const token = localStorage.getItem('token');
           const res = await fetch(`${API_BASE}/terminal/session/${sessionId}/output`, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: getHeaders()
           });
           if (res.ok) {
             const data = await res.json();
@@ -58,23 +68,24 @@ export default function TerminalPage() {
 
   async function startSession() {
     setLoading(true);
+    setOutput([`[Starting ${shell} session...]\n`]);
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/terminal/start/${nodeId}`, {
         method: 'POST',
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: getHeaders(true),
         body: JSON.stringify({ shell })
       });
       if (res.ok) {
         const data = await res.json();
         setSessionId(data.sessionId);
         setOutput([`[Session started: ${shell}]\n`]);
+      } else {
+        const errorText = await res.text();
+        setOutput([`[Error: ${res.status} - ${errorText}]\n`]);
       }
     } catch (e) {
       console.error('Failed to start session:', e);
+      setOutput([`[Connection failed: ${e}]\n`]);
     }
     setLoading(false);
   }
@@ -82,10 +93,9 @@ export default function TerminalPage() {
   async function stopSession() {
     if (!sessionId) return;
     try {
-      const token = localStorage.getItem('token');
       await fetch(`${API_BASE}/terminal/session/${sessionId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getHeaders()
       });
     } catch (e) {}
     setSessionId(null);
@@ -101,13 +111,9 @@ export default function TerminalPage() {
     setInput('');
     
     try {
-      const token = localStorage.getItem('token');
       await fetch(`${API_BASE}/terminal/session/${sessionId}/input`, {
         method: 'POST',
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: getHeaders(true),
         body: JSON.stringify({ command: cmd })
       });
     } catch (e) {
