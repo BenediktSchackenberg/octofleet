@@ -8088,3 +8088,227 @@ async def test_alert_channel(channel_id: str, _: str = Depends(verify_api_key)):
                 return {"status": "sent" if success else "failed"}
         
         return {"status": "unsupported_channel_type"}
+
+# ============================================================================
+# Node Health Monitor - Background Task
+# ============================================================================
+
+import asyncio
+from datetime import timedelta
+
+# Track last known status to detect changes
+_node_status_cache: dict = {}
+
+async def check_node_health_and_alert():
+    """Background task to check node health and trigger alerts."""
+    global _node_status_cache
+    
+    try:
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT node_id, hostname, last_seen, is_online
+                FROM nodes
+            """)
+            
+            for row in rows:
+                node_id = row['node_id']
+                hostname = row['hostname']
+                last_seen = row['last_seen']
+                
+                # Calculate current status
+                if last_seen:
+                    diff = datetime.utcnow() - last_seen.replace(tzinfo=None)
+                    if diff < timedelta(minutes=5):
+                        current_status = "online"
+                    elif diff < timedelta(minutes=60):
+                        current_status = "away"
+                    else:
+                        current_status = "offline"
+                else:
+                    current_status = "offline"
+                
+                # Check if status changed
+                prev_status = _node_status_cache.get(node_id)
+                
+                if prev_status and prev_status != current_status:
+                    # Status changed!
+                    if current_status == "offline" and prev_status in ("online", "away"):
+                        # Node went offline - trigger alert
+                        await trigger_alert('node_offline', {
+                            'message': f"Node '{hostname}' went offline",
+                            'hostname': hostname,
+                            'node_id': node_id,
+                            'previous_status': prev_status,
+                            'last_seen': last_seen.isoformat() if last_seen else 'Never'
+                        })
+                    elif current_status == "online" and prev_status == "offline":
+                        # Node came back online
+                        await trigger_alert('node_online', {
+                            'message': f"Node '{hostname}' is back online",
+                            'hostname': hostname,
+                            'node_id': node_id,
+                            'previous_status': prev_status
+                        })
+                
+                # Update cache
+                _node_status_cache[node_id] = current_status
+                
+    except Exception as e:
+        print(f"Node health check error: {e}")
+
+async def node_health_monitor_task():
+    """Background task that runs every 2 minutes."""
+    await asyncio.sleep(30)  # Initial delay
+    while True:
+        await check_node_health_and_alert()
+        await asyncio.sleep(120)  # Check every 2 minutes
+
+@app.on_event("startup")
+async def start_node_health_monitor():
+    """Start the node health monitor on app startup."""
+    asyncio.create_task(node_health_monitor_task())
+
+# ============================================================================
+# E20: Remote Terminal
+# ============================================================================
+
+# Terminal sessions storage
+_terminal_sessions: dict = {}
+
+class TerminalSession:
+    def __init__(self, session_id: str, node_id: str, shell: str = "powershell"):
+        self.session_id = session_id
+        self.node_id = node_id
+        self.shell = shell
+        self.created_at = datetime.utcnow()
+        self.output_buffer = []
+        self.pending_commands = []
+        self.connected = False
+
+@app.post("/api/v1/terminal/start/{node_id}")
+async def start_terminal_session(node_id: str, request: Request, _: str = Depends(verify_api_key)):
+    """Start a new terminal session for a node."""
+    data = await request.json() if request.headers.get('content-type') == 'application/json' else {}
+    shell = data.get('shell', 'powershell')  # powershell, cmd, bash
+    
+    session_id = str(uuid.uuid4())
+    session = TerminalSession(session_id, node_id, shell)
+    _terminal_sessions[session_id] = session
+    
+    return {
+        "sessionId": session_id,
+        "nodeId": node_id,
+        "shell": shell,
+        "status": "created"
+    }
+
+@app.get("/api/v1/terminal/sessions")
+async def list_terminal_sessions(_: str = Depends(verify_api_key)):
+    """List active terminal sessions."""
+    return [
+        {
+            "sessionId": s.session_id,
+            "nodeId": s.node_id,
+            "shell": s.shell,
+            "createdAt": s.created_at.isoformat(),
+            "connected": s.connected
+        }
+        for s in _terminal_sessions.values()
+    ]
+
+@app.delete("/api/v1/terminal/session/{session_id}")
+async def stop_terminal_session(session_id: str, _: str = Depends(verify_api_key)):
+    """Stop a terminal session."""
+    if session_id in _terminal_sessions:
+        del _terminal_sessions[session_id]
+    return {"status": "stopped"}
+
+@app.post("/api/v1/terminal/session/{session_id}/input")
+async def send_terminal_input(session_id: str, request: Request, _: str = Depends(verify_api_key)):
+    """Send input to a terminal session."""
+    if session_id not in _terminal_sessions:
+        raise HTTPException(404, "Session not found")
+    
+    data = await request.json()
+    command = data.get('command', '')
+    
+    session = _terminal_sessions[session_id]
+    session.pending_commands.append(command)
+    
+    return {"status": "queued", "command": command}
+
+@app.get("/api/v1/terminal/session/{session_id}/output")
+async def get_terminal_output(session_id: str, _: str = Depends(verify_api_key)):
+    """Get output from a terminal session."""
+    if session_id not in _terminal_sessions:
+        raise HTTPException(404, "Session not found")
+    
+    session = _terminal_sessions[session_id]
+    output = session.output_buffer.copy()
+    session.output_buffer.clear()
+    
+    return {"output": output}
+
+# Agent polling endpoint for terminal commands
+@app.get("/api/v1/terminal/pending/{node_id}")
+async def get_pending_terminal_commands(node_id: str, _: str = Depends(verify_api_key)):
+    """Agent polls this to get pending commands."""
+    commands = []
+    for session in _terminal_sessions.values():
+        if session.node_id == node_id and session.pending_commands:
+            commands.append({
+                "sessionId": session.session_id,
+                "shell": session.shell,
+                "commands": session.pending_commands.copy()
+            })
+            session.pending_commands.clear()
+    return {"commands": commands}
+
+# Agent posts output here
+@app.post("/api/v1/terminal/output/{session_id}")
+async def post_terminal_output(session_id: str, request: Request, _: str = Depends(verify_api_key)):
+    """Agent posts command output here."""
+    if session_id not in _terminal_sessions:
+        raise HTTPException(404, "Session not found")
+    
+    data = await request.json()
+    output = data.get('output', '')
+    
+    session = _terminal_sessions[session_id]
+    session.output_buffer.append(output)
+    session.connected = True
+    
+    return {"status": "received"}
+
+# WebSocket for real-time terminal (optional)
+@app.websocket("/api/v1/terminal/ws/{session_id}")
+async def terminal_websocket(websocket: WebSocket, session_id: str):
+    """WebSocket for real-time terminal communication."""
+    await websocket.accept()
+    
+    if session_id not in _terminal_sessions:
+        await websocket.close(code=4004)
+        return
+    
+    session = _terminal_sessions[session_id]
+    session.connected = True
+    
+    try:
+        while True:
+            # Send any pending output
+            if session.output_buffer:
+                for output in session.output_buffer:
+                    await websocket.send_json({"type": "output", "data": output})
+                session.output_buffer.clear()
+            
+            # Check for input from browser
+            try:
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=0.5)
+                if data.get("type") == "input":
+                    session.pending_commands.append(data.get("data", ""))
+            except asyncio.TimeoutError:
+                pass
+            
+            await asyncio.sleep(0.1)
+    except WebSocketDisconnect:
+        session.connected = False
