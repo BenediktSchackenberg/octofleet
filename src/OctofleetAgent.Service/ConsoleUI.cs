@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 
 namespace OctofleetAgent.Service;
 
@@ -10,8 +9,9 @@ public static class ConsoleUI
 {
     private static readonly ConcurrentQueue<LogEntry> _logEntries = new();
     private static readonly object _renderLock = new();
-    private static int _maxLogEntries = 12;
+    private static int _maxLogEntries = 10;
     private static bool _initialized = false;
+    private static DateTime _lastStatsRender = DateTime.MinValue;
     
     // Stats
     public static long BytesSent { get; private set; }
@@ -31,8 +31,9 @@ public static class ConsoleUI
     public static string? NodeName { get; set; }
     public static string? Version { get; set; }
     
-    // Active operations
+    // UI State
     public static string? CurrentOperation { get; set; }
+    public static bool ShowLog { get; set; } = false; // Log hidden by default
     
     private record LogEntry(DateTime Time, string Level, string Message, ConsoleColor Color);
 
@@ -45,10 +46,9 @@ public static class ConsoleUI
         CurrentUser = $"{Environment.UserDomainName}\\{Environment.UserName}";
         _initialized = true;
         
-        // Initial render
         RenderFull();
     }
-
+    
     public static void Log(string level, string message)
     {
         var color = level.ToUpper() switch
@@ -63,11 +63,10 @@ public static class ConsoleUI
         
         _logEntries.Enqueue(new LogEntry(DateTime.Now, level.ToUpper(), message, color));
         
-        // Keep only last N entries
         while (_logEntries.Count > _maxLogEntries)
             _logEntries.TryDequeue(out _);
         
-        if (_initialized)
+        if (_initialized && ShowLog)
             RenderLogSection();
     }
 
@@ -75,16 +74,29 @@ public static class ConsoleUI
     {
         BytesSent += bytes;
         RequestCount++;
+        TryRenderStats();
     }
 
     public static void AddBytesReceived(long bytes)
     {
         BytesReceived += bytes;
+        TryRenderStats();
     }
 
     public static void AddError()
     {
         ErrorCount++;
+        TryRenderStats();
+    }
+    
+    private static void TryRenderStats()
+    {
+        // Throttle stats rendering to avoid flicker
+        if (_initialized && (DateTime.Now - _lastStatsRender).TotalMilliseconds > 500)
+        {
+            _lastStatsRender = DateTime.Now;
+            RenderStatsSection();
+        }
     }
 
     public static void SetOperation(string? operation)
@@ -92,6 +104,25 @@ public static class ConsoleUI
         CurrentOperation = operation;
         if (_initialized)
             RenderStatusSection();
+    }
+    
+    public static void Refresh()
+    {
+        if (_initialized)
+            RenderFull();
+    }
+    
+    public static void ClearLog()
+    {
+        while (_logEntries.TryDequeue(out _)) { }
+        if (_initialized && ShowLog)
+            RenderLogSection();
+    }
+    
+    public static void ToggleLog()
+    {
+        ShowLog = !ShowLog;
+        RenderFull();
     }
 
     private static void RenderFull()
@@ -102,7 +133,8 @@ public static class ConsoleUI
             RenderBanner();
             RenderStatusSection();
             RenderStatsSection();
-            RenderLogSection();
+            if (ShowLog)
+                RenderLogSection();
             RenderHelpBar();
         }
     }
@@ -129,13 +161,13 @@ public static class ConsoleUI
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.Write($"  v{Version,-10}");
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.Write("│");
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.Write($"  {NodeName,-20}");
+        Console.Write("│  ");
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write($"{NodeName,-20}");
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.Write("│");
+        Console.Write("│  ");
         Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.Write($"  {DateTime.Now:yyyy-MM-dd HH:mm}  ");
+        Console.Write($"{DateTime.Now:yyyy-MM-dd HH:mm}  ");
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("║");
         Console.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
@@ -157,43 +189,54 @@ public static class ConsoleUI
             Console.WriteLine("                                                                        │");
             Console.WriteLine("├─────────────────────────────────────────────────────────────────────────────┤");
             
-            // Gateway Status
-            Console.Write("│   Gateway:    ");
+            // Gateway status
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write("│   ");
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("Gateway:    ");
             WriteStatus(GatewayConnected);
             Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write($" {GatewayUrl,-40}");
+            var gwText = GatewayUrl ?? "Not configured";
+            Console.Write($"  {gwText,-50}");
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("      │");
+            Console.WriteLine("│");
             
-            // Inventory API Status  
-            Console.Write("│   Inventory:  ");
+            // Inventory API status
+            Console.Write("│   ");
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("Inventory:  ");
             WriteStatus(InventoryApiConnected);
             Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write($" {InventoryUrl,-40}");
+            var invText = InventoryUrl ?? "Not configured";
+            Console.Write($"  {invText,-50}");
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("      │");
+            Console.WriteLine("│");
             
-            // Current User
-            Console.Write("│   User:       ");
+            // User
+            Console.Write("│   ");
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("User:       ");
             Console.ForegroundColor = ConsoleColor.White;
-            Console.Write($"{CurrentUser,-50}");
+            Console.Write($"{CurrentUser,-61}");
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("          │");
+            Console.WriteLine("│");
             
-            // Current Operation
-            Console.Write("│   Operation:  ");
+            // Operation
+            Console.Write("│   ");
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("Operation:  ");
             if (!string.IsNullOrEmpty(CurrentOperation))
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.Write($"⚡ {CurrentOperation,-47}");
+                Console.Write($"⚡ {CurrentOperation,-58}");
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write($"{"Idle",-50}");
+                Console.Write($"{"Idle",-61}");
             }
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("       │");
+            Console.WriteLine("│");
             
             Console.WriteLine("└─────────────────────────────────────────────────────────────────────────────┘");
             Console.ResetColor();
@@ -232,21 +275,21 @@ public static class ConsoleUI
             // Stats row 1
             Console.Write("│   ");
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write("📤 Sent: ");
+            Console.Write("Sent: ");
             Console.ForegroundColor = ConsoleColor.White;
             Console.Write($"{FormatBytes(BytesSent),-12}");
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write("📥 Recv: ");
+            Console.Write("Recv: ");
             Console.ForegroundColor = ConsoleColor.White;
             Console.Write($"{FormatBytes(BytesReceived),-12}");
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write("📊 Requests: ");
+            Console.Write("Requests: ");
             Console.ForegroundColor = ConsoleColor.White;
-            Console.Write($"{RequestCount,-8}");
+            Console.Write($"{RequestCount,-10}");
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write("❌ Errors: ");
+            Console.Write("Errors: ");
             Console.ForegroundColor = ErrorCount > 0 ? ConsoleColor.Red : ConsoleColor.Green;
-            Console.Write($"{ErrorCount,-3}");
+            Console.Write($"{ErrorCount,-5}");
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("│");
             
@@ -283,8 +326,10 @@ public static class ConsoleUI
             Console.Write("│ ");
             Console.ForegroundColor = ConsoleColor.White;
             Console.Write("ACTIVITY LOG");
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.Write(" (press V to hide)");
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("                                                                  │");
+            Console.WriteLine("                                              │");
             Console.WriteLine("├─────────────────────────────────────────────────────────────────────────────┤");
             
             var entries = _logEntries.ToArray();
@@ -299,12 +344,12 @@ public static class ConsoleUI
                     Console.ForegroundColor = ConsoleColor.DarkGray;
                     Console.Write($"[{entry.Time:HH:mm:ss}] ");
                     Console.ForegroundColor = entry.Color;
-                    var msg = entry.Message.Length > 60 ? entry.Message[..57] + "..." : entry.Message;
-                    Console.Write($"{msg,-64}");
+                    var msg = entry.Message.Length > 62 ? entry.Message[..59] + "..." : entry.Message;
+                    Console.Write($"{msg,-65}");
                 }
                 else
                 {
-                    Console.Write(new string(' ', 74));
+                    Console.Write($"{"",73}");
                 }
                 
                 Console.ForegroundColor = ConsoleColor.Cyan;
@@ -318,10 +363,21 @@ public static class ConsoleUI
 
     private static void RenderHelpBar()
     {
-        Console.SetCursorPosition(0, 41);
-        Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.Write(" [P] Push Inventory  [L] Push Live Data  [R] Refresh  [C] Clear Log  [Q] Quit");
-        Console.ResetColor();
+        lock (_renderLock)
+        {
+            int y = ShowLog ? 39 : 27;
+            Console.SetCursorPosition(0, y);
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.Write(" [P] Push Inventory  [L] Push Live Data  [R] Refresh  ");
+            if (ShowLog)
+                Console.Write("[V] Hide Log  [C] Clear Log  ");
+            else
+                Console.Write("[V] Show Log  ");
+            Console.Write("[Q] Quit");
+            Console.ResetColor();
+            Console.WriteLine();
+        }
     }
 
     private static string FormatBytes(long bytes)
@@ -334,23 +390,12 @@ public static class ConsoleUI
 
     private static string FormatTime(DateTime? time)
     {
-        if (time == null) return "Never";
-        var ago = DateTime.Now - time.Value;
-        if (ago.TotalSeconds < 60) return $"{ago.Seconds}s ago";
-        if (ago.TotalMinutes < 60) return $"{(int)ago.TotalMinutes}m ago";
-        return $"{(int)ago.TotalHours}h ago";
-    }
-
-    public static void Refresh()
-    {
-        if (_initialized)
-            RenderFull();
-    }
-
-    public static void ClearLog()
-    {
-        while (_logEntries.TryDequeue(out _)) { }
-        if (_initialized)
-            RenderLogSection();
+        if (!time.HasValue) return "Never";
+        var diff = DateTime.Now - time.Value;
+        if (diff.TotalSeconds < 5) return "Just now";
+        if (diff.TotalSeconds < 60) return $"{(int)diff.TotalSeconds}s ago";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return time.Value.ToString("MM-dd HH:mm");
     }
 }

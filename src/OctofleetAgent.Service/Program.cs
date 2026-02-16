@@ -108,6 +108,9 @@ try
                     case 'c':
                         ConsoleUI.ClearLog();
                         break;
+                    case 'v':
+                        ConsoleUI.ToggleLog();
+                        break;
                     case 'q':
                         ConsoleUI.Log("WRN", "Shutdown requested by user...");
                         cts.Cancel();
