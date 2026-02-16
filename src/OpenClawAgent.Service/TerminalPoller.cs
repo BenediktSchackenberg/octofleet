@@ -11,29 +11,35 @@ namespace OpenClawAgent.Service;
 public class TerminalPoller : BackgroundService
 {
     private readonly ILogger<TerminalPoller> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly ServiceConfig _config;
     private readonly string _nodeId;
     private readonly HttpClient _httpClient;
 
     public TerminalPoller(
         ILogger<TerminalPoller> logger,
-        IConfiguration configuration)
+        ServiceConfig config)
     {
         _logger = logger;
-        _configuration = configuration;
-        _nodeId = Environment.MachineName;  // Use hostname as node ID
+        _config = config;
+        _nodeId = Environment.MachineName;
         _httpClient = new HttpClient();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("TerminalPoller started");
+        _logger.LogInformation("TerminalPoller started for node {NodeId}", _nodeId);
+        
+        // Wait for config to be ready
+        await Task.Delay(5000, stoppingToken);
         
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await PollAndExecuteCommands(stoppingToken);
+                if (!string.IsNullOrEmpty(_config.InventoryApiUrl))
+                {
+                    await PollAndExecuteCommands(stoppingToken);
+                }
             }
             catch (Exception ex)
             {
@@ -46,10 +52,10 @@ public class TerminalPoller : BackgroundService
 
     private async Task PollAndExecuteCommands(CancellationToken ct)
     {
-        var apiUrl = _configuration["OpenClaw:ApiUrl"] ?? "http://localhost:8080";
-        var apiKey = _configuration["OpenClaw:ApiKey"] ?? "";
+        var baseUrl = _config.InventoryApiUrl.TrimEnd('/');
+        var apiKey = _config.InventoryApiKey ?? "";
 
-        var request = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}/api/v1/terminal/pending/{_nodeId}");
+        var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/terminal/pending/{_nodeId}");
         request.Headers.Add("X-API-Key", apiKey);
 
         var response = await _httpClient.SendAsync(request, ct);
@@ -126,10 +132,10 @@ public class TerminalPoller : BackgroundService
 
     private async Task SendOutput(string sessionId, string output, CancellationToken ct)
     {
-        var apiUrl = _configuration["OpenClaw:ApiUrl"] ?? "http://localhost:8080";
-        var apiKey = _configuration["OpenClaw:ApiKey"] ?? "";
+        var baseUrl = _config.InventoryApiUrl.TrimEnd('/');
+        var apiKey = _config.InventoryApiKey ?? "";
 
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{apiUrl}/api/v1/terminal/output/{sessionId}");
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/v1/terminal/output/{sessionId}");
         request.Headers.Add("X-API-Key", apiKey);
         request.Content = new StringContent(
             JsonSerializer.Serialize(new { output }),
