@@ -189,22 +189,10 @@ public static class ConsoleUI
             Console.WriteLine("                                                                        │");
             Console.WriteLine("├─────────────────────────────────────────────────────────────────────────────┤");
             
-            // Gateway status
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write("│   ");
-            Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write("Gateway:    ");
-            WriteStatus(GatewayConnected);
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            var gwText = GatewayUrl ?? "Not configured";
-            Console.Write($"  {gwText,-50}");
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("│");
-            
             // Inventory API status
             Console.Write("│   ");
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write("Inventory:  ");
+            Console.Write("Server:     ");
             WriteStatus(InventoryApiConnected);
             Console.ForegroundColor = ConsoleColor.DarkGray;
             var invText = InventoryUrl ?? "Not configured";
@@ -261,7 +249,7 @@ public static class ConsoleUI
     {
         lock (_renderLock)
         {
-            Console.SetCursorPosition(0, 21);
+            Console.SetCursorPosition(0, 20);
             
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("┌─────────────────────────────────────────────────────────────────────────────┐");
@@ -319,7 +307,7 @@ public static class ConsoleUI
     {
         lock (_renderLock)
         {
-            Console.SetCursorPosition(0, 27);
+            Console.SetCursorPosition(0, 26);
             
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("┌─────────────────────────────────────────────────────────────────────────────┐");
@@ -365,7 +353,7 @@ public static class ConsoleUI
     {
         lock (_renderLock)
         {
-            int y = ShowLog ? 39 : 27;
+            int y = ShowLog ? 38 : 26;
             Console.SetCursorPosition(0, y);
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.DarkGray;

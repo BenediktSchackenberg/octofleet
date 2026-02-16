@@ -1,4 +1,10 @@
 # Changelog
+## [0.4.34] - 2026-02-16
+
+### Changed
+- Removed Gateway status from console (not needed for standalone Octofleet)
+- Renamed "Inventory" to "Server" in status display
+
 ## [0.4.33] - 2026-02-16
 
 ### Changed
