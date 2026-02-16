@@ -1,4 +1,11 @@
 # Changelog
+## [0.4.33] - 2026-02-16
+
+### Changed
+- **Activity Log hidden by default** - Press [V] to toggle visibility
+- Stats auto-refresh when data flows
+- Cleaner console UI without emoji (better terminal compatibility)
+
 ## [0.4.32] - 2026-02-16
 
 ### Added
