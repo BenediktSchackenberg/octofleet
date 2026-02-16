@@ -1,4 +1,21 @@
 # Changelog
+## [0.4.27] - 2026-02-16
+
+### Added
+- **E17 Screen Mirroring**: Linux desktop capture (scrot/gnome-screenshot/grim)
+- **E17 Screen Mirroring**: Screen tab in Live View with quality controls
+- **Homepage 2.0**: System Health widget (API, Database, Agents status)
+- **Service Orchestration**: Config template variable rendering
+- **Service Orchestration**: Reconcile button in UI
+
+### Changed
+- Wiki expanded to 10 pages with full documentation
+- Agent screen capture polling in service loop
+
+### Fixed
+- Missing software/vulnerability_matches database tables
+- Service reconciliation database constraints
+
 ## [0.4.26] — 2026-02-14
 
 ### Fixed

@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
-VERSION="0.4.26-linux"
+VERSION="0.4.27-linux"
 
 # Load config
 if [[ -f "$CONFIG_FILE" ]]; then
