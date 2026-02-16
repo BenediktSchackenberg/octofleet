@@ -23,12 +23,15 @@ async function globalSetup(config: FullConfig) {
       body: JSON.stringify(ADMIN_USER)
     });
     
+    const setupText = await setupResponse.text();
+    console.log(`   Setup response: ${setupResponse.status} - ${setupText}`);
+    
     if (setupResponse.ok) {
       console.log('✅ Admin user created');
-    } else if (setupResponse.status === 400) {
+    } else if (setupResponse.status === 400 && setupText.includes('Setup already completed')) {
       console.log('✅ Admin already exists');
     } else {
-      console.log(`⚠️ Setup response: ${setupResponse.status}`);
+      console.log(`⚠️ Setup failed: ${setupResponse.status} - ${setupText}`);
     }
   } catch (e) {
     console.log(`⚠️ Setup request failed (may be expected): ${e}`);
