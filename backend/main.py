@@ -317,10 +317,45 @@ async def update_dynamic_device_groupships(db: asyncpg.Pool, node_uuid: UUID, no
                 """, node_uuid, group_id)
 
 
+async def auto_onboard_node(conn, node_id: str, node_uuid):
+    """
+    Auto-assign new node to onboarding group.
+    Called when a new node registers for the first time.
+    """
+    # Check onboarding config
+    config = await conn.fetchrow("""
+        SELECT onboarding_group_id, auto_assign_new_nodes
+        FROM onboarding_config
+        LIMIT 1
+    """)
+    
+    if not config or not config["auto_assign_new_nodes"] or not config["onboarding_group_id"]:
+        return None
+    
+    # Add to onboarding group
+    try:
+        await conn.execute("""
+            INSERT INTO device_groups (node_id, group_id, assigned_by)
+            VALUES ($1::uuid, $2::uuid, 'auto-onboarding')
+            ON CONFLICT DO NOTHING
+        """, node_uuid, config["onboarding_group_id"])
+        
+        return {
+            "groupId": str(config["onboarding_group_id"]),
+            "action": "auto-onboarded"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 async def upsert_node(db: asyncpg.Pool, node_id: str, hostname: str, 
                       os_name: str = None, os_version: str = None, os_build: str = None) -> UUID:
-    """Insert or update node, return UUID"""
+    """Insert or update node, return UUID. Auto-onboards new nodes."""
     async with db.acquire() as conn:
+        # Check if node exists
+        existing = await conn.fetchval("SELECT id FROM nodes WHERE node_id = $1", node_id)
+        is_new = existing is None
+        
         row = await conn.fetchrow("""
             INSERT INTO nodes (node_id, hostname, os_name, os_version, os_build, last_seen, is_online)
             VALUES ($1, $2, $3, $4, $5, NOW(), true)
@@ -334,7 +369,18 @@ async def upsert_node(db: asyncpg.Pool, node_id: str, hostname: str,
                 updated_at = NOW()
             RETURNING id
         """, node_id, hostname, os_name, os_version, os_build)
-        return row['id']
+        
+        node_uuid = row['id']
+        
+        # Auto-onboard new nodes
+        if is_new:
+            try:
+                await auto_onboard_node(conn, node_id, node_uuid)
+            except Exception as e:
+                # Don't fail registration if onboarding fails
+                pass
+        
+        return node_uuid
 
 
 # === API Endpoints ===
@@ -3722,6 +3768,291 @@ async def update_mssql_assignment(assignment_id: str, data: Dict[str, Any], db: 
             """, data["enabled"], assignment_id)
         
         return {"status": "updated", "id": assignment_id}
+
+
+# ============================================
+# E20: Software Baselines & Onboarding
+# ============================================
+
+@app.get("/api/v1/onboarding/config")
+async def get_onboarding_config(db: asyncpg.Pool = Depends(get_db)):
+    """Get onboarding configuration"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT oc.*, g.name as group_name
+            FROM onboarding_config oc
+            LEFT JOIN groups g ON g.id = oc.onboarding_group_id
+            LIMIT 1
+        """)
+        
+        if not row:
+            return {"configured": False}
+        
+        return {
+            "configured": True,
+            "onboardingGroupId": str(row["onboarding_group_id"]) if row["onboarding_group_id"] else None,
+            "onboardingGroupName": row["group_name"],
+            "autoAssignNewNodes": row["auto_assign_new_nodes"]
+        }
+
+
+@app.put("/api/v1/onboarding/config")
+async def update_onboarding_config(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Update onboarding configuration"""
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO onboarding_config (id, onboarding_group_id, auto_assign_new_nodes, updated_at)
+            VALUES (gen_random_uuid(), $1::uuid, $2, now())
+            ON CONFLICT (id) DO UPDATE SET
+                onboarding_group_id = $1::uuid,
+                auto_assign_new_nodes = $2,
+                updated_at = now()
+        """, data.get("onboardingGroupId"), data.get("autoAssignNewNodes", True))
+        
+        # Actually update the existing row
+        await conn.execute("""
+            UPDATE onboarding_config SET
+                onboarding_group_id = $1::uuid,
+                auto_assign_new_nodes = $2,
+                updated_at = now()
+        """, data.get("onboardingGroupId"), data.get("autoAssignNewNodes", True))
+        
+        return {"status": "updated"}
+
+
+@app.post("/api/v1/baselines")
+async def create_software_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a software baseline (package collection)"""
+    async with db.acquire() as conn:
+        baseline_id = str(uuid.uuid4())
+        
+        await conn.execute("""
+            INSERT INTO software_baselines (id, name, description, packages)
+            VALUES ($1::uuid, $2, $3, $4)
+        """, baseline_id, data.get("name"), data.get("description"), data.get("packages", []))
+        
+        return {
+            "id": baseline_id,
+            "name": data.get("name"),
+            "packages": data.get("packages", [])
+        }
+
+
+@app.get("/api/v1/baselines")
+async def list_software_baselines(db: asyncpg.Pool = Depends(get_db)):
+    """List all software baselines"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, name, description, packages, created_at
+            FROM software_baselines
+            ORDER BY created_at DESC
+        """)
+        
+        baselines = [{
+            "id": str(row["id"]),
+            "name": row["name"],
+            "description": row["description"],
+            "packages": row["packages"],
+            "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+        } for row in rows]
+        
+        return {"baselines": baselines}
+
+
+@app.get("/api/v1/baselines/{baseline_id}")
+async def get_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get a specific baseline with its assignments"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT * FROM software_baselines WHERE id = $1::uuid
+        """, baseline_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Baseline not found")
+        
+        # Get assignments
+        assignments = await conn.fetch("""
+            SELECT ba.id, ba.group_id, ba.enabled, g.name as group_name
+            FROM software_baseline_assignments ba
+            JOIN groups g ON g.id = ba.group_id
+            WHERE ba.baseline_id = $1::uuid
+        """, baseline_id)
+        
+        return {
+            "id": str(row["id"]),
+            "name": row["name"],
+            "description": row["description"],
+            "packages": row["packages"],
+            "assignments": [{
+                "id": str(a["id"]),
+                "groupId": str(a["group_id"]),
+                "groupName": a["group_name"],
+                "enabled": a["enabled"]
+            } for a in assignments]
+        }
+
+
+@app.delete("/api/v1/baselines/{baseline_id}")
+async def delete_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a software baseline"""
+    async with db.acquire() as conn:
+        result = await conn.execute("""
+            DELETE FROM software_baselines WHERE id = $1::uuid
+        """, baseline_id)
+        
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Baseline not found")
+        
+        return {"status": "deleted", "id": baseline_id}
+
+
+@app.post("/api/v1/baselines/{baseline_id}/assign")
+async def assign_baseline_to_group(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Assign a software baseline to a group"""
+    group_id = data.get("groupId")
+    if not group_id:
+        raise HTTPException(status_code=400, detail="groupId is required")
+    
+    async with db.acquire() as conn:
+        # Verify baseline and group exist
+        baseline = await conn.fetchrow("SELECT name FROM software_baselines WHERE id = $1::uuid", baseline_id)
+        if not baseline:
+            raise HTTPException(status_code=404, detail="Baseline not found")
+        
+        group = await conn.fetchrow("SELECT name FROM groups WHERE id = $1::uuid", group_id)
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        try:
+            assignment_id = str(uuid.uuid4())
+            await conn.execute("""
+                INSERT INTO software_baseline_assignments (id, baseline_id, group_id)
+                VALUES ($1::uuid, $2::uuid, $3::uuid)
+            """, assignment_id, baseline_id, group_id)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=409, detail="Baseline already assigned to this group")
+        
+        return {
+            "id": assignment_id,
+            "baselineId": baseline_id,
+            "baselineName": baseline["name"],
+            "groupId": group_id,
+            "groupName": group["name"]
+        }
+
+
+@app.post("/api/v1/baselines/reconcile")
+async def reconcile_all_baselines(db: asyncpg.Pool = Depends(get_db)):
+    """
+    Reconcile all baseline assignments.
+    Installs missing packages on nodes in assigned groups.
+    """
+    async with db.acquire() as conn:
+        # Get all enabled assignments
+        assignments = await conn.fetch("""
+            SELECT ba.id, ba.baseline_id, ba.group_id, 
+                   b.name as baseline_name, b.packages,
+                   g.name as group_name
+            FROM software_baseline_assignments ba
+            JOIN software_baselines b ON b.id = ba.baseline_id
+            JOIN groups g ON g.id = ba.group_id
+            WHERE ba.enabled = true
+        """)
+        
+        results = []
+        
+        for assignment in assignments:
+            # Get nodes in group that haven't completed this baseline
+            nodes_needing_install = await conn.fetch("""
+                SELECT n.id, n.node_id, n.hostname
+                FROM device_groups dg
+                JOIN nodes n ON n.id = dg.node_id
+                LEFT JOIN software_baseline_status sbs 
+                    ON sbs.node_id = n.node_id AND sbs.baseline_id = $1::uuid
+                WHERE dg.group_id = $2::uuid
+                  AND n.is_online = true
+                  AND (sbs.status IS NULL OR sbs.status = 'failed')
+            """, assignment["baseline_id"], assignment["group_id"])
+            
+            if not nodes_needing_install:
+                continue
+            
+            # Build installation script
+            packages = assignment["packages"]
+            if not packages:
+                continue
+            
+            # Create jobs for each node
+            for node in nodes_needing_install:
+                # Build choco install script
+                choco_packages = []
+                for pkg in packages:
+                    choco_name = CHOCO_PACKAGES.get(pkg.lower(), pkg)
+                    choco_packages.append(choco_name)
+                
+                install_script = f'''
+# Software Baseline: {assignment["baseline_name"]}
+$ErrorActionPreference = "Stop"
+
+# Ensure Chocolatey is installed
+if (!(Get-Command choco -ErrorAction SilentlyContinue)) {{
+    Write-Host "Installing Chocolatey..."
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+}}
+
+# Install packages
+$packages = @({", ".join([f'"{p}"' for p in choco_packages])})
+foreach ($pkg in $packages) {{
+    Write-Host "Installing $pkg..."
+    choco install $pkg -y --no-progress
+    if ($LASTEXITCODE -ne 0) {{
+        Write-Warning "Failed to install $pkg"
+    }}
+}}
+
+Write-Host "Baseline installation complete!"
+'''
+                
+                job_id = str(uuid.uuid4())
+                await conn.execute("""
+                    INSERT INTO jobs (id, name, description, target_type, target_id,
+                                     command_type, command_data, timeout_seconds, created_by)
+                    VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, $6, 'baseline-reconciler')
+                """, job_id,
+                    f"[Baseline] {assignment['baseline_name']} - {node['hostname']}",
+                    f"Install baseline packages: {', '.join(packages)}",
+                    str(node["id"]),
+                    json.dumps({"command": install_script}),
+                    1800  # 30 min timeout
+                )
+                
+                await conn.execute("""
+                    INSERT INTO job_instances (job_id, node_id, status)
+                    VALUES ($1::uuid, $2, 'pending')
+                """, job_id, node["node_id"])
+                
+                # Track baseline status
+                await conn.execute("""
+                    INSERT INTO software_baseline_status (node_id, baseline_id, assignment_id, status, job_id)
+                    VALUES ($1, $2::uuid, $3::uuid, 'pending', $4::uuid)
+                    ON CONFLICT (node_id, baseline_id) DO UPDATE SET
+                        status = 'pending', job_id = $4::uuid, error_message = NULL
+                """, node["node_id"], assignment["baseline_id"], assignment["id"], job_id)
+                
+                results.append({
+                    "nodeId": node["node_id"],
+                    "hostname": node["hostname"],
+                    "baselineName": assignment["baseline_name"],
+                    "jobId": job_id
+                })
+        
+        return {
+            "reconciled": len(results),
+            "results": results
+        }
 
 
 @app.get("/api/v1/jobs")

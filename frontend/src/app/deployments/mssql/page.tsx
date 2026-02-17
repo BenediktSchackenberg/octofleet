@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Breadcrumb } from "@/components/ui-components";
-import { Database, Server, HardDrive, Play, CheckCircle, XCircle, Clock, Loader2, RefreshCw, ChevronRight, AlertCircle } from "lucide-react";
+import { Database, Server, HardDrive, Play, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Plus, Link, Trash2 } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
@@ -21,95 +21,106 @@ interface Edition {
   name: string;
   free: boolean;
   limits: string;
-  versions: string[];
-  downloadable: boolean;
-  requiresLicense: boolean;
 }
 
-interface Node {
+interface MssqlConfig {
   id: string;
-  node_id: string;
-  hostname: string;
-  os_name: string;
-  is_online: boolean;
-}
-
-interface MssqlInstance {
-  id: string;
-  nodeId: string;
-  hostname: string;
-  instanceName: string;
+  name: string;
+  description: string;
   edition: string;
   version: string;
+  instanceName: string;
   port: number;
-  status: string;
-  paths: {
-    data: string;
-    log: string;
-    tempdb: string;
-  };
-  jobs: Record<string, {
-    jobId: string;
-    name: string;
-    status: string;
-    exitCode: number | null;
+  diskConfigs: Array<{
+    purpose: string;
+    driveLetter: string;
+    folder: string;
   }>;
-  createdAt: string;
 }
 
-interface DiskConfig {
-  purpose: string;
-  diskNumber: number;
-  driveLetter: string;
-  volumeLabel: string;
-  folder: string;
+interface Group {
+  id: string;
+  name: string;
+  member_count: number;
+}
+
+interface Assignment {
+  id: string;
+  configId: string;
+  configName: string;
+  edition: string;
+  version: string;
+  groupId: string;
+  groupName: string;
+  enabled: boolean;
+  memberCount: number;
+  installedCount: number;
+  pendingCount: number;
+}
+
+interface AssignmentDetail {
+  id: string;
+  configName: string;
+  groupName: string;
+  nodes: Array<{
+    nodeId: string;
+    hostname: string;
+    isOnline: boolean;
+    installStatus: string;
+  }>;
+  summary: {
+    total: number;
+    installed: number;
+    pending: number;
+    notInstalled: number;
+    failed: number;
+  };
 }
 
 const statusColors: Record<string, string> = {
-  pending: "bg-gray-500",
-  disk_prep: "bg-blue-500",
-  downloading: "bg-blue-500",
-  installing: "bg-yellow-500",
-  configuring: "bg-yellow-500",
   running: "bg-green-500",
+  pending: "bg-yellow-500",
+  disk_prep: "bg-blue-500",
+  installing: "bg-blue-500",
+  not_installed: "bg-gray-500",
   failed: "bg-red-500",
 };
 
 const statusLabels: Record<string, string> = {
+  running: "Läuft",
   pending: "Ausstehend",
   disk_prep: "Disk-Vorbereitung",
-  downloading: "Download",
   installing: "Installation",
-  configuring: "Konfiguration",
-  running: "Läuft",
+  not_installed: "Nicht installiert",
   failed: "Fehlgeschlagen",
 };
 
-export default function MssqlDeploymentPage() {
-  const router = useRouter();
+export default function MssqlAssignmentsPage() {
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [configs, setConfigs] = useState<MssqlConfig[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [editions, setEditions] = useState<Edition[]>([]);
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [instances, setInstances] = useState<MssqlInstance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deploying, setDeploying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState<string | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetail | null>(null);
 
-  // Form state
-  const [selectedEdition, setSelectedEdition] = useState("developer");
-  const [selectedVersion, setSelectedVersion] = useState("2022");
-  const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
-  const [instanceName, setInstanceName] = useState("MSSQLSERVER");
-  const [saPassword, setSaPassword] = useState("");
-  const [licenseKey, setLicenseKey] = useState("");
-  const [port, setPort] = useState(1433);
-  const [includeSsms, setIncludeSsms] = useState(true);
-  const [prepareDisks, setPrepareDisks] = useState(true);
-  const [diskConfigs, setDiskConfigs] = useState<DiskConfig[]>([
-    { purpose: "data", diskNumber: 1, driveLetter: "D", volumeLabel: "SQL_Data", folder: "Data" },
-    { purpose: "log", diskNumber: 2, driveLetter: "E", volumeLabel: "SQL_Logs", folder: "Logs" },
-    { purpose: "tempdb", diskNumber: 3, driveLetter: "F", volumeLabel: "SQL_TempDB", folder: "TempDB" },
-  ]);
+  // New config form
+  const [showNewConfig, setShowNewConfig] = useState(false);
+  const [newConfig, setNewConfig] = useState({
+    name: "",
+    edition: "developer",
+    version: "2022",
+    instanceName: "MSSQLSERVER",
+    port: 1433,
+  });
+
+  // New assignment form
+  const [showNewAssignment, setShowNewAssignment] = useState(false);
+  const [newAssignment, setNewAssignment] = useState({
+    configId: "",
+    groupId: "",
+    saPassword: "",
+  });
 
   useEffect(() => {
     fetchData();
@@ -120,120 +131,122 @@ export default function MssqlDeploymentPage() {
     try {
       const headers = { ...getAuthHeader() };
       
-      // Fetch editions
-      const editionsRes = await fetch(`${API_BASE}/mssql/editions`, { headers });
-      const editionsData = await editionsRes.json();
+      const [assignmentsRes, configsRes, groupsRes, editionsRes] = await Promise.all([
+        fetch(`${API_BASE}/mssql/assignments`, { headers }),
+        fetch(`${API_BASE}/mssql/configs`, { headers }),
+        fetch(`${API_BASE}/groups`, { headers }),
+        fetch(`${API_BASE}/mssql/editions`, { headers }),
+      ]);
+
+      const [assignmentsData, configsData, groupsData, editionsData] = await Promise.all([
+        assignmentsRes.json(),
+        configsRes.json(),
+        groupsRes.json(),
+        editionsRes.json(),
+      ]);
+
+      setAssignments(assignmentsData.assignments || []);
+      setConfigs(configsData.configs || []);
+      setGroups(groupsData.groups || []);
       setEditions(editionsData.editions || []);
-
-      // Fetch Windows nodes
-      const nodesRes = await fetch(`${API_BASE}/nodes`, { headers });
-      const nodesData = await nodesRes.json();
-      const windowsNodes = (nodesData.nodes || []).filter((n: Node) => 
-        n.os_name?.toLowerCase().includes("windows") || 
-        (n.hostname && n.hostname === n.hostname.toUpperCase() && n.hostname !== "TESTU")
-      );
-      setNodes(windowsNodes);
-
-      // Fetch existing instances
-      const instancesRes = await fetch(`${API_BASE}/mssql/instances`, { headers });
-      const instancesData = await instancesRes.json();
-      setInstances(instancesData.instances || []);
     } catch (err) {
-      setError("Fehler beim Laden der Daten");
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeploy = async () => {
-    if (selectedNodes.length === 0) {
-      setError("Bitte mindestens einen Server auswählen");
-      return;
-    }
-    if (!saPassword || saPassword.length < 8) {
-      setError("SA-Passwort muss mindestens 8 Zeichen haben");
-      return;
-    }
-    if ((selectedEdition === "standard" || selectedEdition === "enterprise") && !licenseKey) {
-      setError(`${selectedEdition === "standard" ? "Standard" : "Enterprise"} Edition benötigt einen Lizenzschlüssel`);
-      return;
-    }
-
-    setDeploying(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const headers = { 
-        ...getAuthHeader(),
-        "Content-Type": "application/json"
-      };
-
-      const payload: any = {
-        targets: selectedNodes,
-        edition: selectedEdition,
-        version: selectedVersion,
-        instanceName,
+  const handleCreateConfig = async () => {
+    const headers = { ...getAuthHeader(), "Content-Type": "application/json" };
+    
+    const res = await fetch(`${API_BASE}/mssql/configs`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        ...newConfig,
         features: ["SQLEngine"],
-        saPassword,
-        port,
-        includeSsms,
-      };
+        includeSsms: true,
+        diskConfigs: [
+          { purpose: "data", diskNumber: 1, driveLetter: "D", volumeLabel: "SQL_Data", folder: "Data" },
+          { purpose: "log", diskNumber: 2, driveLetter: "E", volumeLabel: "SQL_Logs", folder: "Logs" },
+          { purpose: "tempdb", diskNumber: 3, driveLetter: "F", volumeLabel: "SQL_TempDB", folder: "TempDB" },
+        ],
+      }),
+    });
 
-      if (licenseKey) {
-        payload.licenseKey = licenseKey;
-      }
+    if (res.ok) {
+      setShowNewConfig(false);
+      setNewConfig({ name: "", edition: "developer", version: "2022", instanceName: "MSSQLSERVER", port: 1433 });
+      fetchData();
+    }
+  };
 
-      if (prepareDisks) {
-        payload.diskConfig = {
-          prepareDisks: true,
-          disks: diskConfigs.map(dc => ({
-            purpose: dc.purpose,
-            diskIdentifier: { number: dc.diskNumber },
-            driveLetter: dc.driveLetter,
-            volumeLabel: dc.volumeLabel,
-            allocationUnitKb: 64,
-            folder: dc.folder,
-          })),
-        };
-      }
+  const handleCreateAssignment = async () => {
+    if (!newAssignment.configId || !newAssignment.groupId || !newAssignment.saPassword) {
+      alert("Bitte alle Felder ausfüllen");
+      return;
+    }
 
-      const res = await fetch(`${API_BASE}/mssql/install`, {
+    const headers = { ...getAuthHeader(), "Content-Type": "application/json" };
+    
+    const res = await fetch(`${API_BASE}/mssql/assignments`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(newAssignment),
+    });
+
+    if (res.ok) {
+      setShowNewAssignment(false);
+      setNewAssignment({ configId: "", groupId: "", saPassword: "" });
+      fetchData();
+    }
+  };
+
+  const handleReconcile = async (assignmentId: string) => {
+    setReconciling(assignmentId);
+    const headers = { ...getAuthHeader() };
+    
+    try {
+      const res = await fetch(`${API_BASE}/mssql/assignments/${assignmentId}/reconcile`, {
         method: "POST",
         headers,
-        body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.detail || "Deployment fehlgeschlagen");
-      }
-
-      setSuccess(`Deployment gestartet! ${data.deploymentsStarted} Jobs erstellt.`);
-      setSaPassword("");
-      setLicenseKey("");
-      setSelectedNodes([]);
       
-      // Refresh instances
-      setTimeout(fetchData, 2000);
-    } catch (err: any) {
-      setError(err.message || "Deployment fehlgeschlagen");
+      if (res.ok) {
+        const data = await res.json();
+        alert(`${data.nodesProcessed} Jobs erstellt!`);
+        fetchData();
+        if (selectedAssignment?.id === assignmentId) {
+          loadAssignmentDetail(assignmentId);
+        }
+      }
     } finally {
-      setDeploying(false);
+      setReconciling(null);
     }
   };
 
-  const toggleNodeSelection = (nodeId: string) => {
-    setSelectedNodes(prev => 
-      prev.includes(nodeId) 
-        ? prev.filter(n => n !== nodeId)
-        : [...prev, nodeId]
-    );
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    if (!confirm("Assignment wirklich löschen?")) return;
+    
+    const headers = { ...getAuthHeader() };
+    await fetch(`${API_BASE}/mssql/assignments/${assignmentId}`, {
+      method: "DELETE",
+      headers,
+    });
+    
+    fetchData();
+    if (selectedAssignment?.id === assignmentId) {
+      setSelectedAssignment(null);
+    }
   };
 
-  const selectedEditionInfo = editions.find(e => e.id === selectedEdition);
+  const loadAssignmentDetail = async (assignmentId: string) => {
+    const headers = { ...getAuthHeader() };
+    const res = await fetch(`${API_BASE}/mssql/assignments/${assignmentId}`, { headers });
+    if (res.ok) {
+      setSelectedAssignment(await res.json());
+    }
+  };
 
   if (loading) {
     return (
@@ -256,10 +269,10 @@ export default function MssqlDeploymentPage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Database className="h-8 w-8" />
-            SQL Server Deployment
+            SQL Server Deployments
           </h1>
           <p className="text-muted-foreground mt-1">
-            Installiere Microsoft SQL Server auf Windows-Servern
+            Profile erstellen und Gruppen zuweisen
           </p>
         </div>
         <Button variant="outline" onClick={fetchData}>
@@ -268,318 +281,316 @@ export default function MssqlDeploymentPage() {
         </Button>
       </div>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded flex items-center gap-2">
-          <AlertCircle className="h-5 w-5" />
-          {error}
-        </div>
-      )}
+      <Tabs defaultValue="assignments">
+        <TabsList>
+          <TabsTrigger value="assignments">Zuweisungen</TabsTrigger>
+          <TabsTrigger value="configs">Profile</TabsTrigger>
+        </TabsList>
 
-      {success && (
-        <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-3 rounded flex items-center gap-2">
-          <CheckCircle className="h-5 w-5" />
-          {success}
-        </div>
-      )}
+        {/* Assignments Tab */}
+        <TabsContent value="assignments" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setShowNewAssignment(true)}>
+              <Link className="h-4 w-4 mr-2" />
+              Neue Zuweisung
+            </Button>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Configuration */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Edition & Version */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Edition & Version</CardTitle>
-              <CardDescription>Wähle SQL Server Edition und Version</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Edition</Label>
-                  <Select value={selectedEdition} onValueChange={setSelectedEdition}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {editions.map(edition => (
-                        <SelectItem key={edition.id} value={edition.id}>
-                          <div className="flex items-center gap-2">
-                            {edition.name}
-                            {edition.free && <Badge variant="secondary" className="text-xs">Kostenlos</Badge>}
+          {/* New Assignment Form */}
+          {showNewAssignment && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Neue Zuweisung</CardTitle>
+                <CardDescription>Profil einer Gruppe zuweisen</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Profil</Label>
+                    <Select value={newAssignment.configId} onValueChange={v => setNewAssignment({...newAssignment, configId: v})}>
+                      <SelectTrigger><SelectValue placeholder="Profil wählen" /></SelectTrigger>
+                      <SelectContent>
+                        {configs.map(c => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} ({c.edition} {c.version})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Gruppe</Label>
+                    <Select value={newAssignment.groupId} onValueChange={v => setNewAssignment({...newAssignment, groupId: v})}>
+                      <SelectTrigger><SelectValue placeholder="Gruppe wählen" /></SelectTrigger>
+                      <SelectContent>
+                        {groups.map(g => (
+                          <SelectItem key={g.id} value={g.id}>
+                            {g.name} ({g.member_count} Server)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>SA-Passwort</Label>
+                    <Input 
+                      type="password" 
+                      value={newAssignment.saPassword}
+                      onChange={e => setNewAssignment({...newAssignment, saPassword: e.target.value})}
+                      placeholder="Starkes Passwort"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleCreateAssignment}>Zuweisen</Button>
+                  <Button variant="outline" onClick={() => setShowNewAssignment(false)}>Abbrechen</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Assignments List */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Aktive Zuweisungen</CardTitle>
+                <CardDescription>{assignments.length} Zuweisungen</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {assignments.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Keine Zuweisungen. Erstelle ein Profil und weise es einer Gruppe zu.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {assignments.map(a => (
+                      <div 
+                        key={a.id}
+                        className={`p-3 border rounded cursor-pointer transition-colors ${
+                          selectedAssignment?.id === a.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                        }`}
+                        onClick={() => loadAssignmentDetail(a.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{a.configName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              → {a.groupName} ({a.memberCount} Server)
+                            </p>
                           </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedEditionInfo && (
-                    <p className="text-xs text-muted-foreground">{selectedEditionInfo.limits}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Version</Label>
-                  <Select value={selectedVersion} onValueChange={setSelectedVersion}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2019">SQL Server 2019</SelectItem>
-                      <SelectItem value="2022">SQL Server 2022</SelectItem>
-                      <SelectItem value="2025">SQL Server 2025</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Instanzname</Label>
-                  <Input 
-                    value={instanceName} 
-                    onChange={e => setInstanceName(e.target.value)}
-                    placeholder="MSSQLSERVER"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Port</Label>
-                  <Input 
-                    type="number"
-                    value={port} 
-                    onChange={e => setPort(parseInt(e.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>SA-Passwort *</Label>
-                <Input 
-                  type="password"
-                  value={saPassword} 
-                  onChange={e => setSaPassword(e.target.value)}
-                  placeholder="Starkes Passwort eingeben"
-                />
-              </div>
-
-              {(selectedEdition === "standard" || selectedEdition === "enterprise") && (
-                <div className="space-y-2">
-                  <Label>Lizenzschlüssel *</Label>
-                  <Input 
-                    value={licenseKey} 
-                    onChange={e => setLicenseKey(e.target.value)}
-                    placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="ssms" 
-                  checked={includeSsms}
-                  onCheckedChange={(checked) => setIncludeSsms(checked as boolean)}
-                />
-                <Label htmlFor="ssms">SQL Server Management Studio (SSMS) installieren</Label>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Disk Configuration */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <HardDrive className="h-5 w-5" />
-                Disk-Konfiguration
-              </CardTitle>
-              <CardDescription>Laufwerke für SQL Server vorbereiten (64KB Allocation Units)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="prepareDisks" 
-                  checked={prepareDisks}
-                  onCheckedChange={(checked) => setPrepareDisks(checked as boolean)}
-                />
-                <Label htmlFor="prepareDisks">Disks automatisch formatieren und Ordner erstellen</Label>
-              </div>
-
-              {prepareDisks && (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Zweck</TableHead>
-                      <TableHead>Disk #</TableHead>
-                      <TableHead>Laufwerk</TableHead>
-                      <TableHead>Label</TableHead>
-                      <TableHead>Ordner</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {diskConfigs.map((disk, idx) => (
-                      <TableRow key={disk.purpose}>
-                        <TableCell className="font-medium capitalize">{disk.purpose}</TableCell>
-                        <TableCell>
-                          <Input 
-                            type="number"
-                            className="w-16"
-                            value={disk.diskNumber}
-                            onChange={e => {
-                              const newConfigs = [...diskConfigs];
-                              newConfigs[idx].diskNumber = parseInt(e.target.value);
-                              setDiskConfigs(newConfigs);
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input 
-                            className="w-16"
-                            value={disk.driveLetter}
-                            maxLength={1}
-                            onChange={e => {
-                              const newConfigs = [...diskConfigs];
-                              newConfigs[idx].driveLetter = e.target.value.toUpperCase();
-                              setDiskConfigs(newConfigs);
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input 
-                            className="w-28"
-                            value={disk.volumeLabel}
-                            onChange={e => {
-                              const newConfigs = [...diskConfigs];
-                              newConfigs[idx].volumeLabel = e.target.value;
-                              setDiskConfigs(newConfigs);
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input 
-                            className="w-24"
-                            value={disk.folder}
-                            onChange={e => {
-                              const newConfigs = [...diskConfigs];
-                              newConfigs[idx].folder = e.target.value;
-                              setDiskConfigs(newConfigs);
-                            }}
-                          />
-                        </TableCell>
-                      </TableRow>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">{a.edition} {a.version}</Badge>
+                            <div className="text-xs">
+                              <span className="text-green-500">{a.installedCount}✓</span>
+                              {a.pendingCount > 0 && <span className="text-yellow-500 ml-1">{a.pendingCount}⏳</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        {/* Right Column - Server Selection */}
-        <div className="space-y-6">
+            {/* Assignment Detail */}
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {selectedAssignment ? selectedAssignment.configName : "Details"}
+                </CardTitle>
+                <CardDescription>
+                  {selectedAssignment ? `Gruppe: ${selectedAssignment.groupName}` : "Wähle eine Zuweisung"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {selectedAssignment ? (
+                  <div className="space-y-4">
+                    {/* Summary */}
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="p-2 bg-muted rounded">
+                        <p className="text-2xl font-bold">{selectedAssignment.summary.total}</p>
+                        <p className="text-xs text-muted-foreground">Gesamt</p>
+                      </div>
+                      <div className="p-2 bg-green-500/10 rounded">
+                        <p className="text-2xl font-bold text-green-500">{selectedAssignment.summary.installed}</p>
+                        <p className="text-xs text-muted-foreground">Installiert</p>
+                      </div>
+                      <div className="p-2 bg-yellow-500/10 rounded">
+                        <p className="text-2xl font-bold text-yellow-500">{selectedAssignment.summary.pending}</p>
+                        <p className="text-xs text-muted-foreground">Ausstehend</p>
+                      </div>
+                      <div className="p-2 bg-gray-500/10 rounded">
+                        <p className="text-2xl font-bold text-gray-500">{selectedAssignment.summary.notInstalled}</p>
+                        <p className="text-xs text-muted-foreground">Fehlt</p>
+                      </div>
+                    </div>
+
+                    {/* Node List */}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Server</TableHead>
+                          <TableHead>Online</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedAssignment.nodes.map(n => (
+                          <TableRow key={n.nodeId}>
+                            <TableCell className="font-mono">{n.hostname}</TableCell>
+                            <TableCell>
+                              {n.isOnline ? (
+                                <Badge className="bg-green-500">Online</Badge>
+                              ) : (
+                                <Badge variant="secondary">Offline</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={statusColors[n.installStatus] || "bg-gray-500"}>
+                                {statusLabels[n.installStatus] || n.installStatus}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => handleReconcile(selectedAssignment.id)}
+                        disabled={reconciling === selectedAssignment.id}
+                      >
+                        {reconciling === selectedAssignment.id ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4 mr-2" />
+                        )}
+                        Reconcile (Fehlende deployen)
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="icon"
+                        onClick={() => handleDeleteAssignment(selectedAssignment.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    Wähle links eine Zuweisung aus
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Configs Tab */}
+        <TabsContent value="configs" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setShowNewConfig(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neues Profil
+            </Button>
+          </div>
+
+          {/* New Config Form */}
+          {showNewConfig && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Neues SQL Server Profil</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input 
+                      value={newConfig.name}
+                      onChange={e => setNewConfig({...newConfig, name: e.target.value})}
+                      placeholder="z.B. SQL Server 2022 Developer"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Edition</Label>
+                    <Select value={newConfig.edition} onValueChange={v => setNewConfig({...newConfig, edition: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {editions.map(e => (
+                          <SelectItem key={e.id} value={e.id}>
+                            {e.name} {e.free && "(Kostenlos)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Version</Label>
+                    <Select value={newConfig.version} onValueChange={v => setNewConfig({...newConfig, version: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2019">SQL Server 2019</SelectItem>
+                        <SelectItem value="2022">SQL Server 2022</SelectItem>
+                        <SelectItem value="2025">SQL Server 2025</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Port</Label>
+                    <Input 
+                      type="number"
+                      value={newConfig.port}
+                      onChange={e => setNewConfig({...newConfig, port: parseInt(e.target.value)})}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleCreateConfig}>Erstellen</Button>
+                  <Button variant="outline" onClick={() => setShowNewConfig(false)}>Abbrechen</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Configs List */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Server className="h-5 w-5" />
-                Ziel-Server
-              </CardTitle>
-              <CardDescription>Wähle Server für die Installation</CardDescription>
+              <CardTitle>SQL Server Profile</CardTitle>
+              <CardDescription>{configs.length} Profile</CardDescription>
             </CardHeader>
             <CardContent>
-              {nodes.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Keine Windows-Server gefunden</p>
-              ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {nodes.map(node => (
-                    <div 
-                      key={node.node_id}
-                      className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
-                        selectedNodes.includes(node.node_id) 
-                          ? "border-primary bg-primary/10" 
-                          : "border-border hover:border-primary/50"
-                      }`}
-                      onClick={() => toggleNodeSelection(node.node_id)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Checkbox checked={selectedNodes.includes(node.node_id)} />
-                        <span className="font-mono text-sm">{node.hostname}</span>
-                      </div>
-                      <Badge variant={node.is_online ? "default" : "secondary"}>
-                        {node.is_online ? "Online" : "Offline"}
-                      </Badge>
-                    </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Edition</TableHead>
+                    <TableHead>Version</TableHead>
+                    <TableHead>Port</TableHead>
+                    <TableHead>Disks</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {configs.map(c => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="capitalize">{c.edition}</Badge>
+                      </TableCell>
+                      <TableCell>{c.version}</TableCell>
+                      <TableCell>{c.port}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {c.diskConfigs?.map(d => `${d.driveLetter}:\\${d.folder}`).join(", ")}
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </div>
-              )}
-              
-              {selectedNodes.length > 0 && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  {selectedNodes.length} Server ausgewählt
-                </p>
-              )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
-
-          <Button 
-            className="w-full" 
-            size="lg"
-            onClick={handleDeploy}
-            disabled={deploying || selectedNodes.length === 0}
-          >
-            {deploying ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Deployment läuft...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                SQL Server installieren
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Existing Installations */}
-      {instances.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Installierte SQL Server</CardTitle>
-            <CardDescription>Status aller SQL Server Deployments</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Server</TableHead>
-                  <TableHead>Instanz</TableHead>
-                  <TableHead>Edition</TableHead>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Port</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Pfade</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {instances.map(instance => (
-                  <TableRow key={instance.id}>
-                    <TableCell className="font-mono">{instance.hostname}</TableCell>
-                    <TableCell>{instance.instanceName}</TableCell>
-                    <TableCell className="capitalize">{instance.edition}</TableCell>
-                    <TableCell>{instance.version}</TableCell>
-                    <TableCell>{instance.port}</TableCell>
-                    <TableCell>
-                      <Badge className={statusColors[instance.status] || "bg-gray-500"}>
-                        {statusLabels[instance.status] || instance.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      D: {instance.paths.data}<br/>
-                      L: {instance.paths.log}<br/>
-                      T: {instance.paths.tempdb}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
