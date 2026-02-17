@@ -23,12 +23,18 @@ public class NodeWorker : BackgroundService
 
     // Reconnection settings
     private const int MinReconnectDelayMs = 1000;      // 1 second
-    private const int MaxReconnectDelayMs = 300000;   // 5 minutes
+    private const int MaxReconnectDelayMs = 60000;    // 60 seconds (was 5 minutes - too long!)
     private const double ReconnectBackoffMultiplier = 2.0;
     private int _currentReconnectDelayMs = MinReconnectDelayMs;
     private int _reconnectAttempts = 0;
     private DateTime _lastConnectedTime = DateTime.MinValue;
     private bool _wasConnected = false;
+    
+    // Keep-alive / Heartbeat settings
+    private const int HeartbeatIntervalMs = 30000;    // Send ping every 30 seconds
+    private const int ConnectionTimeoutMs = 90000;    // Consider dead if no message for 90 seconds
+    private DateTime _lastMessageReceivedTime = DateTime.UtcNow;
+    private CancellationTokenSource? _heartbeatCts;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -244,8 +250,14 @@ public class NodeWorker : BackgroundService
             // Mark as connected and reset backoff
             _wasConnected = true;
             _lastConnectedTime = DateTime.UtcNow;
+            _lastMessageReceivedTime = DateTime.UtcNow;
             ConsoleUI.GatewayConnected = true;
             ResetReconnectBackoff();
+            
+            // Start heartbeat task
+            _heartbeatCts = new CancellationTokenSource();
+            var linkedCt = CancellationTokenSource.CreateLinkedTokenSource(ct, _heartbeatCts.Token).Token;
+            _ = HeartbeatLoopAsync(linkedCt);
         }
         else
         {
@@ -268,7 +280,30 @@ public class NodeWorker : BackgroundService
         {
             try
             {
-                var result = await _webSocket.ReceiveAsync(buffer, ct);
+                // Check for connection timeout (no messages received)
+                if ((DateTime.UtcNow - _lastMessageReceivedTime).TotalMilliseconds > ConnectionTimeoutMs)
+                {
+                    _logger.LogWarning("Connection timeout - no messages received for {Timeout}ms, forcing reconnect", ConnectionTimeoutMs);
+                    throw new Exception("Connection timeout - no heartbeat received");
+                }
+                
+                // Use a shorter receive timeout to allow periodic timeout checks
+                using var receiveCts = new CancellationTokenSource(30000);
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, receiveCts.Token);
+                
+                WebSocketReceiveResult result;
+                try
+                {
+                    result = await _webSocket.ReceiveAsync(buffer, linkedCts.Token);
+                }
+                catch (OperationCanceledException) when (receiveCts.IsCancellationRequested && !ct.IsCancellationRequested)
+                {
+                    // Receive timeout - loop back and check connection health
+                    continue;
+                }
+                
+                // Update last message time
+                _lastMessageReceivedTime = DateTime.UtcNow;
                 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
@@ -286,11 +321,56 @@ public class NodeWorker : BackgroundService
                     await HandleMessageAsync(message, ct);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 break;
             }
         }
+        
+        // Stop heartbeat when receive loop ends
+        _heartbeatCts?.Cancel();
+    }
+    
+    /// <summary>
+    /// Sends periodic ping messages to keep the connection alive
+    /// </summary>
+    private async Task HeartbeatLoopAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("Heartbeat loop started (interval: {Interval}ms)", HeartbeatIntervalMs);
+        
+        while (!ct.IsCancellationRequested && _webSocket?.State == WebSocketState.Open)
+        {
+            try
+            {
+                await Task.Delay(HeartbeatIntervalMs, ct);
+                
+                if (_webSocket?.State != WebSocketState.Open)
+                    break;
+                
+                // Send ping request
+                var pingRequest = new
+                {
+                    type = "req",
+                    id = Interlocked.Increment(ref _requestId).ToString(),
+                    method = "node.ping",
+                    @params = new { ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+                };
+                
+                await SendJsonAsync(pingRequest, ct);
+                _logger.LogDebug("Heartbeat ping sent");
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Heartbeat failed - connection may be dead");
+                // Don't break - let the receive loop detect the dead connection
+            }
+        }
+        
+        _logger.LogInformation("Heartbeat loop stopped");
     }
 
     private async Task HandleMessageAsync(string message, CancellationToken ct)
@@ -821,6 +901,9 @@ public class NodeWorker : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping Octofleet Node Agent...");
+        
+        // Stop heartbeat
+        _heartbeatCts?.Cancel();
         
         if (_webSocket?.State == WebSocketState.Open)
         {
