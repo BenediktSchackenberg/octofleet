@@ -56,6 +56,9 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"  # Faster downloads
 
+# Force TLS 1.2 for GitHub
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 # Constants
 $RepoOwner = "BenediktSchackenberg"
 $RepoName = "octofleet"
@@ -81,11 +84,21 @@ function Test-Administrator {
 
 function Get-LatestRelease {
     Write-Status "Fetching latest release from GitHub..."
-    $apiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
+    $apiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases"
     
     try {
-        $release = Invoke-RestMethod -Uri $apiUrl -Headers @{ "User-Agent" = "Octofleet-Installer" }
-        return $release
+        $releases = Invoke-RestMethod -Uri $apiUrl -Headers @{ "User-Agent" = "Octofleet-Installer" }
+        
+        # Find the first release that has a ZIP asset
+        foreach ($release in $releases) {
+            $zipAsset = $release.assets | Where-Object { $_.name -like "*.zip" }
+            if ($zipAsset) {
+                Write-Status "Found release $($release.tag_name) with ZIP asset"
+                return $release
+            }
+        }
+        
+        throw "No release found with ZIP asset"
     }
     catch {
         throw "Failed to fetch release info: $_"
@@ -137,10 +150,31 @@ function Install-OctofleetAgent {
         throw "No ZIP asset found in release $tagName"
     }
     
+    # Ensure temp directory exists
+    $tempDir = $env:TEMP
+    if (-not $tempDir) { $tempDir = "C:\Windows\Temp" }
+    if (-not (Test-Path $tempDir)) {
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+    }
+    
     # Download
-    $tempZip = Join-Path $env:TEMP "OctofleetAgent-$version.zip"
-    Write-Status "Downloading $($zipAsset.name)..."
-    Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile $tempZip
+    $tempZip = Join-Path $tempDir "OctofleetAgent-$version.zip"
+    Write-Status "Downloading $($zipAsset.name) ($([math]::Round($zipAsset.size / 1MB, 1)) MB)..."
+    
+    # Use WebClient for better large file handling
+    $webClient = New-Object System.Net.WebClient
+    $webClient.Headers.Add("User-Agent", "Octofleet-Installer")
+    try {
+        $webClient.DownloadFile($zipAsset.browser_download_url, $tempZip)
+    }
+    finally {
+        $webClient.Dispose()
+    }
+    
+    if (-not (Test-Path $tempZip)) {
+        throw "Download failed - file not found at $tempZip"
+    }
+    Write-Status "Downloaded successfully" "Success"
     
     # Verify hash if available
     $hashAsset = $release.assets | Where-Object { $_.name -like "*.sha256" } | Select-Object -First 1
