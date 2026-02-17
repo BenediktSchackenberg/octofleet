@@ -332,3 +332,18 @@ All notable changes to the Octofleet Windows Agent.
 ### Fixed
 - Gateway URL/Token now configurable via environment variables
 - suppress_vulnerability now uses authenticated username instead of hardcoded "admin"
+
+## [0.4.42] - 2026-02-17
+
+### Fixed
+- Security tab test now handles Linux nodes (no Windows Defender)
+- All 36 E2E tests passing
+
+### Added
+- `MetricsHistoryChart` component for historical performance trends
+- `dependencies.py` with standardized API error handling
+- Error factory functions: `not_found()`, `bad_request()`, `conflict()`
+
+### Improved
+- API error responses now include error codes and identifiers
+- 60+ generic errors replaced with structured responses
