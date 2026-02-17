@@ -265,10 +265,16 @@ if ($PackageUrl) {
         }
         
         if ($releaseInfo -and $releaseInfo.assets) {
-            $asset = $releaseInfo.assets | Where-Object { $_.name -like "*Service*.zip" -or $_.name -like "*agent*.zip" } | Select-Object -First 1
+            # Look for ZIP files - support various naming patterns
+            $asset = $releaseInfo.assets | Where-Object { 
+                $_.name -like "*Service*.zip" -or 
+                $_.name -like "*Agent*.zip" -or 
+                $_.name -like "Octofleet*.zip"
+            } | Select-Object -First 1
             if ($asset) {
                 $downloadUrl = $asset.browser_download_url
                 Write-Detail "Found release: $($releaseInfo.tag_name)"
+                Write-Detail "Asset: $($asset.name)"
             }
         }
     } catch {
