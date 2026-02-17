@@ -13,6 +13,36 @@ import { Timeline } from "@/components/timeline";
 import { Breadcrumb } from "@/components/ui-components";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
+import { Copy, Check } from "lucide-react";
+
+// Copy to clipboard component
+function CopyButton({ text, className = "" }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+  
+  return (
+    <button
+      onClick={handleCopy}
+      className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-muted transition-colors ${className}`}
+      title={copied ? "Copied!" : "Copy to clipboard"}
+    >
+      {copied ? (
+        <><Check className="h-3 w-3 text-green-500" /> Copied!</>
+      ) : (
+        <><Copy className="h-3 w-3" /> Copy</>
+      )}
+    </button>
+  );
+}
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
@@ -538,11 +568,18 @@ export default function NodeDetailPage() {
               </Card>
             </div>
 
-            {/* Timestamps */}
+            {/* Timestamps & IDs */}
             {node && (
               <Card>
-                <CardHeader><CardTitle>📅 Zeitstempel & Version</CardTitle></CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-4">
+                <CardHeader><CardTitle>📅 Zeitstempel & Identifikation</CardTitle></CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-5">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Node ID</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium font-mono text-xs truncate max-w-[120px]" title={node.node_id}>{node.node_id}</p>
+                      <CopyButton text={node.node_id} />
+                    </div>
+                  </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Erste Erfassung</p>
                     <p className="font-medium">{formatDateTime(node.first_seen)}</p>

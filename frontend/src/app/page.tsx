@@ -16,6 +16,73 @@ import Link from "next/link";
 import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
+// Skeleton Components for Loading State
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse bg-muted rounded ${className}`} />;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div>
+      {/* Header Skeleton */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <Skeleton className="h-8 w-32 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <Skeleton className="h-10 w-24" />
+      </div>
+
+      {/* KPI Cards Skeleton */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-20 mb-2" />
+              <Skeleton className="h-10 w-16" />
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+
+      {/* Metrics Skeleton */}
+      <div className="grid gap-4 md:grid-cols-3 mb-8">
+        {[1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-32 mb-2" />
+              <Skeleton className="h-8 w-20" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-2 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Charts Skeleton */}
+      <div className="grid gap-4 md:grid-cols-2 mb-8">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-48 w-full" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-48 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 interface DashboardSummary {
   counts: {
     total: number;
@@ -544,6 +611,9 @@ export default function HomePage() {
             </div>
           ) : (
             /* Dashboard Overview */
+            loading ? (
+              <DashboardSkeleton />
+            ) : (
             <div>
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -852,6 +922,7 @@ export default function HomePage() {
                 </Card>
               </div>
             </div>
+            )
           )}
         </main>
       </div>

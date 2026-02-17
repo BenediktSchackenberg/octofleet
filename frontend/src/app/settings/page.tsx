@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
-import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff } from "lucide-react";
+import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -34,6 +34,9 @@ export default function SettingsPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newToken, setNewToken] = useState<{token: string; installCommand: string} | null>(null);
 
+  // Theme State
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
   // System Settings
   const [nvdApiKey, setNvdApiKey] = useState("");
   const [nvdApiKeyMasked, setNvdApiKeyMasked] = useState(true);
@@ -44,6 +47,30 @@ export default function SettingsPage() {
   const [description, setDescription] = useState("");
   const [expiresHours, setExpiresHours] = useState(24);
   const [maxUses, setMaxUses] = useState(10);
+
+  // Load theme from localStorage on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("octofleet-theme") as "dark" | "light" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+      applyTheme(savedTheme);
+    } else {
+      // Default to dark
+      applyTheme("dark");
+    }
+  }, []);
+
+  function applyTheme(newTheme: "dark" | "light") {
+    document.documentElement.classList.remove("dark", "light");
+    document.documentElement.classList.add(newTheme);
+  }
+
+  function toggleTheme() {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("octofleet-theme", newTheme);
+    applyTheme(newTheme);
+  }
 
   useEffect(() => {
     fetchTokens();
@@ -198,6 +225,34 @@ export default function SettingsPage() {
             <h3 className="font-medium">Rollout Strategies</h3>
             <p className="text-xs text-zinc-500">Canary, Staged, Percentage</p>
           </Link>
+        </div>
+
+        {/* Appearance Settings */}
+        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 mb-6">
+          <h2 className="text-lg font-semibold mb-4">🎨 Erscheinungsbild</h2>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium">Theme</h3>
+              <p className="text-sm text-zinc-500">Wechsle zwischen Dark und Light Mode</p>
+            </div>
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-3 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-colors"
+            >
+              {theme === "dark" ? (
+                <>
+                  <Moon className="h-5 w-5 text-blue-400" />
+                  <span>Dark Mode</span>
+                </>
+              ) : (
+                <>
+                  <Sun className="h-5 w-5 text-yellow-400" />
+                  <span>Light Mode</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Integrations / API Keys */}
