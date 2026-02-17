@@ -75,6 +75,7 @@ try
     builder.Services.AddHostedService<LiveDataPoller>();
     builder.Services.AddHostedService<TerminalPoller>();
     builder.Services.AddHostedService<OctofleetAgent.Service.Screen.ScreenStreamService>();
+    builder.Services.AddHostedService<ServiceReconciliationPoller>();
 
     var host = builder.Build();
 

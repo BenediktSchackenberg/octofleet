@@ -241,3 +241,83 @@ LEFT JOIN remediation_packages rp ON (
 )
 WHERE v.severity IN ('CRITICAL', 'HIGH')
 ORDER BY v.cvss_score DESC NULLS LAST;
+
+-- ============================================================================
+-- E18: Service Orchestration Tables
+-- ============================================================================
+
+-- Service class templates (blueprints for services)
+CREATE TABLE IF NOT EXISTS service_classes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    service_type VARCHAR(50) DEFAULT 'standalone' CHECK (service_type IN ('standalone', 'cluster', 'replicated')),
+    min_nodes INTEGER DEFAULT 1,
+    max_nodes INTEGER DEFAULT 100,
+    roles JSONB DEFAULT '["primary"]'::JSONB,
+    required_packages JSONB,
+    config_template TEXT,
+    health_check JSONB,
+    drift_policy VARCHAR(20) DEFAULT 'warn' CHECK (drift_policy IN ('ignore', 'warn', 'strict')),
+    update_strategy VARCHAR(20) DEFAULT 'rolling' CHECK (update_strategy IN ('rolling', 'blue-green', 'canary')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by TEXT
+);
+
+-- Service instances
+CREATE TABLE IF NOT EXISTS services (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_id UUID NOT NULL REFERENCES service_classes(id),
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    status VARCHAR(20) DEFAULT 'provisioning' CHECK (status IN (
+        'provisioning', 'healthy', 'degraded', 'failed', 'stopped', 'reconciling'
+    )),
+    desired_state_version INTEGER DEFAULT 1,
+    config_values JSONB,
+    secrets_ref TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by TEXT
+);
+
+-- Node-to-service assignments
+CREATE TABLE IF NOT EXISTS service_node_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    service_id UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+    node_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    role VARCHAR(50) DEFAULT 'primary',
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN (
+        'pending', 'provisioning', 'active', 'draining', 'removed'
+    )),
+    current_state_version INTEGER DEFAULT 0,
+    last_reconciled_at TIMESTAMPTZ,
+    last_reconciled_version INTEGER,
+    health_status VARCHAR(20) DEFAULT 'unknown' CHECK (health_status IN ('healthy', 'unhealthy', 'unknown')),
+    health_message TEXT,
+    assigned_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(service_id, node_id)
+);
+
+-- Reconciliation audit log
+CREATE TABLE IF NOT EXISTS service_reconciliation_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    service_id UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+    node_id UUID REFERENCES nodes(id) ON DELETE SET NULL,
+    action VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    message TEXT,
+    details JSONB,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+-- Indexes for service orchestration
+CREATE INDEX IF NOT EXISTS idx_services_class ON services(class_id);
+CREATE INDEX IF NOT EXISTS idx_services_status ON services(status);
+CREATE INDEX IF NOT EXISTS idx_service_node_assignments_service ON service_node_assignments(service_id);
+CREATE INDEX IF NOT EXISTS idx_service_node_assignments_node ON service_node_assignments(node_id);
+CREATE INDEX IF NOT EXISTS idx_service_reconciliation_log_service ON service_reconciliation_log(service_id);
+CREATE INDEX IF NOT EXISTS idx_service_reconciliation_log_node ON service_reconciliation_log(node_id);

@@ -5,6 +5,7 @@ Tests basic functionality without requiring complete database schema.
 import pytest
 import requests
 import os
+import time
 
 API_URL = os.getenv("API_URL", "http://localhost:8080")
 
@@ -64,3 +65,64 @@ class TestEnrollment:
         )
         # Should require valid token
         assert response.status_code in [400, 401, 403, 422]
+
+
+class TestServiceOrchestration:
+    """E18: Service Orchestration API tests"""
+    
+    def test_list_service_classes(self):
+        """Should list service classes"""
+        response = requests.get(
+            f"{API_URL}/api/v1/service-classes",
+            headers={"X-API-Key": API_KEY},
+            timeout=10
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "serviceClasses" in data
+        assert isinstance(data["serviceClasses"], list)
+    
+    def test_list_services(self):
+        """Should list services"""
+        response = requests.get(
+            f"{API_URL}/api/v1/services",
+            headers={"X-API-Key": API_KEY},
+            timeout=10
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "services" in data
+        assert isinstance(data["services"], list)
+    
+    def test_create_service_class(self):
+        """Should create a service class template"""
+        response = requests.post(
+            f"{API_URL}/api/v1/service-classes",
+            headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
+            json={
+                "name": f"test-template-{int(time.time())}",
+                "description": "Test template for API tests",
+                "serviceType": "standalone",
+                "roles": ["primary"],
+                "healthCheck": {"type": "http", "port": 80}
+            },
+            timeout=10
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "id" in data
+        assert "name" in data
+    
+    def test_get_node_service_assignments(self):
+        """Should return service assignments for a node"""
+        # Use existing node or dummy ID
+        response = requests.get(
+            f"{API_URL}/api/v1/nodes/TEST-NODE/service-assignments",
+            headers={"X-API-Key": API_KEY},
+            timeout=10
+        )
+        # Should return 200 even for unknown node (empty list)
+        assert response.status_code == 200
+        data = response.json()
+        assert "services" in data
+        assert isinstance(data["services"], list)
