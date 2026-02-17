@@ -321,3 +321,16 @@ CREATE INDEX IF NOT EXISTS idx_service_node_assignments_service ON service_node_
 CREATE INDEX IF NOT EXISTS idx_service_node_assignments_node ON service_node_assignments(node_id);
 CREATE INDEX IF NOT EXISTS idx_service_reconciliation_log_service ON service_reconciliation_log(service_id);
 CREATE INDEX IF NOT EXISTS idx_service_reconciliation_log_node ON service_reconciliation_log(node_id);
+
+-- E18 Constraint updates (run after table creation)
+-- Add 'service_reconcile' to command_type
+-- ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_command_type_check;
+-- ALTER TABLE jobs ADD CONSTRAINT jobs_command_type_check CHECK (
+--     command_type IN ('run', 'script', 'inventory', 'install_package', 'uninstall_package', 'update_package', 'restart-agent', 'service_reconcile')
+-- );
+
+-- Add 'node' to target_type
+-- ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_target_type_check;
+-- ALTER TABLE jobs ADD CONSTRAINT jobs_target_type_check CHECK (
+--     target_type IN ('device', 'group', 'tag', 'all', 'node')
+-- );
