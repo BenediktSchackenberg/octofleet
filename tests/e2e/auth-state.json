@@ -6,19 +6,19 @@
       "localStorage": [
         {
           "name": "token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyN2QzNDMyMi1iMmMxLTQzNjYtYTcyYS1iMjc4ZTg5Yjk4ZTUiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzE0MDczMDksInR5cGUiOiJhY2Nlc3MifQ.ZAY0iaCA0X0BZjGcz2d5MVikoAHqws8ziXSab1OnK3k"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyN2QzNDMyMi1iMmMxLTQzNjYtYTcyYS1iMjc4ZTg5Yjk4ZTUiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzE0MDg4MTcsInR5cGUiOiJhY2Nlc3MifQ.4NbJLWoJ1Tzy-kng9lv4UzJwT9rSZ5thi4n2mdtjKAs"
         },
         {
           "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyN2QzNDMyMi1iMmMxLTQzNjYtYTcyYS1iMjc4ZTg5Yjk4ZTUiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzE0MDczMDgsInR5cGUiOiJhY2Nlc3MifQ.rsYn1s8oqVSWOrX9AU3OSoh9dCq_zfC21S2LDz3j_OE"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyN2QzNDMyMi1iMmMxLTQzNjYtYTcyYS1iMjc4ZTg5Yjk4ZTUiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzE0MDg4MTYsInR5cGUiOiJhY2Nlc3MifQ.ztubbo0wdMedxsz61gbRzSFkoo1Gdv0AAhLyIZoO4Fc"
         },
         {
           "name": "authToken",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyN2QzNDMyMi1iMmMxLTQzNjYtYTcyYS1iMjc4ZTg5Yjk4ZTUiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzE0MDczMDgsInR5cGUiOiJhY2Nlc3MifQ.rsYn1s8oqVSWOrX9AU3OSoh9dCq_zfC21S2LDz3j_OE"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyN2QzNDMyMi1iMmMxLTQzNjYtYTcyYS1iMjc4ZTg5Yjk4ZTUiLCJ1c2VybmFtZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiKiJdLCJleHAiOjE3NzE0MDg4MTYsInR5cGUiOiJhY2Nlc3MifQ.ztubbo0wdMedxsz61gbRzSFkoo1Gdv0AAhLyIZoO4Fc"
         },
         {
           "name": "user",
-          "value": "{\"id\":\"27d34322-b2c1-4366-a72a-b278e89b98e5\",\"username\":\"admin\",\"email\":\"admin@local\",\"display_name\":\"Administrator\",\"is_active\":true,\"is_superuser\":true,\"created_at\":\"2026-02-16T17:14:14.819314Z\",\"last_login\":\"2026-02-17T09:35:08.336367Z\",\"roles\":[]}"
+          "value": "{\"id\":\"27d34322-b2c1-4366-a72a-b278e89b98e5\",\"username\":\"admin\",\"email\":\"admin@local\",\"display_name\":\"Administrator\",\"is_active\":true,\"is_superuser\":true,\"created_at\":\"2026-02-16T17:14:14.819314Z\",\"last_login\":\"2026-02-17T10:00:15.967582Z\",\"roles\":[]}"
         }
       ]
     }
