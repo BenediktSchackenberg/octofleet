@@ -24,7 +24,7 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://octofleet:octofleet_inventory_2026@127.0.0.1:5432/inventory"
 )
-API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-dev-key")
+API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
 
 # Database pool
 db_pool: Optional[asyncpg.Pool] = None
@@ -2446,7 +2446,7 @@ async def list_enrollment_tokens(request: Request):
         return {"tokens": []}
     
     rows = await pool.fetch("""
-        SELECT id, token, description, expires_at, max_uses, use_count, created_by, created_at, revoked
+        SELECT id, token, name, description, expires_at, max_uses, current_uses, created_by, created_at, revoked_at, is_active
         FROM enrollment_tokens
         ORDER BY created_at DESC
     """)
@@ -2457,19 +2457,22 @@ async def list_enrollment_tokens(request: Request):
         is_expired = False
         if expires_at:
             is_expired = expires_at < datetime.now(expires_at.tzinfo) if expires_at.tzinfo else expires_at < datetime.utcnow()
-        is_exhausted = row['use_count'] >= row['max_uses']
+        is_exhausted = row['max_uses'] and row['current_uses'] >= row['max_uses']
+        is_revoked = row['revoked_at'] is not None
         
         tokens.append({
             "id": str(row['id']),
             "token": row['token'][:8] + "..." if row['token'] else None,
+            "name": row['name'],
             "description": row['description'],
             "expiresAt": row['expires_at'].isoformat() if row['expires_at'] else None,
             "maxUses": row['max_uses'],
-            "useCount": row['use_count'],
+            "useCount": row['current_uses'],
             "createdBy": row['created_by'],
             "createdAt": row['created_at'].isoformat() if row['created_at'] else None,
-            "revoked": row['revoked'],
-            "status": "revoked" if row['revoked'] else ("expired" if is_expired else ("exhausted" if is_exhausted else "active"))
+            "revoked": is_revoked,
+            "isActive": row['is_active'],
+            "status": "revoked" if is_revoked else ("expired" if is_expired else ("exhausted" if is_exhausted else "active"))
         })
     
     return {"tokens": tokens}
@@ -2480,7 +2483,7 @@ async def revoke_enrollment_token(token_id: str, request: Request):
     pool = await get_db()
     
     row = await pool.fetchrow("""
-        UPDATE enrollment_tokens SET revoked = TRUE WHERE id = $1
+        UPDATE enrollment_tokens SET revoked_at = NOW(), is_active = FALSE WHERE id = $1
         RETURNING id
     """, token_id)
     
@@ -7798,8 +7801,22 @@ async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get
 
 @app.get("/api/v1/nodes/{node_id}/service-assignments")
 async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get all services assigned to a node - for agent polling"""
+    """Get all services assigned to a node - for agent polling.
+    node_id can be the database ID or the hostname (case-insensitive).
+    """
     async with db.acquire() as conn:
+        # If node_id is not numeric, treat it as hostname and look up the actual ID
+        actual_node_id = node_id
+        if not node_id.isdigit():
+            node = await conn.fetchrow(
+                "SELECT id FROM nodes WHERE UPPER(hostname) = UPPER($1)",
+                node_id
+            )
+            if not node:
+                # No services for unknown node - return empty list (not an error)
+                return {"nodeId": node_id, "services": []}
+            actual_node_id = str(node["id"])
+        
         assignments = await conn.fetch("""
             SELECT 
                 sna.id as assignment_id,
@@ -7822,7 +7839,7 @@ async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(
             JOIN service_classes sc ON s.class_id = sc.id
             WHERE sna.node_id = $1
             ORDER BY s.name
-        """, node_id)
+        """, actual_node_id)
         
         services = []
         for a in assignments:
