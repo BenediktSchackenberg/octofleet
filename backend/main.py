@@ -265,7 +265,7 @@ def evaluate_dynamic_rule(rule: dict, node_data: dict) -> bool:
         return any(results)
 
 
-async def update_dynamic_group_memberships(db: asyncpg.Pool, node_uuid: UUID, node_data: dict):
+async def update_dynamic_device_groupships(db: asyncpg.Pool, node_uuid: UUID, node_data: dict):
     """
     Evaluate all dynamic groups for a node and update memberships.
     Called after a node checks in with inventory data.
@@ -1645,7 +1645,7 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
         "domain": os_info.get("domain", ""),
         "is_domain_joined": os_info.get("isDomainJoined", False),
     }
-    await update_dynamic_group_memberships(db, uuid, node_data_for_rules)
+    await update_dynamic_device_groupships(db, uuid, node_data_for_rules)
     
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
 
@@ -2239,7 +2239,7 @@ async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_d
 
 # E2-03: Assign devices to groups
 @app.post("/api/v1/groups/{group_id}/members", dependencies=[Depends(verify_api_key)])
-async def add_group_members(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+async def add_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Add devices to a group"""
     node_ids = data.get("nodeIds", [])
     assigned_by = data.get("assignedBy", "api")
@@ -2269,7 +2269,7 @@ async def add_group_members(group_id: str, data: Dict[str, Any], db: asyncpg.Poo
 
 
 @app.delete("/api/v1/groups/{group_id}/members", dependencies=[Depends(verify_api_key)])
-async def remove_group_members(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+async def remove_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Remove devices from a group"""
     node_ids = data.get("nodeIds", [])
     
@@ -2876,6 +2876,7 @@ from mssql_module import (
     generate_disk_prep_script,
     generate_install_script,
     MssqlInstallRequest,
+    DiskConfig,
     DiskConfigSection,
     SqlPaths,
     MSSQL_DOWNLOADS,
@@ -3316,6 +3317,411 @@ async def get_mssql_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
             "installedAt": row["installed_at"].isoformat() if row["installed_at"] else None,
             "createdAt": row["created_at"].isoformat() if row["created_at"] else None
         }
+
+
+# ============================================
+# MSSQL Group Assignments (Declarative)
+# ============================================
+
+@app.post("/api/v1/mssql/assignments")
+async def create_mssql_assignment(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """
+    Assign an MSSQL config profile to a group.
+    All nodes in the group will receive the SQL Server installation.
+    
+    Example:
+    {
+        "configId": "uuid-of-config",
+        "groupId": "uuid-of-group",
+        "saPassword": "YourStr0ngP@ss!",
+        "licenseKey": "XXXXX-XXXXX-..." (optional, for Standard/Enterprise)
+    }
+    """
+    config_id = data.get("configId")
+    group_id = data.get("groupId")
+    sa_password = data.get("saPassword")
+    license_key = data.get("licenseKey")
+    
+    if not config_id or not group_id or not sa_password:
+        raise HTTPException(status_code=400, detail="configId, groupId, and saPassword are required")
+    
+    async with db.acquire() as conn:
+        # Verify config exists and get edition
+        config = await conn.fetchrow("""
+            SELECT id, name, edition FROM mssql_configs WHERE id = $1::uuid
+        """, config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Config not found")
+        
+        # Verify group exists
+        group = await conn.fetchrow("""
+            SELECT id, name FROM groups WHERE id = $1::uuid
+        """, group_id)
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        # Check if Standard/Enterprise needs license
+        if config["edition"] in ["standard", "enterprise"] and not license_key:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"{config['edition'].title()} edition requires a license key"
+            )
+        
+        # Simple "encryption" - in production use proper encryption!
+        # For now just base64 encode (NOT secure, just placeholder)
+        import base64
+        sa_encrypted = base64.b64encode(sa_password.encode()).decode()
+        license_encrypted = base64.b64encode(license_key.encode()).decode() if license_key else None
+        
+        # Create assignment
+        try:
+            assignment_id = str(uuid.uuid4())
+            await conn.execute("""
+                INSERT INTO mssql_group_assignments (id, config_id, group_id, sa_password_encrypted, license_key_encrypted)
+                VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5)
+            """, assignment_id, config_id, group_id, sa_encrypted, license_encrypted)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=409, detail="This config is already assigned to this group")
+        
+        # Get group members count
+        member_count = await conn.fetchval("""
+            SELECT COUNT(*) FROM device_groups WHERE group_id = $1::uuid
+        """, group_id)
+        
+        return {
+            "id": assignment_id,
+            "configId": config_id,
+            "configName": config["name"],
+            "groupId": group_id,
+            "groupName": group["name"],
+            "memberCount": member_count,
+            "message": f"Config '{config['name']}' assigned to group '{group['name']}'. Use /api/v1/mssql/assignments/{assignment_id}/reconcile to deploy."
+        }
+
+
+@app.get("/api/v1/mssql/assignments")
+async def list_mssql_assignments(db: asyncpg.Pool = Depends(get_db)):
+    """List all MSSQL config-to-group assignments with status"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                a.id, a.config_id, a.group_id, a.enabled, a.created_at,
+                c.name as config_name, c.edition, c.version,
+                g.name as group_name
+            FROM mssql_group_assignments a
+            JOIN mssql_configs c ON c.id = a.config_id
+            JOIN groups g ON g.id = a.group_id
+            ORDER BY a.created_at DESC
+        """)
+        
+        assignments = []
+        for row in rows:
+            # Count members and installed
+            member_count = await conn.fetchval("""
+                SELECT COUNT(*) FROM device_groups WHERE group_id = $1::uuid
+            """, row["group_id"])
+            
+            installed_count = await conn.fetchval("""
+                SELECT COUNT(*) FROM mssql_instances 
+                WHERE assignment_id = $1::uuid AND status = 'running'
+            """, row["id"])
+            
+            pending_count = await conn.fetchval("""
+                SELECT COUNT(*) FROM mssql_instances 
+                WHERE assignment_id = $1::uuid AND status NOT IN ('running', 'failed')
+            """, row["id"])
+            
+            assignments.append({
+                "id": str(row["id"]),
+                "configId": str(row["config_id"]),
+                "configName": row["config_name"],
+                "edition": row["edition"],
+                "version": row["version"],
+                "groupId": str(row["group_id"]),
+                "groupName": row["group_name"],
+                "enabled": row["enabled"],
+                "memberCount": member_count,
+                "installedCount": installed_count,
+                "pendingCount": pending_count,
+                "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+            })
+        
+        return {"assignments": assignments}
+
+
+@app.get("/api/v1/mssql/assignments/{assignment_id}")
+async def get_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get assignment details with per-node status"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT 
+                a.*, c.name as config_name, c.edition, c.version,
+                g.name as group_name
+            FROM mssql_group_assignments a
+            JOIN mssql_configs c ON c.id = a.config_id
+            JOIN groups g ON g.id = a.group_id
+            WHERE a.id = $1::uuid
+        """, assignment_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Assignment not found")
+        
+        # Get all group members with their installation status
+        members = await conn.fetch("""
+            SELECT 
+                n.node_id, n.hostname, n.is_online,
+                mi.id as instance_id, mi.status as install_status,
+                mi.error_message, mi.installed_at
+            FROM device_groups gm
+            JOIN nodes n ON n.id = gm.node_id
+            LEFT JOIN mssql_instances mi ON mi.node_id = n.node_id AND mi.assignment_id = $1::uuid
+            WHERE gm.group_id = $2::uuid
+            ORDER BY n.hostname
+        """, assignment_id, row["group_id"])
+        
+        nodes = []
+        for m in members:
+            nodes.append({
+                "nodeId": m["node_id"],
+                "hostname": m["hostname"],
+                "isOnline": m["is_online"],
+                "instanceId": str(m["instance_id"]) if m["instance_id"] else None,
+                "installStatus": m["install_status"] or "not_installed",
+                "errorMessage": m["error_message"],
+                "installedAt": m["installed_at"].isoformat() if m["installed_at"] else None
+            })
+        
+        return {
+            "id": str(row["id"]),
+            "configId": str(row["config_id"]),
+            "configName": row["config_name"],
+            "edition": row["edition"],
+            "version": row["version"],
+            "groupId": str(row["group_id"]),
+            "groupName": row["group_name"],
+            "enabled": row["enabled"],
+            "nodes": nodes,
+            "summary": {
+                "total": len(nodes),
+                "installed": sum(1 for n in nodes if n["installStatus"] == "running"),
+                "pending": sum(1 for n in nodes if n["installStatus"] not in ("running", "failed", "not_installed")),
+                "notInstalled": sum(1 for n in nodes if n["installStatus"] == "not_installed"),
+                "failed": sum(1 for n in nodes if n["installStatus"] == "failed")
+            }
+        }
+
+
+@app.post("/api/v1/mssql/assignments/{assignment_id}/reconcile")
+async def reconcile_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Reconcile: Deploy SQL Server to all nodes in the group that don't have it yet.
+    Creates installation jobs for missing nodes.
+    """
+    async with db.acquire() as conn:
+        # Get assignment with config details
+        row = await conn.fetchrow("""
+            SELECT 
+                a.*, 
+                c.name as config_name, c.edition, c.version, c.instance_name,
+                c.features, c.sql_collation, c.port, c.max_memory_mb,
+                c.tempdb_file_count, c.tempdb_file_size_mb, c.include_ssms,
+                g.name as group_name
+            FROM mssql_group_assignments a
+            JOIN mssql_configs c ON c.id = a.config_id
+            JOIN groups g ON g.id = a.group_id
+            WHERE a.id = $1::uuid AND a.enabled = true
+        """, assignment_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Assignment not found or disabled")
+        
+        # Decrypt passwords
+        import base64
+        sa_password = base64.b64decode(row["sa_password_encrypted"]).decode()
+        license_key = base64.b64decode(row["license_key_encrypted"]).decode() if row["license_key_encrypted"] else None
+        
+        # Get disk configs
+        disk_rows = await conn.fetch("""
+            SELECT purpose, disk_number, drive_letter, volume_label, folder_name
+            FROM mssql_disk_configs WHERE config_id = $1::uuid
+        """, row["config_id"])
+        
+        # Find nodes that need installation
+        nodes_needing_install = await conn.fetch("""
+            SELECT n.id, n.node_id, n.hostname
+            FROM device_groups gm
+            JOIN nodes n ON n.id = gm.node_id
+            LEFT JOIN mssql_instances mi ON mi.node_id = n.node_id AND mi.assignment_id = $1::uuid
+            WHERE gm.group_id = $2::uuid
+              AND n.is_online = true
+              AND (mi.id IS NULL OR mi.status = 'failed')
+        """, assignment_id, row["group_id"])
+        
+        if not nodes_needing_install:
+            return {
+                "message": "All nodes already have SQL Server installed or are offline",
+                "jobsCreated": 0
+            }
+        
+        # Build paths from disk config
+        path_map = {}
+        for d in disk_rows:
+            path_map[d["purpose"]] = f"{d['drive_letter']}:\\{d['folder_name']}"
+        
+        paths = SqlPaths(
+            userDbDir=path_map.get("data", "D:\\Data"),
+            userDbLogDir=path_map.get("log", "E:\\Logs"),
+            tempDbDir=path_map.get("tempdb", "F:\\TempDB"),
+            tempDbLogDir=path_map.get("tempdb", "F:\\TempDB"),
+        )
+        
+        # Build disk config for script generation
+        disk_config = None
+        if disk_rows:
+            disk_config = DiskConfigSection(
+                prepareDisks=True,
+                disks=[
+                    DiskConfig(
+                        purpose=d["purpose"],
+                        diskIdentifier={"number": d["disk_number"]} if d["disk_number"] else None,
+                        driveLetter=d["drive_letter"],
+                        volumeLabel=d["volume_label"] or "SQL_Volume",
+                        allocationUnitKb=64,
+                        folder=d["folder_name"]
+                    ) for d in disk_rows
+                ]
+            )
+        
+        results = []
+        for node in nodes_needing_install:
+            # Create instance record
+            instance_id = str(uuid.uuid4())
+            await conn.execute("""
+                INSERT INTO mssql_instances (
+                    id, node_id, instance_name, edition, version, port,
+                    data_path, log_path, tempdb_path, status, assignment_id
+                ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10::uuid)
+                ON CONFLICT (node_id, instance_name) DO UPDATE SET
+                    status = 'pending', error_message = NULL, assignment_id = $10::uuid
+            """, instance_id, node["node_id"], row["instance_name"],
+                row["edition"], row["version"], row["port"],
+                paths.userDbDir, paths.userDbLogDir, paths.tempDbDir, assignment_id
+            )
+            
+            jobs_created = []
+            
+            # Job 1: Disk prep (if disk config exists)
+            if disk_config:
+                disk_script = generate_disk_prep_script(disk_config)
+                disk_job_id = str(uuid.uuid4())
+                
+                await conn.execute("""
+                    INSERT INTO jobs (id, name, description, target_type, target_id,
+                                     command_type, command_data, timeout_seconds, created_by)
+                    VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, $6, 'mssql-reconciler')
+                """, disk_job_id, 
+                    f"[MSSQL] Disk Prep - {node['hostname']}",
+                    f"Initialize and format disks for SQL Server (Assignment: {row['config_name']})",
+                    str(node["id"]),
+                    json.dumps({"command": disk_script}),
+                    300
+                )
+                
+                await conn.execute("""
+                    INSERT INTO job_instances (job_id, node_id, status)
+                    VALUES ($1::uuid, $2, 'pending')
+                """, disk_job_id, node["node_id"])
+                
+                await conn.execute("""
+                    UPDATE mssql_instances SET disk_prep_job_id = $1::uuid, status = 'disk_prep'
+                    WHERE id = $2::uuid
+                """, disk_job_id, instance_id)
+                
+                jobs_created.append({"phase": "disk_prep", "jobId": disk_job_id})
+            
+            # Job 2: Installation
+            # Build request object for script generation
+            install_request = MssqlInstallRequest(
+                targets=[node["node_id"]],
+                edition=row["edition"],
+                version=row["version"],
+                instanceName=row["instance_name"],
+                features=row["features"] or ["SQLEngine"],
+                saPassword=sa_password,
+                licenseKey=license_key,
+                port=row["port"],
+                maxMemoryMb=row["max_memory_mb"],
+                tempDbFileCount=row["tempdb_file_count"] or 4,
+                includeSsms=row["include_ssms"]
+            )
+            
+            install_script = generate_install_script(install_request, paths)
+            install_job_id = str(uuid.uuid4())
+            
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, target_id,
+                                 command_type, command_data, timeout_seconds, created_by)
+                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, $6, 'mssql-reconciler')
+            """, install_job_id,
+                f"[MSSQL] Install {row['edition'].title()} {row['version']} - {node['hostname']}",
+                f"SQL Server {row['version']} {row['edition'].title()} (Assignment: {row['config_name']})",
+                str(node["id"]),
+                json.dumps({"command": install_script}),
+                5400
+            )
+            
+            await conn.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES ($1::uuid, $2, 'pending')
+            """, install_job_id, node["node_id"])
+            
+            await conn.execute("""
+                UPDATE mssql_instances SET install_job_id = $1::uuid
+                WHERE id = $2::uuid
+            """, install_job_id, instance_id)
+            
+            jobs_created.append({"phase": "install", "jobId": install_job_id})
+            
+            results.append({
+                "nodeId": node["node_id"],
+                "hostname": node["hostname"],
+                "instanceId": instance_id,
+                "jobs": jobs_created
+            })
+        
+        return {
+            "assignmentId": assignment_id,
+            "configName": row["config_name"],
+            "groupName": row["group_name"],
+            "nodesProcessed": len(results),
+            "results": results
+        }
+
+
+@app.delete("/api/v1/mssql/assignments/{assignment_id}")
+async def delete_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete an MSSQL config-to-group assignment (does not uninstall SQL Server)"""
+    async with db.acquire() as conn:
+        result = await conn.execute("""
+            DELETE FROM mssql_group_assignments WHERE id = $1::uuid
+        """, assignment_id)
+        
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Assignment not found")
+        
+        return {"status": "deleted", "id": assignment_id}
+
+
+@app.patch("/api/v1/mssql/assignments/{assignment_id}")
+async def update_mssql_assignment(assignment_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Enable/disable an assignment"""
+    async with db.acquire() as conn:
+        if "enabled" in data:
+            await conn.execute("""
+                UPDATE mssql_group_assignments SET enabled = $1 WHERE id = $2::uuid
+            """, data["enabled"], assignment_id)
+        
+        return {"status": "updated", "id": assignment_id}
 
 
 @app.get("/api/v1/jobs")
