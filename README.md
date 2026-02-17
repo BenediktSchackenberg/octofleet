@@ -181,10 +181,37 @@ curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/
 | Quick Start | [Wiki: Quick-Start](../../wiki/Quick-Start) |
 | Installation | [Wiki: Installation](../../wiki/Installation) |
 | Configuration | [Wiki: Configuration](../../wiki/Configuration) |
-| API Reference | [Wiki: API-Reference](../../wiki/API-Reference) |
+| **API Reference** | [Swagger UI](http://localhost:8080/docs) • [ReDoc](http://localhost:8080/redoc) |
 | Agent Setup | [Wiki: Agent-Configuration](../../wiki/Agent-Configuration) |
 | Troubleshooting | [Wiki: Troubleshooting](../../wiki/Troubleshooting) |
 | **Roadmap** | [Wiki: Roadmap](../../wiki/Roadmap) |
+
+### 🔌 API Endpoints (158 total)
+
+The backend exposes a full REST API with automatic OpenAPI documentation:
+
+```bash
+# Interactive API docs (Swagger UI)
+open http://localhost:8080/docs
+
+# Alternative: ReDoc
+open http://localhost:8080/redoc
+
+# OpenAPI JSON spec
+curl http://localhost:8080/openapi.json
+```
+
+**Key Endpoints:**
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| `/api/v1/nodes` | 15 | Node inventory, search, tree view |
+| `/api/v1/inventory/*` | 17 | Hardware, software, hotfixes, security |
+| `/api/v1/jobs` | 10 | Job creation, scheduling, results |
+| `/api/v1/packages` | 12 | Package management, winget/choco |
+| `/api/v1/vulnerabilities` | 6 | CVE tracking, suppression |
+| `/api/v1/remediation` | 23 | Auto-remediation, health checks |
+| `/api/v1/services` | 10 | Service orchestration |
+| `/api/v1/deployments` | 8 | Software deployment |
 
 ---
 

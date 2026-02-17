@@ -1,406 +1,140 @@
-# API Documentation
+# Octofleet API Reference
 
-Octofleet Inventory Platform exposes a RESTful API for all operations.
+The Octofleet backend provides a comprehensive REST API for endpoint management.
 
-## Base URL
+## 🔗 Interactive Documentation
 
-```
-http://your-server:8080/api/v1
-```
+When the backend is running, access the full interactive API documentation:
 
-## Authentication
+- **Swagger UI**: http://localhost:8080/docs
+- **ReDoc**: http://localhost:8080/redoc
+- **OpenAPI JSON**: http://localhost:8080/openapi.json
 
-All endpoints require authentication via one of:
+## 🔐 Authentication
 
-1. **JWT Token** (for UI/users):
-   ```
-   Authorization: Bearer <jwt-token>
-   ```
+All API endpoints require authentication via one of:
 
-2. **API Key** (for agents/automation):
-   ```
-   X-API-Key: <api-key>
-   ```
-
-### Login
-
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
-
-{
-  "username": "admin",
-  "password": "admin"
-}
+### API Key (Header)
+```bash
+curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/nodes
 ```
 
-Response:
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": "uuid",
-    "username": "admin",
-    "role": "admin"
-  }
-}
+### JWT Bearer Token
+```bash
+curl -H "Authorization: Bearer your-jwt-token" http://localhost:8080/api/v1/nodes
 ```
+
+## 📊 Core Endpoints
+
+### Dashboard
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/dashboard/summary` | Node counts, vulnerability stats, job status |
+| GET | `/api/v1/health` | Health check |
+
+### Nodes (15 endpoints)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/nodes` | List all nodes with pagination |
+| GET | `/api/v1/nodes/tree` | Hierarchical node tree |
+| GET | `/api/v1/nodes/search` | Search nodes by hostname, OS, etc. |
+| GET | `/api/v1/nodes/{node_id}` | Get node details |
+| GET | `/api/v1/nodes/{node_id}/history` | Node state history |
+| GET | `/api/v1/nodes/{node_id}/service-assignments` | Services assigned to node |
+
+### Inventory (17 endpoints)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/inventory/full` | Submit full inventory (agent) |
+| POST | `/api/v1/inventory/hardware` | Submit hardware info |
+| POST | `/api/v1/inventory/software` | Submit installed software |
+| POST | `/api/v1/inventory/hotfixes` | Submit Windows updates |
+| POST | `/api/v1/inventory/security` | Submit security status |
+| POST | `/api/v1/inventory/network` | Submit network info |
+| POST | `/api/v1/inventory/browser` | Submit browser data |
+| GET | `/api/v1/inventory/hardware/{node_id}` | Get hardware for node |
+| GET | `/api/v1/inventory/software/{node_id}` | Get software for node |
+
+### Jobs (10 endpoints)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/jobs` | List all jobs |
+| POST | `/api/v1/jobs` | Create new job |
+| GET | `/api/v1/jobs/{job_id}` | Get job details |
+| GET | `/api/v1/jobs/pending/{node_id}` | Get pending jobs for node |
+| POST | `/api/v1/jobs/instances/{id}/result` | Submit job result (agent) |
+
+### Packages (12 endpoints)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/packages` | List all packages |
+| POST | `/api/v1/packages` | Create package |
+| GET | `/api/v1/packages/{id}` | Get package details |
+| PUT | `/api/v1/packages/{id}` | Update package |
+| DELETE | `/api/v1/packages/{id}` | Delete package |
+
+### Vulnerabilities (6 endpoints)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/vulnerabilities` | List vulnerabilities |
+| GET | `/api/v1/vulnerabilities/{node_id}` | Vulnerabilities for node |
+| POST | `/api/v1/vulnerabilities/{cve_id}/suppress` | Suppress a CVE |
+| POST | `/api/v1/vulnerabilities/scan` | Trigger vulnerability scan |
+
+### Remediation (23 endpoints)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/remediation/rules` | List remediation rules |
+| POST | `/api/v1/remediation/rules` | Create rule |
+| GET | `/api/v1/remediation/jobs` | List remediation jobs |
+| GET | `/api/v1/remediation/jobs/pending/{node_id}` | Pending remediation for node |
+| POST | `/api/v1/remediation/jobs/{id}/result` | Submit remediation result |
+
+### Services (10 endpoints)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/service-classes` | List service templates |
+| POST | `/api/v1/service-classes` | Create service class |
+| GET | `/api/v1/services` | List services |
+| POST | `/api/v1/services` | Create service |
+| POST | `/api/v1/services/{id}/nodes` | Assign nodes to service |
+| POST | `/api/v1/services/{id}/reconcile` | Trigger reconciliation |
+
+## 📝 Example: Create a Job
+
+```bash
+curl -X POST http://localhost:8080/api/v1/jobs \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Get System Info",
+    "command_type": "powershell",
+    "command": "Get-ComputerInfo | Select-Object CsName, WindowsVersion",
+    "target_type": "node",
+    "target_ids": ["node-uuid-here"]
+  }'
+```
+
+## 🔄 WebSocket Endpoints
+
+For real-time updates:
+
+- `/api/v1/live/{node_id}` - Live node data stream (SSE)
+- `/ws/screen/{node_id}` - Screen sharing (WebSocket)
+- `/ws/terminal/{node_id}` - Remote terminal (WebSocket)
+
+## ⚙️ Configuration
+
+Environment variables for the API:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgresql://...` | PostgreSQL connection string |
+| `INVENTORY_API_KEY` | `octofleet-inventory-dev-key` | Default API key |
+| `OCTOFLEET_GATEWAY_URL` | `http://192.168.0.5:18789` | Gateway URL for enrollment |
+| `OCTOFLEET_GATEWAY_TOKEN` | `` | Gateway token for enrollment |
+| `OCTOFLEET_INVENTORY_URL` | `http://192.168.0.5:8080` | Inventory API URL |
 
 ---
 
-## Nodes (Devices)
-
-### List Nodes
-
-```http
-GET /api/v1/nodes
-```
-
-Response:
-```json
-{
-  "nodes": [
-    {
-      "node_id": "abc123",
-      "hostname": "DESKTOP-PC1",
-      "os_name": "Windows 11 Pro",
-      "os_version": "10.0.22631",
-      "last_seen": "2024-02-13T12:00:00Z",
-      "agent_version": "0.4.5",
-      "tags": ["production", "office"]
-    }
-  ]
-}
-```
-
-### Get Node Details
-
-```http
-GET /api/v1/nodes/{node_id}
-```
-
-### Get Node Hardware
-
-```http
-GET /api/v1/hardware/{node_id}
-```
-
-### Get Node Software
-
-```http
-GET /api/v1/software/{node_id}
-```
-
-### Get Node Security
-
-```http
-GET /api/v1/security/{node_id}
-```
-
----
-
-## Groups
-
-### List Groups
-
-```http
-GET /api/v1/groups
-```
-
-### Create Group
-
-```http
-POST /api/v1/groups
-Content-Type: application/json
-
-{
-  "name": "Production Servers",
-  "description": "All production servers",
-  "is_dynamic": true,
-  "rules": {
-    "operator": "and",
-    "conditions": [
-      {"field": "hostname", "op": "contains", "value": "PROD"}
-    ]
-  }
-}
-```
-
-### Get Group Members
-
-```http
-GET /api/v1/groups/{group_id}/members
-```
-
----
-
-## Packages
-
-### List Packages
-
-```http
-GET /api/v1/packages
-```
-
-### Create Package
-
-```http
-POST /api/v1/packages
-Content-Type: application/json
-
-{
-  "name": "7-Zip",
-  "version": "23.01",
-  "description": "File archiver",
-  "download_url": "https://www.7-zip.org/a/7z2301-x64.msi",
-  "install_command": "msiexec /i {file} /qn",
-  "uninstall_command": "msiexec /x {ProductCode} /qn",
-  "detection_script": "Get-ItemProperty HKLM:\\Software\\7-Zip",
-  "sha256_hash": "abc123..."
-}
-```
-
----
-
-## Deployments
-
-### List Deployments
-
-```http
-GET /api/v1/deployments
-```
-
-### Create Deployment
-
-```http
-POST /api/v1/deployments
-Content-Type: application/json
-
-{
-  "package_id": "uuid",
-  "target_type": "group",
-  "target_id": "group-uuid",
-  "mode": "required",
-  "strategy": "staged",
-  "strategy_config": {
-    "batch_size": 5,
-    "delay_minutes": 30
-  },
-  "scheduled_start": "2024-02-14T22:00:00Z",
-  "scheduled_end": "2024-02-15T06:00:00Z"
-}
-```
-
-### Get Deployment Status
-
-```http
-GET /api/v1/deployments/{deployment_id}
-```
-
-Response includes per-node status:
-```json
-{
-  "id": "uuid",
-  "status": "in_progress",
-  "progress": {
-    "total": 50,
-    "pending": 20,
-    "downloading": 5,
-    "installing": 3,
-    "success": 20,
-    "failed": 2
-  },
-  "node_statuses": [...]
-}
-```
-
----
-
-## Jobs (Remote Commands)
-
-### List Jobs
-
-```http
-GET /api/v1/jobs
-```
-
-### Create Job
-
-```http
-POST /api/v1/jobs
-Content-Type: application/json
-
-{
-  "node_id": "abc123",
-  "command": "Get-Process | Select-Object -First 10",
-  "timeout_seconds": 60
-}
-```
-
-### Get Job Result
-
-```http
-GET /api/v1/jobs/{job_id}
-```
-
----
-
-## Alerts
-
-### List Alerts
-
-```http
-GET /api/v1/alerts
-```
-
-### Acknowledge Alert
-
-```http
-POST /api/v1/alerts/{alert_id}/acknowledge
-```
-
-### Resolve Alert
-
-```http
-POST /api/v1/alerts/{alert_id}/resolve
-```
-
----
-
-## Performance Metrics
-
-### Get Node Metrics
-
-```http
-GET /api/v1/performance/{node_id}?days=7
-```
-
-Response:
-```json
-{
-  "metrics": [
-    {
-      "timestamp": "2024-02-13T12:00:00Z",
-      "cpu_percent": 45.2,
-      "ram_percent": 67.8,
-      "disk_percent": 55.0
-    }
-  ]
-}
-```
-
-### Get Fleet Performance
-
-```http
-GET /api/v1/performance/fleet
-```
-
----
-
-## Agent Endpoints
-
-These endpoints are called by agents, not the UI:
-
-### Push Inventory
-
-```http
-POST /api/v1/inventory
-X-API-Key: <api-key>
-Content-Type: application/json
-
-{
-  "node_id": "abc123",
-  "hardware": {...},
-  "software": [...],
-  "security": {...},
-  "network": {...}
-}
-```
-
-### Poll for Jobs
-
-```http
-GET /api/v1/jobs/pending/{node_id}
-X-API-Key: <api-key>
-```
-
-### Report Job Result
-
-```http
-POST /api/v1/jobs/{job_id}/result
-X-API-Key: <api-key>
-Content-Type: application/json
-
-{
-  "exit_code": 0,
-  "stdout": "...",
-  "stderr": ""
-}
-```
-
-### Poll for Deployments
-
-```http
-GET /api/v1/deployments/pending/{node_id}
-X-API-Key: <api-key>
-```
-
----
-
-## Error Responses
-
-All errors follow this format:
-
-```json
-{
-  "error": "not_found",
-  "message": "Node not found",
-  "details": {}
-}
-```
-
-Common error codes:
-- `400` - Bad Request (invalid input)
-- `401` - Unauthorized (missing/invalid auth)
-- `403` - Forbidden (insufficient permissions)
-- `404` - Not Found
-- `500` - Internal Server Error
-
----
-
-## Rate Limits
-
-- UI endpoints: 100 requests/minute per user
-- Agent endpoints: 1000 requests/minute per API key
-
----
-
-## Webhooks (Outgoing)
-
-Alerts can trigger webhooks to external services:
-
-### Discord
-
-```json
-{
-  "content": "🚨 Alert: Node DESKTOP-PC1 is offline"
-}
-```
-
-### Slack
-
-```json
-{
-  "text": "🚨 Alert: Node DESKTOP-PC1 is offline"
-}
-```
-
-### Microsoft Teams
-
-```json
-{
-  "@type": "MessageCard",
-  "summary": "Alert",
-  "sections": [...]
-}
-```
+For the complete API specification, visit the [Swagger UI](http://localhost:8080/docs) when the backend is running.
