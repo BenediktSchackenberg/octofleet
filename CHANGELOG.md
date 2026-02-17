@@ -1,4 +1,23 @@
 # Changelog
+
+## [0.4.39] - 2026-02-17
+
+### Fixed
+- **Persistent WebSocket connection** with keep-alive heartbeats (#48)
+  - Sends ping every 30 seconds to keep connection alive
+  - Detects dead connections after 90 seconds of silence
+  - Reduced max reconnect delay from 5 minutes to 60 seconds
+  - Auto-reconnect when connection goes stale
+
+## [0.4.38] - 2026-02-16
+
+### Added
+- **E18: Service Orchestration** 🎯
+  - Service Classes (templates for desired state)
+  - Services with node assignments
+  - Agent-side reconciliation poller
+  - Reconciliation audit log
+
 ## [0.4.35] - 2026-02-16
 
 ### Fixed
