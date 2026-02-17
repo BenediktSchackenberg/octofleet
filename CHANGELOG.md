@@ -287,3 +287,21 @@ All notable changes to the Octofleet Windows Agent.
   - Restart agent service remotely via job system
   - Spawns detached PowerShell script for safe restart
   - Usage: `POST /api/v1/jobs { "commandType": "restart-agent", "targetType": "device", "targetId": "<uuid>" }`
+
+## [0.4.38] - 2026-02-17
+
+### Added
+- **E18 Service Orchestration**: ServiceReconciliationPoller in Agent
+  - Polls assigned services from `/api/v1/nodes/{id}/service-assignments`
+  - Automatic package installation (winget → choco fallback)
+  - Health checks: HTTP, TCP, Process, Windows Service
+  - Drift detection for strict policy
+  - Status reporting to API
+- DB Schema for E18: service_classes, services, service_node_assignments
+- 9 new E2E tests for Services UI
+- 4 new API tests for Service Orchestration
+
+### Fixed
+- DB constraints for `service_reconcile` command type
+- DB constraints for `node` target type
+- Services status constraint for `reconciling`
