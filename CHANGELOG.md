@@ -1,4 +1,15 @@
 # Changelog
+## [0.4.40] - 2026-02-17
+
+### Fixed
+- **Service Assignments API**: Now accepts hostname (case-insensitive) in addition to node UUID
+- **API Key Alignment**: Default API key changed to `octofleet-inventory-dev-key` to match agent default
+- **Enrollment Tokens**: Fixed column mapping for `name`, `current_uses`, `revoked_at`, `is_active`
+
+### Improved
+- Agents no longer get "Failed to get service assignments: InternalServerError"
+- Inventory push requests no longer return 401 Unauthorized
+
 ## [0.4.35] - 2026-02-16
 
 ### Fixed
