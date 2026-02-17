@@ -428,3 +428,29 @@
 
 ---
 *Updated: 2026-02-15 — E18 Service Orchestration Epic added*
+
+---
+## Reference Services (E18-04, E18-05) ✅
+
+Created 2026-02-17:
+
+### nginx-webserver
+- Type: cluster (1-10 nodes)
+- Roles: web, loadbalancer
+- Packages: nginx
+- Health: HTTP /healthz on port 80
+- Config: nginx.conf template with worker_processes, server_name, document_root
+
+### postgresql-single
+- Type: single (1 node)
+- Roles: primary
+- Packages: postgresql-16, postgresql-contrib-16
+- Health: TCP port 5432
+- Config: postgresql.conf template
+
+### postgresql-cluster
+- Type: cluster (2-5 nodes)
+- Roles: primary, replica
+- Packages: postgresql-16, postgresql-contrib-16
+- Health: TCP port 5432
+- Strategy: rolling updates
