@@ -20,7 +20,7 @@
 | **E15** | Hardware Fleet Dashboard | Medium | ✅ Complete |
 | **E16** | Live View (SSE) | Medium | ✅ Complete |
 | **E17** | Screen Mirroring | Low | ✅ Complete |
-| **E18** | Service Orchestration | High | 🔜 Planned |
+| **E18** | Service Orchestration | High | 🔶 In Progress (~40%) |
 
 ---
 
