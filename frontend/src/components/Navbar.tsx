@@ -193,17 +193,17 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
+        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all border ${
           isActive || open ? colors.active : colors.inactive
         }`}
       >
-        <GroupIcon className="h-4 w-4" />
+        <GroupIcon className="h-5 w-5" />
         <span className="hidden md:inline">{group.label}</span>
-        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded-xl shadow-2xl py-2 min-w-[200px] z-50">
+        <div className="absolute top-full left-0 mt-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded-xl shadow-2xl py-2 min-w-[240px] z-50">
           {visibleItems.map((item) => {
             const itemActive = pathname?.startsWith(item.href);
             const ItemIcon = item.icon;
@@ -212,13 +212,13 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                className={`flex items-center gap-3 px-5 py-3 text-base font-medium transition-colors ${
                   itemActive
                     ? `${colors.active} mx-2 rounded-lg`
                     : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700"
                 }`}
               >
-                <ItemIcon className={`h-4 w-4 ${!itemActive ? colors.dropdown : ''}`} />
+                <ItemIcon className={`h-5 w-5 ${!itemActive ? colors.dropdown : ''}`} />
                 <span>{t(item.labelKey)}</span>
               </Link>
             );
@@ -275,11 +275,11 @@ export function Navbar() {
             {/* Dashboard */}
             <Link
               href="/"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all border ${
                 pathname === "/" ? dashboardColors.active : dashboardColors.inactive
               }`}
             >
-              <LayoutDashboard className="h-4 w-4" />
+              <LayoutDashboard className="h-5 w-5" />
               <span className="hidden md:inline">{t("nav.dashboard")}</span>
             </Link>
 
