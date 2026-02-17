@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.43] - 2026-02-17
+
+### Fixed
+- **Installer**: Removed OpenClaw Gateway WebSocket from default config
+- **Installer**: Find first release with ZIP asset (not just latest)
+- **Installer**: TLS 1.2 forced for GitHub downloads
+- **Installer**: Better error handling for large file downloads
+
+### Added
+- **E20: Software Baselines & Auto-Onboarding**
+  - New nodes automatically added to onboarding group
+  - Software baselines (package collections) assignable to groups
+  - Baseline reconcile deploys missing packages via Chocolatey
+  - API endpoints: `/api/v1/baselines/*`, `/api/v1/onboarding/config`
+
+### Changed
+- Agent config now uses `ApiUrl` instead of `GatewayUrl` for Octofleet HTTP API
+- OpenClaw Gateway integration is now optional (commented out in config)
+
 ## [0.4.40] - 2026-02-17
 
 ### Fixed
