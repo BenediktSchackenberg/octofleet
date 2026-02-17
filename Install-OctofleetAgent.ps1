@@ -213,13 +213,16 @@ function Install-OctofleetAgent {
         Write-Status "Creating configuration..."
         
         $config = @{
-            GatewayUrl = if ($GatewayUrl) { $GatewayUrl } else { "ws://localhost:18789" }
-            GatewayToken = if ($GatewayToken) { $GatewayToken } else { "" }
+            # Octofleet API URL (HTTP) - required for jobs, inventory
+            ApiUrl = if ($GatewayUrl) { $GatewayUrl } else { "http://localhost:8080" }
             NodeName = $env:COMPUTERNAME
             HeartbeatIntervalSeconds = 30
             InventoryPushIntervalMinutes = 60
             EventlogEnabled = $true
             AutoUpdate = $true
+            # OpenClaw Gateway (WebSocket) - optional, only if you want Claude remote access
+            # GatewayUrl = "ws://192.168.0.5:18789"
+            # GatewayToken = ""
         }
         
         if ($EnrollToken) {
