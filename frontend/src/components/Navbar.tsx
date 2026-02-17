@@ -8,119 +8,156 @@ import { ExportDropdown } from "./ExportButtons";
 import { LanguageSelector } from "./LanguageSelector";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
-import { LogOut, User, ChevronDown } from "lucide-react";
+import { 
+  LogOut, 
+  User, 
+  ChevronDown,
+  LayoutDashboard,
+  // Fleet
+  Server,
+  FolderTree,
+  HardDrive,
+  // Software
+  Package,
+  Rocket,
+  Zap,
+  GitCompare,
+  // Infrastructure
+  Database,
+  Link as LinkIcon,
+  // Security
+  Bug,
+  Wrench,
+  ShieldCheck,
+  // Operations
+  Activity,
+  Bell,
+  FileText,
+  // Admin
+  Users,
+  ScrollText,
+  KeyRound,
+  Settings,
+  type LucideIcon
+} from "lucide-react";
 
 interface NavItem {
   href: string;
   labelKey: string;
-  icon: string;
+  icon: LucideIcon;
   permission?: string;
   adminOnly?: boolean;
 }
 
 interface NavGroup {
   label: string;
-  icon: string;
+  labelKey: string;
+  icon: LucideIcon;
   color: string;
   items: NavItem[];
 }
 
-// Color mappings for each category - farbige Pills!
-const colorClasses: Record<string, { active: string; inactive: string }> = {
+// Color mappings for each category
+const colorClasses: Record<string, { active: string; inactive: string; dropdown: string }> = {
   emerald: { 
     active: "bg-emerald-500 text-white border-emerald-500", 
-    inactive: "text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/20" 
+    inactive: "text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/20",
+    dropdown: "text-emerald-500"
   },
   blue: { 
     active: "bg-blue-500 text-white border-blue-500", 
-    inactive: "text-blue-400 border-blue-500/50 hover:bg-blue-500/20" 
+    inactive: "text-blue-400 border-blue-500/50 hover:bg-blue-500/20",
+    dropdown: "text-blue-500"
   },
   amber: { 
     active: "bg-amber-500 text-white border-amber-500", 
-    inactive: "text-amber-400 border-amber-500/50 hover:bg-amber-500/20" 
+    inactive: "text-amber-400 border-amber-500/50 hover:bg-amber-500/20",
+    dropdown: "text-amber-500"
   },
   red: { 
     active: "bg-red-500 text-white border-red-500", 
-    inactive: "text-red-400 border-red-500/50 hover:bg-red-500/20" 
+    inactive: "text-red-400 border-red-500/50 hover:bg-red-500/20",
+    dropdown: "text-red-500"
   },
   cyan: { 
     active: "bg-cyan-500 text-white border-cyan-500", 
-    inactive: "text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20" 
+    inactive: "text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20",
+    dropdown: "text-cyan-500"
   },
   purple: { 
     active: "bg-purple-500 text-white border-purple-500", 
-    inactive: "text-purple-400 border-purple-500/50 hover:bg-purple-500/20" 
+    inactive: "text-purple-400 border-purple-500/50 hover:bg-purple-500/20",
+    dropdown: "text-purple-500"
   },
 };
 
-// Grouped navigation structure with colors
-// Optimized for usability: logical grouping, clear purpose per category
+// Navigation structure with Lucide icons
 const navGroups: NavGroup[] = [
   {
-    // FLEET - Everything about devices/endpoints
     label: "Fleet",
-    icon: "🖥️",
+    labelKey: "nav.fleet",
+    icon: Server,
     color: "emerald",
     items: [
-      { href: "/nodes", labelKey: "nav.nodes", icon: "🖥️", permission: "nodes:read" },
-      { href: "/groups", labelKey: "nav.groups", icon: "📁", permission: "groups:read" },
-      { href: "/hardware", labelKey: "nav.hardware", icon: "💾", permission: "nodes:read" },
+      { href: "/nodes", labelKey: "nav.nodes", icon: Server, permission: "nodes:read" },
+      { href: "/groups", labelKey: "nav.groups", icon: FolderTree, permission: "groups:read" },
+      { href: "/hardware", labelKey: "nav.hardware", icon: HardDrive, permission: "nodes:read" },
     ]
   },
   {
-    // SOFTWARE - Package management & deployment
     label: "Software",
-    icon: "📦",
+    labelKey: "nav.software",
+    icon: Package,
     color: "blue",
     items: [
-      { href: "/packages", labelKey: "nav.packages", icon: "📦", permission: "packages:read" },
-      { href: "/deployments", labelKey: "nav.deployments", icon: "🎯", permission: "deployments:read" },
-      { href: "/jobs", labelKey: "nav.jobs", icon: "⚡", permission: "jobs:read" },
-      { href: "/software-compare", labelKey: "nav.compare", icon: "📊", permission: "nodes:read" },
+      { href: "/packages", labelKey: "nav.packages", icon: Package, permission: "packages:read" },
+      { href: "/deployments", labelKey: "nav.deployments", icon: Rocket, permission: "deployments:read" },
+      { href: "/jobs", labelKey: "nav.jobs", icon: Zap, permission: "jobs:read" },
+      { href: "/software-compare", labelKey: "nav.compare", icon: GitCompare, permission: "nodes:read" },
     ]
   },
   {
-    // INFRASTRUCTURE - Platform services (SQL, Service Orchestration)
-    label: "Infrastructure",
-    icon: "🏗️",
+    label: "Infra",
+    labelKey: "nav.infrastructure",
+    icon: Database,
     color: "amber",
     items: [
-      { href: "/sql", labelKey: "nav.sql", icon: "🗄️", permission: "services:read" },
-      { href: "/services", labelKey: "nav.services", icon: "🔗", permission: "services:read" },
+      { href: "/sql", labelKey: "nav.sql", icon: Database, permission: "services:read" },
+      { href: "/services", labelKey: "nav.services", icon: LinkIcon, permission: "services:read" },
     ]
   },
   {
-    // SECURITY - Vulnerabilities, compliance, remediation
     label: "Security",
-    icon: "🛡️",
+    labelKey: "nav.security",
+    icon: ShieldCheck,
     color: "red",
     items: [
-      { href: "/vulnerabilities", labelKey: "nav.vulnerabilities", icon: "🐛", permission: "vulnerabilities:read" },
-      { href: "/remediation", labelKey: "nav.remediation", icon: "🔧", permission: "vulnerabilities:read" },
-      { href: "/compliance", labelKey: "nav.compliance", icon: "✅", permission: "compliance:read" },
+      { href: "/vulnerabilities", labelKey: "nav.vulnerabilities", icon: Bug, permission: "vulnerabilities:read" },
+      { href: "/remediation", labelKey: "nav.remediation", icon: Wrench, permission: "vulnerabilities:read" },
+      { href: "/compliance", labelKey: "nav.compliance", icon: ShieldCheck, permission: "compliance:read" },
     ]
   },
   {
-    // OPERATIONS - Monitoring, logs, alerts
-    label: "Operations",
-    icon: "📡",
+    label: "Ops",
+    labelKey: "nav.operations",
+    icon: Activity,
     color: "cyan",
     items: [
-      { href: "/performance", labelKey: "nav.performance", icon: "📈", permission: "nodes:read" },
-      { href: "/alerts", labelKey: "nav.alerts", icon: "🔔", permission: "alerts:read" },
-      { href: "/eventlog", labelKey: "nav.eventlog", icon: "📋", permission: "eventlog:read" },
+      { href: "/performance", labelKey: "nav.performance", icon: Activity, permission: "nodes:read" },
+      { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read" },
+      { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read" },
     ]
   },
   {
-    // ADMIN - User management, audit, settings
     label: "Admin",
-    icon: "⚙️",
+    labelKey: "nav.admin",
+    icon: Settings,
     color: "purple",
     items: [
-      { href: "/users", labelKey: "nav.users", icon: "👥", permission: "users:read", adminOnly: true },
-      { href: "/audit", labelKey: "nav.audit", icon: "📜", permission: "audit:read", adminOnly: true },
-      { href: "/api-keys", labelKey: "nav.apiKeys", icon: "🔑", permission: "api-keys:read" },
-      { href: "/settings", labelKey: "nav.settings", icon: "⚙️" },
+      { href: "/users", labelKey: "nav.users", icon: Users, permission: "users:read", adminOnly: true },
+      { href: "/audit", labelKey: "nav.audit", icon: ScrollText, permission: "audit:read", adminOnly: true },
+      { href: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound, permission: "api-keys:read" },
+      { href: "/settings", labelKey: "nav.settings", icon: Settings },
     ]
   }
 ];
@@ -132,6 +169,7 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
   const { hasPermission, isAdmin } = useAuth();
   const pathname = usePathname();
   const colors = colorClasses[group.color] || colorClasses.blue;
+  const GroupIcon = group.icon;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -159,7 +197,7 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
           isActive || open ? colors.active : colors.inactive
         }`}
       >
-        <span>{group.icon}</span>
+        <GroupIcon className="h-4 w-4" />
         <span className="hidden md:inline">{group.label}</span>
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
@@ -168,6 +206,7 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
         <div className="absolute top-full left-0 mt-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded-xl shadow-2xl py-2 min-w-[200px] z-50">
           {visibleItems.map((item) => {
             const itemActive = pathname?.startsWith(item.href);
+            const ItemIcon = item.icon;
             return (
               <Link
                 key={item.href}
@@ -179,7 +218,7 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
                     : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700"
                 }`}
               >
-                <span className="text-base">{item.icon}</span>
+                <ItemIcon className={`h-4 w-4 ${!itemActive ? colors.dropdown : ''}`} />
                 <span>{t(item.labelKey)}</span>
               </Link>
             );
@@ -240,7 +279,7 @@ export function Navbar() {
                 pathname === "/" ? dashboardColors.active : dashboardColors.inactive
               }`}
             >
-              <span>🏠</span>
+              <LayoutDashboard className="h-4 w-4" />
               <span className="hidden md:inline">{t("nav.dashboard")}</span>
             </Link>
 
@@ -249,29 +288,27 @@ export function Navbar() {
               <NavDropdown 
                 key={group.label} 
                 group={group} 
-                isActive={isGroupActive(group)}
+                isActive={isGroupActive(group)} 
               />
             ))}
           </div>
 
-          {/* Right Side */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right side */}
+          <div className="flex items-center gap-3">
             <ExportDropdown />
             <ThemeToggle />
             <LanguageSelector />
-            
+
+            {/* User Menu */}
             {user && (
-              <div className="flex items-center gap-2 ml-2 pl-2 border-l border-zinc-700">
-                <div className="hidden sm:flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-zinc-400" />
-                  <span className="text-zinc-300">{user.display_name || user.username}</span>
-                  {user.roles?.length > 0 && (
-                    <span className="text-xs text-zinc-500">({user.roles[0]})</span>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-zinc-300 hidden md:inline">
+                  <User className="h-4 w-4 inline mr-1" />
+                  {user.username}
+                </span>
                 <button
                   onClick={logout}
-                  className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
+                  className="p-2 text-zinc-400 hover:text-white transition-colors"
                   title={t("nav.logout")}
                 >
                   <LogOut className="h-4 w-4" />

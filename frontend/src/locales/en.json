@@ -32,6 +32,12 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "fleet": "Fleet",
+    "software": "Software",
+    "infrastructure": "Infra",
+    "security": "Security",
+    "operations": "Ops",
+    "admin": "Admin",
     "nodes": "Nodes",
     "groups": "Groups",
     "hardware": "Hardware",
