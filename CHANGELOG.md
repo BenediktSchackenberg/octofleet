@@ -318,3 +318,17 @@ All notable changes to the Octofleet Windows Agent.
 - DB constraints for `service_reconcile` command type
 - DB constraints for `node` target type
 - Services status constraint for `reconciling`
+
+## [0.4.41] - 2026-02-17
+
+### Added
+- **Dashboard Security Stats**: Vulnerability counts (Critical/High/Medium) and Job stats (Success/Failed 24h)
+- **API Documentation**: Comprehensive docs/API.md with all 158 endpoints
+
+### Changed
+- Dashboard summary API now includes vulnerability counts, job stats, and active alerts
+- README updated with API documentation links
+
+### Fixed
+- Gateway URL/Token now configurable via environment variables
+- suppress_vulnerability now uses authenticated username instead of hardcoded "admin"
