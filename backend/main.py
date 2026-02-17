@@ -24,7 +24,7 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://octofleet:octofleet_inventory_2026@127.0.0.1:5432/inventory"
 )
-API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-dev-key")
+API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
 
 # Database pool
 db_pool: Optional[asyncpg.Pool] = None
@@ -7801,8 +7801,22 @@ async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get
 
 @app.get("/api/v1/nodes/{node_id}/service-assignments")
 async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get all services assigned to a node - for agent polling"""
+    """Get all services assigned to a node - for agent polling.
+    node_id can be the database ID or the hostname (case-insensitive).
+    """
     async with db.acquire() as conn:
+        # If node_id is not numeric, treat it as hostname and look up the actual ID
+        actual_node_id = node_id
+        if not node_id.isdigit():
+            node = await conn.fetchrow(
+                "SELECT id FROM nodes WHERE UPPER(hostname) = UPPER($1)",
+                node_id
+            )
+            if not node:
+                # No services for unknown node - return empty list (not an error)
+                return {"nodeId": node_id, "services": []}
+            actual_node_id = str(node["id"])
+        
         assignments = await conn.fetch("""
             SELECT 
                 sna.id as assignment_id,
@@ -7825,7 +7839,7 @@ async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(
             JOIN service_classes sc ON s.class_id = sc.id
             WHERE sna.node_id = $1
             ORDER BY s.name
-        """, node_id)
+        """, actual_node_id)
         
         services = []
         for a in assignments:
