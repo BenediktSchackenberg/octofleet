@@ -653,6 +653,50 @@ export default function HomePage() {
                 </Card>
               </div>
 
+              {/* Security & Jobs Stats */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
+                <Card className="border-red-500/30 hover:border-red-500 transition-colors">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-red-500" /> Critical Vulns
+                    </CardDescription>
+                    <CardTitle className="text-3xl text-red-500">{summary?.vulnerabilities?.critical || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className="border-orange-500/30 hover:border-orange-500 transition-colors">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-orange-500" /> High Vulns
+                    </CardDescription>
+                    <CardTitle className="text-3xl text-orange-500">{summary?.vulnerabilities?.high || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className="border-yellow-500/30 hover:border-yellow-500 transition-colors">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-yellow-500" /> Medium Vulns
+                    </CardDescription>
+                    <CardTitle className="text-3xl text-yellow-500">{summary?.vulnerabilities?.medium || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className="border-green-500/30 hover:border-green-500 transition-colors">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4 text-green-500" /> Jobs Success (24h)
+                    </CardDescription>
+                    <CardTitle className="text-3xl text-green-500">{summary?.jobs?.success || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className="border-red-500/30 hover:border-red-500 transition-colors">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-red-500" /> Jobs Failed (24h)
+                    </CardDescription>
+                    <CardTitle className="text-3xl text-red-500">{summary?.jobs?.failed || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+              </div>
+
               {/* Recent Alerts */}
               {recentAlerts.length > 0 && (
                 <Card className="mb-8">
