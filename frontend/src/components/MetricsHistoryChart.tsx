@@ -131,7 +131,7 @@ export function MetricsHistoryChart({ nodeId, title = "Performance History" }: M
                   border: "1px solid hsl(var(--border))",
                   borderRadius: "8px"
                 }}
-                formatter={(value: number) => [`${value}%`, ""]}
+                formatter={(value: number | undefined) => [`${value}%`, ""]}
               />
               <Legend />
               <Line

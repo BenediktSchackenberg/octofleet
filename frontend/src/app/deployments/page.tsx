@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Breadcrumb } from "@/components/ui-components";
-import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play } from "lucide-react";
+import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Database, Package, ChevronRight } from "lucide-react";
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
@@ -169,6 +169,61 @@ export default function DeploymentsPage() {
           <CardContent>
             <p className="text-2xl font-bold text-gray-500">
               {deployments.reduce((sum, d) => sum + d.pending_count + d.in_progress_count, 0)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Special Deployments */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Link href="/deployments/mssql">
+          <Card className="cursor-pointer hover:border-primary transition-colors">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <Database className="h-8 w-8 text-blue-500" />
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <h3 className="font-semibold text-lg">SQL Server</h3>
+              <p className="text-sm text-muted-foreground">
+                Express, Developer, Standard, Enterprise
+              </p>
+              <div className="flex gap-1 mt-2">
+                <Badge variant="secondary">2019</Badge>
+                <Badge variant="secondary">2022</Badge>
+                <Badge variant="secondary">2025</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Card className="opacity-50 cursor-not-allowed">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <Package className="h-8 w-8 text-orange-500" />
+              <Badge variant="outline">Bald</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <h3 className="font-semibold text-lg">Smart Install</h3>
+            <p className="text-sm text-muted-foreground">
+              Software via Chocolatey deployen
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="opacity-50 cursor-not-allowed">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <Rocket className="h-8 w-8 text-purple-500" />
+              <Badge variant="outline">Bald</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <h3 className="font-semibold text-lg">Custom Scripts</h3>
+            <p className="text-sm text-muted-foreground">
+              Eigene PowerShell-Skripte ausführen
             </p>
           </CardContent>
         </Card>

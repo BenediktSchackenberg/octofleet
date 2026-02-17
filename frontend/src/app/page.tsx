@@ -97,6 +97,19 @@ interface DashboardSummary {
     subject_id: string;
     timestamp: string | null;
   }>;
+  vulnerabilities?: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  jobs?: {
+    pending: number;
+    running: number;
+    completed: number;
+    failed: number;
+    success: number;
+  };
 }
 
 interface MetricsSummary {
