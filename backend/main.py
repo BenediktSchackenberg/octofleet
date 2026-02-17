@@ -5321,6 +5321,7 @@ async def push_metrics(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = De
         
         node_uuid = node["id"]
         
+        # Insert metrics
         await conn.execute("""
             INSERT INTO node_metrics (time, node_id, cpu_percent, ram_percent, disk_percent, network_in_mb, network_out_mb)
             VALUES (NOW(), $1, $2, $3, $4, $5, $6)
@@ -5331,6 +5332,9 @@ async def push_metrics(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = De
             data.get("networkInMb"),
             data.get("networkOutMb")
         )
+        
+        # Update last_seen timestamp - metrics prove the node is alive
+        await conn.execute("UPDATE nodes SET last_seen = NOW() WHERE id = $1", node_uuid)
         
         return {"status": "ok"}
 
@@ -8106,10 +8110,13 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
         # Get node UUID
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id_text)
         if not node:
-            raise not_found("Node", node_id)
+            raise not_found("Node", node_id_text)
         
         node_uuid = node['id']
         now = dt.utcnow()
+        
+        # Update last_seen - live-data proves the node is alive
+        await conn.execute("UPDATE nodes SET last_seen = NOW() WHERE id = $1", node_uuid)
         
         # Store metrics
         metrics = data.get("metrics", {})
