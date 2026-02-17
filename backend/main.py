@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Header, status, Request, BackgroundTasks, Body, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
+from pydantic import BaseModel, Field
 import os
 import json
 import time
@@ -2736,6 +2737,135 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
             "instancesCreated": instances_created,
             "createdAt": row["created_at"].isoformat() if row["created_at"] else None
         }
+
+
+# Popular Chocolatey packages for quick reference
+CHOCO_PACKAGES = {
+    "notepad++": "notepadplusplus",
+    "notepadplusplus": "notepadplusplus",
+    "7zip": "7zip",
+    "7-zip": "7zip",
+    "vlc": "vlc",
+    "git": "git",
+    "vscode": "vscode",
+    "vs-code": "vscode",
+    "python": "python",
+    "nodejs": "nodejs-lts",
+    "node": "nodejs-lts",
+    "chrome": "googlechrome",
+    "firefox": "firefox",
+    "putty": "putty",
+    "winscp": "winscp",
+    "filezilla": "filezilla",
+    "sysinternals": "sysinternals",
+    "powershell": "powershell-core",
+    "pwsh": "powershell-core",
+}
+
+
+class SmartInstallRequest(BaseModel):
+    """Request body for smart-install endpoint"""
+    package: str = Field(..., description="Package name (e.g., 'notepad++', '7zip', 'git')")
+    targets: List[str] = Field(..., description="List of node IDs or hostnames")
+    timeout_seconds: int = Field(600, description="Timeout for installation")
+
+
+@app.post("/api/v1/smart-install")
+async def smart_install(
+    request: SmartInstallRequest,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Smart software installation with automatic Chocolatey bootstrap.
+    
+    Installs software on Windows nodes using Chocolatey. If Chocolatey is not
+    installed on the target node, it will be automatically installed first.
+    
+    Example:
+    ```json
+    {
+        "package": "notepad++",
+        "targets": ["CONTROLLER", "DESKTOP-PC1"]
+    }
+    ```
+    """
+    # Normalize package name
+    package_name = request.package.lower().strip()
+    choco_package = CHOCO_PACKAGES.get(package_name, package_name)
+    
+    # Build smart-install command (installs choco if missing, then package)
+    smart_cmd = (
+        f'$c="C:\\ProgramData\\chocolatey\\bin\\choco.exe";'
+        f'if(!(Test-Path $c))'
+        f'{{Set-ExecutionPolicy Bypass -Scope Process -Force;'
+        f'[Net.ServicePointManager]::SecurityProtocol='
+        f'[Net.ServicePointManager]::SecurityProtocol -bor 3072;'
+        f'iex((New-Object Net.WebClient).DownloadString('
+        f"'https://community.chocolatey.org/install.ps1'))}}"
+        f';& $c install {choco_package} -y --no-progress'
+    )
+    
+    results = []
+    async with db.acquire() as conn:
+        for target in request.targets:
+            # Find node
+            node = await conn.fetchrow(
+                "SELECT id, node_id, hostname FROM nodes WHERE node_id = $1 OR hostname = $1",
+                target
+            )
+            if not node:
+                results.append({
+                    "target": target,
+                    "status": "error",
+                    "error": f"Node not found: {target}"
+                })
+                continue
+            
+            # Create job
+            job_uuid = uuid.uuid4()
+            job_name = f"Smart-Install {request.package}"
+            
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, target_id, 
+                                 command_type, command_data, timeout_seconds, created_by)
+                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, $6, $7)
+            """, str(job_uuid), job_name, 
+                f"Auto-install {choco_package} via Chocolatey (with bootstrap)",
+                str(node["id"]), json.dumps({"command": smart_cmd}),
+                request.timeout_seconds, "api")
+            
+            # Create instance
+            await conn.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES ($1::uuid, $2, 'pending')
+            """, str(job_uuid), node["node_id"])
+            
+            results.append({
+                "target": target,
+                "hostname": node["hostname"],
+                "status": "created",
+                "jobId": str(job_uuid),
+                "package": choco_package
+            })
+    
+    return {
+        "package": request.package,
+        "chocoPackage": choco_package,
+        "results": results,
+        "totalTargets": len(request.targets),
+        "jobsCreated": sum(1 for r in results if r["status"] == "created")
+    }
+
+
+@app.get("/api/v1/smart-install/packages")
+async def list_smart_install_packages():
+    """List available package aliases for smart-install"""
+    return {
+        "packages": [
+            {"alias": k, "chocoName": v, "description": f"Installs {v} via Chocolatey"}
+            for k, v in sorted(CHOCO_PACKAGES.items())
+        ]
+    }
 
 
 @app.get("/api/v1/jobs")
