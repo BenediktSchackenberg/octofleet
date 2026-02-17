@@ -34,7 +34,7 @@
     "dashboard": "Dashboard",
     "nodes": "Nodes",
     "groups": "Groups",
-    "hardware": "Hardware Fleet",
+    "hardware": "Hardware",
     "jobs": "Jobs",
     "packages": "Packages",
     "deployments": "Deployments",
@@ -48,9 +48,10 @@
     "settings": "Settings",
     "apiKeys": "API Keys",
     "logout": "Logout",
-    "remediation": "Auto-Remediation",
+    "remediation": "Auto-Fix",
     "services": "Services",
-    "sql": "SQL Server"
+    "sql": "SQL Server",
+    "performance": "Performance"
   },
   "auth": {
     "login": "Login",

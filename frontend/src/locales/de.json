@@ -34,12 +34,12 @@
     "dashboard": "Dashboard",
     "nodes": "Nodes",
     "groups": "Gruppen",
-    "hardware": "Hardware Fleet",
+    "hardware": "Hardware",
     "jobs": "Jobs",
     "packages": "Pakete",
     "deployments": "Deployments",
     "alerts": "Alarme",
-    "vulnerabilities": "Vulnerabilities",
+    "vulnerabilities": "Schwachstellen",
     "eventlog": "Eventlog",
     "compliance": "Compliance",
     "compare": "Vergleichen",
@@ -48,9 +48,10 @@
     "settings": "Einstellungen",
     "apiKeys": "API-Schlüssel",
     "logout": "Abmelden",
-    "remediation": "Auto-Remediation",
+    "remediation": "Auto-Fix",
     "services": "Services",
-    "sql": "SQL Server"
+    "sql": "SQL Server",
+    "performance": "Performance"
   },
   "auth": {
     "login": "Anmelden",

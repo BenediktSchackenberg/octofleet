@@ -27,10 +27,6 @@ interface NavGroup {
 
 // Color mappings for each category - farbige Pills!
 const colorClasses: Record<string, { active: string; inactive: string }> = {
-  amber: { 
-    active: "bg-amber-500 text-white border-amber-500", 
-    inactive: "text-amber-400 border-amber-500/50 hover:bg-amber-500/20" 
-  },
   emerald: { 
     active: "bg-emerald-500 text-white border-emerald-500", 
     inactive: "text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/20" 
@@ -39,9 +35,17 @@ const colorClasses: Record<string, { active: string; inactive: string }> = {
     active: "bg-blue-500 text-white border-blue-500", 
     inactive: "text-blue-400 border-blue-500/50 hover:bg-blue-500/20" 
   },
+  amber: { 
+    active: "bg-amber-500 text-white border-amber-500", 
+    inactive: "text-amber-400 border-amber-500/50 hover:bg-amber-500/20" 
+  },
   red: { 
     active: "bg-red-500 text-white border-red-500", 
     inactive: "text-red-400 border-red-500/50 hover:bg-red-500/20" 
+  },
+  cyan: { 
+    active: "bg-cyan-500 text-white border-cyan-500", 
+    inactive: "text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20" 
   },
   purple: { 
     active: "bg-purple-500 text-white border-purple-500", 
@@ -50,57 +54,72 @@ const colorClasses: Record<string, { active: string; inactive: string }> = {
 };
 
 // Grouped navigation structure with colors
+// Optimized for usability: logical grouping, clear purpose per category
 const navGroups: NavGroup[] = [
   {
-    label: "Inventar",
-    icon: "📦",
+    // FLEET - Everything about devices/endpoints
+    label: "Fleet",
+    icon: "🖥️",
     color: "emerald",
     items: [
       { href: "/nodes", labelKey: "nav.nodes", icon: "🖥️", permission: "nodes:read" },
       { href: "/groups", labelKey: "nav.groups", icon: "📁", permission: "groups:read" },
-      { href: "/hardware", labelKey: "nav.hardware", icon: "🔧", permission: "nodes:read" },
+      { href: "/hardware", labelKey: "nav.hardware", icon: "💾", permission: "nodes:read" },
+    ]
+  },
+  {
+    // SOFTWARE - Package management & deployment
+    label: "Software",
+    icon: "📦",
+    color: "blue",
+    items: [
+      { href: "/packages", labelKey: "nav.packages", icon: "📦", permission: "packages:read" },
+      { href: "/deployments", labelKey: "nav.deployments", icon: "🎯", permission: "deployments:read" },
+      { href: "/jobs", labelKey: "nav.jobs", icon: "⚡", permission: "jobs:read" },
       { href: "/software-compare", labelKey: "nav.compare", icon: "📊", permission: "nodes:read" },
     ]
   },
   {
-    label: "Deployment",
-    icon: "🚀",
-    color: "blue",
-    items: [
-      { href: "/packages", labelKey: "nav.packages", icon: "📦", permission: "packages:read" },
-      { href: "/jobs", labelKey: "nav.jobs", icon: "🚀", permission: "jobs:read" },
-      { href: "/deployments", labelKey: "nav.deployments", icon: "🎯", permission: "deployments:read" },
-    ]
-  },
-  {
-    label: "Services",
-    icon: "🔗",
+    // INFRASTRUCTURE - Platform services (SQL, Service Orchestration)
+    label: "Infrastructure",
+    icon: "🏗️",
     color: "amber",
     items: [
-      { href: "/services", labelKey: "nav.services", icon: "🔗", permission: "services:read" },
       { href: "/sql", labelKey: "nav.sql", icon: "🗄️", permission: "services:read" },
+      { href: "/services", labelKey: "nav.services", icon: "🔗", permission: "services:read" },
     ]
   },
   {
+    // SECURITY - Vulnerabilities, compliance, remediation
     label: "Security",
     icon: "🛡️",
     color: "red",
     items: [
       { href: "/vulnerabilities", labelKey: "nav.vulnerabilities", icon: "🐛", permission: "vulnerabilities:read" },
       { href: "/remediation", labelKey: "nav.remediation", icon: "🔧", permission: "vulnerabilities:read" },
-      { href: "/compliance", labelKey: "nav.compliance", icon: "🛡️", permission: "compliance:read" },
-      { href: "/eventlog", labelKey: "nav.eventlog", icon: "📋", permission: "eventlog:read" },
-      { href: "/alerts", labelKey: "nav.alerts", icon: "🔔", permission: "alerts:read" },
+      { href: "/compliance", labelKey: "nav.compliance", icon: "✅", permission: "compliance:read" },
     ]
   },
   {
+    // OPERATIONS - Monitoring, logs, alerts
+    label: "Operations",
+    icon: "📡",
+    color: "cyan",
+    items: [
+      { href: "/performance", labelKey: "nav.performance", icon: "📈", permission: "nodes:read" },
+      { href: "/alerts", labelKey: "nav.alerts", icon: "🔔", permission: "alerts:read" },
+      { href: "/eventlog", labelKey: "nav.eventlog", icon: "📋", permission: "eventlog:read" },
+    ]
+  },
+  {
+    // ADMIN - User management, audit, settings
     label: "Admin",
     icon: "⚙️",
     color: "purple",
     items: [
       { href: "/users", labelKey: "nav.users", icon: "👥", permission: "users:read", adminOnly: true },
       { href: "/audit", labelKey: "nav.audit", icon: "📜", permission: "audit:read", adminOnly: true },
-      { href: "/alerts", labelKey: "nav.alerts", icon: "🔔" },
+      { href: "/api-keys", labelKey: "nav.apiKeys", icon: "🔑", permission: "api-keys:read" },
       { href: "/settings", labelKey: "nav.settings", icon: "⚙️" },
     ]
   }
