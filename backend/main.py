@@ -2868,6 +2868,456 @@ async def list_smart_install_packages():
     }
 
 
+# ============================================
+# E19: MSSQL Deployment Module
+# ============================================
+
+from mssql_module import (
+    generate_disk_prep_script,
+    generate_install_script,
+    MssqlInstallRequest,
+    DiskConfigSection,
+    SqlPaths,
+    MSSQL_DOWNLOADS,
+    EDITIONS as MSSQL_EDITIONS
+)
+
+
+@app.get("/api/v1/mssql/editions")
+async def list_mssql_editions():
+    """List available SQL Server editions with details"""
+    return {"editions": MSSQL_EDITIONS}
+
+
+@app.get("/api/v1/mssql/downloads")
+async def get_mssql_downloads():
+    """Get download URLs for Express/Developer editions"""
+    return {"downloads": MSSQL_DOWNLOADS}
+
+
+@app.post("/api/v1/mssql/configs")
+async def create_mssql_config(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Create a reusable MSSQL configuration profile"""
+    async with db.acquire() as conn:
+        config_id = str(uuid.uuid4())
+        
+        row = await conn.fetchrow("""
+            INSERT INTO mssql_configs (
+                id, name, description, edition, version, instance_name,
+                features, sql_collation, port, max_memory_mb,
+                tempdb_file_count, tempdb_file_size_mb, include_ssms
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING id, created_at
+        """, config_id, 
+            data.get("name"),
+            data.get("description"),
+            data.get("edition"),
+            data.get("version"),
+            data.get("instanceName", "MSSQLSERVER"),
+            data.get("features", ["SQLEngine"]),
+            data.get("collation", "Latin1_General_CI_AS"),
+            data.get("port", 1433),
+            data.get("maxMemoryMb"),
+            data.get("tempDbFileCount", 4),
+            data.get("tempDbFileSizeMb", 1024),
+            data.get("includeSsms", True)
+        )
+        
+        # Add disk configs if provided
+        disk_configs = data.get("diskConfigs", [])
+        for dc in disk_configs:
+            await conn.execute("""
+                INSERT INTO mssql_disk_configs (
+                    config_id, purpose, disk_number, disk_size_gb,
+                    drive_letter, volume_label, allocation_unit_kb, folder_name
+                ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)
+            """, config_id,
+                dc.get("purpose"),
+                dc.get("diskNumber"),
+                dc.get("diskSizeGb"),
+                dc.get("driveLetter"),
+                dc.get("volumeLabel", "SQL_Volume"),
+                dc.get("allocationUnitKb", 64),
+                dc.get("folder")
+            )
+        
+        return {
+            "id": config_id,
+            "name": data.get("name"),
+            "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+        }
+
+
+@app.get("/api/v1/mssql/configs")
+async def list_mssql_configs(db: asyncpg.Pool = Depends(get_db)):
+    """List all MSSQL configuration profiles"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, name, description, edition, version, instance_name,
+                   features, sql_collation, port, max_memory_mb,
+                   tempdb_file_count, tempdb_file_size_mb, include_ssms, created_at
+            FROM mssql_configs
+            ORDER BY created_at DESC
+        """)
+        
+        configs = []
+        for row in rows:
+            disk_rows = await conn.fetch("""
+                SELECT purpose, disk_number, drive_letter, volume_label, folder_name
+                FROM mssql_disk_configs WHERE config_id = $1
+            """, row["id"])
+            
+            configs.append({
+                "id": str(row["id"]),
+                "name": row["name"],
+                "description": row["description"],
+                "edition": row["edition"],
+                "version": row["version"],
+                "instanceName": row["instance_name"],
+                "features": row["features"],
+                "collation": row["sql_collation"],
+                "port": row["port"],
+                "maxMemoryMb": row["max_memory_mb"],
+                "tempDbFileCount": row["tempdb_file_count"],
+                "tempDbFileSizeMb": row["tempdb_file_size_mb"],
+                "includeSsms": row["include_ssms"],
+                "diskConfigs": [
+                    {
+                        "purpose": d["purpose"],
+                        "diskNumber": d["disk_number"],
+                        "driveLetter": d["drive_letter"],
+                        "volumeLabel": d["volume_label"],
+                        "folder": d["folder_name"]
+                    } for d in disk_rows
+                ],
+                "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+            })
+        
+        return {"configs": configs}
+
+
+@app.get("/api/v1/mssql/configs/{config_id}")
+async def get_mssql_config(config_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get a specific MSSQL configuration profile"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT * FROM mssql_configs WHERE id = $1::uuid
+        """, config_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Config not found")
+        
+        disk_rows = await conn.fetch("""
+            SELECT * FROM mssql_disk_configs WHERE config_id = $1::uuid
+        """, config_id)
+        
+        return {
+            "id": str(row["id"]),
+            "name": row["name"],
+            "description": row["description"],
+            "edition": row["edition"],
+            "version": row["version"],
+            "instanceName": row["instance_name"],
+            "features": row["features"],
+            "collation": row["sql_collation"],
+            "port": row["port"],
+            "maxMemoryMb": row["max_memory_mb"],
+            "diskConfigs": [dict(d) for d in disk_rows]
+        }
+
+
+@app.delete("/api/v1/mssql/configs/{config_id}")
+async def delete_mssql_config(config_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a MSSQL configuration profile"""
+    async with db.acquire() as conn:
+        result = await conn.execute("""
+            DELETE FROM mssql_configs WHERE id = $1::uuid
+        """, config_id)
+        
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Config not found")
+        
+        return {"status": "deleted", "id": config_id}
+
+
+@app.post("/api/v1/mssql/install")
+async def install_mssql(request: MssqlInstallRequest, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Install SQL Server on target nodes.
+    
+    Creates jobs for:
+    1. Disk preparation (if diskConfig provided)
+    2. SQL Server download/mount
+    3. SQL Server installation
+    4. Post-installation configuration (memory, firewall, SSMS)
+    
+    Example request:
+    ```json
+    {
+        "targets": ["SQLSERVER1"],
+        "edition": "developer",
+        "version": "2022",
+        "saPassword": "YourStr0ngP@ss!",
+        "diskConfig": {
+            "prepareDisks": true,
+            "disks": [
+                {"purpose": "data", "diskIdentifier": {"number": 1}, "driveLetter": "D", "volumeLabel": "SQL_Data", "folder": "Data"},
+                {"purpose": "log", "diskIdentifier": {"number": 2}, "driveLetter": "E", "volumeLabel": "SQL_Logs", "folder": "Logs"},
+                {"purpose": "tempdb", "diskIdentifier": {"number": 3}, "driveLetter": "F", "volumeLabel": "SQL_TempDB", "folder": "TempDB"}
+            ]
+        }
+    }
+    ```
+    """
+    # Validate edition/license
+    if request.edition in ["standard", "enterprise"] and not request.licenseKey and not request.isoPath:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"{request.edition.title()} edition requires licenseKey or isoPath"
+        )
+    
+    # Build paths
+    if request.sqlPaths:
+        paths = request.sqlPaths
+    elif request.diskConfig and request.diskConfig.disks:
+        # Derive paths from disk config
+        path_map = {}
+        for disk in request.diskConfig.disks:
+            path_map[disk.purpose] = f"{disk.driveLetter}:\\{disk.folder}"
+        
+        paths = SqlPaths(
+            userDbDir=path_map.get("data", "D:\\Data"),
+            userDbLogDir=path_map.get("log", "E:\\Logs"),
+            tempDbDir=path_map.get("tempdb", "F:\\TempDB"),
+            tempDbLogDir=path_map.get("tempdb", "F:\\TempDB"),
+            backupDir=path_map.get("backup")
+        )
+    else:
+        paths = SqlPaths()
+    
+    results = []
+    
+    async with db.acquire() as conn:
+        for target in request.targets:
+            # Find node
+            node = await conn.fetchrow("""
+                SELECT id, node_id, hostname FROM nodes 
+                WHERE node_id = $1 OR hostname = $1
+            """, target)
+            
+            if not node:
+                results.append({
+                    "target": target,
+                    "status": "error",
+                    "error": f"Node not found: {target}"
+                })
+                continue
+            
+            # Create instance record
+            instance_id = str(uuid.uuid4())
+            await conn.execute("""
+                INSERT INTO mssql_instances (
+                    id, node_id, instance_name, edition, version, port,
+                    data_path, log_path, tempdb_path, status
+                ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+            """, instance_id, node["node_id"], request.instanceName,
+                request.edition, request.version, request.port,
+                paths.userDbDir, paths.userDbLogDir, paths.tempDbDir
+            )
+            
+            jobs_created = []
+            
+            # Job 1: Disk preparation (if needed)
+            if request.diskConfig and request.diskConfig.prepareDisks:
+                disk_script = generate_disk_prep_script(request.diskConfig)
+                disk_job_id = str(uuid.uuid4())
+                
+                await conn.execute("""
+                    INSERT INTO jobs (id, name, description, target_type, target_id,
+                                     command_type, command_data, timeout_seconds, created_by)
+                    VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, $6, 'mssql-installer')
+                """, disk_job_id, 
+                    f"[MSSQL] Disk Prep - {node['hostname']}",
+                    "Initialize and format disks for SQL Server",
+                    str(node["id"]),
+                    json.dumps({"command": disk_script}),
+                    300  # 5 min timeout
+                )
+                
+                await conn.execute("""
+                    INSERT INTO job_instances (job_id, node_id, status)
+                    VALUES ($1::uuid, $2, 'pending')
+                """, disk_job_id, node["node_id"])
+                
+                await conn.execute("""
+                    UPDATE mssql_instances SET disk_prep_job_id = $1::uuid, status = 'disk_prep'
+                    WHERE id = $2::uuid
+                """, disk_job_id, instance_id)
+                
+                jobs_created.append({"phase": "disk_prep", "jobId": disk_job_id})
+            
+            # Job 2: SQL Server Installation
+            install_script = generate_install_script(request, paths)
+            install_job_id = str(uuid.uuid4())
+            
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, target_id,
+                                 command_type, command_data, timeout_seconds, created_by)
+                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, $6, 'mssql-installer')
+            """, install_job_id,
+                f"[MSSQL] Install {request.edition.title()} {request.version} - {node['hostname']}",
+                f"SQL Server {request.version} {request.edition.title()} with {', '.join(request.features)}",
+                str(node["id"]),
+                json.dumps({"command": install_script}),
+                5400  # 90 min timeout (download + install can take a while)
+            )
+            
+            await conn.execute("""
+                INSERT INTO job_instances (job_id, node_id, status)
+                VALUES ($1::uuid, $2, 'pending')
+            """, install_job_id, node["node_id"])
+            
+            await conn.execute("""
+                UPDATE mssql_instances SET install_job_id = $1::uuid
+                WHERE id = $2::uuid
+            """, install_job_id, instance_id)
+            
+            jobs_created.append({"phase": "install", "jobId": install_job_id})
+            
+            results.append({
+                "target": target,
+                "hostname": node["hostname"],
+                "status": "jobs_created",
+                "instanceId": instance_id,
+                "edition": request.edition,
+                "version": request.version,
+                "paths": {
+                    "data": paths.userDbDir,
+                    "log": paths.userDbLogDir,
+                    "tempdb": paths.tempDbDir
+                },
+                "jobs": jobs_created
+            })
+    
+    return {
+        "request": {
+            "edition": request.edition,
+            "version": request.version,
+            "instanceName": request.instanceName,
+            "features": request.features
+        },
+        "results": results,
+        "totalTargets": len(request.targets),
+        "deploymentsStarted": sum(1 for r in results if r["status"] == "jobs_created")
+    }
+
+
+@app.get("/api/v1/mssql/instances")
+async def list_mssql_instances(
+    node_id: Optional[str] = None,
+    status: Optional[str] = None,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """List all MSSQL instances across nodes"""
+    async with db.acquire() as conn:
+        query = """
+            SELECT mi.*, n.hostname
+            FROM mssql_instances mi
+            LEFT JOIN nodes n ON n.node_id = mi.node_id
+            WHERE 1=1
+        """
+        params = []
+        
+        if node_id:
+            params.append(node_id)
+            query += f" AND mi.node_id = ${len(params)}"
+        
+        if status:
+            params.append(status)
+            query += f" AND mi.status = ${len(params)}"
+        
+        query += " ORDER BY mi.created_at DESC"
+        
+        rows = await conn.fetch(query, *params)
+        
+        instances = [{
+            "id": str(row["id"]),
+            "nodeId": row["node_id"],
+            "hostname": row["hostname"],
+            "instanceName": row["instance_name"],
+            "edition": row["edition"],
+            "version": row["version"],
+            "port": row["port"],
+            "status": row["status"],
+            "paths": {
+                "data": row["data_path"],
+                "log": row["log_path"],
+                "tempdb": row["tempdb_path"]
+            },
+            "errorMessage": row["error_message"],
+            "installedAt": row["installed_at"].isoformat() if row["installed_at"] else None,
+            "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+        } for row in rows]
+        
+        return {"instances": instances, "total": len(instances)}
+
+
+@app.get("/api/v1/mssql/instances/{instance_id}")
+async def get_mssql_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get details of a specific MSSQL instance including job status"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT mi.*, n.hostname
+            FROM mssql_instances mi
+            LEFT JOIN nodes n ON n.node_id = mi.node_id
+            WHERE mi.id = $1::uuid
+        """, instance_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        
+        # Get job statuses
+        jobs = {}
+        for job_type in ["disk_prep_job_id", "install_job_id", "config_job_id"]:
+            job_id = row[job_type]
+            if job_id:
+                job_row = await conn.fetchrow("""
+                    SELECT j.name, ji.status, ji.exit_code, ji.started_at, ji.completed_at
+                    FROM jobs j
+                    LEFT JOIN job_instances ji ON ji.job_id = j.id
+                    WHERE j.id = $1::uuid
+                """, job_id)
+                if job_row:
+                    jobs[job_type.replace("_job_id", "")] = {
+                        "jobId": str(job_id),
+                        "name": job_row["name"],
+                        "status": job_row["status"],
+                        "exitCode": job_row["exit_code"],
+                        "startedAt": job_row["started_at"].isoformat() if job_row["started_at"] else None,
+                        "completedAt": job_row["completed_at"].isoformat() if job_row["completed_at"] else None
+                    }
+        
+        return {
+            "id": str(row["id"]),
+            "nodeId": row["node_id"],
+            "hostname": row["hostname"],
+            "instanceName": row["instance_name"],
+            "edition": row["edition"],
+            "version": row["version"],
+            "port": row["port"],
+            "status": row["status"],
+            "paths": {
+                "data": row["data_path"],
+                "log": row["log_path"],
+                "tempdb": row["tempdb_path"]
+            },
+            "jobs": jobs,
+            "errorMessage": row["error_message"],
+            "installedAt": row["installed_at"].isoformat() if row["installed_at"] else None,
+            "createdAt": row["created_at"].isoformat() if row["created_at"] else None
+        }
+
+
 @app.get("/api/v1/jobs")
 async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends(get_db)):
     """List all jobs with summary"""
