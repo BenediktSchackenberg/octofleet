@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.40] - 2026-02-17
+
+### Fixed
+- **Service Assignments API**: Now accepts hostname (case-insensitive) in addition to node UUID
+- **API Key Alignment**: Default API key changed to `octofleet-inventory-dev-key` to match agent default
+- **Enrollment Tokens**: Fixed column mapping for `name`, `current_uses`, `revoked_at`, `is_active`
+
+### Improved
+- Agents no longer get "Failed to get service assignments: InternalServerError"
+- Inventory push requests no longer return 401 Unauthorized
+
 ## [0.4.39] - 2026-02-17
 
 ### Fixed
@@ -18,23 +29,6 @@
   - Agent-side reconciliation poller
   - Reconciliation audit log
 
-## [0.4.35] - 2026-02-16
-
-### Fixed
-- Removed ALL debug console output (clean UI)
-
-## [0.4.34] - 2026-02-16
-
-### Changed
-- Removed Gateway status from console (not needed for standalone Octofleet)
-- Renamed "Inventory" to "Server" in status display
-
-## [0.4.33] - 2026-02-16
-
-### Changed
-- **Activity Log hidden by default** - Press [V] to toggle visibility
-- Stats auto-refresh when data flows
-- Cleaner console UI without emoji (better terminal compatibility)
 
 ## [0.4.32] - 2026-02-16
 
