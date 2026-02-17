@@ -66,6 +66,7 @@ try
     builder.Services.AddSingleton(config);
 
     // Add our workers
+    builder.Services.AddHostedService<PendingNodeRegistration>();  // Auto-registration (runs first)
     builder.Services.AddHostedService<NodeWorker>();
     builder.Services.AddHostedService<InventoryScheduler>();
     builder.Services.AddHostedService<JobPoller>();

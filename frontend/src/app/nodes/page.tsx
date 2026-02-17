@@ -4,6 +4,7 @@ import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { Check, X, Clock, Monitor } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -20,6 +21,17 @@ interface Node {
   total_memory_gb: number | null;
   health_status?: 'healthy' | 'warning' | 'critical';
   alert_count?: number;
+}
+
+interface PendingNode {
+  id: string;
+  hostname: string;
+  osName: string;
+  osVersion: string;
+  ipAddress: string;
+  agentVersion: string;
+  machineId: string | null;
+  createdAt: string;
 }
 
 function StatusDot({ online }: { online: boolean }) {
@@ -63,14 +75,87 @@ function formatLastSeen(dateStr: string): string {
   return `vor ${diffDays} Tagen`;
 }
 
+function PendingNodesSection({ 
+  pendingNodes, 
+  onApprove, 
+  onReject,
+  approving 
+}: { 
+  pendingNodes: PendingNode[];
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  approving: string | null;
+}) {
+  if (pendingNodes.length === 0) return null;
+
+  return (
+    <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Clock className="h-5 w-5 text-amber-400" />
+        <h2 className="text-lg font-semibold text-amber-400">
+          Wartende Genehmigungen ({pendingNodes.length})
+        </h2>
+      </div>
+      
+      <div className="space-y-3">
+        {pendingNodes.map((node) => (
+          <div 
+            key={node.id}
+            className="bg-zinc-900/80 rounded-lg p-4 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-4">
+              <Monitor className="h-8 w-8 text-amber-400" />
+              <div>
+                <div className="font-medium text-zinc-100">{node.hostname}</div>
+                <div className="text-sm text-zinc-400">
+                  {node.osName} • {node.ipAddress} • Agent {node.agentVersion || "?"}
+                </div>
+                <div className="text-xs text-zinc-500">
+                  Registriert {formatLastSeen(node.createdAt)}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => onApprove(node.id)}
+                disabled={approving === node.id}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-green-800 text-white rounded-lg transition-colors"
+              >
+                {approving === node.id ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Genehmigen
+              </button>
+              <button
+                onClick={() => onReject(node.id)}
+                disabled={approving === node.id}
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-red-600 text-zinc-300 hover:text-white rounded-lg transition-colors"
+              >
+                <X className="h-4 w-4" />
+                Ablehnen
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function NodesPage() {
   const [nodes, setNodes] = useState<Node[]>([]);
+  const [pendingNodes, setPendingNodes] = useState<PendingNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
+  const [approving, setApproving] = useState<string | null>(null);
 
   useEffect(() => {
     fetchNodes();
+    fetchPendingNodes();
   }, []);
 
   async function fetchNodes() {
@@ -84,6 +169,60 @@ export default function NodesPage() {
       console.error("Failed to fetch nodes:", err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchPendingNodes() {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/pending-nodes`, {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await res.json();
+      setPendingNodes(data.pending || []);
+    } catch (err) {
+      console.error("Failed to fetch pending nodes:", err);
+    }
+  }
+
+  async function handleApprove(pendingId: string) {
+    setApproving(pendingId);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/pending-nodes/${pendingId}/approve`, {
+        method: "POST",
+        headers: { ...getAuthHeader() },
+      });
+      
+      if (res.ok) {
+        // Refresh both lists
+        await fetchPendingNodes();
+        await fetchNodes();
+      } else {
+        console.error("Failed to approve node");
+      }
+    } catch (err) {
+      console.error("Failed to approve node:", err);
+    } finally {
+      setApproving(null);
+    }
+  }
+
+  async function handleReject(pendingId: string) {
+    if (!confirm("Node wirklich ablehnen?")) return;
+    
+    setApproving(pendingId);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/pending-nodes/${pendingId}/reject`, {
+        method: "DELETE",
+        headers: { ...getAuthHeader() },
+      });
+      
+      if (res.ok) {
+        await fetchPendingNodes();
+      }
+    } catch (err) {
+      console.error("Failed to reject node:", err);
+    } finally {
+      setApproving(null);
     }
   }
 
@@ -123,9 +262,22 @@ export default function NodesPage() {
             <h1 className="text-2xl font-bold">🖥️ Nodes</h1>
             <p className="text-zinc-400 text-sm">
               {onlineCount} von {nodes.length} online
+              {pendingNodes.length > 0 && (
+                <span className="ml-2 text-amber-400">
+                  • {pendingNodes.length} wartend
+                </span>
+              )}
             </p>
           </div>
         </div>
+
+        {/* Pending Nodes Section */}
+        <PendingNodesSection 
+          pendingNodes={pendingNodes}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          approving={approving}
+        />
 
         {/* Search & Filters */}
         <div className="mb-4 flex flex-wrap gap-4 items-center">

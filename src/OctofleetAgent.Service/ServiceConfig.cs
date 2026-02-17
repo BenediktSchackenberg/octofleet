@@ -26,11 +26,18 @@ public class ServiceConfig
     // Scheduled Inventory Push settings
     public bool ScheduledPushEnabled { get; set; } = true;
     public int ScheduledPushIntervalMinutes { get; set; } = 30;  // Default: every 30 minutes
+    
+    // Pending approval workflow
+    public string? PendingId { get; set; }  // Set when registered, cleared when approved
+    public string? DiscoveryUrl { get; set; } = "http://192.168.0.5:8080";  // Default discovery URL
 
     private static readonly JsonSerializerOptions LoadOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
+
+    public static string GetConfigDir() => ConfigDir;
+    public static string GetConfigPath() => ConfigPath;
 
     public static ServiceConfig Load()
     {
@@ -65,5 +72,18 @@ public class ServiceConfig
         }
     }
 
-    public bool IsConfigured => !string.IsNullOrEmpty(GatewayUrl) && !string.IsNullOrEmpty(GatewayToken);
+    // Gateway is configured (optional - for Claude remote access)
+    public bool IsGatewayConfigured => !string.IsNullOrEmpty(GatewayUrl) && !string.IsNullOrEmpty(GatewayToken);
+    
+    // Inventory backend is configured (required for basic functionality)
+    public bool IsInventoryConfigured => 
+        !string.IsNullOrEmpty(InventoryApiUrl) && 
+        InventoryApiUrl != "http://localhost:8080" &&
+        !string.IsNullOrEmpty(InventoryApiKey);
+    
+    // Legacy: keep for backwards compatibility
+    public bool IsConfigured => IsGatewayConfigured;
+    
+    // Is waiting for admin approval?
+    public bool IsPendingApproval => !string.IsNullOrEmpty(PendingId);
 }

@@ -215,21 +215,23 @@ function Install-OctofleetAgent {
         New-Item -ItemType Directory -Force -Path $configDir | Out-Null
     }
     
+    # Only create minimal config - agent will auto-register and get full config
     if (-not (Test-Path $configPath) -or $GatewayUrl -or $GatewayToken) {
         Write-Status "Creating configuration at $configPath..."
         
         $config = @{
-            # Inventory Backend URL (HTTP) - required for jobs, inventory
-            InventoryApiUrl = if ($GatewayUrl) { $GatewayUrl } else { "http://localhost:8080" }
-            InventoryApiKey = "octofleet-inventory-dev-key"
+            # Discovery URL - agent will register here and wait for approval
+            DiscoveryUrl = if ($GatewayUrl) { $GatewayUrl } else { "http://192.168.0.5:8080" }
             DisplayName = $env:COMPUTERNAME
-            AutoPushInventory = $true
-            ScheduledPushEnabled = $true
-            ScheduledPushIntervalMinutes = 30
         }
         
-        if ($EnrollToken) {
-            $config.EnrollToken = $EnrollToken
+        # If full config provided, use it (backwards compatibility)
+        if ($GatewayUrl -and $GatewayUrl -notlike "http://192.168.0.5*") {
+            $config.InventoryApiUrl = $GatewayUrl
+            $config.InventoryApiKey = "octofleet-inventory-dev-key"
+            $config.AutoPushInventory = $true
+            $config.ScheduledPushEnabled = $true
+            $config.ScheduledPushIntervalMinutes = 30
         }
         
         $config | ConvertTo-Json -Depth 10 | Out-File -FilePath $configPath -Encoding UTF8
@@ -255,6 +257,9 @@ function Install-OctofleetAgent {
         Write-Host "Service Status: Running"
         Write-Host "Install Path:   $InstallPath"
         Write-Host "Config File:    $configPath"
+        Write-Host ""
+        Write-Host "NEXT STEP: Approve this node in the Octofleet Web UI:" -ForegroundColor Yellow
+        Write-Host "           http://192.168.0.5:3000/nodes" -ForegroundColor Cyan
     }
     else {
         Write-Status "Service may not have started correctly. Check logs at: $InstallPath\logs\" "Warning"

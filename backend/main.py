@@ -2604,7 +2604,7 @@ async def enroll_device(request: Request):
     
     # Find and validate token
     row = await pool.fetchrow("""
-        SELECT id, expires_at, max_uses, use_count, revoked
+        SELECT id, expires_at, max_uses, use_count, (revoked_at IS NOT NULL) as revoked
         FROM enrollment_tokens
         WHERE token = $1
     """, enroll_token)
@@ -2614,8 +2614,8 @@ async def enroll_device(request: Request):
     
     token_id = row['id']
     expires_at = row['expires_at']
-    max_uses = row['max_uses']
-    use_count = row['use_count']
+    max_uses = row['max_uses'] or 999
+    use_count = row['use_count'] or 0
     revoked = row['revoked']
     
     # Check if token is valid
@@ -2649,6 +2649,213 @@ async def enroll_device(request: Request):
         "inventoryApiUrl": INVENTORY_API_URL,
         "message": f"Device {hostname} enrolled successfully"
     }
+
+# ============================================
+# Pending Node Approval Workflow
+# ============================================
+
+@app.post("/api/v1/nodes/register")
+async def register_pending_node(request: Request):
+    """
+    Register a new node as pending approval.
+    No authentication required - agents call this on first startup.
+    """
+    pool = await get_db()
+    data = await request.json()
+    
+    hostname = data.get("hostname", "Unknown")
+    os_name = data.get("osName")
+    os_version = data.get("osVersion")
+    agent_version = data.get("agentVersion")
+    machine_id = data.get("machineId")  # Unique hardware identifier
+    
+    # Get client IP
+    ip_address = request.client.host if request.client else None
+    
+    # Check if already registered (by machine_id or hostname+ip)
+    existing = None
+    if machine_id:
+        existing = await pool.fetchrow(
+            "SELECT id, status FROM pending_nodes WHERE machine_id = $1",
+            machine_id
+        )
+    if not existing:
+        existing = await pool.fetchrow(
+            "SELECT id, status FROM pending_nodes WHERE hostname = $1 AND ip_address = $2",
+            hostname, ip_address
+        )
+    
+    if existing:
+        # Return existing pending ID so agent can poll
+        return {
+            "status": existing['status'],
+            "pendingId": str(existing['id']),
+            "message": f"Node already registered with status: {existing['status']}"
+        }
+    
+    # Create new pending node
+    pending_id = await pool.fetchval("""
+        INSERT INTO pending_nodes (hostname, os_name, os_version, ip_address, agent_version, machine_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id
+    """, hostname, os_name, os_version, ip_address, agent_version, machine_id)
+    
+    return {
+        "status": "pending",
+        "pendingId": str(pending_id),
+        "message": f"Node {hostname} registered. Awaiting admin approval."
+    }
+
+
+@app.get("/api/v1/pending-nodes")
+async def list_pending_nodes(request: Request, _: str = Depends(verify_api_key)):
+    """List all pending nodes awaiting approval"""
+    pool = await get_db()
+    
+    rows = await pool.fetch("""
+        SELECT id, hostname, os_name, os_version, ip_address, agent_version, 
+               machine_id, status, created_at
+        FROM pending_nodes
+        WHERE status = 'pending'
+        ORDER BY created_at DESC
+    """)
+    
+    return {
+        "pending": [
+            {
+                "id": str(row['id']),
+                "hostname": row['hostname'],
+                "osName": row['os_name'],
+                "osVersion": row['os_version'],
+                "ipAddress": row['ip_address'],
+                "agentVersion": row['agent_version'],
+                "machineId": row['machine_id'],
+                "createdAt": row['created_at'].isoformat() if row['created_at'] else None
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.post("/api/v1/pending-nodes/{pending_id}/approve")
+async def approve_pending_node(pending_id: str, request: Request, _: str = Depends(verify_api_key)):
+    """Approve a pending node and generate its config"""
+    pool = await get_db()
+    
+    # Get pending node
+    row = await pool.fetchrow(
+        "SELECT * FROM pending_nodes WHERE id = $1 AND status = 'pending'",
+        uuid.UUID(pending_id)
+    )
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Pending node not found or already processed")
+    
+    # Generate per-node API key
+    node_api_key = secrets.token_urlsafe(32)
+    
+    # Get approver from JWT if available
+    approver = "admin"
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            token = auth_header[7:]
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            approver = payload.get("sub", "admin")
+        except:
+            pass
+    
+    # Update pending node status
+    await pool.execute("""
+        UPDATE pending_nodes 
+        SET status = 'approved', approved_at = NOW(), approved_by = $2, generated_api_key = $3
+        WHERE id = $1
+    """, uuid.UUID(pending_id), approver, node_api_key)
+    
+    # Get server URL from request
+    server_url = f"http://{request.headers.get('host', 'localhost:8080')}"
+    
+    return {
+        "status": "approved",
+        "nodeId": pending_id,
+        "hostname": row['hostname'],
+        "message": f"Node {row['hostname']} approved successfully"
+    }
+
+
+@app.delete("/api/v1/pending-nodes/{pending_id}/reject")
+async def reject_pending_node(pending_id: str, request: Request, _: str = Depends(verify_api_key)):
+    """Reject a pending node"""
+    pool = await get_db()
+    
+    # Get approver from JWT
+    rejecter = "admin"
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            token = auth_header[7:]
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            rejecter = payload.get("sub", "admin")
+        except:
+            pass
+    
+    result = await pool.execute("""
+        UPDATE pending_nodes 
+        SET status = 'rejected', rejected_at = NOW(), rejected_by = $2
+        WHERE id = $1 AND status = 'pending'
+    """, uuid.UUID(pending_id), rejecter)
+    
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Pending node not found")
+    
+    return {"status": "rejected", "message": "Node rejected"}
+
+
+@app.get("/api/v1/pending-nodes/{pending_id}/config")
+async def get_pending_node_config(pending_id: str):
+    """
+    Agent polls this to get config after approval.
+    No auth required - pending_id acts as a one-time token.
+    """
+    pool = await get_db()
+    
+    row = await pool.fetchrow(
+        "SELECT * FROM pending_nodes WHERE id = $1",
+        uuid.UUID(pending_id)
+    )
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Unknown pending ID")
+    
+    if row['status'] == 'pending':
+        return {"status": "pending", "message": "Awaiting admin approval"}
+    
+    if row['status'] == 'rejected':
+        return {"status": "rejected", "message": "Node was rejected by admin"}
+    
+    if row['status'] == 'approved':
+        # Mark config as fetched
+        if not row['config_fetched_at']:
+            await pool.execute(
+                "UPDATE pending_nodes SET config_fetched_at = NOW() WHERE id = $1",
+                uuid.UUID(pending_id)
+            )
+        
+        # Return the config the agent should write
+        return {
+            "status": "approved",
+            "config": {
+                "InventoryApiUrl": f"http://192.168.0.5:8080",  # TODO: make configurable
+                "InventoryApiKey": row['generated_api_key'] or API_KEY,
+                "DisplayName": row['hostname'],
+                "AutoPushInventory": True,
+                "ScheduledPushEnabled": True,
+                "ScheduledPushIntervalMinutes": 30
+            }
+        }
+    
+    return {"status": "unknown"}
+
 
 # ============================================
 
