@@ -24,10 +24,9 @@ MSSQL_DOWNLOADS = {
         "type": "iso"
     },
     "2025": {
-        # SQL Server 2025 CTP - use latest available
-        "express": "https://go.microsoft.com/fwlink/?linkid=2296657",
-        "developer": "https://go.microsoft.com/fwlink/?linkid=2296657",  # Same link, edition selected during install
-        "evaluation": "https://go.microsoft.com/fwlink/?linkid=2296657",
+        # SQL Server 2025 RC0 - December 2024
+        "developer": "https://download.microsoft.com/download/6/2/6/626e3702-085d-44fd-9c12-d9f7b0f7e6cf/SQLServer2025-RC0-x64-ENU.iso",
+        "evaluation": "https://download.microsoft.com/download/6/2/6/626e3702-085d-44fd-9c12-d9f7b0f7e6cf/SQLServer2025-RC0-x64-ENU.iso",
         "type": "iso"
     }
 }
@@ -418,18 +417,18 @@ def generate_config_ini(request: MssqlInstallRequest, paths: SqlPaths) -> str:
         "SQLTEMPDBLOGFILESIZE=256",
         "SQLTEMPDBLOGFILEGROWTH=64",
         "",
-        "; Network",
+        "; Network - TCP enabled, port configured post-install",
         "TCPENABLED=\"1\"",
         "NPENABLED=\"0\"",
-        f"SQLSVCPORT={request.port}",
         "",
         "; Service Accounts",
         f"SQLSVCACCOUNT=\"NT Service\\MSSQL${request.instanceName}\"" if request.instanceName != "MSSQLSERVER" else "SQLSVCACCOUNT=\"NT Service\\MSSQLSERVER\"",
         "SQLSVCSTARTUPTYPE=\"Automatic\"",
-        "BROWSERSVCSTARTUPTYPE=\"Automatic\"",
+        "AGTSVCSTARTUPTYPE=\"Automatic\"",
         "",
-        "; License",
+        "; Suppress prompts",
         "IACCEPTSQLSERVERLICENSETERMS=\"True\"",
+        "SUPPRESSPRIVACYSTATEMENTNOTICE=\"True\"",
     ])
     
     if request.licenseKey:
