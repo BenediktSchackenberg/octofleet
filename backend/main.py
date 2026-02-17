@@ -25,6 +25,9 @@ DATABASE_URL = os.getenv(
     "postgresql://octofleet:octofleet_inventory_2026@127.0.0.1:5432/inventory"
 )
 API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
+GATEWAY_URL = os.getenv("OCTOFLEET_GATEWAY_URL", "http://192.168.0.5:18789")
+GATEWAY_TOKEN = os.getenv("OCTOFLEET_GATEWAY_TOKEN", "")
+INVENTORY_API_URL = os.getenv("OCTOFLEET_INVENTORY_URL", "http://192.168.0.5:8080")
 
 # Database pool
 db_pool: Optional[asyncpg.Pool] = None
@@ -2546,9 +2549,9 @@ async def enroll_device(request: Request):
         "status": "enrolled",
         "deviceId": device_id,
         "hostname": hostname,
-        "gatewayUrl": "http://192.168.0.5:18789",  # TODO: From config
-        "gatewayToken": "a9544b6300030bda29268e0f207b88ba446f6a31669a7c63",  # TODO: From config or generate
-        "inventoryApiUrl": "http://192.168.0.5:8080",
+        "gatewayUrl": GATEWAY_URL,
+        "gatewayToken": GATEWAY_TOKEN,
+        "inventoryApiUrl": INVENTORY_API_URL,
         "message": f"Device {hostname} enrolled successfully"
     }
 
@@ -5967,9 +5970,15 @@ async def suppress_vulnerability(
     cve_id: str,
     reason: str = Body(...),
     software_name: Optional[str] = Body(None),
-    expires_days: Optional[int] = Body(None)
+    expires_days: Optional[int] = Body(None),
+    auth: Any = Depends(verify_api_key)
 ):
     """Suppress a vulnerability (mark as accepted risk or false positive)."""
+    # Get username from JWT payload or default to 'api-key'
+    username = "api-key"
+    if isinstance(auth, dict):
+        username = auth.get("sub") or auth.get("username") or auth.get("email", "unknown")
+    
     expires_at = None
     if expires_days:
         expires_at = datetime.utcnow() + timedelta(days=expires_days)
@@ -5983,7 +5992,7 @@ async def suppress_vulnerability(
                 suppressed_by = EXCLUDED.suppressed_by,
                 suppressed_at = NOW(),
                 expires_at = EXCLUDED.expires_at
-        """, cve_id, software_name, reason, "admin", expires_at)  # TODO: Get actual user
+        """, cve_id, software_name, reason, username, expires_at)
         
     return {"status": "suppressed", "cve_id": cve_id}
 
