@@ -207,22 +207,25 @@ function Install-OctofleetAgent {
     # Cleanup temp file
     Remove-Item $tempZip -Force
     
-    # Create config if needed
-    $configPath = Join-Path $InstallPath "service-config.json"
+    # Create config in ProgramData (where the service reads from)
+    $configDir = Join-Path $env:ProgramData "Octofleet"
+    $configPath = Join-Path $configDir "service-config.json"
+    
+    if (-not (Test-Path $configDir)) {
+        New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+    }
+    
     if (-not (Test-Path $configPath) -or $GatewayUrl -or $GatewayToken) {
-        Write-Status "Creating configuration..."
+        Write-Status "Creating configuration at $configPath..."
         
         $config = @{
-            # Octofleet API URL (HTTP) - required for jobs, inventory
-            ApiUrl = if ($GatewayUrl) { $GatewayUrl } else { "http://localhost:8080" }
-            NodeName = $env:COMPUTERNAME
-            HeartbeatIntervalSeconds = 30
-            InventoryPushIntervalMinutes = 60
-            EventlogEnabled = $true
-            AutoUpdate = $true
-            # OpenClaw Gateway (WebSocket) - optional, only if you want Claude remote access
-            # GatewayUrl = "ws://192.168.0.5:18789"
-            # GatewayToken = ""
+            # Inventory Backend URL (HTTP) - required for jobs, inventory
+            InventoryApiUrl = if ($GatewayUrl) { $GatewayUrl } else { "http://localhost:8080" }
+            InventoryApiKey = "octofleet-inventory-dev-key"
+            DisplayName = $env:COMPUTERNAME
+            AutoPushInventory = $true
+            ScheduledPushEnabled = $true
+            ScheduledPushIntervalMinutes = 30
         }
         
         if ($EnrollToken) {
