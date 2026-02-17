@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512">
+  <style>
+    .pixel { shape-rendering: crispEdges; }
+  </style>
+  
+  <!-- Background - Dark server room -->
+  <rect width="128" height="128" fill="#0d1117"/>
+  
+  <!-- Server rack left -->
+  <rect x="8" y="80" width="24" height="40" fill="#21262d" class="pixel"/>
+  <rect x="10" y="84" width="20" height="4" fill="#58a6ff" class="pixel"/>
+  <rect x="10" y="90" width="20" height="4" fill="#3fb950" class="pixel"/>
+  <rect x="10" y="96" width="20" height="4" fill="#58a6ff" class="pixel"/>
+  <rect x="10" y="102" width="20" height="4" fill="#f85149" class="pixel"/>
+  <rect x="10" y="108" width="8" height="4" fill="#3fb950" class="pixel"/>
+  <rect x="20" y="108" width="4" height="4" fill="#f0883e" class="pixel"/>
+  
+  <!-- Server rack right -->
+  <rect x="96" y="80" width="24" height="40" fill="#21262d" class="pixel"/>
+  <rect x="98" y="84" width="20" height="4" fill="#3fb950" class="pixel"/>
+  <rect x="98" y="90" width="20" height="4" fill="#58a6ff" class="pixel"/>
+  <rect x="98" y="96" width="20" height="4" fill="#3fb950" class="pixel"/>
+  <rect x="98" y="102" width="20" height="4" fill="#58a6ff" class="pixel"/>
+  <rect x="98" y="108" width="12" height="4" fill="#3fb950" class="pixel"/>
+  <rect x="112" y="108" width="4" height="4" fill="#3fb950" class="pixel"/>
+  
+  <!-- OCTOPUS BODY - Main dome -->
+  <rect x="48" y="24" width="32" height="24" fill="#da3633" class="pixel"/>
+  <rect x="44" y="28" width="4" height="16" fill="#da3633" class="pixel"/>
+  <rect x="80" y="28" width="4" height="16" fill="#da3633" class="pixel"/>
+  <rect x="52" y="20" width="24" height="4" fill="#da3633" class="pixel"/>
+  
+  <!-- Eyes -->
+  <rect x="52" y="32" width="8" height="8" fill="#ffffff" class="pixel"/>
+  <rect x="68" y="32" width="8" height="8" fill="#ffffff" class="pixel"/>
+  <rect x="54" y="34" width="4" height="4" fill="#0d1117" class="pixel"/>
+  <rect x="70" y="34" width="4" height="4" fill="#0d1117" class="pixel"/>
+  
+  <!-- Eye shine -->
+  <rect x="54" y="34" width="2" height="2" fill="#ffffff" class="pixel"/>
+  <rect x="70" y="34" width="2" height="2" fill="#ffffff" class="pixel"/>
+  
+  <!-- TENTACLES - 8 of them spreading out -->
+  <!-- Left outer tentacle -->
+  <rect x="24" y="52" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="20" y="56" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="16" y="60" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="12" y="64" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="8" y="68" width="4" height="8" fill="#da3633" class="pixel"/>
+  
+  <!-- Left mid tentacle -->
+  <rect x="36" y="48" width="4" height="8" fill="#da3633" class="pixel"/>
+  <rect x="32" y="56" width="4" height="8" fill="#da3633" class="pixel"/>
+  <rect x="28" y="64" width="4" height="8" fill="#da3633" class="pixel"/>
+  <rect x="24" y="72" width="4" height="8" fill="#da3633" class="pixel"/>
+  
+  <!-- Left inner tentacle -->
+  <rect x="48" y="48" width="4" height="12" fill="#da3633" class="pixel"/>
+  <rect x="44" y="60" width="4" height="12" fill="#da3633" class="pixel"/>
+  <rect x="40" y="72" width="4" height="12" fill="#da3633" class="pixel"/>
+  <rect x="36" y="84" width="4" height="8" fill="#da3633" class="pixel"/>
+  
+  <!-- Center left tentacle -->
+  <rect x="56" y="48" width="4" height="16" fill="#da3633" class="pixel"/>
+  <rect x="52" y="64" width="4" height="16" fill="#da3633" class="pixel"/>
+  <rect x="48" y="80" width="4" height="16" fill="#da3633" class="pixel"/>
+  
+  <!-- Center right tentacle -->
+  <rect x="68" y="48" width="4" height="16" fill="#da3633" class="pixel"/>
+  <rect x="72" y="64" width="4" height="16" fill="#da3633" class="pixel"/>
+  <rect x="76" y="80" width="4" height="16" fill="#da3633" class="pixel"/>
+  
+  <!-- Right inner tentacle -->
+  <rect x="76" y="48" width="4" height="12" fill="#da3633" class="pixel"/>
+  <rect x="80" y="60" width="4" height="12" fill="#da3633" class="pixel"/>
+  <rect x="84" y="72" width="4" height="12" fill="#da3633" class="pixel"/>
+  <rect x="88" y="84" width="4" height="8" fill="#da3633" class="pixel"/>
+  
+  <!-- Right mid tentacle -->
+  <rect x="88" y="48" width="4" height="8" fill="#da3633" class="pixel"/>
+  <rect x="92" y="56" width="4" height="8" fill="#da3633" class="pixel"/>
+  <rect x="96" y="64" width="4" height="8" fill="#da3633" class="pixel"/>
+  <rect x="100" y="72" width="4" height="8" fill="#da3633" class="pixel"/>
+  
+  <!-- Right outer tentacle -->
+  <rect x="100" y="52" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="104" y="56" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="108" y="60" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="112" y="64" width="4" height="4" fill="#da3633" class="pixel"/>
+  <rect x="116" y="68" width="4" height="8" fill="#da3633" class="pixel"/>
+  
+  <!-- Headphones/monitoring gear on octopus -->
+  <rect x="44" y="28" width="4" height="8" fill="#8b949e" class="pixel"/>
+  <rect x="80" y="28" width="4" height="8" fill="#8b949e" class="pixel"/>
+  <rect x="44" y="20" width="40" height="4" fill="#8b949e" class="pixel"/>
+  
+  <!-- Antenna with blinking light -->
+  <rect x="62" y="12" width="4" height="8" fill="#8b949e" class="pixel"/>
+  <rect x="60" y="8" width="8" height="4" fill="#3fb950" class="pixel">
+    <animate attributeName="fill" values="#3fb950;#238636;#3fb950" dur="1s" repeatCount="indefinite"/>
+  </rect>
+  
+  <!-- Network cables from tentacles to servers -->
+  <rect x="8" y="76" width="4" height="4" fill="#58a6ff" class="pixel"/>
+  <rect x="12" y="76" width="4" height="4" fill="#58a6ff" class="pixel"/>
+  <rect x="116" y="76" width="4" height="4" fill="#58a6ff" class="pixel"/>
+  <rect x="108" y="76" width="4" height="4" fill="#58a6ff" class="pixel"/>
+  
+  <!-- Status indicators floating -->
+  <rect x="40" y="8" width="8" height="4" fill="#3fb950" class="pixel">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  </rect>
+  <rect x="80" y="8" width="8" height="4" fill="#3fb950" class="pixel">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" begin="0.5s" repeatCount="indefinite"/>
+  </rect>
+  
+  <!-- Floor reflection -->
+  <rect x="0" y="120" width="128" height="8" fill="#161b22" class="pixel"/>
+</svg>
