@@ -422,39 +422,6 @@ async def api_health_check():
     return await health_check()
 
 
-# Agent version management
-AGENT_LATEST_VERSION = "0.4.16"
-AGENT_DOWNLOAD_URL = f"https://github.com/BenediktSchackenberg/octofleet-windows-agent/releases/download/v{AGENT_LATEST_VERSION}/OctofleetAgent-v{AGENT_LATEST_VERSION}-win-x64.zip"
-AGENT_RELEASE_NOTES = "Auto-remediation, vulnerability tracking, improved stability"
-
-@app.get("/api/v1/agent/version")
-async def get_agent_version():
-    """Get the latest agent version for auto-update"""
-    # Try to get from database first
-    try:
-        async with db_pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT 
-                    (SELECT value FROM system_settings WHERE key = 'agent_latest_version') as version,
-                    (SELECT value FROM system_settings WHERE key = 'agent_download_url') as url,
-                    (SELECT value FROM system_settings WHERE key = 'agent_release_notes') as notes
-            """)
-            if row and row['version']:
-                return {
-                    "latestVersion": row['version'],
-                    "downloadUrl": row['url'] or AGENT_DOWNLOAD_URL,
-                    "releaseNotes": row['notes'] or AGENT_RELEASE_NOTES
-                }
-    except:
-        pass
-    # Fallback to hardcoded values
-    return {
-        "latestVersion": AGENT_LATEST_VERSION,
-        "downloadUrl": AGENT_DOWNLOAD_URL,
-        "releaseNotes": AGENT_RELEASE_NOTES
-    }
-
-
 @app.get("/api/v1/nodes")
 async def list_nodes(
     unassigned: bool = False,
