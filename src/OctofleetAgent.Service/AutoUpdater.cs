@@ -13,13 +13,16 @@ using Microsoft.Extensions.Logging;
 namespace OctofleetAgent.Service;
 
 /// <summary>
-/// Auto-update service that checks for new versions and self-updates.
+/// Auto-update service that checks GitHub Releases for new versions and self-updates.
 /// </summary>
 public class AutoUpdater : BackgroundService
 {
     private readonly ILogger<AutoUpdater> _logger;
     private readonly HttpClient _httpClient;
-    private readonly ServiceConfig _config;
+    
+    // GitHub repository for releases
+    private const string GitHubRepo = "BenediktSchackenberg/octofleet";
+    private const string GitHubApiUrl = $"https://api.github.com/repos/{GitHubRepo}/releases/latest";
     
     // Installation path (fixed location)
     private static readonly string InstallPath = Path.Combine(
@@ -33,11 +36,13 @@ public class AutoUpdater : BackgroundService
     // Current version
     private readonly string _currentVersion;
     
-    public AutoUpdater(ILogger<AutoUpdater> logger, ServiceConfig config)
+    public AutoUpdater(ILogger<AutoUpdater> logger)
     {
         _logger = logger;
         _httpClient = new HttpClient();
-        _config = config;
+        // GitHub API requires User-Agent header
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "OctofleetAgent");
+        _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
         
         // Get current version from assembly
         var assembly = typeof(AutoUpdater).Assembly;
@@ -52,7 +57,7 @@ public class AutoUpdater : BackgroundService
         // Wait a bit before first check (let agent fully start)
         await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
         
-        _logger.LogInformation("AutoUpdater started. Current version: {Version}, checking every {Hours}h",
+        _logger.LogInformation("AutoUpdater started. Current version: {Version}, checking GitHub every {Hours}h",
             _currentVersion, _checkInterval.TotalHours);
         
         while (!stoppingToken.IsCancellationRequested)
@@ -72,18 +77,13 @@ public class AutoUpdater : BackgroundService
     
     private async Task CheckForUpdate(CancellationToken ct)
     {
-        var versionUrl = $"{_config.InventoryApiUrl.TrimEnd('/')}/api/v1/agent/version";
+        _logger.LogDebug("Checking for updates at GitHub: {Url}", GitHubApiUrl);
         
-        _logger.LogDebug("Checking for updates at {Url}", versionUrl);
-        
-        var request = new HttpRequestMessage(HttpMethod.Get, versionUrl);
-        request.Headers.Add("X-API-Key", _config.InventoryApiKey);
-        
-        var response = await _httpClient.SendAsync(request, ct);
+        var response = await _httpClient.GetAsync(GitHubApiUrl, ct);
         
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Version check failed: {Status}", response.StatusCode);
+            _logger.LogWarning("GitHub API check failed: {Status}", response.StatusCode);
             return;
         }
         
@@ -91,9 +91,34 @@ public class AutoUpdater : BackgroundService
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         
-        var latestVersion = root.GetProperty("latest").GetString()!;
-        var downloadUrl = root.GetProperty("downloadUrl").GetString()!;
-        var sha256 = root.TryGetProperty("sha256", out var shaElem) ? shaElem.GetString() : null;
+        // Get version from tag_name (e.g., "v0.4.48" -> "0.4.48")
+        var tagName = root.GetProperty("tag_name").GetString()!;
+        var latestVersion = tagName.TrimStart('v');
+        
+        // Find the ZIP asset
+        string? downloadUrl = null;
+        string? sha256Url = null;
+        
+        foreach (var asset in root.GetProperty("assets").EnumerateArray())
+        {
+            var name = asset.GetProperty("name").GetString()!;
+            var url = asset.GetProperty("browser_download_url").GetString()!;
+            
+            if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                downloadUrl = url;
+            }
+            else if (name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase))
+            {
+                sha256Url = url;
+            }
+        }
+        
+        if (downloadUrl == null)
+        {
+            _logger.LogWarning("No ZIP asset found in release {Tag}", tagName);
+            return;
+        }
         
         if (!IsNewerVersion(latestVersion, _currentVersion))
         {
@@ -105,6 +130,20 @@ public class AutoUpdater : BackgroundService
             latestVersion, _currentVersion);
         
         ConsoleUI.Log("INF", $"🔄 Updating to v{latestVersion}...");
+        
+        // Optionally fetch SHA256
+        string? sha256 = null;
+        if (sha256Url != null)
+        {
+            try
+            {
+                sha256 = (await _httpClient.GetStringAsync(sha256Url, ct)).Trim();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not fetch SHA256, skipping verification");
+            }
+        }
         
         await DownloadAndInstall(latestVersion, downloadUrl, sha256, ct);
     }
@@ -153,6 +192,8 @@ public class AutoUpdater : BackgroundService
                 await using var fs = File.Create(zipPath);
                 await downloadResponse.Content.CopyToAsync(fs, ct);
             }
+            
+            _logger.LogInformation("Download complete: {Size} bytes", new FileInfo(zipPath).Length);
             
             // Verify SHA256
             if (!string.IsNullOrEmpty(expectedSha256))
