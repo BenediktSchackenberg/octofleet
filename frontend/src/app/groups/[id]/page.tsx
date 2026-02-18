@@ -134,9 +134,10 @@ export default function GroupDetailPage() {
 
   async function handleRemoveMember(memberId: string) {
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}/members/${memberId}`, {
+      const res = await fetch(`${API_BASE}/groups/${groupId}/members`, {
         method: "DELETE",
-        headers: getHeaders(),
+        headers: { ...getHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeIds: [memberId] }),
       });
       if (res.ok) {
         await fetchGroup();
