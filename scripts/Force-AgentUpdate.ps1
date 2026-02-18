@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ServiceName = "OctofleetAgent"
+$ServiceName = "OctofleetNodeAgent"
 $InstallDir = "C:\Program Files\Octofleet"
 $DownloadUrl = "https://github.com/BenediktSchackenberg/octofleet/releases/download/v$Version/OctofleetAgent-v$Version.zip"
 

@@ -223,7 +223,7 @@ public class AutoUpdater : BackgroundService
 # Version: {version}
 
 $ErrorActionPreference = 'Stop'
-$serviceName = 'OctofleetAgent'
+$serviceName = 'OctofleetNodeAgent'
 $sourcePath = '{sourcePath.Replace("'", "''")}'
 $targetPath = '{targetPath.Replace("'", "''")}'
 
