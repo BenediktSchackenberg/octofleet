@@ -43,10 +43,11 @@ public class LiveDataPoller : BackgroundService
         _logger.LogInformation("LiveDataPoller started for node {NodeId}, polling every {Interval}s", _nodeId, PollIntervalSeconds);
 
         // Wait for inventory config to be ready (not gateway)
-        while (!stoppingToken.IsCancellationRequested && 
-               (string.IsNullOrEmpty(_config.InventoryApiUrl) || string.IsNullOrEmpty(_config.InventoryApiKey)))
+        while (!stoppingToken.IsCancellationRequested)
         {
-            _config = ServiceConfig.Load();
+            var config = ServiceConfig.Load();
+            if (!string.IsNullOrEmpty(config.InventoryApiUrl) && !string.IsNullOrEmpty(config.InventoryApiKey))
+                break;
             await Task.Delay(1000, stoppingToken);
         }
 
