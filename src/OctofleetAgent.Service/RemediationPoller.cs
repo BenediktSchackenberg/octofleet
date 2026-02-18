@@ -39,11 +39,11 @@ public class RemediationPoller : BackgroundService
     {
         _logger.LogInformation("RemediationPoller starting...");
 
-        // Wait for config
+        // Wait for inventory config (not gateway)
         while (!stoppingToken.IsCancellationRequested)
         {
             var config = ServiceConfig.Load();
-            if (config.IsConfigured && !string.IsNullOrEmpty(config.InventoryApiUrl))
+            if (!string.IsNullOrEmpty(config.InventoryApiUrl) && !string.IsNullOrEmpty(config.InventoryApiKey))
                 break;
             
             await Task.Delay(5000, stoppingToken);

@@ -45,17 +45,17 @@ public class JobPoller : BackgroundService
     {
         _logger.LogInformation("JobPoller starting...");
 
-        // Wait for config to be ready
+        // Wait for inventory config to be ready (not gateway - jobs use HTTP API)
         while (!stoppingToken.IsCancellationRequested)
         {
             var config = ServiceConfig.Load();
             
-            if (config.IsConfigured && !string.IsNullOrEmpty(config.InventoryApiUrl))
+            if (!string.IsNullOrEmpty(config.InventoryApiUrl) && !string.IsNullOrEmpty(config.InventoryApiKey))
             {
                 break;
             }
             
-            _logger.LogDebug("Waiting for configuration...");
+            _logger.LogDebug("Waiting for inventory configuration...");
             await Task.Delay(5000, stoppingToken);
         }
 
