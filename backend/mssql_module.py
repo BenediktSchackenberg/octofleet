@@ -25,9 +25,9 @@ MSSQL_DOWNLOADS = {
         "type": "iso"
     },
     "2025": {
-        # SQL Server 2025 RC0 - Use local ISO from BALTASA share
-        "developer": "local:\\\\BALTASA\\ISOs\\SQLServer2025-RC0-x64-ENU.iso",
-        "evaluation": "local:\\\\BALTASA\\ISOs\\SQLServer2025-RC0-x64-ENU.iso",
+        # SQL Server 2025 - Use local ISO from BALTASA share
+        "developer": "local:\\\\BALTASA\\iso\\SQLServer2025-x64-ENU-StdDev.iso",
+        "evaluation": "local:\\\\BALTASA\\iso\\SQLServer2025-x64-ENU-StdDev.iso",
         "type": "iso"
     }
 }
