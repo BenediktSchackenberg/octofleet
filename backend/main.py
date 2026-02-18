@@ -4331,6 +4331,17 @@ async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         lookup_id = node_id[4:].upper()  # win-baltasa -> BALTASA
     
     async with db.acquire() as conn:
+        # Reset stuck 'queued' jobs back to 'pending' (jobs that were picked up but never completed)
+        # Uses job timeout or 5 minutes default
+        await conn.execute("""
+            UPDATE job_instances ji
+            SET status = 'pending', updated_at = NOW()
+            FROM jobs j
+            WHERE ji.job_id = j.id
+              AND ji.status = 'queued'
+              AND ji.updated_at < NOW() - INTERVAL '1 second' * COALESCE(j.timeout_seconds, 300)
+        """)
+        
         rows = await conn.fetch("""
             SELECT ji.id, ji.job_id, j.name, j.command_type, j.command_data, j.priority,
                    ji.attempt, ji.max_attempts, j.timeout_seconds
