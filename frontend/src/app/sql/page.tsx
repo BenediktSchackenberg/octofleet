@@ -111,7 +111,8 @@ export default function SqlPage() {
   // Assignment form
   const [assignForm, setAssignForm] = useState({
     configId: '',
-    groupId: ''
+    groupId: '',
+    saPassword: ''
   });
 
   const getToken = () => {
@@ -246,7 +247,8 @@ export default function SqlPage() {
         },
         body: JSON.stringify({
           config_id: assignForm.configId,
-          group_id: assignForm.groupId
+          group_id: assignForm.groupId,
+          sa_password: assignForm.saPassword
         })
       });
 
@@ -256,7 +258,7 @@ export default function SqlPage() {
       }
 
       setShowAssignModal(false);
-      setAssignForm({ configId: '', groupId: '' });
+      setAssignForm({ configId: '', groupId: '', saPassword: '' });
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error creating assignment');
@@ -872,18 +874,30 @@ export default function SqlPage() {
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">SA Password *</label>
+                  <input
+                    type="password"
+                    value={assignForm.saPassword}
+                    onChange={(e) => setAssignForm({...assignForm, saPassword: e.target.value})}
+                    className="w-full border rounded-md px-3 py-2"
+                    placeholder="SQL Server SA password"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Password for the SQL Server SA account</p>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                 <button
-                  onClick={() => { setShowAssignModal(false); setAssignForm({ configId: '', groupId: '' }); }}
+                  onClick={() => { setShowAssignModal(false); setAssignForm({ configId: '', groupId: '', saPassword: '' }); }}
                   className="px-4 py-2 border rounded-md hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={createAssignment}
-                  disabled={!assignForm.configId || !assignForm.groupId}
+                  disabled={!assignForm.configId || !assignForm.groupId || !assignForm.saPassword}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   Create Assignment
