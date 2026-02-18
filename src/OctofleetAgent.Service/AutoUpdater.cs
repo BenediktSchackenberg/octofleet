@@ -33,10 +33,10 @@ public class AutoUpdater : BackgroundService
     // Current version
     private readonly string _currentVersion;
     
-    public AutoUpdater(ILogger<AutoUpdater> logger, IHttpClientFactory httpClientFactory, ServiceConfig config)
+    public AutoUpdater(ILogger<AutoUpdater> logger, ServiceConfig config)
     {
         _logger = logger;
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = new HttpClient();
         _config = config;
         
         // Get current version from assembly
