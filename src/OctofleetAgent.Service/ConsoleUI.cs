@@ -58,6 +58,8 @@ public static class ConsoleUI
     
     // UI State
     public static string? CurrentOperation { get; set; }
+    public static string? CurrentStatus { get; set; }
+    public static string? CurrentStatusDetail { get; set; }
     public static bool ShowLog { get; set; } = false; // Log hidden by default
     
     private record LogEntry(DateTime Time, string Level, string Message, ConsoleColor Color);
@@ -73,6 +75,19 @@ public static class ConsoleUI
         
         if (IsConsoleAvailable)
             RenderFull();
+    }
+    
+    /// <summary>
+    /// Set the current status (used for pending registration, etc.)
+    /// </summary>
+    public static void SetStatus(string status, string detail)
+    {
+        CurrentStatus = status;
+        CurrentStatusDetail = detail;
+        Log("INF", $"[{status}] {detail}");
+        
+        if (_initialized && IsConsoleAvailable)
+            try { RenderFull(); } catch { }
     }
     
     public static void Log(string level, string message)
