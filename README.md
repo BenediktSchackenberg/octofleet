@@ -85,6 +85,28 @@
 
 </td>
 </tr>
+<tr>
+<td width="50%">
+
+### 🗄️ SQL Server Management (NEW!)
+- Automated SQL Server installation
+- Auto disk preparation (Data/Log/TempDB)
+- Single instance deployment
+- Version support: SQL Server 2025/2022/2019
+- Coming soon: AlwaysOn, Clustering
+
+</td>
+<td width="50%">
+
+### 🔄 Auto-Update
+- Agents self-update from GitHub Releases
+- SHA256 verification
+- Downgrade protection
+- Zero-touch deployment
+- Enrollment tokens for mass rollout
+
+</td>
+</tr>
 </table>
 
 ---
