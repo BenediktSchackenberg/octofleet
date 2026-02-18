@@ -246,9 +246,9 @@ export default function SqlPage() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          config_id: assignForm.configId,
-          group_id: assignForm.groupId,
-          sa_password: assignForm.saPassword
+          configId: assignForm.configId,
+          groupId: assignForm.groupId,
+          saPassword: assignForm.saPassword
         })
       });
 
