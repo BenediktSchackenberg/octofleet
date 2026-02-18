@@ -3,7 +3,7 @@
 # Usage: irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/scripts/Force-AgentUpdate.ps1 | iex
 
 param(
-    [string]$Version = "0.4.46"
+    [string]$Version = "0.4.47"
 )
 
 $ErrorActionPreference = "Stop"
