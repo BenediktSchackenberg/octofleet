@@ -3922,6 +3922,12 @@ async def reconcile_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depe
 async def delete_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete an MSSQL config-to-group assignment (does not uninstall SQL Server)"""
     async with db.acquire() as conn:
+        # First delete dependent instances
+        await conn.execute("""
+            DELETE FROM mssql_instances WHERE assignment_id = $1::uuid
+        """, assignment_id)
+        
+        # Then delete the assignment
         result = await conn.execute("""
             DELETE FROM mssql_group_assignments WHERE id = $1::uuid
         """, assignment_id)
