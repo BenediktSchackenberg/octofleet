@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/v1/mssql", tags=["MSSQL"])
 
 # Download URLs for Express/Developer editions
 # Using ISO downloads where possible for better compatibility
+# NOTE: For local ISOs, set download URL to "local:<path>" e.g. "local:\\\\server\\share\\sql2025.iso"
 MSSQL_DOWNLOADS = {
     "2019": {
         "express": "https://go.microsoft.com/fwlink/?linkid=866658",
@@ -20,13 +21,13 @@ MSSQL_DOWNLOADS = {
     },
     "2022": {
         "express": "https://go.microsoft.com/fwlink/?linkid=2215158",
-        "developer": "https://download.microsoft.com/download/3/8/d/38de7036-2433-4207-8eae-06e247e17b25/SQLServer2022-x64-ENU-Dev.iso",
+        "developer": "local:\\\\BALTASA\\ISOs\\SQLServer2022-x64-ENU-Dev.iso",
         "type": "iso"
     },
     "2025": {
-        # SQL Server 2025 RC0 - December 2024
-        "developer": "https://download.microsoft.com/download/6/2/6/626e3702-085d-44fd-9c12-d9f7b0f7e6cf/SQLServer2025-RC0-x64-ENU.iso",
-        "evaluation": "https://download.microsoft.com/download/6/2/6/626e3702-085d-44fd-9c12-d9f7b0f7e6cf/SQLServer2025-RC0-x64-ENU.iso",
+        # SQL Server 2025 RC0 - Use local ISO from BALTASA share
+        "developer": "local:\\\\BALTASA\\ISOs\\SQLServer2025-RC0-x64-ENU.iso",
+        "evaluation": "local:\\\\BALTASA\\ISOs\\SQLServer2025-RC0-x64-ENU.iso",
         "type": "iso"
     }
 }
@@ -498,7 +499,38 @@ Write-Host ""
 Write-Host "Configuration file written to $configPath"
 '''
 
-    if download_type == "iso":
+    # Check if download_url is a local path (starts with "local:")
+    is_local_iso = download_url and download_url.startswith("local:")
+    local_iso_path = download_url[6:] if is_local_iso else None  # Strip "local:" prefix
+
+    if is_local_iso:
+        # Use local/network ISO path directly
+        script += f'''
+# ============================================
+# Mount local/network ISO
+# ============================================
+$isoPath = "{local_iso_path}"
+Write-Host ""
+Write-Host "[Step 1] Mounting ISO from network path..." -ForegroundColor Yellow
+Write-Host "Path: $isoPath"
+
+if (!(Test-Path $isoPath)) {{
+    throw "ISO file not found: $isoPath"
+}}
+
+$mountResult = Mount-DiskImage -ImagePath $isoPath -PassThru
+Start-Sleep -Seconds 3
+$driveLetter = ($mountResult | Get-Volume).DriveLetter
+$setupPath = "${{driveLetter}}:\\setup.exe"
+
+Write-Host "ISO mounted at ${{driveLetter}}:\\" -ForegroundColor Green
+
+if (!(Test-Path $setupPath)) {{
+    Dismount-DiskImage -ImagePath $isoPath -ErrorAction SilentlyContinue
+    throw "setup.exe not found on mounted ISO"
+}}
+'''
+    elif download_type == "iso":
         # ISO-based installation (SQL Server 2022+, 2025)
         script += f'''
 # ============================================
