@@ -267,13 +267,44 @@ $ErrorActionPreference = 'Stop'
 $serviceName = 'OctofleetNodeAgent'
 $sourcePath = '{sourcePath.Replace("'", "''")}'
 $targetPath = '{targetPath.Replace("'", "''")}'
+$newVersion = '{version}'
 
 # Log function
 function Log {{ param($msg) Write-Host ""[$(Get-Date -Format 'HH:mm:ss')] $msg"" }}
 
+# Version comparison function
+function Compare-Version {{
+    param($installed, $new)
+    $instParts = $installed.Split('.') | ForEach-Object {{ [int]$_ }}
+    $newParts = $new.Split('.') | ForEach-Object {{ [int]$_ }}
+    for ($i = 0; $i -lt [Math]::Max($instParts.Count, $newParts.Count); $i++) {{
+        $inst = if ($i -lt $instParts.Count) {{ $instParts[$i] }} else {{ 0 }}
+        $newV = if ($i -lt $newParts.Count) {{ $newParts[$i] }} else {{ 0 }}
+        if ($newV -gt $inst) {{ return 1 }}   # new is higher
+        if ($newV -lt $inst) {{ return -1 }}  # new is lower (downgrade!)
+    }}
+    return 0  # equal
+}}
+
 Start-Sleep -Seconds 3
 
 try {{
+    # Check installed version first - prevent downgrades!
+    $existingExe = Join-Path $targetPath 'OctofleetAgent.Service.exe'
+    if (Test-Path $existingExe) {{
+        $installedVersion = (Get-Item $existingExe).VersionInfo.FileVersion
+        # Clean up version string (remove .0 suffix if present)
+        $installedVersion = ($installedVersion -split '\.')[0..2] -join '.'
+        Log ""Installed version: $installedVersion, New version: $newVersion""
+        
+        $cmp = Compare-Version -installed $installedVersion -new $newVersion
+        if ($cmp -le 0) {{
+            Log ""ABORT: New version ($newVersion) is not higher than installed ($installedVersion) - skipping update""
+            exit 0
+        }}
+        Log ""Proceeding with update: $installedVersion -> $newVersion""
+    }}
+
     # Stop service
     Log 'Stopping service...'
     Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
