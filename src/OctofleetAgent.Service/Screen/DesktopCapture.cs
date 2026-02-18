@@ -45,13 +45,32 @@ public class DesktopCapture : IDisposable
     
     /// <summary>
     /// GDI+ based screen capture (simple, works everywhere).
+    /// NOTE: Requires interactive session - won't work from Session 0 (Windows Service).
     /// </summary>
     private byte[]? CaptureFrameGdi()
     {
         try
         {
+            // Check if we're in an interactive session
+            if (!Environment.UserInteractive)
+            {
+                _logger.LogError("Screen capture requires an interactive session. " +
+                    "The agent service is running in Session 0 without desktop access. " +
+                    "To enable screen sharing, run the agent as a logged-in user or configure " +
+                    "the service to 'Allow service to interact with desktop'.");
+                return null;
+            }
+            
             // Get screen bounds
             var screens = System.Windows.Forms.Screen.AllScreens;
+            
+            if (screens == null || screens.Length == 0)
+            {
+                _logger.LogError("No screens found. This usually means the agent is running " +
+                    "without access to a desktop session.");
+                return null;
+            }
+            
             if (_monitorIndex >= screens.Length)
             {
                 _logger.LogWarning("Monitor index {Index} not found, using primary", _monitorIndex);
@@ -63,7 +82,7 @@ public class DesktopCapture : IDisposable
             
             if (screen == null)
             {
-                _logger.LogError("No screen found");
+                _logger.LogError("No screen found - primary screen is null");
                 return null;
             }
             

@@ -103,7 +103,7 @@ public class ScreenStreamService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Error checking for pending screen session");
+            _logger.LogError(ex, "Error checking for pending screen session");
         }
     }
     
