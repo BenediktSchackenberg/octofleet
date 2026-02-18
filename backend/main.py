@@ -9969,3 +9969,72 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
             await asyncio.sleep(0.1)
     except WebSocketDisconnect:
         session.connected = False
+
+
+# =============================================================================
+# Auto-Update Endpoint
+# =============================================================================
+
+@app.get("/api/v1/agent/version")
+async def get_agent_version():
+    """
+    Returns the latest agent version from GitHub Releases.
+    Agents poll this to check for updates.
+    """
+    import aiohttp
+    
+    cache_key = "agent_version"
+    cache_ttl = 300  # 5 minutes cache
+    
+    # Check cache
+    if cache_key in _cache:
+        cached, timestamp = _cache[cache_key]
+        if time.time() - timestamp < cache_ttl:
+            return cached
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.github.com/repos/BenediktSchackenberg/octofleet/releases/latest"
+            headers = {"Accept": "application/vnd.github.v3+json"}
+            
+            async with session.get(url, headers=headers) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=502, detail="Failed to fetch release info")
+                
+                data = await resp.json()
+                
+                version = data["tag_name"].lstrip("v")
+                
+                # Find ZIP asset
+                zip_asset = next((a for a in data["assets"] if a["name"].endswith(".zip")), None)
+                sha_asset = next((a for a in data["assets"] if a["name"].endswith(".sha256")), None)
+                
+                if not zip_asset:
+                    raise HTTPException(status_code=502, detail="No ZIP asset found")
+                
+                # Get SHA256 if available
+                sha256 = None
+                if sha_asset:
+                    async with session.get(sha_asset["browser_download_url"]) as sha_resp:
+                        if sha_resp.status == 200:
+                            sha256 = (await sha_resp.text()).strip()
+                
+                result = {
+                    "latest": version,
+                    "downloadUrl": zip_asset["browser_download_url"],
+                    "sha256": sha256,
+                    "releaseDate": data["published_at"],
+                    "releaseNotes": data.get("body", "")[:500]
+                }
+                
+                # Cache result
+                _cache[cache_key] = (result, time.time())
+                
+                return result
+                
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to fetch GitHub release: {e}")
+        raise HTTPException(status_code=502, detail="Failed to connect to GitHub")
+
+# Simple cache dict
+_cache: Dict[str, tuple] = {}
