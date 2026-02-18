@@ -608,7 +608,7 @@ $ProgressPreference = 'SilentlyContinue'
 Invoke-WebRequest -Uri $downloadUrl -OutFile $setupExe -UseBasicParsing
 
 Write-Host "Download complete. Extracting..." -ForegroundColor Green
-Start-Process -FilePath $setupExe -ArgumentList "/QS /x:$setupDir\\extracted" -Wait -NoNewWindow
+Start-Process -FilePath $setupExe -ArgumentList "/QS /x:$setupDir\\extracted" -Wait -WindowStyle Hidden
 
 $actualSetup = Get-ChildItem -Path "$setupDir\\extracted" -Recurse -Filter "setup.exe" | Select-Object -First 1
 if (-not $actualSetup) {{
@@ -627,8 +627,8 @@ Write-Host "This may take 20-45 minutes. Please wait..."
 Write-Host ""
 
 $process = Start-Process -FilePath $setupPath `
-    -ArgumentList "/ConfigurationFile=`"$configPath`" /IACCEPTSQLSERVERLICENSETERMS /ENU /QS" `
-    -Wait -PassThru -NoNewWindow
+    -ArgumentList "/ConfigurationFile=`"$configPath`" /IACCEPTSQLSERVERLICENSETERMS /ENU /Q" `
+    -Wait -PassThru -WindowStyle Hidden
 
 # Cleanup - dismount ISO if we mounted one
 if (Test-Path variable:isoPath) {{
