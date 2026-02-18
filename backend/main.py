@@ -8787,7 +8787,7 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key:
     - Server sends: {"type": "stop"} to end session
     """
     # Validate API key
-    valid_api_key = os.getenv("API_KEY", "octofleet-dev-key")
+    valid_api_key = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
     if api_key != valid_api_key:
         await websocket.close(code=4001, reason="Invalid API key")
         return
