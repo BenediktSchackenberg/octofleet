@@ -167,6 +167,17 @@ public class LiveDataPoller : BackgroundService
         {
             _logger.LogDebug(ex, "Could not get agent logs");
         }
+        
+        // Get Windows Event Logs (System, Security, Application)
+        var eventLogs = new List<object>();
+        try
+        {
+            eventLogs = GetWindowsEventLogs(50);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not get Windows event logs");
+        }
 
         var payload = new
         {
@@ -188,7 +199,8 @@ public class LiveDataPoller : BackgroundService
                 threadCount = p.ThreadCount
             }),
             network = networkInterfaces,
-            agentLogs = agentLogs
+            agentLogs = agentLogs,
+            eventLogs = eventLogs
         };
 
         var json = JsonSerializer.Serialize(payload);
@@ -256,5 +268,64 @@ public class LiveDataPoller : BackgroundService
         }
 
         return logs;
+    }
+    
+    /// <summary>
+    /// Get recent Windows Event Log entries from System, Security, and Application logs.
+    /// Focuses on Error and Warning events from the last 5 minutes.
+    /// </summary>
+    private List<object> GetWindowsEventLogs(int maxEntries)
+    {
+        var logs = new List<object>();
+        var cutoffTime = DateTime.Now.AddMinutes(-5);
+        var logNames = new[] { "System", "Application", "Security" };
+        
+        foreach (var logName in logNames)
+        {
+            try
+            {
+                using var eventLog = new System.Diagnostics.EventLog(logName);
+                
+                // Get recent Error and Warning entries
+                var entries = eventLog.Entries.Cast<System.Diagnostics.EventLogEntry>()
+                    .Where(e => e.TimeWritten >= cutoffTime)
+                    .Where(e => e.EntryType == System.Diagnostics.EventLogEntryType.Error ||
+                               e.EntryType == System.Diagnostics.EventLogEntryType.Warning ||
+                               e.EntryType == System.Diagnostics.EventLogEntryType.FailureAudit)
+                    .OrderByDescending(e => e.TimeWritten)
+                    .Take(maxEntries / logNames.Length);
+
+                foreach (var entry in entries)
+                {
+                    logs.Add(new
+                    {
+                        logName = logName,
+                        timestamp = entry.TimeWritten.ToString("o"),
+                        level = entry.EntryType.ToString(),
+                        source = entry.Source,
+                        eventId = entry.InstanceId,
+                        message = entry.Message?.Length > 500 
+                            ? entry.Message.Substring(0, 500) + "..." 
+                            : entry.Message ?? "",
+                        category = entry.Category,
+                        machineName = entry.MachineName
+                    });
+                }
+            }
+            catch (System.Security.SecurityException)
+            {
+                // Security log often requires admin privileges
+                _logger.LogDebug("No permission to read {LogName} event log", logName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not read {LogName} event log", logName);
+            }
+        }
+        
+        // Sort all by timestamp descending and limit
+        return logs.OrderByDescending(l => ((dynamic)l).timestamp)
+            .Take(maxEntries)
+            .ToList();
     }
 }

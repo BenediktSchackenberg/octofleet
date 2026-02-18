@@ -8080,6 +8080,7 @@ live_sessions: Dict[str, Dict] = {}
 # Cache for live network data (node_id -> network data)
 live_network_cache: Dict[str, Dict] = {}
 live_agent_logs_cache: Dict[str, Dict] = {}  # Cache for agent service logs
+live_eventlog_cache: Dict[str, Dict] = {}  # Cache for Windows Event Logs (System, Security, Application)
 
 async def live_data_generator(node_id: str, session_id: str, pool):
     """Generator for SSE live data stream"""
@@ -8221,6 +8222,15 @@ async def live_data_generator(node_id: str, session_id: str, pool):
                     "data": agent_logs_data
                 }
                 yield f"event: agentLogs\ndata: {json.dumps(data)}\n\n"
+            
+            # Send Windows Event Logs every 5 seconds (from cache)
+            if node_id in live_eventlog_cache and now - last_network_time >= 5:
+                eventlog_data = live_eventlog_cache[node_id]
+                data = {
+                    "type": "eventLogs",
+                    "data": eventlog_data
+                }
+                yield f"event: eventLogs\ndata: {json.dumps(data)}\n\n"
             
             # Heartbeat every 10 seconds
             yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"
@@ -8374,6 +8384,14 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
             live_agent_logs_cache[node_id_text] = {
                 "timestamp": now.isoformat(),
                 "logs": agent_logs
+            }
+        
+        # Cache Windows Event Logs for SSE streaming
+        event_logs = data.get("eventLogs", [])
+        if event_logs:
+            live_eventlog_cache[node_id_text] = {
+                "timestamp": now.isoformat(),
+                "logs": event_logs
             }
         
         return {
