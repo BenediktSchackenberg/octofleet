@@ -657,387 +657,273 @@ export default function HomePage() {
               <DashboardSkeleton />
             ) : (
             <div>
+              {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-2xl font-bold">Dashboard</h2>
-                  <p className="text-muted-foreground">Übersicht aller Nodes</p>
+                  <p className="text-muted-foreground">Fleet Overview</p>
                 </div>
-                <Button variant="outline" onClick={fetchSummary}>
+                <Button variant="outline" size="sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchSqlCatalog(); }}>
                   <RefreshCw className="h-4 w-4 mr-2" /> Refresh
                 </Button>
               </div>
 
-              {/* KPI Cards */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-                <Card className="cursor-pointer hover:border-primary transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription>Nodes Gesamt</CardDescription>
-                    <CardTitle className="text-4xl">{summary?.counts.total || 0}</CardTitle>
+              {/* Bento Grid */}
+              <div className="grid grid-cols-12 gap-4">
+                
+                {/* Fleet Status - 3 cols */}
+                <Card className="col-span-12 md:col-span-3 bg-gradient-to-br from-background to-muted/30">
+                  <CardHeader className="pb-3">
+                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                      <Monitor className="h-3.5 w-3.5" /> Fleet Status
+                    </CardDescription>
                   </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="text-5xl font-bold mb-3">{summary?.counts.total || 0}</div>
+                    <div className="flex gap-4 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                        <span className="text-muted-foreground">{summary?.counts.online || 0} online</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-gray-400" />
+                        <span className="text-muted-foreground">{summary?.counts.offline || 0} offline</span>
+                      </div>
+                    </div>
+                    {summary?.counts.unassigned ? (
+                      <div className="mt-3 text-xs text-yellow-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" /> {summary.counts.unassigned} unassigned
+                      </div>
+                    ) : null}
+                  </CardContent>
                 </Card>
-                <Card className="cursor-pointer hover:border-green-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription>Online</CardDescription>
-                    <CardTitle className="text-4xl text-green-500">{summary?.counts.online || 0}</CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="cursor-pointer hover:border-yellow-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription>Away</CardDescription>
-                    <CardTitle className="text-4xl text-yellow-500">{summary?.counts.away || 0}</CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="cursor-pointer hover:border-gray-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription>Offline</CardDescription>
-                    <CardTitle className="text-4xl text-muted-foreground">{summary?.counts.offline || 0}</CardTitle>
-                  </CardHeader>
-                </Card>
-              </div>
 
-              {/* Security & Jobs Stats */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
-                <Card className="border-red-500/30 hover:border-red-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-red-500" /> Critical Vulns
+                {/* Security - 3 cols */}
+                <Card className="col-span-12 md:col-span-3 bg-gradient-to-br from-background to-red-500/5">
+                  <CardHeader className="pb-3">
+                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                      <Shield className="h-3.5 w-3.5" /> Security
                     </CardDescription>
-                    <CardTitle className="text-3xl text-red-500">{summary?.vulnerabilities?.critical || 0}</CardTitle>
                   </CardHeader>
+                  <CardContent className="pt-0 space-y-2">
+                    <Link href="/vulnerabilities" className="flex items-center justify-between hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                        <span className="text-sm">Critical</span>
+                      </div>
+                      <span className="text-2xl font-bold text-red-500">{summary?.vulnerabilities?.critical || 0}</span>
+                    </Link>
+                    <Link href="/vulnerabilities" className="flex items-center justify-between hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                        <span className="text-sm">High</span>
+                      </div>
+                      <span className="text-xl font-semibold text-orange-500">{summary?.vulnerabilities?.high || 0}</span>
+                    </Link>
+                    <Link href="/vulnerabilities" className="flex items-center justify-between hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                        <span className="text-sm">Medium</span>
+                      </div>
+                      <span className="text-lg text-yellow-600">{summary?.vulnerabilities?.medium || 0}</span>
+                    </Link>
+                  </CardContent>
                 </Card>
-                <Card className="border-orange-500/30 hover:border-orange-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-orange-500" /> High Vulns
-                    </CardDescription>
-                    <CardTitle className="text-3xl text-orange-500">{summary?.vulnerabilities?.high || 0}</CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="border-yellow-500/30 hover:border-yellow-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-yellow-500" /> Medium Vulns
-                    </CardDescription>
-                    <CardTitle className="text-3xl text-yellow-500">{summary?.vulnerabilities?.medium || 0}</CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="border-green-500/30 hover:border-green-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription className="flex items-center gap-2">
-                      <Briefcase className="h-4 w-4 text-green-500" /> Jobs Success (24h)
-                    </CardDescription>
-                    <CardTitle className="text-3xl text-green-500">{summary?.jobs?.success || 0}</CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="border-red-500/30 hover:border-red-500 transition-colors">
-                  <CardHeader className="pb-2">
-                    <CardDescription className="flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 text-red-500" /> Jobs Failed (24h)
-                    </CardDescription>
-                    <CardTitle className="text-3xl text-red-500">{summary?.jobs?.failed || 0}</CardTitle>
-                  </CardHeader>
-                </Card>
-              </div>
 
-              {/* Recent Alerts */}
-              {recentAlerts.length > 0 && (
-                <Card className="mb-8">
+                {/* Performance - 6 cols, spans 2 rows */}
+                <Card className="col-span-12 md:col-span-6 md:row-span-2">
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <AlertCircle className="h-5 w-5 text-orange-500" />
-                        Letzte Alerts
-                      </CardTitle>
-                      <Link href="/alerts">
-                        <Button variant="ghost" size="sm">Alle anzeigen →</Button>
+                      <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                        <TrendingUp className="h-3.5 w-3.5" /> Performance
+                      </CardDescription>
+                      <Link href="/performance" className="text-xs text-muted-foreground hover:text-primary">
+                        Details →
                       </Link>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {recentAlerts.slice(0, 3).map((alert: any) => (
-                        <div key={alert.id} className="flex items-center justify-between p-2 rounded bg-muted/50">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-2 h-2 rounded-full ${
-                              alert.event_type === 'node_offline' ? 'bg-red-500' :
-                              alert.event_type === 'node_online' ? 'bg-green-500' :
-                              alert.event_type === 'job_failed' ? 'bg-orange-500' : 'bg-blue-500'
-                            }`} />
-                            <span className="text-sm">{alert.message || alert.event_type}</span>
+                  <CardContent className="pt-0">
+                    {metrics && metrics.nodesWithMetrics > 0 ? (
+                      <div className="space-y-3">
+                        {/* Fleet Averages as compact bars */}
+                        <div className="grid grid-cols-3 gap-3 pb-3 border-b">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-muted-foreground">CPU</span>
+                              <span className="text-sm font-semibold">{metrics.fleetAverages.cpuPercent?.toFixed(0) || 0}%</span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500" style={{ width: `${metrics.fleetAverages.cpuPercent || 0}%` }} />
+                            </div>
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(alert.sent_at).toLocaleString('de-DE', { 
-                              hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit'
-                            })}
-                          </span>
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-muted-foreground">RAM</span>
+                              <span className="text-sm font-semibold">{metrics.fleetAverages.ramPercent?.toFixed(0) || 0}%</span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className={`h-full ${(metrics.fleetAverages.ramPercent || 0) > 80 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${metrics.fleetAverages.ramPercent || 0}%` }} />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-muted-foreground">Disk</span>
+                              <span className="text-sm font-semibold">{metrics.fleetAverages.diskPercent?.toFixed(0) || 0}%</span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className={`h-full ${(metrics.fleetAverages.diskPercent || 0) > 80 ? 'bg-red-500' : 'bg-purple-500'}`} style={{ width: `${metrics.fleetAverages.diskPercent || 0}%` }} />
+                            </div>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* SQL Server CU Catalog Widget */}
-              {sqlCatalog && sqlCatalog.total > 0 && (
-                <Card className="mb-8">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        🗄️ SQL Server CU Catalog
-                      </CardTitle>
-                      <Link href="/sql">
-                        <Button variant="ghost" size="sm">Updates verwalten →</Button>
-                      </Link>
-                    </div>
-                    <CardDescription>
-                      {sqlCatalog.total} Cumulative Updates im Katalog
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-4">
-                      {sqlCatalog.versions.map((v) => (
-                        <div key={v.version} className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-                          <span className="font-medium">SQL {v.version}</span>
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                            CU{v.latestCu}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">({v.count} total)</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Metrics Overview */}
-              {metrics && metrics.nodesWithMetrics > 0 && (
-                <div className="grid gap-4 md:grid-cols-3 mb-8">
-                  {/* Fleet Averages */}
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardDescription className="flex items-center gap-2">
-                        <Cpu className="h-4 w-4" /> CPU Auslastung (Fleet)
-                      </CardDescription>
-                      <CardTitle className="text-3xl">
-                        {metrics.fleetAverages.cpuPercent?.toFixed(1) || 0}%
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 transition-all" 
-                          style={{ width: `${metrics.fleetAverages.cpuPercent || 0}%` }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardDescription className="flex items-center gap-2">
-                        <MemoryStick className="h-4 w-4" /> RAM Auslastung (Fleet)
-                      </CardDescription>
-                      <CardTitle className="text-3xl">
-                        {metrics.fleetAverages.ramPercent?.toFixed(1) || 0}%
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all ${
-                            (metrics.fleetAverages.ramPercent || 0) > 80 ? 'bg-red-500' :
-                            (metrics.fleetAverages.ramPercent || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
-                          }`}
-                          style={{ width: `${metrics.fleetAverages.ramPercent || 0}%` }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardDescription className="flex items-center gap-2">
-                        <HardDrive className="h-4 w-4" /> Disk Auslastung (Fleet)
-                      </CardDescription>
-                      <CardTitle className="text-3xl">
-                        {metrics.fleetAverages.diskPercent?.toFixed(1) || 0}%
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all ${
-                            (metrics.fleetAverages.diskPercent || 0) > 90 ? 'bg-red-500' :
-                            (metrics.fleetAverages.diskPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
-                          }`}
-                          style={{ width: `${metrics.fleetAverages.diskPercent || 0}%` }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-              
-              {/* Fleet Performance Table */}
-              {metrics && metrics.nodesWithMetrics > 0 && (
-                <Card className="mb-8">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" /> Fleet Performance
-                    </CardTitle>
-                    <CardDescription>
-                      CPU, RAM & Disk pro Node • <Link href="/performance" className="text-primary hover:underline">Vollständige Ansicht →</Link>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 px-2 font-medium">Node</th>
-                            <th className="text-left py-2 px-2 font-medium">CPU</th>
-                            <th className="text-left py-2 px-2 font-medium">RAM</th>
-                            <th className="text-left py-2 px-2 font-medium">Disk</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                        {/* Per-node compact list */}
+                        <div className="space-y-2 max-h-[280px] overflow-y-auto">
                           {metrics.nodes
                             .filter(n => n.cpuPercent !== null || n.ramPercent !== null)
-                            .slice(0, 8)
+                            .slice(0, 10)
                             .map((node, i) => (
-                              <tr key={i} className="border-b border-muted hover:bg-muted/50">
-                                <td className="py-2 px-2">
-                                  <span className="font-medium">{node.hostname}</span>
-                                </td>
-                                <td className="py-2 px-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                                      <div 
-                                        className={`h-full ${(node.cpuPercent || 0) > 90 ? 'bg-red-500' : (node.cpuPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-blue-500'}`}
-                                        style={{ width: `${node.cpuPercent || 0}%` }}
-                                      />
-                                    </div>
-                                    <span className="font-mono text-xs w-10">{node.cpuPercent?.toFixed(0) ?? '-'}%</span>
+                              <div key={i} className="flex items-center gap-3 text-sm hover:bg-muted/50 rounded px-1 py-0.5 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
+                                <span className="font-medium w-24 truncate">{node.hostname}</span>
+                                <div className="flex-1 flex items-center gap-2">
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500" style={{ width: `${node.cpuPercent || 0}%` }} />
                                   </div>
-                                </td>
-                                <td className="py-2 px-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                                      <div 
-                                        className={`h-full ${(node.ramPercent || 0) > 90 ? 'bg-red-500' : (node.ramPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                                        style={{ width: `${node.ramPercent || 0}%` }}
-                                      />
-                                    </div>
-                                    <span className="font-mono text-xs w-10">{node.ramPercent?.toFixed(0) ?? '-'}%</span>
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className={`h-full ${(node.ramPercent || 0) > 80 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${node.ramPercent || 0}%` }} />
                                   </div>
-                                </td>
-                                <td className="py-2 px-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                                      <div 
-                                        className={`h-full ${(node.diskPercent || 0) > 90 ? 'bg-red-500' : (node.diskPercent || 0) > 70 ? 'bg-yellow-500' : 'bg-purple-500'}`}
-                                        style={{ width: `${node.diskPercent || 0}%` }}
-                                      />
-                                    </div>
-                                    <span className="font-mono text-xs w-10">{node.diskPercent?.toFixed(0) ?? '-'}%</span>
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full bg-purple-500" style={{ width: `${node.diskPercent || 0}%` }} />
                                   </div>
-                                </td>
-                              </tr>
+                                </div>
+                                <span className="text-xs text-muted-foreground w-16 text-right">
+                                  {node.cpuPercent?.toFixed(0)}% / {node.ramPercent?.toFixed(0)}%
+                                </span>
+                              </div>
                             ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Warnings / Unassigned */}
-              {summary && summary.counts.unassigned > 0 && (
-                <Card className="mb-6 border-yellow-500/50">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-yellow-500" />
-                      {summary.counts.unassigned} Nodes ohne Gruppe
-                    </CardTitle>
-                    <CardDescription>Diese Nodes sind keiner Gruppe zugeordnet</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/groups">Gruppen verwalten →</Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* System Health Status */}
-              <Card className="mb-6">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Activity className="h-5 w-5" /> System Health
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${systemHealth?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`} />
-                      <span className="text-sm">API: {systemHealth?.status || 'checking...'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${systemHealth?.database === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
-                      <span className="text-sm">Database: {systemHealth?.database || 'checking...'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${(summary?.counts.online || 0) > 0 ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                      <span className="text-sm">Agents: {summary?.counts.online || 0} connected</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* OS Distribution & Recent Activity Row */}
-              <div className="grid gap-6 md:grid-cols-2 mb-8">
-                {/* OS Distribution Pie Chart */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Monitor className="h-5 w-5" /> OS Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <OsDistributionChart showVersions={true} />
-                  </CardContent>
-                </Card>
-
-                {/* Recent Activity */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Activity className="h-5 w-5" /> Letzte Aktivitäten
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {summary?.recent_events && summary.recent_events.length > 0 ? (
-                      <div className="space-y-3 max-h-64 overflow-y-auto">
-                        {summary.recent_events.slice(0, 10).map((event, i) => (
-                          <div 
-                            key={i} 
-                            className="flex items-center justify-between text-sm py-2 border-b last:border-0 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2"
-                            onClick={() => handleNodeSelect(event.subject_id)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-green-500">●</span>
-                              <span className="font-medium">{event.subject}</span>
-                              <span className="text-muted-foreground">checked in</span>
-                            </div>
-                            <span className="text-muted-foreground">{formatRelativeTime(event.timestamp)}</span>
-                          </div>
-                        ))}
+                        </div>
                       </div>
                     ) : (
-                      <p className="text-muted-foreground text-center py-4">Keine Aktivitäten</p>
+                      <div className="text-center text-muted-foreground py-8">
+                        No performance data available
+                      </div>
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Jobs 24h - 3 cols */}
+                <Card className="col-span-6 md:col-span-3 bg-gradient-to-br from-background to-green-500/5">
+                  <CardHeader className="pb-3">
+                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                      <Briefcase className="h-3.5 w-3.5" /> Jobs (24h)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex items-end gap-4">
+                      <Link href="/jobs" className="group">
+                        <div className="text-3xl font-bold text-green-500 group-hover:underline">{summary?.jobs?.success || 0}</div>
+                        <div className="text-xs text-muted-foreground">success</div>
+                      </Link>
+                      <Link href="/jobs" className="group">
+                        <div className="text-2xl font-semibold text-red-500 group-hover:underline">{summary?.jobs?.failed || 0}</div>
+                        <div className="text-xs text-muted-foreground">failed</div>
+                      </Link>
+                    </div>
+                    {(summary?.jobs?.pending || 0) > 0 && (
+                      <div className="mt-2 text-xs text-yellow-600">
+                        {summary?.jobs?.pending} pending
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* SQL Server - 3 cols */}
+                <Card className="col-span-6 md:col-span-3 bg-gradient-to-br from-background to-blue-500/5">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                        🗄️ SQL Server
+                      </CardDescription>
+                      <Link href="/sql" className="text-xs text-muted-foreground hover:text-primary">
+                        Manage →
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {sqlCatalog && sqlCatalog.total > 0 ? (
+                      <div>
+                        <div className="text-3xl font-bold">{sqlCatalog.total}</div>
+                        <div className="text-xs text-muted-foreground mb-2">CUs in catalog</div>
+                        <div className="flex flex-wrap gap-1">
+                          {sqlCatalog.versions.slice(0, 3).map((v) => (
+                            <Badge key={v.version} variant="secondary" className="text-xs">
+                              {v.version} CU{v.latestCu}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No CUs synced</div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Recent Alerts - 6 cols */}
+                {recentAlerts.length > 0 && (
+                  <Card className="col-span-12 md:col-span-6">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                          <AlertCircle className="h-3.5 w-3.5" /> Recent Alerts
+                        </CardDescription>
+                        <Link href="/alerts" className="text-xs text-muted-foreground hover:text-primary">
+                          View all →
+                        </Link>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-1.5">
+                        {recentAlerts.slice(0, 4).map((alert: any) => (
+                          <div key={alert.id} className="flex items-center justify-between text-sm py-1 border-b border-muted last:border-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                alert.event_type === 'node_offline' ? 'bg-red-500' :
+                                alert.event_type === 'node_online' ? 'bg-green-500' :
+                                alert.event_type === 'job_failed' ? 'bg-orange-500' : 'bg-blue-500'
+                              }`} />
+                              <span className="truncate max-w-[200px]">{alert.message || alert.event_type}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(alert.sent_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* System Health - 6 cols */}
+                <Card className="col-span-12 md:col-span-6">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                      <Activity className="h-3.5 w-3.5" /> System Health
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${systemHealth?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className="text-sm">API</span>
+                        <Badge variant="outline" className="text-xs">{systemHealth?.status || '...'}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${systemHealth?.database === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className="text-sm">Database</span>
+                        <Badge variant="outline" className="text-xs">{systemHealth?.database || '...'}</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
               </div>
             </div>
             )
