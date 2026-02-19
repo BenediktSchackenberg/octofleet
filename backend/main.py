@@ -4406,6 +4406,86 @@ async def create_patch_job(
         }
 
 
+@app.post("/api/v1/mssql/deploy-cu", dependencies=[Depends(verify_api_key)])
+async def deploy_cu_to_instances(
+    data: Dict[str, Any] = Body(...),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Deploy a specific CU to selected SQL instances.
+    Creates patch jobs for each instance.
+    """
+    cu_id = data.get("cuId")
+    instance_ids = data.get("instanceIds", [])
+    reboot_policy = data.get("rebootPolicy", "if_required")
+    
+    if not cu_id:
+        raise HTTPException(status_code=400, detail="cuId is required")
+    if not instance_ids:
+        raise HTTPException(status_code=400, detail="instanceIds is required")
+    
+    async with db.acquire() as conn:
+        # Get CU details
+        cu = await conn.fetchrow("""
+            SELECT id, version, cu_number, build_number, download_url, file_hash, status
+            FROM mssql_cu_catalog WHERE id = $1::uuid
+        """, cu_id)
+        
+        if not cu:
+            raise HTTPException(status_code=404, detail="CU not found")
+        if cu["status"] != "approved":
+            raise HTTPException(status_code=400, detail="CU must be approved before deployment")
+        if not cu["download_url"]:
+            raise HTTPException(status_code=400, detail="CU has no download URL configured")
+        
+        jobs_created = []
+        
+        for instance_id in instance_ids:
+            # Get instance details
+            instance = await conn.fetchrow("""
+                SELECT mi.id, mi.instance_name, mi.node_id, n.hostname
+                FROM mssql_instances mi
+                JOIN nodes n ON n.id = mi.node_id
+                WHERE mi.id = $1::uuid
+            """, instance_id)
+            
+            if not instance:
+                continue
+            
+            # Generate patch script
+            from mssql_module import generate_cu_patch_script
+            script = generate_cu_patch_script(
+                instance_name=instance["instance_name"],
+                cu_url=cu["download_url"],
+                cu_hash=cu["file_hash"] or "",
+                reboot_policy=reboot_policy
+            )
+            
+            # Create job
+            job_id = str(uuid.uuid4())
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command, created_by)
+                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, 'cu-deploy')
+            """, job_id,
+                f"[MSSQL] Deploy CU{cu['cu_number']} - {instance['hostname']}/{instance['instance_name']}",
+                f"Deploy SQL Server {cu['version']} CU{cu['cu_number']} (Build {cu['build_number']})",
+                instance["node_id"],
+                json.dumps({"type": "powershell", "script": script}))
+            
+            jobs_created.append({
+                "jobId": job_id,
+                "hostname": instance["hostname"],
+                "instanceName": instance["instance_name"]
+            })
+        
+        return {
+            "jobsCreated": len(jobs_created),
+            "cuVersion": cu["version"],
+            "cuNumber": cu["cu_number"],
+            "jobs": jobs_created
+        }
+
+
 @app.post("/api/v1/mssql/patch-outdated", dependencies=[Depends(verify_api_key)])
 async def patch_all_outdated(
     data: Dict[str, Any] = Body(default={}),

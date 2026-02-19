@@ -53,6 +53,10 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
   const [versionFilter, setVersionFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [selectedCu, setSelectedCu] = useState<CumulativeUpdate | null>(null);
+  const [instances, setInstances] = useState<Array<{id: string; nodeId: string; hostname: string; instanceName: string; version: string}>>([]);
+  const [selectedInstances, setSelectedInstances] = useState<string[]>([]);
   
   const [newCu, setNewCu] = useState({
     version: '2022',
@@ -94,6 +98,48 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     } catch (err) {
       console.error('Compliance fetch error:', err);
     }
+  };
+
+  const fetchInstances = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/mssql/instances`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setInstances(data.instances || []);
+    } catch (err) {
+      console.error('Instances fetch error:', err);
+    }
+  };
+
+  const handleDeploy = async () => {
+    if (!selectedCu || selectedInstances.length === 0) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/mssql/deploy-cu`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cuId: selectedCu.id,
+          instanceIds: selectedInstances
+        })
+      });
+      if (!res.ok) throw new Error('Failed to create deploy jobs');
+      const data = await res.json();
+      alert(`✅ Created ${data.jobsCreated} deployment job(s)`);
+      setShowDeployModal(false);
+      setSelectedInstances([]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Deploy failed');
+    }
+  };
+
+  const openDeployModal = (cu: CumulativeUpdate) => {
+    setSelectedCu(cu);
+    setSelectedInstances([]);
+    fetchInstances();
+    setShowDeployModal(true);
   };
 
   useEffect(() => {
@@ -327,6 +373,14 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                             ✕ Block
                           </button>
                         )}
+                        {cu.status === 'approved' && (
+                          <button
+                            onClick={() => openDeployModal(cu)}
+                            className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                          >
+                            🚀 Deploy
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -537,6 +591,92 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 Add CU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deploy Modal */}
+      {showDeployModal && selectedCu && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+            <h2 className="text-xl font-semibold mb-2">🚀 Deploy CU{selectedCu.cuNumber}</h2>
+            <p className="text-gray-500 mb-4">
+              SQL Server {selectedCu.version} - Build {selectedCu.buildNumber}
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Select Target Instances:</label>
+              <div className="border rounded-lg max-h-60 overflow-y-auto">
+                {instances.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    No SQL instances found. Add instances in the Instances tab first.
+                  </div>
+                ) : (
+                  instances.map((inst) => (
+                    <label
+                      key={inst.id}
+                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedInstances.includes(inst.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedInstances([...selectedInstances, inst.id]);
+                          } else {
+                            setSelectedInstances(selectedInstances.filter(id => id !== inst.id));
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <div>
+                        <div className="font-medium">{inst.hostname}</div>
+                        <div className="text-sm text-gray-500">
+                          {inst.instanceName} • {inst.version || 'Version unknown'}
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {instances.length > 0 && (
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  onClick={() => setSelectedInstances(instances.map(i => i.id))}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  onClick={() => setSelectedInstances([])}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  Clear
+                </button>
+                <span className="ml-auto text-sm text-gray-500">
+                  {selectedInstances.length} selected
+                </span>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeployModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeploy}
+                disabled={selectedInstances.length === 0}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              >
+                🚀 Deploy to {selectedInstances.length} Instance(s)
               </button>
             </div>
           </div>
