@@ -8,3 +8,4 @@ aiohttp>=3.9.0
 bcrypt>=4.0.0
 PyJWT>=2.8.0
 httpx>=0.27.0
+aiofiles>=23.0.0
