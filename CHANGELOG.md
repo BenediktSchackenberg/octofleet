@@ -459,3 +459,13 @@ All notable changes to the Octofleet Windows Agent.
 ### Improved
 - API error responses now include error codes and identifiers
 - 60+ generic errors replaced with structured responses
+
+## [0.4.56] - 2026-02-19
+
+### Added
+- **Dashboard Sparklines**: Fleet-wide CPU/RAM/Disk trend charts (1h, 5-min buckets)
+- **New API endpoint**: `/api/v1/metrics/timeseries` for aggregated time series data
+- TimescaleDB `time_bucket` aggregation for efficient fleet metrics
+
+### Fixed
+- Added missing `aiofiles` dependency for CI
