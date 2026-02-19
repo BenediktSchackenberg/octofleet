@@ -134,6 +134,7 @@ export default function HomePage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [sqlCatalog, setSqlCatalog] = useState<{versions: Array<{version: string; count: number; latestCu: number}>; total: number} | null>(null);
   const [nodeData, setNodeData] = useState<any>(null);
   const [hardware, setHardware] = useState<any>(null);
   const [software, setSoftware] = useState<any[]>([]);
@@ -155,6 +156,7 @@ export default function HomePage() {
   useEffect(() => {
     fetchSummary();
     fetchMetrics();
+    fetchSqlCatalog();
     fetchSystemHealth();
     fetchRecentAlerts();
   }, []);
@@ -209,6 +211,33 @@ export default function HomePage() {
       if (res.ok) setMetrics(await res.json());
     } catch (e) {
       console.error("Failed to fetch metrics:", e);
+    }
+  }
+
+  async function fetchSqlCatalog() {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/mssql/cumulative-updates`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const cus = data.cumulativeUpdates || [];
+        // Group by version
+        const byVersion: Record<string, {count: number; latestCu: number}> = {};
+        cus.forEach((cu: any) => {
+          if (!byVersion[cu.version]) {
+            byVersion[cu.version] = { count: 0, latestCu: 0 };
+          }
+          byVersion[cu.version].count++;
+          if (cu.cuNumber > byVersion[cu.version].latestCu) {
+            byVersion[cu.version].latestCu = cu.cuNumber;
+          }
+        });
+        const versions = Object.entries(byVersion)
+          .map(([version, data]) => ({ version, ...data }))
+          .sort((a, b) => b.version.localeCompare(a.version));
+        setSqlCatalog({ versions, total: cus.length });
+      }
+    } catch (e) {
+      console.error("Failed to fetch SQL catalog:", e);
     }
   }
 
@@ -741,6 +770,38 @@ export default function HomePage() {
                               hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit'
                             })}
                           </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* SQL Server CU Catalog Widget */}
+              {sqlCatalog && sqlCatalog.total > 0 && (
+                <Card className="mb-8">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        🗄️ SQL Server CU Catalog
+                      </CardTitle>
+                      <Link href="/sql">
+                        <Button variant="ghost" size="sm">Updates verwalten →</Button>
+                      </Link>
+                    </div>
+                    <CardDescription>
+                      {sqlCatalog.total} Cumulative Updates im Katalog
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-4">
+                      {sqlCatalog.versions.map((v) => (
+                        <div key={v.version} className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
+                          <span className="font-medium">SQL {v.version}</span>
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                            CU{v.latestCu}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">({v.count} total)</span>
                         </div>
                       ))}
                     </div>
