@@ -111,6 +111,7 @@ const navGroups: NavGroup[] = [
     color: "blue",
     items: [
       { href: "/packages", labelKey: "nav.packages", icon: Package, permission: "packages:read" },
+      { href: "/repo", labelKey: "nav.repo", icon: HardDrive, permission: "packages:read" },
       { href: "/deployments", labelKey: "nav.deployments", icon: Rocket, permission: "deployments:read" },
       { href: "/jobs", labelKey: "nav.jobs", icon: Zap, permission: "jobs:read" },
       { href: "/software-compare", labelKey: "nav.compare", icon: GitCompare, permission: "nodes:read" },
