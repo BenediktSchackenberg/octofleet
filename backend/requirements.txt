@@ -10,3 +10,5 @@ PyJWT>=2.8.0
 httpx>=0.27.0
 aiofiles>=23.0.0
 openpyxl>=3.1.0
+reportlab>=4.0.0
+matplotlib>=3.8.0
