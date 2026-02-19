@@ -804,37 +804,92 @@ export default function HomePage() {
                             </div>
                           </div>
                         </div>
-                        {/* Per-node heat matrix */}
-                        <div className="space-y-1 max-h-[240px] overflow-y-auto">
-                          {metrics?.nodes
-                            ?.filter(n => n.cpuPercent !== null || n.ramPercent !== null)
-                            .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
-                            .slice(0, 10)
-                            .map((node, i) => {
-                              const worst = Math.max(node.cpuPercent || 0, node.ramPercent || 0, node.diskPercent || 0);
-                              const HeatBar = ({ value, color }: { value: number; color: string }) => {
-                                const pct = Math.min(value, 100);
-                                const bgColor = pct > 85 ? 'bg-red-500' : pct > 70 ? 'bg-yellow-500' : 
-                                  color === 'blue' ? 'bg-blue-500' : color === 'green' ? 'bg-green-500' : 'bg-purple-500';
+                        {/* Per-node hotspot matrix */}
+                        <div className="space-y-0">
+                          {/* Header */}
+                          <div className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 text-[10px] text-muted-foreground font-medium border-b pb-1 mb-1">
+                            <span>NODE</span>
+                            <span>CPU</span>
+                            <span>RAM</span>
+                            <span>DISK</span>
+                            <span>WORST</span>
+                          </div>
+                          {/* Rows */}
+                          <div className="max-h-[200px] overflow-y-auto space-y-0.5">
+                            {metrics?.nodes
+                              ?.filter(n => n.cpuPercent !== null || n.ramPercent !== null)
+                              .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
+                              .slice(0, 8)
+                              .map((node, i) => {
+                                const cpu = node.cpuPercent || 0;
+                                const ram = node.ramPercent || 0;
+                                const disk = node.diskPercent || 0;
+                                const worst = Math.max(cpu, ram, disk);
+                                const worstMetric = ram >= cpu && ram >= disk ? 'RAM' : disk >= cpu ? 'DISK' : 'CPU';
+                                const status = worst > 85 ? 'crit' : worst > 70 ? 'warn' : 'ok';
+                                
+                                const HeatCell = ({ value, type }: { value: number; type: 'cpu' | 'ram' | 'disk' }) => {
+                                  const intensity = value > 85 ? 4 : value > 70 ? 3 : value > 40 ? 2 : value > 0 ? 1 : 0;
+                                  const colors = {
+                                    cpu: ['bg-muted', 'bg-blue-300', 'bg-blue-400', 'bg-blue-600', 'bg-blue-800'],
+                                    ram: ['bg-muted', 'bg-green-300', 'bg-green-400', 'bg-green-600', 'bg-green-800'],
+                                    disk: ['bg-muted', 'bg-purple-300', 'bg-purple-400', 'bg-purple-600', 'bg-purple-800'],
+                                  };
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <span className={`font-mono text-[11px] w-6 ${intensity >= 4 ? 'text-red-600 font-bold' : intensity >= 3 ? 'text-yellow-600' : ''}`}>
+                                        {Math.round(value)}
+                                      </span>
+                                      <div className="flex gap-px">
+                                        {[1, 2, 3, 4].map((bar) => (
+                                          <div 
+                                            key={bar} 
+                                            className={`w-1.5 h-3 rounded-sm ${bar <= intensity ? colors[type][intensity] : 'bg-muted'}`} 
+                                          />
+                                        ))}
+                                      </div>
+                                      {intensity >= 4 && <span className="text-red-600 text-[10px]">‼</span>}
+                                      {intensity === 3 && <span className="text-yellow-600 text-[10px]">▲</span>}
+                                    </div>
+                                  );
+                                };
+                                
                                 return (
-                                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                                    <div className={`h-full ${bgColor} transition-all`} style={{ width: `${pct}%` }} />
+                                  <div 
+                                    key={i} 
+                                    className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 items-center py-1 hover:bg-muted/50 rounded cursor-pointer text-xs"
+                                    onClick={() => handleNodeSelect(node.nodeId)}
+                                  >
+                                    <span className="font-medium truncate">{node.hostname}</span>
+                                    <HeatCell value={cpu} type="cpu" />
+                                    <HeatCell value={ram} type="ram" />
+                                    <HeatCell value={disk} type="disk" />
+                                    <span className={`text-[11px] ${status === 'crit' ? 'text-red-600 font-medium' : status === 'warn' ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                                      {status === 'ok' ? 'OK' : `Worst: ${worstMetric}`}
+                                    </span>
                                   </div>
                                 );
-                              };
-                              return (
-                                <div key={i} className="grid grid-cols-[120px_1fr_1fr_1fr_70px] gap-3 items-center text-sm hover:bg-muted/50 rounded px-2 py-1.5 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
-                                  <span className="font-medium truncate text-xs">{node.hostname}</span>
-                                  <HeatBar value={node.cpuPercent || 0} color="blue" />
-                                  <HeatBar value={node.ramPercent || 0} color="green" />
-                                  <HeatBar value={node.diskPercent || 0} color="purple" />
-                                  <span className={`text-xs text-right ${worst > 85 ? 'text-red-500 font-bold' : worst > 70 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                                    {node.cpuPercent?.toFixed(0)}% / {node.diskPercent?.toFixed(0)}%
-                                    {worst > 70 && ' ▲'}
-                                  </span>
-                                </div>
-                              );
-                            })}
+                              })}
+                          </div>
+                          {/* Legend */}
+                          <div className="flex items-center gap-3 pt-2 mt-1 border-t text-[9px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1].map(b => <div key={b} className="w-1 h-2 bg-blue-300 rounded-sm" />)}</div>
+                              0-40
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1,2].map(b => <div key={b} className="w-1 h-2 bg-blue-400 rounded-sm" />)}</div>
+                              41-70
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1,2,3].map(b => <div key={b} className="w-1 h-2 bg-blue-600 rounded-sm" />)}</div>
+                              71-85
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1,2,3,4].map(b => <div key={b} className="w-1 h-2 bg-blue-800 rounded-sm" />)}</div>
+                              ‼ &gt;85
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ) : metrics && metrics.nodesWithMetrics > 0 ? (
@@ -869,37 +924,92 @@ export default function HomePage() {
                             </div>
                           </div>
                         </div>
-                        {/* Per-node heat matrix (fallback) */}
-                        <div className="space-y-1 max-h-[240px] overflow-y-auto">
-                          {metrics.nodes
-                            .filter(n => n.cpuPercent !== null || n.ramPercent !== null)
-                            .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
-                            .slice(0, 10)
-                            .map((node, i) => {
-                              const worst = Math.max(node.cpuPercent || 0, node.ramPercent || 0, node.diskPercent || 0);
-                              const HeatBar = ({ value, color }: { value: number; color: string }) => {
-                                const pct = Math.min(value, 100);
-                                const bgColor = pct > 85 ? 'bg-red-500' : pct > 70 ? 'bg-yellow-500' : 
-                                  color === 'blue' ? 'bg-blue-500' : color === 'green' ? 'bg-green-500' : 'bg-purple-500';
+                        {/* Per-node hotspot matrix (fallback) */}
+                        <div className="space-y-0">
+                          {/* Header */}
+                          <div className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 text-[10px] text-muted-foreground font-medium border-b pb-1 mb-1">
+                            <span>NODE</span>
+                            <span>CPU</span>
+                            <span>RAM</span>
+                            <span>DISK</span>
+                            <span>WORST</span>
+                          </div>
+                          {/* Rows */}
+                          <div className="max-h-[200px] overflow-y-auto space-y-0.5">
+                            {metrics.nodes
+                              .filter(n => n.cpuPercent !== null || n.ramPercent !== null)
+                              .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
+                              .slice(0, 8)
+                              .map((node, i) => {
+                                const cpu = node.cpuPercent || 0;
+                                const ram = node.ramPercent || 0;
+                                const disk = node.diskPercent || 0;
+                                const worst = Math.max(cpu, ram, disk);
+                                const worstMetric = ram >= cpu && ram >= disk ? 'RAM' : disk >= cpu ? 'DISK' : 'CPU';
+                                const status = worst > 85 ? 'crit' : worst > 70 ? 'warn' : 'ok';
+                                
+                                const HeatCell = ({ value, type }: { value: number; type: 'cpu' | 'ram' | 'disk' }) => {
+                                  const intensity = value > 85 ? 4 : value > 70 ? 3 : value > 40 ? 2 : value > 0 ? 1 : 0;
+                                  const colors = {
+                                    cpu: ['bg-muted', 'bg-blue-300', 'bg-blue-400', 'bg-blue-600', 'bg-blue-800'],
+                                    ram: ['bg-muted', 'bg-green-300', 'bg-green-400', 'bg-green-600', 'bg-green-800'],
+                                    disk: ['bg-muted', 'bg-purple-300', 'bg-purple-400', 'bg-purple-600', 'bg-purple-800'],
+                                  };
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <span className={`font-mono text-[11px] w-6 ${intensity >= 4 ? 'text-red-600 font-bold' : intensity >= 3 ? 'text-yellow-600' : ''}`}>
+                                        {Math.round(value)}
+                                      </span>
+                                      <div className="flex gap-px">
+                                        {[1, 2, 3, 4].map((bar) => (
+                                          <div 
+                                            key={bar} 
+                                            className={`w-1.5 h-3 rounded-sm ${bar <= intensity ? colors[type][intensity] : 'bg-muted'}`} 
+                                          />
+                                        ))}
+                                      </div>
+                                      {intensity >= 4 && <span className="text-red-600 text-[10px]">‼</span>}
+                                      {intensity === 3 && <span className="text-yellow-600 text-[10px]">▲</span>}
+                                    </div>
+                                  );
+                                };
+                                
                                 return (
-                                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                                    <div className={`h-full ${bgColor} transition-all`} style={{ width: `${pct}%` }} />
+                                  <div 
+                                    key={i} 
+                                    className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 items-center py-1 hover:bg-muted/50 rounded cursor-pointer text-xs"
+                                    onClick={() => handleNodeSelect(node.nodeId)}
+                                  >
+                                    <span className="font-medium truncate">{node.hostname}</span>
+                                    <HeatCell value={cpu} type="cpu" />
+                                    <HeatCell value={ram} type="ram" />
+                                    <HeatCell value={disk} type="disk" />
+                                    <span className={`text-[11px] ${status === 'crit' ? 'text-red-600 font-medium' : status === 'warn' ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                                      {status === 'ok' ? 'OK' : `Worst: ${worstMetric}`}
+                                    </span>
                                   </div>
                                 );
-                              };
-                              return (
-                                <div key={i} className="grid grid-cols-[120px_1fr_1fr_1fr_70px] gap-3 items-center text-sm hover:bg-muted/50 rounded px-2 py-1.5 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
-                                  <span className="font-medium truncate text-xs">{node.hostname}</span>
-                                  <HeatBar value={node.cpuPercent || 0} color="blue" />
-                                  <HeatBar value={node.ramPercent || 0} color="green" />
-                                  <HeatBar value={node.diskPercent || 0} color="purple" />
-                                  <span className={`text-xs text-right ${worst > 85 ? 'text-red-500 font-bold' : worst > 70 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                                    {node.cpuPercent?.toFixed(0)}% / {node.diskPercent?.toFixed(0)}%
-                                    {worst > 70 && ' ▲'}
-                                  </span>
-                                </div>
-                              );
-                            })}
+                              })}
+                          </div>
+                          {/* Legend */}
+                          <div className="flex items-center gap-3 pt-2 mt-1 border-t text-[9px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1].map(b => <div key={b} className="w-1 h-2 bg-blue-300 rounded-sm" />)}</div>
+                              0-40
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1,2].map(b => <div key={b} className="w-1 h-2 bg-blue-400 rounded-sm" />)}</div>
+                              41-70
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1,2,3].map(b => <div key={b} className="w-1 h-2 bg-blue-600 rounded-sm" />)}</div>
+                              71-85
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <div className="flex gap-px">{[1,2,3,4].map(b => <div key={b} className="w-1 h-2 bg-blue-800 rounded-sm" />)}</div>
+                              ‼ &gt;85
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ) : (
