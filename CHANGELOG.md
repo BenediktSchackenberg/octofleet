@@ -1,3 +1,14 @@
+## [0.4.54] - 2026-02-19
+### Added
+- Software Repository backend (Epic #57)
+- POST /api/v1/repo/upload - Upload files
+- GET /api/v1/repo/files - List with filters
+- GET /api/v1/repo/download/{id} - Download files
+- POST /api/v1/repo/cache - Cache remote URLs
+- Repository Browser UI at /repo
+- Agent RepoResolver - prefers local repo
+
+
 # Changelog
 
 ## [0.4.52] - 2026-02-19
