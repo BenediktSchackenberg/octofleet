@@ -7107,6 +7107,74 @@ async def get_fleet_performance(hours: int = 1, db: asyncpg.Pool = Depends(get_d
         }
 
 
+@app.get("/api/v1/metrics/timeseries", dependencies=[Depends(verify_api_key)])
+async def get_fleet_timeseries(
+    hours: int = 1, 
+    bucket_minutes: int = 5,
+    group_id: Optional[str] = None,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Get fleet-wide time series data for sparkline charts.
+    Aggregates all nodes (or filtered by group) into time buckets.
+    """
+    from datetime import timedelta
+    
+    async with db.acquire() as conn:
+        # Calculate start time as datetime
+        start_time = datetime.utcnow() - timedelta(hours=hours)
+        bucket_delta = timedelta(minutes=bucket_minutes)
+        
+        # Build group filter
+        group_filter = ""
+        params = [start_time, bucket_delta]
+        if group_id:
+            group_filter = "AND n.id IN (SELECT node_id FROM group_members WHERE group_id = $3::uuid)"
+            params.append(group_id)
+        
+        # Use TimescaleDB time_bucket for efficient aggregation
+        query = f"""
+            SELECT 
+                time_bucket($2, m.time) as bucket,
+                ROUND(AVG(m.cpu_percent)::numeric, 1) as avg_cpu,
+                ROUND(AVG(m.ram_percent)::numeric, 1) as avg_ram,
+                ROUND(AVG(m.disk_percent)::numeric, 1) as avg_disk,
+                COUNT(DISTINCT m.node_id) as node_count
+            FROM node_metrics m
+            JOIN nodes n ON n.id = m.node_id
+            WHERE m.time > $1
+            {group_filter}
+            GROUP BY bucket
+            ORDER BY bucket ASC
+        """
+        
+        rows = await conn.fetch(query, *params)
+        
+        timeseries = [{
+            "time": row["bucket"].isoformat(),
+            "cpu": float(row["avg_cpu"]) if row["avg_cpu"] else None,
+            "ram": float(row["avg_ram"]) if row["avg_ram"] else None,
+            "disk": float(row["avg_disk"]) if row["avg_disk"] else None,
+            "nodes": row["node_count"]
+        } for row in rows]
+        
+        # Get current averages
+        if timeseries:
+            latest = timeseries[-1]
+            current = {"cpu": latest["cpu"], "ram": latest["ram"], "disk": latest["disk"]}
+        else:
+            current = {"cpu": None, "ram": None, "disk": None}
+        
+        return {
+            "hours": hours,
+            "bucketMinutes": bucket_minutes,
+            "groupId": group_id,
+            "dataPoints": len(timeseries),
+            "current": current,
+            "timeseries": timeseries
+        }
+
+
 # NOTE: metrics/history endpoint moved to Line ~6990 with more parameters
 
 

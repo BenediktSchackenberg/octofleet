@@ -14,7 +14,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
 import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 
 // Skeleton Components for Loading State
 function Skeleton({ className = "" }: { className?: string }) {
@@ -134,6 +134,7 @@ export default function HomePage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [timeseries, setTimeseries] = useState<{timeseries: Array<{time: string; cpu: number; ram: number; disk: number; nodes: number}>; current: {cpu: number; ram: number; disk: number}} | null>(null);
   const [sqlCatalog, setSqlCatalog] = useState<{versions: Array<{version: string; count: number; latestCu: number}>; total: number} | null>(null);
   const [nodeData, setNodeData] = useState<any>(null);
   const [hardware, setHardware] = useState<any>(null);
@@ -156,6 +157,7 @@ export default function HomePage() {
   useEffect(() => {
     fetchSummary();
     fetchMetrics();
+    fetchTimeseries();
     fetchSqlCatalog();
     fetchSystemHealth();
     fetchRecentAlerts();
@@ -238,6 +240,18 @@ export default function HomePage() {
       }
     } catch (e) {
       console.error("Failed to fetch SQL catalog:", e);
+    }
+  }
+
+  async function fetchTimeseries() {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/metrics/timeseries?hours=1&bucket_minutes=5`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setTimeseries(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch timeseries:", e);
     }
   }
 
@@ -663,7 +677,7 @@ export default function HomePage() {
                   <h2 className="text-2xl font-bold">Dashboard</h2>
                   <p className="text-muted-foreground">Fleet Overview</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchSqlCatalog(); }}>
+                <Button variant="outline" size="sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); }}>
                   <RefreshCw className="h-4 w-4 mr-2" /> Refresh
                 </Button>
               </div>
@@ -743,9 +757,82 @@ export default function HomePage() {
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    {metrics && metrics.nodesWithMetrics > 0 ? (
+                    {timeseries && timeseries.timeseries?.length > 0 ? (
                       <div className="space-y-3">
-                        {/* Fleet Averages as compact bars */}
+                        {/* Fleet Sparklines */}
+                        <div className="grid grid-cols-3 gap-3 pb-3 border-b">
+                          {/* CPU Sparkline */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-muted-foreground">CPU</span>
+                              <span className="text-sm font-semibold text-blue-500">{timeseries.current?.cpu?.toFixed(0) || 0}%</span>
+                            </div>
+                            <div className="h-10">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={timeseries.timeseries} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                  <Area type="monotone" dataKey="cpu" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={1.5} dot={false} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                          {/* RAM Sparkline */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-muted-foreground">RAM</span>
+                              <span className="text-sm font-semibold text-green-500">{timeseries.current?.ram?.toFixed(0) || 0}%</span>
+                            </div>
+                            <div className="h-10">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={timeseries.timeseries} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                  <Area type="monotone" dataKey="ram" stroke="#22c55e" fill="#22c55e" fillOpacity={0.2} strokeWidth={1.5} dot={false} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                          {/* Disk Sparkline */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-muted-foreground">Disk</span>
+                              <span className="text-sm font-semibold text-purple-500">{timeseries.current?.disk?.toFixed(0) || 0}%</span>
+                            </div>
+                            <div className="h-10">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={timeseries.timeseries} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                  <Area type="monotone" dataKey="disk" stroke="#a855f7" fill="#a855f7" fillOpacity={0.2} strokeWidth={1.5} dot={false} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Per-node compact list */}
+                        <div className="space-y-2 max-h-[240px] overflow-y-auto">
+                          {metrics?.nodes
+                            ?.filter(n => n.cpuPercent !== null || n.ramPercent !== null)
+                            .slice(0, 10)
+                            .map((node, i) => (
+                              <div key={i} className="flex items-center gap-3 text-sm hover:bg-muted/50 rounded px-1 py-0.5 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
+                                <span className="font-medium w-24 truncate">{node.hostname}</span>
+                                <div className="flex-1 flex items-center gap-2">
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500" style={{ width: `${node.cpuPercent || 0}%` }} />
+                                  </div>
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className={`h-full ${(node.ramPercent || 0) > 80 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${node.ramPercent || 0}%` }} />
+                                  </div>
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full bg-purple-500" style={{ width: `${node.diskPercent || 0}%` }} />
+                                  </div>
+                                </div>
+                                <span className="text-xs text-muted-foreground w-16 text-right">
+                                  {node.cpuPercent?.toFixed(0)}% / {node.ramPercent?.toFixed(0)}%
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ) : metrics && metrics.nodesWithMetrics > 0 ? (
+                      <div className="space-y-3">
+                        {/* Fallback to static bars if no timeseries */}
                         <div className="grid grid-cols-3 gap-3 pb-3 border-b">
                           <div>
                             <div className="flex items-center justify-between mb-1">
@@ -776,7 +863,7 @@ export default function HomePage() {
                           </div>
                         </div>
                         {/* Per-node compact list */}
-                        <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                        <div className="space-y-2 max-h-[240px] overflow-y-auto">
                           {metrics.nodes
                             .filter(n => n.cpuPercent !== null || n.ramPercent !== null)
                             .slice(0, 10)
