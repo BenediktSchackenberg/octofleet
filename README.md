@@ -45,11 +45,12 @@
 <td width="50%">
 
 ### 📊 Inventory & Monitoring
-- Real-time fleet dashboard
+- Real-time fleet dashboard with hotspot matrix
 - Hardware inventory (CPU, RAM, Disks, Network)
 - Software inventory with version tracking
-- Live performance metrics
+- **Performance monitoring with heat intensity visualization**
 - Process and network monitoring
+- Fleet-wide trend sparklines
 
 </td>
 <td width="50%">
@@ -177,6 +178,11 @@ curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/
 <details>
 <summary>📈 Dashboard</summary>
 <img src="docs/screenshot-dashboard.png" alt="Dashboard">
+</details>
+
+<details>
+<summary>🔥 Performance Hotspot Matrix</summary>
+<img src="docs/screenshot-performance.png" alt="Performance Monitoring">
 </details>
 
 <details>
