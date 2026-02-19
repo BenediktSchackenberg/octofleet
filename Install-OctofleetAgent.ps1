@@ -237,6 +237,16 @@ function Install-OctofleetAgent {
         $config | ConvertTo-Json -Depth 10 | Out-File -FilePath $configPath -Encoding UTF8
     }
     
+    # Fix .NET single-file extraction issue (required for some systems without proper TEMP)
+    $extractDir = Join-Path $env:ProgramData "Octofleet\extract"
+    if (-not (Test-Path $extractDir)) {
+        Write-Status "Creating .NET bundle extraction directory..."
+        New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+    }
+    [Environment]::SetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR", $extractDir, "Machine")
+    $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $extractDir
+    Write-Status "Set DOTNET_BUNDLE_EXTRACT_BASE_DIR to $extractDir" "Success"
+    
     # Install service
     $exePath = Join-Path $InstallPath $ServiceExe
     if (-not $service) {
