@@ -1,3 +1,28 @@
+## [0.4.57] - 2026-02-19
+### Fixed
+- **Agent Update/Restart Bug** - Service now restarts reliably after auto-update
+  - Update script verifies and fixes service binary path automatically
+  - Retry logic (3 attempts) for service start
+  - File lock detection before copying files
+  - Detailed logging to `C:\ProgramData\Octofleet\logs\update.log`
+  - Event log query on failure for debugging
+
+### Added
+- `Repair-Service.ps1` script for fixing broken installations
+  - Diagnoses wrong service paths, missing binaries, disabled services
+  - Auto-finds installation in multiple possible locations
+  - Interactive repair with confirmation
+
+### Changed
+- Unified installation path to `C:\Program Files\Octofleet` (was inconsistent with `\Agent` subfolder)
+
+## [0.4.56] - 2026-02-19
+### Added
+- Dashboard Sparklines - Fleet-wide CPU/RAM/Disk trend charts
+- Performance Page with time range selector (1h/6h/24h/7d)
+- Group filter on Performance page
+- `/api/v1/metrics/timeseries` endpoint with TimescaleDB time_bucket
+
 ## [0.4.55] - 2026-02-19
 ### Added
 - SQL CU Auto-Sync from Microsoft (#60)
