@@ -22,10 +22,12 @@ public class PackageManager
     private readonly string _cacheDir;
     private readonly string _apiBaseUrl;
     private readonly bool _isElevated;
+    private readonly RepoResolver? _repoResolver;
 
-    public PackageManager(string apiBaseUrl)
+    public PackageManager(string apiBaseUrl, RepoResolver? repoResolver = null)
     {
         _apiBaseUrl = apiBaseUrl.TrimEnd('/');
+        _repoResolver = repoResolver;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _cacheDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -661,6 +663,116 @@ public class PackageManager
 
     #endregion
 
+    #region E57-62: Repository-Aware Downloads
+
+    /// <summary>
+    /// Download a file from URL, checking local repo first if configured.
+    /// Useful for SQL CU patches, driver downloads, etc.
+    /// </summary>
+    public async Task<DownloadResult> DownloadFromUrl(
+        string sourceUrl, 
+        string? filename = null,
+        string? expectedHash = null,
+        IProgress<DownloadProgress>? progress = null, 
+        CancellationToken ct = default)
+    {
+        // Extract filename from URL if not provided
+        if (string.IsNullOrEmpty(filename))
+        {
+            try
+            {
+                var uri = new Uri(sourceUrl);
+                filename = Path.GetFileName(uri.LocalPath);
+            }
+            catch
+            {
+                filename = $"download_{Guid.NewGuid():N}.tmp";
+            }
+        }
+
+        // Resolve URL through repo
+        string downloadUrl = sourceUrl;
+        bool fromRepo = false;
+        
+        if (_repoResolver != null)
+        {
+            progress?.Report(new DownloadProgress { Status = "Checking local repository...", Percentage = 0 });
+            
+            var resolved = await _repoResolver.ResolveUrl(sourceUrl, filename, expectedHash, ct);
+            downloadUrl = resolved.Url;
+            fromRepo = resolved.FromRepo;
+            
+            if (fromRepo)
+            {
+                progress?.Report(new DownloadProgress { Status = "Found in local repo!", Percentage = 5 });
+                expectedHash = resolved.Sha256 ?? expectedHash;
+            }
+        }
+
+        // Check cache first
+        if (!string.IsNullOrEmpty(expectedHash))
+        {
+            var cachedPath = GetCachedPath(filename, expectedHash);
+            if (cachedPath != null)
+            {
+                return new DownloadResult
+                {
+                    Success = true,
+                    LocalPath = cachedPath,
+                    FromCache = true,
+                    FromRepo = fromRepo,
+                    DownloadInfo = new DownloadInfo { Filename = filename, Sha256Hash = expectedHash }
+                };
+            }
+        }
+
+        // Download the file
+        try
+        {
+            progress?.Report(new DownloadProgress 
+            { 
+                Status = fromRepo ? "Downloading from local repo..." : "Downloading from source...",
+                Percentage = 10 
+            });
+
+            var localPath = await DownloadFromHttp(downloadUrl, filename, null, progress, ct);
+
+            // Verify hash if provided
+            if (!string.IsNullOrEmpty(expectedHash))
+            {
+                progress?.Report(new DownloadProgress { Status = "Verifying hash...", Percentage = 95 });
+                var hash = await ComputeFileHash(localPath);
+                if (!hash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(localPath);
+                    return new DownloadResult
+                    {
+                        Success = false,
+                        Error = $"Hash mismatch: expected {expectedHash}, got {hash}"
+                    };
+                }
+            }
+
+            // Move to cache
+            var finalPath = MoveToCache(localPath, filename, expectedHash ?? await ComputeFileHash(localPath));
+
+            return new DownloadResult
+            {
+                Success = true,
+                LocalPath = finalPath,
+                FromCache = false,
+                FromRepo = fromRepo,
+                DownloadInfo = new DownloadInfo { Filename = filename, Sha256Hash = expectedHash }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new DownloadResult { Success = false, Error = ex.Message };
+        }
+    }
+
+    #endregion
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -731,6 +843,7 @@ public class DownloadResult
     public string? LocalPath { get; set; }
     public string? Error { get; set; }
     public bool FromCache { get; set; }
+    public bool FromRepo { get; set; }  // E57-62: Downloaded from local repo
     public DownloadInfo? DownloadInfo { get; set; }
 }
 

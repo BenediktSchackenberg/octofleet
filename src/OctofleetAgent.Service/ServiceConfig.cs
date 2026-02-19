@@ -31,6 +31,11 @@ public class ServiceConfig
     public string? PendingId { get; set; }  // Set when registered, cleared when approved
     public string? DiscoveryUrl { get; set; } = "http://192.168.0.5:8080";  // Default discovery URL
 
+    // Software Repository settings (Epic #57 Issue #62)
+    public string? RepoUrl { get; set; }  // e.g., "http://192.168.0.5:8080/api/v1/repo"
+    public bool PreferRepo { get; set; } = true;  // Check local repo before external URLs
+    public bool FallbackToSource { get; set; } = true;  // Use source URL if not in repo
+
     private static readonly JsonSerializerOptions LoadOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -86,4 +91,19 @@ public class ServiceConfig
     
     // Is waiting for admin approval?
     public bool IsPendingApproval => !string.IsNullOrEmpty(PendingId);
+
+    /// <summary>
+    /// Creates a RepoResolver instance from config settings.
+    /// Returns null if repo is not configured.
+    /// </summary>
+    public RepoResolver? CreateRepoResolver(Microsoft.Extensions.Logging.ILogger<RepoResolver>? logger = null)
+    {
+        if (string.IsNullOrEmpty(RepoUrl))
+        {
+            // Default to inventory API URL + /api/v1/repo
+            var defaultRepoUrl = InventoryApiUrl?.TrimEnd('/') + "/api/v1/repo";
+            return new RepoResolver(defaultRepoUrl, logger, PreferRepo, FallbackToSource);
+        }
+        return new RepoResolver(RepoUrl, logger, PreferRepo, FallbackToSource);
+    }
 }
