@@ -166,8 +166,10 @@ async def get_current_user(
     # Check for API key header first (backwards compatible)
     api_key = request.headers.get("X-API-Key")
     if api_key:
-        # Legacy dev key - full access
-        if api_key == "octofleet-inventory-dev-key":
+        # Import centralized API key
+        from dependencies import API_KEY
+        # Check against centralized key
+        if api_key == API_KEY:
             return CurrentUser(
                 id="system",
                 username="system",

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.51] - 2026-02-19
+
+### Fixed
+- **API Key Consistency (#56)**: Centralized API key validation across all endpoints
+  - Removed duplicate `API_KEY` definitions from `main.py` (now imported from `dependencies.py`)
+  - Fixed `auth.py` to use centralized `API_KEY` instead of hardcoded value
+  - Fixed Screen WebSocket endpoint (was using wrong `API_KEY` env var)
+  - Fixed Remediation Live SSE endpoint (was using `octofleet-dev-key` default)
+  - All endpoints now consistently use `INVENTORY_API_KEY` environment variable
+  - Default key: `octofleet-inventory-dev-key`
+
+### Added
+- **API Key Consistency Tests**: New test class `TestAPIKeyConsistency` in `tests/api/test_endpoints.py`
+  - Verifies old inconsistent key is rejected
+  - Verifies correct key is accepted on all protected endpoints
+  - Parametrized tests for all major API endpoints
+
+### Improved
+- **Documentation**: Added Environment Variables section to README.md
+  - Documents `INVENTORY_API_KEY` as the correct variable
+  - Warning about using correct env var name
+
 ## [0.4.43] - 2026-02-17
 
 ### Fixed

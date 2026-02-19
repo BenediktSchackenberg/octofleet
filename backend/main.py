@@ -20,132 +20,17 @@ from datetime import datetime, timedelta
 # E7: Alerting imports
 from alerting import get_alert_manager, update_node_health, check_node_health
 
-# Standardized error handling
-from dependencies import not_found, bad_request, conflict, internal_error
-
-# Config
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://octofleet:octofleet_inventory_2026@127.0.0.1:5432/inventory"
+# Centralized dependencies - single source of truth for auth and config
+from dependencies import (
+    not_found, bad_request, conflict, internal_error,
+    API_KEY, DATABASE_URL, GATEWAY_URL, GATEWAY_TOKEN, INVENTORY_API_URL,
+    verify_api_key, verify_api_key_or_query,
+    sanitize_for_postgres, parse_datetime, get_db, set_db_pool,
+    db_pool as _deps_db_pool
 )
-API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
-GATEWAY_URL = os.getenv("OCTOFLEET_GATEWAY_URL", "http://192.168.0.5:18789")
-GATEWAY_TOKEN = os.getenv("OCTOFLEET_GATEWAY_TOKEN", "")
-INVENTORY_API_URL = os.getenv("OCTOFLEET_INVENTORY_URL", "http://192.168.0.5:8080")
 
-# Database pool
+# Local db_pool reference (set during lifespan)
 db_pool: Optional[asyncpg.Pool] = None
-
-
-def sanitize_for_postgres(value: Any) -> Any:
-    """Remove null bytes and other problematic characters from strings"""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        # Remove null bytes that PostgreSQL can't handle
-        return value.replace('\x00', '').replace('\u0000', '')
-    if isinstance(value, dict):
-        return {k: sanitize_for_postgres(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [sanitize_for_postgres(item) for item in value]
-    return value
-
-
-def parse_datetime(value: str | None) -> Any:
-    """Parse datetime string to timestamp or None"""
-    if not value:
-        return None
-    try:
-        from datetime import datetime
-        # Try ISO format first
-        if 'T' in value:
-            return datetime.fromisoformat(value.replace('Z', '+00:00'))
-        # Try common date formats
-        for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%m/%d/%Y']:
-            try:
-                return datetime.strptime(value, fmt)
-            except ValueError:
-                continue
-        return None
-    except Exception:
-        return None
-
-
-async def get_db() -> asyncpg.Pool:
-    """Dependency to get database pool"""
-    if db_pool is None:
-        raise HTTPException(status_code=503, detail="Database not available")
-    return db_pool
-
-
-async def verify_api_key(
-    x_api_key: str = Header(None),
-    authorization: str = Header(None)
-):
-    """Verify API key or JWT token from header"""
-    # Check JWT Bearer token first
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:]
-        try:
-            import jwt
-            from auth import JWT_SECRET
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            return payload  # Valid JWT
-        except Exception:
-            pass  # Fall through to API key check
-    
-    # Check X-API-Key
-    if x_api_key == API_KEY:
-        return x_api_key
-    
-    # Neither valid
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid API key or token"
-    )
-
-
-async def verify_api_key_or_query(
-    request: Request,
-    x_api_key: str = Header(None),
-    authorization: str = Header(None),
-):
-    """Verify API key or JWT token from header OR query param (for SSE)"""
-    # Check query param token first (for EventSource which can't send headers)
-    token = request.query_params.get("token")
-    if token:
-        # First check if it's the API key
-        if token == API_KEY:
-            return token
-        
-        # Then try JWT
-        try:
-            import jwt
-            from auth import JWT_SECRET
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            return payload  # Valid JWT from query
-        except Exception:
-            pass
-    
-    # Check JWT Bearer token
-    if authorization and authorization.startswith("Bearer "):
-        auth_token = authorization[7:]
-        try:
-            import jwt
-            from auth import JWT_SECRET
-            payload = jwt.decode(auth_token, JWT_SECRET, algorithms=["HS256"])
-            return payload
-        except Exception:
-            pass
-    
-    # Check X-API-Key
-    if x_api_key == API_KEY:
-        return x_api_key
-    
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid API key or token"
-    )
 
 
 @asynccontextmanager
@@ -153,7 +38,9 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     global db_pool
     # Startup
+    global db_pool
     db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+    set_db_pool(db_pool)  # Set in dependencies for shared access
     print(f"✅ Database pool created")
     yield
     # Shutdown
@@ -8797,9 +8684,8 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key:
     - Agent sends: {"type": "ready"} when capture started
     - Server sends: {"type": "stop"} to end session
     """
-    # Validate API key
-    valid_api_key = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
-    if api_key != valid_api_key:
+    # Validate API key (use centralized constant from dependencies)
+    if api_key != API_KEY:
         await websocket.close(code=4001, reason="Invalid API key")
         return
     
@@ -8879,9 +8765,8 @@ async def remediation_live_sse(request: Request, token: str = None, api_key: str
     SSE endpoint for live remediation job updates.
     Broadcasts job status changes in real-time.
     """
-    # Validate auth
-    valid_api_key = os.getenv("API_KEY", "octofleet-dev-key")
-    if api_key != valid_api_key and not token:
+    # Validate auth (use centralized API_KEY from dependencies)
+    if api_key != API_KEY and not token:
         raise HTTPException(401, "Unauthorized")
     
     async def event_generator():

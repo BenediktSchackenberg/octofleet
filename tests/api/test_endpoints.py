@@ -8,7 +8,8 @@ import os
 import time
 
 API_URL = os.getenv("API_URL", "http://localhost:8080")
-API_KEY = os.getenv("API_KEY", "octofleet-dev-key")
+# Use consistent API key variable name (INVENTORY_API_KEY) with correct default
+API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
 
 
 class TestHealth:
@@ -129,3 +130,78 @@ class TestServiceOrchestration:
             data = response.json()
             assert "services" in data
             assert isinstance(data["services"], list)
+
+
+class TestAPIKeyConsistency:
+    """
+    Test API key consistency across all protected endpoints.
+    Verifies fix for issue #56: Screen WebSocket uses inconsistent API key.
+    """
+    
+    def test_wrong_api_key_rejected(self):
+        """Old inconsistent key should be rejected"""
+        old_key = "octofleet-dev-key"  # The old incorrect default
+        response = requests.get(
+            f"{API_URL}/api/v1/nodes",
+            headers={"X-API-Key": old_key},
+            timeout=10
+        )
+        # Should be 401 Unauthorized, not 200
+        assert response.status_code == 401, \
+            f"Old API key should be rejected! Got {response.status_code}"
+    
+    def test_correct_api_key_accepted(self):
+        """Current API key should work on all endpoints"""
+        response = requests.get(
+            f"{API_URL}/api/v1/nodes",
+            headers={"X-API-Key": API_KEY},
+            timeout=10
+        )
+        assert response.status_code == 200, \
+            f"Current API key should be accepted! Got {response.status_code}: {response.text[:100]}"
+    
+    @pytest.mark.parametrize("endpoint", [
+        "/api/v1/nodes",
+        "/api/v1/groups",
+        "/api/v1/jobs",
+        "/api/v1/packages",
+        "/api/v1/service-classes",
+        "/api/v1/services",
+    ])
+    def test_protected_endpoints_reject_wrong_key(self, endpoint):
+        """All protected endpoints should reject the old inconsistent key"""
+        old_key = "octofleet-dev-key"
+        response = requests.get(
+            f"{API_URL}{endpoint}",
+            headers={"X-API-Key": old_key},
+            timeout=10
+        )
+        assert response.status_code == 401, \
+            f"{endpoint} accepted wrong key! Status: {response.status_code}"
+    
+    @pytest.mark.parametrize("endpoint", [
+        "/api/v1/nodes",
+        "/api/v1/groups",
+        "/api/v1/jobs",
+        "/api/v1/packages",
+        "/api/v1/service-classes",
+        "/api/v1/services",
+    ])
+    def test_protected_endpoints_accept_correct_key(self, endpoint):
+        """All protected endpoints should accept the centralized API key"""
+        response = requests.get(
+            f"{API_URL}{endpoint}",
+            headers={"X-API-Key": API_KEY},
+            timeout=10
+        )
+        assert response.status_code in [200, 404], \
+            f"{endpoint} rejected correct key! Status: {response.status_code}: {response.text[:100]}"
+    
+    def test_no_auth_rejected(self):
+        """Requests without auth should be rejected"""
+        response = requests.get(
+            f"{API_URL}/api/v1/nodes",
+            timeout=10
+        )
+        assert response.status_code in [401, 403], \
+            f"No-auth request should be rejected! Got {response.status_code}"
