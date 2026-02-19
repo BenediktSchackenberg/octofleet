@@ -268,23 +268,44 @@ $serviceName = 'OctofleetNodeAgent'
 $sourcePath = '{sourcePath.Replace("'", "''")}'
 $targetPath = '{targetPath.Replace("'", "''")}'
 $newVersion = '{version}'
+$logFile = Join-Path $env:ProgramData 'Octofleet\logs\update.log'
+
+# Ensure log directory exists
+$logDir = Split-Path $logFile -Parent
+if (-not (Test-Path $logDir)) {{ New-Item -ItemType Directory -Path $logDir -Force | Out-Null }}
 
 # Log function
-function Log {{ param($msg) Write-Host ""[$(Get-Date -Format 'HH:mm:ss')] $msg"" }}
+function Log {{ 
+    param($msg) 
+    $line = ""[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $msg""
+    Write-Host $line
+    Add-Content -Path $logFile -Value $line -ErrorAction SilentlyContinue
+}}
 
 # Version comparison function
 function Compare-Version {{
     param($installed, $new)
-    $instParts = $installed.Split('.') | ForEach-Object {{ [int]$_ }}
-    $newParts = $new.Split('.') | ForEach-Object {{ [int]$_ }}
-    for ($i = 0; $i -lt [Math]::Max($instParts.Count, $newParts.Count); $i++) {{
-        $inst = if ($i -lt $instParts.Count) {{ $instParts[$i] }} else {{ 0 }}
-        $newV = if ($i -lt $newParts.Count) {{ $newParts[$i] }} else {{ 0 }}
-        if ($newV -gt $inst) {{ return 1 }}   # new is higher
-        if ($newV -lt $inst) {{ return -1 }}  # new is lower (downgrade!)
+    try {{
+        $instParts = $installed.Split('.') | ForEach-Object {{ [int]$_ }}
+        $newParts = $new.Split('.') | ForEach-Object {{ [int]$_ }}
+        for ($i = 0; $i -lt [Math]::Max($instParts.Count, $newParts.Count); $i++) {{
+            $inst = if ($i -lt $instParts.Count) {{ $instParts[$i] }} else {{ 0 }}
+            $newV = if ($i -lt $newParts.Count) {{ $newParts[$i] }} else {{ 0 }}
+            if ($newV -gt $inst) {{ return 1 }}   # new is higher
+            if ($newV -lt $inst) {{ return -1 }}  # new is lower (downgrade!)
+        }}
+        return 0  # equal
+    }} catch {{
+        return 0
     }}
-    return 0  # equal
 }}
+
+Log ""========================================""
+Log ""Octofleet Update Script starting""
+Log ""Source: $sourcePath""
+Log ""Target: $targetPath""
+Log ""Version: $newVersion""
+Log ""========================================""
 
 Start-Sleep -Seconds 3
 
@@ -303,23 +324,59 @@ try {{
             exit 0
         }}
         Log ""Proceeding with update: $installedVersion -> $newVersion""
+    }} else {{
+        Log ""No existing installation found, proceeding with fresh install""
     }}
 
     # Stop service
     Log 'Stopping service...'
-    Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+    $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    if ($svc) {{
+        if ($svc.Status -eq 'Running') {{
+            Stop-Service -Name $serviceName -Force -ErrorAction Stop
+            Log ""Service stopped""
+        }} else {{
+            Log ""Service was not running (Status: $($svc.Status))""
+        }}
+    }} else {{
+        Log ""Service not found - will register after install""
+    }}
+    Start-Sleep -Seconds 3
     
-    # Kill any remaining processes
-    Get-Process -Name 'OctofleetAgent*' -ErrorAction SilentlyContinue | Stop-Process -Force
-    Start-Sleep -Seconds 1
+    # Kill any remaining processes (retry loop)
+    for ($i = 0; $i -lt 3; $i++) {{
+        $procs = Get-Process -Name 'OctofleetAgent*' -ErrorAction SilentlyContinue
+        if ($procs) {{
+            Log ""Killing $($procs.Count) remaining process(es)...""
+            $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        }} else {{
+            break
+        }}
+    }}
+    
+    # Check if files are locked
+    $testExe = Join-Path $targetPath 'OctofleetAgent.Service.exe'
+    if (Test-Path $testExe) {{
+        try {{
+            [IO.File]::OpenWrite($testExe).Close()
+        }} catch {{
+            Log ""WARNING: Executable is locked, waiting...""
+            Start-Sleep -Seconds 5
+        }}
+    }}
+    
+    # Ensure target directory exists
+    if (-not (Test-Path $targetPath)) {{
+        Log ""Creating target directory: $targetPath""
+        New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
+    }}
     
     # Backup old version (keep last 2)
     $backupDir = Join-Path $targetPath 'backups'
     if (-not (Test-Path $backupDir)) {{ New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }}
     
-    $existingExe = Join-Path $targetPath 'OctofleetAgent.Service.exe'
-    if (Test-Path $existingExe) {{
+    if (Test-Path $testExe) {{
         $backupName = ""backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')""
         $backupPath = Join-Path $backupDir $backupName
         Log ""Backing up to $backupPath""
@@ -328,48 +385,136 @@ try {{
         Copy-Item -Path (Join-Path $targetPath '*.dll') -Destination $backupPath -ErrorAction SilentlyContinue
         
         # Keep only last 2 backups
-        Get-ChildItem $backupDir -Directory | Sort-Object CreationTime -Descending | Select-Object -Skip 2 | Remove-Item -Recurse -Force
+        Get-ChildItem $backupDir -Directory | Sort-Object CreationTime -Descending | Select-Object -Skip 2 | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }}
     
-    # Copy new files (preserve config!)
-    Log 'Installing new version...'
+    # Preserve config
     $configPath = Join-Path $targetPath 'config.json'
     $configBackup = $null
     if (Test-Path $configPath) {{
         $configBackup = Get-Content $configPath -Raw
+        Log ""Config backed up""
     }}
     
-    # Copy all files from source
+    # Copy new files
+    Log 'Installing new version...'
     Copy-Item -Path (Join-Path $sourcePath '*') -Destination $targetPath -Force -Recurse
+    Log ""Files copied""
     
     # Restore config if it existed
     if ($configBackup) {{
         $configBackup | Set-Content -Path $configPath -Force
-        Log 'Config preserved'
+        Log 'Config restored'
     }}
     
-    # Start service
-    Log 'Starting service...'
-    Start-Service -Name $serviceName
-    Start-Sleep -Seconds 2
+    # Verify service registration and fix if needed
+    $expectedBinPath = Join-Path $targetPath 'OctofleetAgent.Service.exe'
+    $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
     
-    $svc = Get-Service -Name $serviceName
-    if ($svc.Status -eq 'Running') {{
-        Log ""Update to v{version} complete!""
+    if (-not $svc) {{
+        # Service doesn't exist - create it
+        Log ""Registering service...""
+        $result = sc.exe create $serviceName binPath=""$expectedBinPath"" start=auto DisplayName=""Octofleet Agent""
+        if ($LASTEXITCODE -eq 0) {{
+            Log ""Service registered successfully""
+            sc.exe description $serviceName ""Octofleet endpoint management agent"" | Out-Null
+            sc.exe failure $serviceName reset=86400 actions=restart/5000/restart/10000/restart/30000 | Out-Null
+        }} else {{
+            Log ""ERROR: Failed to register service: $result""
+            throw ""Service registration failed""
+        }}
     }} else {{
-        Log ""WARNING: Service status is $($svc.Status)""
+        # Service exists - check and fix binary path if needed
+        $regPath = ""HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName""
+        $currentBinPath = (Get-ItemProperty -Path $regPath -Name ImagePath -ErrorAction SilentlyContinue).ImagePath
+        
+        # Normalize paths for comparison (remove quotes, trim)
+        $currentBinPathClean = $currentBinPath -replace '""', '' -replace ""'"", '' 
+        $currentBinPathClean = $currentBinPathClean.Trim()
+        
+        if ($currentBinPathClean -ne $expectedBinPath) {{
+            Log ""Fixing service path: '$currentBinPathClean' -> '$expectedBinPath'""
+            sc.exe config $serviceName binPath=""$expectedBinPath"" | Out-Null
+            if ($LASTEXITCODE -ne 0) {{
+                Log ""WARNING: Could not update service path via sc.exe, trying registry...""
+                Set-ItemProperty -Path $regPath -Name ImagePath -Value $expectedBinPath -ErrorAction Stop
+            }}
+            Log ""Service path updated""
+        }} else {{
+            Log ""Service path is correct""
+        }}
     }}
+    
+    # Start service with retry
+    Log 'Starting service...'
+    $maxRetries = 3
+    $started = $false
+    
+    for ($retry = 1; $retry -le $maxRetries; $retry++) {{
+        try {{
+            Start-Service -Name $serviceName -ErrorAction Stop
+            Start-Sleep -Seconds 3
+            
+            $svc = Get-Service -Name $serviceName
+            if ($svc.Status -eq 'Running') {{
+                $started = $true
+                Log ""Service started successfully on attempt $retry""
+                break
+            }} else {{
+                Log ""WARNING: Service status is $($svc.Status) on attempt $retry""
+            }}
+        }} catch {{
+            Log ""ERROR on attempt $retry : $_""
+            if ($retry -lt $maxRetries) {{
+                Log ""Retrying in 5 seconds...""
+                Start-Sleep -Seconds 5
+            }}
+        }}
+    }}
+    
+    if (-not $started) {{
+        # Last resort - try to get more info
+        Log ""FAILED to start service after $maxRetries attempts""
+        Log ""Checking Windows Event Log...""
+        $events = Get-WinEvent -FilterHashtable @{{LogName='System'; ProviderName='Service Control Manager'; Level=2; StartTime=(Get-Date).AddMinutes(-5)}} -MaxEvents 5 -ErrorAction SilentlyContinue
+        foreach ($evt in $events) {{
+            Log ""  Event: $($evt.Message)""
+        }}
+        
+        # Check if exe exists and is valid
+        if (Test-Path $expectedBinPath) {{
+            $fileInfo = Get-Item $expectedBinPath
+            Log ""Executable exists: $($fileInfo.Length) bytes, Version: $($fileInfo.VersionInfo.FileVersion)""
+        }} else {{
+            Log ""ERROR: Executable not found at $expectedBinPath!""
+        }}
+    }}
+    
+    Log ""========================================""
+    if ($started) {{
+        Log ""Update to v{version} COMPLETE!""
+    }} else {{
+        Log ""Update to v{version} FAILED - service did not start""
+    }}
+    Log ""========================================""
     
 }} catch {{
-    Log ""ERROR: $_""
+    Log ""========================================""
+    Log ""CRITICAL ERROR: $_""
+    Log ""$($_.ScriptStackTrace)""
+    Log ""========================================""
     
     # Try to start service anyway
-    Start-Service -Name $serviceName -ErrorAction SilentlyContinue
+    try {{
+        Start-Service -Name $serviceName -ErrorAction SilentlyContinue
+    }} catch {{}}
 }}
 
-# Cleanup
-Start-Sleep -Seconds 5
-Remove-Item -Path (Split-Path $PSScriptRoot -Parent) -Recurse -Force -ErrorAction SilentlyContinue
+# Cleanup (delayed to allow log review)
+Start-Sleep -Seconds 10
+try {{
+    Remove-Item -Path (Split-Path $PSScriptRoot -Parent) -Recurse -Force -ErrorAction SilentlyContinue
+}} catch {{}}
 ";
         
         File.WriteAllText(scriptPath, script);

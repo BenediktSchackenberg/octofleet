@@ -25,7 +25,7 @@
 #>
 
 param(
-    [string]$InstallDir = "C:\Program Files\Octofleet\Agent",
+    [string]$InstallDir = "C:\Program Files\Octofleet",
     [string]$ServiceName = "OctofleetNodeAgent"
 )
 
