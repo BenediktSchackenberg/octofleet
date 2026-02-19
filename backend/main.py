@@ -3838,6 +3838,1166 @@ async def update_mssql_assignment(assignment_id: str, data: Dict[str, Any], db: 
 
 
 # ============================================
+# MSSQL CU Catalog & Approval Workflow (Issue #50)
+# ============================================
+
+@app.get("/api/v1/mssql/cumulative-updates", dependencies=[Depends(verify_api_key)])
+async def list_cumulative_updates(
+    version: Optional[str] = None,
+    status: Optional[str] = None,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    List all cumulative updates in the catalog.
+    Filter by SQL version (2019, 2022, 2025) and/or status.
+    """
+    async with db.acquire() as conn:
+        query = """
+            SELECT id, version, cu_number, build_number, release_date,
+                   download_url, kb_article, file_hash, file_size_mb,
+                   status, ring, notes, approved_by, approved_at,
+                   created_at, updated_at
+            FROM mssql_cu_catalog
+            WHERE 1=1
+        """
+        params = []
+        param_idx = 1
+        
+        if version:
+            query += f" AND version = ${param_idx}"
+            params.append(version)
+            param_idx += 1
+        
+        if status:
+            query += f" AND status = ${param_idx}"
+            params.append(status)
+            param_idx += 1
+        
+        query += " ORDER BY version, cu_number DESC"
+        
+        rows = await conn.fetch(query, *params)
+        
+        return {
+            "cumulativeUpdates": [
+                {
+                    "id": str(row["id"]),
+                    "version": row["version"],
+                    "cuNumber": row["cu_number"],
+                    "buildNumber": row["build_number"],
+                    "releaseDate": row["release_date"].isoformat() if row["release_date"] else None,
+                    "downloadUrl": row["download_url"],
+                    "kbArticle": row["kb_article"],
+                    "fileHash": row["file_hash"],
+                    "fileSizeMb": row["file_size_mb"],
+                    "status": row["status"],
+                    "ring": row["ring"],
+                    "notes": row["notes"],
+                    "approvedBy": row["approved_by"],
+                    "approvedAt": row["approved_at"].isoformat() if row["approved_at"] else None,
+                    "createdAt": row["created_at"].isoformat() if row["created_at"] else None,
+                    "updatedAt": row["updated_at"].isoformat() if row["updated_at"] else None
+                }
+                for row in rows
+            ],
+            "total": len(rows)
+        }
+
+
+@app.get("/api/v1/mssql/cumulative-updates/{cu_id}", dependencies=[Depends(verify_api_key)])
+async def get_cumulative_update(cu_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get details of a specific CU"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT * FROM mssql_cu_catalog WHERE id = $1::uuid
+        """, cu_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Cumulative update not found")
+        
+        # Get installation stats
+        stats = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) FILTER (WHERE status = 'installed') as installed_count,
+                COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+                COUNT(*) FILTER (WHERE status = 'failed') as failed_count
+            FROM mssql_cu_history
+            WHERE cu_id = $1::uuid
+        """, cu_id)
+        
+        return {
+            "id": str(row["id"]),
+            "version": row["version"],
+            "cuNumber": row["cu_number"],
+            "buildNumber": row["build_number"],
+            "releaseDate": row["release_date"].isoformat() if row["release_date"] else None,
+            "downloadUrl": row["download_url"],
+            "kbArticle": row["kb_article"],
+            "fileHash": row["file_hash"],
+            "fileSizeMb": row["file_size_mb"],
+            "releaseNotes": row["release_notes"],
+            "status": row["status"],
+            "ring": row["ring"],
+            "notes": row["notes"],
+            "approvedBy": row["approved_by"],
+            "approvedAt": row["approved_at"].isoformat() if row["approved_at"] else None,
+            "stats": {
+                "installedCount": stats["installed_count"] if stats else 0,
+                "pendingCount": stats["pending_count"] if stats else 0,
+                "failedCount": stats["failed_count"] if stats else 0
+            }
+        }
+
+
+@app.post("/api/v1/mssql/cumulative-updates", dependencies=[Depends(verify_api_key)])
+async def create_cumulative_update(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """
+    Add a new CU to the catalog.
+    Initial status will be 'detected'.
+    """
+    required = ["version", "cuNumber", "buildNumber", "releaseDate"]
+    for field in required:
+        if field not in data:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+    
+    async with db.acquire() as conn:
+        try:
+            cu_id = str(uuid.uuid4())
+            await conn.execute("""
+                INSERT INTO mssql_cu_catalog (
+                    id, version, cu_number, build_number, release_date,
+                    download_url, kb_article, file_hash, file_size_mb,
+                    release_notes, status, ring
+                ) VALUES (
+                    $1::uuid, $2, $3, $4, $5::date,
+                    $6, $7, $8, $9,
+                    $10, 'detected', 'pilot'
+                )
+            """, cu_id, data["version"], data["cuNumber"], data["buildNumber"],
+                data["releaseDate"], data.get("downloadUrl"), data.get("kbArticle"),
+                data.get("fileHash"), data.get("fileSizeMb"), data.get("releaseNotes"))
+            
+            return {
+                "id": cu_id,
+                "version": data["version"],
+                "cuNumber": data["cuNumber"],
+                "buildNumber": data["buildNumber"],
+                "status": "detected"
+            }
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(
+                status_code=409,
+                detail=f"CU {data['cuNumber']} for SQL Server {data['version']} already exists"
+            )
+
+
+@app.patch("/api/v1/mssql/cumulative-updates/{cu_id}", dependencies=[Depends(verify_api_key)])
+async def update_cumulative_update(cu_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """
+    Update CU status, ring assignment, or metadata.
+    Use this for approval workflow transitions.
+    """
+    async with db.acquire() as conn:
+        # Build dynamic UPDATE
+        updates = []
+        params = [cu_id]
+        param_idx = 2
+        
+        field_map = {
+            "status": "status",
+            "ring": "ring",
+            "downloadUrl": "download_url",
+            "fileHash": "file_hash",
+            "fileSizeMb": "file_size_mb",
+            "notes": "notes",
+            "releaseNotes": "release_notes"
+        }
+        
+        for api_field, db_field in field_map.items():
+            if api_field in data:
+                updates.append(f"{db_field} = ${param_idx}")
+                params.append(data[api_field])
+                param_idx += 1
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        updates.append("updated_at = NOW()")
+        
+        query = f"""
+            UPDATE mssql_cu_catalog
+            SET {', '.join(updates)}
+            WHERE id = $1::uuid
+            RETURNING id, version, cu_number, status, ring
+        """
+        
+        row = await conn.fetchrow(query, *params)
+        if not row:
+            raise HTTPException(status_code=404, detail="Cumulative update not found")
+        
+        return {
+            "id": str(row["id"]),
+            "version": row["version"],
+            "cuNumber": row["cu_number"],
+            "status": row["status"],
+            "ring": row["ring"]
+        }
+
+
+@app.post("/api/v1/mssql/cumulative-updates/{cu_id}/approve", dependencies=[Depends(verify_api_key)])
+async def approve_cumulative_update(
+    cu_id: str,
+    data: Dict[str, Any] = Body(default={}),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Approve a CU for deployment to specified ring.
+    Shortcut for PATCH with status=approved.
+    """
+    ring = data.get("ring", "pilot")
+    approved_by = data.get("approvedBy", "admin")
+    
+    if ring not in ["pilot", "broad", "all"]:
+        raise HTTPException(status_code=400, detail="Invalid ring. Must be: pilot, broad, all")
+    
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE mssql_cu_catalog
+            SET status = 'approved', ring = $2, approved_by = $3, approved_at = NOW(), updated_at = NOW()
+            WHERE id = $1::uuid
+            RETURNING id, version, cu_number, build_number, status, ring
+        """, cu_id, ring, approved_by)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Cumulative update not found")
+        
+        return {
+            "id": str(row["id"]),
+            "version": row["version"],
+            "cuNumber": row["cu_number"],
+            "buildNumber": row["build_number"],
+            "status": row["status"],
+            "ring": row["ring"],
+            "message": f"CU{row['cu_number']} approved for {ring} ring"
+        }
+
+
+@app.post("/api/v1/mssql/cumulative-updates/{cu_id}/block", dependencies=[Depends(verify_api_key)])
+async def block_cumulative_update(
+    cu_id: str,
+    data: Dict[str, Any] = Body(default={}),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Block a CU from deployment.
+    Use when known issues are discovered.
+    """
+    reason = data.get("reason", "Blocked by administrator")
+    
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE mssql_cu_catalog
+            SET status = 'blocked', notes = COALESCE(notes || E'\n', '') || $2, updated_at = NOW()
+            WHERE id = $1::uuid
+            RETURNING id, version, cu_number, status
+        """, cu_id, f"[BLOCKED] {reason}")
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Cumulative update not found")
+        
+        return {
+            "id": str(row["id"]),
+            "version": row["version"],
+            "cuNumber": row["cu_number"],
+            "status": row["status"],
+            "message": f"CU{row['cu_number']} blocked: {reason}"
+        }
+
+
+@app.get("/api/v1/mssql/cumulative-updates/latest/{version}", dependencies=[Depends(verify_api_key)])
+async def get_latest_approved_cu(version: str, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Get the latest approved CU for a SQL version.
+    Used by agents to check if updates are available.
+    """
+    if version not in ["2019", "2022", "2025"]:
+        raise HTTPException(status_code=400, detail="Invalid version. Must be: 2019, 2022, 2025")
+    
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT id, version, cu_number, build_number, release_date, download_url, file_hash
+            FROM mssql_cu_catalog
+            WHERE version = $1 AND status = 'approved'
+            ORDER BY cu_number DESC
+            LIMIT 1
+        """, version)
+        
+        if not row:
+            return {"found": False, "version": version, "message": "No approved CU found"}
+        
+        return {
+            "found": True,
+            "id": str(row["id"]),
+            "version": row["version"],
+            "cuNumber": row["cu_number"],
+            "buildNumber": row["build_number"],
+            "releaseDate": row["release_date"].isoformat() if row["release_date"] else None,
+            "downloadUrl": row["download_url"],
+            "fileHash": row["file_hash"]
+        }
+
+
+@app.get("/api/v1/mssql/cu-compliance", dependencies=[Depends(verify_api_key)])
+async def get_cu_compliance(db: asyncpg.Pool = Depends(get_db)):
+    """
+    Get CU compliance overview across all SQL instances.
+    Returns counts of up-to-date, outdated, and unknown instances.
+    """
+    async with db.acquire() as conn:
+        # Get latest approved CU per version
+        latest_cus = await conn.fetch("""
+            SELECT DISTINCT ON (version) version, cu_number, build_number
+            FROM mssql_cu_catalog
+            WHERE status = 'approved'
+            ORDER BY version, cu_number DESC
+        """)
+        latest_map = {r["version"]: r for r in latest_cus}
+        
+        # Get all instances with their current CU
+        instances = await conn.fetch("""
+            SELECT mi.id, mi.node_id, mi.instance_name, mi.version, mi.build_number, mi.cu_number,
+                   n.hostname
+            FROM mssql_instances mi
+            JOIN nodes n ON n.id = mi.node_id
+            WHERE mi.status = 'installed'
+        """)
+        
+        up_to_date = []
+        outdated = []
+        unknown = []
+        
+        for inst in instances:
+            latest = latest_map.get(inst["version"])
+            item = {
+                "instanceId": str(inst["id"]),
+                "nodeId": str(inst["node_id"]),
+                "hostname": inst["hostname"],
+                "instanceName": inst["instance_name"],
+                "version": inst["version"],
+                "currentBuild": inst["build_number"],
+                "currentCu": inst["cu_number"]
+            }
+            
+            if not latest:
+                item["status"] = "unknown"
+                item["reason"] = "No approved CU in catalog"
+                unknown.append(item)
+            elif inst["cu_number"] is None:
+                item["status"] = "unknown"
+                item["reason"] = "CU number not reported"
+                unknown.append(item)
+            elif inst["cu_number"] >= latest["cu_number"]:
+                item["status"] = "up-to-date"
+                item["latestCu"] = latest["cu_number"]
+                up_to_date.append(item)
+            else:
+                item["status"] = "outdated"
+                item["latestCu"] = latest["cu_number"]
+                item["latestBuild"] = latest["build_number"]
+                item["behindBy"] = latest["cu_number"] - inst["cu_number"]
+                outdated.append(item)
+        
+        return {
+            "summary": {
+                "total": len(instances),
+                "upToDate": len(up_to_date),
+                "outdated": len(outdated),
+                "unknown": len(unknown)
+            },
+            "latestApproved": {
+                v: {"cuNumber": r["cu_number"], "buildNumber": r["build_number"]}
+                for v, r in latest_map.items()
+            },
+            "upToDate": up_to_date,
+            "outdated": outdated,
+            "unknown": unknown
+        }
+
+
+# ============================================
+# MSSQL CU Detection & Patching (Issue #51)
+# ============================================
+
+@app.post("/api/v1/mssql/instances/{instance_id}/report-build", dependencies=[Depends(verify_api_key)])
+async def report_sql_build(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """
+    Agent reports current SQL Server build.
+    Updates instance record and checks for available CUs.
+    """
+    build_number = data.get("buildNumber")
+    if not build_number:
+        raise HTTPException(status_code=400, detail="buildNumber is required")
+    
+    async with db.acquire() as conn:
+        # Parse build to extract CU number (e.g., 15.0.4385.2 -> CU25 for 2019)
+        # Build format: Major.Minor.Build.Revision
+        cu_number = None
+        version = None
+        
+        # Check if this build exists in our catalog
+        cu_row = await conn.fetchrow("""
+            SELECT cu_number, version FROM mssql_cu_catalog WHERE build_number = $1
+        """, build_number)
+        
+        if cu_row:
+            cu_number = cu_row["cu_number"]
+            version = cu_row["version"]
+        
+        # Update instance
+        row = await conn.fetchrow("""
+            UPDATE mssql_instances
+            SET build_number = $2, cu_number = $3, updated_at = NOW()
+            WHERE id = $1::uuid
+            RETURNING id, node_id, version, instance_name
+        """, instance_id, build_number, cu_number)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        
+        # Check if update is needed
+        inst_version = version or row["version"]
+        latest = await conn.fetchrow("""
+            SELECT cu_number, build_number, download_url
+            FROM mssql_cu_catalog
+            WHERE version = $1 AND status = 'approved'
+            ORDER BY cu_number DESC
+            LIMIT 1
+        """, inst_version)
+        
+        needs_update = False
+        if latest and cu_number is not None and cu_number < latest["cu_number"]:
+            needs_update = True
+        
+        return {
+            "instanceId": str(row["id"]),
+            "buildNumber": build_number,
+            "cuNumber": cu_number,
+            "needsUpdate": needs_update,
+            "latestCu": latest["cu_number"] if latest else None,
+            "latestBuild": latest["build_number"] if latest else None
+        }
+
+
+@app.post("/api/v1/mssql/instances/{instance_id}/patch", dependencies=[Depends(verify_api_key)])
+async def create_patch_job(
+    instance_id: str,
+    data: Dict[str, Any] = Body(default={}),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Create a CU patch job for a SQL instance.
+    Respects maintenance windows and reboot policy.
+    """
+    force = data.get("force", False)
+    reboot_policy = data.get("rebootPolicy", "if_required")  # never, if_required, always
+    
+    async with db.acquire() as conn:
+        # Get instance details
+        instance = await conn.fetchrow("""
+            SELECT mi.*, n.hostname, n.id as node_id
+            FROM mssql_instances mi
+            JOIN nodes n ON n.id = mi.node_id
+            WHERE mi.id = $1::uuid
+        """, instance_id)
+        
+        if not instance:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        
+        if instance["status"] == "updating" and not force:
+            raise HTTPException(status_code=409, detail="Instance is already being updated")
+        
+        # Get latest approved CU
+        latest_cu = await conn.fetchrow("""
+            SELECT * FROM mssql_cu_catalog
+            WHERE version = $1 AND status = 'approved'
+            ORDER BY cu_number DESC
+            LIMIT 1
+        """, instance["version"])
+        
+        if not latest_cu:
+            raise HTTPException(status_code=404, detail="No approved CU available")
+        
+        if instance["cu_number"] and instance["cu_number"] >= latest_cu["cu_number"] and not force:
+            return {
+                "status": "up-to-date",
+                "currentCu": instance["cu_number"],
+                "latestCu": latest_cu["cu_number"]
+            }
+        
+        # Check maintenance window (if configured)
+        in_maintenance = await conn.fetchval("""
+            SELECT EXISTS(
+                SELECT 1 FROM maintenance_windows mw
+                JOIN maintenance_window_groups mwg ON mwg.window_id = mw.id
+                JOIN device_groups dg ON dg.group_id = mwg.group_id
+                WHERE dg.node_id = $1::uuid
+                AND mw.enabled = true
+                AND (
+                    (mw.window_type = 'recurring' AND 
+                     EXTRACT(DOW FROM NOW()) = ANY(mw.days_of_week) AND
+                     NOW()::time BETWEEN mw.start_time AND mw.end_time)
+                    OR
+                    (mw.window_type = 'one_time' AND
+                     NOW() BETWEEN mw.one_time_start AND mw.one_time_end)
+                )
+            )
+        """, instance["node_id"])
+        
+        # Generate patch script
+        patch_script = generate_cu_patch_script(
+            instance_name=instance["instance_name"],
+            cu_url=latest_cu["download_url"],
+            cu_hash=latest_cu["file_hash"],
+            reboot_policy=reboot_policy
+        )
+        
+        # Create job
+        job_id = str(uuid.uuid4())
+        job_name = f"SQL CU{latest_cu['cu_number']} Patch - {instance['hostname']}/{instance['instance_name']}"
+        
+        await conn.execute("""
+            INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command, created_by)
+            VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, 'cu-orchestrator')
+        """, job_id, job_name,
+            f"Install CU{latest_cu['cu_number']} ({latest_cu['build_number']}) on {instance['instance_name']}",
+            instance["node_id"],
+            json.dumps({"type": "powershell", "script": patch_script}))
+        
+        # Update instance status
+        await conn.execute("""
+            UPDATE mssql_instances SET status = 'updating', updated_at = NOW()
+            WHERE id = $1::uuid
+        """, instance_id)
+        
+        # Record in CU history
+        await conn.execute("""
+            INSERT INTO mssql_cu_history (instance_id, cu_id, job_id, status)
+            VALUES ($1::uuid, $2::uuid, $3::uuid, 'pending')
+        """, instance_id, latest_cu["id"], job_id)
+        
+        return {
+            "jobId": job_id,
+            "instanceId": str(instance["id"]),
+            "hostname": instance["hostname"],
+            "instanceName": instance["instance_name"],
+            "fromCu": instance["cu_number"],
+            "toCu": latest_cu["cu_number"],
+            "toBuild": latest_cu["build_number"],
+            "inMaintenanceWindow": in_maintenance,
+            "rebootPolicy": reboot_policy
+        }
+
+
+@app.post("/api/v1/mssql/patch-outdated", dependencies=[Depends(verify_api_key)])
+async def patch_all_outdated(
+    data: Dict[str, Any] = Body(default={}),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Create patch jobs for all outdated SQL instances.
+    Optional: filter by group or version.
+    """
+    version_filter = data.get("version")
+    group_id = data.get("groupId")
+    respect_maintenance = data.get("respectMaintenanceWindows", True)
+    reboot_policy = data.get("rebootPolicy", "if_required")
+    
+    async with db.acquire() as conn:
+        # Get latest approved CUs
+        latest_cus = await conn.fetch("""
+            SELECT DISTINCT ON (version) *
+            FROM mssql_cu_catalog
+            WHERE status = 'approved'
+            ORDER BY version, cu_number DESC
+        """)
+        latest_map = {r["version"]: r for r in latest_cus}
+        
+        # Find outdated instances
+        query = """
+            SELECT mi.*, n.hostname, n.id as node_id
+            FROM mssql_instances mi
+            JOIN nodes n ON n.id = mi.node_id
+            WHERE mi.status = 'installed'
+        """
+        params = []
+        
+        if version_filter:
+            query += f" AND mi.version = ${len(params) + 1}"
+            params.append(version_filter)
+        
+        if group_id:
+            query += f" AND EXISTS(SELECT 1 FROM device_groups dg WHERE dg.node_id = mi.node_id AND dg.group_id = ${len(params) + 1}::uuid)"
+            params.append(group_id)
+        
+        instances = await conn.fetch(query, *params)
+        
+        jobs_created = []
+        skipped = []
+        
+        for inst in instances:
+            latest = latest_map.get(inst["version"])
+            if not latest:
+                skipped.append({"instanceId": str(inst["id"]), "reason": "No approved CU"})
+                continue
+            
+            if inst["cu_number"] is not None and inst["cu_number"] >= latest["cu_number"]:
+                continue  # Already up to date
+            
+            # Create patch job
+            patch_script = generate_cu_patch_script(
+                instance_name=inst["instance_name"],
+                cu_url=latest["download_url"],
+                cu_hash=latest["file_hash"],
+                reboot_policy=reboot_policy
+            )
+            
+            job_id = str(uuid.uuid4())
+            job_name = f"SQL CU{latest['cu_number']} Patch - {inst['hostname']}/{inst['instance_name']}"
+            
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command, created_by)
+                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, 'cu-orchestrator')
+            """, job_id, job_name,
+                f"Install CU{latest['cu_number']} on {inst['instance_name']}",
+                inst["node_id"],
+                json.dumps({"type": "powershell", "script": patch_script}))
+            
+            await conn.execute("""
+                UPDATE mssql_instances SET status = 'updating' WHERE id = $1::uuid
+            """, inst["id"])
+            
+            await conn.execute("""
+                INSERT INTO mssql_cu_history (instance_id, cu_id, job_id, status)
+                VALUES ($1::uuid, $2::uuid, $3::uuid, 'pending')
+            """, inst["id"], latest["id"], job_id)
+            
+            jobs_created.append({
+                "jobId": job_id,
+                "instanceId": str(inst["id"]),
+                "hostname": inst["hostname"],
+                "fromCu": inst["cu_number"],
+                "toCu": latest["cu_number"]
+            })
+        
+        return {
+            "jobsCreated": len(jobs_created),
+            "skipped": len(skipped),
+            "jobs": jobs_created,
+            "skippedDetails": skipped
+        }
+
+
+# ============================================
+# MSSQL Installation Idempotency (Issue #53)
+# ============================================
+
+@app.post("/api/v1/mssql/detect/{node_id}", dependencies=[Depends(verify_api_key)])
+async def detect_sql_installations(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Detect existing SQL Server installations on a node.
+    Creates a detection job that reports back installed instances.
+    """
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("""
+            SELECT id, node_id, hostname FROM nodes WHERE id = $1::uuid OR node_id = $1
+        """, node_id)
+        
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        # Create detection job
+        detection_script = generate_sql_detection_script()
+        job_id = str(uuid.uuid4())
+        
+        await conn.execute("""
+            INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command, created_by)
+            VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, 'sql-detector')
+        """, job_id,
+            f"[MSSQL] Detect SQL Server - {node['hostname']}",
+            "Detect existing SQL Server installations",
+            node["id"],
+            json.dumps({"type": "powershell", "script": detection_script}))
+        
+        return {
+            "jobId": job_id,
+            "nodeId": str(node["id"]),
+            "hostname": node["hostname"],
+            "message": "Detection job created. Results will update mssql_instances table."
+        }
+
+
+@app.post("/api/v1/mssql/instances/{instance_id}/verify", dependencies=[Depends(verify_api_key)])
+async def verify_sql_configuration(
+    instance_id: str,
+    data: Dict[str, Any] = Body(default={}),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Verify SQL instance configuration matches expected profile.
+    Returns drift report if configuration differs.
+    """
+    config_id = data.get("configId")  # Optional: compare against specific config
+    
+    async with db.acquire() as conn:
+        instance = await conn.fetchrow("""
+            SELECT mi.*, n.hostname
+            FROM mssql_instances mi
+            JOIN nodes n ON n.id = mi.node_id
+            WHERE mi.id = $1::uuid
+        """, instance_id)
+        
+        if not instance:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        
+        # Get expected config
+        expected = None
+        if config_id:
+            expected = await conn.fetchrow("""
+                SELECT * FROM mssql_configs WHERE id = $1::uuid
+            """, config_id)
+        elif instance["config_id"]:
+            expected = await conn.fetchrow("""
+                SELECT * FROM mssql_configs WHERE id = $1::uuid
+            """, instance["config_id"])
+        
+        # Create verify job
+        verify_script = generate_sql_verify_script(
+            instance_name=instance["instance_name"],
+            expected_version=instance["version"],
+            expected_edition=instance["edition"],
+            expected_port=expected["port"] if expected else 1433,
+            expected_collation=expected["sql_collation"] if expected else None,
+            expected_max_memory=expected["max_memory_mb"] if expected else None
+        )
+        
+        job_id = str(uuid.uuid4())
+        await conn.execute("""
+            INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command, created_by)
+            VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, 'sql-verifier')
+        """, job_id,
+            f"[MSSQL] Verify Config - {instance['hostname']}/{instance['instance_name']}",
+            "Verify SQL Server configuration matches expected profile",
+            instance["node_id"],
+            json.dumps({"type": "powershell", "script": verify_script}))
+        
+        return {
+            "jobId": job_id,
+            "instanceId": str(instance["id"]),
+            "hostname": instance["hostname"],
+            "instanceName": instance["instance_name"],
+            "configId": str(instance["config_id"]) if instance["config_id"] else None
+        }
+
+
+@app.post("/api/v1/mssql/instances/{instance_id}/repair", dependencies=[Depends(verify_api_key)])
+async def repair_sql_configuration(
+    instance_id: str,
+    data: Dict[str, Any] = Body(default={}),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Repair SQL instance to match expected configuration.
+    Can reconfigure memory, port, or rebuild system databases.
+    """
+    repair_type = data.get("repairType", "reconfigure")  # reconfigure, rebuild
+    
+    async with db.acquire() as conn:
+        instance = await conn.fetchrow("""
+            SELECT mi.*, n.hostname, mc.*
+            FROM mssql_instances mi
+            JOIN nodes n ON n.id = mi.node_id
+            LEFT JOIN mssql_configs mc ON mc.id = mi.config_id
+            WHERE mi.id = $1::uuid
+        """, instance_id)
+        
+        if not instance:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        
+        # Generate repair script
+        if repair_type == "rebuild":
+            repair_script = generate_sql_rebuild_script(instance["instance_name"])
+        else:
+            repair_script = generate_sql_reconfigure_script(
+                instance_name=instance["instance_name"],
+                max_memory_mb=instance["max_memory_mb"],
+                port=instance["port"]
+            )
+        
+        job_id = str(uuid.uuid4())
+        await conn.execute("""
+            INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command, created_by)
+            VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, 'sql-repair')
+        """, job_id,
+            f"[MSSQL] Repair ({repair_type}) - {instance['hostname']}/{instance['instance_name']}",
+            f"Repair SQL Server configuration: {repair_type}",
+            instance["node_id"],
+            json.dumps({"type": "powershell", "script": repair_script}))
+        
+        return {
+            "jobId": job_id,
+            "instanceId": str(instance["id"]),
+            "repairType": repair_type,
+            "message": f"Repair job created for {instance['instance_name']}"
+        }
+
+
+def generate_sql_detection_script() -> str:
+    """Generate PowerShell script to detect SQL Server installations"""
+    return '''# SQL Server Detection Script
+# Returns JSON with all installed SQL instances
+
+$Instances = @()
+
+# Check registry for SQL instances
+$RegPaths = @(
+    "HKLM:\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\Instance Names\\SQL",
+    "HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Microsoft SQL Server\\Instance Names\\SQL"
+)
+
+foreach ($Path in $RegPaths) {
+    if (Test-Path $Path) {
+        $Names = Get-ItemProperty -Path $Path -ErrorAction SilentlyContinue
+        foreach ($Prop in $Names.PSObject.Properties) {
+            if ($Prop.Name -notlike "PS*") {
+                $InstanceName = $Prop.Name
+                $InstancePath = $Prop.Value
+                
+                # Get version info
+                $SetupPath = "HKLM:\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\$InstancePath\\Setup"
+                $Setup = Get-ItemProperty -Path $SetupPath -ErrorAction SilentlyContinue
+                
+                # Get service info
+                $ServiceName = if ($InstanceName -eq "MSSQLSERVER") { "MSSQLSERVER" } else { "MSSQL`$$InstanceName" }
+                $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+                
+                # Query server for details (if running)
+                $ServerInfo = $null
+                if ($Service.Status -eq 'Running') {
+                    try {
+                        $ConnStr = if ($InstanceName -eq "MSSQLSERVER") { "localhost" } else { "localhost\\$InstanceName" }
+                        $Query = "SELECT SERVERPROPERTY('ProductVersion') AS Version, SERVERPROPERTY('Edition') AS Edition, SERVERPROPERTY('Collation') AS Collation, SERVERPROPERTY('ProductLevel') AS ProductLevel"
+                        $ServerInfo = Invoke-Sqlcmd -ServerInstance $ConnStr -Query $Query -ErrorAction SilentlyContinue
+                    } catch {}
+                }
+                
+                $Instances += @{
+                    instanceName = $InstanceName
+                    version = $Setup.Version
+                    edition = $Setup.Edition
+                    installPath = $Setup.SQLPath
+                    dataPath = $Setup.SQLDataRoot
+                    serviceStatus = if ($Service) { $Service.Status.ToString() } else { "NotFound" }
+                    productVersion = if ($ServerInfo) { $ServerInfo.Version } else { $null }
+                    productLevel = if ($ServerInfo) { $ServerInfo.ProductLevel } else { $null }
+                    collation = if ($ServerInfo) { $ServerInfo.Collation } else { $null }
+                }
+            }
+        }
+    }
+}
+
+@{ instances = $Instances; detectedAt = (Get-Date -Format "o") } | ConvertTo-Json -Depth 5
+'''
+
+
+def generate_sql_verify_script(
+    instance_name: str,
+    expected_version: str,
+    expected_edition: str,
+    expected_port: int,
+    expected_collation: str = None,
+    expected_max_memory: int = None
+) -> str:
+    """Generate script to verify SQL configuration"""
+    return f'''# SQL Server Configuration Verification
+$InstanceName = "{instance_name}"
+$ExpectedVersion = "{expected_version}"
+$ExpectedEdition = "{expected_edition}"
+$ExpectedPort = {expected_port}
+$ExpectedCollation = "{expected_collation or ''}"
+$ExpectedMaxMemory = {expected_max_memory or 0}
+
+$Drift = @()
+$ConnStr = if ($InstanceName -eq "MSSQLSERVER") {{ "localhost" }} else {{ "localhost\\$InstanceName" }}
+
+try {{
+    # Get current config
+    $VersionQuery = "SELECT SERVERPROPERTY('ProductVersion') AS Version, SERVERPROPERTY('Edition') AS Edition, SERVERPROPERTY('Collation') AS Collation"
+    $Current = Invoke-Sqlcmd -ServerInstance $ConnStr -Query $VersionQuery
+    
+    # Check version (major.minor)
+    $CurrentMajor = ($Current.Version -split '\\.')[0..1] -join '.'
+    $ExpectedMajorMap = @{{ "2019" = "15.0"; "2022" = "16.0"; "2025" = "17.0" }}
+    if ($CurrentMajor -ne $ExpectedMajorMap[$ExpectedVersion]) {{
+        $Drift += @{{ field = "version"; expected = $ExpectedVersion; actual = $Current.Version; severity = "critical" }}
+    }}
+    
+    # Check edition
+    if ($Current.Edition -notlike "*$ExpectedEdition*") {{
+        $Drift += @{{ field = "edition"; expected = $ExpectedEdition; actual = $Current.Edition; severity = "critical" }}
+    }}
+    
+    # Check collation
+    if ($ExpectedCollation -and $Current.Collation -ne $ExpectedCollation) {{
+        $Drift += @{{ field = "collation"; expected = $ExpectedCollation; actual = $Current.Collation; severity = "warning" }}
+    }}
+    
+    # Check port
+    $PortQuery = "SELECT value_data FROM sys.dm_server_registry WHERE value_name = 'TcpPort'"
+    $PortResult = Invoke-Sqlcmd -ServerInstance $ConnStr -Query $PortQuery -ErrorAction SilentlyContinue
+    if ($PortResult -and $PortResult.value_data -ne $ExpectedPort.ToString()) {{
+        $Drift += @{{ field = "port"; expected = $ExpectedPort; actual = $PortResult.value_data; severity = "warning" }}
+    }}
+    
+    # Check max memory
+    if ($ExpectedMaxMemory -gt 0) {{
+        $MemQuery = "SELECT value FROM sys.configurations WHERE name = 'max server memory (MB)'"
+        $MemResult = Invoke-Sqlcmd -ServerInstance $ConnStr -Query $MemQuery
+        if ($MemResult.value -ne $ExpectedMaxMemory) {{
+            $Drift += @{{ field = "maxMemory"; expected = $ExpectedMaxMemory; actual = $MemResult.value; severity = "warning" }}
+        }}
+    }}
+    
+    $Status = if ($Drift.Count -eq 0) {{ "compliant" }} else {{ "drift" }}
+    
+    @{{
+        status = $Status
+        instanceName = $InstanceName
+        driftCount = $Drift.Count
+        drift = $Drift
+        current = @{{
+            version = $Current.Version
+            edition = $Current.Edition
+            collation = $Current.Collation
+        }}
+    }} | ConvertTo-Json -Depth 5
+    
+}} catch {{
+    @{{ status = "error"; error = $_.Exception.Message }} | ConvertTo-Json
+}}
+'''
+
+
+def generate_sql_reconfigure_script(instance_name: str, max_memory_mb: int = None, port: int = None) -> str:
+    """Generate script to reconfigure SQL Server settings"""
+    return f'''# SQL Server Reconfiguration Script
+$InstanceName = "{instance_name}"
+$NewMaxMemory = {max_memory_mb or 0}
+$NewPort = {port or 0}
+
+$ConnStr = if ($InstanceName -eq "MSSQLSERVER") {{ "localhost" }} else {{ "localhost\\$InstanceName" }}
+$Changes = @()
+
+try {{
+    # Configure max memory
+    if ($NewMaxMemory -gt 0) {{
+        $Query = "EXEC sp_configure 'max server memory (MB)', $NewMaxMemory; RECONFIGURE;"
+        Invoke-Sqlcmd -ServerInstance $ConnStr -Query $Query
+        $Changes += "Max memory set to $NewMaxMemory MB"
+    }}
+    
+    # Configure port (requires registry change + service restart)
+    if ($NewPort -gt 0) {{
+        $InstanceKey = if ($InstanceName -eq "MSSQLSERVER") {{ "MSSQLSERVER" }} else {{ "MSSQL`$$InstanceName" }}
+        $RegPath = "HKLM:\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\$InstanceKey\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
+        
+        Set-ItemProperty -Path $RegPath -Name "TcpPort" -Value $NewPort.ToString()
+        Set-ItemProperty -Path $RegPath -Name "TcpDynamicPorts" -Value ""
+        
+        $ServiceName = if ($InstanceName -eq "MSSQLSERVER") {{ "MSSQLSERVER" }} else {{ "MSSQL`$$InstanceName" }}
+        Restart-Service -Name $ServiceName -Force
+        
+        $Changes += "Port changed to $NewPort (service restarted)"
+    }}
+    
+    @{{ status = "success"; changes = $Changes }} | ConvertTo-Json
+    
+}} catch {{
+    @{{ status = "error"; error = $_.Exception.Message }} | ConvertTo-Json
+}}
+'''
+
+
+def generate_sql_rebuild_script(instance_name: str) -> str:
+    """Generate script to rebuild SQL Server system databases"""
+    return f'''# SQL Server System Database Rebuild
+# WARNING: This is a destructive operation!
+$InstanceName = "{instance_name}"
+
+$ServiceName = if ($InstanceName -eq "MSSQLSERVER") {{ "MSSQLSERVER" }} else {{ "MSSQL`$$InstanceName" }}
+
+# Find setup.exe
+$SqlRoot = (Get-ItemProperty "HKLM:\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\Instance Names\\SQL").$InstanceName
+$SetupPath = "HKLM:\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\$SqlRoot\\Setup"
+$InstallPath = (Get-ItemProperty $SetupPath).SQLPath
+
+$SetupExe = Join-Path (Split-Path $InstallPath -Parent) "Setup Bootstrap\\SQL*\\setup.exe" | Get-Item | Select-Object -First 1
+
+if (-not $SetupExe) {{
+    throw "Could not find SQL Server setup.exe"
+}}
+
+Write-Host "Found setup at: $($SetupExe.FullName)"
+
+# Stop SQL services
+Write-Host "Stopping SQL services..."
+Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+
+# Run rebuild
+$RebuildArgs = @(
+    "/QUIET",
+    "/ACTION=REBUILDDATABASE",
+    "/INSTANCENAME=$InstanceName",
+    "/SQLSYSADMINACCOUNTS=BUILTIN\\Administrators",
+    "/SAPWD=TempP@ss123!"  # Temporary password, must be changed!
+)
+
+Write-Host "Running database rebuild..."
+$Process = Start-Process -FilePath $SetupExe.FullName -ArgumentList $RebuildArgs -Wait -PassThru -NoNewWindow
+
+if ($Process.ExitCode -eq 0) {{
+    Start-Service -Name $ServiceName
+    @{{ status = "success"; message = "System databases rebuilt. CHANGE SA PASSWORD IMMEDIATELY!" }} | ConvertTo-Json
+}} else {{
+    @{{ status = "error"; exitCode = $Process.ExitCode }} | ConvertTo-Json
+}}
+'''
+
+
+def generate_cu_patch_script(instance_name: str, cu_url: str, cu_hash: str, reboot_policy: str) -> str:
+    """Generate PowerShell script for silent CU installation"""
+    return f'''# SQL Server Cumulative Update Installation Script
+# Generated by Octofleet CU Orchestrator
+
+$ErrorActionPreference = 'Stop'
+$InstanceName = "{instance_name}"
+$CuUrl = "{cu_url or ''}"
+$ExpectedHash = "{cu_hash or ''}"
+$RebootPolicy = "{reboot_policy}"
+
+# Pre-flight checks
+Write-Host "=== Pre-flight Checks ==="
+
+# Check disk space (need at least 2GB free)
+$SystemDrive = $env:SystemDrive
+$FreeSpace = (Get-PSDrive -Name $SystemDrive.TrimEnd(':')).Free
+$MinSpaceGB = 2
+if ($FreeSpace -lt ($MinSpaceGB * 1GB)) {{
+    throw "Insufficient disk space. Need at least ${{MinSpaceGB}}GB, have $([math]::Round($FreeSpace/1GB, 2))GB"
+}}
+Write-Host "  Disk space: OK ($([math]::Round($FreeSpace/1GB, 2))GB free)"
+
+# Check if SQL Server service is running
+$ServiceName = if ($InstanceName -eq "MSSQLSERVER") {{ "MSSQLSERVER" }} else {{ "MSSQL`$$InstanceName" }}
+$Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if (-not $Service) {{
+    throw "SQL Server service '$ServiceName' not found"
+}}
+Write-Host "  SQL Service: $($Service.Status)"
+
+# Check for pending reboots
+$PendingReboot = Test-Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending"
+if ($PendingReboot) {{
+    Write-Warning "System has pending reboot"
+    if ($RebootPolicy -eq "never") {{
+        throw "Pending reboot detected and reboot policy is 'never'. Please reboot first."
+    }}
+}}
+
+# Download CU if URL provided
+$CuPath = "$env:TEMP\\SQLServerCU.exe"
+if ($CuUrl -and $CuUrl -ne "") {{
+    Write-Host "=== Downloading CU ==="
+    
+    # Support local path
+    if ($CuUrl.StartsWith("local:")) {{
+        $LocalPath = $CuUrl.Substring(6)
+        Write-Host "  Copying from local path: $LocalPath"
+        Copy-Item -Path $LocalPath -Destination $CuPath -Force
+    }} else {{
+        Write-Host "  Downloading from: $CuUrl"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        
+        $WebClient = New-Object System.Net.WebClient
+        $WebClient.DownloadFile($CuUrl, $CuPath)
+    }}
+    
+    # Verify hash
+    if ($ExpectedHash -and $ExpectedHash -ne "") {{
+        Write-Host "  Verifying hash..."
+        $ActualHash = (Get-FileHash -Path $CuPath -Algorithm SHA256).Hash
+        if ($ActualHash -ne $ExpectedHash) {{
+            Remove-Item $CuPath -Force
+            throw "Hash mismatch! Expected: $ExpectedHash, Got: $ActualHash"
+        }}
+        Write-Host "  Hash verified: OK"
+    }}
+}} else {{
+    throw "No CU download URL provided"
+}}
+
+# Stop SQL services
+Write-Host "=== Stopping SQL Services ==="
+$RelatedServices = Get-Service -Name "*SQL*$InstanceName*" | Where-Object {{ $_.Status -eq 'Running' }}
+foreach ($Svc in $RelatedServices) {{
+    Write-Host "  Stopping $($Svc.Name)..."
+    Stop-Service -Name $Svc.Name -Force
+}}
+
+# Install CU
+Write-Host "=== Installing Cumulative Update ==="
+$InstallArgs = @(
+    "/quiet",
+    "/IAcceptSQLServerLicenseTerms",
+    "/Action=Patch",
+    "/InstanceName=$InstanceName"
+)
+
+$Process = Start-Process -FilePath $CuPath -ArgumentList $InstallArgs -Wait -PassThru -NoNewWindow
+$ExitCode = $Process.ExitCode
+
+# Cleanup
+Remove-Item $CuPath -Force -ErrorAction SilentlyContinue
+
+# Check result
+if ($ExitCode -eq 0) {{
+    Write-Host "=== CU Installation Successful ==="
+}} elseif ($ExitCode -eq 3010) {{
+    Write-Host "=== CU Installation Successful (Reboot Required) ==="
+    if ($RebootPolicy -eq "always" -or $RebootPolicy -eq "if_required") {{
+        Write-Host "Initiating reboot in 60 seconds..."
+        shutdown /r /t 60 /c "SQL Server CU installation requires reboot"
+    }} else {{
+        Write-Warning "Reboot required but policy is '$RebootPolicy'. Please reboot manually."
+    }}
+}} else {{
+    throw "CU installation failed with exit code: $ExitCode"
+}}
+
+# Start SQL services
+Write-Host "=== Starting SQL Services ==="
+Start-Service -Name $ServiceName
+Write-Host "  $ServiceName started"
+
+# Report new build
+$SqlCmd = "SELECT SERVERPROPERTY('ProductVersion') AS Version"
+$NewBuild = Invoke-Sqlcmd -ServerInstance "localhost\\$InstanceName" -Query $SqlCmd | Select-Object -ExpandProperty Version
+Write-Host "=== New SQL Server Build: $NewBuild ==="
+
+@{{ Success = $true; NewBuild = $NewBuild; ExitCode = $ExitCode }} | ConvertTo-Json
+'''
+
+
+# ============================================
 # E20: Software Baselines & Onboarding
 # ============================================
 

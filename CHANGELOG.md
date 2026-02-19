@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.4.52] - 2026-02-19
+
+### Added - SQL Server Epic (#49)
+
+#### CU Catalog + Approval Workflow (#50)
+- New database tables: `mssql_cu_catalog`, `mssql_cu_history`
+- API endpoints for CU management:
+  - `GET/POST /api/v1/mssql/cumulative-updates` - List/create CUs
+  - `GET/PUT /api/v1/mssql/cumulative-updates/{id}` - Get/update CU
+  - `POST /api/v1/mssql/cumulative-updates/{id}/approve` - Approve CU for deployment ring
+  - `POST /api/v1/mssql/cumulative-updates/{id}/block` - Block problematic CU
+  - `GET /api/v1/mssql/cumulative-updates/latest/{version}` - Get latest approved CU
+  - `GET /api/v1/mssql/cu-compliance` - Fleet compliance overview
+
+#### CU Detection + Silent Patch Orchestrator (#51)
+- `POST /api/v1/mssql/report-sql-build` - Agent reports current SQL build
+- `POST /api/v1/mssql/create-patch-job` - Create patch job for single instance
+- `POST /api/v1/mssql/patch-outdated` - Bulk patch all outdated instances
+- `generate_cu_patch_script()` - PowerShell for silent CU installation with:
+  - Pre-flight checks (disk space, services)
+  - Hash verification
+  - Service management
+  - Reboot policy support (never/ifRequired/always)
+
+#### Installation Idempotency (#53)
+- `POST /api/v1/mssql/detect/{node_id}` - Detect existing SQL installations
+- `POST /api/v1/mssql/instances/{id}/verify` - Verify config matches expected profile
+- `POST /api/v1/mssql/instances/{id}/repair` - Repair drifted configuration
+- Helper functions:
+  - `generate_sql_detection_script()` - Registry + live query detection
+  - `generate_sql_verify_script()` - Configuration drift detection
+  - `generate_sql_reconfigure_script()` - Memory/port reconfiguration
+  - `generate_sql_rebuild_script()` - System database rebuild
+
+#### Service Accounts + Firewall (#54)
+- New config fields: `sql_service_account`, `agent_service_account`, `create_firewall_rule`
+- `generate_firewall_script()` - Windows Firewall rule creation
+- `generate_service_account_config()` - ConfigurationFile.ini entries for domain accounts
+- Firewall rules auto-created during installation (includes SQL Browser for named instances)
+
+#### SQL Dashboard UI (#52)
+- New `CuManagement.tsx` component with:
+  - CU Catalog view (list, filter, approve/block)
+  - Compliance view (summary cards, outdated instances)
+  - Add CU modal
+  - Bulk patch action
+- Integrated as "Updates" tab in SQL Server page
+
 ## [0.4.51] - 2026-02-19
 
 ### Fixed

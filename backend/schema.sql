@@ -334,3 +334,132 @@ CREATE INDEX IF NOT EXISTS idx_service_reconciliation_log_node ON service_reconc
 -- ALTER TABLE jobs ADD CONSTRAINT jobs_target_type_check CHECK (
 --     target_type IN ('device', 'group', 'tag', 'all', 'node')
 -- );
+
+-- ============================================================================
+-- E49: SQL Server Deployment - CU Catalog (Issue #50)
+-- ============================================================================
+
+-- SQL Server deployment configuration profiles
+CREATE TABLE IF NOT EXISTS mssql_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    edition VARCHAR(50) NOT NULL CHECK (edition IN ('express', 'developer', 'standard', 'enterprise')),
+    version VARCHAR(10) NOT NULL CHECK (version IN ('2019', '2022', '2025')),
+    instance_name VARCHAR(50) DEFAULT 'MSSQLSERVER',
+    features JSONB DEFAULT '["SQLEngine"]'::JSONB,
+    sql_collation VARCHAR(100) DEFAULT 'Latin1_General_CI_AS',
+    port INTEGER DEFAULT 1433,
+    max_memory_mb INTEGER,
+    tempdb_file_count INTEGER DEFAULT 4,
+    tempdb_file_size_mb INTEGER DEFAULT 1024,
+    include_ssms BOOLEAN DEFAULT true,
+    sa_password_encrypted TEXT,  -- Encrypted SA password
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by TEXT
+);
+
+-- Disk configuration for SQL Server installations
+CREATE TABLE IF NOT EXISTS mssql_disk_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    config_id UUID NOT NULL REFERENCES mssql_configs(id) ON DELETE CASCADE,
+    purpose VARCHAR(20) NOT NULL CHECK (purpose IN ('data', 'log', 'tempdb', 'backup')),
+    drive_letter CHAR(1) NOT NULL,
+    volume_label VARCHAR(50) DEFAULT 'SQL_Volume',
+    allocation_unit_kb INTEGER DEFAULT 64,
+    folder VARCHAR(255) NOT NULL
+);
+
+-- SQL Server group assignments (which groups get which config)
+CREATE TABLE IF NOT EXISTS mssql_group_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id UUID NOT NULL REFERENCES node_groups(id) ON DELETE CASCADE,
+    config_id UUID NOT NULL REFERENCES mssql_configs(id) ON DELETE CASCADE,
+    priority INTEGER DEFAULT 0,
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(group_id, config_id)
+);
+
+-- SQL Server instances (installed SQL on nodes)
+CREATE TABLE IF NOT EXISTS mssql_instances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    config_id UUID REFERENCES mssql_configs(id) ON DELETE SET NULL,
+    instance_name VARCHAR(50) NOT NULL,
+    version VARCHAR(10) NOT NULL,
+    edition VARCHAR(50) NOT NULL,
+    build_number VARCHAR(50),  -- e.g., 15.0.4385.2
+    cu_number INTEGER,         -- e.g., 25 for CU25
+    status VARCHAR(30) DEFAULT 'pending' CHECK (status IN (
+        'pending', 'disk_prep', 'installing', 'installed', 'failed', 'updating'
+    )),
+    disk_prep_job_id UUID REFERENCES jobs(id),
+    install_job_id UUID REFERENCES jobs(id),
+    installed_at TIMESTAMPTZ,
+    last_patched_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(node_id, instance_name)
+);
+
+-- Cumulative Update catalog
+CREATE TABLE IF NOT EXISTS mssql_cu_catalog (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    version VARCHAR(10) NOT NULL CHECK (version IN ('2019', '2022', '2025')),
+    cu_number INTEGER NOT NULL,
+    build_number VARCHAR(50) NOT NULL UNIQUE,
+    release_date DATE NOT NULL,
+    download_url TEXT,
+    kb_article VARCHAR(20),
+    file_hash VARCHAR(64),      -- SHA256
+    file_size_mb INTEGER,
+    release_notes TEXT,
+    status VARCHAR(20) DEFAULT 'detected' CHECK (status IN (
+        'detected', 'testing', 'approved', 'blocked', 'deprecated'
+    )),
+    ring VARCHAR(20) DEFAULT 'pilot' CHECK (ring IN ('pilot', 'broad', 'all')),
+    notes TEXT,                  -- Admin notes
+    approved_by TEXT,
+    approved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(version, cu_number)
+);
+
+-- CU deployment history (which CUs were installed on which instances)
+CREATE TABLE IF NOT EXISTS mssql_cu_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instance_id UUID NOT NULL REFERENCES mssql_instances(id) ON DELETE CASCADE,
+    cu_id UUID NOT NULL REFERENCES mssql_cu_catalog(id) ON DELETE CASCADE,
+    job_id UUID REFERENCES jobs(id),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN (
+        'pending', 'installing', 'installed', 'failed', 'rolled_back'
+    )),
+    installed_at TIMESTAMPTZ,
+    installed_by TEXT,
+    error_message TEXT
+);
+
+-- Indexes for MSSQL tables
+CREATE INDEX IF NOT EXISTS idx_mssql_configs_name ON mssql_configs(name);
+CREATE INDEX IF NOT EXISTS idx_mssql_instances_node ON mssql_instances(node_id);
+CREATE INDEX IF NOT EXISTS idx_mssql_instances_status ON mssql_instances(status);
+CREATE INDEX IF NOT EXISTS idx_mssql_cu_catalog_version ON mssql_cu_catalog(version);
+CREATE INDEX IF NOT EXISTS idx_mssql_cu_catalog_status ON mssql_cu_catalog(status);
+CREATE INDEX IF NOT EXISTS idx_mssql_cu_catalog_build ON mssql_cu_catalog(build_number);
+CREATE INDEX IF NOT EXISTS idx_mssql_cu_history_instance ON mssql_cu_history(instance_id);
+
+-- ============================================================================
+-- E49: SQL Server - Service Accounts & Firewall (Issue #54)
+-- ============================================================================
+
+-- Add service account columns to mssql_configs
+ALTER TABLE mssql_configs ADD COLUMN IF NOT EXISTS sql_service_account VARCHAR(255) DEFAULT 'NT Service\MSSQLSERVER';
+ALTER TABLE mssql_configs ADD COLUMN IF NOT EXISTS sql_service_password_encrypted TEXT;
+ALTER TABLE mssql_configs ADD COLUMN IF NOT EXISTS agent_service_account VARCHAR(255) DEFAULT 'NT Service\SQLSERVERAGENT';
+ALTER TABLE mssql_configs ADD COLUMN IF NOT EXISTS agent_service_password_encrypted TEXT;
+ALTER TABLE mssql_configs ADD COLUMN IF NOT EXISTS create_firewall_rule BOOLEAN DEFAULT true;
+ALTER TABLE mssql_configs ADD COLUMN IF NOT EXISTS firewall_rule_name VARCHAR(100);
+ALTER TABLE mssql_configs ADD COLUMN IF NOT EXISTS startup_parameters TEXT;  -- e.g., -T1118;-T3226

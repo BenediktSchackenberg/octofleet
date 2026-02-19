@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import CuManagement from './CuManagement';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080';
 
@@ -70,7 +71,7 @@ interface Group {
   memberCount?: number;
 }
 
-type TabType = 'configs' | 'assignments' | 'instances';
+type TabType = 'configs' | 'assignments' | 'instances' | 'updates';
 
 export default function SqlPage() {
   const router = useRouter();
@@ -120,6 +121,11 @@ export default function SqlPage() {
       return localStorage.getItem('token');
     }
     return null;
+  };
+
+  const getAuthHeaders = (): Record<string, string> => {
+    const token = getToken();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
 
   const fetchData = async () => {
@@ -379,7 +385,8 @@ export default function SqlPage() {
             {[
               { id: 'configs', label: 'Configurations', count: configs.length },
               { id: 'assignments', label: 'Assignments', count: assignments.length },
-              { id: 'instances', label: 'Instances', count: instances.length }
+              { id: 'instances', label: 'Instances', count: instances.length },
+              { id: 'updates', label: '🔄 Updates', count: null }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -391,11 +398,13 @@ export default function SqlPage() {
                 }`}
               >
                 {tab.label}
-                <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
-                  activeTab === tab.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {tab.count}
-                </span>
+                {tab.count !== null && (
+                  <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
+                    activeTab === tab.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -635,6 +644,11 @@ export default function SqlPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* Updates Tab (Issue #52) */}
+          {activeTab === 'updates' && (
+            <CuManagement getAuthHeaders={getAuthHeaders} />
           )}
         </div>
       </div>
