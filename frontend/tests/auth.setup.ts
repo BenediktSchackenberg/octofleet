@@ -11,7 +11,7 @@ setup('authenticate', async ({ page }) => {
   
   // Fill credentials
   await page.locator('input#username').fill('admin');
-  await page.locator('input#password').fill('OpenClaw2026!');
+  await page.locator('input#password').fill('admin');
   
   // Click submit
   await page.locator('button[type="submit"]').click();
