@@ -11155,3 +11155,213 @@ async def get_agent_version():
 
 # Simple cache dict
 _cache: Dict[str, tuple] = {}
+
+
+# =============================================================================
+# Software Repository Endpoints (Epic #57)
+# =============================================================================
+import aiofiles
+import hashlib
+
+REPO_BASE_PATH = os.environ.get("OCTOFLEET_REPO_PATH", os.path.expanduser("~/.openclaw/repo"))
+MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))  # 5GB
+
+
+def get_repo_storage_path(file_type: str, filename: str) -> str:
+    """Get the full storage path for a file based on its type."""
+    type_dirs = {'msi': 'msi', 'exe': 'exe', 'sql-cu': 'sql-cu', 'script': 'scripts', 'ps1': 'scripts', 'other': 'other'}
+    subdir = type_dirs.get(file_type, 'other')
+    return os.path.join(REPO_BASE_PATH, subdir, filename)
+
+
+def detect_repo_file_type(filename: str) -> str:
+    """Detect file type from extension."""
+    ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
+    return {'msi': 'msi', 'exe': 'exe', 'zip': 'zip', 'ps1': 'ps1', 'cab': 'cab'}.get(ext, 'other')
+
+
+async def compute_file_sha256(filepath: str) -> str:
+    """Compute SHA256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    async with aiofiles.open(filepath, 'rb') as f:
+        while chunk := await f.read(8192):
+            sha256_hash.update(chunk)
+    return sha256_hash.hexdigest()
+
+
+@app.post("/api/v1/repo/upload", dependencies=[Depends(verify_api_key)])
+async def repo_upload_file(
+    request: Request,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Upload a file to the repository. Use multipart/form-data with 'file' field."""
+    from fastapi import UploadFile
+    
+    form = await request.form()
+    file = form.get("file")
+    if not file or not hasattr(file, 'filename'):
+        raise HTTPException(400, "No file uploaded. Use multipart/form-data with 'file' field.")
+    
+    display_name = form.get("display_name", file.filename)
+    version = form.get("version")
+    category = form.get("category")
+    file_type = form.get("file_type") or detect_repo_file_type(file.filename)
+    
+    file_id = str(uuid.uuid4())
+    safe_filename = f"{file_id}_{file.filename}"
+    storage_path = get_repo_storage_path(file_type, safe_filename)
+    os.makedirs(os.path.dirname(storage_path), exist_ok=True)
+    
+    file_size = 0
+    try:
+        async with aiofiles.open(storage_path, 'wb') as out_file:
+            while chunk := await file.read(1024 * 1024):
+                file_size += len(chunk)
+                if file_size > MAX_REPO_FILE_SIZE:
+                    raise HTTPException(413, "File too large")
+                await out_file.write(chunk)
+    except Exception as e:
+        if os.path.exists(storage_path):
+            os.remove(storage_path)
+        raise HTTPException(500, f"Upload failed: {str(e)}")
+    
+    sha256_hash = await compute_file_sha256(storage_path)
+    
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO repo_files (id, filename, display_name, version, file_type, category, sha256_hash, file_size, storage_path, created_by)
+            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'api')
+        """, file_id, file.filename, display_name, version, file_type, category, sha256_hash, file_size, storage_path)
+    
+    return {"id": file_id, "filename": file.filename, "sha256": sha256_hash, "size": file_size, "downloadUrl": f"/api/v1/repo/download/{file_id}"}
+
+
+@app.get("/api/v1/repo/files", dependencies=[Depends(verify_api_key)])
+async def repo_list_files(
+    category: Optional[str] = None,
+    file_type: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """List files in the repository."""
+    async with db.acquire() as conn:
+        query = "SELECT id, filename, display_name, version, file_type, category, sha256_hash, file_size, source_url, download_count, created_at FROM repo_files WHERE 1=1"
+        params = []
+        idx = 1
+        if category:
+            query += f" AND category = ${idx}"; params.append(category); idx += 1
+        if file_type:
+            query += f" AND file_type = ${idx}"; params.append(file_type); idx += 1
+        if search:
+            query += f" AND (filename ILIKE ${idx} OR display_name ILIKE ${idx})"; params.append(f"%{search}%"); idx += 1
+        query += f" ORDER BY created_at DESC LIMIT ${idx}"; params.append(limit)
+        
+        rows = await conn.fetch(query, *params)
+    
+    return {"files": [{"id": str(r["id"]), "filename": r["filename"], "displayName": r["display_name"], "version": r["version"], "type": r["file_type"], "category": r["category"], "sha256": r["sha256_hash"], "size": r["file_size"], "downloads": r["download_count"], "downloadUrl": f"/api/v1/repo/download/{r['id']}"} for r in rows]}
+
+
+@app.get("/api/v1/repo/files/{file_id}", dependencies=[Depends(verify_api_key)])
+async def repo_get_file(file_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get file metadata."""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM repo_files WHERE id = $1::uuid", file_id)
+    if not row:
+        raise HTTPException(404, "File not found")
+    return {"id": str(row["id"]), "filename": row["filename"], "displayName": row["display_name"], "version": row["version"], "type": row["file_type"], "category": row["category"], "sha256": row["sha256_hash"], "size": row["file_size"], "storagePath": row["storage_path"], "sourceUrl": row["source_url"], "downloads": row["download_count"], "downloadUrl": f"/api/v1/repo/download/{row['id']}"}
+
+
+@app.get("/api/v1/repo/download/{file_id}")
+async def repo_download_file(file_id: str, node_id: Optional[str] = None, db: asyncpg.Pool = Depends(get_db)):
+    """Download a file. No auth required for agents."""
+    from fastapi.responses import FileResponse
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT filename, storage_path, file_size FROM repo_files WHERE id = $1::uuid", file_id)
+        if not row:
+            raise HTTPException(404, "File not found")
+        if not os.path.exists(row["storage_path"]):
+            raise HTTPException(404, "File not found on disk")
+        await conn.execute("UPDATE repo_files SET download_count = download_count + 1 WHERE id = $1::uuid", file_id)
+        if node_id:
+            await conn.execute("INSERT INTO repo_downloads (file_id, node_id, bytes_transferred, success) VALUES ($1::uuid, $2, $3, true)", file_id, node_id, row["file_size"])
+    return FileResponse(path=row["storage_path"], filename=row["filename"], media_type="application/octet-stream")
+
+
+@app.delete("/api/v1/repo/files/{file_id}", dependencies=[Depends(verify_api_key)])
+async def repo_delete_file(file_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a file from the repository."""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT storage_path FROM repo_files WHERE id = $1::uuid", file_id)
+        if not row:
+            raise HTTPException(404, "File not found")
+        if row["storage_path"] and os.path.exists(row["storage_path"]):
+            os.remove(row["storage_path"])
+        await conn.execute("DELETE FROM repo_files WHERE id = $1::uuid", file_id)
+    return {"status": "deleted", "id": file_id}
+
+
+@app.post("/api/v1/repo/cache", dependencies=[Depends(verify_api_key)])
+async def repo_cache_remote_file(
+    data: Dict[str, Any] = Body(...),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Cache a remote file locally. Body: {url, display_name?, version?, category?, file_type?, expected_hash?}"""
+    import aiohttp
+    
+    url = data.get("url")
+    if not url:
+        raise HTTPException(400, "url required")
+    
+    filename = url.rsplit('/', 1)[-1].split('?')[0] or f"cached_{uuid.uuid4().hex[:8]}"
+    file_type = data.get("file_type") or detect_repo_file_type(filename)
+    file_id = str(uuid.uuid4())
+    storage_path = get_repo_storage_path(file_type, f"{file_id}_{filename}")
+    os.makedirs(os.path.dirname(storage_path), exist_ok=True)
+    
+    file_size = 0
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    raise HTTPException(400, f"Download failed: HTTP {response.status}")
+                async with aiofiles.open(storage_path, 'wb') as f:
+                    async for chunk in response.content.iter_chunked(1024 * 1024):
+                        file_size += len(chunk)
+                        if file_size > MAX_REPO_FILE_SIZE:
+                            raise HTTPException(413, "File too large")
+                        await f.write(chunk)
+    except aiohttp.ClientError as e:
+        if os.path.exists(storage_path):
+            os.remove(storage_path)
+        raise HTTPException(400, f"Download failed: {str(e)}")
+    
+    sha256_hash = await compute_file_sha256(storage_path)
+    if data.get("expected_hash") and sha256_hash.lower() != data["expected_hash"].lower():
+        os.remove(storage_path)
+        raise HTTPException(400, f"Hash mismatch! Expected: {data['expected_hash']}, Got: {sha256_hash}")
+    
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO repo_files (id, filename, display_name, version, file_type, category, sha256_hash, file_size, storage_path, source_url, is_cached, cached_at, created_by)
+            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, NOW(), 'cache')
+        """, file_id, filename, data.get("display_name", filename), data.get("version"), file_type, data.get("category"), sha256_hash, file_size, storage_path, url)
+    
+    return {"id": file_id, "filename": filename, "sha256": sha256_hash, "size": file_size, "cached": True, "downloadUrl": f"/api/v1/repo/download/{file_id}"}
+
+
+@app.get("/api/v1/repo/stats", dependencies=[Depends(verify_api_key)])
+async def repo_get_stats(db: asyncpg.Pool = Depends(get_db)):
+    """Get repository statistics."""
+    async with db.acquire() as conn:
+        stats = await conn.fetchrow("SELECT COUNT(*) as total_files, COALESCE(SUM(file_size), 0) as total_size, COALESCE(SUM(download_count), 0) as total_downloads FROM repo_files")
+        by_type = await conn.fetch("SELECT file_type, COUNT(*) as count, COALESCE(SUM(file_size), 0) as size FROM repo_files GROUP BY file_type")
+    
+    total_gb = stats["total_size"] / 1024 / 1024 / 1024
+    return {
+        "totalFiles": stats["total_files"],
+        "totalSize": stats["total_size"],
+        "totalSizeFormatted": f"{total_gb:.2f} GB" if total_gb >= 1 else f"{stats['total_size'] / 1024 / 1024:.2f} MB",
+        "totalDownloads": stats["total_downloads"],
+        "byType": [{"type": r["file_type"], "count": r["count"], "size": r["size"]} for r in by_type]
+    }
