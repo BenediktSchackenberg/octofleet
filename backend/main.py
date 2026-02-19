@@ -3959,6 +3959,15 @@ async def create_cumulative_update(data: Dict[str, Any], db: asyncpg.Pool = Depe
         if field not in data:
             raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
     
+    # Parse release date string to date object
+    from datetime import datetime as dt
+    release_date = None
+    if data.get("releaseDate"):
+        try:
+            release_date = dt.strptime(data["releaseDate"], "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    
     async with db.acquire() as conn:
         try:
             cu_id = str(uuid.uuid4())
@@ -3973,7 +3982,7 @@ async def create_cumulative_update(data: Dict[str, Any], db: asyncpg.Pool = Depe
                     $10, 'detected', 'pilot'
                 )
             """, cu_id, data["version"], data["cuNumber"], data["buildNumber"],
-                data["releaseDate"], data.get("downloadUrl"), data.get("kbArticle"),
+                release_date, data.get("downloadUrl"), data.get("kbArticle"),
                 data.get("fileHash"), data.get("fileSizeMb"), data.get("releaseNotes"))
             
             return {
