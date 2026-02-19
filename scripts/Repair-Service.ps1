@@ -203,6 +203,12 @@ foreach ($issue in $issues) {
             sc.exe create $ServiceName binPath="$foundExe" start=auto DisplayName="Octofleet Agent" | Out-Null
             sc.exe description $ServiceName "Octofleet endpoint management agent" | Out-Null
             sc.exe failure $ServiceName reset=86400 actions=restart/5000/restart/10000/restart/30000 | Out-Null
+            
+            # Set extraction dir for Windows Server
+            $extractDir = "C:\ProgramData\Octofleet\extract"
+            if (-not (Test-Path $extractDir)) { New-Item -ItemType Directory -Path $extractDir -Force | Out-Null }
+            reg add "HKLM\SYSTEM\CurrentControlSet\Services\$ServiceName" /v Environment /t REG_MULTI_SZ /d "DOTNET_BUNDLE_EXTRACT_BASE_DIR=$extractDir" /f | Out-Null
+            
             Write-Host "   Service registered" -ForegroundColor Green
         }
         "WRONG_PATH" {
@@ -221,6 +227,18 @@ foreach ($issue in $issues) {
             Write-Host "   Service enabled" -ForegroundColor Green
         }
     }
+}
+
+# Ensure extraction dir is set (Windows Server fix)
+$extractDir = "C:\ProgramData\Octofleet\extract"
+if (-not (Test-Path $extractDir)) { 
+    Write-Host "   Creating extraction directory..." -ForegroundColor Gray
+    New-Item -ItemType Directory -Path $extractDir -Force | Out-Null 
+}
+$currentEnv = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName" -Name Environment -EA SilentlyContinue).Environment
+if (-not $currentEnv -or $currentEnv -notlike "*DOTNET_BUNDLE_EXTRACT*") {
+    Write-Host "   Setting .NET extraction directory..." -ForegroundColor Gray
+    reg add "HKLM\SYSTEM\CurrentControlSet\Services\$ServiceName" /v Environment /t REG_MULTI_SZ /d "DOTNET_BUNDLE_EXTRACT_BASE_DIR=$extractDir" /f | Out-Null
 }
 
 # Always try to start

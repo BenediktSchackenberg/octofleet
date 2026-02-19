@@ -445,6 +445,19 @@ try {{
         }}
     }}
     
+    # Set DOTNET_BUNDLE_EXTRACT_BASE_DIR for Windows Server compatibility
+    # (LocalSystem account may not have a valid TEMP directory)
+    $extractDir = Join-Path $env:ProgramData 'Octofleet\extract'
+    if (-not (Test-Path $extractDir)) {{
+        Log ""Creating .NET extraction directory: $extractDir""
+        New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+    }}
+    $currentEnv = (Get-ItemProperty ""HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName"" -Name Environment -EA SilentlyContinue).Environment
+    if (-not $currentEnv -or $currentEnv -notlike ""*DOTNET_BUNDLE_EXTRACT*"") {{
+        Log ""Setting DOTNET_BUNDLE_EXTRACT_BASE_DIR for service...""
+        reg add ""HKLM\SYSTEM\CurrentControlSet\Services\$serviceName"" /v Environment /t REG_MULTI_SZ /d ""DOTNET_BUNDLE_EXTRACT_BASE_DIR=$extractDir"" /f | Out-Null
+    }}
+    
     # Start service with retry
     Log 'Starting service...'
     $maxRetries = 3

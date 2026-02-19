@@ -111,6 +111,16 @@ sc.exe description $ServiceName "Octofleet endpoint management agent - connects 
 Write-Host "Configuring recovery options..." -ForegroundColor Cyan
 sc.exe failure $ServiceName reset=86400 actions=restart/5000/restart/10000/restart/30000 | Out-Null
 
+# Set DOTNET_BUNDLE_EXTRACT_BASE_DIR for Windows Server compatibility
+# (LocalSystem account may not have a valid TEMP directory)
+Write-Host "Configuring .NET extraction directory..." -ForegroundColor Cyan
+$extractDir = "C:\ProgramData\Octofleet\extract"
+if (-not (Test-Path $extractDir)) {
+    New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+}
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\$ServiceName" /v Environment /t REG_MULTI_SZ /d "DOTNET_BUNDLE_EXTRACT_BASE_DIR=$extractDir" /f | Out-Null
+Write-Host "Extraction directory set: $extractDir" -ForegroundColor Green
+
 # Start the service
 Write-Host "Starting service..." -ForegroundColor Cyan
 Start-Service -Name $ServiceName
