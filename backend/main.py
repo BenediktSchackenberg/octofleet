@@ -4441,19 +4441,18 @@ async def deploy_cu_to_instances(
         jobs_created = []
         
         for instance_id in instance_ids:
-            # Get instance details
+            # Get instance details with actual node UUID
             instance = await conn.fetchrow("""
-                SELECT mi.id, mi.instance_name, mi.node_id, n.hostname
+                SELECT mi.id, mi.instance_name, mi.node_id as node_ref, n.id as node_uuid, n.hostname
                 FROM mssql_instances mi
-                JOIN nodes n ON n.id = mi.node_id
+                JOIN nodes n ON n.id::text = mi.node_id OR n.node_id = mi.node_id OR n.hostname = mi.node_id
                 WHERE mi.id = $1::uuid
             """, instance_id)
             
             if not instance:
                 continue
             
-            # Generate patch script
-            from mssql_module import generate_cu_patch_script
+            # Generate patch script (function defined below in this file)
             script = generate_cu_patch_script(
                 instance_name=instance["instance_name"],
                 cu_url=cu["download_url"],
@@ -4461,16 +4460,16 @@ async def deploy_cu_to_instances(
                 reboot_policy=reboot_policy
             )
             
-            # Create job
+            # Create job using actual node UUID
             job_id = str(uuid.uuid4())
             await conn.execute("""
-                INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command, created_by)
-                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, 'cu-deploy')
+                INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command_data, created_by)
+                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'script', $5::jsonb, 'cu-deploy')
             """, job_id,
                 f"[MSSQL] Deploy CU{cu['cu_number']} - {instance['hostname']}/{instance['instance_name']}",
                 f"Deploy SQL Server {cu['version']} CU{cu['cu_number']} (Build {cu['build_number']})",
-                instance["node_id"],
-                json.dumps({"type": "powershell", "script": script}))
+                instance["node_uuid"],  # Use actual UUID from nodes table
+                json.dumps({"script": script}))
             
             jobs_created.append({
                 "jobId": job_id,
