@@ -804,30 +804,45 @@ export default function HomePage() {
                             </div>
                           </div>
                         </div>
-                        {/* Per-node compact list */}
-                        <div className="space-y-2 max-h-[240px] overflow-y-auto">
+                        {/* Per-node heat matrix */}
+                        <div className="space-y-0.5 max-h-[240px] overflow-y-auto">
                           {metrics?.nodes
                             ?.filter(n => n.cpuPercent !== null || n.ramPercent !== null)
+                            .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
                             .slice(0, 10)
-                            .map((node, i) => (
-                              <div key={i} className="flex items-center gap-3 text-sm hover:bg-muted/50 rounded px-1 py-0.5 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
-                                <span className="font-medium w-24 truncate">{node.hostname}</span>
-                                <div className="flex-1 flex items-center gap-2">
-                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500" style={{ width: `${node.cpuPercent || 0}%` }} />
+                            .map((node, i) => {
+                              const worst = Math.max(node.cpuPercent || 0, node.ramPercent || 0, node.diskPercent || 0);
+                              const worstMetric = (node.ramPercent || 0) >= (node.cpuPercent || 0) && (node.ramPercent || 0) >= (node.diskPercent || 0) ? 'RAM' : 
+                                                  (node.diskPercent || 0) >= (node.cpuPercent || 0) ? 'DISK' : 'CPU';
+                              const HeatBar = ({ value, color }: { value: number; color: string }) => {
+                                const intensity = value > 85 ? 4 : value > 70 ? 3 : value > 40 ? 2 : 1;
+                                const colors: Record<number, string> = {
+                                  1: color === 'blue' ? 'bg-blue-300' : color === 'green' ? 'bg-green-300' : 'bg-purple-300',
+                                  2: color === 'blue' ? 'bg-blue-400' : color === 'green' ? 'bg-green-400' : 'bg-purple-400',
+                                  3: color === 'blue' ? 'bg-blue-500' : color === 'green' ? 'bg-green-500' : 'bg-purple-500',
+                                  4: color === 'blue' ? 'bg-blue-700' : color === 'green' ? 'bg-green-700' : 'bg-purple-700',
+                                };
+                                return (
+                                  <div className="flex gap-0.5">
+                                    {[1, 2, 3, 4].map((bar) => (
+                                      <div key={bar} className={`w-1.5 h-3.5 rounded-sm ${bar <= intensity ? colors[intensity] : 'bg-muted'}`} />
+                                    ))}
                                   </div>
-                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div className={`h-full ${(node.ramPercent || 0) > 80 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${node.ramPercent || 0}%` }} />
-                                  </div>
-                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full bg-purple-500" style={{ width: `${node.diskPercent || 0}%` }} />
-                                  </div>
+                                );
+                              };
+                              return (
+                                <div key={i} className="flex items-center gap-2 text-sm hover:bg-muted/50 rounded px-1.5 py-1 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
+                                  <span className="font-medium w-28 truncate text-xs">{node.hostname}</span>
+                                  <HeatBar value={node.cpuPercent || 0} color="blue" />
+                                  <HeatBar value={node.ramPercent || 0} color="green" />
+                                  <HeatBar value={node.diskPercent || 0} color="purple" />
+                                  <span className={`text-xs w-16 text-right ${worst > 85 ? 'text-red-500 font-bold' : worst > 70 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                                    {node.cpuPercent?.toFixed(0)}% / {node.diskPercent?.toFixed(0)}%
+                                  </span>
+                                  {worst > 70 && <span className="text-xs text-yellow-600">▲</span>}
                                 </div>
-                                <span className="text-xs text-muted-foreground w-16 text-right">
-                                  {node.cpuPercent?.toFixed(0)}% / {node.ramPercent?.toFixed(0)}%
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                         </div>
                       </div>
                     ) : metrics && metrics.nodesWithMetrics > 0 ? (
@@ -862,30 +877,43 @@ export default function HomePage() {
                             </div>
                           </div>
                         </div>
-                        {/* Per-node compact list */}
-                        <div className="space-y-2 max-h-[240px] overflow-y-auto">
+                        {/* Per-node heat matrix (fallback) */}
+                        <div className="space-y-0.5 max-h-[240px] overflow-y-auto">
                           {metrics.nodes
                             .filter(n => n.cpuPercent !== null || n.ramPercent !== null)
+                            .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
                             .slice(0, 10)
-                            .map((node, i) => (
-                              <div key={i} className="flex items-center gap-3 text-sm hover:bg-muted/50 rounded px-1 py-0.5 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
-                                <span className="font-medium w-24 truncate">{node.hostname}</span>
-                                <div className="flex-1 flex items-center gap-2">
-                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500" style={{ width: `${node.cpuPercent || 0}%` }} />
+                            .map((node, i) => {
+                              const worst = Math.max(node.cpuPercent || 0, node.ramPercent || 0, node.diskPercent || 0);
+                              const HeatBar = ({ value, color }: { value: number; color: string }) => {
+                                const intensity = value > 85 ? 4 : value > 70 ? 3 : value > 40 ? 2 : 1;
+                                const colors: Record<number, string> = {
+                                  1: color === 'blue' ? 'bg-blue-300' : color === 'green' ? 'bg-green-300' : 'bg-purple-300',
+                                  2: color === 'blue' ? 'bg-blue-400' : color === 'green' ? 'bg-green-400' : 'bg-purple-400',
+                                  3: color === 'blue' ? 'bg-blue-500' : color === 'green' ? 'bg-green-500' : 'bg-purple-500',
+                                  4: color === 'blue' ? 'bg-blue-700' : color === 'green' ? 'bg-green-700' : 'bg-purple-700',
+                                };
+                                return (
+                                  <div className="flex gap-0.5">
+                                    {[1, 2, 3, 4].map((bar) => (
+                                      <div key={bar} className={`w-1.5 h-3.5 rounded-sm ${bar <= intensity ? colors[intensity] : 'bg-muted'}`} />
+                                    ))}
                                   </div>
-                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div className={`h-full ${(node.ramPercent || 0) > 80 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${node.ramPercent || 0}%` }} />
-                                  </div>
-                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full bg-purple-500" style={{ width: `${node.diskPercent || 0}%` }} />
-                                  </div>
+                                );
+                              };
+                              return (
+                                <div key={i} className="flex items-center gap-2 text-sm hover:bg-muted/50 rounded px-1.5 py-1 transition-colors cursor-pointer" onClick={() => handleNodeSelect(node.nodeId)}>
+                                  <span className="font-medium w-28 truncate text-xs">{node.hostname}</span>
+                                  <HeatBar value={node.cpuPercent || 0} color="blue" />
+                                  <HeatBar value={node.ramPercent || 0} color="green" />
+                                  <HeatBar value={node.diskPercent || 0} color="purple" />
+                                  <span className={`text-xs w-16 text-right ${worst > 85 ? 'text-red-500 font-bold' : worst > 70 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                                    {node.cpuPercent?.toFixed(0)}% / {node.diskPercent?.toFixed(0)}%
+                                  </span>
+                                  {worst > 70 && <span className="text-xs text-yellow-600">▲</span>}
                                 </div>
-                                <span className="text-xs text-muted-foreground w-16 text-right">
-                                  {node.cpuPercent?.toFixed(0)}% / {node.ramPercent?.toFixed(0)}%
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                         </div>
                       </div>
                     ) : (
