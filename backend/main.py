@@ -11690,3 +11690,266 @@ async def repo_get_stats(db: asyncpg.Pool = Depends(get_db)):
         "totalDownloads": stats["total_downloads"],
         "byType": [{"type": r["file_type"], "count": r["count"], "size": r["size"]} for r in by_type]
     }
+
+
+# =============================================================================
+# Export Endpoints (Epic #19 - Reporting & Exports)
+# =============================================================================
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from io import BytesIO
+
+def style_excel_header(ws, row=1):
+    """Apply header styling to first row."""
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+    for cell in ws[row]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+        cell.border = thin_border
+
+def auto_column_width(ws):
+    """Auto-adjust column widths."""
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column].width = adjusted_width
+
+
+@app.get("/api/v1/export/nodes/excel", dependencies=[Depends(verify_api_key)])
+async def export_nodes_excel(db: asyncpg.Pool = Depends(get_db)):
+    """Export all nodes to Excel."""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT n.id, n.hostname, n.domain, n.os_name, n.os_version, n.agent_version,
+                   n.last_seen, n.is_online,
+                   h.cpu->>'Name' as cpu_name,
+                   (h.cpu->>'Cores')::int as cpu_cores,
+                   (h.ram->>'TotalGB')::numeric as ram_total_gb,
+                   h.mainboard->>'Manufacturer' as manufacturer,
+                   h.mainboard->>'Product' as model,
+                   h.bios->>'SerialNumber' as serial_number
+            FROM nodes n
+            LEFT JOIN hardware_current h ON h.node_id = n.id
+            ORDER BY n.hostname
+        """)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Nodes"
+    
+    # Headers
+    headers = ["ID", "Hostname", "Domain", "OS", "OS Version", "Agent Version", "Last Seen", 
+               "Online", "CPU", "Cores", "RAM (GB)",
+               "Manufacturer", "Model", "Serial Number"]
+    ws.append(headers)
+    style_excel_header(ws)
+    
+    # Data
+    for row in rows:
+        ws.append([
+            str(row["id"]), row["hostname"], row["domain"], row["os_name"], row["os_version"],
+            row["agent_version"], row["last_seen"].isoformat() if row["last_seen"] else None,
+            "Yes" if row["is_online"] else "No",
+            row["cpu_name"], row["cpu_cores"], 
+            round(float(row["ram_total_gb"]), 1) if row["ram_total_gb"] else None,
+            row["manufacturer"], row["model"], row["serial_number"]
+        ])
+    
+    auto_column_width(ws)
+    
+    # Save to BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    filename = f"octofleet_nodes_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.get("/api/v1/export/software/excel", dependencies=[Depends(verify_api_key)])
+async def export_software_excel(db: asyncpg.Pool = Depends(get_db)):
+    """Export all installed software to Excel."""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT n.hostname, s.name, s.version, s.publisher, s.install_date, s.install_path
+            FROM software_current s
+            JOIN nodes n ON n.id = s.node_id
+            ORDER BY n.hostname, s.name
+        """)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Software"
+    
+    headers = ["Hostname", "Software Name", "Version", "Publisher", "Install Date", "Install Location"]
+    ws.append(headers)
+    style_excel_header(ws)
+    
+    for row in rows:
+        ws.append([row["hostname"], row["name"], row["version"], row["publisher"],
+                   row["install_date"].isoformat() if row["install_date"] else None, 
+                   row["install_path"]])
+    
+    auto_column_width(ws)
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    filename = f"octofleet_software_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.get("/api/v1/export/vulnerabilities/excel", dependencies=[Depends(verify_api_key)])
+async def export_vulnerabilities_excel(db: asyncpg.Pool = Depends(get_db)):
+    """Export all vulnerabilities with affected nodes to Excel."""
+    async with db.acquire() as conn:
+        # Get vulnerabilities with affected node count
+        rows = await conn.fetch("""
+            SELECT v.cve_id, v.software_name, v.software_version,
+                   v.severity, v.cvss_score, v.description, v.published_date,
+                   (SELECT COUNT(DISTINCT s.node_id) 
+                    FROM software_current s 
+                    WHERE s.name ILIKE v.software_name 
+                    AND s.version = v.software_version) as affected_nodes,
+                   (SELECT STRING_AGG(DISTINCT n.hostname, ', ' ORDER BY n.hostname)
+                    FROM software_current s 
+                    JOIN nodes n ON n.id = s.node_id
+                    WHERE s.name ILIKE v.software_name 
+                    AND s.version = v.software_version
+                    LIMIT 5) as node_list
+            FROM vulnerabilities v
+            ORDER BY v.cvss_score DESC NULLS LAST, v.software_name
+        """)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Vulnerabilities"
+    
+    headers = ["CVE ID", "Software", "Version", "Severity", "CVSS Score",
+               "Affected Nodes", "Nodes (first 5)", "Published", "Description"]
+    ws.append(headers)
+    style_excel_header(ws)
+    
+    # Color coding for severity
+    severity_colors = {
+        "CRITICAL": "FF0000",
+        "HIGH": "FF6600", 
+        "MEDIUM": "FFCC00",
+        "LOW": "00CC00"
+    }
+    
+    for i, row in enumerate(rows, start=2):
+        ws.append([row["cve_id"], row["software_name"], row["software_version"],
+                   row["severity"], float(row["cvss_score"]) if row["cvss_score"] else None,
+                   row["affected_nodes"], row["node_list"],
+                   row["published_date"].isoformat() if row["published_date"] else None,
+                   row["description"][:200] if row["description"] else None])
+        
+        # Color the severity cell
+        if row["severity"] in severity_colors:
+            ws.cell(row=i, column=4).fill = PatternFill(
+                start_color=severity_colors[row["severity"]], 
+                end_color=severity_colors[row["severity"]], 
+                fill_type="solid"
+            )
+    
+    auto_column_width(ws)
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    filename = f"octofleet_vulnerabilities_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.get("/api/v1/export/jobs/excel", dependencies=[Depends(verify_api_key)])
+async def export_jobs_excel(
+    days: int = 30,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Export job history to Excel."""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT j.id, j.name, j.command_type, j.created_at, j.created_by,
+                   ji.node_id as target_node, ji.status, ji.queued_at, ji.started_at, ji.completed_at,
+                   ji.exit_code, ji.error_message, ji.duration_ms
+            FROM jobs j
+            LEFT JOIN job_instances ji ON ji.job_id = j.id
+            WHERE j.created_at > NOW() - INTERVAL '1 day' * $1
+            ORDER BY j.created_at DESC
+        """, days)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Jobs"
+    
+    headers = ["Job ID", "Name", "Type", "Created By", "Target Node", "Status", 
+               "Queued", "Started", "Completed", "Duration (ms)", "Exit Code", "Error"]
+    ws.append(headers)
+    style_excel_header(ws)
+    
+    status_colors = {
+        "completed": "00CC00",
+        "failed": "FF0000",
+        "running": "0066FF",
+        "pending": "CCCCCC"
+    }
+    
+    for i, row in enumerate(rows, start=2):
+        ws.append([
+            str(row["id"])[:8], row["name"], row["command_type"], row["created_by"],
+            row["target_node"], row["status"],
+            row["queued_at"].isoformat() if row["queued_at"] else None,
+            row["started_at"].isoformat() if row["started_at"] else None,
+            row["completed_at"].isoformat() if row["completed_at"] else None,
+            row["duration_ms"], row["exit_code"],
+            row["error_message"][:100] if row["error_message"] else None
+        ])
+        
+        if row["status"] in status_colors:
+            ws.cell(row=i, column=6).fill = PatternFill(
+                start_color=status_colors[row["status"]], 
+                end_color=status_colors[row["status"]], 
+                fill_type="solid"
+            )
+    
+    auto_column_width(ws)
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    filename = f"octofleet_jobs_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
