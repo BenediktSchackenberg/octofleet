@@ -380,6 +380,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CU</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Build</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">KB</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Release Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ring</th>
@@ -392,6 +393,18 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                     <td className="px-6 py-4 whitespace-nowrap font-medium">SQL {cu.version}</td>
                     <td className="px-6 py-4 whitespace-nowrap">CU{cu.cuNumber}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cu.buildNumber}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {cu.kbArticle ? (
+                        <a
+                          href={`https://support.microsoft.com/kb/${cu.kbArticle.replace('KB', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {cu.kbArticle}
+                        </a>
+                      ) : '-'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {cu.releaseDate ? new Date(cu.releaseDate).toLocaleDateString() : '-'}
                     </td>
@@ -439,13 +452,23 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                             🚀 Deploy
                           </button>
                         )}
+                        {cu.kbArticle && (
+                          <a
+                            href={`https://www.catalog.update.microsoft.com/Search.aspx?q=${cu.kbArticle}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
+                          >
+                            📥 Catalog
+                          </a>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ))}
                 {cus.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                       No cumulative updates in catalog. Add CUs to start tracking.
                     </td>
                   </tr>
