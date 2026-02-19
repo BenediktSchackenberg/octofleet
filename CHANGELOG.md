@@ -1,3 +1,15 @@
+## [0.4.55] - 2026-02-19
+### Added
+- SQL CU Auto-Sync from Microsoft (#60)
+  - `POST /api/v1/mssql/sync-catalog` - Sync CU metadata from Microsoft
+  - `GET /api/v1/mssql/sync-catalog/preview` - Preview without changes
+  - Parses Microsoft SQL Server updates page automatically
+  - 105 CUs imported (SQL 2016-2025)
+- MS Update Catalog integration in UI
+  - 📥 Catalog button links directly to download page
+  - KB column with link to support article
+  - Sync from Microsoft button with result banner
+
 ## [0.4.54] - 2026-02-19
 ### Added
 - Software Repository backend (Epic #57)
