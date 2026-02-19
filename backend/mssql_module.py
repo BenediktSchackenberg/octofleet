@@ -3,10 +3,19 @@
 
 import uuid
 import json
+import re
+import httpx
+import logging
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException
 import asyncpg
+
+logger = logging.getLogger(__name__)
+
+# Microsoft SQL Server Updates URL
+MS_SQL_UPDATES_URL = "https://learn.microsoft.com/en-us/troubleshoot/sql/releases/download-and-install-latest-updates"
 
 router = APIRouter(prefix="/api/v1/mssql", tags=["MSSQL"])
 
@@ -1025,6 +1034,222 @@ async def get_cu_compliance(db: asyncpg.Pool = Depends(lambda: None)):
     pass
 
 
+# ============================================
+# CU Catalog Sync (Issue #60)
+# ============================================
+
+class SyncResult(BaseModel):
+    """Result of a CU catalog sync operation"""
+    newCUs: List[Dict[str, Any]] = Field(default_factory=list)
+    existingCUs: List[Dict[str, Any]] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+    syncedAt: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
+def parse_build_to_version(build: str) -> Optional[str]:
+    """Convert build number to SQL version (2019, 2022, 2025)"""
+    if build.startswith("17."):
+        return "2025"
+    elif build.startswith("16."):
+        return "2022"
+    elif build.startswith("15."):
+        return "2019"
+    elif build.startswith("14."):
+        return "2017"
+    elif build.startswith("13."):
+        return "2016"
+    return None
+
+
+def parse_cu_number(update_text: str) -> Optional[int]:
+    """Extract CU number from update text like 'CU25' or 'CU2 for 2025'"""
+    match = re.search(r'CU(\d+)', update_text, re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
+def parse_microsoft_updates_page(html: str) -> List[Dict[str, Any]]:
+    """
+    Parse the Microsoft SQL Server updates page to extract CU information.
+    Returns list of dicts with: version, cuNumber, buildNumber, releaseDate, kbArticle
+    """
+    cus = []
+    
+    # Pattern matches table rows with build info
+    # Format: | 17.0.4015.4 | None | CU2 | [KB5075211](...) | February 12, 2026 |
+    row_pattern = re.compile(
+        r'\|\s*(\d+\.\d+\.\d+(?:\.\d+)?)\s*\|'  # Build number
+        r'\s*(?:None|[^|]*)\s*\|'                # Service pack
+        r'\s*([^|]*CU\d+[^|]*)\s*\|'             # Update (contains CU)
+        r'\s*\[?(?:KB)?(\d+)\]?[^|]*\|'          # KB number
+        r'\s*([^|]+)\s*\|',                       # Release date
+        re.IGNORECASE
+    )
+    
+    for match in row_pattern.finditer(html):
+        build = match.group(1).strip()
+        update_text = match.group(2).strip()
+        kb = match.group(3).strip()
+        date_str = match.group(4).strip()
+        
+        version = parse_build_to_version(build)
+        cu_number = parse_cu_number(update_text)
+        
+        if version and cu_number:
+            # Parse date
+            release_date = None
+            try:
+                # Try "February 12, 2026" format
+                release_date = datetime.strptime(date_str, "%B %d, %Y").strftime("%Y-%m-%d")
+            except ValueError:
+                try:
+                    # Try "January 2026" format
+                    release_date = datetime.strptime(date_str, "%B %Y").strftime("%Y-%m-01")
+                except ValueError:
+                    pass
+            
+            # Skip GDR-only entries (CU + GDR is fine)
+            if "GDR" in update_text and "CU" not in update_text:
+                continue
+                
+            cus.append({
+                "version": version,
+                "cuNumber": cu_number,
+                "buildNumber": build,
+                "releaseDate": release_date,
+                "kbArticle": f"KB{kb}",
+                "updateText": update_text
+            })
+    
+    # Deduplicate by version + cuNumber, prefer latest build
+    seen = {}
+    for cu in cus:
+        key = f"{cu['version']}-CU{cu['cuNumber']}"
+        if key not in seen or "+GDR" not in cu.get("updateText", ""):
+            # Prefer non-GDR variants for cleaner entries
+            seen[key] = cu
+    
+    return list(seen.values())
+
+
+async def fetch_microsoft_updates() -> str:
+    """Fetch the Microsoft SQL Server updates page"""
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        # Use the text view which has cleaner markdown tables
+        url = MS_SQL_UPDATES_URL + "?view=sql-server-ver16"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; Octofleet/1.0; +https://github.com/BenediktSchackenberg/octofleet)"
+        }
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        return response.text
+
+
+@router.post("/sync-catalog")
+async def sync_cu_catalog(db: asyncpg.Pool = Depends(lambda: None)):
+    """
+    Sync CU catalog from Microsoft's SQL Server updates page.
+    Fetches latest CU information and adds new entries to the catalog.
+    
+    Returns:
+        - newCUs: CUs that were added to the catalog
+        - existingCUs: CUs already in the catalog
+        - errors: Any parsing or fetch errors
+    """
+    from dependencies import get_db
+    db = await get_db()
+    
+    result = SyncResult()
+    
+    try:
+        # Fetch the page
+        logger.info("Fetching Microsoft SQL Server updates page...")
+        html = await fetch_microsoft_updates()
+        
+        # Parse CU information
+        parsed_cus = parse_microsoft_updates_page(html)
+        logger.info(f"Parsed {len(parsed_cus)} CUs from Microsoft page")
+        
+        async with db.acquire() as conn:
+            for cu in parsed_cus:
+                # Check if CU already exists
+                existing = await conn.fetchrow(
+                    "SELECT id, status FROM mssql_cu_catalog WHERE version = $1 AND cu_number = $2",
+                    cu["version"], cu["cuNumber"]
+                )
+                
+                if existing:
+                    result.existingCUs.append({
+                        "id": str(existing["id"]),
+                        "version": cu["version"],
+                        "cuNumber": cu["cuNumber"],
+                        "buildNumber": cu["buildNumber"],
+                        "status": existing["status"]
+                    })
+                else:
+                    # Insert new CU
+                    new_id = await conn.fetchval("""
+                        INSERT INTO mssql_cu_catalog 
+                            (version, cu_number, build_number, release_date, kb_article, status, ring)
+                        VALUES ($1, $2, $3, $4, $5, 'detected', 'pilot')
+                        RETURNING id
+                    """, 
+                        cu["version"], 
+                        cu["cuNumber"], 
+                        cu["buildNumber"],
+                        cu["releaseDate"],
+                        cu["kbArticle"]
+                    )
+                    
+                    result.newCUs.append({
+                        "id": str(new_id),
+                        "version": cu["version"],
+                        "cuNumber": cu["cuNumber"],
+                        "buildNumber": cu["buildNumber"],
+                        "releaseDate": cu["releaseDate"],
+                        "kbArticle": cu["kbArticle"],
+                        "status": "detected"
+                    })
+                    logger.info(f"Added new CU: SQL Server {cu['version']} CU{cu['cuNumber']} ({cu['buildNumber']})")
+        
+        logger.info(f"Sync complete: {len(result.newCUs)} new, {len(result.existingCUs)} existing")
+        
+    except httpx.HTTPError as e:
+        error_msg = f"Failed to fetch Microsoft updates page: {str(e)}"
+        logger.error(error_msg)
+        result.errors.append(error_msg)
+    except Exception as e:
+        error_msg = f"Sync error: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        result.errors.append(error_msg)
+    
+    return result
+
+
+@router.get("/sync-catalog/preview")
+async def preview_cu_catalog_sync():
+    """
+    Preview what CUs would be synced without making changes.
+    Useful to see what's available before syncing.
+    """
+    try:
+        html = await fetch_microsoft_updates()
+        parsed_cus = parse_microsoft_updates_page(html)
+        
+        # Sort by version and CU number
+        parsed_cus.sort(key=lambda x: (x["version"], x["cuNumber"]), reverse=True)
+        
+        return {
+            "preview": True,
+            "cus": parsed_cus,
+            "count": len(parsed_cus),
+            "fetchedAt": datetime.utcnow().isoformat()
+        }
+    except httpx.HTTPError as e:
+        raise HTTPException(500, f"Failed to fetch: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, f"Parse error: {str(e)}")
+
+
 # Export for use in main.py
 __all__ = [
     "router",
@@ -1043,4 +1268,8 @@ __all__ = [
     "DeploymentRing",
     "CUCreate",
     "CUUpdate",
+    # CU Sync (Issue #60)
+    "SyncResult",
+    "sync_cu_catalog",
+    "preview_cu_catalog_sync",
 ]

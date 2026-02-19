@@ -4233,6 +4233,263 @@ async def get_cu_compliance(db: asyncpg.Pool = Depends(get_db)):
 
 
 # ============================================
+# CU Catalog Sync from Microsoft (Issue #60)
+# ============================================
+
+import httpx
+import re
+from html.parser import HTMLParser
+
+MS_SQL_UPDATES_URL = "https://learn.microsoft.com/en-us/troubleshoot/sql/releases/download-and-install-latest-updates"
+
+
+def _parse_build_to_version(build: str):
+    """Convert build number to SQL version (2019, 2022, 2025)"""
+    if build.startswith("17."):
+        return "2025"
+    elif build.startswith("16."):
+        return "2022"
+    elif build.startswith("15."):
+        return "2019"
+    elif build.startswith("14."):
+        return "2017"
+    elif build.startswith("13."):
+        return "2016"
+    return None
+
+
+def _parse_cu_number(update_text: str):
+    """Extract CU number from update text like 'CU25' or 'CU2 for 2025'"""
+    match = re.search(r'CU(\d+)', update_text, re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
+class SQLUpdateTableParser(HTMLParser):
+    """Parse HTML tables from Microsoft SQL Server updates page"""
+    
+    def __init__(self):
+        super().__init__()
+        self.cus = []
+        self.in_table = False
+        self.in_row = False
+        self.in_cell = False
+        self.current_row = []
+        self.current_cell = ""
+        self.current_section = None  # SQL Server version being parsed
+        
+    def handle_starttag(self, tag, attrs):
+        if tag == "table":
+            self.in_table = True
+        elif tag == "tr" and self.in_table:
+            self.in_row = True
+            self.current_row = []
+        elif tag in ("td", "th") and self.in_row:
+            self.in_cell = True
+            self.current_cell = ""
+        elif tag == "h3":
+            # Track which SQL version section we're in
+            self.current_section = None
+            
+    def handle_endtag(self, tag):
+        if tag == "table":
+            self.in_table = False
+        elif tag == "tr" and self.in_row:
+            self.in_row = False
+            if len(self.current_row) >= 4:
+                self._process_row(self.current_row)
+        elif tag in ("td", "th") and self.in_cell:
+            self.in_cell = False
+            self.current_row.append(self.current_cell.strip())
+            
+    def handle_data(self, data):
+        if self.in_cell:
+            self.current_cell += data
+        # Detect SQL Server version headers
+        data_stripped = data.strip()
+        if "SQL Server 2025" in data_stripped:
+            self.current_section = "2025"
+        elif "SQL Server 2022" in data_stripped:
+            self.current_section = "2022"
+        elif "SQL Server 2019" in data_stripped:
+            self.current_section = "2019"
+        elif "SQL Server 2017" in data_stripped:
+            self.current_section = "2017"
+            
+    def _process_row(self, row):
+        """Process a table row and extract CU info if valid"""
+        # Expected format: Build | SP | Update | KB | Date
+        if len(row) < 5:
+            return
+            
+        build = row[0].strip()
+        update_text = row[2].strip()
+        kb_text = row[3].strip()
+        date_text = row[4].strip()
+        
+        # Must have a valid build number
+        if not re.match(r'^\d+\.\d+\.\d+', build):
+            return
+            
+        # Must contain CU
+        cu_number = _parse_cu_number(update_text)
+        if not cu_number:
+            return
+            
+        # Skip pure GDR entries
+        if "GDR" in update_text and "CU" not in update_text.replace("GDR", ""):
+            return
+            
+        version = _parse_build_to_version(build)
+        if not version:
+            return
+            
+        # Extract KB number
+        kb_match = re.search(r'KB?(\d+)', kb_text, re.IGNORECASE)
+        kb_article = f"KB{kb_match.group(1)}" if kb_match else None
+        
+        # Parse date
+        release_date = None
+        for fmt in ["%B %d, %Y", "%B %Y", "%Y-%m-%d"]:
+            try:
+                dt = datetime.strptime(date_text.strip(), fmt)
+                release_date = dt.strftime("%Y-%m-%d")
+                break
+            except ValueError:
+                continue
+                
+        self.cus.append({
+            "version": version,
+            "cuNumber": cu_number,
+            "buildNumber": build,
+            "releaseDate": release_date,
+            "kbArticle": kb_article,
+            "updateText": update_text
+        })
+
+
+def _parse_microsoft_updates_html(html: str):
+    """Parse HTML from Microsoft SQL Server updates page"""
+    parser = SQLUpdateTableParser()
+    parser.feed(html)
+    
+    # Deduplicate by version + cuNumber
+    seen = {}
+    for cu in parser.cus:
+        key = f"{cu['version']}-CU{cu['cuNumber']}"
+        # Prefer non-GDR variants
+        if key not in seen or "+GDR" not in cu.get("updateText", ""):
+            seen[key] = cu
+    
+    return list(seen.values())
+
+
+@app.get("/api/v1/mssql/sync-catalog/preview", dependencies=[Depends(verify_api_key)])
+async def preview_cu_catalog_sync():
+    """
+    Preview what CUs would be synced without making changes.
+    Fetches and parses the Microsoft SQL Server updates page.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            url = MS_SQL_UPDATES_URL + "?view=sql-server-ver16"
+            headers = {"User-Agent": "Mozilla/5.0 (compatible; Octofleet/1.0)"}
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            html = response.text
+        
+        parsed_cus = _parse_microsoft_updates_html(html)
+        parsed_cus.sort(key=lambda x: (x["version"], x["cuNumber"]), reverse=True)
+        
+        return {
+            "preview": True,
+            "cus": parsed_cus,
+            "count": len(parsed_cus),
+            "fetchedAt": datetime.utcnow().isoformat()
+        }
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Microsoft page: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Parse error: {str(e)}")
+
+
+@app.post("/api/v1/mssql/sync-catalog", dependencies=[Depends(verify_api_key)])
+async def sync_cu_catalog(db: asyncpg.Pool = Depends(get_db)):
+    """
+    Sync CU catalog from Microsoft's SQL Server updates page.
+    Adds new CU entries with status 'detected'.
+    
+    Returns newCUs (added), existingCUs (already known), and any errors.
+    """
+    result = {
+        "newCUs": [],
+        "existingCUs": [],
+        "errors": [],
+        "syncedAt": datetime.utcnow().isoformat()
+    }
+    
+    try:
+        # Fetch page
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            url = MS_SQL_UPDATES_URL + "?view=sql-server-ver16"
+            headers = {"User-Agent": "Mozilla/5.0 (compatible; Octofleet/1.0)"}
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            html = response.text
+        
+        parsed_cus = _parse_microsoft_updates_html(html)
+        
+        async with db.acquire() as conn:
+            for cu in parsed_cus:
+                # Check if exists
+                existing = await conn.fetchrow(
+                    "SELECT id, status FROM mssql_cu_catalog WHERE version = $1 AND cu_number = $2",
+                    cu["version"], cu["cuNumber"]
+                )
+                
+                if existing:
+                    result["existingCUs"].append({
+                        "id": str(existing["id"]),
+                        "version": cu["version"],
+                        "cuNumber": cu["cuNumber"],
+                        "buildNumber": cu["buildNumber"],
+                        "status": existing["status"]
+                    })
+                else:
+                    # Convert release_date string to date object
+                    release_date = None
+                    if cu["releaseDate"]:
+                        try:
+                            release_date = datetime.strptime(cu["releaseDate"], "%Y-%m-%d").date()
+                        except ValueError:
+                            pass
+                    
+                    # Insert new
+                    new_id = await conn.fetchval("""
+                        INSERT INTO mssql_cu_catalog 
+                            (version, cu_number, build_number, release_date, kb_article, status, ring)
+                        VALUES ($1, $2, $3, $4, $5, 'detected', 'pilot')
+                        RETURNING id
+                    """, cu["version"], cu["cuNumber"], cu["buildNumber"], release_date, cu["kbArticle"])
+                    
+                    result["newCUs"].append({
+                        "id": str(new_id),
+                        "version": cu["version"],
+                        "cuNumber": cu["cuNumber"],
+                        "buildNumber": cu["buildNumber"],
+                        "releaseDate": cu["releaseDate"],
+                        "kbArticle": cu["kbArticle"],
+                        "status": "detected"
+                    })
+        
+    except httpx.HTTPError as e:
+        result["errors"].append(f"Fetch error: {str(e)}")
+    except Exception as e:
+        result["errors"].append(f"Sync error: {str(e)}")
+    
+    return result
+
+
+# ============================================
 # MSSQL CU Detection & Patching (Issue #51)
 # ============================================
 

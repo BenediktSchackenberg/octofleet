@@ -70,6 +70,31 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     releaseNotes: ''
   });
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ newCount: number; existingCount: number } | null>(null);
+
+  const handleSyncFromMicrosoft = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/mssql/sync-catalog`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) throw new Error('Sync failed');
+      const data = await res.json();
+      setSyncResult({
+        newCount: data.newCUs?.length || 0,
+        existingCount: data.existingCUs?.length || 0
+      });
+      await fetchCus();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const fetchCus = async () => {
     try {
       let url = `${API_BASE}/api/v1/mssql/cumulative-updates`;
@@ -267,12 +292,27 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
         </div>
         
         {activeView === 'catalog' && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            + Add CU
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSyncFromMicrosoft}
+              disabled={syncing}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {syncing ? (
+                <>
+                  <span className="animate-spin">⟳</span> Syncing...
+                </>
+              ) : (
+                <>🔄 Sync from Microsoft</>
+              )}
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              + Add CU
+            </button>
+          </div>
         )}
         
         {activeView === 'compliance' && compliance && compliance.summary.outdated > 0 && (
@@ -284,6 +324,24 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
           </button>
         )}
       </div>
+
+      {/* Sync Result Banner */}
+      {syncResult && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-blue-600 text-xl">✅</span>
+            <span>
+              <strong>Sync complete!</strong> {syncResult.newCount} new CUs added, {syncResult.existingCount} already in catalog.
+            </span>
+          </div>
+          <button
+            onClick={() => setSyncResult(null)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Catalog View */}
       {activeView === 'catalog' && (
