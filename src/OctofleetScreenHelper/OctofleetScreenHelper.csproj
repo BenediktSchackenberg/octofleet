@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\..\assets\octofleet.ico</ApplicationIcon>
+    <AssemblyName>OctofleetScreenHelper</AssemblyName>
+    <Product>Octofleet Screen Helper</Product>
+    <Company>Octofleet</Company>
+    <Description>Screen capture helper for Octofleet Agent (runs in user session)</Description>
+    <Version>0.5.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Pipes" Version="4.3.0" />
+  </ItemGroup>
+
+</Project>

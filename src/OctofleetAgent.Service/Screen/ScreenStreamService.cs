@@ -11,7 +11,8 @@ using Microsoft.Extensions.Logging;
 namespace OctofleetAgent.Service.Screen;
 
 /// <summary>
-/// Background service that polls for screen sharing requests and streams frames.
+/// Background service that polls for screen sharing requests and streams frames via helper process.
+/// Uses IPC to communicate with OctofleetScreenHelper running in user session.
 /// </summary>
 public class ScreenStreamService : BackgroundService
 {
@@ -19,9 +20,10 @@ public class ScreenStreamService : BackgroundService
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
     private readonly string _nodeId;
+    private readonly ScreenHelperManager _helperManager;
     
     private ClientWebSocket? _webSocket;
-    private DesktopCapture? _capture;
+    private ScreenIpcClient? _ipcClient;
     private bool _isStreaming;
     
     private const int PollIntervalSeconds = 5;
@@ -32,14 +34,15 @@ public class ScreenStreamService : BackgroundService
         _config = config;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         _nodeId = Environment.MachineName.ToUpperInvariant();
+        _helperManager = new ScreenHelperManager(logger);
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("ScreenStreamService started for node {NodeId}", _nodeId);
         
-        // Wait for config
-        while (!stoppingToken.IsCancellationRequested && !_config.IsConfigured)
+        // Wait for inventory config
+        while (!stoppingToken.IsCancellationRequested && !_config.IsInventoryConfigured)
         {
             await Task.Delay(1000, stoppingToken);
         }
@@ -121,31 +124,42 @@ public class ScreenStreamService : BackgroundService
         
         try
         {
-            // Configure capture
-            _capture = new DesktopCapture(_logger, monitorIndex);
-            _capture.Quality = quality switch
-            {
-                "low" => 30,
-                "medium" => 50,
-                "high" => 75,
-                _ => 50
-            };
-            _capture.MaxWidth = quality switch
-            {
-                "low" => 1280,
-                "medium" => 1920,
-                "high" => 2560,
-                _ => 1920
-            };
-            _capture.MaxHeight = quality switch
-            {
-                "low" => 720,
-                "medium" => 1080,
-                "high" => 1440,
-                _ => 1080
-            };
+            // Step 1: Ensure screen helper is running in user session
+            _logger.LogInformation("Ensuring screen helper is running...");
             
-            // Connect WebSocket
+            if (!await _helperManager.EnsureHelperRunningAsync(cancellationToken))
+            {
+                _logger.LogError("Failed to start screen helper - screen sharing unavailable. " +
+                    "This may happen if no user is logged in or the helper executable is missing.");
+                _isStreaming = false;
+                return;
+            }
+            
+            // Step 2: Connect to helper via named pipe
+            _ipcClient = new ScreenIpcClient(_logger);
+            
+            // Give helper time to start pipe server
+            await Task.Delay(500, cancellationToken);
+            
+            var connected = false;
+            for (int attempt = 0; attempt < 5 && !connected; attempt++)
+            {
+                connected = await _ipcClient.ConnectAsync(2000, cancellationToken);
+                if (!connected)
+                {
+                    _logger.LogDebug("IPC connect attempt {Attempt} failed, retrying...", attempt + 1);
+                    await Task.Delay(1000, cancellationToken);
+                }
+            }
+            
+            if (!connected)
+            {
+                _logger.LogError("Failed to connect to screen helper via IPC");
+                _isStreaming = false;
+                return;
+            }
+            
+            // Step 3: Connect WebSocket to backend
             var wsUrl = _config.InventoryApiUrl
                 .Replace("http://", "ws://")
                 .Replace("https://", "wss://");
@@ -163,43 +177,41 @@ public class ScreenStreamService : BackgroundService
             _logger.LogDebug("Received config: {Config}", configJson);
             
             // Send ready
-            await SendJsonAsync(new { type = "ready" }, cancellationToken);
+            await SendWebSocketJsonAsync(new { type = "ready" }, cancellationToken);
             
-            // Show tray notification (TODO: implement system tray)
+            // Step 4: Tell helper to start capturing
+            await _ipcClient.StartCaptureAsync(sessionId, quality, maxFps, monitorIndex, cancellationToken);
+            
             _logger.LogInformation("🖥️ Screen sharing ACTIVE - session {SessionId}", sessionId);
             
-            // Calculate frame delay
-            int frameDelayMs = 1000 / maxFps;
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            
-            // Streaming loop
-            while (!cancellationToken.IsCancellationRequested && 
-                   _webSocket.State == WebSocketState.Open)
+            // Step 5: Forward frames from helper to backend
+            _ipcClient.OnFrame += async (frame) =>
             {
-                stopwatch.Restart();
-                
-                // Capture frame
-                var frameData = await _capture.CaptureFrameAsync(cancellationToken);
-                if (frameData != null)
+                try
                 {
-                    // Send as base64
-                    var base64 = Convert.ToBase64String(frameData);
-                    await SendJsonAsync(new
+                    var base64 = Convert.ToBase64String(frame.Data);
+                    await SendWebSocketJsonAsync(new
                     {
                         type = "frame",
                         data = base64,
-                        width = _capture.MaxWidth,
-                        height = _capture.MaxHeight
+                        width = frame.Width,
+                        height = frame.Height
                     }, cancellationToken);
                 }
-                
-                // Maintain frame rate
-                var elapsed = (int)stopwatch.ElapsedMilliseconds;
-                if (elapsed < frameDelayMs)
+                catch (Exception ex)
                 {
-                    await Task.Delay(frameDelayMs - elapsed, cancellationToken);
+                    _logger.LogError(ex, "Error forwarding frame to backend");
                 }
-            }
+            };
+            
+            _ipcClient.OnDisconnected += () =>
+            {
+                _logger.LogWarning("Screen helper disconnected");
+                _ = StopStreaming();
+            };
+            
+            // Run receive loop until cancelled or disconnected
+            await _ipcClient.RunReceiveLoopAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -223,6 +235,19 @@ public class ScreenStreamService : BackgroundService
     {
         _isStreaming = false;
         
+        // Stop IPC client
+        if (_ipcClient != null)
+        {
+            try
+            {
+                await _ipcClient.StopCaptureAsync();
+            }
+            catch { }
+            _ipcClient.Dispose();
+            _ipcClient = null;
+        }
+        
+        // Close WebSocket
         if (_webSocket != null)
         {
             if (_webSocket.State == WebSocketState.Open)
@@ -240,18 +265,10 @@ public class ScreenStreamService : BackgroundService
             _webSocket = null;
         }
         
-        if (_capture != null)
-        {
-            _logger.LogInformation("Screen capture stats: {Frames} frames, {Bytes} bytes",
-                _capture.FramesCaptured, _capture.BytesCaptured);
-            _capture.Dispose();
-            _capture = null;
-        }
-        
         _logger.LogInformation("Screen streaming stopped");
     }
     
-    private async Task SendJsonAsync(object data, CancellationToken cancellationToken)
+    private async Task SendWebSocketJsonAsync(object data, CancellationToken cancellationToken)
     {
         if (_webSocket?.State != WebSocketState.Open)
             return;
