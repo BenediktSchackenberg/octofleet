@@ -28,9 +28,9 @@ public class ScreenIpcClient : IDisposable
     public ScreenIpcClient(ILogger logger, string? username = null)
     {
         _logger = logger;
-        username ??= GetActiveUsername() ?? Environment.UserName;
-        _pipeName = $"octofleet-screen-{username}";
-        _logger.LogDebug("Screen IPC pipe name: {PipeName}", _pipeName);
+        // Use fixed pipe name - simpler and avoids username detection issues
+        _pipeName = "octofleet-screen";
+        _logger.LogInformation("Screen IPC pipe name: {PipeName}", _pipeName);
     }
     
     /// <summary>

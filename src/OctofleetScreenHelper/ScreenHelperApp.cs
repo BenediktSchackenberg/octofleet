@@ -3,6 +3,8 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.IO.Pipes;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -60,7 +62,8 @@ public class ScreenHelperApp : ApplicationContext
     
     private async Task RunPipeServerAsync(CancellationToken cancellationToken)
     {
-        var pipeName = $"octofleet-screen-{Environment.UserName}";
+        // Use fixed pipe name - must match ScreenIpcClient
+        var pipeName = "octofleet-screen";
         
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -68,12 +71,29 @@ public class ScreenHelperApp : ApplicationContext
             {
                 UpdateStatus("Waiting for service connection...");
                 
-                _pipeServer = new NamedPipeServerStream(
+                // Create pipe with security that allows SYSTEM and Administrators to connect
+                var pipeSecurity = new PipeSecurity();
+                pipeSecurity.AddAccessRule(new PipeAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                    PipeAccessRights.FullControl,
+                    AccessControlType.Allow));
+                pipeSecurity.AddAccessRule(new PipeAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                    PipeAccessRights.FullControl,
+                    AccessControlType.Allow));
+                pipeSecurity.AddAccessRule(new PipeAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
+                    PipeAccessRights.FullControl,
+                    AccessControlType.Allow));
+                
+                _pipeServer = NamedPipeServerStreamAcl.Create(
                     pipeName,
                     PipeDirection.InOut,
                     1,
                     PipeTransmissionMode.Message,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous,
+                    0, 0,
+                    pipeSecurity);
                 
                 await _pipeServer.WaitForConnectionAsync(cancellationToken);
                 UpdateStatus("Service connected");
