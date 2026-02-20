@@ -235,6 +235,16 @@ HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\OctofleetScreenHelper
 <img src="docs/screenshot-live.png" alt="Live View">
 </details>
 
+<details>
+<summary>🖥️ Screen Sharing (NEW!)</summary>
+<img src="docs/screenshot-screen.png" alt="Screen Sharing">
+</details>
+
+<details>
+<summary>🐙 Windows Agent TUI</summary>
+<img src="docs/screenshot-agent.png" alt="Agent TUI">
+</details>
+
 ---
 
 ## 📚 Documentation

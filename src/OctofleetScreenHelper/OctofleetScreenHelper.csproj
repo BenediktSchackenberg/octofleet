@@ -10,7 +10,7 @@
     <Product>Octofleet Screen Helper</Product>
     <Company>Octofleet</Company>
     <Description>Screen capture helper for Octofleet Agent (runs in user session)</Description>
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
     <ApplicationIcon>Assets\octofleet.ico</ApplicationIcon>
     <Authors>Benedikt Schackenberg</Authors>
   </PropertyGroup>
