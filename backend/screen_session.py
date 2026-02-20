@@ -197,9 +197,10 @@ class ScreenSessionManager:
                 now = datetime.utcnow()
                 
                 for session_id, session in list(self.sessions.items()):
-                    # Close pending sessions after 30 seconds
+                    # Close pending sessions after 60 seconds (give agent time to connect)
                     if session.state == ScreenSessionState.PENDING:
-                        if now - session.created_at > timedelta(seconds=30):
+                        if now - session.created_at > timedelta(seconds=60):
+                            logger.warning(f"Closing stale pending session {session_id}")
                             await self.close_session(session_id, "timeout")
                     
                     # Remove closed sessions after 5 minutes

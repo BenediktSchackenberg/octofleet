@@ -10221,15 +10221,17 @@ async def screen_viewer_websocket(websocket: WebSocket, session_id: str):
     - Server sends: {"type": "closed", "reason": "..."}
     """
     await websocket.accept()
+    logger.info(f"Viewer WebSocket connected for session {session_id}")
     
     session = screen_session_manager.get_session(session_id)
     if not session:
+        logger.warning(f"Viewer tried to connect to non-existent session {session_id}")
         await websocket.send_json({"type": "error", "message": "Session not found"})
         await websocket.close()
         return
     
     session.viewer_ws = websocket
-    logger.info(f"Viewer connected to screen session {session_id}")
+    logger.info(f"Viewer connected to screen session {session_id}, state={session.state}")
     
     try:
         # Send initial info
@@ -10244,19 +10246,25 @@ async def screen_viewer_websocket(websocket: WebSocket, session_id: str):
         # Keep connection alive, frames are pushed by agent websocket handler
         while True:
             try:
-                # Receive keep-alive pings from client
-                data = await asyncio.wait_for(websocket.receive_json(), timeout=30)
+                # Receive keep-alive pings from client (longer timeout)
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=60)
                 if data.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
+                    logger.debug(f"Viewer ping/pong for session {session_id}")
             except asyncio.TimeoutError:
-                # Send keep-alive
-                await websocket.send_json({"type": "ping"})
+                # Send keep-alive ping to browser
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except:
+                    logger.warning(f"Failed to send ping to viewer {session_id}")
+                    break
                 
     except WebSocketDisconnect:
         logger.info(f"Viewer disconnected from screen session {session_id}")
     except Exception as e:
-        logger.error(f"Viewer WebSocket error: {e}")
+        logger.error(f"Viewer WebSocket error for {session_id}: {e}")
     finally:
+        logger.info(f"Viewer WebSocket cleanup for session {session_id}")
         session.viewer_ws = None
 
 
@@ -10270,21 +10278,27 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key:
     - Agent sends: {"type": "ready"} when capture started
     - Server sends: {"type": "stop"} to end session
     """
+    logger.info(f"Agent WebSocket connecting for session {session_id}")
+    
     # Validate API key (use centralized constant from dependencies)
     if api_key != API_KEY:
+        logger.warning(f"Agent WebSocket rejected: invalid API key for session {session_id}")
         await websocket.close(code=4001, reason="Invalid API key")
         return
     
     await websocket.accept()
+    logger.info(f"Agent WebSocket accepted for session {session_id}")
     
     session = screen_session_manager.get_session(session_id)
     if not session:
+        logger.warning(f"Agent tried to connect to non-existent session {session_id}")
         await websocket.send_json({"type": "error", "message": "Session not found"})
         await websocket.close()
         return
     
     if session.state != ScreenSessionState.PENDING:
-        await websocket.send_json({"type": "error", "message": "Session not in pending state"})
+        logger.warning(f"Agent tried to connect to session {session_id} but state is {session.state}")
+        await websocket.send_json({"type": "error", "message": f"Session not in pending state (is {session.state})"})
         await websocket.close()
         return
     
