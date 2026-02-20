@@ -18,6 +18,9 @@
 .PARAMETER InstallPath
     Installation directory. Default: C:\Program Files\Octofleet
 
+.PARAMETER NoScreenHelper
+    Skip installing the Screen Helper auto-start registry entry.
+
 .PARAMETER Force
     Force reinstallation even if already installed.
 
@@ -48,6 +51,9 @@ param(
     
     [Parameter()]
     [string]$InstallPath = "C:\Program Files\Octofleet",
+    
+    [Parameter()]
+    [switch]$NoScreenHelper,
     
     [Parameter()]
     [switch]$Force
@@ -259,6 +265,28 @@ function Install-OctofleetAgent {
     & $exePath start
     Start-Sleep -Seconds 2
     
+    # Configure Screen Helper auto-start
+    $screenHelperExe = Join-Path $InstallPath "OctofleetScreenHelper.exe"
+    if ((Test-Path $screenHelperExe) -and -not $NoScreenHelper) {
+        Write-Status "Configuring Screen Helper auto-start..."
+        
+        # Add to HKLM Run key (will start for all users at login)
+        $runKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+        Set-ItemProperty -Path $runKey -Name "OctofleetScreenHelper" -Value "`"$screenHelperExe`"" -Type String
+        Write-Status "Screen Helper will auto-start at user login" "Success"
+        
+        # Try to start Screen Helper now if a user is logged in
+        $explorerProcess = Get-Process -Name "explorer" -ErrorAction SilentlyContinue
+        if ($explorerProcess) {
+            Write-Status "Starting Screen Helper for current user..."
+            # Start in user context via explorer shell
+            Start-Process -FilePath $screenHelperExe -WindowStyle Hidden -ErrorAction SilentlyContinue
+        }
+    }
+    elseif (-not (Test-Path $screenHelperExe)) {
+        Write-Status "Screen Helper not found in release - skipping auto-start config" "Warning"
+    }
+    
     # Verify
     $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($service -and $service.Status -eq "Running") {
@@ -267,6 +295,9 @@ function Install-OctofleetAgent {
         Write-Host "Service Status: Running"
         Write-Host "Install Path:   $InstallPath"
         Write-Host "Config File:    $configPath"
+        if ((Test-Path $screenHelperExe) -and -not $NoScreenHelper) {
+            Write-Host "Screen Helper:  Auto-start enabled"
+        }
         Write-Host ""
         Write-Host "NEXT STEP: Approve this node in the Octofleet Web UI:" -ForegroundColor Yellow
         Write-Host "           http://192.168.0.5:3000/nodes" -ForegroundColor Cyan

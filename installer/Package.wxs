@@ -3,9 +3,9 @@
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
   <!-- Product Definition -->
-  <Package Name="OpenClaw Node Agent"
-           Manufacturer="OpenClaw"
-           Version="0.3.0"
+  <Package Name="Octofleet Node Agent"
+           Manufacturer="Octofleet"
+           Version="0.5.0"
            UpgradeCode="E8F9D4A2-7B3C-4E5F-9A1D-2C6B8F0E3D7A"
            Scope="perMachine">
 
@@ -21,22 +21,24 @@
     <Property Id="GATEWAY_TOKEN" Value="" Secure="yes" />
     <Property Id="INVENTORY_URL" Value="" />
     <Property Id="DISPLAY_NAME" Value="" />
+    <Property Id="AUTOSTART_HELPER" Value="1" />
 
     <!-- Installation Directory -->
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="OpenClaw">
+      <Directory Id="INSTALLFOLDER" Name="Octofleet">
         <Directory Id="AGENTFOLDER" Name="Agent" />
       </Directory>
     </StandardDirectory>
 
     <!-- CommonAppData for Config -->
     <StandardDirectory Id="CommonAppDataFolder">
-      <Directory Id="CONFIGDIR" Name="OpenClaw" />
+      <Directory Id="CONFIGDIR" Name="Octofleet" />
     </StandardDirectory>
 
     <!-- Feature: Main Agent -->
-    <Feature Id="MainFeature" Title="OpenClaw Node Agent" Level="1">
+    <Feature Id="MainFeature" Title="Octofleet Node Agent" Level="1">
       <ComponentGroupRef Id="ServiceComponents" />
+      <ComponentGroupRef Id="ScreenHelperComponents" />
       <ComponentGroupRef Id="ConfigComponents" />
     </Feature>
 
@@ -48,15 +50,15 @@
       
       <!-- Main Service Executable -->
       <Component Id="ServiceExe" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
-        <File Id="OpenClawAgentServiceExe"
-              Source="$(var.OpenClawAgent.Service.TargetDir)OpenClawAgent.Service.exe"
+        <File Id="OctofleetAgentServiceExe"
+              Source="$(var.OctofleetAgent.Service.TargetDir)OctofleetAgent.Service.exe"
               KeyPath="yes" />
         
         <!-- Install as Windows Service -->
         <ServiceInstall Id="ServiceInstaller"
-                        Name="OpenClawNodeAgent"
-                        DisplayName="OpenClaw Node Agent"
-                        Description="OpenClaw endpoint management agent - connects to Gateway for remote management"
+                        Name="OctofleetNodeAgent"
+                        DisplayName="Octofleet Node Agent"
+                        Description="Octofleet endpoint management agent - connects to Gateway for remote management and inventory collection"
                         Type="ownProcess"
                         Start="auto"
                         ErrorControl="normal"
@@ -64,7 +66,7 @@
         
         <!-- Service Control: Start after install, Stop before uninstall -->
         <ServiceControl Id="ServiceControl"
-                        Name="OpenClawNodeAgent"
+                        Name="OctofleetNodeAgent"
                         Start="install"
                         Stop="both"
                         Remove="uninstall"
@@ -73,8 +75,33 @@
 
       <!-- All other DLLs and dependencies -->
       <Component Id="ServiceDependencies" Guid="B2C3D4E5-F6A7-8901-BCDE-F23456789012">
-        <File Source="$(var.OpenClawAgent.Service.TargetDir)*.dll" />
-        <File Source="$(var.OpenClawAgent.Service.TargetDir)*.json" />
+        <File Source="$(var.OctofleetAgent.Service.TargetDir)*.dll" />
+        <File Source="$(var.OctofleetAgent.Service.TargetDir)*.json" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Screen Helper Components -->
+  <Fragment>
+    <ComponentGroup Id="ScreenHelperComponents" Directory="AGENTFOLDER">
+      
+      <!-- Screen Helper Executable -->
+      <Component Id="ScreenHelperExe" Guid="F1E2D3C4-B5A6-9807-6543-210FEDCBA987">
+        <File Id="OctofleetScreenHelperExe"
+              Source="$(var.OctofleetScreenHelper.TargetDir)OctofleetScreenHelper.exe"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- Auto-Start Registry Entry (per-user, runs at login) -->
+      <Component Id="ScreenHelperAutoStart" Guid="A9B8C7D6-E5F4-3210-9876-543210FEDCBA">
+        <Condition>AUTOSTART_HELPER = "1"</Condition>
+        <RegistryValue Root="HKLM"
+                       Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+                       Name="OctofleetScreenHelper"
+                       Type="string"
+                       Value="&quot;[AGENTFOLDER]OctofleetScreenHelper.exe&quot;"
+                       KeyPath="yes" />
       </Component>
 
     </ComponentGroup>

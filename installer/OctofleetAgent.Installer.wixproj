@@ -1,0 +1,12 @@
+<Project Sdk="WixToolset.Sdk/5.0.0">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <InstallerPlatform>x64</InstallerPlatform>
+  </PropertyGroup>
+  
+  <!-- Reference the Service and ScreenHelper project outputs -->
+  <ItemGroup>
+    <ProjectReference Include="..\src\OctofleetAgent.Service\OctofleetAgent.Service.csproj" />
+    <ProjectReference Include="..\src\OctofleetScreenHelper\OctofleetScreenHelper.csproj" />
+  </ItemGroup>
+</Project>
