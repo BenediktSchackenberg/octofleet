@@ -33,26 +33,27 @@ public class ScreenHelperManager
     /// </summary>
     public async Task<bool> EnsureHelperRunningAsync(CancellationToken cancellationToken = default)
     {
-        // Check if already running
+        // Check if already running (tracked by us)
         if (IsHelperRunning)
         {
             _logger.LogDebug("Screen helper already running (PID: {Pid})", _helperProcess?.Id);
             return true;
         }
         
-        // Check if helper exists
-        if (!File.Exists(_helperPath))
-        {
-            _logger.LogWarning("Screen helper not found at: {Path}", _helperPath);
-            return false;
-        }
-        
-        // Check if helper is already running (started by user or previous session)
+        // Check if helper is already running externally (started by user or previous session)
+        // This check comes FIRST so we can use a manually started helper during development
         var existingHelpers = Process.GetProcessesByName("OctofleetScreenHelper");
         if (existingHelpers.Length > 0)
         {
             _logger.LogInformation("Screen helper already running externally (PID: {Pid})", existingHelpers[0].Id);
             return true;
+        }
+        
+        // Check if helper executable exists (only needed if we have to start it ourselves)
+        if (!File.Exists(_helperPath))
+        {
+            _logger.LogWarning("Screen helper not found at: {Path}", _helperPath);
+            return false;
         }
         
         // Get active user session
