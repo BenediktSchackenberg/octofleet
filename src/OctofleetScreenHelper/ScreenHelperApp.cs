@@ -43,10 +43,24 @@ public class ScreenHelperApp : ApplicationContext
         _contextMenu.Items.Add("-");
         _contextMenu.Items.Add("Exit", null, OnExit);
         
+        // Load custom icon
+        Icon trayIcon = SystemIcons.Application;
+        try
+        {
+            // Try to load from embedded resource
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var stream = assembly.GetManifestResourceStream("OctofleetScreenHelper.Assets.octofleet.ico");
+            if (stream != null)
+            {
+                trayIcon = new Icon(stream);
+            }
+        }
+        catch { }
+        
         // Create tray icon
         _trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application, // TODO: Custom icon
+            Icon = trayIcon,
             Text = "Octofleet Screen Helper",
             Visible = true,
             ContextMenuStrip = _contextMenu

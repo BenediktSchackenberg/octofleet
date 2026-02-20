@@ -11,7 +11,14 @@
     <Company>Octofleet</Company>
     <Description>Screen capture helper for Octofleet Agent (runs in user session)</Description>
     <Version>0.5.0</Version>
+    <ApplicationIcon>Assets\octofleet.ico</ApplicationIcon>
+    <Authors>Benedikt Schackenberg</Authors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\octofleet.ico" />
+    <EmbeddedResource Include="Assets\octofleet.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.IO.Pipes" Version="4.3.0" />
