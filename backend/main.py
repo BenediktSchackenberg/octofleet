@@ -12682,3 +12682,279 @@ async def generate_inventory_report_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+# =============================================================================
+# E22: Provisioning API - Zero-Touch OS Deployment
+# =============================================================================
+
+from provisioning import generate_autounattend, generate_ipxe_script
+
+# Provisioning Config
+PROVISIONING_ANSWERS_PATH = os.getenv("PROVISIONING_ANSWERS_PATH", "/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/answers")
+PXE_SERVER_URL = os.getenv("PXE_SERVER_URL", "http://192.168.0.5:9080")
+
+
+class ProvisioningTaskCreate(BaseModel):
+    """Create a new provisioning task"""
+    hostname: str = Field(..., min_length=1, max_length=63, pattern=r'^[a-zA-Z0-9\-]+$')
+    mac_address: str = Field(..., pattern=r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')
+    
+    # Network
+    use_dhcp: bool = True
+    ip_address: Optional[str] = None
+    subnet_mask: str = "255.255.255.0"
+    gateway: Optional[str] = None
+    dns_servers: Optional[List[str]] = None
+    
+    # Credentials
+    admin_password: str = Field(..., min_length=8)
+    
+    # Domain Join
+    join_domain: bool = False
+    domain_name: Optional[str] = None
+    domain_ou: Optional[str] = None
+    domain_user: Optional[str] = None
+    domain_password: Optional[str] = None
+    
+    # Options
+    windows_edition: str = "Windows Server 2025 SERVERDATACENTER"
+    language: str = "en-US"
+    timezone: str = "W. Europe Standard Time"
+    
+    # Post-Install
+    install_octofleet_agent: bool = True
+    enable_rdp: bool = True
+    disable_firewall: bool = False
+
+
+class ProvisioningTaskResponse(BaseModel):
+    """Response for created provisioning task"""
+    id: int
+    hostname: str
+    mac_address: str
+    status: str
+    ipxe_url: str
+    autounattend_url: str
+    created_at: datetime
+
+
+@app.post("/api/v1/provisioning/tasks", response_model=ProvisioningTaskResponse, tags=["Provisioning"])
+async def create_provisioning_task(
+    task: ProvisioningTaskCreate,
+    db: asyncpg.Connection = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Create a new provisioning task for zero-touch Windows deployment.
+    
+    This generates:
+    - MAC-specific iPXE boot script
+    - Autounattend.xml with all configuration
+    
+    The target machine will automatically install Windows on next PXE boot.
+    """
+    # Normalize MAC address
+    mac_normalized = task.mac_address.lower().replace("-", ":")
+    mac_hyp = mac_normalized.replace(":", "-")
+    
+    # Check for existing task with same MAC
+    existing = await db.fetchrow(
+        "SELECT id FROM provisioning_tasks WHERE mac_address = $1 AND status NOT IN ('completed', 'failed', 'cancelled')",
+        mac_normalized
+    )
+    if existing:
+        raise conflict(f"Active provisioning task already exists for MAC {mac_normalized}")
+    
+    # Generate Autounattend.xml
+    autounattend_xml = generate_autounattend(
+        hostname=task.hostname,
+        admin_password=task.admin_password,
+        use_dhcp=task.use_dhcp,
+        ip_address=task.ip_address,
+        subnet_mask=task.subnet_mask,
+        gateway=task.gateway,
+        dns_servers=task.dns_servers,
+        join_domain=task.join_domain,
+        domain_name=task.domain_name,
+        domain_ou=task.domain_ou,
+        domain_user=task.domain_user,
+        domain_password=task.domain_password,
+        windows_edition=task.windows_edition,
+        language=task.language,
+        timezone=task.timezone,
+        install_octofleet_agent=task.install_octofleet_agent,
+        enable_rdp=task.enable_rdp,
+        disable_firewall=task.disable_firewall,
+        pxe_server=PXE_SERVER_URL,
+    )
+    
+    # Generate iPXE boot script
+    ipxe_script = generate_ipxe_script(
+        mac_address=mac_normalized,
+        hostname=task.hostname,
+        pxe_server=PXE_SERVER_URL,
+    )
+    
+    # Ensure answers directory exists
+    os.makedirs(PROVISIONING_ANSWERS_PATH, exist_ok=True)
+    
+    # Write files
+    xml_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.xml")
+    ipxe_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.ipxe")
+    
+    with open(xml_path, "w") as f:
+        f.write(autounattend_xml)
+    
+    with open(ipxe_path, "w") as f:
+        f.write(ipxe_script)
+    
+    # Insert into database
+    row = await db.fetchrow("""
+        INSERT INTO provisioning_tasks (
+            hostname, mac_address, status, config,
+            created_at, updated_at
+        ) VALUES (
+            $1, $2, 'pending', $3::jsonb,
+            now(), now()
+        )
+        RETURNING id, hostname, mac_address, status, created_at
+    """, task.hostname, mac_normalized, json.dumps({
+        "use_dhcp": task.use_dhcp,
+        "ip_address": task.ip_address,
+        "join_domain": task.join_domain,
+        "domain_name": task.domain_name,
+        "install_agent": task.install_octofleet_agent,
+        "enable_rdp": task.enable_rdp,
+    }))
+    
+    return ProvisioningTaskResponse(
+        id=row["id"],
+        hostname=row["hostname"],
+        mac_address=row["mac_address"],
+        status=row["status"],
+        ipxe_url=f"{PXE_SERVER_URL}/boot/{mac_hyp}.ipxe",
+        autounattend_url=f"{PXE_SERVER_URL}/answers/{mac_hyp}.xml",
+        created_at=row["created_at"],
+    )
+
+
+@app.get("/api/v1/provisioning/tasks", tags=["Provisioning"])
+async def list_provisioning_tasks(
+    status: Optional[str] = None,
+    limit: int = 50,
+    db: asyncpg.Connection = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
+):
+    """List all provisioning tasks"""
+    query = "SELECT * FROM provisioning_tasks"
+    params = []
+    
+    if status:
+        query += " WHERE status = $1"
+        params.append(status)
+    
+    query += " ORDER BY created_at DESC LIMIT $" + str(len(params) + 1)
+    params.append(limit)
+    
+    rows = await db.fetch(query, *params)
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/v1/provisioning/tasks/{task_id}", tags=["Provisioning"])
+async def get_provisioning_task(
+    task_id: int,
+    db: asyncpg.Connection = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get provisioning task details"""
+    row = await db.fetchrow("SELECT * FROM provisioning_tasks WHERE id = $1", task_id)
+    if not row:
+        raise not_found("Provisioning task not found")
+    return dict(row)
+
+
+@app.delete("/api/v1/provisioning/tasks/{task_id}", tags=["Provisioning"])
+async def cancel_provisioning_task(
+    task_id: int,
+    db: asyncpg.Connection = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
+):
+    """Cancel a provisioning task and remove boot files"""
+    row = await db.fetchrow("SELECT mac_address, status FROM provisioning_tasks WHERE id = $1", task_id)
+    if not row:
+        raise not_found("Provisioning task not found")
+    
+    if row["status"] in ("completed", "failed"):
+        raise bad_request(f"Cannot cancel task in status '{row['status']}'")
+    
+    mac_hyp = row["mac_address"].replace(":", "-")
+    
+    # Remove boot files
+    xml_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.xml")
+    ipxe_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.ipxe")
+    
+    for path in [xml_path, ipxe_path]:
+        if os.path.exists(path):
+            os.remove(path)
+    
+    # Update status
+    await db.execute(
+        "UPDATE provisioning_tasks SET status = 'cancelled', updated_at = now() WHERE id = $1",
+        task_id
+    )
+    
+    return {"message": "Provisioning task cancelled", "id": task_id}
+
+
+@app.get("/api/v1/provisioning/images", tags=["Provisioning"])
+async def list_available_images(api_key: str = Depends(verify_api_key)):
+    """List available OS images for provisioning"""
+    images_path = os.getenv("PROVISIONING_IMAGES_PATH", "/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/images")
+    
+    images = []
+    
+    # Check win2025
+    win2025_wim = os.path.join(images_path, "win2025", "install.wim")
+    if os.path.exists(win2025_wim):
+        size = os.path.getsize(win2025_wim)
+        images.append({
+            "id": "win2025",
+            "name": "Windows Server 2025",
+            "editions": [
+                "Windows Server 2025 SERVERSTANDARDCORE",
+                "Windows Server 2025 SERVERSTANDARD",
+                "Windows Server 2025 SERVERDATACENTERCORE",
+                "Windows Server 2025 SERVERDATACENTER",
+            ],
+            "size_bytes": size,
+            "size_human": f"{size / 1024 / 1024 / 1024:.1f} GB",
+        })
+    
+    # Check winpe
+    winpe_dir = os.path.join(images_path, "winpe")
+    if os.path.isdir(winpe_dir):
+        winpe_files = os.listdir(winpe_dir)
+        required = {"wimboot", "BCD", "boot.sdi", "boot.wim"}
+        if required.issubset(set(winpe_files)):
+            images.append({
+                "id": "winpe",
+                "name": "WinPE Boot Environment",
+                "status": "ready",
+                "files": winpe_files,
+            })
+    
+    return {"images": images}
+
+
+@app.get("/api/v1/provisioning/windows-editions", tags=["Provisioning"])
+async def list_windows_editions(api_key: str = Depends(verify_api_key)):
+    """List available Windows editions"""
+    return {
+        "editions": [
+            {"id": "Windows Server 2025 SERVERSTANDARDCORE", "name": "Windows Server 2025 Standard (Core)"},
+            {"id": "Windows Server 2025 SERVERSTANDARD", "name": "Windows Server 2025 Standard (Desktop)"},
+            {"id": "Windows Server 2025 SERVERDATACENTERCORE", "name": "Windows Server 2025 Datacenter (Core)"},
+            {"id": "Windows Server 2025 SERVERDATACENTER", "name": "Windows Server 2025 Datacenter (Desktop)"},
+        ]
+    }

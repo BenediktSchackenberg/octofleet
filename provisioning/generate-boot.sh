@@ -82,7 +82,7 @@ echo    🐙 Installing: $HOSTNAME
 echo ===============================================
 echo
 
-set pxe-server http://${PXE_SERVER}:8888
+set pxe-server http://${PXE_SERVER}:9080
 
 echo Loading WinPE...
 kernel \${pxe-server}/winpe/wimboot
@@ -203,7 +203,7 @@ cat > "$ANSWER_FILE" << 'XMLEOF'
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <CommandLine>powershell.exe -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'http://PXE_SERVER_PLACEHOLDER:8888/scripts/Install-OctofleetAgent.ps1' -OutFile 'C:\Windows\Temp\Install-OctofleetAgent.ps1'; C:\Windows\Temp\Install-OctofleetAgent.ps1"</CommandLine>
+          <CommandLine>powershell.exe -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'http://PXE_SERVER_PLACEHOLDER:9080/scripts/Install-OctofleetAgent.ps1' -OutFile 'C:\Windows\Temp\Install-OctofleetAgent.ps1'; C:\Windows\Temp\Install-OctofleetAgent.ps1"</CommandLine>
           <Description>Install Octofleet Agent</Description>
         </SynchronousCommand>
       </FirstLogonCommands>

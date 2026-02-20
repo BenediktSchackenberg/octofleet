@@ -97,7 +97,7 @@ provisioning/
 |------|-----------|--------|
 | 69   | UDP       | TFTP (Boot Files) |
 | 4011 | UDP       | ProxyDHCP |
-| 8888 | TCP       | HTTP (Images, Scripts) |
+| 9080 | TCP       | HTTP (Images, Scripts) |
 
 ## Troubleshooting
 

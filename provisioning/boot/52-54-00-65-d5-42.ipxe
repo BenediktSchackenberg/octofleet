@@ -1,0 +1,15 @@
+#!ipxe
+# Octofleet Zero-Touch: TEST-VM-01
+echo.
+echo  =============================================
+echo     Octofleet PXE Boot
+echo  =============================================
+echo.
+
+set pxe-server http://192.168.0.5:9080
+
+kernel ${pxe-server}/winpe/wimboot
+initrd ${pxe-server}/winpe/BCD                              BCD
+initrd ${pxe-server}/winpe/boot.sdi                         boot.sdi
+initrd ${pxe-server}/winpe/boot.wim                         boot.wim
+boot

@@ -57,7 +57,9 @@
     "remediation": "Auto-Fix",
     "services": "Services",
     "sql": "SQL Server",
-    "performance": "Performance"
+    "performance": "Performance",
+    "provisioning": "Provisioning",
+    "repo": "Repository"
   },
   "auth": {
     "login": "Anmelden",

@@ -25,6 +25,7 @@ import {
   // Infrastructure
   Database,
   Link as LinkIcon,
+  Network,
   // Security
   Bug,
   Wrench,
@@ -123,6 +124,7 @@ const navGroups: NavGroup[] = [
     icon: Database,
     color: "amber",
     items: [
+      { href: "/provisioning", labelKey: "nav.provisioning", icon: Network, permission: "services:read" },
       { href: "/sql", labelKey: "nav.sql", icon: Database, permission: "services:read" },
       { href: "/services", labelKey: "nav.services", icon: LinkIcon, permission: "services:read" },
     ]

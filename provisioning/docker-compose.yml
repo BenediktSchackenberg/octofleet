@@ -10,11 +10,11 @@ services:
       - NET_ADMIN
     volumes:
       # Config
-      - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./dnsmasq.conf:/etc/dnsmasq.d/octofleet.conf:ro
       - ./hosts.pxe:/etc/hosts.pxe:rw
       
-      # Boot files
-      - ./tftpboot:/tftpboot:ro
+      # Boot files (rw for generated boot.ipxe)
+      - ./tftpboot:/tftpboot:rw
       
       # Images & Drivers (große Dateien)
       - ./images:/srv/images:ro

@@ -957,3 +957,49 @@ echo "MAC: ${MAC}"
 ---
 
 *Letzte Aktualisierung: 2026-02-20*
+
+---
+
+## Lessons Learned (2026-02-20)
+
+### WinPE + VirtIO
+
+| Problem | Ursache | Lösung |
+|---------|---------|--------|
+| Keine Disk sichtbar | Falscher Treiber | `vioscsi.inf` für SCSI-Disks, nicht `viostor.inf` |
+| Netzwerk fehlt | Treiber nicht geladen | `drvload netkvm.inf` + `wpeutil initializenetwork` |
+
+### WinPE + SMB
+
+| Problem | Ursache | Lösung |
+|---------|---------|--------|
+| "Server service not started" | SMB Client inaktiv | `net start lanmanserver` |
+| Error 53/67 nach net use | Service braucht Zeit | Retry-Loop alle 10 Sek |
+| 3-5 Min Wartezeit | Samba DNS Lookup | `name resolve order = bcast host` |
+
+### Samba Konfiguration (für WinPE)
+
+```ini
+[global]
+   server min protocol = NT1    # SMB1 für WinPE
+   ntlm auth = yes
+   name resolve order = bcast host
+   dns proxy = no
+   hostname lookups = no
+```
+
+### startnet.cmd Best Practices
+
+1. **VirtIO Treiber laden** (vioscsi + netkvm)
+2. **wpeinit** + **wpeutil initializenetwork**
+3. **Warten auf IP** (Loop bis 192.168 gefunden)
+4. **net start lanmanserver**
+5. **SMB Mount mit Retry-Loop** (nicht nur einmal versuchen!)
+6. **Fehlerprüfung** nach jedem Schritt
+
+### Timing
+
+- VirtIO Treiber: ~5 Sek nach drvload warten
+- SMB: 30-60 Sek nach lanmanserver starten
+- DISM: ~5-10 Min für 7GB WIM
+- Gesamte Installation: ~10-15 Min
