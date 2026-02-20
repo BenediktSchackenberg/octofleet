@@ -72,3 +72,4 @@ playwright-report/
 
 # Build artifacts
 *.zip
+provisioning/drivers/virtio-win.iso

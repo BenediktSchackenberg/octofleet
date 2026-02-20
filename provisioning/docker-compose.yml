@@ -20,6 +20,7 @@ services:
       - ./images:/srv/images:ro
       - ./drivers:/srv/drivers:ro
       - ./answers:/srv/answers:ro
+      - ./boot:/srv/boot:ro
       
       # Scripts
       - ./scripts:/srv/scripts:ro

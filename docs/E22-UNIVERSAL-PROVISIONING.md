@@ -1041,3 +1041,26 @@ dism /image:W:\ /add-driver /driver:X:\Windows\System32\drivers\netkvm.inf
 - SMB: 30-60 Sek nach lanmanserver starten
 - DISM: ~5-10 Min für 7GB WIM
 - Gesamte Installation: ~10-15 Min
+
+---
+
+## Hyper-V Erfolg (2026-02-20)
+
+### Getestet und funktioniert:
+- **Hyper-V Generation 2** VM
+- PXE Boot via `chain http://192.168.0.5:9080/boot.ipxe`
+- WinPE lädt, SMB mounted, DISM applied
+- Windows Server 2025 bootet erfolgreich!
+- Keine extra Treiber nötig (native Hyper-V Treiber)
+
+### KVM/VirtIO Status:
+- WinPE funktioniert (VirtIO Treiber laden in WinPE)
+- Driver Injection ins installierte Windows noch problematisch
+- INACCESSIBLE_BOOT_DEVICE nach Reboot
+- Weitere Debugging nötig
+
+### Netzwerk-Hinweis:
+Wenn netboot.xyz im Netzwerk aktiv ist (z.B. von Unraid), muss manuell gechaint werden:
+```
+chain http://192.168.0.5:9080/boot.ipxe
+```
