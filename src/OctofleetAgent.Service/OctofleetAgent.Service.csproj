@@ -17,9 +17,9 @@
     
     <!-- Version - update this for each release -->
     <Version>0.4.57</Version>
-    <AssemblyVersion>0.4.43.0</AssemblyVersion>
+    <AssemblyVersion>0.4.57.0</AssemblyVersion>
     <FileVersion>0.4.57.0</FileVersion>
-    <InformationalVersion>0.4.43</InformationalVersion>
+    <InformationalVersion>0.4.57</InformationalVersion>
     
     <!-- Enable Windows Forms for screen capture -->
     <UseWindowsForms>true</UseWindowsForms>
