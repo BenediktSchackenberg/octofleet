@@ -10243,20 +10243,24 @@ async def screen_viewer_websocket(websocket: WebSocket, session_id: str):
             "quality": session.quality
         })
         
-        # Keep connection alive, frames are pushed by agent websocket handler
+        # Keep connection alive - just wait for messages, frames are pushed by agent handler
+        # Use a longer timeout and don't break on timeout
         while True:
             try:
-                # Receive keep-alive pings from client (longer timeout)
-                data = await asyncio.wait_for(websocket.receive_json(), timeout=60)
+                # Wait for client messages (pings, control messages)
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=120)
                 if data.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
                     logger.debug(f"Viewer ping/pong for session {session_id}")
+                elif data.get("type") == "stop":
+                    logger.info(f"Viewer requested stop for session {session_id}")
+                    break
             except asyncio.TimeoutError:
-                # Send keep-alive ping to browser
+                # Send keep-alive ping to browser - but don't break if it fails
                 try:
                     await websocket.send_json({"type": "ping"})
-                except:
-                    logger.warning(f"Failed to send ping to viewer {session_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to send ping to viewer {session_id}: {e}")
                     break
                 
     except WebSocketDisconnect:
