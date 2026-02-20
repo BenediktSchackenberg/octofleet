@@ -38,7 +38,7 @@ jobs:
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
           Write-Host "Building version: $version"
       
-      - name: Build Agent
+      - name: Build Agent Service
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.VERSION }}"
@@ -54,6 +54,29 @@ jobs:
             -p:AssemblyVersion="$version.0" `
             -p:FileVersion="$version.0" `
             -o ./publish
+      
+      - name: Build Screen Helper
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $helperPath = "src\OctofleetScreenHelper\OctofleetScreenHelper.csproj"
+          
+          if (Test-Path $helperPath) {
+            Write-Host "Building Screen Helper..."
+            dotnet publish $helperPath `
+              -c Release `
+              -r win-x64 `
+              --self-contained true `
+              -p:PublishSingleFile=true `
+              -p:IncludeNativeLibrariesForSelfExtract=true `
+              -p:Version=$version `
+              -p:AssemblyVersion="$version.0" `
+              -p:FileVersion="$version.0" `
+              -o ./publish
+            Write-Host "Screen Helper built successfully"
+          } else {
+            Write-Host "Screen Helper project not found - skipping"
+          }
       
       - name: Copy Installer Script
         shell: pwsh

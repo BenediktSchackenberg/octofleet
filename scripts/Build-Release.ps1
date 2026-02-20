@@ -30,8 +30,8 @@ New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 $publishPath = "$OutputPath\publish"
 $zipPath = "$OutputPath\OctofleetAgent-v$Version.zip"
 
-# Publish (self-contained, single file)
-Write-Host "Publishing..." -ForegroundColor Yellow
+# Publish Service (self-contained, single file)
+Write-Host "Publishing Service..." -ForegroundColor Yellow
 dotnet publish $projectPath `
     -c Release `
     -r win-x64 `
@@ -44,8 +44,32 @@ dotnet publish $projectPath `
     -o $publishPath
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Build failed!"
+    Write-Error "Service build failed!"
     exit 1
+}
+
+# Publish Screen Helper (self-contained, single file)
+$helperProjectPath = "$PSScriptRoot\..\src\OctofleetScreenHelper\OctofleetScreenHelper.csproj"
+if (Test-Path $helperProjectPath) {
+    Write-Host "Publishing Screen Helper..." -ForegroundColor Yellow
+    dotnet publish $helperProjectPath `
+        -c Release `
+        -r win-x64 `
+        --self-contained true `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -p:Version=$Version `
+        -p:AssemblyVersion=$Version.0 `
+        -p:FileVersion=$Version.0 `
+        -o $publishPath
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Screen Helper build failed - continuing without it"
+    } else {
+        Write-Host "Screen Helper included in release" -ForegroundColor Green
+    }
+} else {
+    Write-Host "Screen Helper project not found - skipping" -ForegroundColor Yellow
 }
 
 # Copy installer script
