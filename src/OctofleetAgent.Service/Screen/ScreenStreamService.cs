@@ -185,8 +185,16 @@ public class ScreenStreamService : BackgroundService
             _logger.LogInformation("🖥️ Screen sharing ACTIVE - session {SessionId}", sessionId);
             
             // Step 5: Forward frames from helper to backend
+            int consecutiveErrors = 0;
+            const int maxConsecutiveErrors = 3;
+            
             _ipcClient.OnFrame += async (frame) =>
             {
+                if (consecutiveErrors >= maxConsecutiveErrors)
+                {
+                    return; // Already stopping, ignore further frames
+                }
+                
                 try
                 {
                     var base64 = Convert.ToBase64String(frame.Data);
@@ -197,10 +205,20 @@ public class ScreenStreamService : BackgroundService
                         width = frame.Width,
                         height = frame.Height
                     }, cancellationToken);
+                    consecutiveErrors = 0; // Reset on success
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error forwarding frame to backend");
+                    consecutiveErrors++;
+                    if (consecutiveErrors == 1)
+                    {
+                        _logger.LogWarning("Error forwarding frame to backend: {Message}", ex.Message);
+                    }
+                    if (consecutiveErrors >= maxConsecutiveErrors)
+                    {
+                        _logger.LogError("Too many frame errors ({Count}), stopping screen streaming", consecutiveErrors);
+                        _ = StopStreaming();
+                    }
                 }
             };
             
