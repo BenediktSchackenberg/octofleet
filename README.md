@@ -99,6 +99,19 @@
 </td>
 <td width="50%">
 
+### 🔌 Zero-Touch Provisioning (NEW!)
+- **PXE boot** — No USB/ISO needed
+- **WinPE deployment** — Full automation
+- **VirtIO support** — KVM/QEMU ready
+- **Multi-VLAN** — Tentacle relay architecture
+- **Driver injection** — Auto hardware detection
+- **Autounattend.xml** — Unattended Windows install
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
 ### 🔄 Auto-Update
 - Agents self-update from GitHub Releases
 - SHA256 verification
@@ -172,6 +185,45 @@ HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\OctofleetScreenHelper
 # Start helper manually (for development)
 .\src\OctofleetScreenHelper\bin\Debug\net8.0-windows\OctofleetScreenHelper.exe
 ```
+
+---
+
+## 🔌 Zero-Touch Provisioning
+
+Deploy Windows servers via PXE boot — no USB drives, no ISOs, no clicking through installers.
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   VM/Host   │◄──PXE──►│  Tentacle   │◄──API──►│  Octofleet  │
+│  (Booting)  │         │  (Docker)   │         │   Backend   │
+└─────────────┘         └─────────────┘         └─────────────┘
+       │                       │
+       │ TFTP                  │ HTTP
+       └──► ipxe.efi          └──► boot.wim + install.wim
+```
+
+### Quick Start (PXE Server):
+
+```bash
+cd provisioning
+docker-compose up -d
+```
+
+### Boot Sequence:
+1. **PXE ROM** → dnsmasq (ProxyDHCP) → `ipxe.efi`
+2. **iPXE** → HTTP → `boot.ipxe` script
+3. **WinPE** → loads `boot.wim` into RAM
+4. **startnet.cmd** → VirtIO drivers, SMB mount, DISM, bcdboot
+5. **Windows** → boots with injected drivers
+6. **Agent** → auto-installs and connects
+
+### Supported Platforms:
+- ✅ **KVM/QEMU** (Unraid, Proxmox, libvirt)
+- ✅ **Hyper-V** (with PXE boot)
+- ✅ **Bare Metal** (UEFI PXE)
+- 🔜 VMware vSphere
+
+📖 **[Provisioning Guide →](docs/E22-UNIVERSAL-PROVISIONING.md)**
 
 ---
 

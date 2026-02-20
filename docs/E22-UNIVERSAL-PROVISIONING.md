@@ -993,9 +993,47 @@ echo "MAC: ${MAC}"
 1. **VirtIO Treiber laden** (vioscsi + netkvm)
 2. **wpeinit** + **wpeutil initializenetwork**
 3. **Warten auf IP** (Loop bis 192.168 gefunden)
-4. **net start lanmanserver**
+4. **net start lanmanworkstation** (nicht lanmanserver!)
 5. **SMB Mount mit Retry-Loop** (nicht nur einmal versuchen!)
 6. **Fehlerprüfung** nach jedem Schritt
+7. **VirtIO Driver Injection** nach DISM, vor bcdboot!
+
+### WinPE Gotchas
+
+| Fehler | Ursache | Fix |
+|--------|---------|-----|
+| `findstr` not found | WinPE hat kein findstr | Nutze `find` statt `findstr` |
+| INACCESSIBLE_BOOT_DEVICE | VirtIO Treiber fehlt in Windows | `dism /image:W:\ /add-driver /driver:vioscsi.inf` |
+| diskpart hängt | X:\diskpart.txt fehlt | Inline generieren mit `echo > X:\dp.txt` |
+| setlocal fehler | enabledelayedexpansion Syntax | `setlocal enabledelayedexpansion` am Anfang |
+
+### Driver Injection (KRITISCH!)
+
+VirtIO Treiber müssen ZWEIMAL geladen werden:
+1. **In WinPE** → damit Disk/Netzwerk während Installation funktioniert
+2. **Ins installierte Windows** → damit Windows nach Reboot bootet!
+
+```batch
+:: Nach DISM apply, VOR bcdboot:
+dism /image:W:\ /add-driver /driver:X:\Windows\System32\drivers\vioscsi.inf
+dism /image:W:\ /add-driver /driver:X:\Windows\System32\drivers\netkvm.inf
+```
+
+### Finale startnet.cmd Struktur
+
+```
+[1] drvload vioscsi + netkvm     → WinPE kann Disk/Netz sehen
+[2] wpeinit                       → WinPE Services initialisieren
+[3] wpeutil initializenetwork     → Netzwerk Stack starten
+[4] Wait for IP                   → DHCP abwarten
+[5] net start lanmanworkstation   → SMB Client starten
+[6] net use Z: \\server\share     → SMB Mount (mit Retry!)
+[7] diskpart                      → Partitionen erstellen
+[8] dism /apply-image             → Windows Image anwenden
+[9] dism /add-driver              → VirtIO ins installierte Windows!
+[10] bcdboot                      → Bootloader konfigurieren
+[11] wpeutil reboot               → Neustart in Windows
+```
 
 ### Timing
 

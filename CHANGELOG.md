@@ -5,6 +5,31 @@ All notable changes to Octofleet will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-02-20
+
+### Added
+- **Zero-Touch Provisioning (E22)** - PXE boot Windows deployment
+  - Docker-based PXE server (dnsmasq + TFTP + HTTP)
+  - WinPE boot.wim with embedded VirtIO drivers
+  - Automated disk partitioning and DISM image apply
+  - VirtIO driver injection for KVM/QEMU VMs
+  - Error handling with debug shell on failure
+- Frontend: `/provisioning` page with deployment queue UI
+  - Job creation modal with OS selection
+  - Real-time progress tracking
+  - Multi-VLAN Tentacle status view
+  - Unknown MAC detection
+
+### Fixed
+- WinPE: Use `find` instead of `findstr` (not available in WinPE)
+- WinPE: Use `net start lanmanworkstation` for SMB client
+- INACCESSIBLE_BOOT_DEVICE: Driver injection after DISM, before bcdboot
+
+### Documentation
+- E22-UNIVERSAL-PROVISIONING.md: Lessons learned section
+- README: Zero-Touch Provisioning section
+- Blog post: PXE deep dive
+
 ## [0.5.1] - 2026-02-20
 
 ### Added
