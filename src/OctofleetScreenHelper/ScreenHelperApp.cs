@@ -301,7 +301,7 @@ public class ScreenHelperApp : ApplicationContext
                 if (jpegEncoder != null)
                 {
                     var encoderParams = new EncoderParameters(1);
-                    encoderParams.Param[0] = new EncoderParameter(Encoder.Quality, (long)_quality);
+                    encoderParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, _quality);
                     outputBitmap.Save(ms, jpegEncoder, encoderParams);
                 }
                 else

@@ -6,7 +6,6 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ApplicationIcon>..\..\assets\octofleet.ico</ApplicationIcon>
     <AssemblyName>OctofleetScreenHelper</AssemblyName>
     <Product>Octofleet Screen Helper</Product>
     <Company>Octofleet</Company>
