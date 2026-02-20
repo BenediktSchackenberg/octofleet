@@ -78,8 +78,13 @@ export default function ShellPage() {
     const { Terminal } = await import('@xterm/xterm');
     const { FitAddon } = await import('@xterm/addon-fit');
     
-    // Import CSS
-    await import('@xterm/xterm/css/xterm.css');
+    // Load xterm CSS via link element (dynamic import doesn't work in Next.js)
+    if (!document.querySelector('link[href*="xterm"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css';
+      document.head.appendChild(link);
+    }
     
     const term = new Terminal({
       cursorBlink: true,
