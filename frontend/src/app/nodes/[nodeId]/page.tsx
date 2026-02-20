@@ -445,6 +445,11 @@ export default function NodeDetailPage() {
                 🖥️ Screen
               </Button>
             </Link>
+            <Link href={`/nodes/${nodeId}/shell`}>
+              <Button variant="outline" className="bg-orange-500/10 border-orange-500 text-orange-500 hover:bg-orange-500/20">
+                🐚 Shell
+              </Button>
+            </Link>
             <Button 
               variant="outline" 
               onClick={refreshInventory}

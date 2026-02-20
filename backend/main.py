@@ -10362,6 +10362,276 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key:
                 pass
 
 
+# =============================================================================
+# REMOTE SHELL (E19)
+# =============================================================================
+
+from shell_session import shell_session_manager, ShellSessionState
+
+@app.on_event("startup")
+async def start_shell_manager():
+    await shell_session_manager.start()
+
+@app.on_event("shutdown")
+async def stop_shell_manager():
+    await shell_session_manager.stop()
+
+
+@app.post("/api/v1/shell/start/{node_id}")
+async def start_shell_session(
+    node_id: str,
+    shell_type: str = "powershell",  # powershell, cmd, bash
+    user: dict = Depends(get_current_user)
+):
+    """
+    Start a remote shell session for a node.
+    
+    The session enters PENDING state until the agent connects.
+    """
+    import uuid
+    
+    # Validate shell type
+    valid_shells = ["powershell", "cmd", "bash", "sh"]
+    if shell_type not in valid_shells:
+        raise HTTPException(400, f"Invalid shell type. Must be one of: {valid_shells}")
+    
+    try:
+        session_id = str(uuid.uuid4())
+        session = await shell_session_manager.create_session(
+            session_id=session_id,
+            node_id=node_id.upper(),
+            user_id=user.get("id", "unknown"),
+            shell_type=shell_type
+        )
+        
+        # Log audit event
+        await log_audit(
+            db_pool, 
+            action="shell_session_start",
+            user_id=user.get("id"),
+            resource_type="shell_session",
+            resource_id=session_id,
+            details={"node_id": node_id, "shell_type": shell_type}
+        )
+        
+        return {
+            "session_id": session_id,
+            "state": session.state.value,
+            "shell_type": shell_type,
+            "node_id": node_id.upper()
+        }
+    except Exception as e:
+        logger.error(f"Failed to create shell session: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/v1/shell/stop/{session_id}")
+async def stop_shell_session(
+    session_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Stop a shell session."""
+    session = shell_session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    
+    await shell_session_manager.close_session(session_id, "user_stopped")
+    
+    return {"status": "stopped"}
+
+
+@app.get("/api/v1/shell/pending/{node_id}")
+async def get_pending_shell_session(
+    node_id: str,
+    api_key: str = Header(None, alias="X-API-Key")
+):
+    """
+    Agent polls this to check for pending shell sessions.
+    """
+    if api_key != API_KEY:
+        raise HTTPException(401, "Invalid API key")
+    
+    session = shell_session_manager.get_pending_for_node(node_id.upper())
+    if not session:
+        return {"session": None}
+    
+    return {
+        "session": {
+            "session_id": session.session_id,
+            "shell_type": session.shell_type,
+            "user_id": session.user_id
+        }
+    }
+
+
+@app.websocket("/api/v1/shell/ws/{session_id}")
+async def shell_viewer_websocket(websocket: WebSocket, session_id: str):
+    """
+    WebSocket endpoint for browser viewers to interact with remote shell.
+    
+    Protocol:
+    - Client sends: {"type": "input", "data": "ls -la\n"}
+    - Server sends: {"type": "output", "data": "..."}
+    - Server sends: {"type": "info", "state": "active"}
+    - Server sends: {"type": "closed", "reason": "..."}
+    """
+    await websocket.accept()
+    logger.info(f"Shell viewer WebSocket connected for session {session_id}")
+    
+    session = shell_session_manager.get_session(session_id)
+    if not session:
+        logger.warning(f"Shell viewer tried to connect to non-existent session {session_id}")
+        await websocket.send_json({"type": "error", "message": "Session not found"})
+        await websocket.close()
+        return
+    
+    session.viewer_ws = websocket
+    logger.info(f"Shell viewer connected to session {session_id}, state={session.state}")
+    
+    try:
+        # Send initial info
+        await websocket.send_json({
+            "type": "info",
+            "session_id": session_id,
+            "node_id": session.node_id,
+            "state": session.state.value,
+            "shell_type": session.shell_type
+        })
+        
+        # Forward input from viewer to agent
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=120)
+                
+                if data.get("type") == "input":
+                    # Forward to agent
+                    if session.agent_ws:
+                        await session.agent_ws.send_json(data)
+                        shell_session_manager.record_command(session_id)
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Agent not connected"
+                        })
+                        
+                elif data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    
+                elif data.get("type") == "resize":
+                    # Forward terminal resize to agent
+                    if session.agent_ws:
+                        await session.agent_ws.send_json(data)
+                        
+            except asyncio.TimeoutError:
+                # Send keep-alive
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except:
+                    break
+                
+    except WebSocketDisconnect:
+        logger.info(f"Shell viewer disconnected from session {session_id}")
+    except Exception as e:
+        logger.error(f"Shell viewer WebSocket error for {session_id}: {e}")
+    finally:
+        logger.info(f"Shell viewer WebSocket cleanup for session {session_id}")
+        session.viewer_ws = None
+
+
+@app.websocket("/api/v1/shell/ws/agent/{session_id}")
+async def shell_agent_websocket(websocket: WebSocket, session_id: str, api_key: str = None):
+    """
+    WebSocket endpoint for agents to connect shell sessions.
+    
+    Protocol:
+    - Agent sends: {"type": "output", "data": "..."}
+    - Agent sends: {"type": "ready"}
+    - Agent sends: {"type": "exit", "code": 0}
+    - Server sends: {"type": "input", "data": "..."}
+    - Server sends: {"type": "resize", "cols": 80, "rows": 24}
+    - Server sends: {"type": "stop"}
+    """
+    logger.info(f"Shell agent WebSocket connecting for session {session_id}")
+    
+    if api_key != API_KEY:
+        logger.warning(f"Shell agent WebSocket rejected: invalid API key for session {session_id}")
+        await websocket.close(code=4001, reason="Invalid API key")
+        return
+    
+    await websocket.accept()
+    logger.info(f"Shell agent WebSocket accepted for session {session_id}")
+    
+    session = shell_session_manager.get_session(session_id)
+    if not session:
+        logger.warning(f"Shell agent tried to connect to non-existent session {session_id}")
+        await websocket.send_json({"type": "error", "message": "Session not found"})
+        await websocket.close()
+        return
+    
+    if session.state != ShellSessionState.PENDING:
+        logger.warning(f"Shell agent tried to connect to session {session_id} but state is {session.state}")
+        await websocket.send_json({"type": "error", "message": f"Session not pending (is {session.state})"})
+        await websocket.close()
+        return
+    
+    session.agent_ws = websocket
+    await shell_session_manager.activate_session(session_id)
+    
+    # Send config to agent
+    await websocket.send_json({
+        "type": "config",
+        "shell_type": session.shell_type,
+        "session_id": session_id
+    })
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            
+            if data.get("type") == "output":
+                # Forward output to viewer
+                if session.viewer_ws:
+                    try:
+                        await session.viewer_ws.send_json(data)
+                    except:
+                        pass
+                        
+            elif data.get("type") == "ready":
+                logger.info(f"Shell agent ready for session {session_id}")
+                if session.viewer_ws:
+                    await session.viewer_ws.send_json({
+                        "type": "info",
+                        "state": "active",
+                        "message": "Shell started"
+                    })
+                    
+            elif data.get("type") == "exit":
+                logger.info(f"Shell exited for session {session_id} with code {data.get('code')}")
+                if session.viewer_ws:
+                    await session.viewer_ws.send_json({
+                        "type": "exit",
+                        "code": data.get("code", 0)
+                    })
+                break
+                    
+    except WebSocketDisconnect:
+        logger.info(f"Shell agent disconnected from session {session_id}")
+    except Exception as e:
+        logger.error(f"Shell agent WebSocket error: {e}")
+    finally:
+        session.agent_ws = None
+        await shell_session_manager.close_session(session_id, "agent_disconnected")
+        
+        if session.viewer_ws:
+            try:
+                await session.viewer_ws.send_json({
+                    "type": "closed",
+                    "reason": "Agent disconnected"
+                })
+            except:
+                pass
+
+
 # === Remediation Live SSE ===
 @app.get("/api/v1/remediation/live")
 async def remediation_live_sse(request: Request, token: str = None, api_key: str = Header(None, alias="X-API-Key")):
