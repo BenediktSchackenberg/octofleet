@@ -24,6 +24,7 @@ public class ScreenStreamService : BackgroundService
     
     private ClientWebSocket? _webSocket;
     private ScreenIpcClient? _ipcClient;
+    private CancellationTokenSource? _sessionCts;
     private bool _isStreaming;
     
     private const int PollIntervalSeconds = 5;
@@ -118,16 +119,21 @@ public class ScreenStreamService : BackgroundService
         CancellationToken cancellationToken)
     {
         if (_isStreaming)
+        {
+            _logger.LogWarning("Already streaming - ignoring new session request");
             return;
+        }
         
         _isStreaming = true;
+        _sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var sessionToken = _sessionCts.Token;
         
         try
         {
             // Step 1: Ensure screen helper is running in user session
             _logger.LogInformation("Ensuring screen helper is running...");
             
-            if (!await _helperManager.EnsureHelperRunningAsync(cancellationToken))
+            if (!await _helperManager.EnsureHelperRunningAsync(sessionToken))
             {
                 _logger.LogError("Failed to start screen helper - screen sharing unavailable. " +
                     "This may happen if no user is logged in or the helper executable is missing.");
@@ -139,16 +145,16 @@ public class ScreenStreamService : BackgroundService
             _ipcClient = new ScreenIpcClient(_logger);
             
             // Give helper time to start pipe server
-            await Task.Delay(500, cancellationToken);
+            await Task.Delay(500, sessionToken);
             
             var connected = false;
             for (int attempt = 0; attempt < 5 && !connected; attempt++)
             {
-                connected = await _ipcClient.ConnectAsync(2000, cancellationToken);
+                connected = await _ipcClient.ConnectAsync(2000, sessionToken);
                 if (!connected)
                 {
                     _logger.LogDebug("IPC connect attempt {Attempt} failed, retrying...", attempt + 1);
-                    await Task.Delay(1000, cancellationToken);
+                    await Task.Delay(1000, sessionToken);
                 }
             }
             
@@ -166,21 +172,21 @@ public class ScreenStreamService : BackgroundService
             wsUrl += $"/api/v1/screen/ws/agent/{sessionId}?api_key={_config.InventoryApiKey}";
             
             _webSocket = new ClientWebSocket();
-            await _webSocket.ConnectAsync(new Uri(wsUrl), cancellationToken);
+            await _webSocket.ConnectAsync(new Uri(wsUrl), sessionToken);
             
             _logger.LogInformation("Connected to screen session WebSocket: {SessionId}", sessionId);
             
             // Receive config
             var buffer = new byte[4096];
-            var result = await _webSocket.ReceiveAsync(buffer, cancellationToken);
+            var result = await _webSocket.ReceiveAsync(buffer, sessionToken);
             var configJson = Encoding.UTF8.GetString(buffer, 0, result.Count);
             _logger.LogDebug("Received config: {Config}", configJson);
             
             // Send ready
-            await SendWebSocketJsonAsync(new { type = "ready" }, cancellationToken);
+            await SendWebSocketJsonAsync(new { type = "ready" }, sessionToken);
             
             // Step 4: Tell helper to start capturing
-            await _ipcClient.StartCaptureAsync(sessionId, quality, maxFps, monitorIndex, cancellationToken);
+            await _ipcClient.StartCaptureAsync(sessionId, quality, maxFps, monitorIndex, sessionToken);
             
             _logger.LogInformation("🖥️ Screen sharing ACTIVE - session {SessionId}", sessionId);
             
@@ -190,7 +196,7 @@ public class ScreenStreamService : BackgroundService
             
             _ipcClient.OnFrame += async (frame) =>
             {
-                if (consecutiveErrors >= maxConsecutiveErrors)
+                if (consecutiveErrors >= maxConsecutiveErrors || sessionToken.IsCancellationRequested)
                 {
                     return; // Already stopping, ignore further frames
                 }
@@ -204,7 +210,7 @@ public class ScreenStreamService : BackgroundService
                         data = base64,
                         width = frame.Width,
                         height = frame.Height
-                    }, cancellationToken);
+                    }, sessionToken);
                     consecutiveErrors = 0; // Reset on success
                 }
                 catch (Exception ex)
@@ -229,7 +235,7 @@ public class ScreenStreamService : BackgroundService
             };
             
             // Run receive loop until cancelled or disconnected
-            await _ipcClient.RunReceiveLoopAsync(cancellationToken);
+            await _ipcClient.RunReceiveLoopAsync(sessionToken);
         }
         catch (OperationCanceledException)
         {
@@ -251,7 +257,26 @@ public class ScreenStreamService : BackgroundService
     
     private async Task StopStreaming()
     {
+        if (!_isStreaming && _ipcClient == null && _webSocket == null)
+        {
+            _logger.LogDebug("StopStreaming called but already stopped");
+            return;
+        }
+        
+        _logger.LogInformation("Stopping screen streaming...");
         _isStreaming = false;
+        
+        // Cancel the session token to stop all async operations
+        if (_sessionCts != null)
+        {
+            try
+            {
+                _sessionCts.Cancel();
+            }
+            catch { }
+            _sessionCts.Dispose();
+            _sessionCts = null;
+        }
         
         // Stop IPC client
         if (_ipcClient != null)
@@ -259,8 +284,12 @@ public class ScreenStreamService : BackgroundService
             try
             {
                 await _ipcClient.StopCaptureAsync();
+                _logger.LogDebug("IPC capture stopped");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Error stopping IPC capture: {Message}", ex.Message);
+            }
             _ipcClient.Dispose();
             _ipcClient = null;
         }
@@ -276,14 +305,18 @@ public class ScreenStreamService : BackgroundService
                         WebSocketCloseStatus.NormalClosure, 
                         "Streaming stopped", 
                         CancellationToken.None);
+                    _logger.LogDebug("WebSocket closed");
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Error closing WebSocket: {Message}", ex.Message);
+                }
             }
             _webSocket.Dispose();
             _webSocket = null;
         }
         
-        _logger.LogInformation("Screen streaming stopped");
+        _logger.LogInformation("Screen streaming stopped - ready for new session");
     }
     
     private async Task SendWebSocketJsonAsync(object data, CancellationToken cancellationToken)
