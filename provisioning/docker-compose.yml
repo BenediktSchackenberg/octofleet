@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  pxe:
+    build: .
+    container_name: octofleet-pxe
+    restart: unless-stopped
+    network_mode: host  # Nötig für DHCP/TFTP Broadcast
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      # Config
+      - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./hosts.pxe:/etc/hosts.pxe:rw
+      
+      # Boot files
+      - ./tftpboot:/tftpboot:ro
+      
+      # Images & Drivers (große Dateien)
+      - ./images:/srv/images:ro
+      - ./drivers:/srv/drivers:ro
+      - ./answers:/srv/answers:ro
+      
+      # Scripts
+      - ./scripts:/srv/scripts:ro
+    environment:
+      - PXE_SERVER_IP=${PXE_SERVER_IP:-192.168.0.5}
+      - OCTOFLEET_API=${OCTOFLEET_API:-http://localhost:8080}
+    healthcheck:
+      test: ["CMD", "pgrep", "dnsmasq"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

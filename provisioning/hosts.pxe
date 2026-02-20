@@ -1,0 +1,14 @@
+# Octofleet PXE - Registrierte MACs
+# ============================================================
+# Nur MACs in dieser Datei bekommen PXE Boot!
+# 
+# Format: dhcp-host=XX:XX:XX:XX:XX:XX,set:pxe
+#
+# Beispiel:
+# dhcp-host=00:15:5D:01:02:03,set:pxe
+#
+# Nach Änderungen: docker exec octofleet-pxe killall -HUP dnsmasq
+# ============================================================
+
+# === Registrierte Hosts ===
+# (wird dynamisch befüllt)

@@ -1,0 +1,59 @@
+#!ipxe
+# ============================================================
+# Octofleet PXE Boot Script
+# ============================================================
+
+# Variablen
+set pxe-server http://${next-server}:8888
+set menu-timeout 10000
+
+# Header
+console --picture http://${next-server}:8888/octofleet-logo.png --left 32 --right 32 --top 32 || 
+echo
+echo ===============================================
+echo    🐙 Octofleet PXE Boot
+echo ===============================================
+echo
+echo MAC Address: ${mac}
+echo IP Address:  ${ip}
+echo
+
+# Versuche MAC-spezifisches Boot-Script zu laden
+:check_config
+echo Checking for provisioning task...
+chain ${pxe-server}/boot/${mac:hexhyp}.ipxe && goto boot_done ||
+
+# Kein Task gefunden - zeige Menü
+:menu
+menu Octofleet PXE Boot Menu
+item --key w winpe       Boot WinPE (Manual Setup)
+item --key l local       Boot from local disk
+item --key s shell       iPXE Shell
+item --key r reboot      Reboot
+choose --timeout ${menu-timeout} --default local target && goto ${target} ||
+goto local
+
+:winpe
+echo Booting WinPE...
+kernel ${pxe-server}/winpe/wimboot
+initrd ${pxe-server}/winpe/BCD         BCD
+initrd ${pxe-server}/winpe/boot.sdi    boot.sdi
+initrd ${pxe-server}/winpe/boot.wim    boot.wim
+boot || goto menu
+
+:local
+echo Booting from local disk...
+sanboot --no-describe --drive 0x80 || 
+echo Local boot failed, showing menu...
+goto menu
+
+:shell
+echo Type 'exit' to return to menu
+shell
+goto menu
+
+:reboot
+reboot
+
+:boot_done
+echo Boot script completed.

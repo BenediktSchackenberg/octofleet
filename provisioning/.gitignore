@@ -1,0 +1,5 @@
+tftpboot/*.efi
+tftpboot/*.kpxe
+images/
+answers/*.xml
+answers/*.ipxe
