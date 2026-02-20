@@ -1,409 +1,348 @@
-# E21: SQL Server Always On Deployment
+# E21: SQL Server Always On & Clustering
 
 ## Epic Overview
 
-**Goal:** Automated deployment of SQL Server Always On Availability Groups across Octofleet-managed nodes.
+**Goal:** Erweiterung des bestehenden MSSQL Moduls um Windows Failover Clustering und Always On Availability Groups.
 
 **Status:** 📋 Planning  
 **Priority:** Medium  
-**Dependencies:** E20 SQL Monitoring (for post-deployment health checks)
+**Dependencies:** Bestehendes MSSQL System (✅ vorhanden)
 
 ---
 
-## User Story
+## Bestehendes System (bereits implementiert ✅)
 
-> Als Administrator möchte ich über Octofleet eine komplette SQL Server Always On Umgebung auf ausgewählten Nodes deployen können, ohne manuell auf jeden Server zu müssen.
+### API Endpoints (28 vorhanden):
+- `/api/v1/mssql/editions` - SQL Server Editionen
+- `/api/v1/mssql/downloads` - Download Links
+- `/api/v1/mssql/configs` - Installation Konfigurationen (CRUD)
+- `/api/v1/mssql/assignments` - Config → Group Zuweisungen
+- `/api/v1/mssql/instances` - Laufende SQL Server Instanzen
+- `/api/v1/mssql/install` - Silent Installation
+- `/api/v1/mssql/cumulative-updates` - CU Management
+- `/api/v1/mssql/cu-compliance` - Patch Compliance
+- `/api/v1/mssql/deploy-cu` - CU Deployment
+- `/api/v1/mssql/detect/{node}` - SQL Detection
+- `/api/v1/mssql/verify` - Installation Verify
+- `/api/v1/mssql/repair` - Repair
 
----
-
-## Architecture
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                     Octofleet Backend                          │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  SQL Deployment Service                                   │  │
-│  │  - Orchestrates multi-node deployment                    │  │
-│  │  - Tracks deployment progress                            │  │
-│  │  - Handles rollback on failure                           │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────┬──────────────────────────────┘
-                                  │ Jobs
-        ┌─────────────────────────┼─────────────────────────┐
-        ▼                         ▼                         ▼
-┌───────────────┐       ┌───────────────┐       ┌───────────────┐
-│  Node A       │       │  Node B       │       │  Node C       │
-│  (Primary)    │       │  (Secondary)  │       │  (Secondary)  │
-│               │       │               │       │               │
-│ ┌───────────┐ │       │ ┌───────────┐ │       │ ┌───────────┐ │
-│ │ SQL 2022  │ │◄─────►│ │ SQL 2022  │ │◄─────►│ │ SQL 2022  │ │
-│ │ PRIMARY   │ │  AG   │ │ SECONDARY │ │  AG   │ │ SECONDARY │ │
-│ └───────────┘ │       │ └───────────┘ │       │ └───────────┘ │
-└───────────────┘       └───────────────┘       └───────────────┘
-        │                       │                       │
-        └───────────────────────┴───────────────────────┘
-                    Windows Failover Cluster
-```
+### Frontend:
+- `/deployments/mssql` - SQL Server Assignments UI
+- `/packages` - Software Katalog
 
 ---
 
-## Deployment Pipeline
+## Neue Features (E21)
 
-### Phase 1: Prerequisites (parallel auf allen Nodes)
+### Architektur-Erweiterung
 
-```powershell
-# Job: sql-prereq-{nodeId}
-- Install .NET Framework 4.8 (if missing)
-- Install Windows Feature: Failover-Clustering
-- Install Windows Feature: RSAT-Clustering-PowerShell
-- Configure Firewall Rules:
-  - TCP 1433 (SQL Server)
-  - TCP 5022 (AG Endpoint)
-  - TCP 5985 (WinRM)
-  - UDP 3343 (Cluster)
-- Verify network connectivity between nodes
-- Verify DNS resolution
 ```
-
-### Phase 2: SQL Server Installation (parallel)
-
-```powershell
-# Job: sql-install-{nodeId}
-# Uses existing silent install pattern from Install-OctofleetAgent.ps1
-
-$config = @"
-[OPTIONS]
-ACTION="Install"
-FEATURES=SQLENGINE,REPLICATION
-INSTANCENAME="MSSQLSERVER"
-SQLSVCACCOUNT="NT Service\MSSQLSERVER"
-SQLSYSADMINACCOUNTS="BUILTIN\Administrators"
-SECURITYMODE="SQL"
-SAPWD="<from-secure-config>"
-TCPENABLED="1"
-NPENABLED="0"
-BROWSERSVCSTARTUPTYPE="Automatic"
-SQLSVCSTARTUPTYPE="Automatic"
-AGTSVCSTARTUPTYPE="Automatic"
-IACCEPTSQLSERVERLICENSETERMS="True"
-QUIET="True"
-QUIETSIMPLE="False"
-UpdateEnabled="False"
-"@
-
-# Download or use cached installer
-# Execute: Setup.exe /ConfigurationFile=config.ini
-```
-
-### Phase 3: Cluster Creation (sequential)
-
-```powershell
-# Job: cluster-create (runs on Primary node only)
-
-# 1. Validate cluster configuration
-Test-Cluster -Node $AllNodes -Include "Inventory","Network","System Configuration"
-
-# 2. Create cluster
-New-Cluster -Name $ClusterName -Node $AllNodes -StaticAddress $ClusterIP -NoStorage
-
-# 3. Configure quorum (Node Majority or Cloud Witness)
-Set-ClusterQuorum -CloudWitness -AccountName $AzureStorageAccount -AccessKey $Key
-# OR
-Set-ClusterQuorum -NodeMajority
-```
-
-### Phase 4: Enable Always On (parallel)
-
-```powershell
-# Job: sql-enable-hadr-{nodeId}
-
-# Enable HADR on SQL instance
-Enable-SqlAlwaysOn -ServerInstance $env:COMPUTERNAME -Force
-
-# Restart SQL Server
-Restart-Service MSSQLSERVER -Force
-
-# Wait for SQL to be ready
-while (!(Test-SqlConnection $env:COMPUTERNAME)) { Start-Sleep 5 }
-```
-
-### Phase 5: Create Availability Group (Primary only)
-
-```powershell
-# Job: ag-create (runs on Primary)
-
-# 1. Create AG endpoint on Primary
-New-SqlHadrEndpoint -Path "SQLSERVER:\SQL\$Primary\Default" `
-    -Name "Hadr_endpoint" -Port 5022 -EncryptionAlgorithm Aes
-Start-SqlHadrEndpoint -Path "SQLSERVER:\SQL\$Primary\Default\Endpoints\Hadr_endpoint"
-
-# 2. Grant connect permissions
-# (for each secondary)
-
-# 3. Create the AG
-$agParams = @{
-    Name = $AGName
-    Database = @()  # Empty initially
-    Replica = @(
-        New-SqlAvailabilityReplica -Name $Primary -EndpointUrl "TCP://${Primary}:5022" `
-            -AvailabilityMode SynchronousCommit -FailoverMode Automatic -AsTemplate
-        # Add secondary replicas...
-    )
-}
-New-SqlAvailabilityGroup @agParams
-
-# 4. Create Listener (optional)
-New-SqlAvailabilityGroupListener -Name $ListenerName -StaticIp $ListenerIP -Port 1433
-```
-
-### Phase 6: Join Secondaries (sequential per secondary)
-
-```powershell
-# Job: ag-join-{nodeId} (runs on each Secondary)
-
-# 1. Create endpoint
-New-SqlHadrEndpoint -Path "SQLSERVER:\SQL\$Secondary\Default" `
-    -Name "Hadr_endpoint" -Port 5022
-
-# 2. Join to AG
-Join-SqlAvailabilityGroup -Path "SQLSERVER:\SQL\$Secondary\Default" -Name $AGName
-```
-
-### Phase 7: Add Initial Database (Primary)
-
-```powershell
-# Job: ag-add-database
-
-# 1. Create database on Primary
-Invoke-Sqlcmd -Query "CREATE DATABASE [$DBName]" -ServerInstance $Primary
-
-# 2. Full backup
-Backup-SqlDatabase -ServerInstance $Primary -Database $DBName -BackupFile "\\share\$DBName.bak"
-
-# 3. Restore on Secondaries (WITH NORECOVERY)
-foreach ($secondary in $Secondaries) {
-    Restore-SqlDatabase -ServerInstance $secondary -Database $DBName `
-        -BackupFile "\\share\$DBName.bak" -NoRecovery
-}
-
-# 4. Add to AG
-Add-SqlAvailabilityDatabase -Path "SQLSERVER:\SQL\$Primary\Default\AvailabilityGroups\$AGName" `
-    -Database $DBName
-
-# 5. Join databases on Secondaries
-foreach ($secondary in $Secondaries) {
-    Add-SqlAvailabilityDatabase -Path "SQLSERVER:\SQL\$secondary\Default\AvailabilityGroups\$AGName" `
-        -Database $DBName
-}
+┌─────────────────────────────────────────────────────────────┐
+│                    Octofleet MSSQL Module                    │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Instances   │  │ Assignments │  │ CU Management       │  │
+│  │ (existing)  │  │ (existing)  │  │ (existing)          │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                    🆕 E21 NEW                        │   │
+│  │  ┌───────────────┐  ┌───────────────┐  ┌─────────┐  │   │
+│  │  │ Clusters      │  │ Avail. Groups │  │Listeners│  │   │
+│  │  │ (WSFC)        │  │ (AG)          │  │         │  │   │
+│  │  └───────────────┘  └───────────────┘  └─────────┘  │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Data Model
+## Neue API Endpoints
 
-### Deployment Configuration
+### Cluster Management
+```
+GET    /api/v1/mssql/clusters                    - List all clusters
+POST   /api/v1/mssql/clusters                    - Create cluster config
+GET    /api/v1/mssql/clusters/{id}               - Get cluster details
+DELETE /api/v1/mssql/clusters/{id}               - Delete cluster config
+POST   /api/v1/mssql/clusters/{id}/deploy        - Deploy/create cluster
+POST   /api/v1/mssql/clusters/{id}/validate      - Run cluster validation
+GET    /api/v1/mssql/clusters/{id}/status        - Get cluster health
+POST   /api/v1/mssql/clusters/{id}/add-node      - Add node to cluster
+POST   /api/v1/mssql/clusters/{id}/remove-node   - Remove node from cluster
+```
+
+### Availability Group Management
+```
+GET    /api/v1/mssql/availability-groups         - List all AGs
+POST   /api/v1/mssql/availability-groups         - Create AG config
+GET    /api/v1/mssql/availability-groups/{id}    - Get AG details
+DELETE /api/v1/mssql/availability-groups/{id}    - Delete AG
+POST   /api/v1/mssql/availability-groups/{id}/deploy      - Deploy AG
+GET    /api/v1/mssql/availability-groups/{id}/status      - AG health/sync status
+POST   /api/v1/mssql/availability-groups/{id}/add-replica - Add secondary
+POST   /api/v1/mssql/availability-groups/{id}/remove-replica - Remove replica
+POST   /api/v1/mssql/availability-groups/{id}/add-database   - Add DB to AG
+POST   /api/v1/mssql/availability-groups/{id}/failover       - Manual failover
+```
+
+### Listener Management
+```
+GET    /api/v1/mssql/listeners                   - List all listeners
+POST   /api/v1/mssql/listeners                   - Create listener
+DELETE /api/v1/mssql/listeners/{id}              - Delete listener
+```
+
+---
+
+## Database Schema (neue Tabellen)
 
 ```sql
--- SQL deployment configurations
-CREATE TABLE sql_deployment_configs (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,              -- "PROD-AG-01"
-    cluster_name VARCHAR(50),                 -- "YOURCLUSTER"
-    ag_name VARCHAR(50),                      -- "AG-PROD-01"
-    sql_version VARCHAR(20) NOT NULL,         -- "2022", "2019"
-    sql_edition VARCHAR(20) NOT NULL,         -- "Developer", "Standard", "Enterprise"
-    primary_node_id VARCHAR(50) REFERENCES nodes(id),
-    listener_name VARCHAR(50),                -- Optional
-    listener_ip VARCHAR(45),                  -- Optional
-    sa_password_encrypted BYTEA,              -- Encrypted SA password
+-- Windows Failover Clusters
+CREATE TABLE mssql_clusters (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) NOT NULL UNIQUE,           -- Cluster Name (NetBIOS)
+    cluster_ip VARCHAR(45),                      -- Static IP
+    quorum_type VARCHAR(20) DEFAULT 'node_majority', -- node_majority, cloud_witness, file_share
+    quorum_config JSONB,                         -- Cloud witness account, file share path
+    status VARCHAR(20) DEFAULT 'configured',     -- configured, deploying, active, failed
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    created_by VARCHAR(50)
+    created_by VARCHAR(100),
+    deployed_at TIMESTAMPTZ,
+    last_health_check TIMESTAMPTZ
 );
 
--- Nodes in a deployment
-CREATE TABLE sql_deployment_nodes (
-    id SERIAL PRIMARY KEY,
-    deployment_id INT REFERENCES sql_deployment_configs(id),
+-- Nodes in cluster
+CREATE TABLE mssql_cluster_nodes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cluster_id UUID REFERENCES mssql_clusters(id) ON DELETE CASCADE,
     node_id VARCHAR(50) REFERENCES nodes(id),
-    role VARCHAR(20) NOT NULL,                -- 'primary', 'secondary'
-    sync_mode VARCHAR(20) DEFAULT 'synchronous', -- 'synchronous', 'asynchronous'
-    failover_mode VARCHAR(20) DEFAULT 'automatic' -- 'automatic', 'manual'
+    role VARCHAR(20) DEFAULT 'member',           -- owner, member
+    join_status VARCHAR(20) DEFAULT 'pending',   -- pending, joined, failed
+    joined_at TIMESTAMPTZ,
+    UNIQUE(cluster_id, node_id)
 );
 
--- Deployment execution tracking
-CREATE TABLE sql_deployments (
-    id SERIAL PRIMARY KEY,
-    config_id INT REFERENCES sql_deployment_configs(id),
-    status VARCHAR(20) NOT NULL,              -- 'pending', 'running', 'completed', 'failed', 'rolled_back'
-    current_phase INT DEFAULT 0,              -- 1-7
+-- Availability Groups
+CREATE TABLE mssql_availability_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) NOT NULL,
+    cluster_id UUID REFERENCES mssql_clusters(id),
+    status VARCHAR(20) DEFAULT 'configured',     -- configured, deploying, active, failed
+    automated_backup_preference VARCHAR(20) DEFAULT 'secondary', -- primary, secondary, secondary_only, none
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR(100),
+    deployed_at TIMESTAMPTZ
+);
+
+-- AG Replicas (links AG to SQL instances)
+CREATE TABLE mssql_ag_replicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ag_id UUID REFERENCES mssql_availability_groups(id) ON DELETE CASCADE,
+    instance_id UUID REFERENCES mssql_instances(id),
+    role VARCHAR(20) NOT NULL,                   -- primary, secondary
+    availability_mode VARCHAR(20) DEFAULT 'synchronous_commit', -- synchronous_commit, asynchronous_commit
+    failover_mode VARCHAR(20) DEFAULT 'automatic', -- automatic, manual
+    endpoint_url VARCHAR(255),                   -- TCP://server:5022
+    sync_state VARCHAR(30),                      -- SYNCHRONIZED, SYNCHRONIZING, NOT_SYNCHRONIZING
+    sync_health VARCHAR(20),                     -- HEALTHY, PARTIALLY_HEALTHY, NOT_HEALTHY
+    last_sync_check TIMESTAMPTZ,
+    UNIQUE(ag_id, instance_id)
+);
+
+-- Databases in AG
+CREATE TABLE mssql_ag_databases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ag_id UUID REFERENCES mssql_availability_groups(id) ON DELETE CASCADE,
+    database_name VARCHAR(255) NOT NULL,
+    primary_replica_id UUID REFERENCES mssql_ag_replicas(id),
+    sync_state VARCHAR(30),                      -- Per-DB sync state
+    added_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(ag_id, database_name)
+);
+
+-- AG Listeners
+CREATE TABLE mssql_listeners (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ag_id UUID REFERENCES mssql_availability_groups(id) ON DELETE CASCADE,
+    dns_name VARCHAR(255) NOT NULL,
+    port INT DEFAULT 1433,
+    ip_addresses JSONB,                          -- Array of static IPs
+    status VARCHAR(20) DEFAULT 'configured',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Deployment jobs for cluster/AG operations
+CREATE TABLE mssql_ha_deployments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deployment_type VARCHAR(20) NOT NULL,        -- cluster, ag, listener
+    target_id UUID NOT NULL,                     -- cluster_id or ag_id
+    status VARCHAR(20) DEFAULT 'pending',        -- pending, running, completed, failed
+    phase INT DEFAULT 0,
+    phases_total INT,
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     error_message TEXT,
     logs JSONB DEFAULT '[]'
 );
-
--- Per-node deployment status
-CREATE TABLE sql_deployment_node_status (
-    id SERIAL PRIMARY KEY,
-    deployment_id INT REFERENCES sql_deployments(id),
-    node_id VARCHAR(50) REFERENCES nodes(id),
-    phase INT NOT NULL,
-    status VARCHAR(20) NOT NULL,              -- 'pending', 'running', 'completed', 'failed'
-    started_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
-    job_instance_id INT REFERENCES job_instances(id),
-    output TEXT
-);
 ```
 
 ---
 
-## UI Mockups
+## Deployment Flows
 
-### 1. Create Deployment Wizard
+### 1. Cluster Creation Flow
+
+```
+User: "Create Cluster YOURCLUSTER with nodes A, B"
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 1: Prerequisites (parallel)       │
+│ - Install Failover-Clustering Feature   │
+│ - Configure Firewall Rules              │
+│ - Verify Network Connectivity           │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 2: Cluster Validation             │
+│ - Test-Cluster on Primary Node          │
+│ - Report any warnings/errors            │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 3: Cluster Creation               │
+│ - New-Cluster on Primary                │
+│ - Configure Quorum                      │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+            ✅ Cluster Active
+```
+
+### 2. Availability Group Creation Flow
+
+```
+User: "Create AG on Cluster YOURCLUSTER"
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Prerequisite: SQL Server installed      │
+│ on all cluster nodes (via existing      │
+│ mssql/install system)                   │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 1: Enable HADR (parallel)         │
+│ - Enable-SqlAlwaysOn on each instance   │
+│ - Restart SQL Services                  │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 2: Create Endpoints (parallel)    │
+│ - New-SqlHadrEndpoint (TCP:5022)        │
+│ - Grant CONNECT permissions             │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 3: Create AG (on Primary)         │
+│ - New-SqlAvailabilityGroup              │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 4: Join Secondaries               │
+│ - Join-SqlAvailabilityGroup             │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 5: Create Listener (optional)     │
+│ - New-SqlAvailabilityGroupListener      │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+            ✅ AG Active
+```
+
+---
+
+## UI Design
+
+### Tab-Erweiterung in `/deployments/mssql`
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🗄️ New SQL Server Deployment                    Step 1/4   │
+│  🗄️ SQL Server Management                                   │
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Deployment Name:  [PROD-SQL-CLUSTER    ]                  │
-│                                                             │
-│  SQL Server Version:                                        │
-│  ○ SQL Server 2019                                         │
-│  ● SQL Server 2022                                         │
-│                                                             │
-│  Edition:                                                   │
-│  ○ Developer (Free, all features, non-production)          │
-│  ● Standard (Up to 2 sync replicas)                        │
-│  ○ Enterprise (Unlimited replicas)                         │
-│                                                             │
-│  SQL Installer Source:                                      │
-│  ○ Download from Microsoft                                 │
-│  ● Network Share: [\\fileserver\sql\     ]                 │
-│  ○ Already installed on nodes                              │
-│                                                             │
-│                                    [Cancel]  [Next →]       │
+│  [Instances] [Assignments] [Updates] [Clusters] [Avail.Grps]│
+│                                       ▲          ▲          │
+│                                       └── NEU ───┘          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Node Selection
+### Clusters Tab
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🗄️ New SQL Server Deployment                    Step 2/4   │
+│  Clusters                                    [+ New Cluster]│
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Select Nodes for Availability Group:                       │
-│                                                             │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │ Node          │ OS              │ RAM   │ Role      │   │
+│  │ Cluster        │ Nodes │ Quorum     │ Status       │   │
 │  ├─────────────────────────────────────────────────────┤   │
-│  │ ☑ CONTROLLER  │ Server 2022     │ 32GB  │ [Primary▼]│   │
-│  │ ☑ BALTASA     │ Server 2019     │ 16GB  │ [Second.▼]│   │
-│  │ ☐ DESKTOP-B4G │ Windows 11 Pro  │ 64GB  │ [-------] │   │
-│  │ ☐ TESTU       │ Ubuntu 22.04    │ 4GB   │ N/A       │   │
+│  │ YOURCLUSTER    │ 2     │ Node Maj.  │ ● Active     │   │
+│  │ TEST-CLUSTER   │ 3     │ Cloud Wit. │ ○ Configured │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
-│  ⚠️ Minimum 2 nodes required for Always On                  │
-│  ℹ️ Enterprise edition required for >2 sync replicas        │
-│                                                             │
-│                              [← Back]  [Cancel]  [Next →]   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 3. Cluster & AG Configuration
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🗄️ New SQL Server Deployment                    Step 3/4   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Windows Cluster:                                           │
-│  Cluster Name:     [YOURCLUSTER      ]                     │
-│  Cluster IP:       [192.168.1.200    ] (static)            │
-│                                                             │
-│  Quorum:                                                    │
-│  ● Node Majority (odd number of nodes)                     │
-│  ○ Cloud Witness (Azure Storage)                           │
-│  ○ File Share Witness: [               ]                   │
-│                                                             │
-│  ─────────────────────────────────────────────────────────  │
-│                                                             │
-│  Availability Group:                                        │
-│  AG Name:          [AG-PROD-01       ]                     │
-│                                                             │
-│  ☑ Create Listener                                         │
-│    Listener DNS:   [sql-prod         ]                     │
-│    Listener IP:    [192.168.1.201    ]                     │
-│    Listener Port:  [1433             ]                     │
-│                                                             │
-│                              [← Back]  [Cancel]  [Next →]   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 4. Review & Deploy
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🗄️ New SQL Server Deployment                    Step 4/4   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Review Configuration:                                      │
-│                                                             │
+│  Cluster Details: YOURCLUSTER                               │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │ SQL Server 2022 Standard                            │   │
-│  │ Cluster: YOURCLUSTER (192.168.1.200)                │   │
-│  │ AG: AG-PROD-01                                      │   │
-│  │ Listener: sql-prod (192.168.1.201:1433)            │   │
-│  │                                                      │   │
-│  │ Nodes:                                              │   │
-│  │   CONTROLLER - Primary (Sync, Auto-failover)        │   │
-│  │   BALTASA - Secondary (Sync, Auto-failover)         │   │
+│  │ Node          │ Role   │ Status  │ Last Heartbeat  │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ CONTROLLER    │ Owner  │ Up      │ 2 sec ago       │   │
+│  │ BALTASA       │ Member │ Up      │ 3 sec ago       │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
-│  SA Password:      [••••••••••••     ] [👁️]               │
-│  Confirm:          [••••••••••••     ]                     │
-│                                                             │
-│  ⚠️ This will install SQL Server and configure clustering   │
-│     on the selected nodes. This may take 30-60 minutes.    │
-│                                                             │
-│                              [← Back]  [Cancel]  [🚀 Deploy]│
+│  [Validate] [Add Node] [Remove Node]                        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 5. Deployment Progress
+### Availability Groups Tab
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🗄️ Deployment: PROD-SQL-CLUSTER                           │
+│  Availability Groups                              [+ New AG]│
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Status: 🔄 Running (Phase 3/7)                            │
-│  Started: 15:30 | Elapsed: 12:45                           │
-│                                                             │
-│  Progress:                                                  │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━░░░░░░░░░░░░░░  65%       │
-│                                                             │
-│  Phases:                                                    │
-│  ✅ 1. Prerequisites          (CONTROLLER, BALTASA)        │
-│  ✅ 2. SQL Installation       (CONTROLLER, BALTASA)        │
-│  🔄 3. Cluster Creation       (CONTROLLER)                 │
-│  ⏳ 4. Enable Always On                                     │
-│  ⏳ 5. Create AG                                            │
-│  ⏳ 6. Join Secondaries                                     │
-│  ⏳ 7. Initial Database                                     │
-│                                                             │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │ Live Log:                                           │   │
-│  │ [15:42:31] Creating cluster YOURCLUSTER...          │   │
-│  │ [15:42:35] Adding node CONTROLLER to cluster        │   │
-│  │ [15:42:38] Adding node BALTASA to cluster           │   │
-│  │ [15:42:45] Configuring quorum (Node Majority)       │   │
-│  │ [15:42:50] Cluster creation completed ✓             │   │
+│  │ AG Name      │ Cluster     │ Replicas │ Health     │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ AG-PROD-01   │ YOURCLUSTER │ 2        │ ● Healthy  │   │
+│  │ AG-REPORT    │ YOURCLUSTER │ 2        │ ⚠️ Lagging │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
-│                                            [Cancel Deploy]  │
+│  AG Details: AG-PROD-01                                     │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Replica     │ Role     │ Mode   │ Sync State       │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ CONTROLLER  │ PRIMARY  │ Sync   │ ● SYNCHRONIZED   │   │
+│  │ BALTASA     │ SECONDARY│ Sync   │ ● SYNCHRONIZED   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  Databases in AG:                                           │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Database    │ Primary Data │ Redo Queue │ Status   │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ ProdDB      │ 15.2 GB      │ 0 KB       │ ● Sync   │   │
+│  │ ReportDB    │ 8.7 GB       │ 128 KB     │ ● Sync   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  Listener: sql-prod.domain.local:1433                       │
+│                                                             │
+│  [Failover] [Add Database] [Add Replica]                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -411,78 +350,120 @@ CREATE TABLE sql_deployment_node_status (
 
 ## Implementation Tickets
 
-### Backend
+### Backend (Python/FastAPI)
 
-| Ticket | Title | Story Points |
-|--------|-------|--------------|
-| E21-01 | SQL deployment config data model | 2 |
-| E21-02 | Deployment orchestration service | 5 |
-| E21-03 | Prerequisites check job type | 3 |
-| E21-04 | SQL silent install job type | 3 |
-| E21-05 | Cluster creation job type | 5 |
-| E21-06 | HADR enable job type | 2 |
-| E21-07 | AG creation job type | 5 |
-| E21-08 | Secondary join job type | 3 |
-| E21-09 | Database add job type | 3 |
-| E21-10 | Deployment rollback logic | 5 |
-| E21-11 | Deployment status API | 2 |
+| Ticket | Title | SP |
+|--------|-------|-----|
+| E21-01 | Cluster tables + migrations | 2 |
+| E21-02 | AG tables + migrations | 2 |
+| E21-03 | GET/POST /clusters endpoints | 3 |
+| E21-04 | Cluster deploy orchestration | 5 |
+| E21-05 | Cluster health status collector | 3 |
+| E21-06 | GET/POST /availability-groups endpoints | 3 |
+| E21-07 | AG deploy orchestration | 5 |
+| E21-08 | AG sync status collector | 3 |
+| E21-09 | Listener endpoints | 2 |
+| E21-10 | Failover endpoint | 3 |
+| E21-11 | Add database to AG endpoint | 3 |
 
-### Agent (PowerShell Modules)
+### Agent Jobs (PowerShell)
 
-| Ticket | Title | Story Points |
-|--------|-------|--------------|
-| E21-20 | Install-SqlServerSilent.ps1 | 3 |
+| Ticket | Title | SP |
+|--------|-------|-----|
+| E21-20 | Install-FailoverClusteringFeature.ps1 | 2 |
 | E21-21 | New-FailoverCluster.ps1 | 3 |
-| E21-22 | Enable-SqlHadr.ps1 | 2 |
-| E21-23 | New-AvailabilityGroup.ps1 | 5 |
-| E21-24 | Join-AvailabilityGroup.ps1 | 2 |
-| E21-25 | Add-DatabaseToAG.ps1 | 3 |
+| E21-22 | Test-ClusterValidation.ps1 | 2 |
+| E21-23 | Enable-SqlHadr.ps1 | 2 |
+| E21-24 | New-AvailabilityGroup.ps1 | 3 |
+| E21-25 | Join-AvailabilityGroup.ps1 | 2 |
+| E21-26 | Add-DatabaseToAG.ps1 | 2 |
+| E21-27 | Get-ClusterHealth.ps1 | 2 |
+| E21-28 | Get-AGSyncStatus.ps1 | 2 |
 
-### Frontend
+### Frontend (React/Next.js)
 
-| Ticket | Title | Story Points |
-|--------|-------|--------------|
-| E21-30 | Deployment wizard UI | 5 |
-| E21-31 | Node selection component | 2 |
-| E21-32 | Deployment progress page | 3 |
-| E21-33 | Deployment history list | 2 |
+| Ticket | Title | SP |
+|--------|-------|-----|
+| E21-30 | Clusters Tab UI | 3 |
+| E21-31 | Create Cluster Dialog | 3 |
+| E21-32 | Cluster Detail View | 2 |
+| E21-33 | Availability Groups Tab UI | 3 |
+| E21-34 | Create AG Dialog | 3 |
+| E21-35 | AG Detail View + Sync Status | 3 |
+| E21-36 | Failover Confirmation Dialog | 2 |
+| E21-37 | Add Database Dialog | 2 |
 
-### Total: ~60 Story Points
-
----
-
-## Prerequisites
-
-- [ ] E19 Remote Shell (for debugging deployments)
-- [ ] E20 SQL Monitoring (post-deployment validation)
-- [ ] Network share for SQL installer / backups
-- [ ] Service account with admin rights on target nodes
-- [ ] Static IPs for Cluster & Listener
+### Total: ~70 Story Points
 
 ---
 
-## Risks & Mitigations
+## Integration mit bestehendem System
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| SQL install fails on one node | Medium | Retry logic, detailed error logging |
-| Cluster validation fails | High | Pre-check network/DNS before deploy |
-| Firewall blocks AG sync | High | Automated firewall rule creation |
-| Insufficient disk space | Medium | Pre-check disk space requirements |
-| Node reboots during deploy | High | Resume capability, state tracking |
+### Abhängigkeiten
+```
+┌─────────────────┐
+│ mssql_configs   │ ← Bestehend: SQL Installation Config
+└────────┬────────┘
+         │ verwendet für
+         ▼
+┌─────────────────┐
+│ mssql_instances │ ← Bestehend: Installierte SQL Server
+└────────┬────────┘
+         │ gruppiert in
+         ▼
+┌─────────────────┐
+│ mssql_clusters  │ ← NEU: Windows Failover Cluster
+└────────┬────────┘
+         │ hostet
+         ▼
+┌─────────────────┐
+│ mssql_ag        │ ← NEU: Availability Groups
+└────────┬────────┘
+         │ enthält
+         ▼
+┌─────────────────┐
+│ mssql_ag_dbs    │ ← NEU: Datenbanken in AG
+└─────────────────┘
+```
+
+### Workflow
+1. **Existierend:** SQL Server auf Nodes installieren (via `/mssql/install`)
+2. **NEU:** Cluster aus diesen Nodes erstellen (via `/mssql/clusters`)
+3. **NEU:** AG auf Cluster erstellen (via `/mssql/availability-groups`)
+4. **NEU:** Datenbanken zu AG hinzufügen
 
 ---
 
-## Open Questions
+## Health Monitoring (nutzt E20)
 
-1. **SQL Installer Source** - Download vs network share vs pre-staged?
-2. **Service Accounts** - Local system vs domain accounts?
-3. **Licensing** - How to handle license keys? (Dev edition = no key)
-4. **Backup Share** - Required for AG database init - where?
-5. **DNS** - Auto-create DNS records for listener?
+Nach Deployment übernimmt E20 (SQL Monitoring) das Health Tracking:
+- AG Sync Status alle 30 Sekunden
+- Cluster Heartbeat
+- Redo Queue Monitoring
+- Alerting bei Problemen
 
 ---
 
-*Epic Created: 2026-02-20*  
+## Risiken & Mitigations
+
+| Risiko | Impact | Mitigation |
+|--------|--------|------------|
+| Cluster-Validation schlägt fehl | Hoch | Detaillierte Fehlerausgabe, Retry |
+| AG Sync bricht ab | Mittel | Auto-Resume, Alert |
+| Failover schlägt fehl | Hoch | Pre-Flight Checks, Confirmation |
+| Netzwerk zwischen Nodes | Hoch | Prereq-Check vor Deployment |
+
+---
+
+## Offene Fragen
+
+1. **Quorum:** Cloud Witness (Azure Storage) oder File Share?
+2. **Backup Share:** Für Initial DB Sync - wo?
+3. **DNS:** Listener DNS automatisch erstellen?
+4. **Seeding:** Automatic Seeding (2016+) vs. Manual Backup/Restore?
+
+---
+
+*Epic Updated: 2026-02-20*  
 *Status: Planning*  
-*Owner: TBD*
+*Builds on: Existing MSSQL Module*
