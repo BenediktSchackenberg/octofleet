@@ -10,6 +10,122 @@
 
 ---
 
+## Bereits vorhanden ✅
+
+### ISO Depot
+- `\\BALTASA\ISOs\` - SQL Server ISOs (2022, 2025)
+- `\\BALTASA\iso\` - Weitere ISOs
+- Package Sources API für SMB/HTTP/Local
+
+### Disk Design (mssql_module.py → DiskConfig)
+```python
+class DiskConfig(BaseModel):
+    purpose: str       # data, log, tempdb, backup
+    driveLetter: str   # D, E, F, G
+    volumeLabel: str   # SQL_Data, SQL_Log, etc.
+    allocationUnitKb: int = 64
+    folder: str        # Folder to create
+```
+
+### SQL Server Installation
+- Silent Install via ConfigurationFile.ini
+- Disk Preparation (Format, Mount)
+- Features: SQLEngine, Replication, etc.
+
+---
+
+## Neue Konfigurationsoptionen
+
+### Service Accounts
+
+```python
+class ServiceAccountConfig(BaseModel):
+    account_type: str  # "local", "domain", "gmsa"
+    
+    # Für domain account:
+    sql_service_account: str      # "DOMAIN\\sqlsvc"
+    sql_service_password: str     # encrypted
+    agent_service_account: str    # "DOMAIN\\sqlagent"
+    agent_service_password: str   # encrypted
+    
+    # Für gMSA (Group Managed Service Account):
+    sql_gmsa: str                 # "DOMAIN\\sqlsvc$"
+    agent_gmsa: str               # "DOMAIN\\sqlagent$"
+```
+
+**UI Auswahl:**
+```
+Service Account Type:
+○ Local System (NT Service\MSSQLSERVER)
+○ Domain Account
+   SQL Service:   [YOURDOM\sqlsvc    ] Password: [••••••••]
+   SQL Agent:     [YOURDOM\sqlagent  ] Password: [••••••••]
+● Group Managed Service Account (gMSA)
+   SQL Service:   [YOURDOM\sqlsvc$   ]
+   SQL Agent:     [YOURDOM\sqlagent$ ]
+```
+
+### Disk Design Presets
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Disk Layout                                                │
+├─────────────────────────────────────────────────────────────┤
+│  Preset: [Standard (4 Disks) ▼]                            │
+│                                                             │
+│  ○ Minimal (1 Disk)     - Alles auf C:\                    │
+│  ○ Basic (2 Disks)      - Data+Log auf D:\                 │
+│  ● Standard (4 Disks)   - Best Practice                    │
+│  ○ Custom               - Manuelle Konfiguration           │
+│                                                             │
+│  Standard Layout:                                           │
+│  ┌────────┬────────┬──────────┬─────────────────────────┐  │
+│  │ Disk   │ Letter │ Label    │ Purpose                 │  │
+│  ├────────┼────────┼──────────┼─────────────────────────┤  │
+│  │ Disk 1 │ D:     │ SQL_Data │ User Databases (.mdf)   │  │
+│  │ Disk 2 │ E:     │ SQL_Log  │ Transaction Logs (.ldf) │  │
+│  │ Disk 3 │ F:     │ SQL_Temp │ TempDB                  │  │
+│  │ Disk 4 │ G:     │ SQL_Bak  │ Backups                 │  │
+│  └────────┴────────┴──────────┴─────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Failover Cluster Feature (Auto-Install)
+
+Wird automatisch auf allen Cluster-Nodes installiert:
+```powershell
+# Phase 1: Install Feature (parallel auf allen Nodes)
+Install-WindowsFeature -Name Failover-Clustering -IncludeManagementTools
+Install-WindowsFeature -Name RSAT-Clustering-PowerShell
+```
+
+### Quorum: File Share Witness
+
+```python
+class QuorumConfig(BaseModel):
+    quorum_type: str = "file_share"  # "node_majority", "file_share", "cloud_witness"
+    
+    # File Share Witness
+    file_share_path: str  # "\\\\FILESERVER\\ClusterQuorum"
+```
+
+**UI:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Cluster Quorum                                             │
+├─────────────────────────────────────────────────────────────┤
+│  Quorum Type:                                               │
+│  ○ Node Majority (ungerade Anzahl Nodes empfohlen)         │
+│  ● File Share Witness                                       │
+│    Share Path: [\\BALTASA\ClusterQuorum  ] [Browse]        │
+│  ○ Cloud Witness (Azure Storage)                           │
+│    Account:    [                         ]                  │
+│    Key:        [                         ]                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Bestehendes System (bereits implementiert ✅)
 
 ### API Endpoints (28 vorhanden):
@@ -199,23 +315,34 @@ User: "Create Cluster YOURCLUSTER with nodes A, B"
                     ▼
 ┌─────────────────────────────────────────┐
 │ Phase 1: Prerequisites (parallel)       │
-│ - Install Failover-Clustering Feature   │
-│ - Configure Firewall Rules              │
+│ - Install-WindowsFeature Failover-      │
+│   Clustering, RSAT-Clustering-PowerShell│
+│ - Configure Firewall Rules (UDP 3343,   │
+│   TCP 135, 445, 5985, dynamic RPC)      │
 │ - Verify Network Connectivity           │
+│ - Verify DNS Resolution                 │
 └─────────────────────────────────────────┘
                     │
                     ▼
 ┌─────────────────────────────────────────┐
 │ Phase 2: Cluster Validation             │
-│ - Test-Cluster on Primary Node          │
-│ - Report any warnings/errors            │
+│ - Test-Cluster -Node $Nodes             │
+│ - Report warnings/errors                │
+│ - User must acknowledge before proceed  │
 └─────────────────────────────────────────┘
                     │
                     ▼
 ┌─────────────────────────────────────────┐
 │ Phase 3: Cluster Creation               │
-│ - New-Cluster on Primary                │
-│ - Configure Quorum                      │
+│ - New-Cluster -Name $Name -Node $Nodes  │
+│   -StaticAddress $ClusterIP -NoStorage  │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│ Phase 4: Configure Quorum               │
+│ - Set-ClusterQuorum -FileShareWitness   │
+│   -Path "\\FILESERVER\ClusterQuorum"    │
 └─────────────────────────────────────────┘
                     │
                     ▼
@@ -231,7 +358,9 @@ User: "Create AG on Cluster YOURCLUSTER"
 ┌─────────────────────────────────────────┐
 │ Prerequisite: SQL Server installed      │
 │ on all cluster nodes (via existing      │
-│ mssql/install system)                   │
+│ mssql/install system) with:             │
+│ - Service Accounts (Domain/gMSA)        │
+│ - Disk Layout (Data/Log/TempDB/Backup)  │
 └─────────────────────────────────────────┘
                     │
                     ▼
