@@ -78,7 +78,7 @@
 <td width="50%">
 
 ### 🖥️ Remote Access
-- Screen mirroring (live view)
+- **Screen mirroring (live view)** — NEW in v0.5.0!
 - Remote terminal in browser
 - Event log viewer
 - Discord alert notifications
@@ -137,6 +137,41 @@ curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/
 ```
 
 📖 **[Full Installation Guide →](../../wiki/Installation)**
+
+---
+
+## 🖥️ Screen Sharing (NEW in v0.5.0)
+
+Remote screen viewing with low latency JPEG streaming:
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   Browser   │◄──WSS──►│   Backend   │◄──HTTP──│   Agent     │
+│ (Viewer UI) │         │  (FastAPI)  │         │  (Service)  │
+└─────────────┘         └─────────────┘         └──────┬──────┘
+                                                       │ Named Pipe
+                                                ┌──────▼──────┐
+                                                │ ScreenHelper│
+                                                │ (User Sess) │
+                                                └─────────────┘
+```
+
+### How it works:
+1. **OctofleetScreenHelper.exe** runs in the user session (with tray icon)
+2. **OctofleetAgent.Service** connects via Named Pipe IPC
+3. **Backend** streams JPEG frames to browser via WebSocket
+
+### Auto-Start:
+The helper starts automatically at user login via Windows Run key:
+```
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\OctofleetScreenHelper
+```
+
+### Manual Test:
+```powershell
+# Start helper manually (for development)
+.\src\OctofleetScreenHelper\bin\Debug\net8.0-windows\OctofleetScreenHelper.exe
+```
 
 ---
 
