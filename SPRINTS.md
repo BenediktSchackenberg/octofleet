@@ -17,7 +17,7 @@
 | S1-01 | System Tray Icon + Minimize to Tray | High | 🔲 Todo | Use Hardcodet.NotifyIcon.Wpf |
 | S1-02 | Service auto-reconnect on disconnect | High | 🔲 Todo | Exponential backoff |
 | S1-03 | Scheduled inventory.push (configurable interval) | High | 🔲 Todo | Default: 30 min |
-| S1-04 | Service logging to file | Medium | 🔲 Todo | `C:\ProgramData\OpenClaw\logs\` |
+| S1-04 | Service logging to file | Medium | 🔲 Todo | `C:\ProgramData\Octofleet\logs\` |
 | S1-05 | Test full workflow on clean Windows install | Medium | 🔲 Todo | Document any missing deps |
 | S1-06 | Version bump to 0.3.0 | Low | 🔲 Todo | After sprint complete |
 
@@ -87,7 +87,7 @@
 | S0-26 | Node Detail Page (7 Tabs) | Frontend | ✅ Done | `99b6406` |
 | S0-27 | systemd Services (Backend + Frontend) | Infra | ✅ Done | `99b6406` |
 | S0-28 | Segoe Fluent Icons UI Overhaul | Agent | ✅ Done | `52fdaa8` |
-| S0-29 | App Icon (openclaw.ico) | Agent | ✅ Done | `52fdaa8` |
+| S0-29 | App Icon (octofleet.ico) | Agent | ✅ Done | `52fdaa8` |
 | S0-30 | Anonymous Types → DTOs Fix | Service | ✅ Done | `9533ea9` |
 | S0-31 | Gateway allowCommands Config für inventory.* | Config | ✅ Done | Config |
 | S0-32 | Backend nested format handling (submit_full) | Backend | ✅ Done | `b4d1193` |

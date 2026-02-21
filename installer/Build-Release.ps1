@@ -89,7 +89,7 @@ Write-Host ""
 Write-Host "Output: $outputZip" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "To create a GitHub release manually:" -ForegroundColor Gray
-Write-Host "  1. Go to: https://github.com/BenediktSchackenberg/openclaw-windows-agent/releases/new" -ForegroundColor Gray
+Write-Host "  1. Go to: https://github.com/BenediktSchackenberg/octofleet/releases/new" -ForegroundColor Gray
 Write-Host "  2. Tag: v$Version" -ForegroundColor Gray
 Write-Host "  3. Upload: $outputZip" -ForegroundColor Gray
 Write-Host ""
