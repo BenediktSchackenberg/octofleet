@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TEMPLATE: Replace {{PASSWORD}} and {{DOMAIN_PASSWORD}} with actual values -->
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+    <settings pass="windowsPE">
+        <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <SetupUILanguage><UILanguage>de-DE</UILanguage></SetupUILanguage>
+            <InputLocale>de-DE</InputLocale>
+            <SystemLocale>de-DE</SystemLocale>
+            <UILanguage>de-DE</UILanguage>
+            <UserLocale>de-DE</UserLocale>
+        </component>
+        <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <UserData>
+                <AcceptEula>true</AcceptEula>
+                <ProductKey><WillShowUI>OnError</WillShowUI></ProductKey>
+            </UserData>
+        </component>
+    </settings>
+    <settings pass="specialize">
+        <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <ComputerName>*</ComputerName>
+            <TimeZone>W. Europe Standard Time</TimeZone>
+        </component>
+        <component name="Microsoft-Windows-UnattendedJoin" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <Identification>
+                <JoinDomain>{{DOMAIN}}</JoinDomain>
+                <Credentials>
+                    <Domain>{{DOMAIN_NETBIOS}}</Domain>
+                    <Username>{{DOMAIN_USER}}</Username>
+                    <Password>{{DOMAIN_PASSWORD}}</Password>
+                </Credentials>
+            </Identification>
+        </component>
+    </settings>
+    <settings pass="oobeSystem">
+        <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <OOBE>
+                <HideEULAPage>true</HideEULAPage>
+                <HideLocalAccountScreen>true</HideLocalAccountScreen>
+                <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+                <SkipMachineOOBE>true</SkipMachineOOBE>
+                <SkipUserOOBE>true</SkipUserOOBE>
+            </OOBE>
+            <UserAccounts>
+                <AdministratorPassword>
+                    <Value>{{PASSWORD}}</Value>
+                    <PlainText>true</PlainText>
+                </AdministratorPassword>
+            </UserAccounts>
+            <TimeZone>W. Europe Standard Time</TimeZone>
+        </component>
+    </settings>
+</unattend>
