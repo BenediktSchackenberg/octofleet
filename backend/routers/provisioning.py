@@ -5,12 +5,13 @@ E19: PXE Zero-Touch Provisioning
 
 from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 import asyncpg
 import uuid
 import re
 import os
+import json
 
 from dependencies import get_db
 
@@ -69,8 +70,23 @@ class ProvisioningTaskOut(BaseModel):
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
 
+class TaskEventCreate(BaseModel):
+    """Status callback from provisioning client"""
+    event: Literal['booted', 'downloading', 'partitioning', 'applying', 'configuring', 'firstboot', 'done', 'failed']
+    message: Optional[str] = None
+    progress: Optional[int] = Field(None, ge=0, le=100)
+    error: Optional[str] = None
+
+class TaskEventOut(BaseModel):
+    id: str
+    task_id: str
+    event: str
+    message: Optional[str]
+    progress: Optional[int]
+    created_at: datetime
+
 # ============================================
-# API Endpoints
+# API Endpoints - Images & Templates
 # ============================================
 
 @router.get("/images", response_model=List[ProvisioningImageOut])
@@ -99,7 +115,6 @@ async def list_images(active_only: bool = True, db: asyncpg.Pool = Depends(get_d
 @router.get("/templates", response_model=List[ProvisioningTemplateOut])
 async def list_templates(db: asyncpg.Pool = Depends(get_db)):
     """List available platform templates"""
-    import json
     rows = await db.fetch("""
         SELECT platform, display_name, ipxe_template, drivers, notes, is_active
         FROM provisioning_templates
@@ -114,6 +129,10 @@ async def list_templates(db: asyncpg.Pool = Depends(get_db)):
         "notes": row.get("notes"),
         "is_active": row["is_active"],
     } for row in rows]
+
+# ============================================
+# API Endpoints - Tasks CRUD
+# ============================================
 
 @router.get("/tasks", response_model=List[ProvisioningTaskOut])
 async def list_tasks(status: Optional[str] = None, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
@@ -134,6 +153,21 @@ async def list_tasks(status: Optional[str] = None, limit: int = 50, db: asyncpg.
     
     rows = await db.fetch(query, *params)
     return [_task_to_dict(row) for row in rows]
+
+@router.get("/tasks/{task_id}", response_model=ProvisioningTaskOut)
+async def get_task(task_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get a single provisioning task by ID"""
+    row = await db.fetchrow("""
+        SELECT t.*, i.name as image_name, i.display_name as image_display_name
+        FROM provisioning_tasks t
+        LEFT JOIN provisioning_images i ON t.image_id = i.id
+        WHERE t.id = $1
+    """, task_id)
+    
+    if not row:
+        raise HTTPException(404, "Task not found")
+    
+    return _task_to_dict(row)
 
 @router.post("/tasks", response_model=ProvisioningTaskOut)
 async def create_task(task: ProvisioningTaskCreate, db: asyncpg.Pool = Depends(get_db)):
@@ -180,37 +214,229 @@ async def delete_task(task_id: str, db: asyncpg.Pool = Depends(get_db)):
     return {"status": "deleted"}
 
 # ============================================
-# PXE API - Dynamic iPXE Script Generation
+# Status Callbacks API (#71)
+# ============================================
+
+@router.post("/tasks/{task_id}/events", response_model=TaskEventOut)
+async def create_task_event(task_id: str, event: TaskEventCreate, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Receive status callback from provisioning client.
+    Called by WinPE/installer scripts during deployment.
+    
+    Events: booted, downloading, partitioning, applying, configuring, firstboot, done, failed
+    """
+    # Verify task exists
+    task = await db.fetchrow("SELECT id, status FROM provisioning_tasks WHERE id = $1", task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    
+    # Map event to task status
+    event_to_status = {
+        'booted': 'booting',
+        'downloading': 'installing',
+        'partitioning': 'installing',
+        'applying': 'installing',
+        'configuring': 'installing',
+        'firstboot': 'installing',
+        'done': 'completed',
+        'failed': 'failed',
+    }
+    
+    # Map event to default progress
+    event_to_progress = {
+        'booted': 5,
+        'downloading': 15,
+        'partitioning': 25,
+        'applying': 50,
+        'configuring': 85,
+        'firstboot': 95,
+        'done': 100,
+        'failed': None,  # Keep current progress
+    }
+    
+    new_status = event_to_status.get(event.event, task['status'])
+    progress = event.progress if event.progress is not None else event_to_progress.get(event.event)
+    
+    # Create event record
+    event_id = str(uuid.uuid4())
+    await db.execute("""
+        INSERT INTO provisioning_task_events (id, task_id, event, message, progress)
+        VALUES ($1, $2, $3, $4, $5)
+    """, event_id, task_id, event.event, event.message or event.error, progress)
+    
+    # Update task status and progress
+    update_parts = ["status = $2", "status_message = $3"]
+    update_params = [task_id, new_status, event.message or event.error or event.event]
+    
+    if progress is not None:
+        update_parts.append(f"progress_percent = ${len(update_params) + 1}")
+        update_params.append(progress)
+    
+    if event.event == 'done':
+        update_parts.append(f"completed_at = NOW()")
+    elif event.event == 'failed':
+        update_parts.append(f"completed_at = NOW()")
+    elif event.event == 'booted' and task['status'] == 'pending':
+        update_parts.append(f"started_at = NOW()")
+    
+    await db.execute(f"""
+        UPDATE provisioning_tasks 
+        SET {', '.join(update_parts)}
+        WHERE id = $1
+    """, *update_params)
+    
+    # Fetch created event
+    row = await db.fetchrow("""
+        SELECT id, task_id, event, message, progress, created_at
+        FROM provisioning_task_events WHERE id = $1
+    """, event_id)
+    
+    return {
+        "id": str(row['id']),
+        "task_id": str(row['task_id']),
+        "event": row['event'],
+        "message": row.get('message'),
+        "progress": row.get('progress'),
+        "created_at": row['created_at'],
+    }
+
+@router.get("/tasks/{task_id}/events", response_model=List[TaskEventOut])
+async def list_task_events(task_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get all events/callbacks for a task"""
+    # Verify task exists
+    task = await db.fetchrow("SELECT id FROM provisioning_tasks WHERE id = $1", task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    
+    rows = await db.fetch("""
+        SELECT id, task_id, event, message, progress, created_at
+        FROM provisioning_task_events
+        WHERE task_id = $1
+        ORDER BY created_at ASC
+    """, task_id)
+    
+    return [{
+        "id": str(row['id']),
+        "task_id": str(row['task_id']),
+        "event": row['event'],
+        "message": row.get('message'),
+        "progress": row.get('progress'),
+        "created_at": row['created_at'],
+    } for row in rows]
+
+# ============================================
+# PXE API - Dynamic iPXE Script Generation (#72)
 # ============================================
 
 @pxe_router.get("/{mac}")
 async def get_pxe_script(mac: str, db: asyncpg.Pool = Depends(get_db)):
-    """Generate iPXE script for a specific MAC address"""
-    mac = mac.upper().replace('-', ':')
+    """
+    Generate iPXE script for a specific MAC address.
+    Called by iPXE bootloader during PXE boot.
     
+    Returns:
+    - Provisioning script if task exists
+    - Fallback script (inventory/rescue) if no task
+    """
+    mac = mac.upper().replace('-', ':').replace('.', ':')
+    
+    # Find pending task for this MAC
     task = await db.fetchrow("""
-        SELECT t.*, i.wim_path, i.wim_index, p.ipxe_template
+        SELECT t.*, i.wim_path, i.wim_index, i.os_type, p.ipxe_template
         FROM provisioning_tasks t
         JOIN provisioning_images i ON t.image_id = i.id
         JOIN provisioning_templates p ON t.platform::text = p.platform::text
         WHERE t.mac_address = $1 AND t.status = 'pending'
     """, mac)
     
-    if not task:
-        return Response(content="#!ipxe\necho No provisioning task for this MAC\nexit\n", media_type="text/plain")
-    
-    await db.execute("UPDATE provisioning_tasks SET status = 'booting', started_at = NOW() WHERE mac_address = $1", mac)
-    
     pxe_server = os.environ.get('PXE_SERVER', 'http://192.168.0.5:9080')
+    api_server = os.environ.get('API_SERVER', 'http://192.168.0.5:8080')
+    
+    if not task:
+        # No task - return fallback/info screen
+        fallback_script = f"""#!ipxe
+# Octofleet PXE - No provisioning task for this MAC
+# MAC: {mac}
+
+echo
+echo ========================================
+echo   Octofleet PXE Boot
+echo ========================================
+echo
+echo MAC Address: {mac}
+echo No provisioning task found.
+echo
+echo To provision this machine:
+echo   1. Go to Octofleet Web UI
+echo   2. Create a new provisioning task
+echo   3. Enter this MAC address
+echo   4. Reboot this machine
+echo
+echo Booting from local disk in 30 seconds...
+echo Press any key to retry PXE boot.
+echo
+sleep 30 || chain {pxe_server}/boot.ipxe
+exit
+"""
+        return Response(content=fallback_script, media_type="text/plain")
+    
+    # Mark task as booting
+    await db.execute("""
+        UPDATE provisioning_tasks 
+        SET status = 'booting', started_at = NOW(), status_message = 'iPXE script delivered'
+        WHERE mac_address = $1
+    """, mac)
+    
+    # Get template and substitute variables
     script = task['ipxe_template']
-    script = script.replace('${PXE_SERVER}', pxe_server)
-    script = script.replace('${MAC}', mac.lower().replace(':', '-'))
-    script = script.replace('${IMAGE_PATH}', task['wim_path'])
-    script = script.replace('${IMAGE_INDEX}', str(task['wim_index']))
+    
+    # Variable substitutions
+    substitutions = {
+        '${PXE_SERVER}': pxe_server,
+        '${API_SERVER}': api_server,
+        '${MAC}': mac.lower().replace(':', '-'),
+        '${MAC_COLON}': mac,
+        '${IMAGE_PATH}': task['wim_path'],
+        '${IMAGE_INDEX}': str(task['wim_index']),
+        '${TASK_ID}': str(task['id']),
+        '${HOSTNAME}': task['hostname'] or 'localhost',
+        '${OS_TYPE}': task.get('os_type') or 'windows',
+    }
+    
+    for var, value in substitutions.items():
+        script = script.replace(var, value)
     
     return Response(content=script, media_type="text/plain")
 
-# Helper function
+@pxe_router.get("/")
+async def get_default_pxe():
+    """Default iPXE script - chainload to MAC-specific script"""
+    pxe_server = os.environ.get('PXE_SERVER', 'http://192.168.0.5:9080')
+    api_server = os.environ.get('API_SERVER', 'http://192.168.0.5:8080')
+    
+    script = f"""#!ipxe
+# Octofleet PXE Bootloader
+# Chainloads to MAC-specific provisioning script
+
+echo Octofleet PXE Boot
+echo MAC: ${{net0/mac}}
+
+# Fetch MAC-specific script from API
+chain {api_server}/api/v1/pxe/${{net0/mac}} || goto fallback
+
+:fallback
+echo
+echo Failed to fetch provisioning script.
+echo Retrying in 10 seconds...
+sleep 10
+goto start
+"""
+    return Response(content=script, media_type="text/plain")
+
+# ============================================
+# Helper Functions
+# ============================================
+
 def _task_to_dict(row) -> dict:
     return {
         "id": str(row['id']),
