@@ -1,7 +1,7 @@
 # 🐙 Octofleet
 
 <p align="center">
-  <img src="docs/octofleet-banner.svg" alt="Octofleet Banner" width="800">
+  <img src="docs/images/octofleet-logo-v3.png" alt="Octofleet Banner" width="800">
 </p>
 
 <p align="center">
