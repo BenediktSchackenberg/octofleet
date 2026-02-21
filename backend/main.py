@@ -12958,3 +12958,228 @@ async def list_windows_editions(api_key: str = Depends(verify_api_key)):
             {"id": "Windows Server 2025 SERVERDATACENTER", "name": "Windows Server 2025 Datacenter (Desktop)"},
         ]
     }
+
+
+# ============================================
+# PXE API - Dynamic iPXE Script Generation (#72)
+# ============================================
+
+@app.get("/api/v1/pxe/{mac}", tags=["PXE"])
+async def get_pxe_script(mac: str, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Generate iPXE script for a specific MAC address.
+    Called by iPXE bootloader during PXE boot.
+    """
+    mac = mac.upper().replace("-", ":").replace(".", ":")
+    
+    # Find pending task for this MAC
+    task = await db.fetchrow("""
+        SELECT t.*, i.wim_path, i.wim_index, i.os_type, p.ipxe_template
+        FROM provisioning_tasks t
+        JOIN provisioning_images i ON t.image_id = i.id
+        JOIN provisioning_templates p ON t.platform::text = p.platform::text
+        WHERE t.mac_address = $1 AND t.status = 'pending'
+    """, mac)
+    
+    pxe_server = os.environ.get("PXE_SERVER", "http://192.168.0.5:9080")
+    api_server = os.environ.get("API_SERVER", "http://192.168.0.5:8080")
+    
+    if not task:
+        # No task - return fallback/info screen
+        from fastapi.responses import PlainTextResponse
+        fallback_script = f"""#!ipxe
+# Octofleet PXE - No provisioning task for this MAC
+# MAC: {mac}
+
+echo
+echo ========================================
+echo   Octofleet PXE Boot
+echo ========================================
+echo
+echo MAC Address: {mac}
+echo No provisioning task found.
+echo
+echo To provision this machine:
+echo   1. Go to Octofleet Web UI
+echo   2. Create a new provisioning task
+echo   3. Enter this MAC address
+echo   4. Reboot this machine
+echo
+echo Booting from local disk in 30 seconds...
+sleep 30
+exit
+"""
+        return PlainTextResponse(content=fallback_script)
+    
+    # Mark task as booting
+    await db.execute("""
+        UPDATE provisioning_tasks 
+        SET status = 'booting', started_at = NOW(), status_message = 'iPXE script delivered'
+        WHERE mac_address = $1
+    """, mac)
+    
+    # Get template and substitute variables
+    script = task["ipxe_template"]
+    
+    # Variable substitutions
+    substitutions = {
+        "${PXE_SERVER}": pxe_server,
+        "${API_SERVER}": api_server,
+        "${MAC}": mac.lower().replace(":", "-"),
+        "${MAC_COLON}": mac,
+        "${IMAGE_PATH}": task["wim_path"],
+        "${IMAGE_INDEX}": str(task["wim_index"]),
+        "${TASK_ID}": str(task["id"]),
+        "${HOSTNAME}": task["hostname"] or "localhost",
+        "${OS_TYPE}": task.get("os_type") or "windows",
+    }
+    
+    for var, value in substitutions.items():
+        script = script.replace(var, value)
+    
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(content=script)
+
+
+@app.get("/api/v1/pxe", tags=["PXE"])
+async def get_default_pxe():
+    """Default iPXE script - chainload to MAC-specific script"""
+    pxe_server = os.environ.get("PXE_SERVER", "http://192.168.0.5:9080")
+    api_server = os.environ.get("API_SERVER", "http://192.168.0.5:8080")
+    
+    from fastapi.responses import PlainTextResponse
+    script = f"""#!ipxe
+# Octofleet PXE Bootloader
+# Chainloads to MAC-specific provisioning script
+
+echo Octofleet PXE Boot
+echo MAC: ${{net0/mac}}
+
+# Fetch MAC-specific script from API
+chain {api_server}/api/v1/pxe/${{net0/mac}} || goto fallback
+
+:fallback
+echo
+echo Failed to fetch provisioning script.
+echo Retrying in 10 seconds...
+sleep 10
+goto start
+"""
+    return PlainTextResponse(content=script)
+
+
+# ============================================
+# Status Callbacks API (#71)
+# ============================================
+
+class TaskEventCreate(BaseModel):
+    """Status callback from provisioning client"""
+    event: str = Field(..., description="Event type: booted, downloading, partitioning, applying, configuring, firstboot, done, failed")
+    message: Optional[str] = None
+    progress: Optional[int] = Field(None, ge=0, le=100)
+    error: Optional[str] = None
+
+
+@app.post("/api/v1/provisioning/tasks/{task_id}/events", tags=["Provisioning"])
+async def create_task_event(task_id: str, event: TaskEventCreate, db: asyncpg.Pool = Depends(get_db)):
+    """
+    Receive status callback from provisioning client.
+    Called by WinPE/installer scripts during deployment.
+    """
+    # Verify task exists
+    task = await db.fetchrow("SELECT id, status FROM provisioning_tasks WHERE id = $1", task_id)
+    if not task:
+        raise not_found("Task not found")
+    
+    # Map event to task status
+    event_to_status = {
+        "booted": "booting",
+        "downloading": "installing",
+        "partitioning": "installing",
+        "applying": "installing",
+        "configuring": "installing",
+        "firstboot": "installing",
+        "done": "completed",
+        "failed": "failed",
+    }
+    
+    # Map event to default progress
+    event_to_progress = {
+        "booted": 5,
+        "downloading": 15,
+        "partitioning": 25,
+        "applying": 50,
+        "configuring": 85,
+        "firstboot": 95,
+        "done": 100,
+        "failed": None,
+    }
+    
+    new_status = event_to_status.get(event.event, str(task["status"]))
+    progress = event.progress if event.progress is not None else event_to_progress.get(event.event)
+    
+    # Create event record
+    event_id = str(uuid.uuid4())
+    await db.execute("""
+        INSERT INTO provisioning_task_events (id, task_id, event, message, progress)
+        VALUES ($1, $2, $3, $4, $5)
+    """, event_id, task_id, event.event, event.message or event.error, progress)
+    
+    # Update task status and progress
+    update_parts = ["status = $2", "status_message = $3"]
+    update_params = [task_id, new_status, event.message or event.error or event.event]
+    
+    if progress is not None:
+        update_parts.append(f"progress_percent = ${len(update_params) + 1}")
+        update_params.append(progress)
+    
+    if event.event in ("done", "failed"):
+        update_parts.append("completed_at = NOW()")
+    elif event.event == "booted" and str(task["status"]) == "pending":
+        update_parts.append("started_at = NOW()")
+    
+    await db.execute(f"""
+        UPDATE provisioning_tasks 
+        SET {", ".join(update_parts)}, updated_at = NOW()
+        WHERE id = $1
+    """, *update_params)
+    
+    # Fetch created event
+    row = await db.fetchrow("""
+        SELECT id, task_id, event, message, progress, created_at
+        FROM provisioning_task_events WHERE id = $1
+    """, event_id)
+    
+    return {
+        "id": str(row["id"]),
+        "task_id": str(row["task_id"]),
+        "event": row["event"],
+        "message": row.get("message"),
+        "progress": row.get("progress"),
+        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+    }
+
+
+@app.get("/api/v1/provisioning/tasks/{task_id}/events", tags=["Provisioning"])
+async def list_task_events(task_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get all events/callbacks for a task"""
+    # Verify task exists
+    task = await db.fetchrow("SELECT id FROM provisioning_tasks WHERE id = $1", task_id)
+    if not task:
+        raise not_found("Task not found")
+    
+    rows = await db.fetch("""
+        SELECT id, task_id, event, message, progress, created_at
+        FROM provisioning_task_events
+        WHERE task_id = $1
+        ORDER BY created_at ASC
+    """, task_id)
+    
+    return [{
+        "id": str(row["id"]),
+        "task_id": str(row["task_id"]),
+        "event": row["event"],
+        "message": row.get("message"),
+        "progress": row.get("progress"),
+        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+    } for row in rows]
