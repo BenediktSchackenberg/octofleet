@@ -7,5 +7,5 @@ echo       Target: Hyper-V
 echo ========================================================
 
 kernel http://192.168.0.5:9080/images/winpe/wimboot
-initrd --name boot.wim http://192.168.0.5:9080/images/winpe/boot.wim boot.wim
+initrd http://192.168.0.5:9080/images/winpe/boot.wim boot.wim
 boot

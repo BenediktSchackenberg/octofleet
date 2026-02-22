@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
-VERSION="0.4.31-linux"
+VERSION="0.5.0-linux"
 
 # Load config
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -279,6 +279,361 @@ EOF
 }
 
 # ============================================================================
+# Performance Collection (Enhanced Metrics)
+# ============================================================================
+
+collect_performance() {
+    # Load averages
+    local load_1=$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo 0)
+    local load_5=$(awk '{print $2}' /proc/loadavg 2>/dev/null || echo 0)
+    local load_15=$(awk '{print $3}' /proc/loadavg 2>/dev/null || echo 0)
+    
+    # CPU per core
+    local cpu_cores="[]"
+    if [[ -f /proc/stat ]]; then
+        cpu_cores=$(grep '^cpu[0-9]' /proc/stat 2>/dev/null | awk '
+            BEGIN { first = 1 }
+            {
+                core = substr($1, 4)
+                total = $2+$3+$4+$5+$6+$7+$8
+                idle = $5
+                usage = (total > 0) ? 100 * (1 - idle/total) : 0
+                printf "%s{\"core\": %d, \"usagePercent\": %.1f}", (first ? "" : ","), core, usage
+                first = 0
+            }
+        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+    fi
+    
+    # Memory detailed
+    local mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local mem_free=$(grep MemFree /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local mem_available=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local mem_buffers=$(grep Buffers /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local mem_cached=$(grep "^Cached:" /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local swap_total=$(grep SwapTotal /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local swap_free=$(grep SwapFree /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local swap_used=$((swap_total - swap_free))
+    
+    # Disk I/O (from /proc/diskstats)
+    local disk_io="[]"
+    if [[ -f /proc/diskstats ]]; then
+        disk_io=$(cat /proc/diskstats 2>/dev/null | awk '
+            BEGIN { first = 1 }
+            $3 ~ /^(sd[a-z]|nvme[0-9]+n[0-9]+|vd[a-z])$/ {
+                name = $3
+                reads = $4
+                read_sectors = $6
+                writes = $8
+                write_sectors = $10
+                read_bytes = read_sectors * 512
+                write_bytes = write_sectors * 512
+                printf "%s{\"device\": \"%s\", \"readsCompleted\": %d, \"writesCompleted\": %d, \"readBytes\": %d, \"writeBytes\": %d}", 
+                    (first ? "" : ","), name, reads, writes, read_bytes, write_bytes
+                first = 0
+            }
+        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+    fi
+    
+    # Disk space per mount
+    local disk_space=$(df -B1 -x tmpfs -x devtmpfs -x squashfs 2>/dev/null | awk '
+        BEGIN { first = 1 }
+        NR>1 {
+            printf "%s{\"mount\": \"%s\", \"device\": \"%s\", \"totalBytes\": %s, \"usedBytes\": %s, \"availableBytes\": %s, \"usedPercent\": %.1f}",
+                (first ? "" : ","), $6, $1, $2, $3, $4, ($2>0 ? $3/$2*100 : 0)
+            first = 0
+        }
+    ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+    
+    # Network I/O rates
+    local net_io="[]"
+    for iface in /sys/class/net/*/; do
+        local name=$(basename "$iface")
+        [[ "$name" == "lo" ]] && continue
+        local rx=$(cat "$iface/statistics/rx_bytes" 2>/dev/null || echo 0)
+        local tx=$(cat "$iface/statistics/tx_bytes" 2>/dev/null || echo 0)
+        local rx_packets=$(cat "$iface/statistics/rx_packets" 2>/dev/null || echo 0)
+        local tx_packets=$(cat "$iface/statistics/tx_packets" 2>/dev/null || echo 0)
+        local rx_errors=$(cat "$iface/statistics/rx_errors" 2>/dev/null || echo 0)
+        local tx_errors=$(cat "$iface/statistics/tx_errors" 2>/dev/null || echo 0)
+        if [[ "$net_io" == "[]" ]]; then
+            net_io="[{\"interface\": \"$name\", \"rxBytes\": $rx, \"txBytes\": $tx, \"rxPackets\": $rx_packets, \"txPackets\": $tx_packets, \"rxErrors\": $rx_errors, \"txErrors\": $tx_errors}"
+        else
+            net_io="${net_io%]},{\"interface\": \"$name\", \"rxBytes\": $rx, \"txBytes\": $tx, \"rxPackets\": $rx_packets, \"txPackets\": $tx_packets, \"rxErrors\": $rx_errors, \"txErrors\": $tx_errors}]"
+        fi
+    done
+    [[ "$net_io" == "[" ]] && net_io="[]"
+    [[ "$net_io" != "[]" && "${net_io: -1}" != "]" ]] && net_io="${net_io}]"
+    
+    cat << EOF
+{
+    "loadAverage": {
+        "load1": $load_1,
+        "load5": $load_5,
+        "load15": $load_15
+    },
+    "cpuCores": $cpu_cores,
+    "memory": {
+        "totalBytes": $mem_total,
+        "freeBytes": $mem_free,
+        "availableBytes": $mem_available,
+        "buffersBytes": $mem_buffers,
+        "cachedBytes": $mem_cached
+    },
+    "swap": {
+        "totalBytes": $swap_total,
+        "usedBytes": $swap_used,
+        "freeBytes": $swap_free
+    },
+    "diskIo": $disk_io,
+    "diskSpace": $disk_space,
+    "networkIo": $net_io
+}
+EOF
+}
+
+# ============================================================================
+# Services Collection (systemd)
+# ============================================================================
+
+collect_services() {
+    local services="[]"
+    
+    if command -v systemctl &>/dev/null; then
+        services=$(systemctl list-units --type=service --all --no-pager --no-legend 2>/dev/null | \
+            awk '
+                BEGIN { first = 1 }
+                {
+                    name = $1
+                    gsub(/\.service$/, "", name)
+                    # Escape backslashes in name (e.g. \x2d)
+                    gsub(/\\/, "\\\\", name)
+                    load = $2
+                    active = $3
+                    sub_state = $4
+                    desc = ""
+                    for (i=5; i<=NF; i++) desc = desc (i>5?" ":"") $i
+                    gsub(/\\/, "\\\\", desc)
+                    gsub(/"/, "\\\"", desc)
+                    printf "%s{\"name\": \"%s\", \"loadState\": \"%s\", \"activeState\": \"%s\", \"subState\": \"%s\", \"description\": \"%s\"}",
+                        (first ? "" : ","), name, load, active, sub_state, desc
+                    first = 0
+                }
+            ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' 2>/dev/null || echo '[]')
+    fi
+    
+    # Count by state
+    local active_count=$(echo "$services" | jq '[.[] | select(.activeState == "active")] | length' 2>/dev/null || echo 0)
+    local failed_count=$(echo "$services" | jq '[.[] | select(.activeState == "failed")] | length' 2>/dev/null || echo 0)
+    local inactive_count=$(echo "$services" | jq '[.[] | select(.activeState == "inactive")] | length' 2>/dev/null || echo 0)
+    
+    # Get enabled services
+    local enabled_services="[]"
+    if command -v systemctl &>/dev/null; then
+        enabled_services=$(systemctl list-unit-files --type=service --state=enabled --no-pager --no-legend 2>/dev/null | \
+            awk '
+                BEGIN { first = 1 }
+                {
+                    gsub(/\.service$/, "", $1)
+                    printf "%s\"%s\"", (first ? "" : ","), $1
+                    first = 0
+                }
+            ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' 2>/dev/null || echo '[]')
+    fi
+    
+    cat << EOF
+{
+    "services": $services,
+    "summary": {
+        "total": $(echo "$services" | jq 'length' 2>/dev/null || echo 0),
+        "active": $active_count,
+        "failed": $failed_count,
+        "inactive": $inactive_count
+    },
+    "enabledServices": $enabled_services
+}
+EOF
+}
+
+# ============================================================================
+# Package Updates Collection
+# ============================================================================
+
+collect_updates() {
+    local updates="[]"
+    local total_updates=0
+    local security_updates=0
+    local package_manager="unknown"
+    
+    if command -v apt-get &>/dev/null; then
+        package_manager="apt"
+        
+        # Get upgradable packages (force English output, skip header line)
+        updates=$(LANG=C apt list --upgradable 2>/dev/null | grep -v "^Listing" | \
+            awk -F'/' '
+                BEGIN { first = 1 }
+                {
+                    name = $1
+                    split($2, ver, " ")
+                    new_ver = ver[1]
+                    printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"security\": false}",
+                        (first ? "" : ","), name, new_ver
+                    first = 0
+                }
+            ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+        
+        total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
+        
+        # Check for security updates via apt
+        security_updates=$(apt list --upgradable 2>/dev/null | grep -c -- "-security" 2>/dev/null || true)
+        [[ -z "$security_updates" ]] && security_updates=0
+        
+    elif command -v dnf &>/dev/null; then
+        package_manager="dnf"
+        updates=$(dnf check-update -q 2>/dev/null | awk '
+            BEGIN { first = 1 }
+            NF==3 {
+                printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"repository\": \"%s\", \"security\": false}",
+                    (first ? "" : ","), $1, $2, $3
+                first = 0
+            }
+        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+        
+        total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
+        security_updates=$(dnf updateinfo list security 2>/dev/null | wc -l || echo 0)
+        
+    elif command -v yum &>/dev/null; then
+        package_manager="yum"
+        updates=$(yum check-update -q 2>/dev/null | awk '
+            BEGIN { first = 1 }
+            NF==3 {
+                printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"repository\": \"%s\", \"security\": false}",
+                    (first ? "" : ","), $1, $2, $3
+                first = 0
+            }
+        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+        
+        total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
+        security_updates=$(yum updateinfo list security 2>/dev/null | wc -l || echo 0)
+        
+    elif command -v pacman &>/dev/null; then
+        package_manager="pacman"
+        updates=$(pacman -Qu 2>/dev/null | awk '
+            BEGIN { first = 1 }
+            {
+                printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"security\": false}",
+                    (first ? "" : ","), $1, $4
+                first = 0
+            }
+        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+        
+        total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
+    fi
+    
+    # Last update check time
+    local last_update_check=""
+    if [[ -f /var/lib/apt/periodic/update-stamp ]]; then
+        last_update_check=$(date -r /var/lib/apt/periodic/update-stamp -Iseconds 2>/dev/null || echo "")
+    elif [[ -f /var/cache/dnf/last_makecache ]]; then
+        last_update_check=$(date -r /var/cache/dnf/last_makecache -Iseconds 2>/dev/null || echo "")
+    fi
+    
+    cat << EOF
+{
+    "packageManager": "$package_manager",
+    "totalUpdates": $total_updates,
+    "securityUpdates": $security_updates,
+    "lastCheckTime": "$last_update_check",
+    "updates": $updates
+}
+EOF
+}
+
+# ============================================================================
+# SMART Disk Health Collection
+# ============================================================================
+
+collect_disk_health() {
+    local disks="[]"
+    local smartctl_available=false
+    
+    if command -v smartctl &>/dev/null; then
+        smartctl_available=true
+        
+        # Find physical disks
+        for disk in /dev/sd? /dev/nvme?n? /dev/vd?; do
+            [[ ! -b "$disk" ]] && continue
+            
+            local disk_name=$(basename "$disk")
+            local smart_data=""
+            local health_status="Unknown"
+            local temperature=""
+            local power_on_hours=""
+            local reallocated_sectors=""
+            local pending_sectors=""
+            local model=""
+            local serial=""
+            local firmware=""
+            
+            # Get SMART data (needs root, might fail)
+            smart_data=$(smartctl -a "$disk" 2>/dev/null) || continue
+            
+            # Parse health status
+            health_status=$(echo "$smart_data" | grep -oP '(?<=SMART overall-health self-assessment test result: ).+' || echo "Unknown")
+            [[ -z "$health_status" ]] && health_status=$(echo "$smart_data" | grep -oP '(?<=SMART Health Status: ).+' || echo "Unknown")
+            
+            # Parse model/serial
+            model=$(echo "$smart_data" | grep -oP '(?<=Device Model: ).+' || echo "$smart_data" | grep -oP '(?<=Model Number: ).+' || echo "Unknown")
+            serial=$(echo "$smart_data" | grep -oP '(?<=Serial Number: ).+' || echo "Unknown")
+            firmware=$(echo "$smart_data" | grep -oP '(?<=Firmware Version: ).+' || echo "Unknown")
+            
+            # Parse SMART attributes
+            temperature=$(echo "$smart_data" | grep -E "^194|Temperature_Celsius" | awk '{print $10}' | head -1)
+            [[ -z "$temperature" ]] && temperature=$(echo "$smart_data" | grep -oP '(?<=Temperature: )\d+' | head -1)
+            power_on_hours=$(echo "$smart_data" | grep -E "^  9|Power_On_Hours" | awk '{print $10}' | head -1)
+            reallocated_sectors=$(echo "$smart_data" | grep -E "^  5|Reallocated_Sector" | awk '{print $10}' | head -1)
+            pending_sectors=$(echo "$smart_data" | grep -E "^197|Current_Pending_Sector" | awk '{print $10}' | head -1)
+            
+            # NVMe specific
+            if [[ "$disk" == *nvme* ]]; then
+                temperature=$(echo "$smart_data" | grep -oP '(?<=Temperature: )\d+' | head -1)
+                power_on_hours=$(echo "$smart_data" | grep -oP '(?<=Power On Hours: )[\d,]+' | tr -d ',' | head -1)
+            fi
+            
+            # Build JSON entry
+            local entry=$(cat << ENTRY
+{
+    "device": "$disk",
+    "name": "$disk_name",
+    "model": "$(echo "$model" | xargs)",
+    "serial": "$(echo "$serial" | xargs)",
+    "firmware": "$(echo "$firmware" | xargs)",
+    "healthStatus": "$(echo "$health_status" | xargs)",
+    "temperature": ${temperature:-null},
+    "powerOnHours": ${power_on_hours:-null},
+    "reallocatedSectors": ${reallocated_sectors:-null},
+    "pendingSectors": ${pending_sectors:-null}
+}
+ENTRY
+)
+            if [[ "$disks" == "[]" ]]; then
+                disks="[$entry"
+            else
+                disks="${disks},$entry"
+            fi
+        done
+        
+        [[ "$disks" != "[]" ]] && disks="${disks}]"
+    fi
+    
+    cat << EOF
+{
+    "smartctlAvailable": $smartctl_available,
+    "disks": $disks
+}
+EOF
+}
+
+# ============================================================================
 # Live Data Collection (for Real-time Dashboard)
 # ============================================================================
 
@@ -441,6 +796,10 @@ collect_full_inventory() {
     local system=$(collect_system)
     local network=$(collect_network)
     local security=$(collect_security)
+    local performance=$(collect_performance)
+    local services=$(collect_services)
+    local updates=$(collect_updates)
+    local disk_health=$(collect_disk_health)
     
     cat << EOF
 {
@@ -452,7 +811,11 @@ collect_full_inventory() {
     "software": $software,
     "system": $system,
     "network": $network,
-    "security": $security
+    "security": $security,
+    "performance": $performance,
+    "services": $services,
+    "updates": $updates,
+    "diskHealth": $disk_health
 }
 EOF
 }

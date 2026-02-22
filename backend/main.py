@@ -20,6 +20,9 @@ from datetime import datetime, timedelta
 # E7: Alerting imports
 from alerting import get_alert_manager, update_node_health, check_node_health
 
+# E19: Provisioning imports
+from routers.provisioning import router as provisioning_router, pxe_router
+
 # E19: PDF Report imports
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -78,6 +81,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(provisioning_router)
+app.include_router(pxe_router)
 
 
 # === Helper Functions ===

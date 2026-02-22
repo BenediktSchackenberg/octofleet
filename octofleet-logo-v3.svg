@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+  <!-- Dark Background -->
+  <rect width="800" height="500" fill="#1a1b2e"/>
+  
+  <!-- Grid dots background -->
+  <defs>
+    <pattern id="dots" width="30" height="30" patternUnits="userSpaceOnUse">
+      <circle cx="15" cy="15" r="1" fill="#2a2b4e"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="500" fill="url(#dots)"/>
+  
+  <!-- OCTOPUS -->
+  <!-- Tentacles (8 total) -->
+  <!-- Left side tentacles -->
+  <path d="M300 280 Q200 260 120 320 Q100 340 110 360" stroke="#9b59b6" stroke-width="20" fill="none" stroke-linecap="round"/>
+  <path d="M320 300 Q220 320 140 400 Q120 430 130 450" stroke="#9b59b6" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <path d="M340 320 Q280 380 220 450 Q200 480 210 500" stroke="#9b59b6" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <path d="M370 330 Q350 400 320 480" stroke="#9b59b6" stroke-width="14" fill="none" stroke-linecap="round"/>
+  
+  <!-- Right side tentacles -->
+  <path d="M500 280 Q600 260 680 320 Q700 340 690 360" stroke="#9b59b6" stroke-width="20" fill="none" stroke-linecap="round"/>
+  <path d="M480 300 Q580 320 660 400 Q680 430 670 450" stroke="#9b59b6" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <path d="M460 320 Q520 380 580 450 Q600 480 590 500" stroke="#9b59b6" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <path d="M430 330 Q450 400 480 480" stroke="#9b59b6" stroke-width="14" fill="none" stroke-linecap="round"/>
+  
+  <!-- Head -->
+  <ellipse cx="400" cy="220" rx="100" ry="110" fill="#9b59b6"/>
+  
+  <!-- Eyes -->
+  <ellipse cx="365" cy="210" rx="25" ry="28" fill="white"/>
+  <ellipse cx="435" cy="210" rx="25" ry="28" fill="white"/>
+  <circle cx="370" cy="215" r="12" fill="#1a1b2e"/>
+  <circle cx="440" cy="215" r="12" fill="#1a1b2e"/>
+  <circle cx="373" cy="212" r="4" fill="white"/>
+  <circle cx="443" cy="212" r="4" fill="white"/>
+  
+  <!-- Smile -->
+  <path d="M370 260 Q400 290 430 260" stroke="#7b3a96" stroke-width="4" fill="none" stroke-linecap="round"/>
+  
+  <!-- Dots on head -->
+  <circle cx="340" cy="160" r="4" fill="#b97fd3"/>
+  <circle cx="400" cy="140" r="4" fill="#b97fd3"/>
+  <circle cx="460" cy="160" r="4" fill="#b97fd3"/>
+  
+  <!-- LEFT PANELS -->
+  <!-- CPU Panel -->
+  <rect x="30" y="80" width="140" height="100" rx="8" fill="#1e2140" stroke="#3b82f6" stroke-width="2"/>
+  <text x="45" y="105" fill="#3b82f6" font-family="Arial, sans-serif" font-size="14" font-weight="bold">CPU</text>
+  <!-- CPU bars -->
+  <rect x="45" y="120" width="25" height="45" fill="#3b82f6"/>
+  <rect x="75" y="130" width="25" height="35" fill="#3b82f6"/>
+  <rect x="105" y="115" width="25" height="50" fill="#22c55e"/>
+  <rect x="135" y="140" width="25" height="25" fill="#22c55e"/>
+  
+  <!-- DISK Panel -->
+  <rect x="30" y="200" width="140" height="100" rx="8" fill="#1e2140" stroke="#06b6d4" stroke-width="2"/>
+  <text x="45" y="225" fill="#06b6d4" font-family="Arial, sans-serif" font-size="14" font-weight="bold">DISK</text>
+  <!-- Disk circle -->
+  <circle cx="100" cy="265" r="30" fill="none" stroke="#1e3a4a" stroke-width="10"/>
+  <path d="M100 235 A30 30 0 1 1 76 289" fill="none" stroke="#06b6d4" stroke-width="10" stroke-linecap="round"/>
+  <text x="85" y="272" fill="#06b6d4" font-family="Arial, sans-serif" font-size="14" font-weight="bold">70%</text>
+  
+  <!-- RIGHT PANELS -->
+  <!-- RAM Panel -->
+  <rect x="630" y="80" width="140" height="100" rx="8" fill="#1e2140" stroke="#22c55e" stroke-width="2"/>
+  <text x="645" y="105" fill="#22c55e" font-family="Arial, sans-serif" font-size="14" font-weight="bold">RAM</text>
+  <!-- RAM bars -->
+  <rect x="645" y="120" width="110" height="15" rx="3" fill="#1e3a2a"/>
+  <rect x="645" y="120" width="90" height="15" rx="3" fill="#22c55e"/>
+  <rect x="645" y="142" width="110" height="15" rx="3" fill="#1e3a2a"/>
+  <rect x="645" y="142" width="70" height="15" rx="3" fill="#f59e0b"/>
+  <rect x="645" y="164" width="110" height="15" rx="3" fill="#1e3a2a"/>
+  <rect x="645" y="164" width="40" height="15" rx="3" fill="#ef4444"/>
+  
+  <!-- ALERTS Panel -->
+  <rect x="630" y="200" width="140" height="100" rx="8" fill="#1e2140" stroke="#ef4444" stroke-width="2"/>
+  <text x="660" y="225" fill="#ef4444" font-family="Arial, sans-serif" font-size="14" font-weight="bold">⚠ ALERTS</text>
+  <text x="645" y="255" fill="#94a3b8" font-family="monospace" font-size="11">HYPERV02: RAM 92%</text>
+  <text x="645" y="275" fill="#94a3b8" font-family="monospace" font-size="11">SQLSRV1: DISK 85%</text>
+  
+  <!-- BOTTOM PANELS -->
+  <!-- PXE Panel (left) -->
+  <rect x="180" y="380" width="130" height="70" rx="8" fill="#1e2140" stroke="#f59e0b" stroke-width="2"/>
+  <text x="195" y="405" fill="#f59e0b" font-family="Arial, sans-serif" font-size="14" font-weight="bold">🚀 PXE</text>
+  <text x="195" y="425" fill="#94a3b8" font-family="monospace" font-size="10">Deploying...</text>
+  <rect x="195" y="435" width="100" height="8" rx="2" fill="#1e3a2a"/>
+  <rect x="195" y="435" width="65" height="8" rx="2" fill="#f59e0b"/>
+  
+  <!-- JOBS Panel (right) -->
+  <rect x="490" y="380" width="130" height="70" rx="8" fill="#1e2140" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="505" y="405" fill="#8b5cf6" font-family="Arial, sans-serif" font-size="14" font-weight="bold">💼 JOBS</text>
+  <text x="505" y="425" fill="#22c55e" font-family="monospace" font-size="10">✓ 12 completed</text>
+  <text x="505" y="440" fill="#f59e0b" font-family="monospace" font-size="10">⏳ 3 running</text>
+  
+  <!-- Title -->
+  <text x="400" y="480" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle">Octofleet</text>
+</svg>

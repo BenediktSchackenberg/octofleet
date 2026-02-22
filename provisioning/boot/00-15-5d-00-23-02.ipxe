@@ -1,0 +1,16 @@
+#!ipxe
+
+echo ========================================================
+echo       OCTOFLEET ZERO-TOUCH DEPLOYMENT
+echo       MAC: ${mac}
+echo       Target: Hyper-V Gen2 (UEFI)
+echo       Mode: HTTP with injected curl.exe
+echo ========================================================
+
+kernel http://192.168.0.5:9080/images/winpe/wimboot index=1
+initrd http://192.168.0.5:9080/scripts/winpeshl.ini      winpeshl.ini
+initrd http://192.168.0.5:9080/scripts/startnet.cmd      startnet.cmd
+initrd http://192.168.0.5:9080/scripts/deploypart.txt    deploypart.txt
+initrd http://192.168.0.5:9080/scripts/curl.exe          curl.exe
+initrd http://192.168.0.5:9080/images/winpe/boot.wim     boot.wim
+boot

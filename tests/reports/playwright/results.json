@@ -1,10 +1,10 @@
 {
   "config": {
-    "configFile": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/playwright.config.ts",
-    "rootDir": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/specs",
+    "configFile": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/playwright.config.ts",
+    "rootDir": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs",
     "forbidOnly": false,
     "fullyParallel": false,
-    "globalSetup": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/global-setup.ts",
+    "globalSetup": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/global-setup.ts",
     "globalTeardown": null,
     "globalTimeout": 0,
     "grep": {},
@@ -16,7 +16,7 @@
     "preserveOutput": "always",
     "projects": [
       {
-        "outputDir": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/test-results",
+        "outputDir": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -24,7 +24,7 @@
         },
         "id": "chromium",
         "name": "chromium",
-        "testDir": "/home/benedikt/.octofleet/workspace/octofleet-windows-agent/tests/e2e/specs",
+        "testDir": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -75,7 +75,7 @@
         {
           "title": "Authentication",
           "file": "01-auth.spec.ts",
-          "line": 3,
+          "line": 6,
           "column": 6,
           "specs": [
             {
@@ -94,12 +94,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 406,
+                      "duration": 440,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:01:48.872Z",
+                      "startTime": "2026-02-21T20:24:04.283Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -109,7 +109,7 @@
               ],
               "id": "791b3c4e0869e77b2651-356ca360902e47369cc2",
               "file": "01-auth.spec.ts",
-              "line": 9,
+              "line": 16,
               "column": 7
             },
             {
@@ -119,31 +119,51 @@
               "tests": [
                 {
                   "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Login form not found",
+                      "location": {
+                        "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/01-auth.spec.ts",
+                        "line": 31,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
                   "projectId": "chromium",
                   "projectName": "chromium",
                   "results": [
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1218,
+                      "status": "skipped",
+                      "duration": 250,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:01:49.359Z",
-                      "annotations": [],
+                      "startTime": "2026-02-21T20:24:04.835Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Login form not found",
+                          "location": {
+                            "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/01-auth.spec.ts",
+                            "line": 31,
+                            "column": 12
+                          }
+                        }
+                      ],
                       "attachments": []
                     }
                   ],
-                  "status": "expected"
+                  "status": "skipped"
                 }
               ],
               "id": "791b3c4e0869e77b2651-2d2b80b7961c7e424e69",
               "file": "01-auth.spec.ts",
-              "line": 15,
+              "line": 22,
               "column": 7
             },
             {
@@ -153,31 +173,51 @@
               "tests": [
                 {
                   "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Login form not found",
+                      "location": {
+                        "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/01-auth.spec.ts",
+                        "line": 57,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
                   "projectId": "chromium",
                   "projectName": "chromium",
                   "results": [
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2853,
+                      "status": "skipped",
+                      "duration": 252,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:01:50.595Z",
-                      "annotations": [],
+                      "startTime": "2026-02-21T20:24:05.102Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Login form not found",
+                          "location": {
+                            "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/01-auth.spec.ts",
+                            "line": 57,
+                            "column": 12
+                          }
+                        }
+                      ],
                       "attachments": []
                     }
                   ],
-                  "status": "expected"
+                  "status": "skipped"
                 }
               ],
               "id": "791b3c4e0869e77b2651-4df688d4ea6004185f78",
               "file": "01-auth.spec.ts",
-              "line": 29,
+              "line": 50,
               "column": 7
             },
             {
@@ -187,31 +227,51 @@
               "tests": [
                 {
                   "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Cannot test logout without login form",
+                      "location": {
+                        "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/01-auth.spec.ts",
+                        "line": 81,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
                   "projectId": "chromium",
                   "projectName": "chromium",
                   "results": [
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1209,
+                      "status": "skipped",
+                      "duration": 240,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:01:53.467Z",
-                      "annotations": [],
+                      "startTime": "2026-02-21T20:24:05.368Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Cannot test logout without login form",
+                          "location": {
+                            "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/01-auth.spec.ts",
+                            "line": 81,
+                            "column": 12
+                          }
+                        }
+                      ],
                       "attachments": []
                     }
                   ],
-                  "status": "expected"
+                  "status": "skipped"
                 }
               ],
               "id": "791b3c4e0869e77b2651-dd93982964a800bd17d3",
               "file": "01-auth.spec.ts",
-              "line": 45,
+              "line": 74,
               "column": 7
             }
           ]
@@ -228,11 +288,11 @@
         {
           "title": "Navigation & Pages",
           "file": "02-navigation.spec.ts",
-          "line": 4,
+          "line": 5,
           "column": 6,
           "specs": [
             {
-              "title": "should load / without errors",
+              "title": "should load Dashboard page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -247,12 +307,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2090,
+                      "duration": 399,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:01:54.701Z",
+                      "startTime": "2026-02-21T20:24:05.627Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -260,13 +320,13 @@
                   "status": "expected"
                 }
               ],
-              "id": "693a0a9757374728c9b4-4f1dc8529568fb87edb0",
+              "id": "693a0a9757374728c9b4-6465acb8105840a494f0",
               "file": "02-navigation.spec.ts",
-              "line": 28,
+              "line": 16,
               "column": 9
             },
             {
-              "title": "should load /nodes without errors",
+              "title": "should load Nodes page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -281,12 +341,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2018,
+                      "duration": 271,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:01:56.805Z",
+                      "startTime": "2026-02-21T20:24:06.040Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -294,13 +354,13 @@
                   "status": "expected"
                 }
               ],
-              "id": "693a0a9757374728c9b4-3cc1b78dfaf5c32e75a7",
+              "id": "693a0a9757374728c9b4-1a50ce9fe665ae3e5534",
               "file": "02-navigation.spec.ts",
-              "line": 28,
+              "line": 16,
               "column": 9
             },
             {
-              "title": "should load /groups without errors",
+              "title": "should load Groups page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -315,12 +375,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1945,
+                      "duration": 283,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:01:58.837Z",
+                      "startTime": "2026-02-21T20:24:06.326Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -328,13 +388,13 @@
                   "status": "expected"
                 }
               ],
-              "id": "693a0a9757374728c9b4-d9becb111071401f7b66",
+              "id": "693a0a9757374728c9b4-63039352c86b451828c6",
               "file": "02-navigation.spec.ts",
-              "line": 28,
+              "line": 16,
               "column": 9
             },
             {
-              "title": "should load /jobs without errors",
+              "title": "should load Jobs page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -349,12 +409,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2215,
+                      "duration": 297,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:00.797Z",
+                      "startTime": "2026-02-21T20:24:06.623Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -362,13 +422,13 @@
                   "status": "expected"
                 }
               ],
-              "id": "693a0a9757374728c9b4-0db9eb4435e6655e1d3f",
+              "id": "693a0a9757374728c9b4-5dd5084100cd3655b940",
               "file": "02-navigation.spec.ts",
-              "line": 28,
+              "line": 16,
               "column": 9
             },
             {
-              "title": "should load /packages without errors",
+              "title": "should load Packages page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -383,12 +443,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2021,
+                      "duration": 293,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:03.025Z",
+                      "startTime": "2026-02-21T20:24:06.934Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -396,13 +456,13 @@
                   "status": "expected"
                 }
               ],
-              "id": "693a0a9757374728c9b4-1c08b4462703791f09c3",
+              "id": "693a0a9757374728c9b4-1aa2dca1989cbb80e29a",
               "file": "02-navigation.spec.ts",
-              "line": 28,
+              "line": 16,
               "column": 9
             },
             {
-              "title": "should load /deployments without errors",
+              "title": "should load Settings page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -417,12 +477,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1918,
+                      "duration": 292,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:05.060Z",
+                      "startTime": "2026-02-21T20:24:07.241Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -430,383 +490,63 @@
                   "status": "expected"
                 }
               ],
-              "id": "693a0a9757374728c9b4-10f4ea1ed9906ccddc11",
+              "id": "693a0a9757374728c9b4-21829dd90915c7f8e669",
               "file": "02-navigation.spec.ts",
-              "line": 28,
+              "line": 16,
               "column": 9
             },
             {
-              "title": "should load /alerts without errors",
+              "title": "should navigate between pages",
               "ok": true,
               "tags": [],
               "tests": [
                 {
                   "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "No navigation found",
+                      "location": {
+                        "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/02-navigation.spec.ts",
+                        "line": 47,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
                   "projectId": "chromium",
                   "projectName": "chromium",
                   "results": [
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1918,
+                      "status": "skipped",
+                      "duration": 276,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:06.993Z",
-                      "annotations": [],
+                      "startTime": "2026-02-21T20:24:07.545Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "No navigation found",
+                          "location": {
+                            "file": "/home/benedikt/.openclaw/workspace/octofleet-work/tests/e2e/specs/02-navigation.spec.ts",
+                            "line": 47,
+                            "column": 12
+                          }
+                        }
+                      ],
                       "attachments": []
                     }
                   ],
-                  "status": "expected"
+                  "status": "skipped"
                 }
               ],
-              "id": "693a0a9757374728c9b4-50d351b0b0f5c40a6525",
+              "id": "693a0a9757374728c9b4-619585c6d28d92155675",
               "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /eventlog without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2143,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:08.925Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-debb5026e6bac5f65929",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /compliance without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2212,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:11.081Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-cf0364e725ebd9177979",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /software-compare without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2033,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:13.305Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-eeb275a90f156ea0f3bd",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /performance without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2019,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:15.350Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-ce4b6239d8b66ebf47f2",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /settings without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2062,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:17.382Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-87291fe23ad4eb0dc0b6",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /users without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1906,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:19.459Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-5f030b2057350642eebe",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /audit without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1990,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:21.379Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-6307de094fc132973dfa",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should load /api-keys without errors",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1995,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:23.383Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-e77b99fde1977757984c",
-              "file": "02-navigation.spec.ts",
-              "line": 28,
-              "column": 9
-            },
-            {
-              "title": "should navigate via navbar",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2179,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:25.390Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-a858ae766c384d823771",
-              "file": "02-navigation.spec.ts",
-              "line": 48,
-              "column": 7
-            },
-            {
-              "title": "should switch language",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2013,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:27.581Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "693a0a9757374728c9b4-e009a9d5712a4c8a198c",
-              "file": "02-navigation.spec.ts",
-              "line": 67,
+              "line": 31,
               "column": 7
             }
           ]
@@ -823,7 +563,7 @@
         {
           "title": "Nodes",
           "file": "03-crud.spec.ts",
-          "line": 4,
+          "line": 6,
           "column": 6,
           "specs": [
             {
@@ -842,16 +582,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1957,
+                      "duration": 956,
                       "errors": [],
-                      "stdout": [
-                        {
-                          "text": "Found 9 nodes\n"
-                        }
-                      ],
+                      "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:29.613Z",
+                      "startTime": "2026-02-21T20:24:07.838Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -861,7 +597,7 @@
               ],
               "id": "89216494a1f17fddcfa1-138e74f65167dced7367",
               "file": "03-crud.spec.ts",
-              "line": 9,
+              "line": 7,
               "column": 7
             },
             {
@@ -880,12 +616,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2163,
+                      "duration": 283,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:31.584Z",
+                      "startTime": "2026-02-21T20:24:08.807Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -895,41 +631,7 @@
               ],
               "id": "89216494a1f17fddcfa1-5833eff630cd779a35a7",
               "file": "03-crud.spec.ts",
-              "line": 25,
-              "column": 7
-            },
-            {
-              "title": "should show node inventory tabs",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2031,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:33.761Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "89216494a1f17fddcfa1-15b16082dcf4b9b1a45b",
-              "file": "03-crud.spec.ts",
-              "line": 41,
+              "line": 26,
               "column": 7
             }
           ]
@@ -937,7 +639,7 @@
         {
           "title": "Groups",
           "file": "03-crud.spec.ts",
-          "line": 62,
+          "line": 44,
           "column": 6,
           "specs": [
             {
@@ -956,12 +658,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1887,
+                      "duration": 279,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:35.807Z",
+                      "startTime": "2026-02-21T20:24:09.103Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -971,7 +673,7 @@
               ],
               "id": "89216494a1f17fddcfa1-e0ebbd8f430c43ad0254",
               "file": "03-crud.spec.ts",
-              "line": 67,
+              "line": 45,
               "column": 7
             },
             {
@@ -990,12 +692,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1276,
+                      "duration": 272,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:37.708Z",
+                      "startTime": "2026-02-21T20:24:09.394Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1005,7 +707,7 @@
               ],
               "id": "89216494a1f17fddcfa1-40bc7739168627acb651",
               "file": "03-crud.spec.ts",
-              "line": 75,
+              "line": 56,
               "column": 7
             }
           ]
@@ -1013,7 +715,7 @@
         {
           "title": "Jobs",
           "file": "03-crud.spec.ts",
-          "line": 97,
+          "line": 88,
           "column": 6,
           "specs": [
             {
@@ -1032,12 +734,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1884,
+                      "duration": 300,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:38.999Z",
+                      "startTime": "2026-02-21T20:24:09.679Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1047,7 +749,7 @@
               ],
               "id": "89216494a1f17fddcfa1-41d8835c6d6649682b7b",
               "file": "03-crud.spec.ts",
-              "line": 102,
+              "line": 89,
               "column": 7
             },
             {
@@ -1066,12 +768,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 3504,
+                      "duration": 296,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:40.898Z",
+                      "startTime": "2026-02-21T20:24:09.991Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1081,7 +783,7 @@
               ],
               "id": "89216494a1f17fddcfa1-6a5296731fa4675d0932",
               "file": "03-crud.spec.ts",
-              "line": 109,
+              "line": 100,
               "column": 7
             }
           ]
@@ -1089,7 +791,7 @@
         {
           "title": "Packages",
           "file": "03-crud.spec.ts",
-          "line": 139,
+          "line": 136,
           "column": 6,
           "specs": [
             {
@@ -1108,12 +810,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1949,
+                      "duration": 299,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:44.417Z",
+                      "startTime": "2026-02-21T20:24:10.299Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1123,7 +825,7 @@
               ],
               "id": "89216494a1f17fddcfa1-9b1accd1f771d6db184e",
               "file": "03-crud.spec.ts",
-              "line": 144,
+              "line": 137,
               "column": 7
             }
           ]
@@ -1140,11 +842,11 @@
         {
           "title": "Software Compare",
           "file": "04-features.spec.ts",
-          "line": 4,
+          "line": 5,
           "column": 6,
           "specs": [
             {
-              "title": "should load top software list",
+              "title": "should load software compare page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -1159,12 +861,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1900,
+                      "duration": 300,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:46.385Z",
+                      "startTime": "2026-02-21T20:24:10.613Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1172,43 +874,9 @@
                   "status": "expected"
                 }
               ],
-              "id": "79cf92becb81c4a91749-2c9d9b74737f3936f7c0",
+              "id": "79cf92becb81c4a91749-e395d41061e9d07c9463",
               "file": "04-features.spec.ts",
-              "line": 9,
-              "column": 7
-            },
-            {
-              "title": "should search for specific software",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 4000,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:48.299Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "79cf92becb81c4a91749-5e51a2812a5c83cb2b8f",
-              "file": "04-features.spec.ts",
-              "line": 18,
+              "line": 6,
               "column": 7
             }
           ]
@@ -1216,7 +884,7 @@
         {
           "title": "Compliance Dashboard",
           "file": "04-features.spec.ts",
-          "line": 41,
+          "line": 18,
           "column": 6,
           "specs": [
             {
@@ -1235,12 +903,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2079,
+                      "duration": 334,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:52.312Z",
+                      "startTime": "2026-02-21T20:24:10.925Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1250,45 +918,7 @@
               ],
               "id": "79cf92becb81c4a91749-2d586a0a9bacf4e6d8cc",
               "file": "04-features.spec.ts",
-              "line": 46,
-              "column": 7
-            },
-            {
-              "title": "should show node compliance details",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2002,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "Compliance table has 9 rows\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:54.405Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "79cf92becb81c4a91749-a0dd167a23544058dfcf",
-              "file": "04-features.spec.ts",
-              "line": 58,
+              "line": 19,
               "column": 7
             }
           ]
@@ -1296,11 +926,11 @@
         {
           "title": "Eventlog",
           "file": "04-features.spec.ts",
-          "line": 72,
+          "line": 31,
           "column": 6,
           "specs": [
             {
-              "title": "should load eventlog data",
+              "title": "should load eventlog page",
               "ok": true,
               "tags": [],
               "tests": [
@@ -1315,12 +945,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1970,
+                      "duration": 324,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:02:56.421Z",
+                      "startTime": "2026-02-21T20:24:11.272Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1328,55 +958,21 @@
                   "status": "expected"
                 }
               ],
-              "id": "79cf92becb81c4a91749-0dd6eea422a56a60a26b",
+              "id": "79cf92becb81c4a91749-4efcfb36b32549f5d4fe",
               "file": "04-features.spec.ts",
-              "line": 77,
-              "column": 7
-            },
-            {
-              "title": "should filter by log type",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 3011,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:02:58.404Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "79cf92becb81c4a91749-9563c0a05c56ed6cc731",
-              "file": "04-features.spec.ts",
-              "line": 85,
+              "line": 32,
               "column": 7
             }
           ]
         },
         {
-          "title": "Dashboard Stats",
+          "title": "Dashboard",
           "file": "04-features.spec.ts",
-          "line": 104,
+          "line": 44,
           "column": 6,
           "specs": [
             {
-              "title": "should display accurate node count",
+              "title": "should load dashboard with stats",
               "ok": true,
               "tags": [],
               "tests": [
@@ -1391,12 +987,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1975,
+                      "duration": 287,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:03:01.429Z",
+                      "startTime": "2026-02-21T20:24:11.606Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1404,47 +1000,9 @@
                   "status": "expected"
                 }
               ],
-              "id": "79cf92becb81c4a91749-033e3c6909a2a7e52354",
+              "id": "79cf92becb81c4a91749-d00f736ce440947d3187",
               "file": "04-features.spec.ts",
-              "line": 109,
-              "column": 7
-            },
-            {
-              "title": "should display charts",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1861,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "Found 0 chart elements\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:03:03.418Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "79cf92becb81c4a91749-6e5fb49f1e8ebd943469",
-              "file": "04-features.spec.ts",
-              "line": 121,
+              "line": 45,
               "column": 7
             }
           ]
@@ -1461,11 +1019,11 @@
         {
           "title": "Role-Based Access Control",
           "file": "05-rbac.spec.ts",
-          "line": 4,
+          "line": 5,
           "column": 6,
           "specs": [
             {
-              "title": "admin should have full access",
+              "title": "admin should access protected pages",
               "ok": true,
               "tags": [],
               "tests": [
@@ -1480,12 +1038,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 3766,
+                      "duration": 265,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:03:05.296Z",
+                      "startTime": "2026-02-21T20:24:11.905Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1493,43 +1051,9 @@
                   "status": "expected"
                 }
               ],
-              "id": "6f6effdc23b44b460ac0-fcdf78846350a588f06d",
+              "id": "6f6effdc23b44b460ac0-d2702e9c3c199eaac249",
               "file": "05-rbac.spec.ts",
-              "line": 5,
-              "column": 7
-            },
-            {
-              "title": "should show user info in navbar",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1212,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:03:09.074Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "6f6effdc23b44b460ac0-2c6175cf615f18303cd5",
-              "file": "05-rbac.spec.ts",
-              "line": 21,
+              "line": 6,
               "column": 7
             }
           ]
@@ -1537,7 +1061,7 @@
         {
           "title": "API Key Management",
           "file": "05-rbac.spec.ts",
-          "line": 31,
+          "line": 20,
           "column": 6,
           "specs": [
             {
@@ -1556,12 +1080,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1913,
+                      "duration": 259,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:03:10.299Z",
+                      "startTime": "2026-02-21T20:24:12.181Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1571,41 +1095,7 @@
               ],
               "id": "6f6effdc23b44b460ac0-52d11686b54f768a5d29",
               "file": "05-rbac.spec.ts",
-              "line": 32,
-              "column": 7
-            },
-            {
-              "title": "should create new API key",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2411,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-02-12T18:03:12.225Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "6f6effdc23b44b460ac0-8013069938c6a699437f",
-              "file": "05-rbac.spec.ts",
-              "line": 41,
+              "line": 21,
               "column": 7
             }
           ]
@@ -1613,11 +1103,11 @@
         {
           "title": "Audit Log",
           "file": "05-rbac.spec.ts",
-          "line": 66,
+          "line": 34,
           "column": 6,
           "specs": [
             {
-              "title": "should display audit log entries",
+              "title": "should display audit log",
               "ok": true,
               "tags": [],
               "tests": [
@@ -1632,12 +1122,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1882,
+                      "duration": 280,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:03:14.649Z",
+                      "startTime": "2026-02-21T20:24:12.452Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1645,13 +1135,64 @@
                   "status": "expected"
                 }
               ],
-              "id": "6f6effdc23b44b460ac0-76d4152a68ff04c4d370",
+              "id": "6f6effdc23b44b460ac0-ec08a97364e43d3146a8",
               "file": "05-rbac.spec.ts",
-              "line": 67,
+              "line": 35,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "06-services.spec.ts",
+      "file": "06-services.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Service Classes",
+          "file": "06-services.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should display service classes list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 814,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:12.749Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-4fbe37ba47b0d92a3ae5",
+              "file": "06-services.spec.ts",
+              "line": 6,
               "column": 7
             },
             {
-              "title": "should filter audit by action type",
+              "title": "should switch between services and templates tabs",
               "ok": true,
               "tags": [],
               "tests": [
@@ -1666,12 +1207,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1891,
+                      "duration": 1362,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-02-12T18:03:16.541Z",
+                      "startTime": "2026-02-21T20:24:13.575Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -1679,9 +1220,255 @@
                   "status": "expected"
                 }
               ],
-              "id": "6f6effdc23b44b460ac0-4dc57050a49017b44780",
-              "file": "05-rbac.spec.ts",
-              "line": 76,
+              "id": "9c34d70e0a565042212e-cf47c22c37ee941ca478",
+              "file": "06-services.spec.ts",
+              "line": 21,
+              "column": 7
+            },
+            {
+              "title": "should create a new service class",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1410,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:14.950Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-64a07e5d03c8ba42f5ff",
+              "file": "06-services.spec.ts",
+              "line": 39,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Services",
+          "file": "06-services.spec.ts",
+          "line": 76,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should display services list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 840,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:16.373Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-de3b348d543d170839da",
+              "file": "06-services.spec.ts",
+              "line": 77,
+              "column": 7
+            },
+            {
+              "title": "should open service detail page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 909,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:17.222Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-a8def97fb10f29ec9105",
+              "file": "06-services.spec.ts",
+              "line": 93,
+              "column": 7
+            },
+            {
+              "title": "should display service detail with nodes section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1879,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:18.141Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-b22e1535a591798d6759",
+              "file": "06-services.spec.ts",
+              "line": 112,
+              "column": 7
+            },
+            {
+              "title": "should show add node button on service detail",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 868,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:20.033Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-5eaa7650980e604ff417",
+              "file": "06-services.spec.ts",
+              "line": 136,
+              "column": 7
+            },
+            {
+              "title": "should show reconcile button on service detail",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 862,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:20.913Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-e9458feebd14f4a7cc3e",
+              "file": "06-services.spec.ts",
+              "line": 158,
+              "column": 7
+            },
+            {
+              "title": "should show activity log on service detail",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1899,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-21T20:24:21.787Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9c34d70e0a565042212e-dfcc10a076670166a542",
+              "file": "06-services.spec.ts",
+              "line": 181,
               "column": 7
             }
           ]
@@ -1691,10 +1478,10 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-02-12T18:01:46.224Z",
-    "duration": 92270.90599999999,
-    "expected": 43,
-    "skipped": 0,
+    "startTime": "2026-02-21T20:24:00.964Z",
+    "duration": 22779.662,
+    "expected": 30,
+    "skipped": 4,
     "unexpected": 0,
     "flaky": 0
   }

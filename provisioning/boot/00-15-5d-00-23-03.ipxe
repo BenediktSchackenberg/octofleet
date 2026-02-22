@@ -1,0 +1,9 @@
+#!ipxe
+echo Loading WinPE for Zero-Touch Install...
+kernel http://192.168.0.5:9080/images/winpe/wimboot
+initrd http://192.168.0.5:9080/scripts/winpeshl.ini   winpeshl.ini
+initrd http://192.168.0.5:9080/scripts/startnet.cmd   startnet.cmd
+initrd http://192.168.0.5:9080/scripts/deploypart.txt deploypart.txt
+initrd http://192.168.0.5:9080/scripts/curl.exe       curl.exe
+initrd http://192.168.0.5:9080/images/winpe/boot.wim  boot.wim
+boot
