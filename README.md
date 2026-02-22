@@ -227,6 +227,63 @@ docker-compose up -d
 
 ---
 
+## 🐧 Linux Agent
+
+Full-featured agent for Linux servers and workstations.
+
+### Features:
+- **Hardware inventory** — CPU, RAM, disks, network interfaces
+- **Software inventory** — Installed packages (dpkg/rpm/pacman)
+- **Performance monitoring** — Load average, CPU per core, memory details
+- **Service monitoring** — systemd services with status
+- **Package updates** — Available updates with security flag
+- **Disk health** — SMART monitoring via smartctl
+
+### Install:
+```bash
+# Quick install
+curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash
+
+# Or manual:
+git clone https://github.com/BenediktSchackenberg/octofleet.git
+cd octofleet/linux-agent
+sudo ./install.sh
+```
+
+### Configure:
+```bash
+# Edit /opt/openclaw-agent/config.env
+API_URL=http://your-octofleet-server:8080
+API_KEY=your-api-key
+NODE_ID=$(hostname)
+```
+
+### Commands:
+```bash
+# Service management
+sudo systemctl status openclaw-agent
+sudo systemctl restart openclaw-agent
+
+# Manual run
+/opt/openclaw-agent/agent.sh collect  # Show collected data
+/opt/openclaw-agent/agent.sh push     # Push to server
+```
+
+### Collected Data:
+| Category | Data |
+|----------|------|
+| Hardware | CPU, RAM (modules), Disks, NICs, GPU, Mainboard |
+| Software | Installed packages with versions |
+| System | OS info, hostname, uptime, kernel |
+| Network | Interfaces, connections, open ports |
+| Security | Firewall status, SELinux/AppArmor |
+| Performance | Load average, CPU per core, memory (buffers/cached), swap, disk I/O |
+| Services | All systemd services with status |
+| Updates | Available package updates, security count |
+| Disk Health | SMART status (requires smartctl + root) |
+
+---
+
 ## 🏗️ Architecture
 
 ```
