@@ -222,6 +222,33 @@ export default function NodeDetailPage() {
   const [events, setEvents] = useState<EventlogEntry[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [linuxData, setLinuxData] = useState<{
+    performance?: {
+      loadAverage?: { load1: number; load5: number; load15: number };
+      cpuCores?: { core: number; usagePercent: number }[];
+      memory?: { totalBytes: number; freeBytes: number; availableBytes: number; buffersBytes: number; cachedBytes: number };
+      swap?: { totalBytes: number; usedBytes: number; freeBytes: number };
+      diskIo?: { device: string; readsCompleted: number; writesCompleted: number; readBytes: number; writeBytes: number }[];
+      diskSpace?: { mount: string; device: string; totalBytes: number; usedBytes: number; availableBytes: number; usedPercent: number }[];
+      networkIo?: { interface: string; rxBytes: number; txBytes: number; rxPackets: number; txPackets: number }[];
+    };
+    services?: {
+      services?: { name: string; loadState: string; activeState: string; subState: string; description: string }[];
+      summary?: { total: number; active: number; failed: number; inactive: number };
+      enabledServices?: string[];
+    };
+    updates?: {
+      packageManager?: string;
+      totalUpdates?: number;
+      securityUpdates?: number;
+      lastCheckTime?: string;
+      updates?: { name: string; newVersion: string; security: boolean }[];
+    };
+    diskHealth?: {
+      smartctlAvailable?: boolean;
+      disks?: { device: string; model: string; healthStatus: string; temperature: number; powerOnHours: number }[];
+    };
+  } | null>(null);
 
   async function refreshInventory() {
     setRefreshing(true);
@@ -336,6 +363,17 @@ export default function NodeDetailPage() {
       }
       if (critRes.ok) {
         setCriticalCookies(await critRes.json());
+      }
+      
+      // Fetch Linux-specific data (performance, services, updates, diskHealth)
+      try {
+        const linuxRes = await fetch(`${API_BASE}/inventory/linux/${nodeId}`, { headers });
+        if (linuxRes.ok) {
+          const data = await linuxRes.json();
+          setLinuxData(data.data || null);
+        }
+      } catch {
+        // Linux data might not be available for Windows nodes
       }
       
       // Fetch eventlog separately (may not exist for all nodes)
@@ -473,6 +511,7 @@ export default function NodeDetailPage() {
             <TabsTrigger value="browser">Browser</TabsTrigger>
             <TabsTrigger value="events">Events ({events.length})</TabsTrigger>
             <TabsTrigger value="history">Timeline</TabsTrigger>
+            {linuxData && <TabsTrigger value="linux">🐧 Linux</TabsTrigger>}
           </TabsList>
 
           {/* Overview Tab */}
@@ -1358,6 +1397,278 @@ export default function NodeDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Linux Data Tab */}
+          {linuxData && (
+            <TabsContent value="linux" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {/* Load Average Card */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Load Average</CardDescription>
+                    <CardTitle className="text-lg">
+                      {linuxData.performance?.loadAverage?.load1?.toFixed(2) || '-'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      5m: {linuxData.performance?.loadAverage?.load5?.toFixed(2)} / 15m: {linuxData.performance?.loadAverage?.load15?.toFixed(2)}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Services Summary Card */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Services</CardDescription>
+                    <CardTitle className="text-lg text-green-600">
+                      {linuxData.services?.summary?.active || 0} aktiv
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {linuxData.services?.summary?.failed || 0} fehlgeschlagen / {linuxData.services?.summary?.total || 0} total
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Updates Card */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Updates verfügbar</CardDescription>
+                    <CardTitle className="text-lg">
+                      {linuxData.updates?.totalUpdates || 0}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {linuxData.updates?.securityUpdates || 0} Security / via {linuxData.updates?.packageManager}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Swap Usage Card */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Swap</CardDescription>
+                    <CardTitle className="text-lg">
+                      {linuxData.performance?.swap?.usedBytes 
+                        ? ((linuxData.performance.swap.usedBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB')
+                        : '0 GB'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      von {linuxData.performance?.swap?.totalBytes 
+                        ? ((linuxData.performance.swap.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB')
+                        : '0 GB'}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* CPU Cores */}
+                <Card>
+                  <CardHeader><CardTitle>🔲 CPU Cores</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-4 gap-2">
+                      {linuxData.performance?.cpuCores?.slice(0, 32).map((core) => (
+                        <div key={core.core} className="text-center p-2 border rounded">
+                          <p className="text-xs text-muted-foreground">Core {core.core}</p>
+                          <p className={`font-bold ${core.usagePercent > 80 ? 'text-red-500' : core.usagePercent > 50 ? 'text-yellow-500' : 'text-green-500'}`}>
+                            {core.usagePercent?.toFixed(0)}%
+                          </p>
+                        </div>
+                      )) || <p className="col-span-4 text-muted-foreground">Keine Daten</p>}
+                    </div>
+                    {(linuxData.performance?.cpuCores?.length || 0) > 32 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        +{(linuxData.performance?.cpuCores?.length || 0) - 32} weitere Cores
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Memory Details */}
+                <Card>
+                  <CardHeader><CardTitle>💾 Memory Details</CardTitle></CardHeader>
+                  <CardContent className="space-y-2">
+                    <InfoRow label="Total" value={linuxData.performance?.memory?.totalBytes 
+                      ? ((linuxData.performance.memory.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
+                    <InfoRow label="Available" value={linuxData.performance?.memory?.availableBytes 
+                      ? ((linuxData.performance.memory.availableBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
+                    <InfoRow label="Buffers" value={linuxData.performance?.memory?.buffersBytes 
+                      ? ((linuxData.performance.memory.buffersBytes / 1024 / 1024 / 1024).toFixed(2) + ' GB') : null} />
+                    <InfoRow label="Cached" value={linuxData.performance?.memory?.cachedBytes 
+                      ? ((linuxData.performance.memory.cachedBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
+                  </CardContent>
+                </Card>
+
+                {/* Disk Space */}
+                <Card>
+                  <CardHeader><CardTitle>💿 Disk Space</CardTitle></CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Mount</TableHead>
+                          <TableHead>Frei</TableHead>
+                          <TableHead>Total</TableHead>
+                          <TableHead>Belegt</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {linuxData.performance?.diskSpace?.slice(0, 10).map((disk, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono text-xs">{disk.mount}</TableCell>
+                            <TableCell>{(disk.availableBytes / 1024 / 1024 / 1024).toFixed(0)} GB</TableCell>
+                            <TableCell>{(disk.totalBytes / 1024 / 1024 / 1024).toFixed(0)} GB</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 bg-secondary rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full ${disk.usedPercent > 90 ? 'bg-red-500' : disk.usedPercent > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                    style={{ width: `${disk.usedPercent}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs">{disk.usedPercent?.toFixed(0)}%</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )) || (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-muted-foreground">Keine Daten</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                {/* Services */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>⚙️ Services ({linuxData.services?.summary?.total || 0})</CardTitle>
+                    <CardDescription>
+                      🟢 {linuxData.services?.summary?.active || 0} aktiv / 
+                      🔴 {linuxData.services?.summary?.failed || 0} failed / 
+                      ⚫ {linuxData.services?.summary?.inactive || 0} inaktiv
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Service</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Beschreibung</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {linuxData.services?.services
+                          ?.filter(s => s.activeState === 'failed' || s.activeState === 'active')
+                          .slice(0, 50)
+                          .map((svc, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono text-xs">{svc.name}</TableCell>
+                            <TableCell>
+                              <Badge className={
+                                svc.activeState === 'active' ? 'bg-green-600' : 
+                                svc.activeState === 'failed' ? 'bg-red-600' : 'bg-gray-500'
+                              }>
+                                {svc.activeState}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs truncate max-w-[200px]">{svc.description}</TableCell>
+                          </TableRow>
+                        )) || (
+                          <TableRow>
+                            <TableCell colSpan={3} className="text-muted-foreground">Keine Daten</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Package Updates */}
+              {(linuxData.updates?.totalUpdates || 0) > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>📦 Verfügbare Updates ({linuxData.updates?.totalUpdates})</CardTitle>
+                    <CardDescription>
+                      Package Manager: {linuxData.updates?.packageManager} / 
+                      Security: {linuxData.updates?.securityUpdates || 0}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Paket</TableHead>
+                          <TableHead>Neue Version</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {linuxData.updates?.updates?.slice(0, 30).map((pkg, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono">{pkg.name}</TableCell>
+                            <TableCell>{pkg.newVersion}</TableCell>
+                          </TableRow>
+                        )) || (
+                          <TableRow>
+                            <TableCell colSpan={2} className="text-muted-foreground">Keine Updates</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                    {(linuxData.updates?.updates?.length || 0) > 30 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        +{(linuxData.updates?.updates?.length || 0) - 30} weitere Pakete
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Disk Health */}
+              {linuxData.diskHealth?.smartctlAvailable && (linuxData.diskHealth?.disks?.length || 0) > 0 && (
+                <Card>
+                  <CardHeader><CardTitle>🩺 Disk Health (SMART)</CardTitle></CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Device</TableHead>
+                          <TableHead>Model</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Temp</TableHead>
+                          <TableHead>Betriebsstunden</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {linuxData.diskHealth?.disks?.map((disk, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono">{disk.device}</TableCell>
+                            <TableCell>{disk.model}</TableCell>
+                            <TableCell>
+                              <Badge className={disk.healthStatus === 'PASSED' ? 'bg-green-600' : 'bg-red-600'}>
+                                {disk.healthStatus}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{disk.temperature}°C</TableCell>
+                            <TableCell>{disk.powerOnHours?.toLocaleString()}h</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          )}
 
           {/* History/Timeline Tab */}
           <TabsContent value="history">

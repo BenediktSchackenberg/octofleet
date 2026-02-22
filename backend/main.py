@@ -1109,6 +1109,31 @@ async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         }}
 
 
+@app.get("/api/v1/inventory/linux/{node_id}")
+async def get_linux_data(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get Linux-specific data for a node (performance, services, updates, disk health)"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        if not node:
+            raise not_found("Node", node_id)
+        
+        row = await conn.fetchrow("""
+            SELECT performance, services, updates, disk_health, updated_at
+            FROM linux_data_current WHERE node_id = $1
+        """, node['id'])
+        
+        if not row:
+            return {"data": None}
+        
+        return {"data": {
+            "performance": json.loads(row['performance']) if row['performance'] else None,
+            "services": json.loads(row['services']) if row['services'] else None,
+            "updates": json.loads(row['updates']) if row['updates'] else None,
+            "diskHealth": json.loads(row['disk_health']) if row['disk_health'] else None,
+            "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
+        }}
+
+
 @app.get("/api/v1/inventory/browser/{node_id}")
 async def get_browser(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get browser data for a node"""
@@ -1873,6 +1898,38 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         }
         await submit_browser(flat_br, db)
         results["submitted"].append("browser")
+    
+    # Extract Linux-specific data (performance, services, updates, diskHealth)
+    perf_data = data.get("performance", {})
+    services_data = data.get("services", {})
+    updates_data = data.get("updates", {})
+    disk_health_data = data.get("diskHealth", {})
+    
+    if perf_data or services_data or updates_data or disk_health_data:
+        node_id = data.get("nodeId", hostname)
+        async with db.acquire() as conn:
+            # Get node UUID
+            node_row = await conn.fetchrow(
+                "SELECT id FROM nodes WHERE node_id = $1", node_id
+            )
+            if node_row:
+                await conn.execute("""
+                    INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, NOW())
+                    ON CONFLICT (node_id) DO UPDATE SET
+                        performance = COALESCE($2, linux_data_current.performance),
+                        services = COALESCE($3, linux_data_current.services),
+                        updates = COALESCE($4, linux_data_current.updates),
+                        disk_health = COALESCE($5, linux_data_current.disk_health),
+                        updated_at = NOW()
+                """,
+                    node_row['id'],
+                    json.dumps(perf_data) if perf_data else None,
+                    json.dumps(services_data) if services_data else None,
+                    json.dumps(updates_data) if updates_data else None,
+                    json.dumps(disk_health_data) if disk_health_data else None
+                )
+                results["submitted"].append("linux_data")
     
     # E7: Update node health timestamp on any inventory push
     node_id = data.get("nodeId", hostname)
