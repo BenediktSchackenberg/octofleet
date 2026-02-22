@@ -227,6 +227,65 @@ docker-compose up -d
 
 ---
 
+## 🐧 Linux PXE Boot (NEW!)
+
+Deploy Ubuntu servers via PXE boot with fully automated installation.
+
+### Architecture:
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   VM/Host   │◄──PXE──►│  PXE Server │◄──API──►│  Octofleet  │
+│  (Booting)  │         │  (Docker)   │         │   Backend   │
+└─────────────┘         └──────┬──────┘         └─────────────┘
+       │                       │
+       │ NFS                   │ HTTP
+       └──► /mnt/ubuntu-XX.XX └──► kernel + initrd + autoinstall
+```
+
+### Prerequisites:
+
+1. **Mount Ubuntu Live ISOs:**
+```bash
+sudo mount -o loop /path/to/ubuntu-24.04.iso /mnt/ubuntu-24.04
+sudo mount -o loop /path/to/ubuntu-22.04.iso /mnt/ubuntu-22.04
+```
+
+2. **Install and configure NFS server:**
+```bash
+sudo apt install nfs-kernel-server
+echo '/mnt/ubuntu-24.04 *(ro,sync,no_subtree_check,no_root_squash)' | sudo tee -a /etc/exports
+echo '/mnt/ubuntu-22.04 *(ro,sync,no_subtree_check,no_root_squash)' | sudo tee -a /etc/exports
+sudo exportfs -ra
+sudo systemctl restart nfs-server
+```
+
+3. **Verify exports:**
+```bash
+showmount -e localhost
+```
+
+### Boot Sequence:
+1. **PXE ROM** → dnsmasq (ProxyDHCP) → `ipxe.efi`
+2. **iPXE** → API fetches task-specific boot script
+3. **Kernel + initrd** → loaded via HTTP from `/ubuntu-live/XX.XX/casper/`
+4. **casper** → mounts root filesystem via NFS
+5. **Subiquity** → runs autoinstall with cloud-config from API
+6. **Ubuntu** → installed with hostname, user, SSH configured
+
+### Autoinstall Features:
+- 🔐 Pre-configured user (`octofleet`) with SSH access
+- 💾 LVM storage layout using all available space
+- 🌐 DHCP networking with German keyboard layout
+- 📦 Essential packages (curl, wget, htop, vim)
+
+### Supported Ubuntu Versions:
+- ✅ Ubuntu 24.04 LTS (Noble)
+- ✅ Ubuntu 22.04 LTS (Jammy)
+
+> **Note:** Ubuntu Live installer requires NFS. The HTTP `url=` parameter is not reliably supported by casper.
+
+---
+
 ## 🐧 Linux Agent
 
 Full-featured agent for Linux servers and workstations.
