@@ -10,6 +10,7 @@ from datetime import datetime
 import uuid
 import re
 import os
+import json
 
 router = APIRouter(prefix="/api/v1/provisioning", tags=["provisioning"])
 
@@ -91,9 +92,11 @@ class ProvisioningStatusUpdate(BaseModel):
 # ============================================
 
 async def get_db():
-    """Get database connection from main app pool"""
-    from dependencies import get_db as deps_get_db
-    async for conn in deps_get_db():
+    """Get database connection from pool"""
+    from dependencies import db_pool
+    if db_pool is None:
+        raise RuntimeError("Database pool not initialized")
+    async with db_pool.acquire() as conn:
         yield conn
 
 # ============================================
@@ -364,4 +367,121 @@ def _task_to_dict(row) -> dict:
         "created_at": row['created_at'],
         "started_at": row['started_at'],
         "completed_at": row['completed_at'],
+    }
+
+
+# ============================================
+# PXE Callback - Status Updates from WinPE
+# ============================================
+
+class PXECallbackRequest(BaseModel):
+    mac: Optional[str] = None
+    hostname: Optional[str] = None
+    step: str  # winpe_started, image_downloaded, installing, completed, failed
+    message: Optional[str] = None
+    details: Optional[dict] = None
+
+# Step to progress mapping
+STEP_PROGRESS = {
+    "winpe_started": 10,
+    "drivers_loaded": 15,
+    "network_ready": 20,
+    "partitioning": 30,
+    "image_downloading": 40,
+    "image_downloaded": 50,
+    "image_applying": 60,
+    "drivers_injected": 70,
+    "unattend_downloaded": 75,
+    "bootloader_configured": 85,
+    "rebooting": 90,
+    "oobe_started": 92,
+    "oobe_complete": 95,
+    "agent_installed": 98,
+    "completed": 100,
+    "failed": -1
+}
+
+@pxe_router.post("/callback")
+async def pxe_callback(request: PXECallbackRequest, conn = Depends(get_db)):
+    """
+    Callback endpoint for WinPE/Windows to report deployment progress.
+    Called from startnet.cmd and SetupComplete.cmd
+    """
+    
+    # Find task by MAC or hostname
+    task = None
+    if request.mac:
+        mac = request.mac.upper().replace('-', ':')
+        task = await conn.fetchrow("""
+            SELECT id, hostname, status FROM provisioning_tasks 
+            WHERE mac_address = $1 AND status NOT IN ('completed', 'failed')
+        """, mac)
+    elif request.hostname:
+        task = await conn.fetchrow("""
+            SELECT id, hostname, status FROM provisioning_tasks 
+            WHERE hostname = $1 AND status NOT IN ('completed', 'failed')
+        """, request.hostname)
+    
+    if not task:
+        return {"status": "ignored", "message": "No active task found"}
+    
+    # Calculate progress
+    progress = STEP_PROGRESS.get(request.step, 0)
+    
+    # Determine new status
+    status_map = {
+        "winpe_started": "installing",
+        "image_applying": "installing",
+        "oobe_started": "configuring",
+        "oobe_complete": "configuring",
+        "agent_installed": "configuring",
+        "completed": "completed",
+        "failed": "failed"
+    }
+    new_status = status_map.get(request.step, task['status'])
+    
+    # Update task
+    if request.step == "completed":
+        await conn.execute("""
+            UPDATE provisioning_tasks 
+            SET status = 'completed',
+                progress_percent = 100,
+                status_message = $2,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+        """, task['id'], request.message or "Deployment completed")
+    elif request.step == "failed":
+        await conn.execute("""
+            UPDATE provisioning_tasks 
+            SET status = 'failed',
+                status_message = $2,
+                updated_at = NOW()
+            WHERE id = $1
+        """, task['id'], request.message or "Deployment failed")
+    else:
+        await conn.execute("""
+            UPDATE provisioning_tasks 
+            SET status = $2,
+                progress_percent = $3,
+                status_message = $4,
+                current_step = $5,
+                updated_at = NOW()
+            WHERE id = $1
+        """, task['id'], new_status, progress if progress > 0 else task.get('progress_percent', 0), 
+           request.message, STEP_PROGRESS.get(request.step, 0))
+    
+    # Log event
+    await conn.execute("""
+        INSERT INTO provisioning_events (task_id, event_type, message, details)
+        VALUES ($1, $2, $3, $4)
+    """, task['id'], request.step, request.message or request.step, 
+       json.dumps(request.details) if request.details else None)
+    
+    return {
+        "status": "ok",
+        "task_id": str(task['id']),
+        "hostname": task['hostname'],
+        "new_status": new_status,
+        "progress": progress
     }

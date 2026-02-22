@@ -22,6 +22,9 @@ from alerting import get_alert_manager, update_node_health, check_node_health
 
 # E19: Provisioning imports
 from routers.provisioning import router as provisioning_router, pxe_router
+from routers.provisioning_vm import vm_router as provisioning_vm_router
+from routers.provisioning_domain import generate_autounattend, generate_djoin_script
+from routers.provisioning_postinstall import execute_post_install, handle_provisioning_complete
 
 # E19: PDF Report imports
 from reportlab.lib import colors
@@ -84,6 +87,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(provisioning_router)
+app.include_router(provisioning_vm_router)
 app.include_router(pxe_router)
 
 
