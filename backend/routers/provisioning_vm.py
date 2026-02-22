@@ -270,29 +270,136 @@ async def create_vm_on_hypervisor(
     }
 
 
+# Database dependency
+async def get_db():
+    """Get database connection from pool"""
+    from dependencies import db_pool
+    if db_pool is None:
+        raise RuntimeError("Database pool not initialized")
+    async with db_pool.acquire() as conn:
+        yield conn
+
+
 @vm_router.post("/create", response_model=VMCreateResponse)
 async def create_vm_and_provision(
     request: VMCreateRequest,
-    conn = Depends(lambda: None)  # Will be replaced with actual dependency
+    conn = Depends(get_db)
 ):
     """
     Create a VM on a hypervisor and automatically start provisioning.
     
     Flow:
     1. Create job to execute VM creation script on hypervisor
-    2. Wait for job completion to get MAC address
-    3. Create provisioning task with that MAC
+    2. Job runs, creates VM, returns MAC address
+    3. When job completes (via callback), provisioning task is created
     4. VM boots via PXE and installs Windows
     """
     
-    # This will be implemented when integrated into main.py
-    # For now, return a placeholder
+    # Verify image exists
+    image = await conn.fetchrow("""
+        SELECT name, display_name FROM provisioning_images WHERE name = $1 AND is_active = true
+    """, request.image_name)
+    
+    if not image:
+        raise HTTPException(status_code=400, detail=f"Image not found: {request.image_name}")
+    
+    # Get hypervisor info
+    hypervisor = await conn.fetchrow("""
+        SELECT id, node_id, hostname, os_name FROM nodes WHERE node_id = $1
+    """, request.hypervisor_node_id)
+    
+    if not hypervisor:
+        raise HTTPException(status_code=404, detail=f"Hypervisor node not found: {request.hypervisor_node_id}")
+    
+    # Determine platform type based on OS
+    is_windows = hypervisor['os_name'] and 'Windows' in hypervisor['os_name']
+    
+    if is_windows:
+        # Generate Hyper-V script
+        disks_json = json.dumps([d.dict() for d in request.disks])
+        
+        script = HYPERV_CREATE_SCRIPT.format(
+            hostname=request.hostname,
+            cpu=request.cpu,
+            memory_gb=request.memory_gb,
+            generation=request.generation,
+            vswitch=request.network.vswitch,
+            vlan=request.network.vlan or 0,
+            storage_path=request.storage_path or "D:\\\\Hyper-V\\\\Virtual Hard Disks",
+            disks_json=disks_json
+        )
+        
+        platform = f"hyperv-gen{request.generation}"
+        command_type = "powershell"
+        
+    else:
+        # Generate KVM script
+        memory_mb = request.memory_gb * 1024
+        
+        disk_commands = []
+        disk_paths = []
+        for disk in request.disks:
+            path = f"/var/lib/libvirt/images/{request.hostname}-{disk.purpose}.qcow2"
+            disk_commands.append(f'qemu-img create -f qcow2 "{path}" {disk.size_gb}G')
+            disk_paths.append(path)
+        
+        script = KVM_CREATE_SCRIPT.format(
+            hostname=request.hostname,
+            cpu=request.cpu,
+            memory_mb=memory_mb,
+            storage_pool=request.storage_path or "default",
+            network=request.network.vswitch,
+            disk_commands="\n".join(disk_commands),
+            disk_paths=",".join([f'path={p},format=qcow2' for p in disk_paths])
+        )
+        
+        platform = "kvm-libvirt"
+        command_type = "bash"
+    
+    # Create job to execute script on hypervisor
+    job_id = str(uuid.uuid4())
+    
+    await conn.execute("""
+        INSERT INTO jobs (id, name, command_type, command, target_type, targets, status, created_by)
+        VALUES ($1, $2, $3, $4, 'nodes', $5, 'pending', 'system')
+    """, job_id, f"Create VM: {request.hostname}", command_type, script, [request.hypervisor_node_id])
+    
+    # Create job instance
+    instance_id = str(uuid.uuid4())
+    await conn.execute("""
+        INSERT INTO job_instances (id, job_id, node_id, status)
+        VALUES ($1, $2, $3, 'pending')
+    """, instance_id, job_id, request.hypervisor_node_id)
+    
+    # Create a pending provisioning task (MAC will be filled when job completes)
+    task_id = str(uuid.uuid4())
+    await conn.execute("""
+        INSERT INTO provisioning_tasks (
+            id, hostname, platform, image_name, status, status_message,
+            network_config, created_by
+        ) VALUES ($1, $2, $3, $4, 'pending', $5, $6, 'system')
+    """, task_id, request.hostname, platform, request.image_name,
+        f"Waiting for VM creation job {job_id}",
+        json.dumps({
+            "use_dhcp": request.use_dhcp,
+            "static_ip": request.static_ip,
+            "subnet_mask": request.subnet_mask,
+            "gateway": request.gateway,
+            "dns_servers": request.dns_servers,
+            "domain_name": request.domain_name,
+            "domain_ou": request.domain_ou,
+            "install_agent": request.install_agent,
+            "add_to_groups": request.add_to_groups,
+            "install_packages": request.install_packages,
+            "vm_job_id": job_id  # Link to VM creation job
+        })
+    )
     
     return VMCreateResponse(
-        task_id="pending",
-        job_id="pending", 
+        task_id=task_id,
+        job_id=job_id,
         hostname=request.hostname,
-        mac_address=None,
+        mac_address=None,  # Will be set when job completes
         status="pending",
-        message="VM creation queued - waiting for hypervisor job"
+        message=f"VM creation job queued on {hypervisor['hostname']}. Task will activate when MAC is returned."
     )

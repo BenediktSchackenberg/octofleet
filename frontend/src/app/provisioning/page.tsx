@@ -141,6 +141,27 @@ function NewJobModal({
   const [enableRdp, setEnableRdp] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"manual" | "vm">("manual");
+  const [hypervisorNode, setHypervisorNode] = useState<string>("");
+  const [cpuCount, setCpuCount] = useState(4);
+  const [memoryGb, setMemoryGb] = useState(8);
+  const [diskSizeGb, setDiskSizeGb] = useState(100);
+  const [vswitch, setVswitch] = useState("Default Switch");
+  const [hypervisors, setHypervisors] = useState<Array<{node_id: string, hostname: string}>>([]);
+
+  // Load hypervisors on mount
+  useEffect(() => {
+    if (isOpen) {
+      fetchApi<{nodes: Array<{node_id: string, hostname: string, os_name: string}>}>("/api/v1/nodes")
+        .then(data => {
+          const hvNodes = data.nodes.filter(n => 
+            n.os_name?.includes("Server") || n.os_name?.includes("Linux")
+          );
+          setHypervisors(hvNodes);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   // MAC validation
   const isValidMac = (mac: string) => {
@@ -151,11 +172,24 @@ function NewJobModal({
   const handleSubmit = async () => {
     setError(null);
 
-    // Validation
-    if (!mac || !isValidMac(mac)) {
-      setError("Invalid MAC address format (e.g., 00:15:5D:00:23:03)");
-      return;
+    // Different validation based on mode
+    if (mode === "manual") {
+      if (!mac || !isValidMac(mac)) {
+        setError("Invalid MAC address format (e.g., 00:15:5D:00:23:03)");
+        return;
+      }
+    } else {
+      // VM mode
+      if (!hypervisorNode) {
+        setError("Please select a hypervisor");
+        return;
+      }
+      if (!hostname) {
+        setError("Hostname is required for VM creation");
+        return;
+      }
     }
+    
     if (!selectedImage) {
       setError("Please select an operating system");
       return;
@@ -168,21 +202,46 @@ function NewJobModal({
     setIsSubmitting(true);
 
     try {
-      await fetchApi("/api/v1/provisioning/tasks", {
-        method: "POST",
-        body: JSON.stringify({
-          mac_address: mac.toUpperCase().replace(/-/g, ":"),
-          hostname: hostname || null,
-          platform: selectedPlatform,
-          image_name: selectedImage,
-        }),
-      });
+      if (mode === "manual") {
+        // Direct task creation with known MAC
+        await fetchApi("/api/v1/provisioning/tasks", {
+          method: "POST",
+          body: JSON.stringify({
+            mac_address: mac.toUpperCase().replace(/-/g, ":"),
+            hostname: hostname || null,
+            platform: selectedPlatform,
+            image_name: selectedImage,
+          }),
+        });
+      } else {
+        // VM creation mode - creates VM and gets MAC automatically
+        await fetchApi("/api/v1/provisioning/vm/create", {
+          method: "POST",
+          body: JSON.stringify({
+            hostname: hostname,
+            hypervisor_node_id: hypervisorNode,
+            cpu: cpuCount,
+            memory_gb: memoryGb,
+            generation: 2,
+            disks: [{ size_gb: diskSizeGb, purpose: "os", type: "dynamic" }],
+            network: { vswitch: vswitch, vlan: null },
+            image_name: selectedImage,
+            use_dhcp: networkMode === "dhcp",
+            static_ip: networkMode === "static" ? staticIp : null,
+            gateway: networkMode === "static" ? gateway : null,
+            dns_servers: ["192.168.0.8"],
+            domain_name: domainJoin ? domainName : null,
+            install_agent: installAgent,
+          }),
+        });
+      }
 
       // Success - reset form and close
       setHostname("");
       setMac("");
       setSelectedImage(null);
       setSelectedPlatform(null);
+      setHypervisorNode("");
       onCreated();
       onClose();
     } catch (err) {
@@ -211,31 +270,135 @@ function NewJobModal({
             </div>
           )}
 
-          {/* Identity Section */}
+          {/* Mode Selection */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Deployment Mode</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setMode("manual")}
+                className={`p-4 rounded-lg border transition-all text-left ${
+                  mode === "manual"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-zinc-700 hover:border-zinc-500"
+                }`}
+              >
+                <div className="font-medium text-white">Manual (Known MAC)</div>
+                <div className="text-xs text-zinc-500 mt-1">For existing VMs or bare metal with known MAC address</div>
+              </button>
+              <button
+                onClick={() => setMode("vm")}
+                className={`p-4 rounded-lg border transition-all text-left ${
+                  mode === "vm"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-zinc-700 hover:border-zinc-500"
+                }`}
+              >
+                <div className="font-medium text-white">Create VM</div>
+                <div className="text-xs text-zinc-500 mt-1">Auto-create VM on Hyper-V/KVM and start provisioning</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Identity Section - different for each mode */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Identity</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Hostname (optional)</label>
-                <input
-                  type="text"
-                  value={hostname}
-                  onChange={(e) => setHostname(e.target.value)}
-                  placeholder="WEB-SERVER-01"
-                  className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
-                />
+            {mode === "manual" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">Hostname (optional)</label>
+                  <input
+                    type="text"
+                    value={hostname}
+                    onChange={(e) => setHostname(e.target.value)}
+                    placeholder="WEB-SERVER-01"
+                    className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">MAC Address *</label>
+                  <input
+                    type="text"
+                    value={mac}
+                    onChange={(e) => setMac(e.target.value)}
+                    placeholder="00:15:5D:00:23:03"
+                    className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">MAC Address *</label>
-                <input
-                  type="text"
-                  value={mac}
-                  onChange={(e) => setMac(e.target.value)}
-                  placeholder="00:15:5D:00:23:03"
-                  className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 font-mono"
-                />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">Hostname *</label>
+                    <input
+                      type="text"
+                      value={hostname}
+                      onChange={(e) => setHostname(e.target.value)}
+                      placeholder="WEB-SERVER-01"
+                      className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">Hypervisor *</label>
+                    <select
+                      value={hypervisorNode}
+                      onChange={(e) => setHypervisorNode(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">Select hypervisor...</option>
+                      {hypervisors.map(h => (
+                        <option key={h.node_id} value={h.node_id}>{h.hostname}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">CPUs</label>
+                    <input
+                      type="number"
+                      value={cpuCount}
+                      onChange={(e) => setCpuCount(parseInt(e.target.value) || 4)}
+                      min={1}
+                      max={32}
+                      className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">Memory (GB)</label>
+                    <input
+                      type="number"
+                      value={memoryGb}
+                      onChange={(e) => setMemoryGb(parseInt(e.target.value) || 8)}
+                      min={1}
+                      max={256}
+                      className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">Disk (GB)</label>
+                    <input
+                      type="number"
+                      value={diskSizeGb}
+                      onChange={(e) => setDiskSizeGb(parseInt(e.target.value) || 100)}
+                      min={20}
+                      max={2000}
+                      className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">VSwitch</label>
+                    <input
+                      type="text"
+                      value={vswitch}
+                      onChange={(e) => setVswitch(e.target.value)}
+                      placeholder="Default Switch"
+                      className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Platform Selection */}

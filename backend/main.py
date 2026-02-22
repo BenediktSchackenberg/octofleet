@@ -6026,6 +6026,40 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
                 WHERE id = $1
             """, instance_id)
         
+        # Handle VM creation job completion - extract MAC and update provisioning task
+        if success:
+            job_info = await conn.fetchrow("""
+                SELECT name FROM jobs WHERE id = $1
+            """, row["job_id"])
+            
+            if job_info and job_info['name'] and job_info['name'].startswith('Create VM:'):
+                # This is a VM creation job - parse MAC from output
+                try:
+                    import re
+                    mac_match = re.search(r'"macAddress"\s*:\s*"([0-9A-Fa-f:]{17})"', stdout or '')
+                    if mac_match:
+                        mac_address = mac_match.group(1).upper()
+                        
+                        # Find provisioning task linked to this job
+                        task = await conn.fetchrow("""
+                            SELECT id, hostname FROM provisioning_tasks 
+                            WHERE network_config::jsonb->>'vm_job_id' = $1
+                        """, row["job_id"])
+                        
+                        if task:
+                            # Update task with MAC address and activate it
+                            await conn.execute("""
+                                UPDATE provisioning_tasks 
+                                SET mac_address = $1, 
+                                    status = 'pending',
+                                    status_message = 'VM created, waiting for PXE boot',
+                                    updated_at = NOW()
+                                WHERE id = $2
+                            """, mac_address, task['id'])
+                            print(f"✅ VM created: {task['hostname']} - MAC: {mac_address}")
+                except Exception as e:
+                    print(f"Error processing VM creation result: {e}")
+        
         return {
             "status": status,
             "instanceId": instance_id,
