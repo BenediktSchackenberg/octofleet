@@ -538,8 +538,7 @@ async def get_pxe_script(mac: str, conn = Depends(get_db)):
         
         # Generate Ubuntu autoinstall iPXE script
         # Use NFS to mount live filesystem - casper handles NFS mount
-        # Key params: netboot=nfs tells casper to use NFS
-        # nfsroot format: server:/path (casper adds mount options)
+        # DON'T set root= - casper handles that via overlay
         script = f"""#!ipxe
 # Octofleet Ubuntu {version} Deployment via NFS
 set pxe-server {pxe_server}
@@ -563,10 +562,8 @@ echo
 echo Starting Ubuntu Live with NFS root...
 echo NFS: ${{nfs-server}}:/mnt/ubuntu-{version}
 echo
-echo Press any key to interrupt boot for debugging...
-echo
 
-imgargs vmlinuz initrd=initrd root=/dev/nfs netboot=nfs nfsroot=${{nfs-server}}:/mnt/ubuntu-{version} ip=dhcp ro boot=casper autoinstall "ds=nocloud-net;s=${{pxe-server}}/autoinstall/{mac_safe}/" ---
+imgargs vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${{nfs-server}}:/mnt/ubuntu-{version},tcp,vers=3 ip=dhcp autoinstall "ds=nocloud-net;s=${{pxe-server}}/autoinstall/{mac_safe}/" ---
 
 boot
 
