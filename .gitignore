@@ -56,6 +56,8 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+node_modules/
+**/node_modules/
 
 # IDE
 .idea/
