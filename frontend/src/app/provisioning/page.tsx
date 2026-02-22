@@ -654,6 +654,13 @@ export default function ProvisioningPage() {
               <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
             </button>
+            <Link
+              href="/provisioning/admin"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+            >
+              <HardDrive className="h-4 w-4" />
+              Manage
+            </Link>
             <button
               onClick={() => setShowNewJob(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
