@@ -6,10 +6,46 @@ import pytest
 import requests
 import os
 import time
+from pathlib import Path
 
 API_URL = os.getenv("API_URL", "http://localhost:8080")
-# Use consistent API key variable name (INVENTORY_API_KEY) with correct default
-API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
+
+
+def _load_env_file() -> None:
+    """Load octofleet/.env into process env without overriding exported vars."""
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_env_file()
+API_KEY = os.getenv("INVENTORY_API_KEY")
+
+# Use valid UUID-shaped ids to avoid format errors and keep behavior deterministic.
+VALID_UUID = "00000000-0000-0000-0000-000000000000"
+PROTECTED_ENDPOINTS = [
+    "/api/v1/nodes",
+    "/api/v1/nodes/tree",
+    "/api/v1/nodes/search?q=test",
+    f"/api/v1/nodes/{VALID_UUID}",
+    f"/api/v1/nodes/{VALID_UUID}/history",
+    "/api/v1/groups",
+    f"/api/v1/groups/{VALID_UUID}",
+    "/api/v1/jobs",
+    f"/api/v1/jobs/{VALID_UUID}",
+    "/api/v1/packages",
+    f"/api/v1/packages/{VALID_UUID}",
+    "/api/v1/service-classes",
+    f"/api/v1/service-classes/{VALID_UUID}",
+    "/api/v1/services",
+    f"/api/v1/services/{VALID_UUID}",
+]
 
 
 class TestHealth:
@@ -74,6 +110,7 @@ class TestServiceOrchestration:
     
     def test_list_service_classes(self):
         """Should list service classes"""
+        assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
             f"{API_URL}/api/v1/service-classes",
             headers={"X-API-Key": API_KEY},
@@ -86,6 +123,7 @@ class TestServiceOrchestration:
     
     def test_list_services(self):
         """Should list services"""
+        assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
             f"{API_URL}/api/v1/services",
             headers={"X-API-Key": API_KEY},
@@ -98,6 +136,7 @@ class TestServiceOrchestration:
     
     def test_create_service_class(self):
         """Should create a service class template"""
+        assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.post(
             f"{API_URL}/api/v1/service-classes",
             headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
@@ -117,10 +156,10 @@ class TestServiceOrchestration:
     
     def test_get_node_service_assignments(self):
         """Should return service assignments for a node"""
+        assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         # Use a valid UUID format (even if node doesn't exist)
-        test_uuid = "00000000-0000-0000-0000-000000000000"
         response = requests.get(
-            f"{API_URL}/api/v1/nodes/{test_uuid}/service-assignments",
+            f"{API_URL}/api/v1/nodes/{VALID_UUID}/service-assignments",
             headers={"X-API-Key": API_KEY},
             timeout=10
         )
@@ -152,6 +191,7 @@ class TestAPIKeyConsistency:
     
     def test_correct_api_key_accepted(self):
         """Current API key should work on all endpoints"""
+        assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
             f"{API_URL}/api/v1/nodes",
             headers={"X-API-Key": API_KEY},
@@ -160,14 +200,7 @@ class TestAPIKeyConsistency:
         assert response.status_code == 200, \
             f"Current API key should be accepted! Got {response.status_code}: {response.text[:100]}"
     
-    @pytest.mark.parametrize("endpoint", [
-        "/api/v1/nodes",
-        "/api/v1/groups",
-        "/api/v1/jobs",
-        "/api/v1/packages",
-        "/api/v1/service-classes",
-        "/api/v1/services",
-    ])
+    @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
     def test_protected_endpoints_reject_wrong_key(self, endpoint):
         """All protected endpoints should reject the old inconsistent key"""
         old_key = "octofleet-dev-key"
@@ -179,16 +212,10 @@ class TestAPIKeyConsistency:
         assert response.status_code == 401, \
             f"{endpoint} accepted wrong key! Status: {response.status_code}"
     
-    @pytest.mark.parametrize("endpoint", [
-        "/api/v1/nodes",
-        "/api/v1/groups",
-        "/api/v1/jobs",
-        "/api/v1/packages",
-        "/api/v1/service-classes",
-        "/api/v1/services",
-    ])
+    @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
     def test_protected_endpoints_accept_correct_key(self, endpoint):
         """All protected endpoints should accept the centralized API key"""
+        assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
             f"{API_URL}{endpoint}",
             headers={"X-API-Key": API_KEY},
@@ -197,11 +224,12 @@ class TestAPIKeyConsistency:
         assert response.status_code in [200, 404], \
             f"{endpoint} rejected correct key! Status: {response.status_code}: {response.text[:100]}"
     
-    def test_no_auth_rejected(self):
-        """Requests without auth should be rejected"""
+    @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
+    def test_no_auth_rejected(self, endpoint):
+        """Requests without auth should be rejected on all protected endpoints"""
         response = requests.get(
-            f"{API_URL}/api/v1/nodes",
+            f"{API_URL}{endpoint}",
             timeout=10
         )
         assert response.status_code in [401, 403], \
-            f"No-auth request should be rejected! Got {response.status_code}"
+            f"No-auth request should be rejected for {endpoint}! Got {response.status_code}"

@@ -333,7 +333,7 @@ async def api_health_check():
     return await health_check()
 
 
-@app.get("/api/v1/nodes")
+@app.get("/api/v1/nodes", dependencies=[Depends(verify_api_key)])
 async def list_nodes(
     unassigned: bool = False,
     group_id: Optional[str] = None,
@@ -427,7 +427,7 @@ def _get_os_family(os_name: str | None) -> str:
     return "Other"
 
 
-@app.get("/api/v1/nodes/tree")
+@app.get("/api/v1/nodes/tree", dependencies=[Depends(verify_api_key)])
 async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
     """Get nodes organized in a tree structure by groups/OS/version"""
     async with db.acquire() as conn:
@@ -504,7 +504,7 @@ async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
         return tree
 
 
-@app.get("/api/v1/nodes/search")
+@app.get("/api/v1/nodes/search", dependencies=[Depends(verify_api_key)])
 async def search_nodes(q: str, limit: int = 20, db: asyncpg.Pool = Depends(get_db)):
     """Search nodes by name, hostname, IP, or node_id"""
     if len(q) < 2:
@@ -680,7 +680,7 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-@app.get("/api/v1/nodes/{node_id}")
+@app.get("/api/v1/nodes/{node_id}", dependencies=[Depends(verify_api_key)])
 async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get detailed info for a single node"""
     async with db.acquire() as conn:
@@ -735,7 +735,7 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         return result
 
 
-@app.get("/api/v1/nodes/{node_id}/history")
+@app.get("/api/v1/nodes/{node_id}/history", dependencies=[Depends(verify_api_key)])
 async def get_node_history(node_id: str, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
     """Get change history for a node (hardware snapshots)"""
     async with db.acquire() as conn:
@@ -1950,7 +1950,7 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
 # E2: Groups & Tags API
 # =============================================================================
 
-@app.get("/api/v1/groups")
+@app.get("/api/v1/groups", dependencies=[Depends(verify_api_key)])
 async def list_groups(db: asyncpg.Pool = Depends(get_db)):
     """List all groups with member counts"""
     async with db.acquire() as conn:
@@ -1966,7 +1966,7 @@ async def list_groups(db: asyncpg.Pool = Depends(get_db)):
         return {"groups": [dict(r) for r in rows]}
 
 
-@app.get("/api/v1/groups/{group_id}")
+@app.get("/api/v1/groups/{group_id}", dependencies=[Depends(verify_api_key)])
 async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get single group with members"""
     async with db.acquire() as conn:
@@ -2798,7 +2798,7 @@ async def get_pending_node_config(pending_id: str):
 # E3: Job System API
 # ============================================
 
-@app.post("/api/v1/jobs")
+@app.post("/api/v1/jobs", dependencies=[Depends(verify_api_key)])
 async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new job targeting devices, groups, or tags"""
     async with db.acquire() as conn:
@@ -5708,7 +5708,7 @@ Write-Host "Baseline installation complete!"
         }
 
 
-@app.get("/api/v1/jobs")
+@app.get("/api/v1/jobs", dependencies=[Depends(verify_api_key)])
 async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends(get_db)):
     """List all jobs with summary"""
     async with db.acquire() as conn:
@@ -5740,7 +5740,7 @@ async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends
         return {"jobs": jobs}
 
 
-@app.get("/api/v1/jobs/{job_id}")
+@app.get("/api/v1/jobs/{job_id}", dependencies=[Depends(verify_api_key)])
 async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get job details with all instances"""
     async with db.acquire() as conn:
@@ -5794,7 +5794,7 @@ async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-@app.get("/api/v1/jobs/pending/{node_id}")
+@app.get("/api/v1/jobs/pending/{node_id}", dependencies=[Depends(verify_api_key)])
 async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Get pending jobs for a specific node"""
     # Support both formats: "win-baltasa" and "BALTASA"
@@ -5939,7 +5939,7 @@ try {{
         return {"jobs": jobs, "count": len(jobs)}
 
 
-@app.post("/api/v1/jobs/instances/{instance_id}/start")
+@app.post("/api/v1/jobs/instances/{instance_id}/start", dependencies=[Depends(verify_api_key)])
 async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Mark job as started"""
     async with db.acquire() as conn:
@@ -5961,7 +5961,7 @@ async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
         return {"status": "running", "instanceId": instance_id}
 
 
-@app.post("/api/v1/jobs/instances/{instance_id}/result")
+@app.post("/api/v1/jobs/instances/{instance_id}/result", dependencies=[Depends(verify_api_key)])
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Submit job execution result"""
     success = data.get("success", False)
@@ -6068,7 +6068,7 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
 
 
 # Legacy endpoint for old Linux agent (snake_case fields, different path)
-@app.post("/api/v1/jobs/result")
+@app.post("/api/v1/jobs/result", dependencies=[Depends(verify_api_key)])
 async def submit_job_result_legacy(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Legacy agent endpoint: Submit job result (old format with instance_id in body)"""
     instance_id = data.get("instance_id")
@@ -6100,7 +6100,7 @@ async def submit_job_result_legacy(data: Dict[str, Any], db: asyncpg.Pool = Depe
         return {"status": "success" if success else "failed", "instanceId": instance_id}
 
 
-@app.post("/api/v1/jobs/instances/{instance_id}/retry")
+@app.post("/api/v1/jobs/instances/{instance_id}/retry", dependencies=[Depends(verify_api_key)])
 async def retry_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Manually retry a failed or cancelled job instance"""
     async with db.acquire() as conn:
@@ -6138,7 +6138,7 @@ async def retry_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
         return {"status": "pending", "instanceId": instance_id, "attempt": new_attempt}
 
 
-@app.delete("/api/v1/jobs/{job_id}")
+@app.delete("/api/v1/jobs/{job_id}", dependencies=[Depends(verify_api_key)])
 async def cancel_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Cancel a job and all pending instances"""
     async with db.acquire() as conn:
@@ -6154,7 +6154,7 @@ async def cancel_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
 # PACKAGE MANAGEMENT API (E4)
 # ============================================
 
-@app.get("/api/v1/packages")
+@app.get("/api/v1/packages", dependencies=[Depends(verify_api_key)])
 async def list_packages(category: str = None, active_only: bool = True, db: asyncpg.Pool = Depends(get_db)):
     """List all packages"""
     async with db.acquire() as conn:
@@ -6203,7 +6203,7 @@ async def list_packages(category: str = None, active_only: bool = True, db: asyn
         return {"packages": packages, "count": len(packages)}
 
 
-@app.post("/api/v1/packages")
+@app.post("/api/v1/packages", dependencies=[Depends(verify_api_key)])
 async def create_package(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new package"""
     async with db.acquire() as conn:
@@ -6230,7 +6230,7 @@ async def create_package(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
         return {"id": str(row["id"]), "status": "created"}
 
 
-@app.get("/api/v1/packages/{package_id}")
+@app.get("/api/v1/packages/{package_id}", dependencies=[Depends(verify_api_key)])
 async def get_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get package details with versions"""
     async with db.acquire() as conn:
@@ -6297,7 +6297,7 @@ async def get_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
         return package
 
 
-@app.put("/api/v1/packages/{package_id}")
+@app.put("/api/v1/packages/{package_id}", dependencies=[Depends(verify_api_key)])
 async def update_package(package_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update package details"""
     async with db.acquire() as conn:
@@ -6331,7 +6331,7 @@ async def update_package(package_id: str, data: Dict[str, Any], db: asyncpg.Pool
         return {"status": "updated"}
 
 
-@app.delete("/api/v1/packages/{package_id}")
+@app.delete("/api/v1/packages/{package_id}", dependencies=[Depends(verify_api_key)])
 async def delete_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a package (cascades to versions)"""
     async with db.acquire() as conn:
@@ -6345,7 +6345,7 @@ async def delete_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
 # PACKAGE VERSIONS API
 # ============================================
 
-@app.post("/api/v1/packages/{package_id}/versions")
+@app.post("/api/v1/packages/{package_id}/versions", dependencies=[Depends(verify_api_key)])
 async def create_package_version(package_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new version for a package"""
     async with db.acquire() as conn:
@@ -6385,7 +6385,7 @@ async def create_package_version(package_id: str, data: Dict[str, Any], db: asyn
         return {"id": str(row["id"]), "status": "created"}
 
 
-@app.get("/api/v1/packages/{package_id}/versions/{version_id}")
+@app.get("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(verify_api_key)])
 async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a specific version with detection rules"""
     async with db.acquire() as conn:
@@ -6460,7 +6460,7 @@ async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool
         return version
 
 
-@app.put("/api/v1/packages/{package_id}/versions/{version_id}")
+@app.put("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(verify_api_key)])
 async def update_package_version(package_id: str, version_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update a package version"""
     async with db.acquire() as conn:
@@ -6510,7 +6510,7 @@ async def update_package_version(package_id: str, version_id: str, data: Dict[st
         return {"status": "updated", "version": row["version"]}
 
 
-@app.delete("/api/v1/packages/{package_id}/versions/{version_id}")
+@app.delete("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(verify_api_key)])
 async def delete_package_version(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a package version"""
     async with db.acquire() as conn:
@@ -6529,7 +6529,7 @@ async def delete_package_version(package_id: str, version_id: str, db: asyncpg.P
 # DETECTION RULES API
 # ============================================
 
-@app.post("/api/v1/packages/{package_id}/versions/{version_id}/rules")
+@app.post("/api/v1/packages/{package_id}/versions/{version_id}/rules", dependencies=[Depends(verify_api_key)])
 async def create_detection_rule(package_id: str, version_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a detection rule for a version"""
     async with db.acquire() as conn:
@@ -6620,7 +6620,7 @@ async def delete_package_source(source_id: str, db: asyncpg.Pool = Depends(get_d
 # AGENT: PACKAGE DETECTION/DOWNLOAD ENDPOINTS
 # ============================================
 
-@app.get("/api/v1/packages/{package_id}/versions/{version_id}/detect")
+@app.get("/api/v1/packages/{package_id}/versions/{version_id}/detect", dependencies=[Depends(verify_api_key)])
 async def get_detection_info(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get detection info for agent to check if package is installed"""
     async with db.acquire() as conn:
@@ -6654,7 +6654,7 @@ async def get_detection_info(package_id: str, version_id: str, db: asyncpg.Pool 
         }
 
 
-@app.get("/api/v1/packages/{package_id}/versions/{version_id}/download-info")
+@app.get("/api/v1/packages/{package_id}/versions/{version_id}/download-info", dependencies=[Depends(verify_api_key)])
 async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get download URLs for agent"""
     async with db.acquire() as conn:
@@ -6709,7 +6709,7 @@ async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool =
 # EVENTLOG COLLECTION ENDPOINTS
 # ============================================
 
-@app.post("/api/v1/nodes/{node_id}/eventlog")
+@app.post("/api/v1/nodes/{node_id}/eventlog", dependencies=[Depends(verify_api_key)])
 async def push_eventlog(node_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
     """Receive eventlog entries from agent"""
     data = await request.json()
@@ -6750,7 +6750,7 @@ async def push_eventlog(node_id: str, request: Request, db: asyncpg.Pool = Depen
         return {"status": "ok", "inserted": inserted, "total": len(events)}
 
 
-@app.get("/api/v1/nodes/{node_id}/eventlog")
+@app.get("/api/v1/nodes/{node_id}/eventlog", dependencies=[Depends(verify_api_key)])
 async def get_node_eventlog(
     node_id: str,
     log_name: Optional[str] = None,
@@ -6936,7 +6936,7 @@ async def get_important_events(hours: int = 24, limit: int = 50, db: asyncpg.Poo
         }
 
 
-@app.post("/api/v1/jobs/{job_id}/parse-eventlog")
+@app.post("/api/v1/jobs/{job_id}/parse-eventlog", dependencies=[Depends(verify_api_key)])
 async def parse_eventlog_from_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Parse eventlog data from a completed job and store in eventlog_entries"""
     async with db.acquire() as conn:
@@ -9962,7 +9962,7 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
         }
 
 
-@app.get("/api/v1/nodes/{node_id}/metrics/history")
+@app.get("/api/v1/nodes/{node_id}/metrics/history", dependencies=[Depends(verify_api_key)])
 async def get_metrics_history(
     node_id: str, 
     hours: int = 24,
@@ -10107,7 +10107,7 @@ async def export_fleet_hardware(
         }
 
 
-@app.get("/api/v1/nodes/{node_id}/hardware/export")
+@app.get("/api/v1/nodes/{node_id}/hardware/export", dependencies=[Depends(verify_api_key)])
 async def export_node_hardware(
     node_id: str,
     format: str = "json",
@@ -10807,7 +10807,7 @@ async def remediation_live_sse(request: Request, token: str = None, api_key: str
 
 # --- Service Classes ---
 
-@app.get("/api/v1/service-classes")
+@app.get("/api/v1/service-classes", dependencies=[Depends(verify_api_key)])
 async def list_service_classes(db: asyncpg.Pool = Depends(get_db)):
     """List all service class templates"""
     async with db.acquire() as conn:
@@ -10820,7 +10820,7 @@ async def list_service_classes(db: asyncpg.Pool = Depends(get_db)):
         return {"serviceClasses": [dict(r) for r in rows]}
 
 
-@app.post("/api/v1/service-classes")
+@app.post("/api/v1/service-classes", dependencies=[Depends(verify_api_key)])
 async def create_service_class(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new service class template"""
     async with db.acquire() as conn:
@@ -10848,7 +10848,7 @@ async def create_service_class(data: Dict[str, Any], db: asyncpg.Pool = Depends(
         return dict(row)
 
 
-@app.get("/api/v1/service-classes/{class_id}")
+@app.get("/api/v1/service-classes/{class_id}", dependencies=[Depends(verify_api_key)])
 async def get_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a service class by ID"""
     async with db.acquire() as conn:
@@ -10860,7 +10860,7 @@ async def get_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
         return dict(row)
 
 
-@app.put("/api/v1/service-classes/{class_id}")
+@app.put("/api/v1/service-classes/{class_id}", dependencies=[Depends(verify_api_key)])
 async def update_service_class(class_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update a service class"""
     async with db.acquire() as conn:
@@ -10899,7 +10899,7 @@ async def update_service_class(class_id: str, data: Dict[str, Any], db: asyncpg.
         return dict(row)
 
 
-@app.delete("/api/v1/service-classes/{class_id}")
+@app.delete("/api/v1/service-classes/{class_id}", dependencies=[Depends(verify_api_key)])
 async def delete_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a service class (only if no services use it)"""
     async with db.acquire() as conn:
@@ -10923,7 +10923,7 @@ async def delete_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)
 
 # --- Services ---
 
-@app.get("/api/v1/services")
+@app.get("/api/v1/services", dependencies=[Depends(verify_api_key)])
 async def list_services(
     status: str = None,
     class_id: str = None,
@@ -10958,7 +10958,7 @@ async def list_services(
         return {"services": [dict(r) for r in rows]}
 
 
-@app.post("/api/v1/services")
+@app.post("/api/v1/services", dependencies=[Depends(verify_api_key)])
 async def create_service(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new service instance"""
     class_id = data.get("classId")
@@ -10989,7 +10989,7 @@ async def create_service(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
         return dict(row)
 
 
-@app.get("/api/v1/services/{service_id}")
+@app.get("/api/v1/services/{service_id}", dependencies=[Depends(verify_api_key)])
 async def get_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a service with its node assignments"""
     async with db.acquire() as conn:
@@ -11018,7 +11018,7 @@ async def get_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
         return result
 
 
-@app.put("/api/v1/services/{service_id}")
+@app.put("/api/v1/services/{service_id}", dependencies=[Depends(verify_api_key)])
 async def update_service(service_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update a service"""
     async with db.acquire() as conn:
@@ -11050,7 +11050,7 @@ async def update_service(service_id: str, data: Dict[str, Any], db: asyncpg.Pool
         return dict(row)
 
 
-@app.delete("/api/v1/services/{service_id}")
+@app.delete("/api/v1/services/{service_id}", dependencies=[Depends(verify_api_key)])
 async def delete_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a service and all its assignments"""
     async with db.acquire() as conn:
@@ -11064,7 +11064,7 @@ async def delete_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
 
 # --- Service Node Assignments ---
 
-@app.post("/api/v1/services/{service_id}/nodes")
+@app.post("/api/v1/services/{service_id}/nodes", dependencies=[Depends(verify_api_key)])
 async def assign_node_to_service(
     service_id: str, 
     data: Dict[str, Any], 
@@ -11107,7 +11107,7 @@ async def assign_node_to_service(
         return dict(row)
 
 
-@app.delete("/api/v1/services/{service_id}/nodes/{node_id}")
+@app.delete("/api/v1/services/{service_id}/nodes/{node_id}", dependencies=[Depends(verify_api_key)])
 async def remove_node_from_service(
     service_id: str, 
     node_id: str, 
@@ -11135,7 +11135,7 @@ async def remove_node_from_service(
 
 # --- Service Reconciliation Log ---
 
-@app.get("/api/v1/services/{service_id}/logs")
+@app.get("/api/v1/services/{service_id}/logs", dependencies=[Depends(verify_api_key)])
 async def get_service_logs(
     service_id: str,
     limit: int = 50,
@@ -11158,7 +11158,7 @@ async def get_service_logs(
 # E18-03: Service Reconciliation Engine
 # ============================================================================
 
-@app.post("/api/v1/services/{service_id}/reconcile")
+@app.post("/api/v1/services/{service_id}/reconcile", dependencies=[Depends(verify_api_key)])
 async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Trigger reconciliation for a service - creates jobs for all assigned nodes"""
     async with db.acquire() as conn:
@@ -11250,7 +11250,7 @@ async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get
         }
 
 
-@app.get("/api/v1/nodes/{node_id}/service-assignments")
+@app.get("/api/v1/nodes/{node_id}/service-assignments", dependencies=[Depends(verify_api_key)])
 async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get all services assigned to a node - for agent polling.
     node_id can be the database ID or the hostname (case-insensitive).
@@ -11315,7 +11315,7 @@ async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(
         return {"nodeId": node_id, "services": services}
 
 
-@app.post("/api/v1/services/{service_id}/nodes/{node_id}/status")
+@app.post("/api/v1/services/{service_id}/nodes/{node_id}/status", dependencies=[Depends(verify_api_key)])
 async def update_node_service_status(
     service_id: str,
     node_id: str,
@@ -11864,8 +11864,11 @@ async def get_agent_version():
                         if sha_resp.status == 200:
                             sha256 = (await sha_resp.text()).strip()
                 
+                # Keep backward-compatible keys used by existing tests/clients.
                 result = {
                     "latest": version,
+                    "version": version,
+                    "latestVersion": version,
                     "downloadUrl": zip_asset["browser_download_url"],
                     "sha256": sha256,
                     "releaseDate": data["published_at"],
