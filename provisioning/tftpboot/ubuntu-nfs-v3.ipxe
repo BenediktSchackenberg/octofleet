@@ -1,0 +1,36 @@
+#!ipxe
+# Octofleet Ubuntu 24.04 NFS Boot - Syntax Variant B
+# Kernel ohne args, dann imgargs, dann initrd, dann boot
+
+echo
+echo =============================================
+echo    Octofleet Ubuntu 24.04 NFS Boot
+echo    Syntax: kernel + imgargs + initrd + boot
+echo =============================================
+echo
+
+set nfs-server 192.168.0.5
+set nfs-path /mnt/ubuntu-24.04
+set pxe-server http://192.168.0.5:9080
+
+echo MAC: ${mac}
+echo
+echo Downloading kernel...
+kernel ${pxe-server}/ubuntu-live/24.04/casper/vmlinuz || goto failed
+
+echo Setting kernel arguments...
+imgargs vmlinuz boot=casper netboot=nfs nfsroot=${nfs-server}:${nfs-path},tcp,vers=3 ip=dhcp ---
+
+echo Downloading initrd...
+initrd ${pxe-server}/ubuntu-live/24.04/casper/initrd || goto failed
+
+echo
+echo Booting with NFS root: ${nfs-server}:${nfs-path}
+echo
+boot || goto failed
+
+:failed
+echo
+echo !! BOOT FAILED !!
+echo
+shell

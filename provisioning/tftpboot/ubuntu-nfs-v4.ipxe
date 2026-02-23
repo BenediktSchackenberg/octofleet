@@ -1,0 +1,36 @@
+#!ipxe
+# Octofleet Ubuntu 24.04 NFS Boot - Syntax Variant C
+# Using initrd=NAME syntax and explicit args
+
+echo
+echo =============================================
+echo    Octofleet Ubuntu 24.04 NFS Boot
+echo    Syntax: initrd first, then kernel with args
+echo =============================================
+echo
+
+set nfs-server 192.168.0.5
+set nfs-path /mnt/ubuntu-24.04
+set pxe-server http://192.168.0.5:9080
+
+echo MAC: ${mac}
+echo
+
+# Load initrd FIRST (named)
+echo Loading initrd...
+initrd --name initrd ${pxe-server}/ubuntu-live/24.04/casper/initrd || goto failed
+
+# Then kernel with all args including initrd=initrd
+echo Loading kernel with arguments...
+kernel ${pxe-server}/ubuntu-live/24.04/casper/vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${nfs-server}:${nfs-path},tcp,vers=3 ip=dhcp --- || goto failed
+
+echo
+echo Booting with NFS root: ${nfs-server}:${nfs-path}
+echo
+boot || goto failed
+
+:failed
+echo
+echo !! BOOT FAILED !!
+echo
+shell

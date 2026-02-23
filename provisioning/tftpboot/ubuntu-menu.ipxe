@@ -1,0 +1,55 @@
+#!ipxe
+# Octofleet Ubuntu NFS Boot - Test Menu
+# Test verschiedene iPXE Syntaxen
+
+echo
+echo =============================================
+echo    Octofleet iPXE Syntax Test Menu
+echo =============================================
+echo
+
+:menu
+menu iPXE Syntax Test - Ubuntu 24.04 NFS Boot
+item --gap --          === iPXE Variants ===
+item v2                V2: kernel URL ARGS + initrd URL + boot
+item v3                V3: kernel URL + imgargs + initrd URL + boot  
+item v4                V4: initrd --name + kernel URL ARGS + boot
+item --gap --          === Other Options ===
+item grub              Switch to GRUB boot
+item shell             iPXE Shell (debug)
+item exit              Exit to local boot
+choose target && goto ${target} ||
+
+:v2
+echo
+echo === Testing V2: Args inline with kernel ===
+chain http://192.168.0.5:9080/ubuntu-nfs-v2.ipxe || goto failed
+
+:v3
+echo
+echo === Testing V3: kernel + imgargs + initrd ===
+chain http://192.168.0.5:9080/ubuntu-nfs-v3.ipxe || goto failed
+
+:v4
+echo
+echo === Testing V4: initrd first, then kernel with args ===
+chain http://192.168.0.5:9080/ubuntu-nfs-v4.ipxe || goto failed
+
+:grub
+echo
+echo Chainloading to GRUB...
+chain tftp://192.168.0.5/grub/grubnetx64.efi || goto failed
+
+:shell
+shell
+goto menu
+
+:exit
+exit 0
+
+:failed
+echo
+echo !! CHAIN FAILED !!
+echo
+sleep 3
+goto menu

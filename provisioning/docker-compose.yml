@@ -11,10 +11,15 @@ services:
     volumes:
       # Config
       - ./dnsmasq.conf:/etc/dnsmasq.d/octofleet.conf:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./hosts.pxe:/etc/hosts.pxe:rw
       
       # Boot files (rw for generated boot.ipxe)
       - ./tftpboot:/tftpboot:rw
+      
+      # Ubuntu Live ISOs for NFS boot
+      - /mnt/ubuntu-24.04:/mnt/ubuntu-24.04:ro
+      - /mnt/ubuntu-22.04:/mnt/ubuntu-22.04:ro
       
       # Images & Drivers (große Dateien)
       - ./images:/srv/images:ro
