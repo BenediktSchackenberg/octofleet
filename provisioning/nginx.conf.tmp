@@ -1,0 +1,6 @@
+        
+        # Windows Install files
+        location /wininstall/ {
+            alias /srv/images/wininstall/;
+            autoindex on;
+        }

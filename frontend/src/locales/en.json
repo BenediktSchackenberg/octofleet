@@ -59,7 +59,8 @@
     "sql": "SQL Server",
     "performance": "Performance",
     "provisioning": "Provisioning",
-    "repo": "Repository"
+    "repo": "Repository",
+    "reports": "Reports"
   },
   "auth": {
     "login": "Login",

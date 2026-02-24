@@ -1,0 +1,19 @@
+#!ipxe
+# DEBUG VERSION - drops to shell before NFS mount
+
+set nfs-server 192.168.0.5
+set nfs-path /mnt/ubuntu-24.04
+set pxe-server http://192.168.0.5:9080
+
+echo
+echo === DEBUG BOOT - will drop to initramfs shell ===
+echo
+
+initrd --name initrd ${pxe-server}/ubuntu-live/24.04/casper/initrd || goto failed
+kernel ${pxe-server}/ubuntu-live/24.04/casper/vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${nfs-server}:${nfs-path},tcp,vers=3 ip=dhcp break=premount --- || goto failed
+
+boot || goto failed
+
+:failed
+echo FAILED
+shell

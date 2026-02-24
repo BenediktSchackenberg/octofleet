@@ -29,6 +29,9 @@ services:
       
       # Scripts
       - ./scripts:/srv/scripts:ro
+      
+      # Windows Install files
+      - /srv/wininstall:/srv/wininstall:ro
     environment:
       - PXE_SERVER_IP=${PXE_SERVER_IP:-192.168.0.5}
       - OCTOFLEET_API=${OCTOFLEET_API:-http://localhost:8080}

@@ -1,0 +1,56 @@
+#!ipxe
+# Octofleet Universal Boot Menu
+# Windows + Linux via netboot.xyz
+
+echo
+echo  =============================================
+echo   Octofleet Universal PXE Boot
+echo  =============================================
+echo
+
+:menu
+menu Octofleet PXE Boot
+item --gap --             === Local Images ===
+item winpe                Windows (WinPE + Autounattend)
+item --gap --             === Network Install ===
+item netboot              netboot.xyz (Windows/Linux/BSD)
+item --gap --             === Utilities ===  
+item shell                iPXE Shell
+item reboot               Reboot
+item exit                 Boot from disk
+choose --timeout 30000 --default netboot target && goto ${target} ||
+
+:winpe
+echo Loading WinPE...
+kernel ${pxe-server}/winpe/wimboot
+initrd ${pxe-server}/winpe/BCD         BCD
+initrd ${pxe-server}/winpe/boot.sdi    boot.sdi
+initrd ${pxe-server}/winpe/boot.wim    boot.wim
+boot || goto menu
+
+:netboot
+echo
+echo Chainloading netboot.xyz...
+echo (Full OS menu: Windows, Ubuntu, Debian, Fedora, etc.)
+echo
+chain --autofree https://boot.netboot.xyz/ipxe/netboot.xyz.efi || goto netboot_legacy
+
+:netboot_legacy
+echo Trying legacy BIOS netboot.xyz...
+chain --autofree https://boot.netboot.xyz/ipxe/netboot.xyz.lkrn || goto failed
+
+:shell
+shell
+goto menu
+
+:reboot
+reboot
+
+:exit
+exit 0
+
+:failed
+echo
+echo !! Boot failed !!
+sleep 3
+goto menu

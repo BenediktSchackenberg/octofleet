@@ -149,6 +149,7 @@ const navGroups: NavGroup[] = [
       { href: "/performance", labelKey: "nav.performance", icon: Activity, permission: "nodes:read" },
       { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read" },
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read" },
+      { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read" },
     ]
   },
   {
