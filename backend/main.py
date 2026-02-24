@@ -77,10 +77,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# CORS - allow all common origins for dev/local network
+CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080",
+    "http://192.168.0.5:3000",
+    "http://192.168.0.5:8080",
+    "http://homeinvader.lan:3000",
+    "http://homeinvader.lan:8080",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

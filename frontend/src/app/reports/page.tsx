@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle } from "lucide-react";
+import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle, AlertCircle } from "lucide-react";
 import { Breadcrumb } from "@/components/ui-components";
-import { getAuthHeader } from "@/lib/auth-context";
+import { getAuthHeader, useAuth } from "@/lib/auth-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -48,7 +48,9 @@ const REPORTS: ReportConfig[] = [
 ];
 
 export default function ReportsPage() {
+  const { user, token } = useAuth();
   const [generating, setGenerating] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -58,6 +60,11 @@ export default function ReportsPage() {
   const [recentDownloads, setRecentDownloads] = useState<{ name: string; time: Date }[]>([]);
 
   async function generateReport(report: ReportConfig) {
+    if (!token) {
+      setError("Please log in to generate reports");
+      return;
+    }
+    setError(null);
     setGenerating(report.id);
     try {
       let url = `${API_URL}${report.endpoint}`;
@@ -94,11 +101,15 @@ export default function ReportsPage() {
       } else {
         const err = await res.text();
         console.error("Report generation failed:", err);
-        alert(`Failed to generate report: ${res.status}`);
+        if (res.status === 401) {
+          setError("Authentication failed. Please log in again.");
+        } else {
+          setError(`Failed to generate report: ${res.status} - ${err}`);
+        }
       }
     } catch (e) {
       console.error("Report generation error:", e);
-      alert("Failed to generate report. Check console for details.");
+      setError("Failed to generate report. Check console for details.");
     } finally {
       setGenerating(null);
     }
@@ -124,6 +135,23 @@ export default function ReportsPage() {
           </p>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/50 text-red-500 rounded-lg p-4 mb-6 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <p>{error}</p>
+          <button onClick={() => setError(null)} className="ml-auto text-sm underline">Dismiss</button>
+        </div>
+      )}
+
+      {/* Not logged in warning */}
+      {!token && (
+        <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-600 dark:text-yellow-400 rounded-lg p-4 mb-6 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <p>You need to be logged in to generate reports. <a href="/login" className="underline font-medium">Log in</a></p>
+        </div>
+      )}
 
       {/* Date Range Picker */}
       <div className="bg-card border border-border rounded-lg p-4 mb-6">
