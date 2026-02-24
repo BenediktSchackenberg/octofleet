@@ -25,19 +25,25 @@ chain ${pxe-server}/boot/${mac:hexhyp}.ipxe && goto boot_done ||
 :menu
 menu Octofleet PXE Boot
 item --gap --  -------- Options --------
-item winpe     Boot WinPE (Manual Install)
+item winpe     Boot WinPE / Windows Install
 item local     Boot from local disk
 item shell     iPXE Shell
 item reboot    Reboot
-choose --timeout ${menu-timeout} --default local target && goto ${target} || goto local
+choose --timeout ${menu-timeout} --default winpe target && goto ${target} || goto winpe
 
 :winpe
-echo Loading WinPE...
-kernel ${pxe-server}/winpe/wimboot
-initrd ${pxe-server}/winpe/BCD         BCD
-initrd ${pxe-server}/winpe/boot.sdi    boot.sdi
-initrd ${pxe-server}/winpe/boot.wim    boot.wim
-boot || goto menu
+echo.
+echo !! WinPE boot.wim is 512MB - too large for iPXE !!
+echo !! iPXE has ~400MB RAM limit for initrd files  !!
+echo.
+echo Options:
+echo  1. Use USB stick with Windows installer
+echo  2. Build mini WinPE with ADK (under 400MB)
+echo  3. Try sanboot to iSCSI/NFS target
+echo.
+echo Press any key to return to menu...
+prompt
+goto menu
 
 :local
 echo Booting from local disk...

@@ -13,4 +13,4 @@
 # === Registrierte Hosts ===
 # (wird dynamisch befüllt)
 dhcp-host=52:54:00:65:d5:42,set:pxe
-dhcp-host=d0:50:99:00:6a:56,set:pxe
+52:54:00:2b:e5:28,set:pxe
