@@ -20,7 +20,7 @@ services:
       POSTGRES_DB: inventory
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./backend/schema-full.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
