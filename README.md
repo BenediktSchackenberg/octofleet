@@ -120,6 +120,15 @@
 - Enrollment tokens for mass rollout
 
 </td>
+<td width="50%">
+
+### 📊 Reports & Exports
+- **PDF Reports** — Fleet Summary, Security, Inventory
+- **Excel/CSV/JSON exports** — For all data types
+- **Date range filtering** — 7d/30d/90d presets
+- Report Generator page (`/reports`)
+
+</td>
 </tr>
 </table>
 
