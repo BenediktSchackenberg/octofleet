@@ -1,0 +1,79 @@
+#cloud-config
+# E19-09: Ubuntu Autoinstall with Octofleet Agent Auto-Installation
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: de
+  identity:
+    hostname: ${HOSTNAME}
+    username: octofleet
+    # Password: octofleet (change in production!)
+    password: "$6$rounds=4096$salt$iqcgL5FX/a5Zq8e8Vz7x3FJsYJNBjrNhZNpzNgS1XHnWz/vZF8PUy3gH8rN5X3bN7qY4fJ5nM2kP9sL1hT6wK."
+  ssh:
+    install-server: true
+    allow-pw: true
+  storage:
+    layout:
+      name: lvm
+  packages:
+    - curl
+    - jq
+    - net-tools
+  late-commands:
+    # E19-09: Install Octofleet Linux Agent
+    - curtin in-target --target=/target -- mkdir -p /opt/octofleet-agent
+    - |
+      cat << 'AGENT' > /target/opt/octofleet-agent/install.sh
+      #!/bin/bash
+      # Octofleet Linux Agent Installer (Autoinstall)
+      
+      API_URL="${API_URL:-http://192.168.0.5:8080}"
+      API_KEY="${API_KEY:-octofleet-inventory-dev-key}"
+      
+      mkdir -p /opt/octofleet-agent
+      cd /opt/octofleet-agent
+      
+      # Download latest agent.sh
+      curl -fsSL "$API_URL/api/v1/provisioning/linux-agent" -o agent.sh || \
+        curl -fsSL "https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/agent/agent.sh" -o agent.sh
+      
+      chmod +x agent.sh
+      
+      # Create config
+      cat > config.env << CONF
+      API_URL=$API_URL
+      API_KEY=$API_KEY
+      NODE_ID=$(hostname)
+      POLL_INTERVAL=30
+      CONF
+      
+      # Create systemd service
+      cat > /etc/systemd/system/octofleet-agent.service << SVC
+      [Unit]
+      Description=Octofleet Linux Agent
+      After=network-online.target
+      Wants=network-online.target
+      
+      [Service]
+      Type=simple
+      ExecStart=/opt/octofleet-agent/agent.sh
+      Restart=always
+      RestartSec=30
+      Environment=HOME=/root
+      WorkingDirectory=/opt/octofleet-agent
+      
+      [Install]
+      WantedBy=multi-user.target
+      SVC
+      
+      systemctl daemon-reload
+      systemctl enable octofleet-agent
+      systemctl start octofleet-agent
+      
+      echo "Octofleet Agent installed successfully!"
+      AGENT
+    - curtin in-target --target=/target -- chmod +x /opt/octofleet-agent/install.sh
+    - curtin in-target --target=/target -- /opt/octofleet-agent/install.sh
+    # Notify provisioning complete
+    - "curl -X POST '${API_URL}/api/v1/provisioning/tasks/${TASK_ID}/complete?status=success' -H 'X-API-Key: ${API_KEY}' || true"

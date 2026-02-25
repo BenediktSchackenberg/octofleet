@@ -13899,3 +13899,400 @@ async def generate_inventory_report_pdf(db: asyncpg.Pool = Depends(get_db)):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+# ============================================
+# E19-06: Systems Registry API
+# ============================================
+
+@app.get("/api/v1/discovered-systems", tags=["Provisioning"])
+async def list_discovered_systems(
+    status: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """List all discovered systems from PXE boot registry"""
+    async with db.acquire() as conn:
+        query = "SELECT * FROM discovered_systems WHERE 1=1"
+        params = []
+        param_idx = 1
+        
+        if status:
+            query += f" AND status = ${param_idx}"
+            params.append(status)
+            param_idx += 1
+        
+        query += f" ORDER BY last_seen DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+        params.extend([limit, offset])
+        
+        rows = await conn.fetch(query, *params)
+        total = await conn.fetchval("SELECT COUNT(*) FROM discovered_systems" + 
+                                    (f" WHERE status = $1" if status else ""),
+                                    *([status] if status else []))
+        
+        return {
+            "systems": [dict(row) for row in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+
+@app.get("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"])
+async def get_discovered_system(system_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get a specific discovered system by ID or MAC address"""
+    async with db.acquire() as conn:
+        # Try by ID first, then by MAC
+        row = await conn.fetchrow(
+            "SELECT * FROM discovered_systems WHERE id::text = $1 OR mac_address = $1",
+            system_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="System not found")
+        return dict(row)
+
+@app.post("/api/v1/discovered-systems/register", tags=["Provisioning"])
+async def register_discovered_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """
+    Register or update a discovered system (called by iPXE during boot).
+    If MAC already exists, updates last_seen and increments boot_count.
+    """
+    mac = data.get("mac_address", "").upper().replace("-", ":").strip()
+    if not mac:
+        raise HTTPException(status_code=400, detail="mac_address is required")
+    
+    async with db.acquire() as conn:
+        # Check if exists
+        existing = await conn.fetchrow(
+            "SELECT id, boot_count FROM discovered_systems WHERE mac_address = $1", mac
+        )
+        
+        if existing:
+            # Update existing
+            await conn.execute("""
+                UPDATE discovered_systems SET
+                    ip_address = COALESCE($2, ip_address),
+                    hostname = COALESCE($3, hostname),
+                    manufacturer = COALESCE($4, manufacturer),
+                    model = COALESCE($5, model),
+                    serial_number = COALESCE($6, serial_number),
+                    bios_version = COALESCE($7, bios_version),
+                    cpu_info = COALESCE($8, cpu_info),
+                    memory_mb = COALESCE($9, memory_mb),
+                    disk_info = COALESCE($10::jsonb, disk_info),
+                    boot_mode = COALESCE($11, boot_mode),
+                    last_seen = NOW(),
+                    boot_count = boot_count + 1
+                WHERE mac_address = $1
+            """, mac, data.get("ip_address"), data.get("hostname"),
+                data.get("manufacturer"), data.get("model"), data.get("serial_number"),
+                data.get("bios_version"), data.get("cpu_info"), data.get("memory_mb"),
+                json.dumps(data.get("disk_info")) if data.get("disk_info") else None,
+                data.get("boot_mode"))
+            
+            return {"status": "updated", "id": str(existing["id"]), "boot_count": existing["boot_count"] + 1}
+        else:
+            # Insert new
+            row = await conn.fetchrow("""
+                INSERT INTO discovered_systems (
+                    mac_address, ip_address, hostname, manufacturer, model,
+                    serial_number, bios_version, cpu_info, memory_mb, disk_info, boot_mode
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
+                RETURNING id
+            """, mac, data.get("ip_address"), data.get("hostname"),
+                data.get("manufacturer"), data.get("model"), data.get("serial_number"),
+                data.get("bios_version"), data.get("cpu_info"), data.get("memory_mb"),
+                json.dumps(data.get("disk_info")) if data.get("disk_info") else None,
+                data.get("boot_mode"))
+            
+            return {"status": "created", "id": str(row["id"]), "boot_count": 1}
+
+@app.patch("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"])
+async def update_discovered_system(
+    system_id: str, 
+    data: Dict[str, Any], 
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Update a discovered system (status, notes, tags)"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM discovered_systems WHERE id::text = $1 OR mac_address = $1",
+            system_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="System not found")
+        
+        updates = []
+        params = [str(row["id"])]
+        param_idx = 2
+        
+        for field in ["status", "notes", "hostname"]:
+            if field in data:
+                updates.append(f"{field} = ${param_idx}")
+                params.append(data[field])
+                param_idx += 1
+        
+        if "tags" in data:
+            updates.append(f"tags = ${param_idx}::text[]")
+            params.append(data["tags"])
+            param_idx += 1
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        await conn.execute(
+            f"UPDATE discovered_systems SET {', '.join(updates)} WHERE id = $1::uuid",
+            *params
+        )
+        
+        return {"status": "updated", "id": str(row["id"])}
+
+@app.delete("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"])
+async def delete_discovered_system(system_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Delete a discovered system from the registry"""
+    async with db.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM discovered_systems WHERE id::text = $1 OR mac_address = $1",
+            system_id
+        )
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="System not found")
+        return {"status": "deleted"}
+
+@app.post("/api/v1/discovered-systems/{system_id}/provision", tags=["Provisioning"])
+async def provision_discovered_system(
+    system_id: str,
+    data: Dict[str, Any],
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """
+    Create a provisioning task for a discovered system.
+    Requires: hostname, image_id or template
+    """
+    async with db.acquire() as conn:
+        system = await conn.fetchrow(
+            "SELECT * FROM discovered_systems WHERE id::text = $1 OR mac_address = $1",
+            system_id
+        )
+        if not system:
+            raise HTTPException(status_code=404, detail="System not found")
+        
+        hostname = data.get("hostname") or system["hostname"]
+        if not hostname:
+            raise HTTPException(status_code=400, detail="hostname is required")
+        
+        # Update system status
+        await conn.execute(
+            "UPDATE discovered_systems SET status = 'pending', hostname = $2 WHERE id = $1",
+            system["id"], hostname
+        )
+        
+        # Return info for creating provisioning task
+        return {
+            "status": "ready",
+            "system_id": str(system["id"]),
+            "mac_address": system["mac_address"],
+            "hostname": hostname,
+            "message": "System marked for provisioning. Create a provisioning task with this MAC address."
+        }
+
+# ============================================
+# E19-09: Linux Agent Download Endpoint
+# ============================================
+
+LINUX_AGENT_SCRIPT = '''#!/bin/bash
+# Octofleet Linux Agent v1.0.0
+# Auto-generated from provisioning endpoint
+
+set -e
+
+CONFIG_FILE="${CONFIG_FILE:-/opt/octofleet-agent/config.env}"
+
+# Load config
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+
+API_URL="${API_URL:-http://192.168.0.5:8080}"
+API_KEY="${API_KEY:-octofleet-inventory-dev-key}"
+NODE_ID="${NODE_ID:-$(hostname)}"
+POLL_INTERVAL="${POLL_INTERVAL:-30}"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+# Collect inventory
+collect_inventory() {
+    local os_name=$(lsb_release -d 2>/dev/null | cut -f2 || cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)
+    local os_version=$(lsb_release -r 2>/dev/null | cut -f2 || cat /etc/os-release | grep VERSION_ID | cut -d'"' -f2)
+    local kernel=$(uname -r)
+    local hostname=$(hostname -f 2>/dev/null || hostname)
+    local cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d':' -f2 | xargs)
+    local cpu_cores=$(nproc)
+    local mem_total_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    local mem_total_mb=$((mem_total_kb / 1024))
+    local uptime_seconds=$(cat /proc/uptime | cut -d' ' -f1 | cut -d'.' -f1)
+    
+    cat << EOF
+{
+    "nodeId": "$NODE_ID",
+    "hostname": "$hostname",
+    "osFamily": "Linux",
+    "osName": "$os_name",
+    "osVersion": "$os_version",
+    "kernel": "$kernel",
+    "cpuModel": "$cpu_model",
+    "cpuCores": $cpu_cores,
+    "memoryMb": $mem_total_mb,
+    "uptimeSeconds": $uptime_seconds,
+    "agentVersion": "1.0.0"
+}
+EOF
+}
+
+# Push inventory to backend
+push_inventory() {
+    local data=$(collect_inventory)
+    curl -s -X POST "$API_URL/api/v1/inventory" \\
+        -H "Content-Type: application/json" \\
+        -H "X-API-Key: $API_KEY" \\
+        -d "$data" > /dev/null 2>&1 && log "Inventory pushed" || log "Inventory push failed"
+}
+
+# Poll for jobs
+poll_jobs() {
+    local response=$(curl -s "$API_URL/api/v1/jobs/pending/$NODE_ID" -H "X-API-Key: $API_KEY" 2>/dev/null)
+    local count=$(echo "$response" | jq -r '.count // 0' 2>/dev/null)
+    
+    if [ "$count" -gt 0 ]; then
+        log "Found $count pending jobs"
+        echo "$response" | jq -c '.jobs[]' 2>/dev/null | while read job; do
+            execute_job "$job"
+        done
+    fi
+}
+
+# Execute a job
+execute_job() {
+    local job="$1"
+    local instance_id=$(echo "$job" | jq -r '.instanceId')
+    local command_type=$(echo "$job" | jq -r '.commandType')
+    local payload=$(echo "$job" | jq -r '.commandPayload')
+    
+    log "Executing job $instance_id (type: $command_type)"
+    
+    # Mark as started
+    curl -s -X POST "$API_URL/api/v1/jobs/instances/$instance_id/start" \\
+        -H "X-API-Key: $API_KEY" > /dev/null 2>&1
+    
+    local exit_code=0
+    local stdout=""
+    local stderr=""
+    
+    case "$command_type" in
+        script|run)
+            local script=$(echo "$payload" | jq -r '.script // .command // ""')
+            stdout=$(bash -c "$script" 2>&1) || exit_code=$?
+            ;;
+        *)
+            stderr="Unknown command type: $command_type"
+            exit_code=1
+            ;;
+    esac
+    
+    # Report result
+    curl -s -X POST "$API_URL/api/v1/jobs/instances/$instance_id/result" \\
+        -H "Content-Type: application/json" \\
+        -H "X-API-Key: $API_KEY" \\
+        -d "{\\"exitCode\\": $exit_code, \\"stdout\\": \\"$(echo "$stdout" | head -c 10000 | sed 's/"/\\\\"/g' | tr '\\n' ' ')\\", \\"stderr\\": \\"$(echo "$stderr" | sed 's/"/\\\\"/g')\\"}" > /dev/null 2>&1
+    
+    log "Job $instance_id completed with exit code $exit_code"
+}
+
+# Main loop
+log "Octofleet Linux Agent starting..."
+log "API: $API_URL, Node: $NODE_ID"
+
+push_inventory
+
+while true; do
+    poll_jobs
+    sleep "$POLL_INTERVAL"
+done
+'''
+
+@app.get("/api/v1/provisioning/linux-agent", tags=["Provisioning"])
+async def get_linux_agent():
+    """Download the Linux agent shell script for auto-installation"""
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        content=LINUX_AGENT_SCRIPT,
+        media_type="text/x-shellscript",
+        headers={"Content-Disposition": "attachment; filename=agent.sh"}
+    )
+
+@app.get("/api/v1/provisioning/autoinstall/{hostname}", tags=["Provisioning"])
+async def get_autoinstall_config(
+    hostname: str,
+    api_url: str = "http://192.168.0.5:8080",
+    api_key: str = "octofleet-inventory-dev-key",
+    task_id: Optional[str] = None
+):
+    """Generate Ubuntu autoinstall config with Octofleet agent pre-installed"""
+    
+    template = """#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: de
+  identity:
+    hostname: {hostname}
+    username: octofleet
+    password: "$6$rounds=4096$salt$iqcgL5FX/a5Zq8e8Vz7x3FJsYJNBjrNhZNpzNgS1XHnWz/vZF8PUy3gH8rN5X3bN7qY4fJ5nM2kP9sL1hT6wK."
+  ssh:
+    install-server: true
+    allow-pw: true
+  storage:
+    layout:
+      name: lvm
+  packages:
+    - curl
+    - jq
+    - net-tools
+  late-commands:
+    - curtin in-target --target=/target -- mkdir -p /opt/octofleet-agent
+    - |
+      curl -fsSL "{api_url}/api/v1/provisioning/linux-agent" -o /target/opt/octofleet-agent/agent.sh
+      chmod +x /target/opt/octofleet-agent/agent.sh
+      cat > /target/opt/octofleet-agent/config.env << CONF
+      API_URL={api_url}
+      API_KEY={api_key}
+      NODE_ID={hostname}
+      POLL_INTERVAL=30
+      CONF
+      cat > /target/etc/systemd/system/octofleet-agent.service << SVC
+      [Unit]
+      Description=Octofleet Linux Agent
+      After=network-online.target
+      Wants=network-online.target
+      [Service]
+      Type=simple
+      ExecStart=/opt/octofleet-agent/agent.sh
+      Restart=always
+      RestartSec=30
+      WorkingDirectory=/opt/octofleet-agent
+      [Install]
+      WantedBy=multi-user.target
+      SVC
+    - curtin in-target --target=/target -- systemctl enable octofleet-agent
+"""
+    
+    config = template.format(
+        hostname=hostname,
+        api_url=api_url,
+        api_key=api_key
+    )
+    
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(content=config, media_type="text/yaml")
