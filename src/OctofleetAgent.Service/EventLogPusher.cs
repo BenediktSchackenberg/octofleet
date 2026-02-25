@@ -23,10 +23,13 @@ public class EventLogPusher : BackgroundService
     
     // Push every 5 minutes by default
     private const int DefaultPushIntervalMinutes = 5;
-    // Look back 10 minutes for events (overlap to catch any missed)
+    // Look back 24 hours for events on first run, then 10 minutes
+    private const int InitialLookbackHours = 24;
     private const int LookbackMinutes = 10;
     // Max events per push to avoid overloading
     private const int MaxEventsPerPush = 100;
+    
+    private bool _isFirstRun = true;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -143,8 +146,17 @@ public class EventLogPusher : BackgroundService
     private List<EventLogEntry> CollectEventLogs()
     {
         var events = new List<EventLogEntry>();
-        var cutoffTime = DateTime.Now.AddMinutes(-LookbackMinutes);
+        // First run: look back 24 hours, subsequent runs: 10 minutes
+        var cutoffTime = _isFirstRun 
+            ? DateTime.Now.AddHours(-InitialLookbackHours)
+            : DateTime.Now.AddMinutes(-LookbackMinutes);
         var logNames = new[] { "System", "Application", "Security" };
+        
+        if (_isFirstRun)
+        {
+            _logger.LogInformation("First run - collecting events from last {Hours} hours", InitialLookbackHours);
+            _isFirstRun = false;
+        }
 
         foreach (var logName in logNames)
         {
