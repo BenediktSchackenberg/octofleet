@@ -6752,7 +6752,7 @@ async def push_eventlog(node_id: str, request: Request, db: asyncpg.Pool = Depen
                     sanitize_for_postgres(event.get("levelName")),
                     sanitize_for_postgres(event.get("source")),
                     sanitize_for_postgres(event.get("message", ""))[:4000],  # Limit message size
-                    parse_datetime(event.get("eventTime")) or datetime.utcnow(),
+                    parse_datetime(event.get("timestamp") or event.get("eventTime")) or datetime.utcnow(),
                     json.dumps(sanitize_for_postgres(event.get("rawData"))) if event.get("rawData") else None
                 )
                 inserted += 1
