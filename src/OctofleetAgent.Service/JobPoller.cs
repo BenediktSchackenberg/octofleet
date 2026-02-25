@@ -39,6 +39,12 @@ public class JobPoller : BackgroundService
         {
             Timeout = TimeSpan.FromSeconds(30)
         };
+        
+        // Add API key header if configured
+        if (!string.IsNullOrEmpty(config.InventoryApiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
