@@ -21,6 +21,8 @@
 | **E16** | Live View (SSE) | Medium | ✅ Complete |
 | **E17** | Screen Mirroring | Low | ✅ Complete |
 | **E18** | Service Orchestration | High | ✅ Complete |
+| **E19** | PXE Zero-Touch Provisioning | Medium | 🔄 In Progress |
+| **E20** | Reporting & Exports | Medium | ✅ Complete |
 
 ---
 
@@ -454,3 +456,39 @@ Created 2026-02-17:
 - Packages: postgresql-16, postgresql-contrib-16
 - Health: TCP port 5432
 - Strategy: rolling updates
+
+---
+
+## Phase 7: Reporting & PXE (Sprint 12+)
+
+### Epic E19: PXE Zero-Touch Provisioning
+*Network boot and automated OS deployment*
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E19-01 | PXE Container (dnsmasq/nginx) | High | ✅ Done |
+| E19-02 | Ubuntu/Debian Autoinstall templates | High | ✅ Done |
+| E19-03 | Windows WinPE/Unattend support | Medium | 🔄 In Progress |
+| E19-04 | Provisioning Task API | High | ✅ Done |
+| E19-05 | Provisioning Events/Callbacks | High | ✅ Done |
+| E19-06 | Systems Registry (discovered devices) | Medium | ⏳ Pending |
+| E19-07 | Frontend: Provisioning Dashboard | High | ✅ Done |
+| E19-08 | Frontend: Create Task Wizard | High | ✅ Done |
+| E19-09 | Linux Agent Auto-Install in Autoinstall | Medium | ⏳ Pending |
+| E19-10 | NFS Boot for Ubuntu Live | High | ✅ Done |
+
+### Epic E20: Reporting & Exports ✅ COMPLETE
+*PDF reports and data exports for compliance and audits*
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| E20-01 | Excel Export: Nodes, Software, Vulnerabilities | High | ✅ Done |
+| E20-02 | Fleet Summary PDF Report | High | ✅ Done |
+| E20-03 | Security Report PDF | High | ✅ Done |
+| E20-04 | Inventory Report PDF | High | ✅ Done |
+| E20-05 | Frontend: Reports Generator Page | High | ✅ Done |
+| E20-06 | API Tests for Report Endpoints | Medium | ✅ Done |
+| E20-07 | Date Range Filtering | Low | ✅ Done |
+
+---
+*Updated: 2026-02-25 — E19 PXE Provisioning, E20 Reporting Epics added*
