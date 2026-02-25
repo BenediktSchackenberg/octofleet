@@ -250,7 +250,7 @@ export function Navbar() {
       <div className="max-w-[1920px] mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-white shrink-0">
+          <Link href="/" className="flex items-center gap-2 font-bold text-white shrink-0 hover:opacity-80 transition-opacity cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="28" height="28" style={{imageRendering: "pixelated"}}>
               <rect x="12" y="4" width="8" height="2" fill="#9333ea"/>
               <rect x="10" y="6" width="12" height="2" fill="#9333ea"/>
