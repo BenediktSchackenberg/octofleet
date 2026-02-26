@@ -14,8 +14,8 @@ test.describe("Reports Page UI", () => {
     
     // Check report cards are present
     await expect(page.getByText("Fleet Summary")).toBeVisible();
-    await expect(page.getByText("Security Report")).toBeVisible();
-    await expect(page.getByText("Inventory Report")).toBeVisible();
+    await expect(page.getByText("Security Report", { exact: true })).toBeVisible();
+    await expect(page.getByText("Inventory Report", { exact: true })).toBeVisible();
   });
 
   test("should have date range picker", async ({ page }) => {
