@@ -77,17 +77,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS - allow all common origins for dev/local network
-CORS_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:8080",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:8080",
-    "http://192.168.0.5:3000",
-    "http://192.168.0.5:8080",
-    "http://homeinvader.lan:3000",
-    "http://homeinvader.lan:8080",
-]
+# CORS - configurable via CORS_ORIGINS env var (comma-separated), default: allow all
+_cors_env = os.environ.get("CORS_ORIGINS", "*")
+CORS_ORIGINS = ["*"] if _cors_env.strip() == "*" else [o.strip() for o in _cors_env.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,

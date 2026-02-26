@@ -41,7 +41,7 @@ services:
       DATABASE_URL: postgresql://octofleet:${DB_PASSWORD:-octofleet-secret-change-me}@db:5432/inventory
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-please}
       API_KEY: ${API_KEY:-your-api-key-here}
-      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     ports:
       - "8080:8080"
     depends_on:
