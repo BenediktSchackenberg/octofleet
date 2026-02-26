@@ -1409,3 +1409,283 @@ CREATE TABLE IF NOT EXISTS public.linux_data_current (
     disk_health jsonb,
     updated_at timestamptz DEFAULT now()
 );
+
+-- =============================================================
+-- Missing tables added 2026-02-26 (sync schema with backend code)
+-- =============================================================
+
+-- SQL Server Management
+CREATE TABLE IF NOT EXISTS public.mssql_cu_catalog (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    version text NOT NULL,
+    cu_number integer NOT NULL,
+    build_number text,
+    release_date date,
+    download_url text,
+    kb_article text,
+    file_hash text,
+    file_size_mb integer,
+    release_notes text,
+    notes text,
+    status text DEFAULT 'detected',
+    ring text DEFAULT 'pilot',
+    approved_by text,
+    approved_at timestamptz,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    UNIQUE(version, cu_number)
+);
+
+CREATE TABLE IF NOT EXISTS public.mssql_configs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    description text,
+    edition text NOT NULL,
+    version text NOT NULL,
+    instance_name text DEFAULT 'MSSQLSERVER',
+    features text[] DEFAULT '{}',
+    sql_collation text DEFAULT 'SQL_Latin1_General_CP1_CI_AS',
+    port integer DEFAULT 1433,
+    max_memory_mb integer,
+    tempdb_file_count integer DEFAULT 4,
+    tempdb_file_size_mb integer DEFAULT 64,
+    include_ssms boolean DEFAULT false,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.mssql_instances (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id text NOT NULL,
+    instance_name text DEFAULT 'MSSQLSERVER',
+    edition text,
+    version text,
+    port integer DEFAULT 1433,
+    data_path text,
+    log_path text,
+    tempdb_path text,
+    status text DEFAULT 'pending',
+    assignment_id uuid,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.mssql_disk_configs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    config_id uuid REFERENCES mssql_configs(id) ON DELETE CASCADE,
+    purpose text NOT NULL,
+    disk_number integer,
+    disk_size_gb integer,
+    drive_letter text,
+    volume_label text,
+    allocation_unit_kb integer DEFAULT 64,
+    folder_name text
+);
+
+CREATE TABLE IF NOT EXISTS public.mssql_cu_history (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    instance_id uuid REFERENCES mssql_instances(id) ON DELETE CASCADE,
+    cu_id uuid REFERENCES mssql_cu_catalog(id),
+    job_id uuid,
+    status text DEFAULT 'pending',
+    started_at timestamptz,
+    completed_at timestamptz,
+    error_message text,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.mssql_group_assignments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    config_id uuid REFERENCES mssql_configs(id) ON DELETE CASCADE,
+    group_id uuid REFERENCES groups(id) ON DELETE CASCADE,
+    sa_password_encrypted text,
+    license_key_encrypted text,
+    created_at timestamptz DEFAULT now(),
+    UNIQUE(config_id, group_id)
+);
+
+-- Provisioning / PXE
+CREATE TABLE IF NOT EXISTS public.discovered_systems (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    mac_address text UNIQUE,
+    ip_address text,
+    hostname text,
+    manufacturer text,
+    model text,
+    serial_number text,
+    bios_version text,
+    cpu_info text,
+    memory_mb integer,
+    disk_info jsonb,
+    boot_mode text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.provisioning_templates (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    platform text NOT NULL,
+    description text,
+    config jsonb DEFAULT '{}',
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.provisioning_images (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    platform text,
+    version text,
+    path text,
+    file_size bigint,
+    sha256_hash text,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.provisioning_tasks (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    hostname text,
+    mac_address text,
+    status text DEFAULT 'pending',
+    config jsonb,
+    template_id uuid,
+    image_id uuid,
+    progress integer DEFAULT 0,
+    error text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.provisioning_task_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id uuid REFERENCES provisioning_tasks(id) ON DELETE CASCADE,
+    event text NOT NULL,
+    message text,
+    progress integer,
+    created_at timestamptz DEFAULT now()
+);
+
+-- Onboarding
+CREATE TABLE IF NOT EXISTS public.onboarding_config (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    onboarding_group_id uuid,
+    auto_assign_new_nodes boolean DEFAULT false,
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Software Repository
+CREATE TABLE IF NOT EXISTS public.repo_files (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    filename text NOT NULL,
+    display_name text,
+    version text,
+    file_type text,
+    category text,
+    sha256_hash text,
+    file_size bigint,
+    storage_path text NOT NULL,
+    source_url text,
+    is_cached boolean DEFAULT false,
+    cached_at timestamptz,
+    created_by text DEFAULT 'api',
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.repo_downloads (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_id uuid REFERENCES repo_files(id) ON DELETE CASCADE,
+    node_id text,
+    bytes_transferred bigint,
+    success boolean DEFAULT true,
+    created_at timestamptz DEFAULT now()
+);
+
+-- Software Baselines
+CREATE TABLE IF NOT EXISTS public.software_baselines (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    description text,
+    packages jsonb DEFAULT '[]',
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.software_baseline_assignments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    baseline_id uuid REFERENCES software_baselines(id) ON DELETE CASCADE,
+    group_id uuid REFERENCES groups(id) ON DELETE CASCADE,
+    created_at timestamptz DEFAULT now(),
+    UNIQUE(baseline_id, group_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.software_baseline_status (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id text NOT NULL,
+    baseline_id uuid REFERENCES software_baselines(id) ON DELETE CASCADE,
+    assignment_id uuid,
+    status text DEFAULT 'pending',
+    job_id uuid,
+    error_message text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    UNIQUE(node_id, baseline_id)
+);
+
+-- Windows Eventlog
+CREATE TABLE IF NOT EXISTS public.windows_eventlog (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id text NOT NULL,
+    log_name text,
+    event_id integer,
+    level text,
+    source text,
+    message text,
+    timestamp timestamptz,
+    event_hash text,
+    created_at timestamptz DEFAULT now()
+);
+
+-- Physical Disks (SMART)
+CREATE TABLE IF NOT EXISTS public.physical_disks (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id text NOT NULL,
+    device_id text,
+    model text,
+    serial_number text,
+    media_type text,
+    size_gb numeric,
+    health_status text,
+    temperature integer,
+    smart_data jsonb,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Group members (materialized)
+CREATE TABLE IF NOT EXISTS public.group_members (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id text NOT NULL,
+    group_id uuid REFERENCES groups(id) ON DELETE CASCADE,
+    created_at timestamptz DEFAULT now(),
+    UNIQUE(node_id, group_id)
+);
+
+-- Maintenance window group assignments
+CREATE TABLE IF NOT EXISTS public.maintenance_window_groups (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    window_id uuid REFERENCES maintenance_windows(id) ON DELETE CASCADE,
+    group_id uuid REFERENCES groups(id) ON DELETE CASCADE,
+    UNIQUE(window_id, group_id)
+);
+
+-- Node vulnerabilities (mapping)
+CREATE TABLE IF NOT EXISTS public.node_vulnerabilities (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id text NOT NULL,
+    vulnerability_id uuid REFERENCES vulnerabilities(id) ON DELETE CASCADE,
+    status text DEFAULT 'open',
+    detected_at timestamptz DEFAULT now(),
+    resolved_at timestamptz,
+    UNIQUE(node_id, vulnerability_id)
+);
