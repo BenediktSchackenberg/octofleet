@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { API_URL } from '@/lib/api-config';
 
 interface Service {
   id: string;
@@ -40,7 +41,7 @@ interface LogEntry {
   started_at: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 const statusColors: Record<string, string> = {

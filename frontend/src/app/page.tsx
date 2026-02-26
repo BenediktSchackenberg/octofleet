@@ -15,6 +15,7 @@ import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
 import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
+import { API_BASE } from '@/lib/api-config';
 
 // Skeleton Components for Loading State
 function Skeleton({ className = "" }: { className?: string }) {
@@ -148,7 +149,7 @@ export default function HomePage() {
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  
 
   function getHeaders() {
     return getAuthHeader();

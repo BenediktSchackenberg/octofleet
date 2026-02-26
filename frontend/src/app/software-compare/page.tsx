@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { Search, Package, ArrowRight } from "lucide-react";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface TopSoftware {

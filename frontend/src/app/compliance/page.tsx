@@ -9,8 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { Shield, ShieldCheck, ShieldX, Lock, Unlock, Flame, FlameKindling } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface ComplianceData {

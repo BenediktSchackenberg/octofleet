@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface PackageVersion {

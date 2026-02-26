@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Download, FileJson, FileSpreadsheet, Table2 } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 type ExportType = "nodes" | "software" | "compliance" | "vulnerabilities" | "jobs";
 

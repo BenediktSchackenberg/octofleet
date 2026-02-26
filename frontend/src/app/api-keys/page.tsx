@@ -8,8 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader, useAuth } from "@/lib/auth-context";
 import { Plus, Trash2, Key, Copy, Check, AlertTriangle } from "lucide-react";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface ApiKey {
   id: string;

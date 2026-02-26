@@ -20,8 +20,9 @@ import {
   Check,
 } from "lucide-react";
 import Link from "next/link";
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.5:8080";
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-inventory-dev-key";
 
 interface ProvisioningImage {

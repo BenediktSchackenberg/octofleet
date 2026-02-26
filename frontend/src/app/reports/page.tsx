@@ -4,8 +4,9 @@ import { useState } from "react";
 import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle, AlertCircle } from "lucide-react";
 import { Breadcrumb } from "@/components/ui-components";
 import { getAuthHeader, useAuth } from "@/lib/auth-context";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface ReportConfig {
   id: string;

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
+import { API_URL } from '@/lib/api-config';
   ShieldAlert,
   ShieldCheck,
   ShieldX,
@@ -18,7 +19,7 @@ import {
   Clock,
 } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface VulnerabilitySummary {
   severity_counts: Record<string, number>;

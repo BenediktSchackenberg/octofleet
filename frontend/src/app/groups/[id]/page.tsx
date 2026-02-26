@@ -15,6 +15,7 @@ import { AddDevicesDialog } from "@/components/add-devices-dialog";
 import { Breadcrumb } from "@/components/ui-components";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
+import { API_BASE } from '@/lib/api-config';
 
 interface GroupMember {
   id: string;
@@ -41,7 +42,7 @@ interface GroupDetail {
   members: GroupMember[];
 }
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
+
 
 function getHeaders(): Record<string, string> {
   return { ...getAuthHeader(), "Content-Type": "application/json" };

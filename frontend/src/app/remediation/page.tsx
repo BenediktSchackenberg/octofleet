@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { API_URL as API_BASE } from '@/lib/api-config';
 import { 
   Shield, Package, FileText, Clock, Play, CheckCircle, 
   XCircle, AlertTriangle, Settings, Plus, Trash2, RefreshCw,
@@ -64,7 +65,7 @@ export default function RemediationPage() {
   const [scanResult, setScanResult] = useState<any>(null);
   const [liveConnected, setLiveConnected] = useState(false);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 
   const getToken = () => localStorage.getItem('token');
 

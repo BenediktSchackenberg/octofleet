@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface EnrollmentToken {
   id: string;
@@ -314,7 +315,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <span className="text-zinc-500">API URL:</span>
-              <div className="font-mono">{process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}</div>
+              <div className="font-mono">{API_URL}</div>
             </div>
           </div>
         </div>

@@ -14,6 +14,7 @@ import { Breadcrumb } from "@/components/ui-components";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { Copy, Check } from "lucide-react";
+import { API_BASE } from '@/lib/api-config';
 
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
@@ -44,7 +45,7 @@ function CopyButton({ text, className = "" }: { text: string; className?: string
   );
 }
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 interface NodeDetails {

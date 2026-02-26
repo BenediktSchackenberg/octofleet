@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from "recharts";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface TrendData {

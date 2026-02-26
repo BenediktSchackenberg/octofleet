@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getAuthHeader } from "@/lib/auth-context";
 import { Breadcrumb } from "@/components/ui-components";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface MaintenanceWindow {
   id: string;

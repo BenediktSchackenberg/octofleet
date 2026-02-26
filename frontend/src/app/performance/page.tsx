@@ -17,8 +17,9 @@ import {
   Terminal, RotateCcw, ExternalLink, Server, Monitor
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
+
 
 // ============== Types ==============
 interface NodeMetrics {

@@ -10,8 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Breadcrumb } from "@/components/ui-components";
 import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Database, Package, ChevronRight } from "lucide-react";
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface Deployment {

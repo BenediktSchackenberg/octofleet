@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { useI18n } from "@/lib/i18n-context";
 import { Lock, User, AlertCircle } from "lucide-react";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 export default function LoginPage() {
   const router = useRouter();

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080';
+
 
 interface CumulativeUpdate {
   id: string;

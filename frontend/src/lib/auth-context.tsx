@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface User {
   id: string;

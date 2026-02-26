@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface DetectionRule {
   id: string;

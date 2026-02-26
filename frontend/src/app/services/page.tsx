@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { API_URL } from '@/lib/api-config';
 
 interface ServiceClass {
   id: string;
@@ -23,7 +24,7 @@ interface Service {
   created_at: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 const statusColors: Record<string, string> = {

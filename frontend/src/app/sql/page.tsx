@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CuManagement from './CuManagement';
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.5:8080';
+
 
 interface DiskConfig {
   purpose: 'data' | 'log' | 'tempdb';

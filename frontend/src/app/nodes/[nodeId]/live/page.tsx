@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Breadcrumb } from "@/components/ui-components";
 import Link from "next/link";
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
+
 
 interface Metrics {
   cpu: number | null;
@@ -807,7 +808,7 @@ function PerformanceChart({ nodeId }: { nodeId: string }) {
   const [hours, setHours] = useState(24);
   const [interval, setInterval] = useState('5m');
 
-  const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
+  
 
   useEffect(() => {
     fetchHistory();

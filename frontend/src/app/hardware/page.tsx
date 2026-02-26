@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import Link from "next/link";
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') + '/api/v1';
+
 
 interface FleetHardware {
   nodeCount: number;

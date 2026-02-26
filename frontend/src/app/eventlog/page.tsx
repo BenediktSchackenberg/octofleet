@@ -6,8 +6,9 @@ import Link from "next/link";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { EventlogChart } from "@/components/EventlogChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface EventlogSummary {

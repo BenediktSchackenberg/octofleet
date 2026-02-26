@@ -13,8 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Breadcrumb } from "@/components/ui-components";
 import { Database, Server, HardDrive, Play, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Plus, Link, Trash2 } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
+import { API_BASE } from '@/lib/api-config';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") + "/api/v1";
+
 
 interface Edition {
   id: string;

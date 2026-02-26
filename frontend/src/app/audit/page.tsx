@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import { Search, Filter, RefreshCw } from "lucide-react";
+import { API_URL } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 
 interface AuditEntry {
   id: number;
