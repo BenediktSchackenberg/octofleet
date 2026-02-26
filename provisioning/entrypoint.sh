@@ -5,14 +5,20 @@ echo "🐙 Octofleet PXE Server starting..."
 echo "   PXE_SERVER_IP: ${PXE_SERVER_IP:-not set}"
 echo "   OCTOFLEET_API: ${OCTOFLEET_API:-not set}"
 
+# Interface konfigurieren (Standard: alle Interfaces)
+if [ -n "${PXE_INTERFACE:-}" ]; then
+    echo "interface=${PXE_INTERFACE}" >> /tmp/iface.conf
+    echo "bind-interfaces" >> /tmp/iface.conf
+else
+    echo "# Listening on all interfaces (set PXE_INTERFACE to restrict)" >> /tmp/iface.conf
+fi
+
 # Generiere dnsmasq.conf dynamisch
 cat > /etc/dnsmasq.conf << EOF
 # Octofleet PXE - Generated config
 port=0
 
-# NUR auf br0 hören
-interface=br0
-bind-interfaces
+$(cat /tmp/iface.conf)
 
 # ProxyDHCP - kein IP vergeben, nur Boot-Info
 dhcp-range=192.168.0.0,proxy

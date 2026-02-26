@@ -34,6 +34,7 @@ services:
       - /srv/wininstall:/srv/wininstall:ro
     environment:
       - PXE_SERVER_IP=${PXE_SERVER_IP:-192.168.0.5}
+      - PXE_INTERFACE=${PXE_INTERFACE:-}  # e.g. br0, eth0 — empty = all interfaces
       - OCTOFLEET_API=${OCTOFLEET_API:-http://localhost:8080}
     healthcheck:
       test: ["CMD", "pgrep", "dnsmasq"]

@@ -7,7 +7,7 @@
     as a Windows Service. Supports enrollment tokens for automatic registration.
 
 .PARAMETER GatewayUrl
-    WebSocket URL to the Octofleet Gateway (e.g., ws://192.168.0.5:18789)
+    WebSocket URL to the Octofleet Gateway (e.g., ws://your-server:18789)
 
 .PARAMETER GatewayToken
     Authentication token for the Gateway connection.
@@ -27,7 +27,7 @@
 
 .EXAMPLE
     # Silent install with parameters
-    .\Install-OctofleetAgent.ps1 -GatewayUrl "ws://192.168.0.5:18789" -GatewayToken "mytoken"
+    .\Install-OctofleetAgent.ps1 -GatewayUrl "ws://your-server:18789" -GatewayToken "mytoken"
 
 .EXAMPLE
     # Install with enrollment token (auto-registers)
@@ -221,12 +221,12 @@ function Install-OctofleetAgent {
         
         $config = @{
             # Discovery URL - agent will register here and wait for approval
-            DiscoveryUrl = if ($GatewayUrl) { $GatewayUrl } else { "http://192.168.0.5:8080" }
+            DiscoveryUrl = if ($GatewayUrl) { $GatewayUrl } else { "" }
             DisplayName = $env:COMPUTERNAME
         }
         
         # If full config provided, use it (backwards compatibility)
-        if ($GatewayUrl -and $GatewayUrl -notlike "http://192.168.0.5*") {
+        if ($GatewayUrl -and $GatewayUrl -notlike "http://localhost*") {
             $config.InventoryApiUrl = $GatewayUrl
             $config.InventoryApiKey = "octofleet-inventory-dev-key"
             $config.AutoPushInventory = $true
@@ -269,7 +269,7 @@ function Install-OctofleetAgent {
         Write-Host "Config File:    $configPath"
         Write-Host ""
         Write-Host "NEXT STEP: Approve this node in the Octofleet Web UI:" -ForegroundColor Yellow
-        Write-Host "           http://192.168.0.5:3000/nodes" -ForegroundColor Cyan
+        Write-Host "           http://your-server:3000/nodes" -ForegroundColor Cyan
     }
     else {
         Write-Status "Service may not have started correctly. Check logs at: $InstallPath\logs\" "Warning"

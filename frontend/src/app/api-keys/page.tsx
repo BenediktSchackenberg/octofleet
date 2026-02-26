@@ -61,7 +61,7 @@ export default function ApiKeysPage() {
         headers: { ...getAuthHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newKeyName,
-          expires_days: expiresDays || null,
+          expires_days: expiresDays ? Number(expiresDays) : null,
         }),
       });
       if (res.ok) {
