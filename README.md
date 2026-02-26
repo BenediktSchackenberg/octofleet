@@ -150,15 +150,31 @@ Open http://localhost:3000 — Login: `admin` / `admin`
 
 **Windows (PowerShell as Admin):**
 ```powershell
-iwr "https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1" -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
+iwr "https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1" -OutFile "$env:TEMP\install.ps1"
+& "$env:TEMP\install.ps1" -ApiUrl "http://your-server:8080" -ApiKey "your-api-key"
+```
+
+Then configure `C:\ProgramData\Octofleet\service-config.json`:
+```json
+{
+  "ApiUrl": "http://your-server:8080",
+  "ApiKey": "your-api-key"
+}
 ```
 
 **Linux:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash
+API_URL="http://your-server:8080" API_KEY="your-api-key" \
+  curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo -E bash
 ```
 
-📖 **[Full Installation Guide →](../../wiki/Installation)**
+Then configure `/opt/octofleet-agent/config.env`:
+```bash
+API_URL="http://your-server:8080"
+API_KEY="your-api-key"
+```
+
+📖 **[Full Agent Setup Guide →](docs/AGENT-SETUP.md)** · **[Installation Wiki →](../../wiki/Installation)**
 
 ---
 
@@ -309,21 +325,25 @@ Full-featured agent for Linux servers and workstations.
 
 ### Install:
 ```bash
-# Quick install
-curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash
+# Quick install (API_URL and API_KEY are required)
+API_URL="http://your-server:8080" API_KEY="your-api-key" \
+  curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo -E bash
 
 # Or manual:
 git clone https://github.com/BenediktSchackenberg/octofleet.git
 cd octofleet/linux-agent
-sudo ./install.sh
+API_URL="http://your-server:8080" API_KEY="your-api-key" sudo -E ./install.sh
 ```
 
 ### Configure:
 ```bash
 # Edit /opt/openclaw-agent/config.env
-API_URL=http://your-octofleet-server:8080
-API_KEY=your-api-key
-NODE_ID=$(hostname)
+API_URL="http://your-octofleet-server:8080"
+API_KEY="your-api-key"
+NODE_ID=""          # defaults to hostname
+PUSH_INTERVAL=1800  # inventory push (seconds)
+JOB_POLL_INTERVAL=60
+LIVE_DATA_INTERVAL=5
 ```
 
 ### Commands:
@@ -432,7 +452,7 @@ sudo systemctl restart openclaw-agent
 | Installation | [Wiki: Installation](../../wiki/Installation) |
 | Configuration | [Wiki: Configuration](../../wiki/Configuration) |
 | **API Reference** | [Swagger UI](http://localhost:8080/docs) • [ReDoc](http://localhost:8080/redoc) |
-| Agent Setup | [Wiki: Agent-Configuration](../../wiki/Agent-Configuration) |
+| Agent Setup | [docs/AGENT-SETUP.md](docs/AGENT-SETUP.md) |
 | Troubleshooting | [Wiki: Troubleshooting](../../wiki/Troubleshooting) |
 | **Roadmap** | [Wiki: Roadmap](../../wiki/Roadmap) |
 
