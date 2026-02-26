@@ -12,6 +12,16 @@ First off, thank you for considering contributing to Octofleet! It's people like
 
 ## 🛠️ Development Setup
 
+### Default Credentials
+
+| Environment | Username | Password |
+|-------------|----------|----------|
+| **Production** (`docker compose up`) | `admin` | `admin` |
+| **CI/Tests** | `admin` | `Octofleet2026!` |
+| **API Key** (dev/CI) | — | `octofleet-inventory-dev-key` |
+
+> ⚠️ **Change the default password** in production! Create a new admin user and disable the default.
+
 ### Backend (Python/FastAPI)
 
 ```bash
