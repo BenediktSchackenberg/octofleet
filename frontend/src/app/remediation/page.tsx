@@ -80,10 +80,10 @@ export default function RemediationPage() {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [summaryRes, packagesRes, rulesRes, jobsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/remediation/summary`, { headers }),
-        fetch(`${API_BASE}/api/v1/remediation/packages`, { headers }),
-        fetch(`${API_BASE}/api/v1/remediation/rules`, { headers }),
-        fetch(`${API_BASE}/api/v1/remediation/jobs?limit=50`, { headers }),
+        fetch(`${API_BASE}/remediation/summary`, { headers }),
+        fetch(`${API_BASE}/remediation/packages`, { headers }),
+        fetch(`${API_BASE}/remediation/rules`, { headers }),
+        fetch(`${API_BASE}/remediation/jobs?limit=50`, { headers }),
       ]);
 
       if (summaryRes.ok) {
@@ -114,7 +114,7 @@ export default function RemediationPage() {
     if (!token) return;
 
     const eventSource = new EventSource(
-      `${API_BASE}/api/v1/remediation/live?token=${token}`
+      `${API_BASE}/remediation/live?token=${token}`
     );
 
     eventSource.onopen = () => {
@@ -158,7 +158,7 @@ export default function RemediationPage() {
     const token = getToken();
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/api/v1/remediation/summary`, {
+      const res = await fetch(`${API_BASE}/remediation/summary`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -186,8 +186,8 @@ export default function RemediationPage() {
     setScanning(true);
     setScanResult(null);
     try {
-      console.log('[Remediation] Making POST request to:', `${API_BASE}/api/v1/remediation/scan`);
-      const res = await fetch(`${API_BASE}/api/v1/remediation/scan`, {
+      console.log('[Remediation] Making POST request to:', `${API_BASE}/remediation/scan`);
+      const res = await fetch(`${API_BASE}/remediation/scan`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

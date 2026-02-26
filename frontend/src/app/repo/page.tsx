@@ -54,7 +54,7 @@ export default function RepoPage() {
       if (typeFilter) params.append('file_type', typeFilter);
       if (categoryFilter) params.append('category', categoryFilter);
       
-      const res = await fetch(`${API_BASE}/api/v1/repo/files?${params}`, {
+      const res = await fetch(`${API_BASE}/repo/files?${params}`, {
         headers: getAuthHeaders()
       });
       if (res.ok) {
@@ -68,7 +68,7 @@ export default function RepoPage() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/repo/stats`, {
+      const res = await fetch(`${API_BASE}/repo/stats`, {
         headers: getAuthHeaders()
       });
       if (res.ok) {
@@ -103,7 +103,7 @@ export default function RepoPage() {
     const formData = new FormData(form);
     
     try {
-      const res = await fetch(`${API_BASE}/api/v1/repo/upload`, {
+      const res = await fetch(`${API_BASE}/repo/upload`, {
         method: 'POST',
         headers: { 'X-API-Key': getAuthHeaders()['X-API-Key'] },
         body: formData
@@ -136,7 +136,7 @@ export default function RepoPage() {
     };
     
     try {
-      const res = await fetch(`${API_BASE}/api/v1/repo/cache`, {
+      const res = await fetch(`${API_BASE}/repo/cache`, {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -162,7 +162,7 @@ export default function RepoPage() {
     if (!confirm(`Delete ${filename}?`)) return;
     
     try {
-      const res = await fetch(`${API_BASE}/api/v1/repo/files/${id}`, {
+      const res = await fetch(`${API_BASE}/repo/files/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });

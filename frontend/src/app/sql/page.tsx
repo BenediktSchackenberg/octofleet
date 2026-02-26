@@ -141,10 +141,10 @@ export default function SqlPage() {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [configsRes, assignmentsRes, instancesRes, groupsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/mssql/configs`, { headers }),
-        fetch(`${API_BASE}/api/v1/mssql/assignments`, { headers }),
-        fetch(`${API_BASE}/api/v1/mssql/instances`, { headers }),
-        fetch(`${API_BASE}/api/v1/groups`, { headers })
+        fetch(`${API_BASE}/mssql/configs`, { headers }),
+        fetch(`${API_BASE}/mssql/assignments`, { headers }),
+        fetch(`${API_BASE}/mssql/instances`, { headers }),
+        fetch(`${API_BASE}/groups`, { headers })
       ]);
 
       if (!configsRes.ok || !assignmentsRes.ok || !instancesRes.ok) {
@@ -180,7 +180,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/mssql/configs`, {
+      const res = await fetch(`${API_BASE}/mssql/configs`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -229,7 +229,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/mssql/configs/${id}`, {
+      const res = await fetch(`${API_BASE}/mssql/configs/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -246,7 +246,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/mssql/assignments`, {
+      const res = await fetch(`${API_BASE}/mssql/assignments`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -279,7 +279,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/mssql/assignments/${id}`, {
+      const res = await fetch(`${API_BASE}/mssql/assignments/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -296,7 +296,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/mssql/assignments/${assignmentId}/reconcile`, {
+      const res = await fetch(`${API_BASE}/mssql/assignments/${assignmentId}/reconcile`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });

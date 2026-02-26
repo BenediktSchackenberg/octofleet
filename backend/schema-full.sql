@@ -1384,3 +1384,28 @@ CREATE TABLE IF NOT EXISTS terminal_history (
 -- Alert rules channel_id (E19 legacy support)
 ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS channel_id uuid REFERENCES alert_channels(id);
 ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS enabled boolean DEFAULT true;
+
+-- Missing tables (added to fix runtime errors)
+
+CREATE TABLE IF NOT EXISTS public.pending_nodes (
+    id serial PRIMARY KEY,
+    hostname text,
+    os_name text,
+    os_version text,
+    ip_address text,
+    agent_version text,
+    machine_id text,
+    status text DEFAULT 'pending',
+    config_fetched_at timestamptz,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.linux_data_current (
+    id serial PRIMARY KEY,
+    node_id text NOT NULL,
+    performance jsonb,
+    services jsonb,
+    updates jsonb,
+    disk_health jsonb,
+    updated_at timestamptz DEFAULT now()
+);

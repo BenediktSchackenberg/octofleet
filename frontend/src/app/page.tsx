@@ -181,7 +181,7 @@ export default function HomePage() {
 
   async function fetchSummary() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/dashboard/summary`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/dashboard/summary`, { headers: getHeaders() });
       if (res.ok) setSummary(await res.json());
     } catch (e) {
       console.error("Failed to fetch summary:", e);
@@ -192,7 +192,7 @@ export default function HomePage() {
 
   async function fetchSystemHealth() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/health`);
+      const res = await fetch(`${API_BASE}/health`);
       if (res.ok) setSystemHealth(await res.json());
     } catch (e) {
       setSystemHealth({ status: 'error', database: 'unknown' });
@@ -201,7 +201,7 @@ export default function HomePage() {
 
   async function fetchRecentAlerts() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/alert-history?limit=5`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/alert-history?limit=5`, { headers: getHeaders() });
       if (res.ok) setRecentAlerts(await res.json());
     } catch (e) {
       console.error("Failed to fetch alerts:", e);
@@ -210,7 +210,7 @@ export default function HomePage() {
 
   async function fetchMetrics() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/metrics/summary`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/metrics/summary`, { headers: getHeaders() });
       if (res.ok) setMetrics(await res.json());
     } catch (e) {
       console.error("Failed to fetch metrics:", e);
@@ -219,7 +219,7 @@ export default function HomePage() {
 
   async function fetchSqlCatalog() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/mssql/cumulative-updates`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/mssql/cumulative-updates`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
         const cus = data.cumulativeUpdates || [];
@@ -246,7 +246,7 @@ export default function HomePage() {
 
   async function fetchTimeseries() {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/metrics/timeseries?hours=1&bucket_minutes=5`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/metrics/timeseries?hours=1&bucket_minutes=5`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
         setTimeseries(data);
@@ -260,13 +260,13 @@ export default function HomePage() {
     try {
       // Fetch all data in parallel - use correct inventory endpoints
       const [nodeRes, hwRes, swRes, secRes, netRes, brRes, hfRes] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/nodes/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/api/v1/inventory/hardware/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/api/v1/inventory/software/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/api/v1/inventory/security/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/api/v1/inventory/network/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/api/v1/inventory/browser/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/api/v1/inventory/hotfixes/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/nodes/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/software/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/hotfixes/${nodeId}`, { headers: getHeaders() }),
       ]);
 
       if (nodeRes.ok) setNodeData(await nodeRes.json());
