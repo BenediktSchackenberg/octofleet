@@ -115,7 +115,7 @@ function ImageModal({
           body: JSON.stringify(form),
         });
       } else {
-        await fetchApi("/api/v1/provisioning/images", {
+        await fetchApi("/provisioning/images", {
           method: "POST",
           body: JSON.stringify(form),
         });
@@ -298,8 +298,8 @@ export default function ProvisioningAdminPage() {
     setIsLoading(true);
     try {
       const [imgData, tmplData] = await Promise.all([
-        fetchApi<ProvisioningImage[]>("/api/v1/provisioning/images?active_only=false"),
-        fetchApi<ProvisioningTemplate[]>("/api/v1/provisioning/templates"),
+        fetchApi<ProvisioningImage[]>("/provisioning/images?active_only=false"),
+        fetchApi<ProvisioningTemplate[]>("/provisioning/templates"),
       ]);
       setImages(imgData);
       setTemplates(tmplData);
@@ -346,7 +346,7 @@ export default function ProvisioningAdminPage() {
   const loadNfsMounts = async () => {
     setNfsLoading(true);
     try {
-      const data = await fetchApi<{ mounts: typeof nfsMounts }>("/api/v1/provisioning/iso/nfs/list");
+      const data = await fetchApi<{ mounts: typeof nfsMounts }>("/provisioning/iso/nfs/list");
       setNfsMounts(data.mounts || []);
     } catch (err) {
       console.error(err);
@@ -361,7 +361,7 @@ export default function ProvisioningAdminPage() {
       return;
     }
     try {
-      await fetchApi("/api/v1/provisioning/iso/nfs/mount", {
+      await fetchApi("/provisioning/iso/nfs/mount", {
         method: "POST",
         body: JSON.stringify(newNfs),
       });

@@ -153,7 +153,7 @@ function NewJobModal({
   // Load hypervisors on mount
   useEffect(() => {
     if (isOpen) {
-      fetchApi<{nodes: Array<{node_id: string, hostname: string, os_name: string}>}>("/api/v1/nodes")
+      fetchApi<{nodes: Array<{node_id: string, hostname: string, os_name: string}>}>("/nodes")
         .then(data => {
           const hvNodes = data.nodes.filter(n => 
             n.os_name?.includes("Server") || n.os_name?.includes("Linux")
@@ -205,7 +205,7 @@ function NewJobModal({
     try {
       if (mode === "manual") {
         // Direct task creation with known MAC
-        await fetchApi("/api/v1/provisioning/tasks", {
+        await fetchApi("/provisioning/tasks", {
           method: "POST",
           body: JSON.stringify({
             mac_address: mac.toUpperCase().replace(/-/g, ":"),
@@ -216,7 +216,7 @@ function NewJobModal({
         });
       } else {
         // VM creation mode - creates VM and gets MAC automatically
-        await fetchApi("/api/v1/provisioning/vm/create", {
+        await fetchApi("/provisioning/vm/create", {
           method: "POST",
           body: JSON.stringify({
             hostname: hostname,
@@ -604,9 +604,9 @@ export default function ProvisioningPage() {
     setError(null);
     try {
       const [tasksData, imagesData, templatesData] = await Promise.all([
-        fetchApi<ProvisioningTask[]>("/api/v1/provisioning/tasks"),
-        fetchApi<ProvisioningImage[]>("/api/v1/provisioning/images"),
-        fetchApi<ProvisioningTemplate[]>("/api/v1/provisioning/templates"),
+        fetchApi<ProvisioningTask[]>("/provisioning/tasks"),
+        fetchApi<ProvisioningImage[]>("/provisioning/images"),
+        fetchApi<ProvisioningTemplate[]>("/provisioning/templates"),
       ]);
       setTasks(tasksData);
       setImages(imagesData);
