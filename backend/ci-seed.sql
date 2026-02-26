@@ -1,7 +1,7 @@
--- CI Seed Data: Create admin user with password 'admin'
--- bcrypt hash of 'admin' with cost 12
+-- CI Seed Data: Create admin user with password 'Octofleet2026!'
+-- bcrypt hash of 'Octofleet2026!' with cost 12
 INSERT INTO users (username, email, password_hash, display_name, is_superuser, is_active)
-VALUES ('admin', 'admin@test.local', '$2b$12$rYyY2JO.Uh/NBVp7kXBlY.p9Iv.S0GeIZbgttoYjjyS.hQQQJkkJK', 'Test Admin', true, true)
+VALUES ('admin', 'admin@test.local', '$2b$12$z3k2w9GL/4qeC21Lkrs0Y.gHLx53prrBbYqzYmX3RYT4gyz8j87cS', 'Test Admin', true, true)
 ON CONFLICT DO NOTHING;
 
 -- Create admin role if not exists
