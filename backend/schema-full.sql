@@ -1683,7 +1683,7 @@ CREATE TABLE IF NOT EXISTS public.maintenance_window_groups (
 CREATE TABLE IF NOT EXISTS public.node_vulnerabilities (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     node_id text NOT NULL,
-    vulnerability_id uuid REFERENCES vulnerabilities(id) ON DELETE CASCADE,
+    vulnerability_id integer REFERENCES vulnerabilities(id) ON DELETE CASCADE,
     status text DEFAULT 'open',
     detected_at timestamptz DEFAULT now(),
     resolved_at timestamptz,
