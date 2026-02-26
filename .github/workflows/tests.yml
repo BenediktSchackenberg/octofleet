@@ -59,6 +59,7 @@ jobs:
           pytest api/ -v --tb=short --html=reports/api/report.html --self-contained-html || true
         env:
           API_URL: http://localhost:8080
+          INVENTORY_API_KEY: octofleet-inventory-dev-key
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
