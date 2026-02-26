@@ -6,8 +6,8 @@ set -e
 
 INSTALL_DIR="/opt/octofleet-agent"
 SERVICE_NAME="octofleet-agent"
-API_URL="${API_URL:-http://192.168.0.5:8080/api/v1}"
-API_KEY="${API_KEY:-octofleet-inventory-dev-key}"
+API_URL="${API_URL:-}"
+API_KEY="${API_KEY:-}"
 
 echo "═══════════════════════════════════════════════════════════"
 echo "   Octofleet Linux Agent Installer"
@@ -16,6 +16,27 @@ echo "════════════════════════�
 # Check root
 if [ "$EUID" -ne 0 ]; then
     echo "❌ Please run as root (sudo)"
+    exit 1
+fi
+
+# Validate required parameters
+if [ -z "$API_URL" ]; then
+    echo "❌ API_URL is required."
+    echo ""
+    echo "Usage:"
+    echo "  API_URL=http://your-server:8080 API_KEY=your-key sudo -E bash install.sh"
+    echo ""
+    echo "See docs/AGENT-SETUP.md for details."
+    exit 1
+fi
+
+if [ -z "$API_KEY" ]; then
+    echo "❌ API_KEY is required."
+    echo ""
+    echo "Usage:"
+    echo "  API_URL=http://your-server:8080 API_KEY=your-key sudo -E bash install.sh"
+    echo ""
+    echo "See docs/AGENT-SETUP.md for details."
     exit 1
 fi
 
@@ -56,7 +77,7 @@ import requests
 import psutil
 
 # Configuration
-API_URL = os.environ.get("OCTOFLEET_API_URL", "http://192.168.0.5:8080/api/v1")
+API_URL = os.environ.get("OCTOFLEET_API_URL", "")
 API_KEY = os.environ.get("OCTOFLEET_API_KEY", "")
 POLL_INTERVAL = int(os.environ.get("OCTOFLEET_POLL_INTERVAL", "30"))
 HOSTNAME = socket.gethostname()
