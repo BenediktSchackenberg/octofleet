@@ -33,6 +33,14 @@ from routers.deployments import router as deployments_router
 from routers.alerting import router as alerting_router
 from routers.security import router as security_router
 from routers.auth import router as auth_router, users_router
+from auth import (
+    UserCreate, UserUpdate, UserResponse, LoginRequest, TokenResponse,
+    RoleCreate, RoleResponse, APIKeyCreate, APIKeyResponse,
+    hash_password, verify_password, hash_api_key,
+    create_access_token, create_refresh_token, decode_token,
+    get_current_user, require_auth, require_permission, CurrentUser,
+    get_permissions_for_roles
+)
 from routers.provisioning_domain import generate_autounattend, generate_djoin_script
 from routers.provisioning_postinstall import execute_post_install, handle_provisioning_complete
 
