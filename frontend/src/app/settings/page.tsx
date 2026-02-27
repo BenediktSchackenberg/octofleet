@@ -152,7 +152,12 @@ export default function SettingsPage() {
         setDescription("");
         setExpiresHours(24);
         setMaxUses(10);
+      } else {
+        const errText = await res.text().catch(() => "Unknown error");
+        alert(`Failed to create token: ${res.status} ${errText}`);
       }
+    } catch (err) {
+      alert(`Network error creating token: ${err}`);
     } finally {
       setCreating(false);
     }
