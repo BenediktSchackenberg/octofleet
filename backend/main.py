@@ -25,6 +25,13 @@ from routers.provisioning import router as provisioning_router, pxe_router
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.provisioning_iso import iso_router as provisioning_iso_router
 from routers.nodes import router as nodes_router
+from routers.inventory import router as inventory_router
+from routers.jobs import router as jobs_router
+from routers.mssql import router as mssql_router
+from routers.metrics import router as metrics_router
+from routers.deployments import router as deployments_router
+from routers.alerting import router as alerting_router
+from routers.security import router as security_router
 from routers.provisioning_domain import generate_autounattend, generate_djoin_script
 from routers.provisioning_postinstall import execute_post_install, handle_provisioning_complete
 
@@ -92,6 +99,13 @@ app.add_middleware(
 
 # Include routers
 app.include_router(nodes_router)
+app.include_router(inventory_router)
+app.include_router(jobs_router)
+app.include_router(mssql_router)
+app.include_router(metrics_router)
+app.include_router(deployments_router)
+app.include_router(alerting_router)
+app.include_router(security_router)
 app.include_router(provisioning_router)
 app.include_router(provisioning_vm_router)
 app.include_router(provisioning_iso_router)
@@ -343,18 +357,7 @@ async def api_health_check():
 @app.get("/api/v1/dashboard/summary")
 async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
-    async with db.acquire() as conn:
-        # Get node counts by status
-        counts = await conn.fetchrow("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '5 minutes') as online,
-                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '60 minutes' 
-                                   AND last_seen <= NOW() - INTERVAL '5 minutes') as away,
-                COUNT(*) FILTER (WHERE last_seen <= NOW() - INTERVAL '60 minutes' 
-                                   OR last_seen IS NULL) as offline
-            FROM nodes
-        """)
+    # (Dieser Endpunkt bleibt vorerst in main.py, da er viele Tabellen aggregiert)
         
         # Get unassigned count
         unassigned = await conn.fetchval("""
