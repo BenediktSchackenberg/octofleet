@@ -1,0 +1,19 @@
+[project]
+name = "octofleet-backend"
+version = "0.1.0"
+description = "Octofleet Inventory Backend"
+authors = [{name = "Benedikt Schackenberg"}]
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "N"]
+ignore = ["E501"] # Ignore line length for now due to large SQL strings
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
