@@ -1535,11 +1535,15 @@ CREATE TABLE IF NOT EXISTS public.provisioning_templates (
 CREATE TABLE IF NOT EXISTS public.provisioning_images (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
-    platform text,
-    version text,
-    path text,
-    file_size bigint,
-    sha256_hash text,
+    display_name text,
+    wim_path text,
+    wim_index integer DEFAULT 1,
+    os_type text,
+    os_version text,
+    edition text,
+    architecture text DEFAULT 'x64',
+    size_bytes bigint,
+    is_active boolean DEFAULT true,
     created_at timestamptz DEFAULT now()
 );
 
