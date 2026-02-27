@@ -67,22 +67,27 @@
 <tr>
 <td width="50%">
 
-### 🔐 Security
-- Vulnerability scanning (NVD/CVE)
+### 🔐 Security & Compliance — NEW in v0.5.5!
+- **Security Center** with 12 dedicated pages
+- Vulnerability scanning (NVD/CVE) + fleet-wide aggregation
 - Auto-remediation (winget/Chocolatey)
-- CVSS severity scoring
-- Windows Update tracking
-- Role-based access control (RBAC)
+- **File audit** — real-time monitoring (Windows + Linux)
+- **Behavior rules** — threshold, pattern & time-based detection
+- **Findings & risk scoring** — auto-generated, severity-weighted
+- **Config posture snapshots** — baseline drift detection
+- **Activity dashboards** — file & user activity, after-hours alerts
+- **Evidence export** & retention / legal hold
+- Role-based access control (RBAC) + UI audit logging
 
 </td>
 <td width="50%">
 
 ### 🖥️ Remote Access
-- **Screen mirroring (live view)** — NEW in v0.5.0!
+- **Screen mirroring (live view)**
 - Remote terminal in browser
 - Event log viewer
 - Discord alert notifications
-- Node health monitoring
+- Node health & capability monitoring
 
 </td>
 </tr>
