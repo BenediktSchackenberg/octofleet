@@ -47,6 +47,7 @@ export default function SecurityPage() {
     { id: "retention", label: "Retention & Lifecycle", icon: Database, href: "/security/retention" },
     { id: "evidence", label: "Evidence & Exports", icon: Download, href: "/security/evidence" },
     { id: "audit-log", label: "Access Audit", icon: Users, href: "/security/audit-log" },
+    { id: "posture", label: "Config Posture", icon: Shield, href: "/security/posture" },
   ];
 
   const severityColors: Record<string, string> = {

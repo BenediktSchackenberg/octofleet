@@ -1849,3 +1849,28 @@ VALUES
     ('evidence_exports', 365, 730, 2555),
     ('ui_audit_events', 90, 365, 2555)
 ON CONFLICT (category) DO NOTHING;
+
+-- E21 Story #84: Baseline Inventory & Config Posture Snapshots
+CREATE TABLE IF NOT EXISTS config_posture_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id TEXT NOT NULL,
+    snapshot_type TEXT NOT NULL DEFAULT 'full', -- full, delta
+    os_info JSONB DEFAULT '{}',         -- OS build, version, patches
+    installed_packages JSONB DEFAULT '[]',  -- list of installed software
+    running_services JSONB DEFAULT '[]',    -- running services
+    config_settings JSONB DEFAULT '{}',     -- SSH, RDP, SMB, firewall, local admins
+    open_ports JSONB DEFAULT '[]',          -- aggregated open ports
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_config_posture_node ON config_posture_snapshots(node_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS config_posture_diffs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id TEXT NOT NULL,
+    baseline_snapshot_id UUID REFERENCES config_posture_snapshots(id),
+    current_snapshot_id UUID REFERENCES config_posture_snapshots(id),
+    diff_data JSONB DEFAULT '{}',       -- structured diff
+    severity TEXT DEFAULT 'info',       -- info, low, medium, high, critical
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_config_diffs_node ON config_posture_diffs(node_id, created_at DESC);

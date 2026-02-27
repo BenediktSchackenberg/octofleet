@@ -14926,3 +14926,293 @@ async def get_agent_health_history(node_id: str, limit: int = 50):
             ORDER BY ts DESC LIMIT $2
         """, node_id, limit)
         return {"history": [{"ts": str(r["ts"]), **json.loads(r["payload"])} if isinstance(r["payload"], str) else {"ts": str(r["ts"]), **r["payload"]} for r in rows]}
+
+# ============================================================
+# E21 Story #84: Baseline Inventory & Config Posture Snapshots
+# ============================================================
+
+@app.post("/api/v1/posture/snapshots", dependencies=[Depends(verify_api_key)])
+async def submit_posture_snapshot(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Agent submits a config posture snapshot"""
+    node_id = data.get("nodeId") or data.get("node_id")
+    if not node_id:
+        raise HTTPException(status_code=400, detail="nodeId required")
+    
+    snapshot_type = data.get("snapshotType", "full")
+    
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO config_posture_snapshots 
+                (node_id, snapshot_type, os_info, installed_packages, running_services, config_settings, open_ports)
+            VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb)
+            RETURNING id, created_at
+        """, node_id, snapshot_type,
+            json.dumps(data.get("osInfo", {})),
+            json.dumps(data.get("installedPackages", [])),
+            json.dumps(data.get("runningServices", [])),
+            json.dumps(data.get("configSettings", {})),
+            json.dumps(data.get("openPorts", [])))
+        
+        snapshot_id = str(row["id"])
+        
+        # Auto-generate diff against previous baseline if this is not the first snapshot
+        if snapshot_type == "full":
+            prev = await conn.fetchrow("""
+                SELECT id, os_info, installed_packages, running_services, config_settings, open_ports
+                FROM config_posture_snapshots 
+                WHERE node_id = $1 AND id != $2::uuid
+                ORDER BY created_at DESC LIMIT 1
+            """, node_id, snapshot_id)
+            
+            if prev:
+                diff = _compute_posture_diff(
+                    {"osInfo": prev["os_info"], "installedPackages": prev["installed_packages"],
+                     "runningServices": prev["running_services"], "configSettings": prev["config_settings"],
+                     "openPorts": prev["open_ports"]},
+                    {"osInfo": data.get("osInfo", {}), "installedPackages": data.get("installedPackages", []),
+                     "runningServices": data.get("runningServices", []), "configSettings": data.get("configSettings", {}),
+                     "openPorts": data.get("openPorts", [])}
+                )
+                if diff["changes"]:
+                    severity = "info"
+                    if any(c.get("severity") == "critical" for c in diff["changes"]):
+                        severity = "critical"
+                    elif any(c.get("severity") == "high" for c in diff["changes"]):
+                        severity = "high"
+                    elif any(c.get("severity") == "medium" for c in diff["changes"]):
+                        severity = "medium"
+                    
+                    await conn.execute("""
+                        INSERT INTO config_posture_diffs (node_id, baseline_snapshot_id, current_snapshot_id, diff_data, severity)
+                        VALUES ($1, $2::uuid, $3::uuid, $4::jsonb, $5)
+                    """, node_id, str(prev["id"]), snapshot_id, json.dumps(diff), severity)
+        
+        return {"id": snapshot_id, "createdAt": str(row["created_at"]), "type": snapshot_type}
+
+
+def _compute_posture_diff(baseline: dict, current: dict) -> dict:
+    """Compute structured diff between two posture snapshots"""
+    changes = []
+    
+    # OS info changes
+    b_os = baseline.get("osInfo") or {}
+    c_os = current.get("osInfo") or {}
+    if isinstance(b_os, str):
+        try: b_os = json.loads(b_os)
+        except: b_os = {}
+    if isinstance(c_os, str):
+        try: c_os = json.loads(c_os)
+        except: c_os = {}
+    for key in set(list(b_os.keys()) + list(c_os.keys())):
+        if b_os.get(key) != c_os.get(key):
+            changes.append({"category": "os", "field": key, "old": b_os.get(key), "new": c_os.get(key), "severity": "medium"})
+    
+    # Installed packages diff
+    b_pkgs = set()
+    c_pkgs = set()
+    b_pkg_list = baseline.get("installedPackages") or []
+    c_pkg_list = current.get("installedPackages") or []
+    if isinstance(b_pkg_list, str):
+        try: b_pkg_list = json.loads(b_pkg_list)
+        except: b_pkg_list = []
+    if isinstance(c_pkg_list, str):
+        try: c_pkg_list = json.loads(c_pkg_list)
+        except: c_pkg_list = []
+    for p in b_pkg_list:
+        name = p.get("name", p) if isinstance(p, dict) else str(p)
+        b_pkgs.add(name)
+    for p in c_pkg_list:
+        name = p.get("name", p) if isinstance(p, dict) else str(p)
+        c_pkgs.add(name)
+    
+    for pkg in c_pkgs - b_pkgs:
+        changes.append({"category": "packages", "change": "added", "name": pkg, "severity": "low"})
+    for pkg in b_pkgs - c_pkgs:
+        changes.append({"category": "packages", "change": "removed", "name": pkg, "severity": "medium"})
+    
+    # Services diff
+    b_svcs = set()
+    c_svcs = set()
+    b_svc_list = baseline.get("runningServices") or []
+    c_svc_list = current.get("runningServices") or []
+    if isinstance(b_svc_list, str):
+        try: b_svc_list = json.loads(b_svc_list)
+        except: b_svc_list = []
+    if isinstance(c_svc_list, str):
+        try: c_svc_list = json.loads(c_svc_list)
+        except: c_svc_list = []
+    for s in b_svc_list:
+        name = s.get("name", s) if isinstance(s, dict) else str(s)
+        b_svcs.add(name)
+    for s in c_svc_list:
+        name = s.get("name", s) if isinstance(s, dict) else str(s)
+        c_svcs.add(name)
+    
+    for svc in c_svcs - b_svcs:
+        changes.append({"category": "services", "change": "started", "name": svc, "severity": "low"})
+    for svc in b_svcs - c_svcs:
+        changes.append({"category": "services", "change": "stopped", "name": svc, "severity": "medium"})
+    
+    # Config setting changes (SSH, RDP, SMB, firewall, local admins)
+    b_cfg = baseline.get("configSettings") or {}
+    c_cfg = current.get("configSettings") or {}
+    if isinstance(b_cfg, str):
+        try: b_cfg = json.loads(b_cfg)
+        except: b_cfg = {}
+    if isinstance(c_cfg, str):
+        try: c_cfg = json.loads(c_cfg)
+        except: c_cfg = {}
+    
+    security_critical = {"rdpEnabled", "sshEnabled", "firewallEnabled", "guestAccount", "autoLogin"}
+    for key in set(list(b_cfg.keys()) + list(c_cfg.keys())):
+        if b_cfg.get(key) != c_cfg.get(key):
+            sev = "high" if key in security_critical else "medium"
+            changes.append({"category": "config", "field": key, "old": b_cfg.get(key), "new": c_cfg.get(key), "severity": sev})
+    
+    # Open ports diff
+    b_ports = set()
+    c_ports = set()
+    b_port_list = baseline.get("openPorts") or []
+    c_port_list = current.get("openPorts") or []
+    if isinstance(b_port_list, str):
+        try: b_port_list = json.loads(b_port_list)
+        except: b_port_list = []
+    if isinstance(c_port_list, str):
+        try: c_port_list = json.loads(c_port_list)
+        except: c_port_list = []
+    for p in b_port_list:
+        port_key = f"{p.get('port','?')}/{p.get('protocol','tcp')}" if isinstance(p, dict) else str(p)
+        b_ports.add(port_key)
+    for p in c_port_list:
+        port_key = f"{p.get('port','?')}/{p.get('protocol','tcp')}" if isinstance(p, dict) else str(p)
+        c_ports.add(port_key)
+    
+    for port in c_ports - b_ports:
+        changes.append({"category": "ports", "change": "opened", "port": port, "severity": "high"})
+    for port in b_ports - c_ports:
+        changes.append({"category": "ports", "change": "closed", "port": port, "severity": "info"})
+    
+    return {"changes": changes, "totalChanges": len(changes)}
+
+
+@app.get("/api/v1/posture/snapshots/{node_id}")
+async def get_posture_snapshots(node_id: str, limit: int = 10, db: asyncpg.Pool = Depends(get_db)):
+    """Get posture snapshots for a node"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, node_id, snapshot_type, os_info, installed_packages, running_services,
+                   config_settings, open_ports, created_at
+            FROM config_posture_snapshots
+            WHERE UPPER(node_id) = UPPER($1)
+            ORDER BY created_at DESC LIMIT $2
+        """, node_id, limit)
+        
+        snapshots = []
+        for r in rows:
+            snapshots.append({
+                "id": str(r["id"]),
+                "nodeId": r["node_id"],
+                "snapshotType": r["snapshot_type"],
+                "osInfo": json.loads(r["os_info"]) if isinstance(r["os_info"], str) else r["os_info"],
+                "installedPackages": json.loads(r["installed_packages"]) if isinstance(r["installed_packages"], str) else r["installed_packages"],
+                "runningServices": json.loads(r["running_services"]) if isinstance(r["running_services"], str) else r["running_services"],
+                "configSettings": json.loads(r["config_settings"]) if isinstance(r["config_settings"], str) else r["config_settings"],
+                "openPorts": json.loads(r["open_ports"]) if isinstance(r["open_ports"], str) else r["open_ports"],
+                "createdAt": str(r["created_at"])
+            })
+        return {"snapshots": snapshots}
+
+
+@app.get("/api/v1/posture/snapshots/{node_id}/latest")
+async def get_latest_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get latest posture snapshot for a node"""
+    async with db.acquire() as conn:
+        r = await conn.fetchrow("""
+            SELECT id, node_id, snapshot_type, os_info, installed_packages, running_services,
+                   config_settings, open_ports, created_at
+            FROM config_posture_snapshots
+            WHERE UPPER(node_id) = UPPER($1)
+            ORDER BY created_at DESC LIMIT 1
+        """, node_id)
+        
+        if not r:
+            return {"snapshot": None}
+        
+        return {"snapshot": {
+            "id": str(r["id"]),
+            "nodeId": r["node_id"],
+            "snapshotType": r["snapshot_type"],
+            "osInfo": json.loads(r["os_info"]) if isinstance(r["os_info"], str) else r["os_info"],
+            "installedPackages": json.loads(r["installed_packages"]) if isinstance(r["installed_packages"], str) else r["installed_packages"],
+            "runningServices": json.loads(r["running_services"]) if isinstance(r["running_services"], str) else r["running_services"],
+            "configSettings": json.loads(r["config_settings"]) if isinstance(r["config_settings"], str) else r["config_settings"],
+            "openPorts": json.loads(r["open_ports"]) if isinstance(r["open_ports"], str) else r["open_ports"],
+            "createdAt": str(r["created_at"])
+        }}
+
+
+@app.get("/api/v1/posture/diffs/{node_id}")
+async def get_posture_diffs(node_id: str, limit: int = 20, db: asyncpg.Pool = Depends(get_db)):
+    """Get config posture diffs for a node"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, node_id, baseline_snapshot_id, current_snapshot_id, diff_data, severity, created_at
+            FROM config_posture_diffs
+            WHERE UPPER(node_id) = UPPER($1)
+            ORDER BY created_at DESC LIMIT $2
+        """, node_id, limit)
+        
+        return {"diffs": [{
+            "id": str(r["id"]),
+            "nodeId": r["node_id"],
+            "baselineSnapshotId": str(r["baseline_snapshot_id"]) if r["baseline_snapshot_id"] else None,
+            "currentSnapshotId": str(r["current_snapshot_id"]) if r["current_snapshot_id"] else None,
+            "diffData": json.loads(r["diff_data"]) if isinstance(r["diff_data"], str) else r["diff_data"],
+            "severity": r["severity"],
+            "createdAt": str(r["created_at"])
+        } for r in rows]}
+
+
+@app.get("/api/v1/posture/compare/{node_id}")
+async def compare_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Compare baseline (oldest) vs current (latest) snapshot for a node"""
+    async with db.acquire() as conn:
+        baseline = await conn.fetchrow("""
+            SELECT id, os_info, installed_packages, running_services, config_settings, open_ports, created_at
+            FROM config_posture_snapshots
+            WHERE UPPER(node_id) = UPPER($1) AND snapshot_type = 'full'
+            ORDER BY created_at ASC LIMIT 1
+        """, node_id)
+        
+        current = await conn.fetchrow("""
+            SELECT id, os_info, installed_packages, running_services, config_settings, open_ports, created_at
+            FROM config_posture_snapshots
+            WHERE UPPER(node_id) = UPPER($1) AND snapshot_type = 'full'
+            ORDER BY created_at DESC LIMIT 1
+        """, node_id)
+        
+        if not baseline or not current:
+            return {"baseline": None, "current": None, "diff": None, "message": "Need at least 2 snapshots to compare"}
+        
+        if str(baseline["id"]) == str(current["id"]):
+            return {"baseline": str(baseline["id"]), "current": str(current["id"]), "diff": {"changes": [], "totalChanges": 0}, "message": "Only one snapshot exists"}
+        
+        def parse(v):
+            return json.loads(v) if isinstance(v, str) else v
+        
+        diff = _compute_posture_diff(
+            {"osInfo": parse(baseline["os_info"]), "installedPackages": parse(baseline["installed_packages"]),
+             "runningServices": parse(baseline["running_services"]), "configSettings": parse(baseline["config_settings"]),
+             "openPorts": parse(baseline["open_ports"])},
+            {"osInfo": parse(current["os_info"]), "installedPackages": parse(current["installed_packages"]),
+             "runningServices": parse(current["running_services"]), "configSettings": parse(current["config_settings"]),
+             "openPorts": parse(current["open_ports"])}
+        )
+        
+        return {
+            "baselineId": str(baseline["id"]),
+            "baselineDate": str(baseline["created_at"]),
+            "currentId": str(current["id"]),
+            "currentDate": str(current["created_at"]),
+            "diff": diff
+        }

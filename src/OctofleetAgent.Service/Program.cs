@@ -80,6 +80,7 @@ try
     builder.Services.AddHostedService<OctofleetAgent.Service.Shell.RemoteShellService>();
     builder.Services.AddHostedService<ServiceReconciliationPoller>();
     builder.Services.AddHostedService<OctofleetAgent.Service.Security.FileAuditCollector>();
+    builder.Services.AddHostedService<OctofleetAgent.Service.Security.PostureCollector>();
 
     var host = builder.Build();
 
