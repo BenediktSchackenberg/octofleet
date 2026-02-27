@@ -454,12 +454,12 @@ export default function NodeDetailPage() {
             {/* Groups and Tags */}
             {node && (node.groups?.length > 0 || node.tags?.length > 0) && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {node.groups.map(group => (
+                {node.groups?.map(group => (
                   <Badge key={group.id} style={{ backgroundColor: group.color, color: 'white' }}>
                     {group.icon && `${group.icon} `}{group.name}
                   </Badge>
                 ))}
-                {node.tags.map(tag => (
+                {node.tags?.map(tag => (
                   <Badge key={tag.id} variant="outline" style={{ borderColor: tag.color, color: tag.color }}>
                     {tag.name}
                   </Badge>
@@ -741,7 +741,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hwData.disks.physical.map((disk: any, i: number) => (
+                        {hwData.disks?.physical?.map((disk: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell className="truncate max-w-[200px]">{disk.model}</TableCell>
                             <TableCell>{disk.sizeGB?.toFixed(0)} GB</TableCell>
@@ -767,7 +767,7 @@ export default function NodeDetailPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {hwData.disks.volumes.filter((v: any) => v.sizeGB > 0).map((vol: any, i: number) => (
+                          {hwData.disks?.volumes?.filter((v: any) => v.sizeGB > 0).map((vol: any, i: number) => (
                             <TableRow key={i}>
                               <TableCell>{vol.driveLetter} {vol.volumeName && `(${vol.volumeName})`}</TableCell>
                               <TableCell>{vol.freeGB?.toFixed(0)} GB</TableCell>
@@ -845,7 +845,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hotfixes.hotfixes.slice(0, 20).map((hf: any, i: number) => (
+                        {hotfixes.hotfixes?.slice(0, 20).map((hf: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
                             <TableCell>{hf.description || '-'}</TableCell>
@@ -870,7 +870,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hotfixes.updateHistory.slice(0, 50).map((upd: any, i: number) => (
+                        {hotfixes.updateHistory?.slice(0, 50).map((upd: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{upd.kb || '-'}</Badge></TableCell>
                             <TableCell className="truncate max-w-[300px]">{upd.title || '-'}</TableCell>
@@ -897,7 +897,7 @@ export default function NodeDetailPage() {
               <CardContent>
                 {nicsList.adapters?.length > 0 ? (
                   <div className="space-y-4">
-                    {nicsList.adapters.map((nic: any, i: number) => {
+                    {nicsList.adapters?.map((nic: any, i: number) => {
                       const config = nicsList.configurations?.[nic.deviceId] || {};
                       return (
                         <div key={i} className="p-4 border rounded-lg">
@@ -939,7 +939,7 @@ export default function NodeDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {netData.connections.slice(0, 30).map((conn: any, i: number) => (
+                      {netData.connections?.slice(0, 30).map((conn: any, i: number) => (
                         <TableRow key={i}>
                           <TableCell className="font-mono text-xs">{conn.localAddress}:{conn.localPort}</TableCell>
                           <TableCell className="font-mono text-xs">{conn.remoteAddress}:{conn.remotePort}</TableCell>
@@ -1002,7 +1002,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {secData.bitlocker?.volumes?.length > 0 ? (
                     <div className="space-y-2">
-                      {secData.bitlocker.volumes.map((vol: any, i: number) => (
+                      {secData.bitlocker?.volumes?.map((vol: any, i: number) => (
                         <div key={i} className="flex justify-between items-center">
                           <span>{vol.driveLetter}</span>
                           <Badge variant={vol.protectionStatus === "On" ? "default" : "secondary"}>
@@ -1058,7 +1058,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {secData.localAdmins.members.map((admin: any, i: number) => (
+                        {secData.localAdmins?.members?.map((admin: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell className="font-medium">{admin.name}</TableCell>
                             <TableCell className="text-muted-foreground">{admin.domain || '-'}</TableCell>
@@ -1094,7 +1094,7 @@ export default function NodeDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    {criticalCookies.warnings.map((warning, i) => (
+                    {criticalCookies.warnings?.map((warning, i) => (
                       <li key={i} className="text-sm">{warning}</li>
                     ))}
                   </ul>
@@ -1148,7 +1148,7 @@ export default function NodeDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {criticalCookies.criticalCookies.slice(0, 20).map((cookie, i) => (
+                      {criticalCookies.criticalCookies?.slice(0, 20).map((cookie, i) => (
                         <TableRow key={i}>
                           <TableCell className="font-mono text-xs">{cookie.domain}</TableCell>
                           <TableCell className="font-mono text-xs max-w-[150px] truncate" title={cookie.name}>

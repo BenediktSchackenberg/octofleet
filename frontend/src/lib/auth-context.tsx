@@ -172,6 +172,10 @@ export function useAuth() {
 }
 
 // Helper to get auth header for API calls
+export function getApiBase(): string {
+  return API_URL;
+}
+
 export function getAuthHeader(): Record<string, string> {
   if (typeof window === "undefined") return { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" };
   
