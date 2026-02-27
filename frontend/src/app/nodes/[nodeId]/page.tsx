@@ -962,7 +962,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {secData.firewall?.profiles ? (
                     <div className="space-y-2">
-                      {Object.entries(secData.firewall.profiles).map(([profile, data]: [string, any]) => (
+                      {Object.entries(secData.firewall?.profiles || {}).map(([profile, data]: [string, any]) => (
                         <div key={profile} className="flex justify-between items-center">
                           <span>{profile}</span>
                           <Badge variant={data?.enabled ? "default" : "destructive"}>
@@ -1116,7 +1116,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {/* Category Summary */}
                   <div className="grid gap-4 md:grid-cols-3 mb-6">
-                    {Object.entries(criticalCookies.summary).map(([category, data]) => (
+                    {Object.entries(criticalCookies?.summary || {}).map(([category, data]) => (
                       <div key={category} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-sm">{category}</span>
@@ -1187,8 +1187,8 @@ export default function NodeDetailPage() {
             )}
 
             {/* Browser Stats per User */}
-            {browserData.users && Object.keys(browserData.users).length > 0 ? (
-              Object.entries(browserData.users).map(([username, browsers]: [string, any]) => (
+            {browserData.users && Object.keys(browserData?.users || {}).length > 0 ? (
+              Object.entries(browserData?.users || {}).map(([username, browsers]: [string, any]) => (
                 <Card key={username}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -1197,7 +1197,7 @@ export default function NodeDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {Object.entries(browsers).map(([browserName, data]: [string, any]) => {
+                      {Object.entries(browsers || {}).map(([browserName, data]: [string, any]) => {
                         const icon = browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊';
                         const profile = data.profiles?.[0];
                         const cookiesCount = profile?.cookiesCount || 0;
@@ -1245,7 +1245,7 @@ export default function NodeDetailPage() {
                   </CardContent>
                 </Card>
               ))
-            ) : Object.keys(browserData).length > 0 && !browserData.users ? (
+            ) : Object.keys(browserData || {}).length > 0 && !browserData.users ? (
               // Legacy format fallback
               <Card>
                 <CardHeader><CardTitle>Browser-Daten</CardTitle></CardHeader>
@@ -1270,7 +1270,7 @@ export default function NodeDetailPage() {
                   <CardDescription>Top-Domains pro Benutzer</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {Object.entries(browserData.cookies).map(([username, cookieList]: [string, any]) => (
+                  {Object.entries(browserData?.cookies || {}).map(([username, cookieList]: [string, any]) => (
                     <div key={username} className="mb-6">
                       <p className="font-medium mb-2">👤 {username}</p>
                       <Table>
