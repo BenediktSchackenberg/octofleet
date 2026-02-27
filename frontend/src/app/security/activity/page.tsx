@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getApiBase, getAuthHeader } from "@/lib/auth-context";
+import { getAuthHeader } from "@/lib/auth-context";
+import { API_URL } from "@/lib/api-config";
 import Link from "next/link";
 
 export default function ActivityPage() {
@@ -14,7 +15,7 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`${getApiBase()}/api/v1/nodes`, { headers: getAuthHeader() })
+    fetch(`${API_URL}/api/v1/nodes`, { headers: getAuthHeader() })
       .then(r => r.json()).then(d => setNodes(Array.isArray(d) ? d : d.nodes || [])).catch(() => {});
   }, []);
 
@@ -24,8 +25,8 @@ export default function ActivityPage() {
     if (nodeFilter) params.set("node_id", nodeFilter);
     
     const [fRes, uRes] = await Promise.all([
-      fetch(`${getApiBase()}/api/v1/security/activity/files?${params}`, { headers: getAuthHeader() }),
-      fetch(`${getApiBase()}/api/v1/security/activity/users?${params}`, { headers: getAuthHeader() })
+      fetch(`${API_URL}/api/v1/security/activity/files?${params}`, { headers: getAuthHeader() }),
+      fetch(`${API_URL}/api/v1/security/activity/users?${params}`, { headers: getAuthHeader() })
     ]);
     setFileData(await fRes.json());
     setUserData(await uRes.json());
@@ -37,7 +38,7 @@ export default function ActivityPage() {
   const exportCsv = () => {
     const params = new URLSearchParams({ hours: String(hours), format: "csv" });
     if (nodeFilter) params.set("node_id", nodeFilter);
-    window.open(`${getApiBase()}/api/v1/security/activity/export?${params}`, "_blank");
+    window.open(`${API_URL}/api/v1/security/activity/export?${params}`, "_blank");
   };
 
   return (

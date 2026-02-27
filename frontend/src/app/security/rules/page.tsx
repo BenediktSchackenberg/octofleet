@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getApiBase, getAuthHeader } from "@/lib/auth-context";
+import { getAuthHeader } from "@/lib/auth-context";
+import { API_URL } from "@/lib/api-config";
 import Link from "next/link";
 
 export default function RulesPage() {
@@ -10,7 +11,7 @@ export default function RulesPage() {
   const [form, setForm] = useState({ name: "", description: "", ruleType: "threshold", severity: "medium", enabled: true, cooldownSeconds: 300, conditions: "{}", actions: "[]" });
   const [evalResult, setEvalResult] = useState<any>(null);
 
-  const load = () => fetch(`${getApiBase()}/api/v1/security/rules`, { headers: getAuthHeader() })
+  const load = () => fetch(`${API_URL}/api/v1/security/rules`, { headers: getAuthHeader() })
     .then(r => r.json()).then(d => setRules(d.rules || [])).catch(() => {});
 
   useEffect(() => { load(); }, []);
@@ -18,7 +19,7 @@ export default function RulesPage() {
   const save = async () => {
     try {
       const body = { ...form, conditions: JSON.parse(form.conditions), actions: JSON.parse(form.actions) };
-      await fetch(`${getApiBase()}/api/v1/security/rules`, { method: "POST", headers: { ...getAuthHeader(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      await fetch(`${API_URL}/api/v1/security/rules`, { method: "POST", headers: { ...getAuthHeader(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
       setShowForm(false);
       setForm({ name: "", description: "", ruleType: "threshold", severity: "medium", enabled: true, cooldownSeconds: 300, conditions: "{}", actions: "[]" });
       load();
@@ -26,12 +27,12 @@ export default function RulesPage() {
   };
 
   const deleteRule = async (id: string) => {
-    await fetch(`${getApiBase()}/api/v1/security/rules/${id}`, { method: "DELETE", headers: getAuthHeader() });
+    await fetch(`${API_URL}/api/v1/security/rules/${id}`, { method: "DELETE", headers: getAuthHeader() });
     load();
   };
 
   const evaluate = async () => {
-    const res = await fetch(`${getApiBase()}/api/v1/security/rules/evaluate`, { method: "POST", headers: { ...getAuthHeader(), "Content-Type": "application/json" }, body: "{}" });
+    const res = await fetch(`${API_URL}/api/v1/security/rules/evaluate`, { method: "POST", headers: { ...getAuthHeader(), "Content-Type": "application/json" }, body: "{}" });
     setEvalResult(await res.json());
   };
 
