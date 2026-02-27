@@ -452,7 +452,7 @@ export default function NodeDetailPage() {
               {node && getStatusBadge(node.last_seen)}
             </div>
             {/* Groups and Tags */}
-            {node && (node.groups.length > 0 || node.tags.length > 0) && (
+            {node && (node.groups?.length > 0 || node.tags?.length > 0) && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {node.groups.map(group => (
                   <Badge key={group.id} style={{ backgroundColor: group.color, color: 'white' }}>
@@ -927,7 +927,7 @@ export default function NodeDetailPage() {
 
             {netData.connections?.length > 0 && (
               <Card>
-                <CardHeader><CardTitle>Aktive Verbindungen ({netData.connections.length})</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Aktive Verbindungen ({netData.connections?.length})</CardTitle></CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
@@ -1087,7 +1087,7 @@ export default function NodeDetailPage() {
           {/* Browser Tab */}
           <TabsContent value="browser" className="space-y-4">
             {/* Security Warnings */}
-            {criticalCookies && criticalCookies.warnings.length > 0 && (
+            {criticalCookies && criticalCookies.warnings?.length > 0 && (
               <Card className="border-yellow-500 bg-yellow-500/10">
                 <CardHeader>
                   <CardTitle className="text-yellow-600 dark:text-yellow-400">⚠️ Sicherheitshinweise</CardTitle>
@@ -1128,8 +1128,8 @@ export default function NodeDetailPage() {
                               {domain}
                             </Badge>
                           ))}
-                          {data.domains.length > 5 && (
-                            <Badge variant="secondary" className="text-xs">+{data.domains.length - 5}</Badge>
+                          {data.domains?.length > 5 && (
+                            <Badge variant="secondary" className="text-xs">+{data.domains?.length - 5}</Badge>
                           )}
                         </div>
                       </div>
@@ -1177,9 +1177,9 @@ export default function NodeDetailPage() {
                       ))}
                     </TableBody>
                   </Table>
-                  {criticalCookies.criticalCookies.length > 20 && (
+                  {criticalCookies.criticalCookies?.length > 20 && (
                     <p className="text-sm text-muted-foreground mt-2">
-                      ... und {criticalCookies.criticalCookies.length - 20} weitere kritische Cookies
+                      ... und {criticalCookies.criticalCookies?.length - 20} weitere kritische Cookies
                     </p>
                   )}
                 </CardContent>
