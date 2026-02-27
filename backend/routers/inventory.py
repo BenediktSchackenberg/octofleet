@@ -118,7 +118,7 @@ async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        rows = await conn.fetch("SELECT name, version, publisher, install_date, install_path FROM software_current WHERE node_id = $1::uuid ORDER BY name", node['id'])
+        rows = await conn.fetch("SELECT name, version, publisher, install_date, install_path FROM software_current WHERE node_id::uuid = $1::uuid ORDER BY name", node['id'])
         return {"data": {"installedPrograms": [dict(r) for r in rows]}}
 
 @router.get("/hotfixes/{node_id}")
@@ -126,8 +126,8 @@ async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        hotfix_rows = await conn.fetch('SELECT kb_id as "hotfixId", description, installed_on as "installedOn", installed_by as "installedBy" FROM hotfixes_current WHERE node_id = $1::uuid ORDER BY installed_on DESC', node['id'])
-        update_rows = await conn.fetch('SELECT update_id as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id = $1::uuid ORDER BY installed_on DESC', node['id'])
+        hotfix_rows = await conn.fetch('SELECT kb_id as "hotfixId", description, installed_on as "installedOn", installed_by as "installedBy" FROM hotfixes_current WHERE node_id::uuid = $1::uuid ORDER BY installed_on DESC', node['id'])
+        update_rows = await conn.fetch('SELECT update_id as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id::uuid = $1::uuid ORDER BY installed_on DESC', node['id'])
         
         update_history = []
         for row in update_rows:
@@ -142,7 +142,7 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id, os_name, os_version, os_build FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT users, services, startup_items, scheduled_tasks, computer_name, domain, workgroup, domain_role, is_domain_joined, uptime_hours, uptime_formatted, last_boot_time, updated_at FROM system_current WHERE node_id = $1::uuid", node['id'])
+        row = await conn.fetchrow("SELECT users, services, startup_items, scheduled_tasks, computer_name, domain, workgroup, domain_role, is_domain_joined, uptime_hours, uptime_formatted, last_boot_time, updated_at FROM system_current WHERE node_id::uuid = $1::uuid", node['id'])
         return {"data": {
             "osName": node['os_name'], "osVersion": node['os_version'], "osBuild": node['os_build'],
             "computerName": row['computer_name'] if row else None, "domain": row['domain'] if row else None,
@@ -158,7 +158,7 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT defender, firewall, tpm, uac, bitlocker, local_admins, updated_at FROM security_current WHERE node_id = $1::uuid", node['id'])
+        row = await conn.fetchrow("SELECT defender, firewall, tpm, uac, bitlocker, local_admins, updated_at FROM security_current WHERE node_id::uuid = $1::uuid", node['id'])
         if not row: return {"data": None}
         return {"data": {
             "defender": json.loads(row['defender']) if row['defender'] else {}, "firewall": json.loads(row['firewall']) if row['firewall'] else [],
@@ -171,7 +171,7 @@ async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT adapters, connections, listening_ports, updated_at FROM network_current WHERE node_id = $1::uuid", node['id'])
+        row = await conn.fetchrow("SELECT adapters, connections, listening_ports, updated_at FROM network_current WHERE node_id::uuid = $1::uuid", node['id'])
         if not row: return {"data": None}
         return {"data": {
             "adapters": json.loads(row['adapters']) if row['adapters'] else [], "connections": json.loads(row['connections']) if row['connections'] else [],
@@ -183,7 +183,7 @@ async def get_linux_data(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT performance, services, updates, disk_health, updated_at FROM linux_data_current WHERE node_id = $1::uuid", node['id'])
+        row = await conn.fetchrow("SELECT performance, services, updates, disk_health, updated_at FROM linux_data_current WHERE node_id::uuid = $1::uuid", node['id'])
         if not row: return {"data": None}
         return {"data": {
             "performance": json.loads(row['performance']) if row['performance'] else None, "services": json.loads(row['services']) if row['services'] else None,

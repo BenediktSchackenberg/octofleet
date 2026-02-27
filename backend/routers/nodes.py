@@ -41,7 +41,7 @@ async def list_nodes(
                 FROM nodes n
                 LEFT JOIN hardware_current h ON n.id = h.node_id
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM device_groups dg WHERE dg.node_id = n.id
+                    SELECT 1 FROM device_groups dg WHERE dg.node_id::uuid = n.id::uuid
                 )
                 ORDER BY n.last_seen DESC
             """)
@@ -53,8 +53,8 @@ async def list_nodes(
                        (h.ram->>'totalGb')::numeric as total_memory_gb
                 FROM nodes n
                 LEFT JOIN hardware_current h ON n.id = h.node_id
-                JOIN device_groups dg ON dg.node_id = n.id
-                WHERE dg.group_id = $1
+                JOIN device_groups dg ON dg.node_id::uuid = n.id::uuid
+                WHERE dg.group_id = $1::uuid
                 ORDER BY n.last_seen DESC
             """, UUID(group_id))
         else:
@@ -102,13 +102,13 @@ async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
                    COALESCE(
                        (SELECT array_agg(g.name) FROM groups g 
                         JOIN device_groups dg ON g.id = dg.group_id 
-                        WHERE dg.node_id = n.id),
+                        WHERE dg.node_id::uuid = n.id::uuid),
                        ARRAY[]::text[]
                    ) as group_names,
                    COALESCE(
                        (SELECT array_agg(g.id::text) FROM groups g 
                         JOIN device_groups dg ON g.id = dg.group_id 
-                        WHERE dg.node_id = n.id),
+                        WHERE dg.node_id::uuid = n.id::uuid),
                        ARRAY[]::text[]
                    ) as group_ids
             FROM nodes n
