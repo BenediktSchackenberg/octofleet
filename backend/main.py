@@ -122,6 +122,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Global exception handler to ensure CORS headers on 500 errors
+from starlette.responses import JSONResponse
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+    )
+
 # Include routers
 app.include_router(nodes_router)
 app.include_router(inventory_router)
@@ -3736,10 +3747,8 @@ async def list_cumulative_updates(
     """
     async with db.acquire() as conn:
         query = """
-            SELECT id, version, cu_number, build_number, release_date,
-                   download_url, kb_article, file_hash, file_size_mb,
-                   status, ring, notes, approved_by, approved_at,
-                   created_at, updated_at
+            SELECT id, product, version, cu_name, kb_article, release_date,
+                   download_url, created_at
             FROM mssql_cu_catalog
             WHERE 1=1
         """
@@ -3752,11 +3761,9 @@ async def list_cumulative_updates(
             param_idx += 1
         
         if status:
-            query += f" AND status = ${param_idx}"
-            params.append(status)
-            param_idx += 1
+            pass  # status column doesn't exist in current schema
         
-        query += " ORDER BY version, cu_number DESC"
+        query += " ORDER BY version, cu_name DESC"
         
         rows = await conn.fetch(query, *params)
         
@@ -3764,21 +3771,13 @@ async def list_cumulative_updates(
             "cumulativeUpdates": [
                 {
                     "id": str(row["id"]),
+                    "product": row.get("product"),
                     "version": row["version"],
-                    "cuNumber": row["cu_number"],
-                    "buildNumber": row["build_number"],
+                    "cuName": row["cu_name"],
                     "releaseDate": row["release_date"].isoformat() if row["release_date"] else None,
                     "downloadUrl": row["download_url"],
                     "kbArticle": row["kb_article"],
-                    "fileHash": row["file_hash"],
-                    "fileSizeMb": row["file_size_mb"],
-                    "status": row["status"],
-                    "ring": row["ring"],
-                    "notes": row["notes"],
-                    "approvedBy": row["approved_by"],
-                    "approvedAt": row["approved_at"].isoformat() if row["approved_at"] else None,
                     "createdAt": row["created_at"].isoformat() if row["created_at"] else None,
-                    "updatedAt": row["updated_at"].isoformat() if row["updated_at"] else None
                 }
                 for row in rows
             ],
