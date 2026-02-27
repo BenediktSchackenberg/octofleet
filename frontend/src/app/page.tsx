@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { OsDistributionChart } from "@/components/OsDistributionChart";
 import { getAuthHeader } from "@/lib/auth-context";
+import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,8 +182,8 @@ export default function HomePage() {
 
   async function fetchSummary() {
     try {
-      const res = await fetch(`${API_BASE}/dashboard/summary`, { headers: getHeaders() });
-      if (res.ok) setSummary(await res.json());
+      const data = await apiClient.get<DashboardSummary>("/dashboard/summary");
+      if (data) setSummary(data);
     } catch (e) {
       console.error("Failed to fetch summary:", e);
     } finally {
@@ -191,107 +192,66 @@ export default function HomePage() {
   }
 
   async function fetchSystemHealth() {
-    try {
-      const res = await fetch(`${API_BASE}/health`);
-      if (res.ok) setSystemHealth(await res.json());
-    } catch (e) {
-      setSystemHealth({ status: 'error', database: 'unknown' });
-    }
+    const data = await apiClient.get<any>("/health", { showErrorToast: false });
+    if (data) setSystemHealth(data);
+    else setSystemHealth({ status: 'error', database: 'unknown' });
   }
 
   async function fetchRecentAlerts() {
-    try {
-      const res = await fetch(`${API_BASE}/alert-history?limit=5`, { headers: getHeaders() });
-      if (res.ok) setRecentAlerts(await res.json());
-    } catch (e) {
-      console.error("Failed to fetch alerts:", e);
-    }
+    const data = await apiClient.get<any[]>("/alert-history?limit=5");
+    if (data) setRecentAlerts(data);
   }
 
   async function fetchMetrics() {
-    try {
-      const res = await fetch(`${API_BASE}/metrics/summary`, { headers: getHeaders() });
-      if (res.ok) setMetrics(await res.json());
-    } catch (e) {
-      console.error("Failed to fetch metrics:", e);
-    }
+    const data = await apiClient.get<MetricsSummary>("/metrics/summary");
+    if (data) setMetrics(data);
   }
 
   async function fetchSqlCatalog() {
-    try {
-      const res = await fetch(`${API_BASE}/mssql/cumulative-updates`, { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        const cus = data.cumulativeUpdates || [];
-        // Group by version
-        const byVersion: Record<string, {count: number; latestCu: number}> = {};
-        cus.forEach((cu: any) => {
-          if (!byVersion[cu.version]) {
-            byVersion[cu.version] = { count: 0, latestCu: 0 };
-          }
-          byVersion[cu.version].count++;
-          if (cu.cuNumber > byVersion[cu.version].latestCu) {
-            byVersion[cu.version].latestCu = cu.cuNumber;
-          }
-        });
-        const versions = Object.entries(byVersion)
-          .map(([version, data]) => ({ version, ...data }))
-          .sort((a, b) => b.version.localeCompare(a.version));
-        setSqlCatalog({ versions, total: cus.length });
-      }
-    } catch (e) {
-      console.error("Failed to fetch SQL catalog:", e);
+    const data = await apiClient.get<any>("/mssql/cumulative-updates");
+    if (data) {
+      const cus = data.cumulativeUpdates || [];
+      const byVersion: Record<string, {count: number; latestCu: number}> = {};
+      cus.forEach((cu: any) => {
+        if (!byVersion[cu.version]) {
+          byVersion[cu.version] = { count: 0, latestCu: 0 };
+        }
+        byVersion[cu.version].count++;
+        if (cu.cu_number > byVersion[cu.version].latestCu) {
+          byVersion[cu.version].latestCu = cu.cu_number;
+        }
+      });
+      const versions = Object.entries(byVersion)
+        .map(([version, data]) => ({ version, ...data }))
+        .sort((a, b) => b.version.localeCompare(a.version));
+      setSqlCatalog({ versions, total: cus.length });
     }
   }
 
   async function fetchTimeseries() {
-    try {
-      const res = await fetch(`${API_BASE}/metrics/timeseries?hours=1&bucket_minutes=5`, { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setTimeseries(data);
-      }
-    } catch (e) {
-      console.error("Failed to fetch timeseries:", e);
-    }
+    const data = await apiClient.get<any>("/metrics/timeseries?hours=1&bucket_minutes=5");
+    if (data) setTimeseries(data);
   }
 
   async function fetchFullNodeData(nodeId: string) {
     try {
-      // Fetch all data in parallel - use correct inventory endpoints
-      const [nodeRes, hwRes, swRes, secRes, netRes, brRes, hfRes] = await Promise.all([
-        fetch(`${API_BASE}/nodes/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/software/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/hotfixes/${nodeId}`, { headers: getHeaders() }),
+      const [nodeData, hwData, swData, secData, netData, brData, hfData] = await Promise.all([
+        apiClient.get<any>(`/nodes/${nodeId}`),
+        apiClient.get<any>(`/inventory/hardware/${nodeId}`),
+        apiClient.get<any>(`/inventory/software/${nodeId}`),
+        apiClient.get<any>(`/inventory/security/${nodeId}`),
+        apiClient.get<any>(`/inventory/network/${nodeId}`),
+        apiClient.get<any>(`/inventory/browser/${nodeId}`),
+        apiClient.get<any>(`/inventory/hotfixes/${nodeId}`),
       ]);
 
-      if (nodeRes.ok) setNodeData(await nodeRes.json());
-      if (hwRes.ok) {
-        const hwData = await hwRes.json();
-        setHardware(hwData.data || hwData);  // Handle both {data: {...}} and direct format
-      }
-      if (swRes.ok) {
-        const swData = await swRes.json();
-        setSoftware(swData.data?.installedPrograms || swData.data?.software || swData.software || swData.installedPrograms || swData.data || swData || []);
-      }
-      if (secRes.ok) {
-        const secData = await secRes.json();
-        setSecurity(secData.data || secData);
-      }
-      if (netRes.ok) {
-        const netData = await netRes.json();
-        setNetwork(netData.data || netData);
-      }
-      if (brRes.ok) {
-        const brData = await brRes.json();
-        setBrowser(brData.data || brData);
-      }
-      if (hfRes.ok) {
-        const hfData = await hfRes.json();
+      if (nodeData) setNodeData(nodeData);
+      if (hwData) setHardware(hwData.data || hwData);
+      if (swData) setSoftware(swData.data?.installedPrograms || swData.data?.software || swData.software || swData.installedPrograms || swData.data || swData || []);
+      if (secData) setSecurity(secData.data || secData);
+      if (netData) setNetwork(netData.data || netData);
+      if (brData) setBrowser(brData.data || brData);
+      if (hfData) {
         const resolved = hfData.data || hfData;
         setHotfixes({
           hotfixes: resolved.hotfixes || [],
