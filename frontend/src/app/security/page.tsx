@@ -49,6 +49,8 @@ export default function SecurityPage() {
     { id: "audit-log", label: "Access Audit", icon: Users, href: "/security/audit-log" },
     { id: "posture", label: "Config Posture", icon: Shield, href: "/security/posture" },
     { id: "vulnerabilities", label: "Vulnerabilities", icon: AlertTriangle, href: "/security/vulnerabilities" },
+    { id: "rules", label: "Behavior Rules", icon: Settings, href: "/security/rules" },
+    { id: "activity", label: "Activity", icon: Activity, href: "/security/activity" },
   ];
 
   const severityColors: Record<string, string> = {
