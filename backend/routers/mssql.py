@@ -59,10 +59,10 @@ async def get_cumulative_update(cu_id: str, db: asyncpg.Pool = Depends(get_db)):
 async def create_mssql_config(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         config_id = str(uuid.uuid4())
-        row = await conn.fetchrow(\"\"\"
+        row = await conn.fetchrow("""
             INSERT INTO mssql_configs (id, name, description, edition, version, instance_name, features, sql_collation, port, max_memory_mb, tempdb_file_count, tempdb_file_size_mb, include_ssms)
             VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at
-        \"\"\", config_id, data.get("name"), data.get("description"), data.get("edition"), data.get("version"), data.get("instanceName", "MSSQLSERVER"), data.get("features", ["SQLEngine"]), data.get("collation", "Latin1_General_CI_AS"), data.get("port", 1433), data.get("maxMemoryMb"), data.get("tempDbFileCount", 4), data.get("tempDbFileSizeMb", 1024), data.get("includeSsms", True))
+        """, config_id, data.get("name"), data.get("description"), data.get("edition"), data.get("version"), data.get("instanceName", "MSSQLSERVER"), data.get("features", ["SQLEngine"]), data.get("collation", "Latin1_General_CI_AS"), data.get("port", 1433), data.get("maxMemoryMb"), data.get("tempDbFileCount", 4), data.get("tempDbFileSizeMb", 1024), data.get("includeSsms", True))
         return {"id": config_id, "name": data.get("name"), "createdAt": row["created_at"].isoformat() if row["created_at"] else None}
 
 @router.get("/configs")
