@@ -342,7 +342,7 @@ public class FileAuditCollector : BackgroundService
     {
         var paths = new List<string>();
         // Watch all user profile Documents folders
-        var usersDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.SystemDrive) ?? "C:", "Users");
+        var usersDir = Path.Combine(Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? @"C:\", "Users");
         if (Directory.Exists(usersDir))
         {
             foreach (var userDir in Directory.GetDirectories(usersDir))
