@@ -817,11 +817,11 @@ export default function HomePage() {
                           </div>
                           {/* Rows */}
                           <div className="max-h-[200px] overflow-y-auto space-y-0.5">
-                            {metrics?.nodes
-                              ?.filter(n => n.cpuPercent !== null || n.ramPercent !== null)
-                              .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
+                            {(Array.isArray(metrics?.nodes) ? metrics.nodes : [])
+                              .filter((n: any) => n.cpuPercent !== null || n.ramPercent !== null)
+                              .sort((a: any, b: any) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
                               .slice(0, 8)
-                              .map((node, i) => {
+                              .map((node: any, i: number) => {
                                 const cpu = node.cpuPercent || 0;
                                 const ram = node.ramPercent || 0;
                                 const disk = node.diskPercent || 0;
@@ -937,11 +937,11 @@ export default function HomePage() {
                           </div>
                           {/* Rows */}
                           <div className="max-h-[200px] overflow-y-auto space-y-0.5">
-                            {metrics.nodes
-                              .filter(n => n.cpuPercent !== null || n.ramPercent !== null)
-                              .sort((a, b) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
+                            {(Array.isArray(metrics.nodes) ? metrics.nodes : [])
+                              .filter((n: any) => n.cpuPercent !== null || n.ramPercent !== null)
+                              .sort((a: any, b: any) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
                               .slice(0, 8)
-                              .map((node, i) => {
+                              .map((node: any, i: number) => {
                                 const cpu = node.cpuPercent || 0;
                                 const ram = node.ramPercent || 0;
                                 const disk = node.diskPercent || 0;
