@@ -6,12 +6,6 @@
 .DESCRIPTION
     Downloads the latest release ZIP, signs all EXE/DLL files with your
     Certum code-signing certificate (smartcard), and re-uploads to GitHub.
-    
-    Prerequisites:
-    - Certum card reader plugged in with smartcard
-    - proCertum CardManager running
-    - Windows SDK installed (for signtool.exe)
-    - GitHub PAT with 'repo' scope
 
 .EXAMPLE
     .\Sign-Release.ps1
@@ -27,27 +21,22 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = "BenediktSchackenberg/octofleet"
 
-# ── Colors ──────────────────────────────────────────
 function Write-Step($msg) { Write-Host "  [>] $msg" -ForegroundColor Cyan }
-function Write-OK($msg)   { Write-Host "  [✓] $msg" -ForegroundColor Green }
-function Write-Err($msg)  { Write-Host "  [✗] $msg" -ForegroundColor Red }
+function Write-OK($msg)   { Write-Host "  [OK] $msg" -ForegroundColor Green }
+function Write-Err($msg)  { Write-Host "  [FAIL] $msg" -ForegroundColor Red }
 
 Write-Host ""
-Write-Host "  ╔══════════════════════════════════════════╗" -ForegroundColor DarkCyan
-Write-Host "  ║  🐙 Octofleet Release Signing Tool       ║" -ForegroundColor DarkCyan
-Write-Host "  ╚══════════════════════════════════════════╝" -ForegroundColor DarkCyan
+Write-Host "  ================================================" -ForegroundColor DarkCyan
+Write-Host "  Octofleet Release Signing Tool" -ForegroundColor DarkCyan
+Write-Host "  ================================================" -ForegroundColor DarkCyan
 Write-Host ""
 
-# ── GitHub Token ────────────────────────────────────
-if (-not $GitHubToken) {
-    $GitHubToken = $env:GITHUB_TOKEN
-}
-if (-not $GitHubToken) {
-    $GitHubToken = Read-Host "GitHub PAT (repo scope)"
-}
+# -- GitHub Token
+if (-not $GitHubToken) { $GitHubToken = $env:GITHUB_TOKEN }
+if (-not $GitHubToken) { $GitHubToken = Read-Host "GitHub PAT (repo scope)" }
 $headers = @{ Authorization = "token $GitHubToken"; Accept = "application/vnd.github.v3+json" }
 
-# ── Find signtool.exe ──────────────────────────────
+# -- Find signtool.exe
 Write-Step "Looking for signtool.exe..."
 $signtool = $null
 $sdkPaths = @(
@@ -65,30 +54,24 @@ if (-not $signtool) {
 }
 Write-OK "Found: $signtool"
 
-# ── Check smartcard ─────────────────────────────────
-Write-Step "Checking for code-signing certificate on smartcard..."
-$cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { 
-    $_.EnhancedKeyUsageList.ObjectId -contains "1.3.6.1.5.5.7.3.3" -and
+# -- Check smartcard certificate
+Write-Step "Checking for code-signing certificate..."
+$cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object {
     $_.Subject -like "*Schackenberg*"
 } | Select-Object -First 1
 
-if (-not $cert) {
-    # Also check without private key filter — smartcard certs may show HasPrivateKey=False
-    $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -like "*Schackenberg*" } | Select-Object -First 1
-}
 if (-not $cert) {
     Write-Err "No code-signing certificate found! Make sure:"
     Write-Host "    - Card reader is plugged in" -ForegroundColor Yellow
     Write-Host "    - Smartcard is inserted" -ForegroundColor Yellow
     Write-Host "    - proCertum CardManager is running" -ForegroundColor Yellow
-    Write-Host "    - Certificate is imported on the card" -ForegroundColor Yellow
     exit 1
 }
 Write-OK "Certificate: $($cert.Subject)"
 Write-Host "    Thumbprint: $($cert.Thumbprint)" -ForegroundColor Gray
 Write-Host "    Expires:    $($cert.NotAfter.ToString('yyyy-MM-dd'))" -ForegroundColor Gray
 
-# ── Get release info ────────────────────────────────
+# -- Get release info
 Write-Step "Fetching release info..."
 if ($Tag) {
     $releaseUrl = "https://api.github.com/repos/$repo/releases/tags/$Tag"
@@ -99,7 +82,7 @@ $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers
 $Tag = $release.tag_name
 Write-OK "Release: $Tag ($($release.name))"
 
-# ── Find the ZIP asset ──────────────────────────────
+# -- Find the ZIP asset
 $zipAsset = $release.assets | Where-Object { $_.name -like "OctofleetAgent-*.zip" } | Select-Object -First 1
 if (-not $zipAsset) {
     Write-Err "No OctofleetAgent ZIP found in release $Tag!"
@@ -109,7 +92,7 @@ if (-not $zipAsset) {
 }
 Write-OK "Asset: $($zipAsset.name) ($([math]::Round($zipAsset.size / 1MB, 1)) MB)"
 
-# ── Download ────────────────────────────────────────
+# -- Download
 $workDir = Join-Path $env:TEMP "octofleet-sign-$Tag"
 if (Test-Path $workDir) { Remove-Item $workDir -Recurse -Force }
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -120,17 +103,17 @@ $downloadHeaders = @{ Authorization = "token $GitHubToken"; Accept = "applicatio
 Invoke-WebRequest -Uri $zipAsset.url -Headers $downloadHeaders -OutFile $zipPath
 Write-OK "Downloaded to $zipPath"
 
-# ── Extract ─────────────────────────────────────────
+# -- Extract
 $extractDir = Join-Path $workDir "extracted"
 Write-Step "Extracting..."
 Expand-Archive -Path $zipPath -DestinationPath $extractDir
 Write-OK "Extracted"
 
-# ── Sign all EXEs and DLLs ──────────────────────────
+# -- Sign all EXEs and DLLs
 $filesToSign = Get-ChildItem $extractDir -Recurse -Include *.exe, *.dll
 Write-Step "Signing $($filesToSign.Count) files..."
 Write-Host ""
-Write-Host "    ⚠ You may be prompted for your smartcard PIN!" -ForegroundColor Yellow
+Write-Host "    >>> You may be prompted for your smartcard PIN! <<<" -ForegroundColor Yellow
 Write-Host ""
 
 $signed = 0
@@ -138,13 +121,13 @@ $failed = 0
 foreach ($file in $filesToSign) {
     $relativeName = $file.FullName.Replace("$extractDir\", "")
     Write-Host "    Signing: $relativeName" -ForegroundColor Gray -NoNewline
-    
+
     $result = & $signtool sign /a /tr $TimestampServer /td sha256 /fd sha256 $file.FullName 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Write-Host " ✓" -ForegroundColor Green
+        Write-Host " OK" -ForegroundColor Green
         $signed++
     } else {
-        Write-Host " ✗" -ForegroundColor Red
+        Write-Host " FAILED" -ForegroundColor Red
         Write-Host "      $result" -ForegroundColor Red
         $failed++
     }
@@ -157,23 +140,21 @@ if ($failed -gt 0) {
 }
 Write-OK "Signed $signed files"
 
-# ── Repackage ZIP ───────────────────────────────────
+# -- Repackage ZIP
 $signedZip = Join-Path $workDir "OctofleetAgent-$Tag-signed.zip"
 Write-Step "Creating signed ZIP..."
 Compress-Archive -Path "$extractDir\*" -DestinationPath $signedZip
 Write-OK "Created: $signedZip"
 
-# ── Delete old asset & upload new one ───────────────
+# -- Delete old asset and upload new one
 Write-Step "Replacing asset on GitHub..."
 
-# Delete old unsigned ZIP
 $deleteUrl = "https://api.github.com/repos/$repo/releases/assets/$($zipAsset.id)"
 Invoke-RestMethod -Uri $deleteUrl -Method Delete -Headers $headers
 Write-Host "    Deleted old: $($zipAsset.name)" -ForegroundColor Gray
 
-# Upload signed ZIP (keep same name so AutoUpdater works!)
 $uploadUrl = $release.upload_url -replace '\{.*\}', ''
-$uploadUrl = "$uploadUrl`?name=$($zipAsset.name)"
+$uploadUrl = "${uploadUrl}?name=$($zipAsset.name)"
 $uploadHeaders = @{
     Authorization  = "token $GitHubToken"
     "Content-Type" = "application/zip"
@@ -181,7 +162,7 @@ $uploadHeaders = @{
 $uploadResult = Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $uploadHeaders -InFile $signedZip
 Write-OK "Uploaded: $($uploadResult.name) ($([math]::Round($uploadResult.size / 1MB, 1)) MB)"
 
-# ── Verify ──────────────────────────────────────────
+# -- Verify
 Write-Step "Verifying signature on main EXE..."
 $mainExe = Get-ChildItem $extractDir -Recurse -Filter "OctofleetAgent.Service.exe" | Select-Object -First 1
 if ($mainExe) {
@@ -193,18 +174,16 @@ if ($mainExe) {
     }
 }
 
-# ── Cleanup ─────────────────────────────────────────
+# -- Cleanup
 Remove-Item $workDir -Recurse -Force
 
-# ── Done ────────────────────────────────────────────
+# -- Done
 Write-Host ""
-Write-Host "  ╔══════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "  ║  ✅ Release $Tag signed and uploaded!     " -ForegroundColor Green
-Write-Host "  ║                                          ║" -ForegroundColor Green
-Write-Host "  ║  Signed:  $signed files                       ║" -ForegroundColor Green
-Write-Host "  ║  Cert:    Certum Open Source             ║" -ForegroundColor Green
-Write-Host "  ║  TSA:     $TimestampServer    ║" -ForegroundColor Green
-Write-Host "  ╚══════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "  ================================================" -ForegroundColor Green
+Write-Host "  Release $Tag signed and uploaded!" -ForegroundColor Green
+Write-Host "  Signed:  $signed files" -ForegroundColor Green
+Write-Host "  TSA:     $TimestampServer" -ForegroundColor Green
+Write-Host "  ================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Agents will auto-update to the signed version on next check." -ForegroundColor Gray
+Write-Host "  Agents will auto-update to the signed version." -ForegroundColor Gray
 Write-Host ""
