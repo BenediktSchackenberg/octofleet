@@ -14846,3 +14846,450 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
             "byPackage": [{"packageName": r["package_name"], "vulnCount": r["vuln_count"], 
                           "affectedNodes": r["affected_nodes"], "maxSeverity": r["max_severity"]} for r in by_package]
         }
+
+# ============================================================
+# E21 Story #89: Behavior Rules - Policy Engine (MVP)
+# ============================================================
+
+@app.get("/api/v1/security/rules")
+async def list_behavior_rules(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM behavior_rules ORDER BY created_at DESC")
+        return {"rules": [{
+            "id": str(r["id"]), "name": r["name"], "description": r["description"],
+            "ruleType": r["rule_type"], "conditions": json.loads(r["conditions"]) if isinstance(r["conditions"], str) else r["conditions"],
+            "actions": json.loads(r["actions"]) if isinstance(r["actions"], str) else r["actions"],
+            "severity": r["severity"], "enabled": r["enabled"],
+            "cooldownSeconds": r["cooldown_seconds"], "createdAt": str(r["created_at"])
+        } for r in rows]}
+
+@app.post("/api/v1/security/rules")
+async def create_behavior_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO behavior_rules (name, description, rule_type, conditions, actions, severity, enabled, cooldown_seconds, created_by)
+            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9)
+            RETURNING id, created_at
+        """, data.get("name", ""), data.get("description"),
+            data.get("ruleType", "threshold"),
+            json.dumps(data.get("conditions", {})),
+            json.dumps(data.get("actions", [])),
+            data.get("severity", "medium"),
+            data.get("enabled", True),
+            data.get("cooldownSeconds", 300),
+            data.get("createdBy", "api"))
+        return {"id": str(row["id"]), "createdAt": str(row["created_at"])}
+
+@app.put("/api/v1/security/rules/{rule_id}")
+async def update_behavior_rule(rule_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        await conn.execute("""
+            UPDATE behavior_rules SET name=$2, description=$3, rule_type=$4, conditions=$5::jsonb,
+                actions=$6::jsonb, severity=$7, enabled=$8, cooldown_seconds=$9, updated_at=NOW()
+            WHERE id=$1::uuid
+        """, rule_id, data.get("name"), data.get("description"),
+            data.get("ruleType", "threshold"),
+            json.dumps(data.get("conditions", {})),
+            json.dumps(data.get("actions", [])),
+            data.get("severity", "medium"),
+            data.get("enabled", True),
+            data.get("cooldownSeconds", 300))
+        return {"updated": True}
+
+@app.delete("/api/v1/security/rules/{rule_id}")
+async def delete_behavior_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        await conn.execute("DELETE FROM behavior_rules WHERE id = $1::uuid", rule_id)
+        return {"deleted": True}
+
+@app.post("/api/v1/security/rules/evaluate")
+async def evaluate_rules(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Evaluate all enabled behavior rules against recent events. Called periodically or on-demand."""
+    async with db.acquire() as conn:
+        rules = await conn.fetch("SELECT * FROM behavior_rules WHERE enabled = true")
+        findings_created = 0
+        
+        for rule in rules:
+            conditions = json.loads(rule["conditions"]) if isinstance(rule["conditions"], str) else rule["conditions"]
+            actions = json.loads(rule["actions"]) if isinstance(rule["actions"], str) else rule["actions"]
+            rule_type = rule["rule_type"]
+            
+            # Check cooldown
+            last_finding = await conn.fetchval("""
+                SELECT MAX(created_at) FROM security_findings WHERE rule_id = $1::uuid
+            """, str(rule["id"]))
+            if last_finding:
+                from datetime import timezone
+                cooldown = rule["cooldown_seconds"] or 300
+                if last_finding.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc) - timedelta(seconds=cooldown):
+                    continue
+            
+            triggered = False
+            matched_events = []
+            affected_node = None
+            affected_user = None
+            
+            if rule_type == "threshold":
+                # Count events matching criteria in time window
+                event_type = conditions.get("eventType", "%")
+                time_window = conditions.get("timeWindowSeconds", 600)
+                threshold = conditions.get("threshold", 100)
+                path_pattern = conditions.get("pathPattern")
+                
+                query = """
+                    SELECT COUNT(*), MAX(node_id) as node_id
+                    FROM events_normalized
+                    WHERE ts > NOW() - INTERVAL '1 second' * $1
+                      AND event_type LIKE $2
+                """
+                params = [time_window, event_type]
+                if path_pattern:
+                    query += " AND payload::text ~* $3"
+                    params.append(path_pattern)
+                
+                row = await conn.fetchrow(query, *params)
+                if row and row["count"] >= threshold:
+                    triggered = True
+                    affected_node = row["node_id"]
+            
+            elif rule_type == "pattern":
+                # Match specific patterns in recent events
+                pattern = conditions.get("pattern", "")
+                lookback = conditions.get("lookbackSeconds", 300)
+                
+                rows = await conn.fetch("""
+                    SELECT id, node_id, payload FROM events_normalized
+                    WHERE ts > NOW() - INTERVAL '1 second' * $1
+                      AND (payload::text ~* $2 OR event_type ~* $2)
+                    LIMIT 10
+                """, lookback, pattern)
+                
+                if rows:
+                    triggered = True
+                    affected_node = rows[0]["node_id"]
+                    matched_events = [str(r["id"]) for r in rows]
+            
+            elif rule_type == "time":
+                # Events outside business hours
+                start_hour = conditions.get("businessHoursStart", 8)
+                end_hour = conditions.get("businessHoursEnd", 18)
+                event_type = conditions.get("eventType", "file.%")
+                
+                rows = await conn.fetch("""
+                    SELECT id, node_id FROM events_normalized
+                    WHERE ts > NOW() - INTERVAL '5 minutes'
+                      AND event_type LIKE $1
+                      AND (EXTRACT(HOUR FROM ts) < $2 OR EXTRACT(HOUR FROM ts) >= $3)
+                    LIMIT 10
+                """, event_type, start_hour, end_hour)
+                
+                if rows:
+                    triggered = True
+                    affected_node = rows[0]["node_id"]
+                    matched_events = [str(r["id"]) for r in rows]
+            
+            if triggered:
+                # Create finding
+                title = f"Rule triggered: {rule['name']}"
+                for action in actions:
+                    if action.get("type") == "create_finding":
+                        title = action.get("title", title)
+                
+                await conn.execute("""
+                    INSERT INTO security_findings (title, finding_type, severity, node_id, user_name, 
+                        rule_id, description, risk_score)
+                    VALUES ($1, 'policy_violation', $2, $3, $4, $5::uuid, $6, $7)
+                """, title, rule["severity"], affected_node, affected_user,
+                    str(rule["id"]),
+                    f"Behavior rule '{rule['name']}' ({rule_type}) triggered",
+                    _calculate_risk_score(rule["severity"], len(matched_events)))
+                findings_created += 1
+        
+        return {"evaluated": len(rules), "findingsCreated": findings_created}
+
+
+def _calculate_risk_score(severity: str, event_count: int = 1) -> float:
+    """Calculate risk score based on severity and frequency"""
+    base = {"critical": 9.0, "high": 7.0, "medium": 5.0, "low": 3.0, "info": 1.0}.get(severity, 5.0)
+    frequency_factor = min(1.0 + (event_count * 0.1), 2.0)
+    return round(min(base * frequency_factor, 10.0), 1)
+
+
+# ============================================================
+# E21 Story #90: Findings & Risk Scoring
+# ============================================================
+
+@app.get("/api/v1/security/findings")
+async def list_findings(
+    status: str = None, severity: str = None, node_id: str = None,
+    limit: int = 50, offset: int = 0,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    async with db.acquire() as conn:
+        query = "SELECT * FROM security_findings WHERE 1=1"
+        params = []
+        idx = 1
+        
+        if status:
+            query += f" AND status = ${idx}"
+            params.append(status)
+            idx += 1
+        if severity:
+            query += f" AND severity = ${idx}"
+            params.append(severity)
+            idx += 1
+        if node_id:
+            query += f" AND UPPER(node_id) = UPPER(${idx})"
+            params.append(node_id)
+            idx += 1
+        
+        count = await conn.fetchval(query.replace("SELECT *", "SELECT COUNT(*)"), *params)
+        
+        query += f" ORDER BY risk_score DESC, created_at DESC LIMIT ${idx} OFFSET ${idx+1}"
+        params.extend([limit, offset])
+        
+        rows = await conn.fetch(query, *params)
+        return {
+            "findings": [{
+                "id": str(r["id"]), "title": r["title"], "findingType": r["finding_type"],
+                "severity": r["severity"], "riskScore": r["risk_score"], "status": r["status"],
+                "nodeId": r["node_id"], "userName": r["user_name"],
+                "ruleId": str(r["rule_id"]) if r["rule_id"] else None,
+                "description": r["description"], "remediation": r["remediation"],
+                "firstSeen": str(r["first_seen"]), "lastSeen": str(r["last_seen"]),
+                "closedAt": str(r["closed_at"]) if r["closed_at"] else None,
+                "createdAt": str(r["created_at"])
+            } for r in rows],
+            "total": count
+        }
+
+@app.get("/api/v1/security/findings/summary")
+async def findings_summary(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        by_status = await conn.fetch("SELECT status, COUNT(*) as count FROM security_findings GROUP BY status")
+        by_severity = await conn.fetch("SELECT severity, COUNT(*) as count FROM security_findings GROUP BY severity")
+        by_type = await conn.fetch("SELECT finding_type, COUNT(*) as count FROM security_findings GROUP BY finding_type")
+        top_nodes = await conn.fetch("""
+            SELECT node_id, COUNT(*) as count, AVG(risk_score) as avg_risk
+            FROM security_findings WHERE status != 'closed'
+            GROUP BY node_id ORDER BY count DESC LIMIT 10
+        """)
+        trend = await conn.fetch("""
+            SELECT DATE(created_at) as day, COUNT(*) as count
+            FROM security_findings WHERE created_at > NOW() - INTERVAL '30 days'
+            GROUP BY DATE(created_at) ORDER BY day
+        """)
+        return {
+            "byStatus": [{"status": r["status"], "count": r["count"]} for r in by_status],
+            "bySeverity": [{"severity": r["severity"], "count": r["count"]} for r in by_severity],
+            "byType": [{"type": r["finding_type"], "count": r["count"]} for r in by_type],
+            "topNodes": [{"nodeId": r["node_id"], "count": r["count"], "avgRisk": round(float(r["avg_risk"] or 0), 1)} for r in top_nodes],
+            "trend": [{"day": str(r["day"]), "count": r["count"]} for r in trend]
+        }
+
+@app.put("/api/v1/security/findings/{finding_id}")
+async def update_finding(finding_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        updates = []
+        params = [finding_id]
+        idx = 2
+        
+        for field in ["status", "severity", "remediation", "description"]:
+            if field in data:
+                updates.append(f"{field} = ${idx}")
+                params.append(data[field])
+                idx += 1
+        
+        if "status" in data and data["status"] in ("closed", "false_positive"):
+            updates.append(f"closed_at = NOW()")
+            updates.append(f"closed_by = ${idx}")
+            params.append(data.get("closedBy", "api"))
+            idx += 1
+        
+        if updates:
+            await conn.execute(f"UPDATE security_findings SET {', '.join(updates)} WHERE id = $1::uuid", *params)
+        return {"updated": True}
+
+@app.post("/api/v1/security/findings")
+async def create_finding(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        severity = data.get("severity", "medium")
+        row = await conn.fetchrow("""
+            INSERT INTO security_findings (title, finding_type, severity, risk_score, node_id, user_name, description, remediation)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+        """, data.get("title", ""), data.get("findingType", "alert"),
+            severity, _calculate_risk_score(severity),
+            data.get("nodeId"), data.get("userName"),
+            data.get("description"), data.get("remediation"))
+        return {"id": str(row["id"])}
+
+
+# ============================================================
+# E21 Story #91: Dashboards - File Activity & User Activity
+# ============================================================
+
+@app.get("/api/v1/security/activity/files")
+async def file_activity_dashboard(
+    node_id: str = None, user: str = None, path_filter: str = None,
+    hours: int = 24, limit: int = 100,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """File activity dashboard data"""
+    async with db.acquire() as conn:
+        base_filter = "WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        params = [hours]
+        idx = 2
+        
+        if node_id:
+            base_filter += f" AND node_id = ${idx}"
+            params.append(node_id)
+            idx += 1
+        
+        # Top paths
+        top_paths = await conn.fetch(f"""
+            SELECT payload->>'path' as path, COUNT(*) as count, 
+                   array_agg(DISTINCT event_type) as ops
+            FROM file_events {base_filter}
+            GROUP BY payload->>'path'
+            ORDER BY count DESC LIMIT 20
+        """, *params)
+        
+        # Operations distribution
+        ops_dist = await conn.fetch(f"""
+            SELECT event_type, COUNT(*) as count
+            FROM file_events {base_filter}
+            GROUP BY event_type ORDER BY count DESC
+        """, *params)
+        
+        # Timeline (hourly buckets)
+        timeline = await conn.fetch(f"""
+            SELECT date_trunc('hour', ts) as hour, COUNT(*) as count
+            FROM file_events {base_filter}
+            GROUP BY date_trunc('hour', ts) ORDER BY hour
+        """, *params)
+        
+        # Top users
+        top_users = await conn.fetch(f"""
+            SELECT payload->'user'->>'name' as username, COUNT(*) as count
+            FROM file_events {base_filter}
+            AND payload->'user'->>'name' IS NOT NULL
+            GROUP BY payload->'user'->>'name'
+            ORDER BY count DESC LIMIT 10
+        """, *params)
+        
+        # Recent events
+        recent = await conn.fetch(f"""
+            SELECT id, ts, node_id, event_type, payload
+            FROM file_events {base_filter}
+            ORDER BY ts DESC LIMIT ${"$" + str(idx)}
+        """, *params, limit)
+        
+        return {
+            "topPaths": [{"path": r["path"], "count": r["count"], "operations": list(r["ops"] or [])} for r in top_paths],
+            "operationsDistribution": [{"operation": r["event_type"], "count": r["count"]} for r in ops_dist],
+            "timeline": [{"hour": str(r["hour"]), "count": r["count"]} for r in timeline],
+            "topUsers": [{"username": r["username"], "count": r["count"]} for r in top_users],
+            "recentEvents": [{
+                "id": str(r["id"]), "ts": str(r["ts"]), "nodeId": r["node_id"],
+                "eventType": r["event_type"],
+                "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
+            } for r in recent]
+        }
+
+@app.get("/api/v1/security/activity/users")
+async def user_activity_dashboard(
+    node_id: str = None, username: str = None, hours: int = 24,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """User activity dashboard"""
+    async with db.acquire() as conn:
+        base_filter = "WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        params = [hours]
+        idx = 2
+        
+        if node_id:
+            base_filter += f" AND node_id = ${idx}"
+            params.append(node_id)
+            idx += 1
+        
+        # User activity summary
+        users = await conn.fetch(f"""
+            SELECT payload->'user'->>'name' as username,
+                   COUNT(*) as total_events,
+                   COUNT(DISTINCT event_type) as unique_ops,
+                   COUNT(DISTINCT payload->>'path') as unique_files,
+                   MIN(ts) as first_activity,
+                   MAX(ts) as last_activity
+            FROM file_events {base_filter}
+            AND payload->'user'->>'name' IS NOT NULL
+            GROUP BY payload->'user'->>'name'
+            ORDER BY total_events DESC LIMIT 20
+        """, *params)
+        
+        # Unusual hours activity (outside 8-18)
+        after_hours = await conn.fetch(f"""
+            SELECT payload->'user'->>'name' as username, COUNT(*) as count
+            FROM file_events {base_filter}
+            AND (EXTRACT(HOUR FROM ts) < 8 OR EXTRACT(HOUR FROM ts) >= 18)
+            AND payload->'user'->>'name' IS NOT NULL
+            GROUP BY payload->'user'->>'name'
+            ORDER BY count DESC LIMIT 10
+        """, *params)
+        
+        # Sensitive path access (e.g., /etc, Windows system dirs)
+        sensitive = await conn.fetch(f"""
+            SELECT payload->'user'->>'name' as username, payload->>'path' as path, COUNT(*) as count
+            FROM file_events {base_filter}
+            AND (payload->>'path' LIKE '/etc/%' OR payload->>'path' LIKE 'C:\\Windows\\%' 
+                 OR payload->>'path' LIKE 'C:\\Program Files\\%')
+            GROUP BY payload->'user'->>'name', payload->>'path'
+            ORDER BY count DESC LIMIT 20
+        """, *params)
+        
+        return {
+            "users": [{
+                "username": r["username"], "totalEvents": r["total_events"],
+                "uniqueOps": r["unique_ops"], "uniqueFiles": r["unique_files"],
+                "firstActivity": str(r["first_activity"]), "lastActivity": str(r["last_activity"])
+            } for r in users],
+            "afterHoursActivity": [{"username": r["username"], "count": r["count"]} for r in after_hours],
+            "sensitiveAccess": [{"username": r["username"], "path": r["path"], "count": r["count"]} for r in sensitive]
+        }
+
+@app.get("/api/v1/security/activity/export")
+async def export_file_activity(
+    node_id: str = None, hours: int = 24, format: str = "csv",
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Export file activity as CSV"""
+    async with db.acquire() as conn:
+        query = "SELECT ts, node_id, event_type, payload FROM file_events WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        params = [hours]
+        if node_id:
+            query += " AND node_id = $2"
+            params.append(node_id)
+        query += " ORDER BY ts DESC LIMIT 10000"
+        
+        rows = await conn.fetch(query, *params)
+        
+        if format == "csv":
+            import io
+            output = io.StringIO()
+            output.write("timestamp,node_id,event_type,path,user,file_size,hash\n")
+            for r in rows:
+                p = json.loads(r["payload"]) if isinstance(r["payload"], str) else (r["payload"] or {})
+                path = (p.get("file", {}) or p).get("path", p.get("path", ""))
+                user = (p.get("user", {}) or {}).get("name", "")
+                size = (p.get("file", {}) or p).get("size", "")
+                fhash = (p.get("file", {}) or p).get("hash", "")
+                output.write(f'{r["ts"]},"{r["node_id"]}","{r["event_type"]}","{path}","{user}",{size},"{fhash}"\n')
+            
+            from starlette.responses import Response
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=file-activity-{datetime.now().strftime('%Y%m%d')}.csv"}
+            )
+        
+        return {"events": [{"ts": str(r["ts"]), "nodeId": r["node_id"], "eventType": r["event_type"],
+                           "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]} for r in rows]}

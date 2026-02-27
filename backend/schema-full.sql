@@ -1874,3 +1874,43 @@ CREATE TABLE IF NOT EXISTS config_posture_diffs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_config_diffs_node ON config_posture_diffs(node_id, created_at DESC);
+
+-- E21 Story #89: Behavior Rules (Policy Engine)
+CREATE TABLE IF NOT EXISTS behavior_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    rule_type TEXT NOT NULL DEFAULT 'threshold', -- threshold, pattern, time
+    conditions JSONB NOT NULL DEFAULT '{}',
+    actions JSONB NOT NULL DEFAULT '[]',
+    severity TEXT DEFAULT 'medium',
+    enabled BOOLEAN DEFAULT true,
+    cooldown_seconds INTEGER DEFAULT 300,
+    created_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- E21 Story #90: Findings & Risk Scoring
+CREATE TABLE IF NOT EXISTS security_findings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    finding_type TEXT NOT NULL DEFAULT 'alert', -- alert, anomaly, policy_violation, vulnerability
+    severity TEXT DEFAULT 'medium',
+    risk_score REAL DEFAULT 0.0,
+    status TEXT DEFAULT 'open', -- open, triaged, investigating, closed, false_positive
+    node_id TEXT,
+    user_name TEXT,
+    rule_id UUID REFERENCES behavior_rules(id),
+    event_ids UUID[] DEFAULT '{}',
+    evidence_refs TEXT[] DEFAULT '{}',
+    description TEXT,
+    remediation TEXT,
+    first_seen TIMESTAMPTZ DEFAULT NOW(),
+    last_seen TIMESTAMPTZ DEFAULT NOW(),
+    closed_at TIMESTAMPTZ,
+    closed_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_findings_status ON security_findings(status, severity);
+CREATE INDEX IF NOT EXISTS idx_findings_node ON security_findings(node_id);

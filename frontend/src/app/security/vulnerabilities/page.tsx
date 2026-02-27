@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getApiBase, getAuthHeader } from "@/lib/auth-context";
+import { getAuthHeader } from "@/lib/auth-context";
+import { API_URL } from "@/lib/api-config";
 import Link from "next/link";
 
 interface FleetVulnData {
@@ -22,7 +23,7 @@ export default function VulnerabilitiesPage() {
   const [severityFilter, setSeverityFilter] = useState("all");
 
   useEffect(() => {
-    fetch(`${getApiBase()}/api/v1/security/vulnerabilities/fleet`, { headers: getAuthHeader() })
+    fetch(`${API_URL}/api/v1/security/vulnerabilities/fleet`, { headers: getAuthHeader() })
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
@@ -30,7 +31,7 @@ export default function VulnerabilitiesPage() {
 
   const loadNodeVulns = async (nodeId: string) => {
     setSelectedNode(nodeId);
-    const res = await fetch(`${getApiBase()}/api/v1/vulnerabilities/node/${nodeId}`, { headers: getAuthHeader() });
+    const res = await fetch(`${API_URL}/api/v1/vulnerabilities/node/${nodeId}`, { headers: getAuthHeader() });
     const d = await res.json();
     setNodeVulns(d.vulnerabilities || []);
   };
