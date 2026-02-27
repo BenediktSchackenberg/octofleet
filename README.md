@@ -151,14 +151,14 @@ Open http://localhost:3000 — Login: `admin` / `admin`
 **Windows (PowerShell as Admin):**
 ```powershell
 iwr "https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1" -OutFile "$env:TEMP\install.ps1"
-& "$env:TEMP\install.ps1" -ApiUrl "http://your-server:8080" -ApiKey "your-api-key"
+& "$env:TEMP\install.ps1" -GatewayUrl "http://your-server:8080" -GatewayToken "your-gateway-token"
 ```
 
 Then configure `C:\ProgramData\Octofleet\service-config.json`:
 ```json
 {
-  "ApiUrl": "http://your-server:8080",
-  "ApiKey": "your-api-key"
+  "GatewayUrl": "http://your-server:8080",
+  "GatewayToken": "your-gateway-token"
 }
 ```
 
