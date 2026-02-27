@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, Monitor, Server, Laptop, Circle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_URL } from '@/lib/api-config';
+import { getAuthHeader } from "@/lib/auth-context";
 
 interface NodeData {
   node_id: string;
@@ -40,7 +41,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
     try {
       const apiUrl = API_URL;
       const res = await fetch(`${apiUrl}/api/v1/nodes/tree`, {
-        headers: { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" }
+        headers: getAuthHeader()
       });
       if (res.ok) {
         const data = await res.json();

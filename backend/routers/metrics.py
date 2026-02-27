@@ -12,33 +12,47 @@ router = APIRouter(
 
 @router.get("/summary")
 async def get_metrics_summary(db: asyncpg.Pool = Depends(get_db)):
-    """Get summary metrics for dashboard"""
+    """Get summary metrics for dashboard with per-node data"""
     async with db.acquire() as conn:
-        counts = await conn.fetchrow("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '5 minutes') as online,
-                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '60 minutes' AND last_seen <= NOW() - INTERVAL '5 minutes') as away,
-                COUNT(*) FILTER (WHERE last_seen <= NOW() - INTERVAL '60 minutes' OR last_seen IS NULL) as offline
-            FROM nodes
+        rows = await conn.fetch("""
+            WITH latest AS (
+                SELECT DISTINCT ON (node_id)
+                    node_id, time, cpu_percent, ram_percent, disk_percent
+                FROM node_metrics
+                WHERE time > NOW() - INTERVAL '1 hour'
+                ORDER BY node_id, time DESC
+            )
+            SELECT n.node_id as text_node_id, n.hostname,
+                   l.time, l.cpu_percent, l.ram_percent, l.disk_percent
+            FROM nodes n
+            LEFT JOIN latest l ON l.node_id = n.id
+            ORDER BY n.hostname
         """)
         
-        avg_metrics = await conn.fetchrow("""
-            SELECT 
-                AVG(cpu_percent) as avg_cpu,
-                AVG(ram_percent) as avg_ram,
-                AVG(disk_percent) as avg_disk
-            FROM node_metrics
-            WHERE time > NOW() - INTERVAL '15 minutes'
-        """)
+        nodes = [{
+            "nodeId": row["text_node_id"],
+            "hostname": row["hostname"],
+            "lastMetricTime": row["time"].isoformat() if row["time"] else None,
+            "cpuPercent": row["cpu_percent"],
+            "ramPercent": row["ram_percent"],
+            "diskPercent": row["disk_percent"]
+        } for row in rows]
+        
+        active_nodes = [n for n in nodes if n["cpuPercent"] is not None]
+        if active_nodes:
+            fleet_avg = {
+                "cpuPercent": round(sum(n["cpuPercent"] for n in active_nodes) / len(active_nodes), 1),
+                "ramPercent": round(sum(n["ramPercent"] for n in active_nodes) / len(active_nodes), 1),
+                "diskPercent": round(sum(n["diskPercent"] for n in active_nodes) / len(active_nodes), 1)
+            }
+        else:
+            fleet_avg = {"cpuPercent": None, "ramPercent": None, "diskPercent": None}
         
         return {
-            "nodes": dict(counts),
-            "averages": {
-                "cpu": float(avg_metrics["avg_cpu"]) if avg_metrics["avg_cpu"] else 0,
-                "ram": float(avg_metrics["avg_ram"]) if avg_metrics["avg_ram"] else 0,
-                "disk": float(avg_metrics["avg_disk"]) if avg_metrics["avg_disk"] else 0
-            }
+            "nodesWithMetrics": len(active_nodes),
+            "totalNodes": len(nodes),
+            "fleetAverages": fleet_avg,
+            "nodes": nodes
         }
 
 @router.get("/timeseries")

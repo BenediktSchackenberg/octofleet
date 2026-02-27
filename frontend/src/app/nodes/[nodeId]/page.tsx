@@ -452,14 +452,14 @@ export default function NodeDetailPage() {
               {node && getStatusBadge(node.last_seen)}
             </div>
             {/* Groups and Tags */}
-            {node && (node.groups.length > 0 || node.tags.length > 0) && (
+            {node && (node.groups?.length > 0 || node.tags?.length > 0) && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {node.groups.map(group => (
+                {node.groups?.map(group => (
                   <Badge key={group.id} style={{ backgroundColor: group.color, color: 'white' }}>
                     {group.icon && `${group.icon} `}{group.name}
                   </Badge>
                 ))}
-                {node.tags.map(tag => (
+                {node.tags?.map(tag => (
                   <Badge key={tag.id} variant="outline" style={{ borderColor: tag.color, color: tag.color }}>
                     {tag.name}
                   </Badge>
@@ -741,7 +741,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hwData.disks.physical.map((disk: any, i: number) => (
+                        {hwData.disks?.physical?.map((disk: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell className="truncate max-w-[200px]">{disk.model}</TableCell>
                             <TableCell>{disk.sizeGB?.toFixed(0)} GB</TableCell>
@@ -767,7 +767,7 @@ export default function NodeDetailPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {hwData.disks.volumes.filter((v: any) => v.sizeGB > 0).map((vol: any, i: number) => (
+                          {hwData.disks?.volumes?.filter((v: any) => v.sizeGB > 0).map((vol: any, i: number) => (
                             <TableRow key={i}>
                               <TableCell>{vol.driveLetter} {vol.volumeName && `(${vol.volumeName})`}</TableCell>
                               <TableCell>{vol.freeGB?.toFixed(0)} GB</TableCell>
@@ -845,7 +845,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hotfixes.hotfixes.slice(0, 20).map((hf: any, i: number) => (
+                        {hotfixes.hotfixes?.slice(0, 20).map((hf: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
                             <TableCell>{hf.description || '-'}</TableCell>
@@ -870,7 +870,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hotfixes.updateHistory.slice(0, 50).map((upd: any, i: number) => (
+                        {hotfixes.updateHistory?.slice(0, 50).map((upd: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{upd.kb || '-'}</Badge></TableCell>
                             <TableCell className="truncate max-w-[300px]">{upd.title || '-'}</TableCell>
@@ -897,7 +897,7 @@ export default function NodeDetailPage() {
               <CardContent>
                 {nicsList.adapters?.length > 0 ? (
                   <div className="space-y-4">
-                    {nicsList.adapters.map((nic: any, i: number) => {
+                    {nicsList.adapters?.map((nic: any, i: number) => {
                       const config = nicsList.configurations?.[nic.deviceId] || {};
                       return (
                         <div key={i} className="p-4 border rounded-lg">
@@ -927,7 +927,7 @@ export default function NodeDetailPage() {
 
             {netData.connections?.length > 0 && (
               <Card>
-                <CardHeader><CardTitle>Aktive Verbindungen ({netData.connections.length})</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Aktive Verbindungen ({netData.connections?.length})</CardTitle></CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
@@ -939,7 +939,7 @@ export default function NodeDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {netData.connections.slice(0, 30).map((conn: any, i: number) => (
+                      {netData.connections?.slice(0, 30).map((conn: any, i: number) => (
                         <TableRow key={i}>
                           <TableCell className="font-mono text-xs">{conn.localAddress}:{conn.localPort}</TableCell>
                           <TableCell className="font-mono text-xs">{conn.remoteAddress}:{conn.remotePort}</TableCell>
@@ -962,7 +962,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {secData.firewall?.profiles ? (
                     <div className="space-y-2">
-                      {Object.entries(secData.firewall.profiles).map(([profile, data]: [string, any]) => (
+                      {Object.entries(secData.firewall?.profiles || {}).map(([profile, data]: [string, any]) => (
                         <div key={profile} className="flex justify-between items-center">
                           <span>{profile}</span>
                           <Badge variant={data?.enabled ? "default" : "destructive"}>
@@ -1002,7 +1002,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {secData.bitlocker?.volumes?.length > 0 ? (
                     <div className="space-y-2">
-                      {secData.bitlocker.volumes.map((vol: any, i: number) => (
+                      {secData.bitlocker?.volumes?.map((vol: any, i: number) => (
                         <div key={i} className="flex justify-between items-center">
                           <span>{vol.driveLetter}</span>
                           <Badge variant={vol.protectionStatus === "On" ? "default" : "secondary"}>
@@ -1058,7 +1058,7 @@ export default function NodeDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {secData.localAdmins.members.map((admin: any, i: number) => (
+                        {secData.localAdmins?.members?.map((admin: any, i: number) => (
                           <TableRow key={i}>
                             <TableCell className="font-medium">{admin.name}</TableCell>
                             <TableCell className="text-muted-foreground">{admin.domain || '-'}</TableCell>
@@ -1087,14 +1087,14 @@ export default function NodeDetailPage() {
           {/* Browser Tab */}
           <TabsContent value="browser" className="space-y-4">
             {/* Security Warnings */}
-            {criticalCookies && criticalCookies.warnings.length > 0 && (
+            {criticalCookies && criticalCookies.warnings?.length > 0 && (
               <Card className="border-yellow-500 bg-yellow-500/10">
                 <CardHeader>
                   <CardTitle className="text-yellow-600 dark:text-yellow-400">⚠️ Sicherheitshinweise</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    {criticalCookies.warnings.map((warning, i) => (
+                    {criticalCookies.warnings?.map((warning, i) => (
                       <li key={i} className="text-sm">{warning}</li>
                     ))}
                   </ul>
@@ -1116,7 +1116,7 @@ export default function NodeDetailPage() {
                 <CardContent>
                   {/* Category Summary */}
                   <div className="grid gap-4 md:grid-cols-3 mb-6">
-                    {Object.entries(criticalCookies.summary).map(([category, data]) => (
+                    {Object.entries(criticalCookies?.summary || {}).map(([category, data]) => (
                       <div key={category} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-sm">{category}</span>
@@ -1128,8 +1128,8 @@ export default function NodeDetailPage() {
                               {domain}
                             </Badge>
                           ))}
-                          {data.domains.length > 5 && (
-                            <Badge variant="secondary" className="text-xs">+{data.domains.length - 5}</Badge>
+                          {data.domains?.length > 5 && (
+                            <Badge variant="secondary" className="text-xs">+{data.domains?.length - 5}</Badge>
                           )}
                         </div>
                       </div>
@@ -1148,7 +1148,7 @@ export default function NodeDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {criticalCookies.criticalCookies.slice(0, 20).map((cookie, i) => (
+                      {criticalCookies.criticalCookies?.slice(0, 20).map((cookie, i) => (
                         <TableRow key={i}>
                           <TableCell className="font-mono text-xs">{cookie.domain}</TableCell>
                           <TableCell className="font-mono text-xs max-w-[150px] truncate" title={cookie.name}>
@@ -1177,9 +1177,9 @@ export default function NodeDetailPage() {
                       ))}
                     </TableBody>
                   </Table>
-                  {criticalCookies.criticalCookies.length > 20 && (
+                  {criticalCookies.criticalCookies?.length > 20 && (
                     <p className="text-sm text-muted-foreground mt-2">
-                      ... und {criticalCookies.criticalCookies.length - 20} weitere kritische Cookies
+                      ... und {criticalCookies.criticalCookies?.length - 20} weitere kritische Cookies
                     </p>
                   )}
                 </CardContent>
@@ -1187,8 +1187,8 @@ export default function NodeDetailPage() {
             )}
 
             {/* Browser Stats per User */}
-            {browserData.users && Object.keys(browserData.users).length > 0 ? (
-              Object.entries(browserData.users).map(([username, browsers]: [string, any]) => (
+            {browserData.users && Object.keys(browserData?.users || {}).length > 0 ? (
+              Object.entries(browserData?.users || {}).map(([username, browsers]: [string, any]) => (
                 <Card key={username}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -1197,7 +1197,7 @@ export default function NodeDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {Object.entries(browsers).map(([browserName, data]: [string, any]) => {
+                      {Object.entries(browsers || {}).map(([browserName, data]: [string, any]) => {
                         const icon = browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊';
                         const profile = data.profiles?.[0];
                         const cookiesCount = profile?.cookiesCount || 0;
@@ -1245,7 +1245,7 @@ export default function NodeDetailPage() {
                   </CardContent>
                 </Card>
               ))
-            ) : Object.keys(browserData).length > 0 && !browserData.users ? (
+            ) : Object.keys(browserData || {}).length > 0 && !browserData.users ? (
               // Legacy format fallback
               <Card>
                 <CardHeader><CardTitle>Browser-Daten</CardTitle></CardHeader>
@@ -1270,7 +1270,7 @@ export default function NodeDetailPage() {
                   <CardDescription>Top-Domains pro Benutzer</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {Object.entries(browserData.cookies).map(([username, cookieList]: [string, any]) => (
+                  {Object.entries(browserData?.cookies || {}).map(([username, cookieList]: [string, any]) => (
                     <div key={username} className="mb-6">
                       <p className="font-medium mb-2">👤 {username}</p>
                       <Table>
