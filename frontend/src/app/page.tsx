@@ -673,388 +673,248 @@ export default function HomePage() {
             ) : (
             <div>
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl font-bold">Dashboard</h2>
-                  <p className="text-muted-foreground">Fleet Overview</p>
+                  <h2 className="text-3xl font-extrabold tracking-tight text-foreground">Dashboard</h2>
+                  <p className="text-muted-foreground flex items-center gap-2">
+                    <Monitor className="h-4 w-4" /> Global Fleet Overview
+                  </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); }}>
-                  <RefreshCw className="h-4 w-4 mr-2" /> Refresh
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="shadow-sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); }}>
+                    <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+                  </Button>
+                </div>
               </div>
 
               {/* Bento Grid */}
-              <div className="grid grid-cols-12 gap-4">
+              <div className="grid grid-cols-12 gap-6">
                 
                 {/* Fleet Status - 3 cols */}
-                <Card className="col-span-12 md:col-span-3 bg-gradient-to-br from-background to-muted/30">
+                <Card className="col-span-12 md:col-span-3 border-primary/10 bg-gradient-to-br from-card to-primary/5 shadow-md">
                   <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                      <Monitor className="h-3.5 w-3.5" /> Fleet Status
+                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
+                      Fleet Status
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="text-5xl font-bold mb-3">{summary?.counts.total || 0}</div>
-                    <div className="flex gap-4 text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-muted-foreground">{summary?.counts.online || 0} online</span>
+                    <div className="text-6xl font-black mb-4 tracking-tighter">{summary?.counts.total || 0}</div>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                          <span className="text-muted-foreground">Online</span>
+                        </div>
+                        <span className="font-bold">{summary?.counts.online || 0}</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-gray-400" />
-                        <span className="text-muted-foreground">{summary?.counts.offline || 0} offline</span>
+                      <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-zinc-500" />
+                          <span className="text-muted-foreground">Offline</span>
+                        </div>
+                        <span className="font-bold">{summary?.counts.offline || 0}</span>
                       </div>
                     </div>
-                    {summary?.counts.unassigned ? (
-                      <div className="mt-3 text-xs text-yellow-600 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" /> {summary.counts.unassigned} unassigned
-                      </div>
-                    ) : null}
                   </CardContent>
                 </Card>
 
                 {/* Security - 3 cols */}
-                <Card className="col-span-12 md:col-span-3 bg-gradient-to-br from-background to-red-500/5">
+                <Card className="col-span-12 md:col-span-3 border-destructive/10 bg-gradient-to-br from-card to-destructive/5 shadow-md">
                   <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                      <Shield className="h-3.5 w-3.5" /> Security
+                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-destructive">
+                      Critical Threats
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="pt-0 space-y-2">
-                    <Link href="/vulnerabilities" className="flex items-center justify-between hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                        <span className="text-sm">Critical</span>
+                  <CardContent className="pt-0 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 text-center">
+                        <div className="text-2xl font-black text-destructive">{summary?.vulnerabilities?.critical || 0}</div>
+                        <div className="text-[10px] uppercase font-bold text-destructive/70">Critical</div>
                       </div>
-                      <span className="text-2xl font-bold text-red-500">{summary?.vulnerabilities?.critical || 0}</span>
-                    </Link>
-                    <Link href="/vulnerabilities" className="flex items-center justify-between hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-                        <span className="text-sm">High</span>
+                      <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 text-center">
+                        <div className="text-2xl font-black text-orange-500">{summary?.vulnerabilities?.high || 0}</div>
+                        <div className="text-[10px] uppercase font-bold text-orange-500/70">High Risk</div>
                       </div>
-                      <span className="text-xl font-semibold text-orange-500">{summary?.vulnerabilities?.high || 0}</span>
-                    </Link>
-                    <Link href="/vulnerabilities" className="flex items-center justify-between hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                        <span className="text-sm">Medium</span>
-                      </div>
-                      <span className="text-lg text-yellow-600">{summary?.vulnerabilities?.medium || 0}</span>
-                    </Link>
+                    </div>
+                    <Button variant="ghost" size="sm" className="w-full text-xs hover:bg-destructive/5 text-muted-foreground" asChild>
+                      <Link href="/vulnerabilities">View Security Reports →</Link>
+                    </Button>
                   </CardContent>
                 </Card>
 
                 {/* Performance - 6 cols, spans 2 rows */}
-                <Card className="col-span-12 md:col-span-6 md:row-span-2">
-                  <CardHeader className="pb-2">
+                <Card className="col-span-12 md:col-span-6 md:row-span-2 border-border/50 shadow-lg bg-card/50 backdrop-blur-sm">
+                  <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
-                      <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                        <TrendingUp className="h-3.5 w-3.5" /> Performance
+                      <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        <TrendingUp className="h-3.5 w-3.5" /> Fleet Performance
                       </CardDescription>
-                      <Link href="/performance" className="text-xs text-muted-foreground hover:text-primary">
-                        Details →
+                      <Link href="/performance" className="text-xs font-semibold text-primary hover:underline">
+                        Detailed Analytics →
                       </Link>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
                     {timeseries && timeseries.timeseries?.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-6">
                         {/* Fleet Sparklines */}
-                        <div className="grid grid-cols-3 gap-3 pb-3 border-b">
+                        <div className="grid grid-cols-3 gap-4 pb-6 border-b border-border/50">
                           {/* CPU Sparkline */}
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-muted-foreground">CPU</span>
-                              <span className="text-sm font-semibold text-blue-500">{timeseries.current?.cpu?.toFixed(0) || 0}%</span>
+                          <div className="bg-background/40 p-3 rounded-xl border border-border/30">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">CPU</span>
+                              <span className="text-lg font-black text-primary">{timeseries.current?.cpu?.toFixed(0) || 0}%</span>
                             </div>
-                            <div className="h-10">
+                            <div className="h-12">
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={timeseries.timeseries} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                  <Area type="monotone" dataKey="cpu" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={1.5} dot={false} />
+                                  <defs>
+                                    <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                                    </linearGradient>
+                                  </defs>
+                                  <Area type="monotone" dataKey="cpu" stroke="var(--primary)" fill="url(#colorCpu)" strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
                             </div>
                           </div>
                           {/* RAM Sparkline */}
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-muted-foreground">RAM</span>
-                              <span className="text-sm font-semibold text-green-500">{timeseries.current?.ram?.toFixed(0) || 0}%</span>
+                          <div className="bg-background/40 p-3 rounded-xl border border-border/30">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">RAM</span>
+                              <span className="text-lg font-black text-green-500">{timeseries.current?.ram?.toFixed(0) || 0}%</span>
                             </div>
-                            <div className="h-10">
+                            <div className="h-12">
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={timeseries.timeseries} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                  <Area type="monotone" dataKey="ram" stroke="#22c55e" fill="#22c55e" fillOpacity={0.2} strokeWidth={1.5} dot={false} />
+                                  <Area type="monotone" dataKey="ram" stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
                             </div>
                           </div>
                           {/* Disk Sparkline */}
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-muted-foreground">Disk</span>
-                              <span className="text-sm font-semibold text-purple-500">{timeseries.current?.disk?.toFixed(0) || 0}%</span>
+                          <div className="bg-background/40 p-3 rounded-xl border border-border/30">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Disk</span>
+                              <span className="text-lg font-black text-purple-500">{timeseries.current?.disk?.toFixed(0) || 0}%</span>
                             </div>
-                            <div className="h-10">
+                            <div className="h-12">
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={timeseries.timeseries} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                  <Area type="monotone" dataKey="disk" stroke="#a855f7" fill="#a855f7" fillOpacity={0.2} strokeWidth={1.5} dot={false} />
+                                  <Area type="monotone" dataKey="disk" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} dot={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
                             </div>
                           </div>
                         </div>
                         {/* Per-node hotspot matrix */}
-                        <div className="space-y-0">
-                          {/* Header */}
-                          <div className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 text-[10px] text-muted-foreground font-medium border-b pb-1 mb-1">
-                            <span>NODE</span>
-                            <span>CPU</span>
-                            <span>RAM</span>
-                            <span>DISK</span>
-                            <span>WORST</span>
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-[1fr_75px_75px_75px_80px] gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 px-2">
+                            <span>Node Endpoint</span>
+                            <span className="text-center">CPU</span>
+                            <span className="text-center">RAM</span>
+                            <span className="text-center">Disk</span>
+                            <span className="text-right">Status</span>
                           </div>
-                          {/* Rows */}
-                          <div className="max-h-[200px] overflow-y-auto space-y-0.5">
+                          <div className="max-h-[280px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                             {(Array.isArray(metrics?.nodes) ? metrics.nodes : [])
                               .filter((n: any) => n.cpuPercent !== null || n.ramPercent !== null)
                               .sort((a: any, b: any) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
-                              .slice(0, 8)
+                              .slice(0, 12)
                               .map((node: any, i: number) => {
                                 const cpu = node.cpuPercent || 0;
                                 const ram = node.ramPercent || 0;
                                 const disk = node.diskPercent || 0;
                                 const worst = Math.max(cpu, ram, disk);
-                                const worstMetric = ram >= cpu && ram >= disk ? 'RAM' : disk >= cpu ? 'DISK' : 'CPU';
                                 const status = worst > 85 ? 'crit' : worst > 70 ? 'warn' : 'ok';
                                 
-                                const HeatCell = ({ value, type }: { value: number; type: 'cpu' | 'ram' | 'disk' }) => {
-                                  const intensity = value > 85 ? 4 : value > 70 ? 3 : value > 40 ? 2 : value > 0 ? 1 : 0;
-                                  const colors = {
-                                    cpu: ['bg-muted', 'bg-blue-300', 'bg-blue-400', 'bg-blue-600', 'bg-blue-800'],
-                                    ram: ['bg-muted', 'bg-green-300', 'bg-green-400', 'bg-green-600', 'bg-green-800'],
-                                    disk: ['bg-muted', 'bg-purple-300', 'bg-purple-400', 'bg-purple-600', 'bg-purple-800'],
-                                  };
-                                  return (
-                                    <div className="flex items-center gap-1">
-                                      <span className={`font-mono text-[11px] w-6 ${intensity >= 4 ? 'text-red-600 font-bold' : intensity >= 3 ? 'text-yellow-600' : ''}`}>
-                                        {Math.round(value)}
-                                      </span>
-                                      <div className="flex gap-px">
-                                        {[1, 2, 3, 4].map((bar) => (
+                                const HeatBar = ({ value, colorClass }: { value: number; colorClass: string }) => (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <span className="font-mono text-[11px] w-6 text-right tabular-nums">{Math.round(value)}</span>
+                                    <div className="flex gap-0.5 h-3 items-center">
+                                      {[1, 2, 3, 4, 5].map((step) => {
+                                        const threshold = step * 20;
+                                        const isActive = value >= threshold - 10;
+                                        return (
                                           <div 
-                                            key={bar} 
-                                            className={`w-1.5 h-3 rounded-sm ${bar <= intensity ? colors[type][intensity] : 'bg-muted'}`} 
+                                            key={step} 
+                                            className={`w-1.5 h-full rounded-[1px] transition-colors ${isActive ? colorClass : 'bg-muted/30'}`} 
                                           />
-                                        ))}
-                                      </div>
-                                      {intensity >= 4 && <span className="text-red-600 text-[10px]">‼</span>}
-                                      {intensity === 3 && <span className="text-yellow-600 text-[10px]">▲</span>}
+                                        );
+                                      })}
                                     </div>
-                                  );
-                                };
+                                  </div>
+                                );
                                 
                                 return (
                                   <div 
                                     key={i} 
-                                    className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 items-center py-1 hover:bg-muted/50 rounded cursor-pointer text-xs"
+                                    className="grid grid-cols-[1fr_75px_75px_75px_80px] gap-2 items-center py-2 px-2 hover:bg-primary/5 rounded-lg border border-transparent hover:border-primary/10 transition-all cursor-pointer group"
                                     onClick={() => handleNodeSelect(node.nodeId)}
                                   >
-                                    <span className="font-medium truncate">{node.hostname}</span>
-                                    <HeatCell value={cpu} type="cpu" />
-                                    <HeatCell value={ram} type="ram" />
-                                    <HeatCell value={disk} type="disk" />
-                                    <span className={`text-[11px] ${status === 'crit' ? 'text-red-600 font-medium' : status === 'warn' ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                                      {status === 'ok' ? 'OK' : `Worst: ${worstMetric}`}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                          </div>
-                          {/* Legend */}
-                          <div className="flex items-center gap-3 pt-2 mt-1 border-t text-[9px] text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1].map(b => <div key={b} className="w-1 h-2 bg-blue-300 rounded-sm" />)}</div>
-                              0-40
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1,2].map(b => <div key={b} className="w-1 h-2 bg-blue-400 rounded-sm" />)}</div>
-                              41-70
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1,2,3].map(b => <div key={b} className="w-1 h-2 bg-blue-600 rounded-sm" />)}</div>
-                              71-85
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1,2,3,4].map(b => <div key={b} className="w-1 h-2 bg-blue-800 rounded-sm" />)}</div>
-                              ‼ &gt;85
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : metrics && metrics.nodesWithMetrics > 0 ? (
-                      <div className="space-y-3">
-                        {/* Fallback to static bars if no timeseries */}
-                        <div className="grid grid-cols-3 gap-3 pb-3 border-b">
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-muted-foreground">CPU</span>
-                              <span className="text-sm font-semibold">{metrics.fleetAverages.cpuPercent?.toFixed(0) || 0}%</span>
-                            </div>
-                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-blue-500" style={{ width: `${metrics.fleetAverages.cpuPercent || 0}%` }} />
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-muted-foreground">RAM</span>
-                              <span className="text-sm font-semibold">{metrics.fleetAverages.ramPercent?.toFixed(0) || 0}%</span>
-                            </div>
-                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className={`h-full ${(metrics.fleetAverages.ramPercent || 0) > 80 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${metrics.fleetAverages.ramPercent || 0}%` }} />
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-muted-foreground">Disk</span>
-                              <span className="text-sm font-semibold">{metrics.fleetAverages.diskPercent?.toFixed(0) || 0}%</span>
-                            </div>
-                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className={`h-full ${(metrics.fleetAverages.diskPercent || 0) > 80 ? 'bg-red-500' : 'bg-purple-500'}`} style={{ width: `${metrics.fleetAverages.diskPercent || 0}%` }} />
-                            </div>
-                          </div>
-                        </div>
-                        {/* Per-node hotspot matrix (fallback) */}
-                        <div className="space-y-0">
-                          {/* Header */}
-                          <div className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 text-[10px] text-muted-foreground font-medium border-b pb-1 mb-1">
-                            <span>NODE</span>
-                            <span>CPU</span>
-                            <span>RAM</span>
-                            <span>DISK</span>
-                            <span>WORST</span>
-                          </div>
-                          {/* Rows */}
-                          <div className="max-h-[200px] overflow-y-auto space-y-0.5">
-                            {(Array.isArray(metrics.nodes) ? metrics.nodes : [])
-                              .filter((n: any) => n.cpuPercent !== null || n.ramPercent !== null)
-                              .sort((a: any, b: any) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
-                              .slice(0, 8)
-                              .map((node: any, i: number) => {
-                                const cpu = node.cpuPercent || 0;
-                                const ram = node.ramPercent || 0;
-                                const disk = node.diskPercent || 0;
-                                const worst = Math.max(cpu, ram, disk);
-                                const worstMetric = ram >= cpu && ram >= disk ? 'RAM' : disk >= cpu ? 'DISK' : 'CPU';
-                                const status = worst > 85 ? 'crit' : worst > 70 ? 'warn' : 'ok';
-                                
-                                const HeatCell = ({ value, type }: { value: number; type: 'cpu' | 'ram' | 'disk' }) => {
-                                  const intensity = value > 85 ? 4 : value > 70 ? 3 : value > 40 ? 2 : value > 0 ? 1 : 0;
-                                  const colors = {
-                                    cpu: ['bg-muted', 'bg-blue-300', 'bg-blue-400', 'bg-blue-600', 'bg-blue-800'],
-                                    ram: ['bg-muted', 'bg-green-300', 'bg-green-400', 'bg-green-600', 'bg-green-800'],
-                                    disk: ['bg-muted', 'bg-purple-300', 'bg-purple-400', 'bg-purple-600', 'bg-purple-800'],
-                                  };
-                                  return (
-                                    <div className="flex items-center gap-1">
-                                      <span className={`font-mono text-[11px] w-6 ${intensity >= 4 ? 'text-red-600 font-bold' : intensity >= 3 ? 'text-yellow-600' : ''}`}>
-                                        {Math.round(value)}
-                                      </span>
-                                      <div className="flex gap-px">
-                                        {[1, 2, 3, 4].map((bar) => (
-                                          <div 
-                                            key={bar} 
-                                            className={`w-1.5 h-3 rounded-sm ${bar <= intensity ? colors[type][intensity] : 'bg-muted'}`} 
-                                          />
-                                        ))}
-                                      </div>
-                                      {intensity >= 4 && <span className="text-red-600 text-[10px]">‼</span>}
-                                      {intensity === 3 && <span className="text-yellow-600 text-[10px]">▲</span>}
+                                    <span className="font-bold text-xs truncate group-hover:text-primary transition-colors">{node.hostname}</span>
+                                    <HeatBar value={cpu} colorClass="bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+                                    <HeatBar value={ram} colorClass="bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+                                    <HeatBar value={disk} colorClass="bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.4)]" />
+                                    <div className="text-right">
+                                      {status === 'crit' ? (
+                                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] font-bold uppercase py-0 px-1.5">Critical</Badge>
+                                      ) : status === 'warn' ? (
+                                        <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-[9px] font-bold uppercase py-0 px-1.5">Warning</Badge>
+                                      ) : (
+                                        <span className="text-[10px] font-bold text-muted-foreground/50 uppercase">Healthy</span>
+                                      )}
                                     </div>
-                                  );
-                                };
-                                
-                                return (
-                                  <div 
-                                    key={i} 
-                                    className="grid grid-cols-[110px_70px_70px_70px_1fr] gap-2 items-center py-1 hover:bg-muted/50 rounded cursor-pointer text-xs"
-                                    onClick={() => handleNodeSelect(node.nodeId)}
-                                  >
-                                    <span className="font-medium truncate">{node.hostname}</span>
-                                    <HeatCell value={cpu} type="cpu" />
-                                    <HeatCell value={ram} type="ram" />
-                                    <HeatCell value={disk} type="disk" />
-                                    <span className={`text-[11px] ${status === 'crit' ? 'text-red-600 font-medium' : status === 'warn' ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                                      {status === 'ok' ? 'OK' : `Worst: ${worstMetric}`}
-                                    </span>
                                   </div>
                                 );
                               })}
-                          </div>
-                          {/* Legend */}
-                          <div className="flex items-center gap-3 pt-2 mt-1 border-t text-[9px] text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1].map(b => <div key={b} className="w-1 h-2 bg-blue-300 rounded-sm" />)}</div>
-                              0-40
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1,2].map(b => <div key={b} className="w-1 h-2 bg-blue-400 rounded-sm" />)}</div>
-                              41-70
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1,2,3].map(b => <div key={b} className="w-1 h-2 bg-blue-600 rounded-sm" />)}</div>
-                              71-85
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <div className="flex gap-px">{[1,2,3,4].map(b => <div key={b} className="w-1 h-2 bg-blue-800 rounded-sm" />)}</div>
-                              ‼ &gt;85
-                            </span>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-center text-muted-foreground py-8">
-                        No performance data available
+                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border">
+                        <Activity className="h-8 w-8 mb-2 opacity-20" />
+                        <p className="text-sm font-medium">No performance data available</p>
+                        <p className="text-xs opacity-50">Check agent connections</p>
                       </div>
                     )}
                   </CardContent>
                 </Card>
-
                 {/* Jobs 24h - 3 cols */}
-                <Card className="col-span-6 md:col-span-3 bg-gradient-to-br from-background to-green-500/5">
+                <Card className="col-span-6 md:col-span-3 border-green-500/10 bg-gradient-to-br from-card to-green-500/5 shadow-md hover:shadow-green-500/5 transition-all">
                   <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
+                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-green-600">
                       <Briefcase className="h-3.5 w-3.5" /> Jobs (24h)
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="flex items-end gap-4">
+                    <div className="flex items-end gap-6 mb-4">
                       <Link href="/jobs" className="group">
-                        <div className="text-3xl font-bold text-green-500 group-hover:underline">{summary?.jobs?.success || 0}</div>
-                        <div className="text-xs text-muted-foreground">success</div>
+                        <div className="text-4xl font-black text-green-500 group-hover:scale-110 transition-transform origin-left">{summary?.jobs?.success || 0}</div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Success</div>
                       </Link>
                       <Link href="/jobs" className="group">
-                        <div className="text-2xl font-semibold text-red-500 group-hover:underline">{summary?.jobs?.failed || 0}</div>
-                        <div className="text-xs text-muted-foreground">failed</div>
+                        <div className="text-3xl font-bold text-red-500 group-hover:scale-110 transition-transform origin-left">{summary?.jobs?.failed || 0}</div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Failed</div>
                       </Link>
                     </div>
                     {(summary?.jobs?.pending || 0) > 0 && (
-                      <div className="mt-2 text-xs text-yellow-600">
-                        {summary?.jobs?.pending} pending
+                      <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 text-yellow-600 rounded-md text-[10px] font-bold uppercase border border-yellow-500/20">
+                        <Activity className="h-3 w-3 animate-spin" /> {summary?.jobs?.pending} pending
                       </div>
                     )}
                   </CardContent>
                 </Card>
 
                 {/* SQL Server - 3 cols */}
-                <Card className="col-span-6 md:col-span-3 bg-gradient-to-br from-background to-blue-500/5">
+                <Card className="col-span-6 md:col-span-3 border-blue-500/10 bg-gradient-to-br from-card to-blue-500/5 shadow-md">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
-                      <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                        🗄️ SQL Server
+                      <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
+                        🗄️ SQL Lifecycle
                       </CardDescription>
-                      <Link href="/sql" className="text-xs text-muted-foreground hover:text-primary">
+                      <Link href="/sql" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
                         Manage →
                       </Link>
                     </div>
@@ -1062,75 +922,89 @@ export default function HomePage() {
                   <CardContent className="pt-0">
                     {sqlCatalog && sqlCatalog.total > 0 ? (
                       <div>
-                        <div className="text-3xl font-bold">{sqlCatalog.total}</div>
-                        <div className="text-xs text-muted-foreground mb-2">CUs in catalog</div>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="text-4xl font-black mb-1">{sqlCatalog.total}</div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground mb-3">Syncable CU Updates</div>
+                        <div className="flex flex-wrap gap-1.5">
                           {sqlCatalog.versions.slice(0, 3).map((v) => (
-                            <Badge key={v.version} variant="secondary" className="text-xs">
-                              {v.version} CU{v.latestCu}
+                            <Badge key={v.version} variant="outline" className="text-[9px] font-bold bg-background/50 border-blue-500/20">
+                              {v.version} • CU{v.latestCu}
                             </Badge>
                           ))}
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground">No CUs synced</div>
+                      <div className="flex flex-col items-center justify-center py-4 text-muted-foreground/40">
+                        <Package className="h-8 w-8 mb-1 opacity-20" />
+                        <span className="text-[10px] font-bold uppercase">No CUs synced</span>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
 
                 {/* Recent Alerts - 6 cols */}
-                {recentAlerts.length > 0 && (
-                  <Card className="col-span-12 md:col-span-6">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                          <AlertCircle className="h-3.5 w-3.5" /> Recent Alerts
-                        </CardDescription>
-                        <Link href="/alerts" className="text-xs text-muted-foreground hover:text-primary">
-                          View all →
-                        </Link>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="space-y-1.5">
-                        {recentAlerts.slice(0, 4).map((alert: any) => (
-                          <div key={alert.id} className="flex items-center justify-between text-sm py-1 border-b border-muted last:border-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-1.5 h-1.5 rounded-full ${
-                                alert.event_type === 'node_offline' ? 'bg-red-500' :
-                                alert.event_type === 'node_online' ? 'bg-green-500' :
-                                alert.event_type === 'job_failed' ? 'bg-orange-500' : 'bg-blue-500'
-                              }`} />
-                              <span className="truncate max-w-[200px]">{alert.message || alert.event_type}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(alert.sent_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+                <Card className="col-span-12 md:col-span-6 border-border/50 shadow-md">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        <AlertCircle className="h-3.5 w-3.5" /> Fleet Incidents
+                      </CardDescription>
+                      <Link href="/alerts" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
+                        Incident Log →
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-1">
+                      {recentAlerts.length > 0 ? recentAlerts.slice(0, 4).map((alert: any) => (
+                        <div key={alert.id} className="flex items-center justify-between py-2 px-2 hover:bg-muted/30 rounded-lg transition-colors border-b border-border/10 last:border-0">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${
+                              alert.event_type === 'node_offline' ? 'bg-red-500 shadow-red-500/50' :
+                              alert.event_type === 'node_online' ? 'bg-green-500 shadow-green-500/50' :
+                              alert.event_type === 'job_failed' ? 'bg-orange-500 shadow-orange-500/50' :
+                              'bg-blue-500 shadow-blue-500/50'
+                            }`} />
+                            <span className="text-xs font-medium truncate max-w-[280px]">{alert.message || alert.event_type}</span>
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                          <span className="text-[10px] font-bold font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            {new Date(alert.sent_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      )) : (
+                        <div className="text-center py-6 text-xs text-muted-foreground/50 italic font-medium uppercase tracking-widest">
+                          No recent incidents
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* System Health - 6 cols */}
-                <Card className="col-span-12 md:col-span-6">
-                  <CardHeader className="pb-2">
-                    <CardDescription className="flex items-center gap-2 text-xs uppercase tracking-wide">
-                      <Activity className="h-3.5 w-3.5" /> System Health
+                <Card className="col-span-12 md:col-span-6 border-border/50 shadow-md">
+                  <CardHeader className="pb-3">
+                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      <Activity className="h-3.5 w-3.5" /> Infrastructure Health
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${systemHealth?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <span className="text-sm">API</span>
-                        <Badge variant="outline" className="text-xs">{systemHealth?.status || '...'}</Badge>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-border/30">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${systemHealth?.status === 'ok' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-ping'}`} />
+                          <span className="text-xs font-bold uppercase tracking-tighter">Core API</span>
+                        </div>
+                        <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.status === 'ok' ? 'text-green-600 border-green-500/20' : 'text-red-600 border-red-500/20'}`}>
+                          {systemHealth?.status || 'OFFLINE'}
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${systemHealth?.database === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <span className="text-sm">Database</span>
-                        <Badge variant="outline" className="text-xs">{systemHealth?.database || '...'}</Badge>
+                      <div className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-border/30">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${systemHealth?.database === 'connected' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-ping'}`} />
+                          <span className="text-xs font-bold uppercase tracking-tighter">Database</span>
+                        </div>
+                        <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.database === 'connected' ? 'text-green-600 border-green-500/20' : 'text-red-600 border-red-500/20'}`}>
+                          {systemHealth?.database === 'connected' ? 'ONLINE' : 'ERROR'}
+                        </Badge>
                       </div>
                     </div>
                   </CardContent>
