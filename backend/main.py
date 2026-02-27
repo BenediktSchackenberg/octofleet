@@ -78,10 +78,10 @@ async def lifespan(app: FastAPI):
                 print("⚠️ No users found in database. Provisioning default admin user...")
                 # Hash for 'admin' with cost 12
                 admin_hash = "$2b$12$rYyY2JO.Uh/NBVp7kXBlY.p9Iv.S0GeIZbgttoYjjyS.hQQQJkkJK"
-                await conn.execute(\"\"\"
+                await conn.execute("""
                     INSERT INTO users (username, password_hash, display_name, is_superuser, is_active)
                     VALUES ('admin', $1, 'System Administrator', true, true)
-                \"\"\", admin_hash)
+                """, admin_hash)
                 print("✅ Default admin user created (admin / admin)")
     except Exception as e:
         print(f"❌ Failed to check/provision admin user: {e}")
@@ -376,7 +376,18 @@ async def api_health_check():
 @app.get("/api/v1/dashboard/summary")
 async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
-    # (Dieser Endpunkt bleibt vorerst in main.py, da er viele Tabellen aggregiert)
+    async with db.acquire() as conn:
+        # Get node counts by status
+        counts = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '5 minutes') as online,
+                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '60 minutes' 
+                                   AND last_seen <= NOW() - INTERVAL '5 minutes') as away,
+                COUNT(*) FILTER (WHERE last_seen <= NOW() - INTERVAL '60 minutes' 
+                                   OR last_seen IS NULL) as offline
+            FROM nodes
+        """)
         
         # Get unassigned count
         unassigned = await conn.fetchval("""

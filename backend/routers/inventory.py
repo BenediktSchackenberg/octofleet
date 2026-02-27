@@ -138,8 +138,8 @@ async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        hotfix_rows = await conn.fetch("SELECT kb_id as "hotfixId", description, installed_on as "installedOn", installed_by as "installedBy" FROM hotfixes_current WHERE node_id = $1 ORDER BY installed_on DESC", node['id'])
-        update_rows = await conn.fetch("SELECT update_id as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id = $1 ORDER BY installed_on DESC", node['id'])
+        hotfix_rows = await conn.fetch('SELECT kb_id as "hotfixId", description, installed_on as "installedOn", installed_by as "installedBy" FROM hotfixes_current WHERE node_id = $1 ORDER BY installed_on DESC', node['id'])
+        update_rows = await conn.fetch('SELECT update_id as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id = $1 ORDER BY installed_on DESC', node['id'])
         
         update_history = []
         for row in update_rows:

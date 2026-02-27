@@ -92,7 +92,7 @@ async def smart_install(request: SmartInstallRequest, db: asyncpg.Pool = Depends
     """Smart software installation with automatic Chocolatey bootstrap"""
     package_name = request.package.lower().strip()
     choco_package = CHOCO_PACKAGES.get(package_name, package_name)
-    smart_cmd = (f'$c="C:\ProgramData\chocolatey\bin\choco.exe";if(!(Test-Path $c)){{Set-ExecutionPolicy Bypass -Scope Process -Force;[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor 3072;iex((New-Object Net.WebClient).DownloadString("https://community.chocolatey.org/install.ps1"))}};& $c install {choco_package} -y --no-progress')
+    smart_cmd = (f'$c="C:\\ProgramData\\chocolatey\\bin\\choco.exe";if(!(Test-Path $c)){{Set-ExecutionPolicy Bypass -Scope Process -Force;[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor 3072;iex((New-Object Net.WebClient).DownloadString("https://community.chocolatey.org/install.ps1"))}};& $c install {choco_package} -y --no-progress')
     
     results = []
     async with db.acquire() as conn:
