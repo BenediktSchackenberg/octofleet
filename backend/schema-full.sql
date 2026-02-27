@@ -1547,16 +1547,29 @@ CREATE TABLE IF NOT EXISTS public.provisioning_images (
     created_at timestamptz DEFAULT now()
 );
 
+CREATE TYPE platform_type AS ENUM ('windows', 'linux', 'macos');
+
 CREATE TABLE IF NOT EXISTS public.provisioning_tasks (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     hostname text,
     mac_address text,
+    platform platform_type,
     status text DEFAULT 'pending',
     config jsonb,
-    template_id uuid,
-    image_id uuid,
+    template_id uuid REFERENCES provisioning_templates(id),
+    image_id uuid REFERENCES provisioning_images(id),
+    use_dhcp boolean DEFAULT true,
+    dns_servers inet[],
+    domain_name text,
+    domain_user text,
+    install_octofleet_agent boolean DEFAULT false,
+    enable_rdp boolean DEFAULT false,
+    node_id uuid,
+    ip_address text,
     progress integer DEFAULT 0,
-    error text,
+    started_at timestamptz,
+    completed_at timestamptz,
+    error_message text,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );
