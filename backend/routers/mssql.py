@@ -46,7 +46,18 @@ async def list_cumulative_updates(version: Optional[str] = None, status: Optiona
             params.append(status); query += f" AND status = ${len(params)}"
         query += " ORDER BY version DESC, cu_number DESC"
         rows = await conn.fetch(query, *params)
-        return [dict(r) for r in rows]
+        cus = []
+        for row in rows:
+            cu = dict(row)
+            cu["id"] = str(cu["id"])
+            cu["cuNumber"] = cu.pop("cu_number", None)
+            cu["buildNumber"] = cu.pop("build_number", None)
+            cu["kbArticle"] = cu.pop("kb_article", None)
+            cu["releaseDate"] = str(cu["release_date"]) if cu.get("release_date") else None
+            cu["downloadUrl"] = cu.pop("download_url", None)
+            cu["createdAt"] = str(cu["created_at"]) if cu.get("created_at") else None
+            cus.append(cu)
+        return {"cumulativeUpdates": cus}
 
 @router.get("/cumulative-updates/{cu_id}")
 async def get_cumulative_update(cu_id: str, db: asyncpg.Pool = Depends(get_db)):
