@@ -1500,6 +1500,7 @@ CREATE TABLE IF NOT EXISTS public.mssql_group_assignments (
     group_id uuid REFERENCES groups(id) ON DELETE CASCADE,
     sa_password_encrypted text,
     license_key_encrypted text,
+    enabled boolean DEFAULT true,
     created_at timestamptz DEFAULT now(),
     UNIQUE(config_id, group_id)
 );
