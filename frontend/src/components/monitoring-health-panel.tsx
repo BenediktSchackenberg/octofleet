@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
+import { getAuthHeader } from "@/lib/auth-context";
 import { Shield, Activity, Cpu, HardDrive, AlertTriangle, CheckCircle, Clock, Wifi, WifiOff } from "lucide-react";
 
 interface Capabilities {
@@ -23,19 +24,19 @@ interface HealthEntry {
   cpu_overhead_estimate: string;
 }
 
-export function MonitoringHealthPanel({ nodeId, token }: { nodeId: string; token: string }) {
+export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [health, setHealth] = useState<HealthEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token || !nodeId) return;
+    if (!nodeId) return;
 
     Promise.all([
-      fetch(`${API_BASE}/agents/${nodeId}/capabilities`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${API_BASE}/agents/${nodeId}/capabilities`, { headers: getAuthHeader() })
         .then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${API_BASE}/agents/${nodeId}/health/history?limit=20`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${API_BASE}/agents/${nodeId}/health/history?limit=20`, { headers: getAuthHeader() })
         .then(r => r.ok ? r.json() : { history: [] }).catch(() => ({ history: [] })),
     ]).then(([capsData, healthData]) => {
       setCaps(capsData);
@@ -43,7 +44,7 @@ export function MonitoringHealthPanel({ nodeId, token }: { nodeId: string; token
       if (!capsData) setError("No monitoring agent connected to this node");
       setLoading(false);
     });
-  }, [token, nodeId]);
+  }, [nodeId]);
 
   if (loading) {
     return (

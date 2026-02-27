@@ -1694,7 +1694,7 @@ export default function NodeDetailPage() {
 
           {/* Monitoring Health Tab */}
           <TabsContent value="monitoring" className="space-y-4">
-            <MonitoringHealthPanel nodeId={nodeId} token={token || ""} />
+            <MonitoringHealthPanel nodeId={nodeId} />
           </TabsContent>
         </Tabs>
       </div>
