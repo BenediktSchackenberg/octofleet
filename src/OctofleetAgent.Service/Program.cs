@@ -79,6 +79,7 @@ try
     builder.Services.AddHostedService<OctofleetAgent.Service.Screen.ScreenStreamService>();
     builder.Services.AddHostedService<OctofleetAgent.Service.Shell.RemoteShellService>();
     builder.Services.AddHostedService<ServiceReconciliationPoller>();
+    builder.Services.AddHostedService<OctofleetAgent.Service.Security.FileAuditCollector>();
 
     var host = builder.Build();
 

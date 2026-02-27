@@ -1726,12 +1726,13 @@ CREATE TABLE IF NOT EXISTS public.monitoring_assignments (
 
 -- Agent Capabilities
 CREATE TABLE IF NOT EXISTS public.agent_capabilities (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id text,
-    node_id text NOT NULL,
-    os text,
-    version text,
-    sensors_supported jsonb DEFAULT '[]',
+    node_id text PRIMARY KEY,
+    sensors jsonb DEFAULT '{}',
+    agent_version text,
+    os_type text,
+    os_version text,
+    kernel_build text,
+    permissions jsonb DEFAULT '{}',
     last_seen timestamptz DEFAULT now()
 );
 

@@ -15,6 +15,7 @@ import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { Copy, Check } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
+import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
@@ -512,6 +513,7 @@ export default function NodeDetailPage() {
             <TabsTrigger value="browser">Browser</TabsTrigger>
             <TabsTrigger value="events">Events ({events.length})</TabsTrigger>
             <TabsTrigger value="history">Timeline</TabsTrigger>
+            <TabsTrigger value="monitoring">🛡️ Monitoring</TabsTrigger>
             {linuxData && <TabsTrigger value="linux">🐧 Linux</TabsTrigger>}
           </TabsList>
 
@@ -1688,6 +1690,11 @@ export default function NodeDetailPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Monitoring Health Tab */}
+          <TabsContent value="monitoring" className="space-y-4">
+            <MonitoringHealthPanel nodeId={nodeId} token={token || ""} />
           </TabsContent>
         </Tabs>
       </div>

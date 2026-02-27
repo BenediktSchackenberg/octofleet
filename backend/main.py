@@ -14752,3 +14752,177 @@ async def security_dashboard():
             "active_monitoring": active_assignments,
             "top_event_types": [dict(r) for r in top_event_types]
         }
+
+
+# ============================================================
+# E21 Story #83: Agent Capability & Health Reporting
+# ============================================================
+
+@app.post("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
+async def report_agent_capabilities(node_id: str, req: Request):
+    """Agent reports its capabilities, OS info, and available sensors."""
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO agent_capabilities (node_id, sensors, agent_version, os_type, os_version, kernel_build, permissions, last_seen)
+            VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7::jsonb, now())
+            ON CONFLICT (node_id) DO UPDATE SET
+                sensors = EXCLUDED.sensors,
+                agent_version = EXCLUDED.agent_version,
+                os_type = EXCLUDED.os_type,
+                os_version = EXCLUDED.os_version,
+                kernel_build = EXCLUDED.kernel_build,
+                permissions = EXCLUDED.permissions,
+                last_seen = now()
+            RETURNING *
+        """, node_id, json.dumps(body.get("sensors", {})), body.get("agent_version"),
+            body.get("os_type"), body.get("os_version"), body.get("kernel_build"),
+            json.dumps(body.get("permissions", {})))
+        return dict(row)
+
+@app.get("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
+async def get_agent_capabilities(node_id: str):
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", node_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="No capabilities reported for this node")
+        return dict(row)
+
+@app.get("/api/v1/agents/capabilities", dependencies=[Depends(verify_api_key)])
+async def list_agent_capabilities():
+    """List all agents with their capabilities and health status."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT ac.*, n.hostname, n.os
+            FROM agent_capabilities ac
+            LEFT JOIN nodes n ON n.id = ac.node_id
+            ORDER BY ac.last_seen DESC
+        """)
+        return {"agents": [dict(r) for r in rows]}
+
+@app.post("/api/v1/agents/{node_id}/health", dependencies=[Depends(verify_api_key)])
+async def report_agent_health(node_id: str, req: Request):
+    """Agent reports health metrics: queue depth, drops, CPU overhead, etc."""
+    body = await req.json()
+    # Store as a normalized event
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO events_normalized (node_id, event_type, severity, payload)
+            VALUES ($1, 'agent.health', $2, $3::jsonb)
+        """, node_id,
+            'warning' if body.get("drop_count", 0) > 100 or body.get("queue_depth", 0) > 1000 else 'info',
+            json.dumps(body))
+        # Update last_seen
+        await conn.execute("""
+            UPDATE agent_capabilities SET last_seen = now() WHERE node_id = $1
+        """, node_id)
+        # Auto-create finding if drops exceed threshold
+        if body.get("drop_count", 0) > 100:
+            await conn.execute("""
+                INSERT INTO findings (type, title, description, severity, score, node_id)
+                VALUES ('agent_health', 'High event drop count', $1, 'medium', $2, $3)
+            """, f"Agent on {node_id} dropped {body['drop_count']} events. Queue depth: {body.get('queue_depth', 'unknown')}",
+                min(body["drop_count"] / 10, 100), node_id)
+        return {"status": "ok"}
+
+# ============================================================
+# E21 Story #86: Unified Event Schema (Normalizer)
+# ============================================================
+
+@app.post("/api/v1/ingest/events/normalized", dependencies=[Depends(verify_api_key)])
+async def ingest_normalized_events(req: Request):
+    """Batch ingest with full normalized schema support.
+    
+    Accepts events with rich structure: user{}, process{}, file{}, network{} sub-objects.
+    Flattens into events_normalized or file_events based on event_type.
+    """
+    body = await req.json()
+    events = body.get("events", [body] if "event_type" in body else [])
+    inserted = 0
+    findings_created = 0
+    
+    async with pool.acquire() as conn:
+        for evt in events:
+            event_type = evt.get("event_type", "unknown")
+            event_subtype = evt.get("event_subtype", "")
+            node_id = evt.get("node_id")
+            
+            # Extract user info
+            user = evt.get("user", {})
+            user_id = user.get("username") or user.get("sid") or user.get("uid") or evt.get("user_id")
+            
+            # Build enriched payload (keep process, network, raw_event_ref)
+            payload = {}
+            for key in ("process", "network", "user", "raw_event_ref", "metadata"):
+                if key in evt:
+                    payload[key] = evt[key]
+            if event_subtype:
+                payload["event_subtype"] = event_subtype
+            # Merge any extra fields
+            for key in evt:
+                if key not in ("event_type", "event_subtype", "node_id", "user_id", "severity",
+                               "timestamp", "process", "network", "user", "file", "raw_event_ref",
+                               "metadata", "agent_id", "tenant_id"):
+                    payload[key] = evt[key]
+            
+            severity = evt.get("severity", "info")
+            ts = evt.get("timestamp")  # Optional: agent-provided timestamp
+            
+            # Route file events to file_events table
+            if event_type.startswith("file.") or (event_type == "file" and event_subtype):
+                file_info = evt.get("file", {})
+                op = event_subtype or file_info.get("operation") or event_type
+                proc = evt.get("process", {})
+                
+                if ts:
+                    await conn.execute("""
+                        INSERT INTO file_events (ts, node_id, user_id, op, path, old_path, new_path,
+                            process_name, pid, hash_before, hash_after, file_size, success)
+                        VALUES ($1::timestamptz, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    """, ts, node_id, user_id, op,
+                        file_info.get("path") or file_info.get("normalized_path"),
+                        file_info.get("old_path"), file_info.get("new_path"),
+                        proc.get("name"), proc.get("pid"),
+                        file_info.get("hash_before"), file_info.get("hash_after"),
+                        file_info.get("size"), evt.get("success", True))
+                else:
+                    await conn.execute("""
+                        INSERT INTO file_events (node_id, user_id, op, path, old_path, new_path,
+                            process_name, pid, hash_before, hash_after, file_size, success)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    """, node_id, user_id, op,
+                        file_info.get("path") or file_info.get("normalized_path"),
+                        file_info.get("old_path"), file_info.get("new_path"),
+                        proc.get("name"), proc.get("pid"),
+                        file_info.get("hash_before"), file_info.get("hash_after"),
+                        file_info.get("size"), evt.get("success", True))
+            else:
+                if ts:
+                    await conn.execute("""
+                        INSERT INTO events_normalized (ts, node_id, user_id, event_type, severity, payload)
+                        VALUES ($1::timestamptz, $2, $3, $4, $5, $6::jsonb)
+                    """, ts, node_id, user_id, event_type, severity, json.dumps(payload))
+                else:
+                    await conn.execute("""
+                        INSERT INTO events_normalized (node_id, user_id, event_type, severity, payload)
+                        VALUES ($1, $2, $3, $4, $5::jsonb)
+                    """, node_id, user_id, event_type, severity, json.dumps(payload))
+            
+            inserted += 1
+    
+    return {"inserted": inserted, "findings_created": findings_created}
+
+# ============================================================
+# E21 Story #83: Monitoring Health Panel (per Node)
+# ============================================================
+
+@app.get("/api/v1/agents/{node_id}/health/history", dependencies=[Depends(verify_api_key)])
+async def get_agent_health_history(node_id: str, limit: int = 50):
+    """Get recent health reports for a node."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT ts, payload FROM events_normalized
+            WHERE node_id = $1 AND event_type = 'agent.health'
+            ORDER BY ts DESC LIMIT $2
+        """, node_id, limit)
+        return {"history": [{"ts": str(r["ts"]), **json.loads(r["payload"])} if isinstance(r["payload"], str) else {"ts": str(r["ts"]), **r["payload"]} for r in rows]}
