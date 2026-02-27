@@ -26,7 +26,7 @@ def _load_jwt_secret():
     secret_file.chmod(0o600)
     return secret
 
-JWT_SECRET = os.environ.get("JWT_SECRET") or _load_jwt_secret()
+JWT_SECRET = os.environ.get("JWT_SECRET", "octofleet-dev-secret-key-2026")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours for dev
 REFRESH_TOKEN_EXPIRE_DAYS = 7
