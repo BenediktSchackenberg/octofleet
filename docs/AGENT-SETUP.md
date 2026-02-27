@@ -17,10 +17,10 @@ Or use the PowerShell installer:
 
 ```powershell
 # Basic install
-.\Install-OpenClawAgent.ps1 -ApiUrl "http://your-server:8080" -ApiKey "your-api-key"
+.\Install-OctofleetAgent.ps1 -GatewayUrl "http://your-server:8080" -GatewayToken "your-token"
 
 # With enrollment token (zero-touch)
-.\Install-OpenClawAgent.ps1 -ApiUrl "http://your-server:8080" -EnrollToken "your-token"
+.\Install-OctofleetAgent.ps1 -GatewayUrl "http://your-server:8080" -EnrollToken "your-token"
 ```
 
 ### 2. Configure
