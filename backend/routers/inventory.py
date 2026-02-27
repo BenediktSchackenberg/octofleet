@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import asyncpg
 from typing import Optional, List, Dict, Any
 import json
+from uuid import UUID
 from datetime import datetime
 from dependencies import get_db, verify_api_key, not_found
 
@@ -33,26 +34,19 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
         physical_disks = []
         
         for row in rows:
-            # CPU aggregation
             if row['cpu']:
                 cpu = json.loads(row['cpu'])
                 name = cpu.get('name', 'Unknown')
                 cpu_types[name] = cpu_types.get(name, 0) + 1
             
-            # RAM aggregation
             if row['ram']:
                 ram = json.loads(row['ram'])
                 total_gb = ram.get('totalGB', 0)
-                if total_gb >= 64:
-                    ram_distribution["64GB+"] += 1
-                elif total_gb >= 32:
-                    ram_distribution["32GB"] += 1
-                elif total_gb >= 16:
-                    ram_distribution["16GB"] += 1
-                else:
-                    ram_distribution["8GB"] += 1
+                if total_gb >= 64: ram_distribution["64GB+"] += 1
+                elif total_gb >= 32: ram_distribution["32GB"] += 1
+                elif total_gb >= 16: ram_distribution["16GB"] += 1
+                else: ram_distribution["8GB"] += 1
             
-            # Storage aggregation
             if row['disks']:
                 disks = json.loads(row['disks'])
                 volumes = []
@@ -105,13 +99,9 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                         nodes_with_issues.append({"nodeId": row['node_id'], "hostname": row['hostname'], "issue": f"Disk {vol.get('driveLetter', '?')} at {used_percent:.0f}% full", "severity": "warning"})
                     else: disk_health["healthy"] += 1
         
-        top_cpus = sorted(cpu_types.items(), key=lambda x: x[1], reverse=True)[:10]
-        top_bus_types = sorted(bus_types.items(), key=lambda x: x[1], reverse=True)
-        physical_disks.sort(key=lambda d: (0 if d['healthStatus'] == 'Unhealthy' else 1 if d['healthStatus'] == 'Warning' else 2, d['hostname']))
-        
         return {
             "nodeCount": len(rows),
-            "cpuTypes": [{"name": name, "count": count} for name, count in top_cpus],
+            "cpuTypes": [{"name": name, "count": count} for name, count in sorted(cpu_types.items(), key=lambda x: x[1], reverse=True)[:10]],
             "ramDistribution": ram_distribution,
             "storage": {
                 "totalTB": round(total_storage_tb, 2), "freeTB": round(total_free_storage_tb, 2),
@@ -119,27 +109,25 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                 "usedPercent": round((total_storage_tb - total_free_storage_tb) / total_storage_tb * 100, 1) if total_storage_tb > 0 else 0
             },
             "diskHealth": disk_health, "physicalDiskHealth": physical_disk_health, "diskTypes": disk_types,
-            "busTypes": [{"name": name, "count": count} for name, count in top_bus_types],
+            "busTypes": [{"name": name, "count": count} for name, count in sorted(bus_types.items(), key=lambda x: x[1], reverse=True)],
             "physicalDisks": physical_disks[:50], "issues": nodes_with_issues[:20]
         }
 
 @router.get("/software/{node_id}")
 async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get software data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        rows = await conn.fetch("SELECT name, version, publisher, install_date, install_path FROM software_current WHERE node_id = $1 ORDER BY name", node['id'])
+        rows = await conn.fetch("SELECT name, version, publisher, install_date, install_path FROM software_current WHERE node_id = $1::uuid ORDER BY name", node['id'])
         return {"data": {"installedPrograms": [dict(r) for r in rows]}}
 
 @router.get("/hotfixes/{node_id}")
 async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get hotfix data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        hotfix_rows = await conn.fetch('SELECT kb_id as "hotfixId", description, installed_on as "installedOn", installed_by as "installedBy" FROM hotfixes_current WHERE node_id = $1 ORDER BY installed_on DESC', node['id'])
-        update_rows = await conn.fetch('SELECT update_id as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id = $1 ORDER BY installed_on DESC', node['id'])
+        hotfix_rows = await conn.fetch('SELECT kb_id as "hotfixId", description, installed_on as "installedOn", installed_by as "installedBy" FROM hotfixes_current WHERE node_id = $1::uuid ORDER BY installed_on DESC', node['id'])
+        update_rows = await conn.fetch('SELECT update_id as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id = $1::uuid ORDER BY installed_on DESC', node['id'])
         
         update_history = []
         for row in update_rows:
@@ -151,11 +139,10 @@ async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 
 @router.get("/system/{node_id}")
 async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get system data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id, os_name, os_version, os_build FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT users, services, startup_items, scheduled_tasks, computer_name, domain, workgroup, domain_role, is_domain_joined, uptime_hours, uptime_formatted, last_boot_time, updated_at FROM system_current WHERE node_id = $1", node['id'])
+        row = await conn.fetchrow("SELECT users, services, startup_items, scheduled_tasks, computer_name, domain, workgroup, domain_role, is_domain_joined, uptime_hours, uptime_formatted, last_boot_time, updated_at FROM system_current WHERE node_id = $1::uuid", node['id'])
         return {"data": {
             "osName": node['os_name'], "osVersion": node['os_version'], "osBuild": node['os_build'],
             "computerName": row['computer_name'] if row else None, "domain": row['domain'] if row else None,
@@ -168,11 +155,10 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 
 @router.get("/security/{node_id}")
 async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get security data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT defender, firewall, tpm, uac, bitlocker, local_admins, updated_at FROM security_current WHERE node_id = $1", node['id'])
+        row = await conn.fetchrow("SELECT defender, firewall, tpm, uac, bitlocker, local_admins, updated_at FROM security_current WHERE node_id = $1::uuid", node['id'])
         if not row: return {"data": None}
         return {"data": {
             "defender": json.loads(row['defender']) if row['defender'] else {}, "firewall": json.loads(row['firewall']) if row['firewall'] else [],
@@ -182,11 +168,10 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 
 @router.get("/network/{node_id}")
 async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get network data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT adapters, connections, listening_ports, updated_at FROM network_current WHERE node_id = $1", node['id'])
+        row = await conn.fetchrow("SELECT adapters, connections, listening_ports, updated_at FROM network_current WHERE node_id = $1::uuid", node['id'])
         if not row: return {"data": None}
         return {"data": {
             "adapters": json.loads(row['adapters']) if row['adapters'] else [], "connections": json.loads(row['connections']) if row['connections'] else [],
@@ -195,11 +180,10 @@ async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 
 @router.get("/linux/{node_id}")
 async def get_linux_data(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Get Linux-specific data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT performance, services, updates, disk_health, updated_at FROM linux_data_current WHERE node_id = $1", node['id'])
+        row = await conn.fetchrow("SELECT performance, services, updates, disk_health, updated_at FROM linux_data_current WHERE node_id = $1::uuid", node['id'])
         if not row: return {"data": None}
         return {"data": {
             "performance": json.loads(row['performance']) if row['performance'] else None, "services": json.loads(row['services']) if row['services'] else None,

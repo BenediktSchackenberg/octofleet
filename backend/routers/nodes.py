@@ -75,7 +75,7 @@ async def list_nodes(
                 SELECT 
                     COUNT(*) FILTER (WHERE severity = 'critical' AND status = 'fired') as critical_count,
                     COUNT(*) FILTER (WHERE severity = 'warning' AND status = 'fired') as warning_count
-                FROM alerts WHERE node_id = $1
+                FROM alerts WHERE node_id = $1::uuid
             """, r['id'])
             
             critical = alert_counts['critical_count'] or 0
