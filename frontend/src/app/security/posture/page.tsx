@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getAuthHeader } from "@/lib/auth-context";
-import { API_URL } from "@/lib/api-config";
+import { API_BASE } from "@/lib/api-config";
 import Link from "next/link";
 
 interface PostureSnapshot {
@@ -32,7 +32,7 @@ export default function PosturePage() {
   const [tab, setTab] = useState<"overview" | "packages" | "services" | "config" | "ports">("overview");
 
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/nodes`, { headers: getAuthHeader() })
+    fetch(`${API_BASE}/nodes`, { headers: getAuthHeader() })
       .then(r => r.json())
       .then(data => setNodes(Array.isArray(data) ? data : data.nodes || []))
       .catch(() => {});
@@ -45,8 +45,8 @@ export default function PosturePage() {
     setComparison(null);
     try {
       const [snapRes, compRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/posture/snapshots/${nodeId}`, { headers: getAuthHeader() }),
-        fetch(`${API_URL}/api/v1/posture/compare/${nodeId}`, { headers: getAuthHeader() })
+        fetch(`${API_BASE}/posture/snapshots/${nodeId}`, { headers: getAuthHeader() }),
+        fetch(`${API_BASE}/posture/compare/${nodeId}`, { headers: getAuthHeader() })
       ]);
       const snapData = await snapRes.json();
       const compData = await compRes.json();
