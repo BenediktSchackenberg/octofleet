@@ -135,6 +135,7 @@ const navGroups: NavGroup[] = [
     icon: ShieldCheck,
     color: "red",
     items: [
+      { href: "/security", labelKey: "nav.securityCenter", icon: ShieldCheck },
       { href: "/vulnerabilities", labelKey: "nav.vulnerabilities", icon: Bug, permission: "vulnerabilities:read" },
       { href: "/remediation", labelKey: "nav.remediation", icon: Wrench, permission: "vulnerabilities:read" },
       { href: "/compliance", labelKey: "nav.compliance", icon: ShieldCheck, permission: "compliance:read" },

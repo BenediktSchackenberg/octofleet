@@ -60,7 +60,8 @@
     "performance": "Performance",
     "provisioning": "Provisioning",
     "repo": "Repository",
-    "reports": "Berichte"
+    "reports": "Berichte",
+    "securityCenter": "Security Center"
   },
   "auth": {
     "login": "Anmelden",

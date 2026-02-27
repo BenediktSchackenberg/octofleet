@@ -1689,3 +1689,162 @@ CREATE TABLE IF NOT EXISTS public.node_vulnerabilities (
     resolved_at timestamptz,
     UNIQUE(node_id, vulnerability_id)
 );
+
+-- =============================================================
+-- E21: Security Monitoring & Compliance
+-- =============================================================
+
+-- Monitoring Profiles
+CREATE TABLE IF NOT EXISTS public.monitoring_profiles (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    description text,
+    version integer DEFAULT 1,
+    sensors jsonb DEFAULT '{}',
+    sampling jsonb DEFAULT '{}',
+    include_paths jsonb DEFAULT '[]',
+    exclude_paths jsonb DEFAULT '[]',
+    created_by text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Monitoring Assignments (Node/Group → Profile)
+CREATE TABLE IF NOT EXISTS public.monitoring_assignments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    target_type text NOT NULL CHECK (target_type IN ('node', 'group')),
+    target_id text NOT NULL,
+    profile_id uuid REFERENCES monitoring_profiles(id) ON DELETE CASCADE,
+    profile_version integer DEFAULT 1,
+    start_time timestamptz DEFAULT now(),
+    end_time timestamptz,
+    priority integer DEFAULT 0,
+    status text DEFAULT 'active' CHECK (status IN ('active', 'pending', 'disabled')),
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Agent Capabilities
+CREATE TABLE IF NOT EXISTS public.agent_capabilities (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id text,
+    node_id text NOT NULL,
+    os text,
+    version text,
+    sensors_supported jsonb DEFAULT '[]',
+    last_seen timestamptz DEFAULT now()
+);
+
+-- Normalized Events (hypertable for time-series)
+CREATE TABLE IF NOT EXISTS public.events_normalized (
+    event_id uuid DEFAULT gen_random_uuid(),
+    ts timestamptz NOT NULL DEFAULT now(),
+    node_id text NOT NULL,
+    user_id text,
+    event_type text NOT NULL,
+    severity text DEFAULT 'info',
+    payload jsonb DEFAULT '{}'
+);
+SELECT create_hypertable('events_normalized', 'ts', if_not_exists => true);
+CREATE INDEX IF NOT EXISTS idx_events_node_ts ON events_normalized (node_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_events_type_ts ON events_normalized (event_type, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_events_user_ts ON events_normalized (user_id, ts DESC);
+
+-- File Events (split table for fast file audit queries)
+CREATE TABLE IF NOT EXISTS public.file_events (
+    event_id uuid DEFAULT gen_random_uuid(),
+    ts timestamptz NOT NULL DEFAULT now(),
+    node_id text NOT NULL,
+    user_id text,
+    op text NOT NULL,
+    path text,
+    old_path text,
+    new_path text,
+    process_name text,
+    pid integer,
+    hash_before text,
+    hash_after text,
+    file_size bigint,
+    success boolean DEFAULT true
+);
+SELECT create_hypertable('file_events', 'ts', if_not_exists => true);
+CREATE INDEX IF NOT EXISTS idx_file_events_node_ts ON file_events (node_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_file_events_path ON file_events (path, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_file_events_user ON file_events (user_id, ts DESC);
+
+-- Findings (security findings / alerts)
+CREATE TABLE IF NOT EXISTS public.findings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    type text NOT NULL,
+    title text NOT NULL,
+    description text,
+    severity text DEFAULT 'medium' CHECK (severity IN ('critical', 'high', 'medium', 'low', 'info')),
+    score numeric(4,2),
+    status text DEFAULT 'open' CHECK (status IN ('open', 'acknowledged', 'resolved', 'false_positive')),
+    first_seen timestamptz DEFAULT now(),
+    last_seen timestamptz DEFAULT now(),
+    node_id text,
+    user_id text,
+    policy_id uuid,
+    evidence jsonb DEFAULT '[]',
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Policies (behavior rules)
+CREATE TABLE IF NOT EXISTS public.security_policies (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    description text,
+    version integer DEFAULT 1,
+    definition jsonb NOT NULL DEFAULT '{}',
+    enabled boolean DEFAULT true,
+    severity text DEFAULT 'medium',
+    created_by text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Evidence Exports
+CREATE TABLE IF NOT EXISTS public.evidence_exports (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    scope text,
+    filter_criteria jsonb DEFAULT '{}',
+    manifest_hash text,
+    storage_ref text,
+    file_size bigint,
+    created_by text,
+    created_at timestamptz DEFAULT now()
+);
+
+-- UI Audit Events ("Audit the Auditor")
+CREATE TABLE IF NOT EXISTS public.ui_audit_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    ts timestamptz NOT NULL DEFAULT now(),
+    actor_user_id text NOT NULL,
+    action text NOT NULL,
+    object_type text,
+    object_id text,
+    details jsonb DEFAULT '{}'
+);
+
+-- Retention Config
+CREATE TABLE IF NOT EXISTS public.retention_config (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    category text UNIQUE NOT NULL,
+    hot_days integer DEFAULT 90,
+    warm_days integer DEFAULT 365,
+    cold_days integer DEFAULT 2555,
+    legal_hold boolean DEFAULT false,
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Insert default retention config
+INSERT INTO retention_config (category, hot_days, warm_days, cold_days)
+VALUES
+    ('file_events', 90, 365, 2555),
+    ('security_events', 90, 365, 2555),
+    ('findings', 180, 730, 2555),
+    ('evidence_exports', 365, 730, 2555),
+    ('ui_audit_events', 90, 365, 2555)
+ON CONFLICT (category) DO NOTHING;

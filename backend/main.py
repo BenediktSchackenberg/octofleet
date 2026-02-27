@@ -14288,3 +14288,467 @@ autoinstall:
     
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(content=config, media_type="text/yaml")
+
+
+# ============================================================
+# E21: Security Monitoring & Compliance
+# ============================================================
+
+# --- Monitoring Profiles ---
+
+@app.get("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+async def list_monitoring_profiles():
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
+        return {"profiles": [dict(r) for r in rows]}
+
+@app.get("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+async def get_monitoring_profile(profile_id: str):
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        return dict(row)
+
+@app.post("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+async def create_monitoring_profile(req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO monitoring_profiles (name, description, sensors, sampling, include_paths, exclude_paths, created_by)
+            VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7)
+            RETURNING *
+        """, body.get("name", "Default"), body.get("description"),
+            json.dumps(body.get("sensors", {})), json.dumps(body.get("sampling", {})),
+            json.dumps(body.get("include_paths", [])), json.dumps(body.get("exclude_paths", [])),
+            body.get("created_by"))
+        return dict(row)
+
+@app.put("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+async def update_monitoring_profile(profile_id: str, req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE monitoring_profiles SET
+                name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                sensors = COALESCE($4::jsonb, sensors),
+                sampling = COALESCE($5::jsonb, sampling),
+                include_paths = COALESCE($6::jsonb, include_paths),
+                exclude_paths = COALESCE($7::jsonb, exclude_paths),
+                version = version + 1,
+                updated_at = now()
+            WHERE id = $1::uuid RETURNING *
+        """, profile_id, body.get("name"), body.get("description"),
+            json.dumps(body.get("sensors")) if "sensors" in body else None,
+            json.dumps(body.get("sampling")) if "sampling" in body else None,
+            json.dumps(body.get("include_paths")) if "include_paths" in body else None,
+            json.dumps(body.get("exclude_paths")) if "exclude_paths" in body else None)
+        if not row:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        return dict(row)
+
+@app.delete("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+async def delete_monitoring_profile(profile_id: str):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
+        return {"status": "deleted"}
+
+# --- Monitoring Assignments ---
+
+@app.get("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+async def list_monitoring_assignments():
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT a.*, p.name as profile_name
+            FROM monitoring_assignments a
+            LEFT JOIN monitoring_profiles p ON p.id = a.profile_id
+            ORDER BY a.priority DESC, a.created_at DESC
+        """)
+        return {"assignments": [dict(r) for r in rows]}
+
+@app.post("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+async def create_monitoring_assignment(req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO monitoring_assignments (target_type, target_id, profile_id, priority, status, start_time, end_time)
+            VALUES ($1, $2, $3::uuid, $4, $5, $6, $7)
+            RETURNING *
+        """, body["target_type"], body["target_id"], body["profile_id"],
+            body.get("priority", 0), body.get("status", "active"),
+            body.get("start_time"), body.get("end_time"))
+        return dict(row)
+
+@app.put("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
+async def update_monitoring_assignment(assignment_id: str, req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE monitoring_assignments SET
+                status = COALESCE($2, status),
+                priority = COALESCE($3, priority),
+                end_time = COALESCE($4, end_time),
+                updated_at = now()
+            WHERE id = $1::uuid RETURNING *
+        """, assignment_id, body.get("status"), body.get("priority"), body.get("end_time"))
+        if not row:
+            raise HTTPException(status_code=404, detail="Assignment not found")
+        return dict(row)
+
+@app.delete("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
+async def delete_monitoring_assignment(assignment_id: str):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM monitoring_assignments WHERE id = $1::uuid", assignment_id)
+        return {"status": "deleted"}
+
+@app.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(verify_api_key)])
+async def get_effective_policy(node_id: str):
+    async with pool.acquire() as conn:
+        # Check direct node assignment first, then group assignments
+        row = await conn.fetchrow("""
+            SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
+            FROM monitoring_assignments a
+            JOIN monitoring_profiles p ON p.id = a.profile_id
+            WHERE a.target_type = 'node' AND a.target_id = $1 AND a.status = 'active'
+                AND (a.end_time IS NULL OR a.end_time > now())
+            ORDER BY a.priority DESC LIMIT 1
+        """, node_id)
+        if not row:
+            # Fallback to group assignments
+            row = await conn.fetchrow("""
+                SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
+                FROM monitoring_assignments a
+                JOIN monitoring_profiles p ON p.id = a.profile_id
+                JOIN group_members gm ON gm.group_id = a.target_id::uuid
+                WHERE a.target_type = 'group' AND gm.node_id = $1 AND a.status = 'active'
+                    AND (a.end_time IS NULL OR a.end_time > now())
+                ORDER BY a.priority DESC LIMIT 1
+            """, node_id)
+        if not row:
+            return {"policy": None, "message": "No monitoring policy assigned"}
+        return {"policy": dict(row)}
+
+# --- Event Ingest ---
+
+@app.post("/api/v1/ingest/events", dependencies=[Depends(verify_api_key)])
+async def ingest_events(req: Request):
+    body = await req.json()
+    events = body.get("events", [body] if "event_type" in body else [])
+    inserted = 0
+    async with pool.acquire() as conn:
+        for evt in events:
+            event_type = evt.get("event_type", "unknown")
+            # Route file events to file_events table
+            if event_type.startswith("file."):
+                await conn.execute("""
+                    INSERT INTO file_events (node_id, user_id, op, path, old_path, new_path, process_name, pid, hash_before, hash_after, file_size, success)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                """, evt.get("node_id"), evt.get("user_id"), evt.get("op", event_type),
+                    evt.get("path"), evt.get("old_path"), evt.get("new_path"),
+                    evt.get("process_name"), evt.get("pid"),
+                    evt.get("hash_before"), evt.get("hash_after"),
+                    evt.get("file_size"), evt.get("success", True))
+            else:
+                await conn.execute("""
+                    INSERT INTO events_normalized (node_id, user_id, event_type, severity, payload)
+                    VALUES ($1, $2, $3, $4, $5::jsonb)
+                """, evt.get("node_id"), evt.get("user_id"), event_type,
+                    evt.get("severity", "info"), json.dumps(evt.get("payload", {})))
+            inserted += 1
+    return {"inserted": inserted}
+
+# --- Events Query ---
+
+@app.get("/api/v1/events", dependencies=[Depends(verify_api_key)])
+async def query_events(
+    node_id: str = None, user_id: str = None, event_type: str = None,
+    severity: str = None, since: str = None, until: str = None,
+    limit: int = 100, offset: int = 0
+):
+    async with pool.acquire() as conn:
+        conditions = []
+        params = []
+        idx = 1
+        if node_id:
+            conditions.append(f"node_id = ${idx}")
+            params.append(node_id); idx += 1
+        if user_id:
+            conditions.append(f"user_id = ${idx}")
+            params.append(user_id); idx += 1
+        if event_type:
+            conditions.append(f"event_type = ${idx}")
+            params.append(event_type); idx += 1
+        if severity:
+            conditions.append(f"severity = ${idx}")
+            params.append(severity); idx += 1
+        if since:
+            conditions.append(f"ts >= ${idx}::timestamptz")
+            params.append(since); idx += 1
+        if until:
+            conditions.append(f"ts <= ${idx}::timestamptz")
+            params.append(until); idx += 1
+
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        params.extend([limit, offset])
+        rows = await conn.fetch(f"""
+            SELECT * FROM events_normalized {where}
+            ORDER BY ts DESC LIMIT ${idx} OFFSET ${idx+1}
+        """, *params)
+        count = await conn.fetchval(f"SELECT count(*) FROM events_normalized {where}", *params[:-2])
+        return {"events": [dict(r) for r in rows], "total": count}
+
+# --- File Events Query ---
+
+@app.get("/api/v1/events/files", dependencies=[Depends(verify_api_key)])
+async def query_file_events(
+    node_id: str = None, user_id: str = None, op: str = None,
+    path: str = None, since: str = None, until: str = None,
+    limit: int = 100, offset: int = 0
+):
+    async with pool.acquire() as conn:
+        conditions = []
+        params = []
+        idx = 1
+        if node_id:
+            conditions.append(f"node_id = ${idx}")
+            params.append(node_id); idx += 1
+        if user_id:
+            conditions.append(f"user_id = ${idx}")
+            params.append(user_id); idx += 1
+        if op:
+            conditions.append(f"op = ${idx}")
+            params.append(op); idx += 1
+        if path:
+            conditions.append(f"path ILIKE ${idx}")
+            params.append(f"%{path}%"); idx += 1
+        if since:
+            conditions.append(f"ts >= ${idx}::timestamptz")
+            params.append(since); idx += 1
+        if until:
+            conditions.append(f"ts <= ${idx}::timestamptz")
+            params.append(until); idx += 1
+
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        params.extend([limit, offset])
+        rows = await conn.fetch(f"""
+            SELECT * FROM file_events {where}
+            ORDER BY ts DESC LIMIT ${idx} OFFSET ${idx+1}
+        """, *params)
+        count = await conn.fetchval(f"SELECT count(*) FROM file_events {where}", *params[:-2])
+        return {"events": [dict(r) for r in rows], "total": count}
+
+# --- Findings ---
+
+@app.get("/api/v1/findings", dependencies=[Depends(verify_api_key)])
+async def list_findings(
+    status: str = None, severity: str = None, node_id: str = None,
+    limit: int = 50, offset: int = 0
+):
+    async with pool.acquire() as conn:
+        conditions = []
+        params = []
+        idx = 1
+        if status:
+            conditions.append(f"status = ${idx}")
+            params.append(status); idx += 1
+        if severity:
+            conditions.append(f"severity = ${idx}")
+            params.append(severity); idx += 1
+        if node_id:
+            conditions.append(f"node_id = ${idx}")
+            params.append(node_id); idx += 1
+
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        params.extend([limit, offset])
+        rows = await conn.fetch(f"""
+            SELECT * FROM findings {where}
+            ORDER BY score DESC NULLS LAST, last_seen DESC LIMIT ${idx} OFFSET ${idx+1}
+        """, *params)
+        count = await conn.fetchval(f"SELECT count(*) FROM findings {where}", *params[:-2])
+        return {"findings": [dict(r) for r in rows], "total": count}
+
+@app.get("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
+async def get_finding(finding_id: str):
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM findings WHERE id = $1::uuid", finding_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        return dict(row)
+
+@app.put("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
+async def update_finding(finding_id: str, req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE findings SET
+                status = COALESCE($2, status),
+                updated_at = now()
+            WHERE id = $1::uuid RETURNING *
+        """, finding_id, body.get("status"))
+        if not row:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        return dict(row)
+
+# --- Security Policies ---
+
+@app.get("/api/v1/security/policies", dependencies=[Depends(verify_api_key)])
+async def list_security_policies():
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM security_policies ORDER BY created_at DESC")
+        return {"policies": [dict(r) for r in rows]}
+
+@app.post("/api/v1/security/policies", dependencies=[Depends(verify_api_key)])
+async def create_security_policy(req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO security_policies (name, description, definition, enabled, severity, created_by)
+            VALUES ($1, $2, $3::jsonb, $4, $5, $6)
+            RETURNING *
+        """, body["name"], body.get("description"), json.dumps(body.get("definition", {})),
+            body.get("enabled", True), body.get("severity", "medium"), body.get("created_by"))
+        return dict(row)
+
+@app.put("/api/v1/security/policies/{policy_id}", dependencies=[Depends(verify_api_key)])
+async def update_security_policy(policy_id: str, req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE security_policies SET
+                name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                definition = COALESCE($4::jsonb, definition),
+                enabled = COALESCE($5, enabled),
+                severity = COALESCE($6, severity),
+                version = version + 1,
+                updated_at = now()
+            WHERE id = $1::uuid RETURNING *
+        """, policy_id, body.get("name"), body.get("description"),
+            json.dumps(body.get("definition")) if "definition" in body else None,
+            body.get("enabled"), body.get("severity"))
+        if not row:
+            raise HTTPException(status_code=404, detail="Policy not found")
+        return dict(row)
+
+@app.delete("/api/v1/security/policies/{policy_id}", dependencies=[Depends(verify_api_key)])
+async def delete_security_policy(policy_id: str):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM security_policies WHERE id = $1::uuid", policy_id)
+        return {"status": "deleted"}
+
+# --- Retention Config ---
+
+@app.get("/api/v1/retention", dependencies=[Depends(verify_api_key)])
+async def get_retention_config():
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM retention_config ORDER BY category")
+        return {"retention": [dict(r) for r in rows]}
+
+@app.put("/api/v1/retention/{category}", dependencies=[Depends(verify_api_key)])
+async def update_retention_config(category: str, req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE retention_config SET
+                hot_days = COALESCE($2, hot_days),
+                warm_days = COALESCE($3, warm_days),
+                cold_days = COALESCE($4, cold_days),
+                legal_hold = COALESCE($5, legal_hold),
+                updated_at = now()
+            WHERE category = $1 RETURNING *
+        """, category, body.get("hot_days"), body.get("warm_days"),
+            body.get("cold_days"), body.get("legal_hold"))
+        if not row:
+            raise HTTPException(status_code=404, detail="Category not found")
+        return dict(row)
+
+# --- Evidence Exports ---
+
+@app.get("/api/v1/evidence/exports", dependencies=[Depends(verify_api_key)])
+async def list_evidence_exports():
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM evidence_exports ORDER BY created_at DESC LIMIT 50")
+        return {"exports": [dict(r) for r in rows]}
+
+@app.post("/api/v1/evidence/export", dependencies=[Depends(verify_api_key)])
+async def create_evidence_export(req: Request):
+    body = await req.json()
+    async with pool.acquire() as conn:
+        # Create export record
+        row = await conn.fetchrow("""
+            INSERT INTO evidence_exports (scope, filter_criteria, created_by)
+            VALUES ($1, $2::jsonb, $3)
+            RETURNING *
+        """, body.get("scope", "manual"), json.dumps(body.get("filter", {})), body.get("created_by"))
+        # Log UI audit event
+        await conn.execute("""
+            INSERT INTO ui_audit_events (actor_user_id, action, object_type, object_id, details)
+            VALUES ($1, 'evidence_export', 'evidence_exports', $2, $3::jsonb)
+        """, body.get("created_by", "system"), str(row["id"]), json.dumps({"scope": body.get("scope")}))
+        return dict(row)
+
+# --- UI Audit Events ---
+
+@app.get("/api/v1/audit/ui-events", dependencies=[Depends(verify_api_key)])
+async def query_ui_audit_events(
+    actor: str = None, action: str = None, since: str = None,
+    limit: int = 100, offset: int = 0
+):
+    async with pool.acquire() as conn:
+        conditions = []
+        params = []
+        idx = 1
+        if actor:
+            conditions.append(f"actor_user_id = ${idx}")
+            params.append(actor); idx += 1
+        if action:
+            conditions.append(f"action = ${idx}")
+            params.append(action); idx += 1
+        if since:
+            conditions.append(f"ts >= ${idx}::timestamptz")
+            params.append(since); idx += 1
+
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        params.extend([limit, offset])
+        rows = await conn.fetch(f"""
+            SELECT * FROM ui_audit_events {where}
+            ORDER BY ts DESC LIMIT ${idx} OFFSET ${idx+1}
+        """, *params)
+        return {"events": [dict(r) for r in rows]}
+
+# --- Security Dashboard Stats ---
+
+@app.get("/api/v1/security/dashboard", dependencies=[Depends(verify_api_key)])
+async def security_dashboard():
+    async with pool.acquire() as conn:
+        # Findings by severity
+        findings_by_severity = await conn.fetch("""
+            SELECT severity, status, count(*) as count
+            FROM findings
+            GROUP BY severity, status
+        """)
+        # Recent events count (24h)
+        event_count_24h = await conn.fetchval("""
+            SELECT count(*) FROM events_normalized WHERE ts > now() - interval '24 hours'
+        """)
+        file_event_count_24h = await conn.fetchval("""
+            SELECT count(*) FROM file_events WHERE ts > now() - interval '24 hours'
+        """)
+        # Active monitoring assignments
+        active_assignments = await conn.fetchval("""
+            SELECT count(*) FROM monitoring_assignments WHERE status = 'active'
+        """)
+        # Top event types (24h)
+        top_event_types = await conn.fetch("""
+            SELECT event_type, count(*) as count
+            FROM events_normalized WHERE ts > now() - interval '24 hours'
+            GROUP BY event_type ORDER BY count DESC LIMIT 10
+        """)
+        return {
+            "findings_by_severity": [dict(r) for r in findings_by_severity],
+            "events_24h": event_count_24h,
+            "file_events_24h": file_event_count_24h,
+            "active_monitoring": active_assignments,
+            "top_event_types": [dict(r) for r in top_event_types]
+        }
