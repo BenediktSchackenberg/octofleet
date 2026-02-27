@@ -114,6 +114,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from auth import (
+    get_current_user, require_auth, require_permission, CurrentUser
+)
+
 # Include routers
 app.include_router(nodes_router)
 app.include_router(inventory_router)
@@ -129,6 +133,11 @@ app.include_router(provisioning_router)
 app.include_router(provisioning_vm_router)
 app.include_router(provisioning_iso_router)
 app.include_router(pxe_router)
+
+
+async def log_audit(*args, **kwargs):
+    """Dummy audit logger to prevent NameErrors until fully modularized"""
+    pass
 
 
 # === Helper Functions ===
