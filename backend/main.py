@@ -15216,3 +15216,72 @@ async def compare_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "currentDate": str(current["created_at"]),
             "diff": diff
         }
+
+# ============================================================
+# E21 Story #85: Vulnerability Scan & CVE Mapping (Fleet View)
+# ============================================================
+
+@app.get("/api/v1/security/vulnerabilities/fleet")
+async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
+    """Fleet-wide vulnerability aggregation"""
+    async with db.acquire() as conn:
+        # By severity
+        by_severity = await conn.fetch("""
+            SELECT severity, COUNT(*) as count 
+            FROM vulnerabilities 
+            GROUP BY severity ORDER BY 
+                CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END
+        """)
+        
+        # By node
+        by_node = await conn.fetch("""
+            SELECT node_id, 
+                   COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE severity = 'critical') as critical,
+                   COUNT(*) FILTER (WHERE severity = 'high') as high
+            FROM vulnerabilities
+            GROUP BY node_id ORDER BY critical DESC, high DESC, total DESC
+        """)
+        
+        # Top CVEs across fleet
+        top_cves = await conn.fetch("""
+            SELECT cve_id, severity, package_name, 
+                   COUNT(DISTINCT node_id) as affected_nodes,
+                   MAX(cvss_score) as cvss_score,
+                   MAX(description) as description,
+                   MAX(fix_version) as fix_version
+            FROM vulnerabilities
+            WHERE cve_id IS NOT NULL
+            GROUP BY cve_id, severity, package_name
+            ORDER BY 
+                CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+                affected_nodes DESC
+            LIMIT 50
+        """)
+        
+        # By package
+        by_package = await conn.fetch("""
+            SELECT package_name, COUNT(*) as vuln_count,
+                   COUNT(DISTINCT node_id) as affected_nodes,
+                   MAX(severity) as max_severity
+            FROM vulnerabilities
+            GROUP BY package_name
+            ORDER BY vuln_count DESC LIMIT 30
+        """)
+        
+        total = await conn.fetchval("SELECT COUNT(*) FROM vulnerabilities")
+        total_nodes = await conn.fetchval("SELECT COUNT(DISTINCT node_id) FROM vulnerabilities")
+        
+        return {
+            "total": total,
+            "affectedNodes": total_nodes,
+            "bySeverity": [{"severity": r["severity"], "count": r["count"]} for r in by_severity],
+            "byNode": [{"nodeId": r["node_id"], "total": r["total"], "critical": r["critical"], "high": r["high"]} for r in by_node],
+            "topCves": [{
+                "cveId": r["cve_id"], "severity": r["severity"], "packageName": r["package_name"],
+                "affectedNodes": r["affected_nodes"], "cvssScore": float(r["cvss_score"]) if r["cvss_score"] else None,
+                "description": r["description"], "fixVersion": r["fix_version"]
+            } for r in top_cves],
+            "byPackage": [{"packageName": r["package_name"], "vulnCount": r["vuln_count"], 
+                          "affectedNodes": r["affected_nodes"], "maxSeverity": r["max_severity"]} for r in by_package]
+        }

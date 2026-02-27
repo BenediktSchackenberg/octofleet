@@ -1315,6 +1315,9 @@ run_service() {
     local last_live=0
     local last_screen=0
     
+    # Start file audit collector
+    start_file_audit &
+    
     # Initial push
     push_inventory || true
     last_push=$(date +%s)
@@ -1378,3 +1381,142 @@ case "${1:-service}" in
         exit 1
         ;;
 esac
+
+# ============================================================
+# E21 Story #88: Linux File Audit Collector (inotifywait)
+# ============================================================
+
+FILE_AUDIT_ENABLED="${FILE_AUDIT_ENABLED:-true}"
+FILE_AUDIT_PATHS="${FILE_AUDIT_PATHS:-/home /etc /var/log}"
+FILE_AUDIT_EXCLUDE="${FILE_AUDIT_EXCLUDE:-\.swp$|\.swx$|~$|\.tmp$|/\.git/|__pycache__|/node_modules/}"
+FILE_AUDIT_BATCH_SIZE="${FILE_AUDIT_BATCH_SIZE:-50}"
+FILE_AUDIT_FLUSH_INTERVAL="${FILE_AUDIT_FLUSH_INTERVAL:-5}"
+FILE_AUDIT_PID=""
+declare -a FILE_AUDIT_BUFFER=()
+
+start_file_audit() {
+    if [[ "$FILE_AUDIT_ENABLED" != "true" ]]; then
+        log "INFO" "File audit disabled"
+        return
+    fi
+    
+    if ! command -v inotifywait &>/dev/null; then
+        log "WARN" "inotifywait not found. Install inotify-tools for file audit."
+        return
+    fi
+    
+    log "INFO" "Starting file audit on: $FILE_AUDIT_PATHS"
+    
+    # Start inotifywait in background
+    inotifywait -m -r \
+        --format '%T|%w%f|%e|%Xe' \
+        --timefmt '%Y-%m-%dT%H:%M:%S' \
+        --exclude "$FILE_AUDIT_EXCLUDE" \
+        -e create,delete,modify,moved_from,moved_to,attrib \
+        $FILE_AUDIT_PATHS 2>/dev/null | while IFS='|' read -r timestamp filepath events extra; do
+        
+        # Map inotify events to normalized event types
+        local event_type="file.unknown"
+        case "$events" in
+            *CREATE*)  event_type="file.created" ;;
+            *DELETE*)  event_type="file.deleted" ;;
+            *MODIFY*)  event_type="file.modified" ;;
+            *MOVED_FROM*) event_type="file.renamed" ;;
+            *MOVED_TO*)   event_type="file.renamed" ;;
+            *ATTRIB*)  event_type="file.permissions_changed" ;;
+        esac
+        
+        # Get file owner info
+        local uid="" username="" size="" hash=""
+        if [[ -e "$filepath" ]]; then
+            uid=$(stat -c '%u' "$filepath" 2>/dev/null || echo "")
+            username=$(stat -c '%U' "$filepath" 2>/dev/null || echo "")
+            size=$(stat -c '%s' "$filepath" 2>/dev/null || echo "0")
+            
+            # SHA256 for small files (< 10MB) on create/modify
+            if [[ "$event_type" == "file.created" || "$event_type" == "file.modified" ]] && [[ -f "$filepath" ]]; then
+                local file_size=$(stat -c '%s' "$filepath" 2>/dev/null || echo "0")
+                if (( file_size < 10485760 )); then
+                    hash=$(sha256sum "$filepath" 2>/dev/null | awk '{print $1}' || echo "")
+                fi
+            fi
+        fi
+        
+        # Build JSON event
+        local json_event=$(cat <<EOF
+{
+  "nodeId": "$NODE_ID",
+  "eventType": "$event_type",
+  "timestamp": "${timestamp}Z",
+  "file": {
+    "path": "$filepath",
+    "size": ${size:-0},
+    "hash": "$hash"
+  },
+  "user": {
+    "uid": "$uid",
+    "name": "$username"
+  },
+  "source": "inotify",
+  "severity": "info"
+}
+EOF
+)
+        # Add to buffer
+        FILE_AUDIT_BUFFER+=("$json_event")
+        
+        # Flush if buffer is full
+        if (( ${#FILE_AUDIT_BUFFER[@]} >= FILE_AUDIT_BATCH_SIZE )); then
+            flush_file_audit_buffer
+        fi
+    done &
+    FILE_AUDIT_PID=$!
+    log "INFO" "File audit started (PID: $FILE_AUDIT_PID)"
+    
+    # Start periodic flush
+    while true; do
+        sleep "$FILE_AUDIT_FLUSH_INTERVAL"
+        if (( ${#FILE_AUDIT_BUFFER[@]} > 0 )); then
+            flush_file_audit_buffer
+        fi
+    done &
+}
+
+flush_file_audit_buffer() {
+    local count=${#FILE_AUDIT_BUFFER[@]}
+    if (( count == 0 )); then return; fi
+    
+    # Build events array
+    local events_json="["
+    local first=true
+    for evt in "${FILE_AUDIT_BUFFER[@]}"; do
+        if $first; then first=false; else events_json+=","; fi
+        events_json+="$evt"
+    done
+    events_json+="]"
+    
+    # Clear buffer
+    FILE_AUDIT_BUFFER=()
+    
+    # Submit to backend
+    local response
+    response=$(curl -s -w "\n%{http_code}" -X POST \
+        "${API_URL}/api/v1/ingest/events/normalized" \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: ${API_KEY}" \
+        -d "{\"nodeId\": \"$NODE_ID\", \"events\": $events_json}" 2>/dev/null) || true
+    
+    local http_code=$(echo "$response" | tail -1)
+    if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
+        log "INFO" "Flushed $count file audit events"
+    else
+        log "WARN" "Failed to flush file audit events (HTTP $http_code)"
+    fi
+}
+
+stop_file_audit() {
+    if [[ -n "$FILE_AUDIT_PID" ]]; then
+        kill "$FILE_AUDIT_PID" 2>/dev/null || true
+        log "INFO" "File audit stopped"
+    fi
+}
