@@ -9239,7 +9239,7 @@ async def live_data_generator(node_id: str, session_id: str, pool):
             
             # Send metrics every 2 seconds
             if now - last_metrics_time >= 2:
-                async with pool.acquire() as conn:
+                async with db_pool.acquire() as conn:
                     # Get latest metrics from timescale
                     metrics = await conn.fetchrow("""
                         SELECT cpu_percent, ram_percent, disk_percent,
@@ -9267,7 +9267,7 @@ async def live_data_generator(node_id: str, session_id: str, pool):
             
             # Send processes every 5 seconds
             if now - last_processes_time >= 5:
-                async with pool.acquire() as conn:
+                async with db_pool.acquire() as conn:
                     procs = await conn.fetch("""
                         SELECT process_name, pid, cpu_percent, memory_mb, user_name
                         FROM node_processes
@@ -9296,7 +9296,7 @@ async def live_data_generator(node_id: str, session_id: str, pool):
             
             # Send new logs every 3 seconds
             if now - last_logs_time >= 3:
-                async with pool.acquire() as conn:
+                async with db_pool.acquire() as conn:
                     # Get new logs since last check
                     if last_log_id == 0:
                         # First fetch - get last 50 logs
@@ -13871,13 +13871,13 @@ autoinstall:
 
 @app.get("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
 async def list_monitoring_profiles():
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
         return {"profiles": [dict(r) for r in rows]}
 
 @app.get("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
 async def get_monitoring_profile(profile_id: str):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
@@ -13886,7 +13886,7 @@ async def get_monitoring_profile(profile_id: str):
 @app.post("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
 async def create_monitoring_profile(req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO monitoring_profiles (name, description, sensors, sampling, include_paths, exclude_paths, created_by)
             VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7)
@@ -13900,7 +13900,7 @@ async def create_monitoring_profile(req: Request):
 @app.put("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
 async def update_monitoring_profile(profile_id: str, req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE monitoring_profiles SET
                 name = COALESCE($2, name),
@@ -13923,7 +13923,7 @@ async def update_monitoring_profile(profile_id: str, req: Request):
 
 @app.delete("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
 async def delete_monitoring_profile(profile_id: str):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         await conn.execute("DELETE FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
         return {"status": "deleted"}
 
@@ -13931,7 +13931,7 @@ async def delete_monitoring_profile(profile_id: str):
 
 @app.get("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
 async def list_monitoring_assignments():
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT a.*, p.name as profile_name
             FROM monitoring_assignments a
@@ -13943,7 +13943,7 @@ async def list_monitoring_assignments():
 @app.post("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
 async def create_monitoring_assignment(req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO monitoring_assignments (target_type, target_id, profile_id, priority, status, start_time, end_time)
             VALUES ($1, $2, $3::uuid, $4, $5, $6, $7)
@@ -13956,7 +13956,7 @@ async def create_monitoring_assignment(req: Request):
 @app.put("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
 async def update_monitoring_assignment(assignment_id: str, req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE monitoring_assignments SET
                 status = COALESCE($2, status),
@@ -13971,13 +13971,13 @@ async def update_monitoring_assignment(assignment_id: str, req: Request):
 
 @app.delete("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
 async def delete_monitoring_assignment(assignment_id: str):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         await conn.execute("DELETE FROM monitoring_assignments WHERE id = $1::uuid", assignment_id)
         return {"status": "deleted"}
 
 @app.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(verify_api_key)])
 async def get_effective_policy(node_id: str):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         # Check direct node assignment first, then group assignments
         row = await conn.fetchrow("""
             SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
@@ -14009,7 +14009,7 @@ async def ingest_events(req: Request):
     body = await req.json()
     events = body.get("events", [body] if "event_type" in body else [])
     inserted = 0
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         for evt in events:
             event_type = evt.get("event_type", "unknown")
             # Route file events to file_events table
@@ -14039,7 +14039,7 @@ async def query_events(
     severity: str = None, since: str = None, until: str = None,
     limit: int = 100, offset: int = 0
 ):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -14079,7 +14079,7 @@ async def query_file_events(
     path: str = None, since: str = None, until: str = None,
     limit: int = 100, offset: int = 0
 ):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -14118,7 +14118,7 @@ async def list_findings(
     status: str = None, severity: str = None, node_id: str = None,
     limit: int = 50, offset: int = 0
 ):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -14143,7 +14143,7 @@ async def list_findings(
 
 @app.get("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
 async def get_finding(finding_id: str):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM findings WHERE id = $1::uuid", finding_id)
         if not row:
             raise HTTPException(status_code=404, detail="Finding not found")
@@ -14152,7 +14152,7 @@ async def get_finding(finding_id: str):
 @app.put("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
 async def update_finding(finding_id: str, req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE findings SET
                 status = COALESCE($2, status),
@@ -14167,14 +14167,14 @@ async def update_finding(finding_id: str, req: Request):
 
 @app.get("/api/v1/security/policies", dependencies=[Depends(verify_api_key)])
 async def list_security_policies():
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM security_policies ORDER BY created_at DESC")
         return {"policies": [dict(r) for r in rows]}
 
 @app.post("/api/v1/security/policies", dependencies=[Depends(verify_api_key)])
 async def create_security_policy(req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO security_policies (name, description, definition, enabled, severity, created_by)
             VALUES ($1, $2, $3::jsonb, $4, $5, $6)
@@ -14186,7 +14186,7 @@ async def create_security_policy(req: Request):
 @app.put("/api/v1/security/policies/{policy_id}", dependencies=[Depends(verify_api_key)])
 async def update_security_policy(policy_id: str, req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE security_policies SET
                 name = COALESCE($2, name),
@@ -14206,7 +14206,7 @@ async def update_security_policy(policy_id: str, req: Request):
 
 @app.delete("/api/v1/security/policies/{policy_id}", dependencies=[Depends(verify_api_key)])
 async def delete_security_policy(policy_id: str):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         await conn.execute("DELETE FROM security_policies WHERE id = $1::uuid", policy_id)
         return {"status": "deleted"}
 
@@ -14214,14 +14214,14 @@ async def delete_security_policy(policy_id: str):
 
 @app.get("/api/v1/retention", dependencies=[Depends(verify_api_key)])
 async def get_retention_config():
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM retention_config ORDER BY category")
         return {"retention": [dict(r) for r in rows]}
 
 @app.put("/api/v1/retention/{category}", dependencies=[Depends(verify_api_key)])
 async def update_retention_config(category: str, req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE retention_config SET
                 hot_days = COALESCE($2, hot_days),
@@ -14240,14 +14240,14 @@ async def update_retention_config(category: str, req: Request):
 
 @app.get("/api/v1/evidence/exports", dependencies=[Depends(verify_api_key)])
 async def list_evidence_exports():
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM evidence_exports ORDER BY created_at DESC LIMIT 50")
         return {"exports": [dict(r) for r in rows]}
 
 @app.post("/api/v1/evidence/export", dependencies=[Depends(verify_api_key)])
 async def create_evidence_export(req: Request):
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         # Create export record
         row = await conn.fetchrow("""
             INSERT INTO evidence_exports (scope, filter_criteria, created_by)
@@ -14268,7 +14268,7 @@ async def query_ui_audit_events(
     actor: str = None, action: str = None, since: str = None,
     limit: int = 100, offset: int = 0
 ):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -14294,7 +14294,7 @@ async def query_ui_audit_events(
 
 @app.get("/api/v1/security/dashboard", dependencies=[Depends(verify_api_key)])
 async def security_dashboard():
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         # Findings by severity
         findings_by_severity = await conn.fetch("""
             SELECT severity, status, count(*) as count
@@ -14335,7 +14335,7 @@ async def security_dashboard():
 async def report_agent_capabilities(node_id: str, req: Request):
     """Agent reports its capabilities, OS info, and available sensors."""
     body = await req.json()
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO agent_capabilities (node_id, sensors, agent_version, os_type, os_version, kernel_build, permissions, last_seen)
             VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7::jsonb, now())
@@ -14355,7 +14355,7 @@ async def report_agent_capabilities(node_id: str, req: Request):
 
 @app.get("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
 async def get_agent_capabilities(node_id: str):
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", node_id)
         if not row:
             raise HTTPException(status_code=404, detail="No capabilities reported for this node")
@@ -14364,7 +14364,7 @@ async def get_agent_capabilities(node_id: str):
 @app.get("/api/v1/agents/capabilities", dependencies=[Depends(verify_api_key)])
 async def list_agent_capabilities():
     """List all agents with their capabilities and health status."""
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT ac.*, n.hostname, n.os
             FROM agent_capabilities ac
@@ -14378,7 +14378,7 @@ async def report_agent_health(node_id: str, req: Request):
     """Agent reports health metrics: queue depth, drops, CPU overhead, etc."""
     body = await req.json()
     # Store as a normalized event
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO events_normalized (node_id, event_type, severity, payload)
             VALUES ($1, 'agent.health', $2, $3::jsonb)
@@ -14414,7 +14414,7 @@ async def ingest_normalized_events(req: Request):
     inserted = 0
     findings_created = 0
     
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         for evt in events:
             event_type = evt.get("event_type", "unknown")
             event_subtype = evt.get("event_subtype", "")
@@ -14492,7 +14492,7 @@ async def ingest_normalized_events(req: Request):
 @app.get("/api/v1/agents/{node_id}/health/history", dependencies=[Depends(verify_api_key)])
 async def get_agent_health_history(node_id: str, limit: int = 50):
     """Get recent health reports for a node."""
-    async with pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT ts, payload FROM events_normalized
             WHERE node_id = $1 AND event_type = 'agent.health'
@@ -15159,18 +15159,19 @@ async def file_activity_dashboard(
         
         # Top paths
         top_paths = await conn.fetch(f"""
-            SELECT payload->>'path' as path, COUNT(*) as count, 
-                   array_agg(DISTINCT event_type) as ops
+            SELECT path, COUNT(*) as count, 
+                   array_agg(DISTINCT op) as ops
             FROM file_events {base_filter}
-            GROUP BY payload->>'path'
+            AND path IS NOT NULL
+            GROUP BY path
             ORDER BY count DESC LIMIT 20
         """, *params)
         
         # Operations distribution
         ops_dist = await conn.fetch(f"""
-            SELECT event_type, COUNT(*) as count
+            SELECT op as event_type, COUNT(*) as count
             FROM file_events {base_filter}
-            GROUP BY event_type ORDER BY count DESC
+            GROUP BY op ORDER BY count DESC
         """, *params)
         
         # Timeline (hourly buckets)
@@ -15182,16 +15183,18 @@ async def file_activity_dashboard(
         
         # Top users
         top_users = await conn.fetch(f"""
-            SELECT payload->'user'->>'name' as username, COUNT(*) as count
+            SELECT user_id as username, COUNT(*) as count
             FROM file_events {base_filter}
-            AND payload->'user'->>'name' IS NOT NULL
-            GROUP BY payload->'user'->>'name'
+            AND user_id IS NOT NULL
+            GROUP BY user_id
             ORDER BY count DESC LIMIT 10
         """, *params)
         
         # Recent events
         recent = await conn.fetch(f"""
-            SELECT id, ts, node_id, event_type, payload
+            SELECT event_id as id, ts, node_id, op as event_type, 
+                   path, old_path, new_path, process_name, pid, user_id,
+                   hash_before, hash_after, file_size
             FROM file_events {base_filter}
             ORDER BY ts DESC LIMIT ${"$" + str(idx)}
         """, *params, limit)
@@ -15204,7 +15207,9 @@ async def file_activity_dashboard(
             "recentEvents": [{
                 "id": str(r["id"]), "ts": str(r["ts"]), "nodeId": r["node_id"],
                 "eventType": r["event_type"],
-                "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
+                "payload": {"path": r["path"], "oldPath": r["old_path"], "newPath": r["new_path"],
+                            "process": r["process_name"], "pid": r["pid"], "user": r["user_id"],
+                            "hashBefore": r["hash_before"], "hashAfter": r["hash_after"], "size": r["file_size"]}
             } for r in recent]
         }
 
@@ -15226,35 +15231,35 @@ async def user_activity_dashboard(
         
         # User activity summary
         users = await conn.fetch(f"""
-            SELECT payload->'user'->>'name' as username,
+            SELECT user_id as username,
                    COUNT(*) as total_events,
-                   COUNT(DISTINCT event_type) as unique_ops,
-                   COUNT(DISTINCT payload->>'path') as unique_files,
+                   COUNT(DISTINCT op) as unique_ops,
+                   COUNT(DISTINCT path) as unique_files,
                    MIN(ts) as first_activity,
                    MAX(ts) as last_activity
             FROM file_events {base_filter}
-            AND payload->'user'->>'name' IS NOT NULL
-            GROUP BY payload->'user'->>'name'
+            AND user_id IS NOT NULL
+            GROUP BY user_id
             ORDER BY total_events DESC LIMIT 20
         """, *params)
         
         # Unusual hours activity (outside 8-18)
         after_hours = await conn.fetch(f"""
-            SELECT payload->'user'->>'name' as username, COUNT(*) as count
+            SELECT user_id as username, COUNT(*) as count
             FROM file_events {base_filter}
             AND (EXTRACT(HOUR FROM ts) < 8 OR EXTRACT(HOUR FROM ts) >= 18)
-            AND payload->'user'->>'name' IS NOT NULL
-            GROUP BY payload->'user'->>'name'
+            AND user_id IS NOT NULL
+            GROUP BY user_id
             ORDER BY count DESC LIMIT 10
         """, *params)
         
         # Sensitive path access (e.g., /etc, Windows system dirs)
         sensitive = await conn.fetch(f"""
-            SELECT payload->'user'->>'name' as username, payload->>'path' as path, COUNT(*) as count
+            SELECT user_id as username, path, COUNT(*) as count
             FROM file_events {base_filter}
-            AND (payload->>'path' LIKE '/etc/%' OR payload->>'path' LIKE 'C:\\Windows\\%' 
-                 OR payload->>'path' LIKE 'C:\\Program Files\\%')
-            GROUP BY payload->'user'->>'name', payload->>'path'
+            AND (path LIKE '/etc/%' OR path LIKE 'C:\\Windows\\%' 
+                 OR path LIKE 'C:\\Program Files\\%')
+            GROUP BY user_id, path
             ORDER BY count DESC LIMIT 20
         """, *params)
         
@@ -15275,7 +15280,7 @@ async def export_file_activity(
 ):
     """Export file activity as CSV"""
     async with db.acquire() as conn:
-        query = "SELECT ts, node_id, event_type, payload FROM file_events WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        query = "SELECT ts, node_id, op, path, user_id, process_name, file_size, hash_after FROM file_events WHERE ts > NOW() - INTERVAL '1 hour' * $1"
         params = [hours]
         if node_id:
             query += " AND node_id = $2"
@@ -15287,14 +15292,13 @@ async def export_file_activity(
         if format == "csv":
             import io
             output = io.StringIO()
-            output.write("timestamp,node_id,event_type,path,user,file_size,hash\n")
+            output.write("timestamp,node_id,operation,path,user,file_size,hash\n")
             for r in rows:
-                p = json.loads(r["payload"]) if isinstance(r["payload"], str) else (r["payload"] or {})
-                path = (p.get("file", {}) or p).get("path", p.get("path", ""))
-                user = (p.get("user", {}) or {}).get("name", "")
-                size = (p.get("file", {}) or p).get("size", "")
-                fhash = (p.get("file", {}) or p).get("hash", "")
-                output.write(f'{r["ts"]},"{r["node_id"]}","{r["event_type"]}","{path}","{user}",{size},"{fhash}"\n')
+                path = r.get("path", "") or ""
+                user = r.get("user_id", "") or ""
+                size = r.get("file_size", "") or ""
+                fhash = r.get("hash_after", "") or ""
+                output.write(f'{r["ts"]},"{r["node_id"]}","{r["op"]}","{path}","{user}",{size},"{fhash}"\n')
             
             from starlette.responses import Response
             return Response(
