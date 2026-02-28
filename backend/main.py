@@ -14800,50 +14800,53 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         # By severity
         by_severity = await conn.fetch("""
-            SELECT severity, COUNT(*) as count 
-            FROM vulnerabilities 
-            GROUP BY severity ORDER BY 
-                CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END
+            SELECT v.severity, COUNT(*) as count 
+            FROM node_vulnerabilities nv
+            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            GROUP BY v.severity ORDER BY 
+                CASE v.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END
         """)
         
         # By node
         by_node = await conn.fetch("""
-            SELECT node_id, 
+            SELECT nv.node_id, 
                    COUNT(*) as total,
-                   COUNT(*) FILTER (WHERE severity = 'critical') as critical,
-                   COUNT(*) FILTER (WHERE severity = 'high') as high
-            FROM vulnerabilities
-            GROUP BY node_id ORDER BY critical DESC, high DESC, total DESC
+                   COUNT(*) FILTER (WHERE v.severity = 'critical') as critical,
+                   COUNT(*) FILTER (WHERE v.severity = 'high') as high
+            FROM node_vulnerabilities nv
+            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            GROUP BY nv.node_id ORDER BY critical DESC, high DESC, total DESC
         """)
         
         # Top CVEs across fleet
         top_cves = await conn.fetch("""
-            SELECT cve_id, severity, package_name, 
-                   COUNT(DISTINCT node_id) as affected_nodes,
-                   MAX(cvss_score) as cvss_score,
-                   MAX(description) as description,
-                   MAX(fix_version) as fix_version
-            FROM vulnerabilities
-            WHERE cve_id IS NOT NULL
-            GROUP BY cve_id, severity, package_name
+            SELECT v.cve_id, v.severity, v.software_name as package_name, 
+                   COUNT(DISTINCT nv.node_id) as affected_nodes,
+                   MAX(v.cvss_score) as cvss_score,
+                   MAX(v.description) as description
+            FROM node_vulnerabilities nv
+            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            WHERE v.cve_id IS NOT NULL
+            GROUP BY v.cve_id, v.severity, v.software_name
             ORDER BY 
-                CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+                CASE v.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
                 affected_nodes DESC
             LIMIT 50
         """)
         
         # By package
         by_package = await conn.fetch("""
-            SELECT package_name, COUNT(*) as vuln_count,
-                   COUNT(DISTINCT node_id) as affected_nodes,
-                   MAX(severity) as max_severity
-            FROM vulnerabilities
-            GROUP BY package_name
+            SELECT v.software_name as package_name, COUNT(*) as vuln_count,
+                   COUNT(DISTINCT nv.node_id) as affected_nodes,
+                   MAX(v.severity) as max_severity
+            FROM node_vulnerabilities nv
+            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            GROUP BY v.software_name
             ORDER BY vuln_count DESC LIMIT 30
         """)
         
-        total = await conn.fetchval("SELECT COUNT(*) FROM vulnerabilities")
-        total_nodes = await conn.fetchval("SELECT COUNT(DISTINCT node_id) FROM vulnerabilities")
+        total = await conn.fetchval("SELECT COUNT(*) FROM node_vulnerabilities")
+        total_nodes = await conn.fetchval("SELECT COUNT(DISTINCT node_id) FROM node_vulnerabilities")
         
         return {
             "total": total,
@@ -14853,7 +14856,7 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
             "topCves": [{
                 "cveId": r["cve_id"], "severity": r["severity"], "packageName": r["package_name"],
                 "affectedNodes": r["affected_nodes"], "cvssScore": float(r["cvss_score"]) if r["cvss_score"] else None,
-                "description": r["description"], "fixVersion": r["fix_version"]
+                "description": r["description"]
             } for r in top_cves],
             "byPackage": [{"packageName": r["package_name"], "vulnCount": r["vuln_count"], 
                           "affectedNodes": r["affected_nodes"], "maxSeverity": r["max_severity"]} for r in by_package]
@@ -15191,12 +15194,13 @@ async def file_activity_dashboard(
         """, *params)
         
         # Recent events
+        limit_param = f"${idx}"
         recent = await conn.fetch(f"""
             SELECT event_id as id, ts, node_id, op as event_type, 
                    path, old_path, new_path, process_name, pid, user_id,
                    hash_before, hash_after, file_size
             FROM file_events {base_filter}
-            ORDER BY ts DESC LIMIT ${"$" + str(idx)}
+            ORDER BY ts DESC LIMIT {limit_param}
         """, *params, limit)
         
         return {
