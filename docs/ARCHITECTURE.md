@@ -284,3 +284,35 @@ octofleet/
 ├── tests/                    # API + E2E tests
 └── docker-compose.yml        # Main compose file
 ```
+
+## Backend Modularization (v0.5.6)
+
+The monolithic `main.py` was refactored from ~15,900 lines to ~11,500 lines. Extracted modules:
+
+| Module | Path | Responsibility |
+|--------|------|----------------|
+| Dashboard | `backend/routers/dashboard.py` | Dashboard summary API |
+| Groups | `backend/routers/groups.py` | Group CRUD, dynamic groups, tag management |
+| Rules Engine | `backend/app/core/rules.py` | Dynamic group rule evaluation |
+| Node DB Helpers | `backend/app/db/nodes.py` | Node upsert, auto-onboard, dynamic groupships |
+| Dependencies | `backend/dependencies.py` | Shared deps: `get_db`, `verify_api_key`, error helpers |
+| Config | `backend/app/core/config.py` | Centralized settings from environment |
+
+Existing routers (`nodes`, `inventory`, `jobs`, `mssql`) were also extended with code moved from `main.py`.
+
+## Agent Activity Monitor
+
+Real-time monitoring of agent polling and job execution:
+
+- **HTTP Middleware** captures all agent requests (polls, health reports, results)
+- **In-memory ring buffer** (500 events) for instant access
+- **SSE endpoint** (`/api/v1/admin/agent-live`) streams activity + node status
+- **REST endpoints** for current status and historical activity
+- **Frontend** at `/admin/agents` with node filtering and live feed
+
+## Command Palette (Ctrl+K)
+
+Global search overlay for quick navigation:
+- Search nodes by hostname with live status indicators
+- Navigate to any page via keyboard
+- Accessible from anywhere with `Ctrl+K` / `⌘+K`

@@ -67,7 +67,7 @@
 <tr>
 <td width="50%">
 
-### 🔐 Security & Compliance — NEW in v0.5.5!
+### 🔐 Security & Compliance — NEW in v0.5.6!
 - **Security Center** with 12 dedicated pages
 - Vulnerability scanning (NVD/CVE) + fleet-wide aggregation
 - Auto-remediation (winget/Chocolatey)
@@ -82,10 +82,11 @@
 </td>
 <td width="50%">
 
-### 🖥️ Remote Access
+### 🖥️ Remote Access & UX — NEW in v0.5.6!
 - **Screen mirroring (live view)**
 - Remote terminal in browser
-- Event log viewer
+- **Agent Activity Monitor** — real-time SSE feed of all agent actions
+- **Command Palette (Ctrl+K)** — instant node search & navigation
 - Discord alert notifications
 - Node health & capability monitoring
 
