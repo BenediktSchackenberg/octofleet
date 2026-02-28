@@ -1402,7 +1402,7 @@ CREATE TABLE IF NOT EXISTS public.pending_nodes (
 
 CREATE TABLE IF NOT EXISTS public.linux_data_current (
     id serial PRIMARY KEY,
-    node_id text NOT NULL,
+    node_id text NOT NULL UNIQUE,
     performance jsonb,
     services jsonb,
     updates jsonb,
