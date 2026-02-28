@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
-import asyncpg
-from typing import Optional, List, Dict, Any
 import json
+import asyncpg
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Optional, List, Dict, Any
 from datetime import datetime
-from dependencies import get_db, verify_api_key, not_found
+from dependencies import get_db, verify_api_key, not_found, sanitize_for_postgres, parse_datetime
+from alerting import update_node_health
+from app.db.nodes import upsert_node, update_dynamic_device_groupships
 
 router = APIRouter(
     prefix="/api/v1/inventory",
@@ -123,6 +125,26 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
             "physicalDisks": physical_disks[:50], "issues": nodes_with_issues[:20]
         }
 
+@router.get("/hardware/{node_id}")
+async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get hardware data for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        if not node: raise not_found("Node", node_id)
+        row = await conn.fetchrow("SELECT cpu, ram, disks, mainboard, bios, gpu, nics, virtualization, updated_at FROM hardware_current WHERE node_id = $1", node['id'])
+        if not row: return {"data": None}
+        return {"data": {
+            "cpu": json.loads(row['cpu']) if row['cpu'] else {},
+            "ram": json.loads(row['ram']) if row['ram'] else {},
+            "disks": json.loads(row['disks']) if row['disks'] else {},
+            "mainboard": json.loads(row['mainboard']) if row['mainboard'] else {},
+            "bios": json.loads(row['bios']) if row['bios'] else {},
+            "gpu": json.loads(row['gpu']) if row['gpu'] else [],
+            "nics": json.loads(row['nics']) if row['nics'] else [],
+            "virtualization": json.loads(row['virtualization']) if row['virtualization'] else None,
+            "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
+        }}
+
 @router.get("/software/{node_id}")
 async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get software data for a node"""
@@ -206,3 +228,118 @@ async def get_linux_data(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "updates": json.loads(row['updates']) if row['updates'] else None, "diskHealth": json.loads(row['disk_health']) if row['disk_health'] else None,
             "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
         }}
+
+@router.get("/browser/{node_id}")
+async def get_browser_inventory(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get browser inventory for a node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        if not node: raise not_found("Node", node_id)
+        rows = await conn.fetch("SELECT browser, profile, username, history_count, bookmark_count, cookies_count, logins_count, extensions, updated_at FROM browser_current WHERE node_id = $1", node['id'])
+        return {"browsers": [dict(r) for r in rows]}
+
+@router.post("/hardware")
+async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit hardware inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    uuid = await upsert_node(db, node_id_str, hostname)
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO hardware_current (node_id, cpu, ram, disks, mainboard, bios, gpu, nics, virtualization, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                cpu = $2, ram = $3, disks = $4, mainboard = $5, bios = $6, gpu = $7, nics = $8, virtualization = $9, updated_at = NOW()
+        """, uuid, json.dumps(data.get("cpu", {})), json.dumps(data.get("ram") or data.get("memory", {})), json.dumps(data.get("disks", {})), json.dumps(data.get("mainboard", {})), json.dumps(data.get("bios", {})), json.dumps(data.get("gpu") or data.get("gpus", [])), json.dumps(data.get("nics") or data.get("networkAdapters", [])), json.dumps(data.get("virtualization")) if data.get("virtualization") else None)
+    return {"status": "ok", "node_id": str(uuid), "type": "hardware"}
+
+@router.post("/software")
+async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit software inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    programs = data.get("programs", [])
+    uuid = await upsert_node(db, node_id_str, hostname)
+    async with db.acquire() as conn:
+        await conn.execute("DELETE FROM software_current WHERE node_id = $1", uuid)
+        for prog in programs:
+            await conn.execute("""
+                INSERT INTO software_current (node_id, name, version, publisher, install_date, install_path, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, None, prog.get("installLocation"))
+    return {"status": "ok", "node_id": str(uuid), "type": "software", "count": len(programs)}
+
+@router.post("/hotfixes")
+async def submit_hotfixes(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit hotfix inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    hotfixes = data.get("hotfixes", [])
+    update_history = data.get("updateHistory", [])
+    uuid = await upsert_node(db, node_id_str, hostname)
+    async with db.acquire() as conn:
+        await conn.execute("DELETE FROM hotfixes_current WHERE node_id = $1", uuid)
+        for hf in hotfixes:
+            if isinstance(hf, dict):
+                kb_id = hf.get("kbId") or hf.get("hotfixId") or ""
+                if not kb_id: continue
+                await conn.execute("INSERT INTO hotfixes_current (node_id, kb_id, description, installed_on, installed_by, updated_at) VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (node_id, kb_id) DO UPDATE SET description = EXCLUDED.description, installed_on = EXCLUDED.installed_on, installed_by = EXCLUDED.installed_by, updated_at = NOW()", uuid, kb_id, hf.get("description"), parse_datetime(hf.get("installedOn")), hf.get("installedBy"))
+            elif isinstance(hf, str) and hf:
+                await conn.execute("INSERT INTO hotfixes_current (node_id, kb_id, description, installed_on, installed_by, updated_at) VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (node_id, kb_id) DO UPDATE SET updated_at = NOW()", uuid, hf, None, None, None)
+        await conn.execute("DELETE FROM update_history WHERE node_id = $1", uuid)
+        for upd in update_history:
+            update_id = upd.get("updateId") or upd.get("title", "")[:100]
+            if not update_id: continue
+            await conn.execute("INSERT INTO update_history (node_id, update_id, kb_id, title, description, installed_on, operation, result_code, support_url, categories, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) ON CONFLICT (node_id, update_id) DO UPDATE SET kb_id = EXCLUDED.kb_id, title = EXCLUDED.title, description = EXCLUDED.description, installed_on = EXCLUDED.installed_on, operation = EXCLUDED.operation, result_code = EXCLUDED.result_code, support_url = EXCLUDED.support_url, categories = EXCLUDED.categories, updated_at = NOW()", uuid, update_id, upd.get("kbId"), upd.get("title", "Unknown Update")[:500], upd.get("description"), parse_datetime(upd.get("installedOn")), upd.get("operation"), upd.get("resultCode"), upd.get("supportUrl"), json.dumps(upd.get("categories", [])))
+    return {"status": "ok", "node_id": str(uuid), "type": "hotfixes", "hotfixCount": len(hotfixes), "updateHistoryCount": len(update_history)}
+
+@router.post("/system")
+async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit system inventory"""
+    hostname = data.get("hostname", "unknown")
+    node_id_str = data.get("nodeId", hostname)
+    os_info = data.get("os", {})
+    uuid = await upsert_node(db, node_id_str, hostname, os_name=os_info.get("name"), os_version=os_info.get("version"), os_build=os_info.get("build"))
+    last_boot_time = None
+    if os_info.get("lastBootTime"):
+        try: last_boot_time = datetime.fromisoformat(os_info.get("lastBootTime").replace("Z", "+00:00"))
+        except: pass
+    async with db.acquire() as conn:
+        agent_version = os_info.get("agentVersion")
+        await conn.execute("""
+            INSERT INTO system_current (node_id, users, services, startup_items, scheduled_tasks, os_name, os_version, os_build, computer_name, domain, workgroup, domain_role, is_domain_joined, uptime_hours, uptime_formatted, last_boot_time, agent_version, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET users = $2, services = $3, startup_items = $4, scheduled_tasks = $5, os_name = $6, os_version = $7, os_build = $8, computer_name = $9, domain = $10, workgroup = $11, domain_role = $12, is_domain_joined = $13, uptime_hours = $14, uptime_formatted = $15, last_boot_time = $16, agent_version = $17, updated_at = NOW()
+        """, uuid, json.dumps(data.get("users", [])), json.dumps(data.get("services", [])), json.dumps(data.get("startupItems", [])), json.dumps(data.get("scheduledTasks", [])), os_info.get("name"), os_info.get("version"), os_info.get("build"), os_info.get("computerName"), os_info.get("domain"), os_info.get("workgroup"), os_info.get("domainRole"), os_info.get("isDomainJoined"), os_info.get("uptimeHours"), os_info.get("uptimeFormatted"), last_boot_time, agent_version)
+        if agent_version: await conn.execute("UPDATE nodes SET agent_version = $1 WHERE id = $2", agent_version, uuid)
+    await update_dynamic_device_groupships(db, uuid, {"hostname": hostname, "os_name": os_info.get("name", ""), "os_version": os_info.get("version", ""), "os_build": os_info.get("build", ""), "agent_version": agent_version or "", "domain": os_info.get("domain", ""), "is_domain_joined": os_info.get("isDomainJoined", False)})
+    return {"status": "ok", "node_id": str(uuid), "type": "system"}
+
+@router.post("/full")
+async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit full inventory (all types at once)"""
+    data = sanitize_for_postgres(data)
+    hostname = data.get("hostname", "unknown")
+    results = {"hostname": hostname, "submitted": []}
+    hw_data = data.get("hardware", {})
+    if hw_data.get("cpu") or hw_data.get("ram"):
+        await submit_hardware({"hostname": hostname, "nodeId": data.get("nodeId", hostname), **hw_data}, db)
+        results["submitted"].append("hardware")
+    sw_obj = data.get("software", {})
+    sw_data = sw_obj.get("software", []) if isinstance(sw_obj, dict) else sw_obj
+    if sw_data:
+        await submit_software({"hostname": hostname, "nodeId": data.get("nodeId", hostname), "programs": sw_data}, db)
+        results["submitted"].append("software")
+    hf_obj = data.get("hotfixes", {})
+    hf_data = hf_obj.get("hotfixes", []) if isinstance(hf_obj, dict) else hf_obj
+    update_history_data = hf_obj.get("updateHistory", []) if isinstance(hf_obj, dict) else []
+    if hf_data or update_history_data:
+        await submit_hotfixes({"hostname": hostname, "nodeId": data.get("nodeId", hostname), "hotfixes": hf_data, "updateHistory": update_history_data}, db)
+        results["submitted"].append("hotfixes")
+    sys_data = data.get("system", {})
+    if sys_data.get("os") or sys_data.get("services"):
+        await submit_system({"hostname": hostname, "nodeId": data.get("nodeId", hostname), **sys_data}, db)
+        results["submitted"].append("system")
+    try: await update_node_health(db, data.get("nodeId", hostname))
+    except: pass
+    return {"status": "ok", **results}
