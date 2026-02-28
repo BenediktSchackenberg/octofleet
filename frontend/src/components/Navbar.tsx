@@ -40,6 +40,7 @@ import {
   KeyRound,
   Settings,
   Monitor,
+  Search,
   type LucideIcon
 } from "lucide-react";
 
@@ -304,6 +305,14 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true}))}
+              className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-md bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all text-xs group"
+            >
+              <Search className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
+              <span>Quick Search</span>
+              <kbd className="ml-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-sans opacity-70">Ctrl K</kbd>
+            </button>
             <ExportDropdown />
             <ThemeToggle />
             <LanguageSelector />

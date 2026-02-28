@@ -1,14 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 import asyncpg
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime
-from dependencies import get_db, verify_api_key
+import uuid
+import json
+import secrets
+import jwt
+from datetime import datetime, timedelta
+from dependencies import get_db, verify_api_key, not_found, API_KEY
+
+# Use the JWT secret from auth module
+try:
+    from auth import JWT_SECRET
+except ImportError:
+    JWT_SECRET = "fallback-secret-change-me"
 
 router = APIRouter(
     prefix="/api/v1/nodes",
     tags=["nodes"],
     dependencies=[Depends(verify_api_key)]
+)
+
+# Router for registration (no auth required for initial register call)
+pending_router = APIRouter(
+    prefix="/api/v1",
+    tags=["pending-nodes"]
 )
 
 def _get_os_family(os_name: str | None) -> str:
@@ -230,3 +246,174 @@ async def get_os_distribution(db: asyncpg.Pool = Depends(get_db)):
                 for k, v in by_os.items()
             ]
         }
+
+@router.get("/{node_id}")
+async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Get detailed info for a single node"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("""
+            SELECT id, node_id, hostname, os_name, os_version, os_build, 
+                   first_seen, last_seen, is_online, agent_version, created_at, updated_at
+            FROM nodes WHERE node_id = $1 OR id::text = $1
+        """, node_id)
+        
+        if not node:
+            raise not_found("Node", node_id)
+        
+        node_uuid = node['id']
+        result = dict(node)
+        
+        # Get hardware summary
+        hw = await conn.fetchrow("""
+            SELECT cpu->>'name' as cpu_name,
+                   (ram->>'totalGb')::numeric as total_memory_gb,
+                   updated_at as hardware_updated_at
+            FROM hardware_current WHERE node_id = $1
+        """, node_uuid)
+        if hw:
+            result['cpuName'] = hw['cpu_name']
+            result['totalMemoryGb'] = float(hw['total_memory_gb']) if hw['total_memory_gb'] else None
+            result['hardwareUpdatedAt'] = hw['hardware_updated_at'].isoformat() if hw['hardware_updated_at'] else None
+        
+        # Get software count
+        sw_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM software_current WHERE node_id = $1", node_uuid)
+        result['softwareCount'] = sw_count
+        
+        # Get groups
+        groups = await conn.fetch("""
+            SELECT g.id, g.name, g.color, g.icon
+            FROM device_groups dg
+            JOIN groups g ON dg.group_id = g.id
+            WHERE dg.node_id = $1
+        """, node_uuid)
+        result['groups'] = [dict(g) for g in groups]
+        
+        # Get tags
+        tags = await conn.fetch("""
+            SELECT t.id, t.name, t.color
+            FROM device_tags dt
+            JOIN tags t ON dt.tag_id = t.id
+            WHERE dt.node_id = $1
+        """, node_uuid)
+        result['tags'] = [dict(t) for t in tags]
+        
+        return result
+
+@router.get("/{node_id}/history")
+async def get_node_history(node_id: str, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
+    """Get change history for a node (hardware snapshots)"""
+    async with db.acquire() as conn:
+        node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
+        if not node:
+            raise not_found("Node", node_id)
+        
+        node_uuid = node['id']
+        changes = await conn.fetch("""
+            SELECT time as detected_at, change_type, component as category, 
+                   old_value, new_value
+            FROM hardware_changes 
+            WHERE node_id = $1
+            ORDER BY time DESC
+            LIMIT $2
+        """, node_uuid, limit)
+        
+        result = []
+        for i, change in enumerate(changes):
+            result.append({
+                "id": i + 1,
+                "category": change['category'] or "hardware",
+                "changeType": change['change_type'] or "snapshot",
+                "fieldName": None,
+                "oldValue": json.dumps(change['old_value'])[:100] if change['old_value'] else None,
+                "newValue": json.dumps(change['new_value'])[:100] if change['new_value'] else None,
+                "detectedAt": change['detected_at'].isoformat() if change['detected_at'] else None
+            })
+        
+        return {"changes": result}
+
+# --- Pending Nodes Endpoints ---
+
+@pending_router.post("/nodes/register")
+async def register_pending_node(request: Request, db: asyncpg.Pool = Depends(get_db)):
+    """Register a new node as pending approval"""
+    data = await request.json()
+    hostname = data.get("hostname", "Unknown")
+    os_name = data.get("osName")
+    os_version = data.get("osVersion")
+    agent_version = data.get("agentVersion")
+    machine_id = data.get("machineId")
+    ip_address = request.client.host if request.client else None
+    
+    async with db.acquire() as conn:
+        existing = None
+        if machine_id:
+            existing = await conn.fetchrow("SELECT id, status FROM pending_nodes WHERE machine_id = $1", machine_id)
+        if not existing:
+            existing = await conn.fetchrow("SELECT id, status FROM pending_nodes WHERE hostname = $1 AND ip_address = $2", hostname, ip_address)
+        
+        if existing:
+            return {"status": existing['status'], "pendingId": str(existing['id']), "message": f"Node already registered"}
+        
+        pending_id = await conn.fetchval("""
+            INSERT INTO pending_nodes (hostname, os_name, os_version, ip_address, agent_version, machine_id)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+        """, hostname, os_name, os_version, ip_address, agent_version, machine_id)
+        
+        return {"status": "pending", "pendingId": str(pending_id), "message": f"Node {hostname} registered"}
+
+@pending_router.get("/pending-nodes", dependencies=[Depends(verify_api_key)])
+async def list_pending_nodes(db: asyncpg.Pool = Depends(get_db)):
+    """List all pending nodes"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT id, hostname, os_name, os_version, ip_address, agent_version, machine_id, status, created_at FROM pending_nodes WHERE status = 'pending' ORDER BY created_at DESC")
+        return {"pending": [{"id": str(r['id']), "hostname": r['hostname'], "osName": r['os_name'], "osVersion": r['os_version'], "ipAddress": r['ip_address'], "agentVersion": r['agent_version'], "machineId": r['machine_id'], "createdAt": r['created_at'].isoformat() if r['created_at'] else None} for r in rows]}
+
+@pending_router.post("/pending-nodes/{pending_id}/approve", dependencies=[Depends(verify_api_key)])
+async def approve_pending_node(pending_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
+    """Approve a pending node"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM pending_nodes WHERE id = $1 AND status = 'pending'", uuid.UUID(pending_id))
+        if not row: raise HTTPException(status_code=404, detail="Pending node not found")
+        
+        node_api_key = secrets.token_urlsafe(32)
+        approver = "admin"
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            try:
+                payload = jwt.decode(auth_header[7:], JWT_SECRET, algorithms=["HS256"])
+                approver = payload.get("sub", "admin")
+            except: pass
+        
+        await conn.execute("UPDATE pending_nodes SET status = 'approved', approved_at = NOW(), approved_by = $2, generated_api_key = $3 WHERE id = $1", uuid.UUID(pending_id), approver, node_api_key)
+        return {"status": "approved", "nodeId": pending_id, "hostname": row['hostname']}
+
+@pending_router.delete("/pending-nodes/{pending_id}/reject", dependencies=[Depends(verify_api_key)])
+async def reject_pending_node(pending_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
+    """Reject a pending node"""
+    async with db.acquire() as conn:
+        rejecter = "admin"
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            try:
+                payload = jwt.decode(auth_header[7:], JWT_SECRET, algorithms=["HS256"])
+                rejecter = payload.get("sub", "admin")
+            except: pass
+        
+        result = await conn.execute("UPDATE pending_nodes SET status = 'rejected', rejected_at = NOW(), rejected_by = $2 WHERE id = $1 AND status = 'pending'", uuid.UUID(pending_id), rejecter)
+        if result == "UPDATE 0": raise HTTPException(status_code=404, detail="Pending node not found")
+        return {"status": "rejected"}
+
+@pending_router.get("/pending-nodes/{pending_id}/config")
+async def get_pending_node_config(pending_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Agent polls this for config"""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM pending_nodes WHERE id = $1", uuid.UUID(pending_id))
+        if not row: raise HTTPException(status_code=404, detail="Unknown pending ID")
+        if row['status'] == 'pending': return {"status": "pending"}
+        if row['status'] == 'rejected': return {"status": "rejected"}
+        if row['status'] == 'approved':
+            if not row['config_fetched_at']: await conn.execute("UPDATE pending_nodes SET config_fetched_at = NOW() WHERE id = $1", uuid.UUID(pending_id))
+            return {"status": "approved", "config": {"InventoryApiUrl": "http://192.168.0.5:8080", "InventoryApiKey": row['generated_api_key'] or API_KEY, "DisplayName": row['hostname'], "AutoPushInventory": True, "ScheduledPushEnabled": True, "ScheduledPushIntervalMinutes": 30}}
+    return {"status": "unknown"}
