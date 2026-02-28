@@ -3,7 +3,9 @@
 # Octofleet Linux Agent
 # Collects inventory and pushes to the Octofleet API
 #
-set -euo pipefail
+set -u
+# Note: pipefail intentionally NOT set — it causes || fallbacks to
+# duplicate output when grep/awk pipes have no matches (exit 1).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"

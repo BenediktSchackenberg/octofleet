@@ -129,6 +129,7 @@ async def get_db() -> asyncpg.Pool:
 
 
 async def verify_api_key(
+    request: Request = None,
     x_api_key: str = Header(None),
     authorization: str = Header(None)
 ):
@@ -144,9 +145,32 @@ async def verify_api_key(
         except Exception:
             pass  # Fall through to API key check
     
-    # Check X-API-Key
-    if x_api_key == API_KEY:
+    # Check X-API-Key against centralized key
+    if x_api_key and x_api_key == API_KEY:
         return x_api_key
+    
+    # Check X-API-Key against user-generated keys in DB
+    if x_api_key and hasattr(request, 'app'):
+        try:
+            from auth import hash_api_key
+            key_hash = hash_api_key(x_api_key)
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """SELECT id, user_id, name FROM api_keys 
+                       WHERE key_hash = $1 AND is_active = true 
+                       AND (expires_at IS NULL OR expires_at > NOW())""",
+                    key_hash
+                )
+                if row:
+                    # Update last_used
+                    await conn.execute(
+                        "UPDATE api_keys SET last_used = NOW() WHERE id = $1",
+                        row["id"]
+                    )
+                    return {"sub": str(row["user_id"]) if row["user_id"] else "system", 
+                            "api_key_name": row["name"], "permissions": ["*"]}
+        except Exception:
+            pass  # DB not ready or other error, fall through
     
     # Neither valid
     raise HTTPException(
