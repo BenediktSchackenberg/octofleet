@@ -8563,7 +8563,7 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
     """Get vulnerability breakdown per node with severity counts."""
     async with db_pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT n.id, n.hostname, n.os_type, n.last_seen,
+            SELECT n.id, n.hostname, n.os_name, n.last_seen,
                 COUNT(DISTINCT v.id) as total_vulns,
                 COUNT(DISTINCT CASE WHEN v.severity='CRITICAL' THEN v.id END) as critical,
                 COUNT(DISTINCT CASE WHEN v.severity='HIGH' THEN v.id END) as high,
@@ -8576,11 +8576,11 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
             JOIN vulnerabilities v ON s.name = v.software_name AND s.version = v.software_version
             LEFT JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id AND nv.node_id = n.id::text
             WHERE nv.status IS NULL OR nv.status != 'fixed'
-            GROUP BY n.id, n.hostname, n.os_type, n.last_seen
+            GROUP BY n.id, n.hostname, n.os_name, n.last_seen
             ORDER BY total_vulns DESC
         """)
         return {"nodes": [{
-            "id": str(r["id"]), "hostname": r["hostname"], "os_type": r["os_type"],
+            "id": str(r["id"]), "hostname": r["hostname"], "os_type": r["os_name"],
             "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
             "total_vulns": r["total_vulns"], "critical": r["critical"], "high": r["high"],
             "medium": r["medium"], "low": r["low"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] else 0,
