@@ -15,7 +15,7 @@ from uuid import UUID
 import uuid
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # E7: Alerting imports
 from alerting import get_alert_manager, update_node_health, check_node_health
@@ -14861,6 +14861,315 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
             "byPackage": [{"packageName": r["package_name"], "vulnCount": r["vuln_count"], 
                           "affectedNodes": r["affected_nodes"], "maxSeverity": r["max_severity"]} for r in by_package]
         }
+
+# ============================================================
+# E21: Monitoring Profiles & Assignments
+# ============================================================
+
+@app.get("/api/v1/security/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+async def list_monitoring_profiles(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
+        return {"profiles": [dict(r) for r in rows]}
+
+@app.post("/api/v1/security/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+async def create_monitoring_profile(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO monitoring_profiles (name, description, version, sensors, sampling, include_paths, exclude_paths, created_by)
+            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8) RETURNING *
+        """, data.get("name"), data.get("description"), data.get("version", 1),
+            json.dumps(data.get("sensors", {})), json.dumps(data.get("sampling", {})),
+            json.dumps(data.get("includePaths", [])), json.dumps(data.get("excludePaths", [])),
+            data.get("createdBy"))
+        return dict(row)
+
+@app.put("/api/v1/security/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+async def update_monitoring_profile(profile_id: str, req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        updates, params, idx = [], [profile_id], 2
+        for field, col in [("name","name"),("description","description"),("version","version")]:
+            if field in data:
+                updates.append(f"{col} = ${idx}")
+                params.append(data[field])
+                idx += 1
+        for field, col in [("sensors","sensors"),("sampling","sampling"),("includePaths","include_paths"),("excludePaths","exclude_paths")]:
+            if field in data:
+                updates.append(f"{col} = ${idx}::jsonb")
+                params.append(json.dumps(data[field]))
+                idx += 1
+        if updates:
+            updates.append("updated_at = NOW()")
+            await conn.execute(f"UPDATE monitoring_profiles SET {', '.join(updates)} WHERE id = $1::uuid", *params)
+        return {"updated": True}
+
+@app.delete("/api/v1/security/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+async def delete_monitoring_profile(profile_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        await conn.execute("DELETE FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
+        return {"deleted": True}
+
+@app.get("/api/v1/security/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+async def list_monitoring_assignments(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT ma.*, mp.name as profile_name FROM monitoring_assignments ma
+            LEFT JOIN monitoring_profiles mp ON mp.id = ma.profile_id
+            ORDER BY ma.created_at DESC
+        """)
+        return {"assignments": [dict(r) for r in rows]}
+
+@app.post("/api/v1/security/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+async def create_monitoring_assignment(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO monitoring_assignments (target_type, target_id, profile_id, profile_version, priority, status)
+            VALUES ($1, $2, $3::uuid, $4, $5, $6) RETURNING *
+        """, data.get("targetType", "node"), data.get("targetId"),
+            data.get("profileId"), data.get("profileVersion", 1),
+            data.get("priority", 0), data.get("status", "active"))
+        return dict(row)
+
+@app.delete("/api/v1/security/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
+async def delete_monitoring_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        await conn.execute("DELETE FROM monitoring_assignments WHERE id = $1::uuid", assignment_id)
+        return {"deleted": True}
+
+# ============================================================
+# E21: Posture Snapshots & Diffs
+# ============================================================
+
+@app.get("/api/v1/security/posture/snapshots", dependencies=[Depends(verify_api_key)])
+async def list_posture_snapshots(node_id: str = None, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        if node_id:
+            rows = await conn.fetch("SELECT * FROM config_posture_snapshots WHERE node_id = $1 ORDER BY created_at DESC LIMIT $2", node_id, limit)
+        else:
+            rows = await conn.fetch("SELECT * FROM config_posture_snapshots ORDER BY created_at DESC LIMIT $1", limit)
+        return {"snapshots": [dict(r) for r in rows]}
+
+@app.post("/api/v1/security/posture/snapshots", dependencies=[Depends(verify_api_key)])
+async def create_posture_snapshot(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO config_posture_snapshots (node_id, snapshot_type, os_info, installed_packages, running_services, config_settings, open_ports)
+            VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb) RETURNING *
+        """, data.get("nodeId"), data.get("snapshotType", "full"),
+            json.dumps(data.get("osInfo", {})), json.dumps(data.get("installedPackages", [])),
+            json.dumps(data.get("runningServices", [])), json.dumps(data.get("configSettings", {})),
+            json.dumps(data.get("openPorts", [])))
+        return dict(row)
+
+@app.get("/api/v1/security/posture/diffs", dependencies=[Depends(verify_api_key)])
+async def list_posture_diffs(node_id: str = None, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        if node_id:
+            rows = await conn.fetch("SELECT * FROM config_posture_diffs WHERE node_id = $1 ORDER BY created_at DESC LIMIT $2", node_id, limit)
+        else:
+            rows = await conn.fetch("SELECT * FROM config_posture_diffs ORDER BY created_at DESC LIMIT $1", limit)
+        return {"diffs": [dict(r) for r in rows]}
+
+# ============================================================
+# E21: Events (normalized) & File Events
+# ============================================================
+
+@app.get("/api/v1/security/events", dependencies=[Depends(verify_api_key)])
+async def list_security_events(node_id: str = None, event_type: str = None, severity: str = None,
+                                hours: int = 24, limit: int = 100, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        where = "WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        params = [hours]
+        idx = 2
+        if node_id:
+            where += f" AND node_id = ${idx}"; params.append(node_id); idx += 1
+        if event_type:
+            where += f" AND event_type = ${idx}"; params.append(event_type); idx += 1
+        if severity:
+            where += f" AND severity = ${idx}"; params.append(severity); idx += 1
+        rows = await conn.fetch(f"SELECT * FROM events_normalized {where} ORDER BY ts DESC LIMIT ${idx}", *params, limit)
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM events_normalized {where}", *params)
+        return {"events": [dict(r) for r in rows], "total": total}
+
+@app.get("/api/v1/security/file-events", dependencies=[Depends(verify_api_key)])
+async def list_file_events(node_id: str = None, op: str = None, path_filter: str = None,
+                           hours: int = 24, limit: int = 100, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        where = "WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        params = [hours]
+        idx = 2
+        if node_id:
+            where += f" AND node_id = ${idx}"; params.append(node_id); idx += 1
+        if op:
+            where += f" AND op = ${idx}"; params.append(op); idx += 1
+        if path_filter:
+            where += f" AND path ILIKE ${idx}"; params.append(f"%{path_filter}%"); idx += 1
+        rows = await conn.fetch(f"SELECT * FROM file_events {where} ORDER BY ts DESC LIMIT ${idx}", *params, limit)
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM file_events {where}", *params)
+        return {"events": [dict(r) for r in rows], "total": total}
+
+# ============================================================
+# E21: Evidence Export
+# ============================================================
+
+@app.get("/api/v1/security/evidence/export", dependencies=[Depends(verify_api_key)])
+async def export_evidence(node_id: str = None, hours: int = 24, db: asyncpg.Pool = Depends(get_db)):
+    """Export security evidence package (events + file events + findings) as JSON"""
+    async with db.acquire() as conn:
+        params_ev = [hours]
+        filter_ev = "WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        if node_id:
+            filter_ev += " AND node_id = $2"; params_ev.append(node_id)
+
+        events = await conn.fetch(f"SELECT * FROM events_normalized {filter_ev} ORDER BY ts DESC LIMIT 10000", *params_ev)
+        file_evts = await conn.fetch(f"SELECT * FROM file_events {filter_ev} ORDER BY ts DESC LIMIT 10000", *params_ev)
+
+        params_f = []
+        filter_f = "WHERE 1=1"
+        if node_id:
+            filter_f += " AND node_id = $1"; params_f.append(node_id)
+        findings = await conn.fetch(f"SELECT * FROM security_findings {filter_f} ORDER BY created_at DESC LIMIT 1000", *params_f)
+
+        return {
+            "exportedAt": str(datetime.now(timezone.utc)),
+            "hours": hours,
+            "nodeId": node_id,
+            "events": [dict(r) for r in events],
+            "fileEvents": [dict(r) for r in file_evts],
+            "findings": [dict(r) for r in findings]
+        }
+
+# ============================================================
+# E21: Agent Capabilities
+# ============================================================
+
+@app.get("/api/v1/security/agent/capabilities", dependencies=[Depends(verify_api_key)])
+async def list_agent_capabilities(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM agent_capabilities ORDER BY last_seen DESC NULLS LAST")
+        return {"capabilities": [dict(r) for r in rows]}
+
+@app.post("/api/v1/security/agent/capabilities", dependencies=[Depends(verify_api_key)])
+async def upsert_agent_capabilities(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO agent_capabilities (node_id, sensors, agent_version, os_type, os_version, kernel_build, permissions, last_seen)
+            VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7::jsonb, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                sensors = EXCLUDED.sensors, agent_version = EXCLUDED.agent_version,
+                os_type = EXCLUDED.os_type, os_version = EXCLUDED.os_version,
+                kernel_build = EXCLUDED.kernel_build, permissions = EXCLUDED.permissions, last_seen = NOW()
+        """, data.get("nodeId"), json.dumps(data.get("sensors", {})),
+            data.get("agentVersion"), data.get("osType"), data.get("osVersion"),
+            data.get("kernelBuild"), json.dumps(data.get("permissions", {})))
+        return {"updated": True}
+
+# ============================================================
+# E21: UI Audit Log
+# ============================================================
+
+@app.get("/api/v1/security/audit-log", dependencies=[Depends(verify_api_key)])
+async def list_ui_audit_events(actor: str = None, action: str = None,
+                                hours: int = 168, limit: int = 100, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        where = "WHERE ts > NOW() - INTERVAL '1 hour' * $1"
+        params = [hours]
+        idx = 2
+        if actor:
+            where += f" AND actor_user_id = ${idx}"; params.append(actor); idx += 1
+        if action:
+            where += f" AND action = ${idx}"; params.append(action); idx += 1
+        rows = await conn.fetch(f"SELECT * FROM ui_audit_events {where} ORDER BY ts DESC LIMIT ${idx}", *params, limit)
+        return {"events": [dict(r) for r in rows]}
+
+@app.post("/api/v1/security/audit-log", dependencies=[Depends(verify_api_key)])
+async def create_ui_audit_event(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO ui_audit_events (actor_user_id, action, object_type, object_id, details)
+            VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *
+        """, data.get("actor"), data.get("action"), data.get("objectType"),
+            data.get("objectId"), json.dumps(data.get("details", {})))
+        return dict(row)
+
+# ============================================================
+# E21: Detection Rules
+# ============================================================
+
+@app.get("/api/v1/security/detection-rules", dependencies=[Depends(verify_api_key)])
+async def list_detection_rules(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM detection_rules ORDER BY rule_order, created_at DESC")
+        return {"rules": [dict(r) for r in rows]}
+
+@app.post("/api/v1/security/detection-rules", dependencies=[Depends(verify_api_key)])
+async def create_detection_rule(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO detection_rules (package_version_id, rule_order, rule_type, config, operator)
+            VALUES ($1::uuid, $2, $3, $4::jsonb, $5) RETURNING *
+        """, data.get("packageVersionId"), data.get("ruleOrder", 0),
+            data.get("ruleType"), json.dumps(data.get("config", {})),
+            data.get("operator", "AND"))
+        return dict(row)
+
+# ============================================================
+# E21: Retention Policies & Legal Holds
+# ============================================================
+
+@app.get("/api/v1/security/retention/policies", dependencies=[Depends(verify_api_key)])
+async def list_retention_policies(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        try:
+            rows = await conn.fetch("SELECT * FROM retention_policies ORDER BY created_at DESC")
+            return {"policies": [dict(r) for r in rows]}
+        except Exception:
+            return {"policies": [], "note": "retention_policies table not yet created"}
+
+@app.post("/api/v1/security/retention/policies", dependencies=[Depends(verify_api_key)])
+async def create_retention_policy(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        try:
+            row = await conn.fetchrow("""
+                INSERT INTO retention_policies (name, table_name, retention_days, enabled, created_by)
+                VALUES ($1, $2, $3, $4, $5) RETURNING *
+            """, data.get("name"), data.get("tableName"), data.get("retentionDays", 90),
+                data.get("enabled", True), data.get("createdBy"))
+            return dict(row)
+        except Exception as e:
+            return {"error": str(e), "note": "retention_policies table may not exist yet"}
+
+@app.get("/api/v1/security/retention/holds", dependencies=[Depends(verify_api_key)])
+async def list_legal_holds(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        try:
+            rows = await conn.fetch("SELECT * FROM legal_holds ORDER BY created_at DESC")
+            return {"holds": [dict(r) for r in rows]}
+        except Exception:
+            return {"holds": [], "note": "legal_holds table not yet created"}
+
+@app.post("/api/v1/security/retention/holds", dependencies=[Depends(verify_api_key)])
+async def create_legal_hold(req: Request, db: asyncpg.Pool = Depends(get_db)):
+    data = await req.json()
+    async with db.acquire() as conn:
+        try:
+            row = await conn.fetchrow("""
+                INSERT INTO legal_holds (name, reason, table_names, node_ids, date_from, date_to, created_by)
+                VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7) RETURNING *
+            """, data.get("name"), data.get("reason"),
+                json.dumps(data.get("tableNames", [])), json.dumps(data.get("nodeIds", [])),
+                data.get("dateFrom"), data.get("dateTo"), data.get("createdBy"))
+            return dict(row)
+        except Exception as e:
+            return {"error": str(e), "note": "legal_holds table may not exist yet"}
 
 # ============================================================
 # E21 Story #89: Behavior Rules - Policy Engine (MVP)
