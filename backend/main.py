@@ -9234,13 +9234,13 @@ async def get_pending_remediation_jobs(node_id: str):
         
         node_uuid = node_row['id']
         
-        # Get approved remediation jobs for this node
+        # Get pending/approved remediation jobs for this node
         jobs = await conn.fetch("""
             SELECT rj.*, rp.name as package_name, rp.fix_method, rp.fix_command
             FROM remediation_jobs rj
-            JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
+            LEFT JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
             WHERE rj.node_id = $1 
-              AND rj.status = 'approved'
+              AND rj.status IN ('pending', 'approved')
             ORDER BY rj.created_at ASC
             LIMIT 5
         """, node_uuid)
