@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { API_URL as API_BASE } from '@/lib/api-config';
+import { API_BASE } from '@/lib/api-config';
 import { 
   Shield, Package, FileText, Clock, Play, CheckCircle, 
   XCircle, AlertTriangle, Settings, Plus, Trash2, RefreshCw,
