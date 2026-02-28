@@ -1707,6 +1707,8 @@ CREATE TABLE IF NOT EXISTS public.node_vulnerabilities (
     status text DEFAULT 'open',
     detected_at timestamptz DEFAULT now(),
     resolved_at timestamptz,
+    fixed_at timestamptz,
+    fixed_by text,
     UNIQUE(node_id, vulnerability_id)
 );
 

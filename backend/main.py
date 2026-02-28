@@ -9322,6 +9322,38 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     if not job:
         raise HTTPException(status_code=404, detail="Remediation job not found")
     
+    # On success: mark related node_vulnerabilities as remediated
+    if success:
+        try:
+            async with db_pool.acquire() as conn:
+                # Get the job details to find node_id and vulnerability_id
+                job_row = await conn.fetchrow(
+                    "SELECT node_id, vulnerability_id, software_name FROM remediation_jobs WHERE id = $1", job_id
+                )
+                if job_row and job_row["node_id"]:
+                    node_id_str = str(job_row["node_id"])
+                    # Mark the specific node_vulnerability as fixed
+                    await conn.execute("""
+                        UPDATE node_vulnerabilities 
+                        SET status = 'fixed', fixed_at = NOW(), fixed_by = 'remediation'
+                        WHERE node_id = $1 AND vulnerability_id = $2 AND status != 'fixed'
+                    """, node_id_str, job_row["vulnerability_id"])
+                    
+                    # Also mark all node_vulnerabilities for same node+software as fixed
+                    # (one package update fixes all CVEs for that software)
+                    if job_row["software_name"]:
+                        await conn.execute("""
+                            UPDATE node_vulnerabilities nv
+                            SET status = 'fixed', fixed_at = NOW(), fixed_by = 'remediation'
+                            FROM vulnerabilities v
+                            WHERE nv.vulnerability_id = v.id
+                              AND nv.node_id = $1
+                              AND v.software_name = $2
+                              AND nv.status != 'fixed'
+                        """, node_id_str, job_row["software_name"])
+        except Exception as e:
+            logger.warning(f"Failed to update node_vulnerabilities after remediation: {e}")
+    
     return {
         "status": status,
         "jobId": job_id,
