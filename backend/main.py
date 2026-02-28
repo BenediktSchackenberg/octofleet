@@ -9085,7 +9085,7 @@ class RemediationEngine:
                     row = await conn.fetchrow("""
                         INSERT INTO remediation_jobs (vulnerability_id, remediation_package_id, node_id,
                             software_name, software_version, cve_id, status, requires_approval)
-                        VALUES ($1, $2, $3::text, $4, $5, $6, 'pending', false) RETURNING id
+                        VALUES ($1, $2, $3::uuid, $4, $5, $6, 'pending', false) RETURNING id
                     """, v["id"], pkg["id"] if pkg else None, str(v["node_id"]),
                         v["software_name"], v["software_version"], v["cve_id"])
                     job_info["id"] = str(row["id"])
