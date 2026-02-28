@@ -8558,6 +8558,62 @@ async def vulnerability_summary():
     """Get vulnerability dashboard summary."""
     return await get_vulnerability_summary(db_pool)
 
+@app.get("/api/v1/vulnerabilities/by-node")
+async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
+    """Get vulnerability breakdown per node with severity counts."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT n.id, n.hostname, n.os_type, n.last_seen,
+                COUNT(DISTINCT v.id) as total_vulns,
+                COUNT(DISTINCT CASE WHEN v.severity='CRITICAL' THEN v.id END) as critical,
+                COUNT(DISTINCT CASE WHEN v.severity='HIGH' THEN v.id END) as high,
+                COUNT(DISTINCT CASE WHEN v.severity='MEDIUM' THEN v.id END) as medium,
+                COUNT(DISTINCT CASE WHEN v.severity='LOW' THEN v.id END) as low,
+                MAX(v.cvss_score) as max_cvss,
+                COUNT(DISTINCT s.name) as affected_software_count
+            FROM nodes n
+            JOIN software_current s ON s.node_id = n.id
+            JOIN vulnerabilities v ON s.name = v.software_name AND s.version = v.software_version
+            LEFT JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id AND nv.node_id = n.id::text
+            WHERE nv.status IS NULL OR nv.status != 'fixed'
+            GROUP BY n.id, n.hostname, n.os_type, n.last_seen
+            ORDER BY total_vulns DESC
+        """)
+        return {"nodes": [{
+            "id": str(r["id"]), "hostname": r["hostname"], "os_type": r["os_type"],
+            "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
+            "total_vulns": r["total_vulns"], "critical": r["critical"], "high": r["high"],
+            "medium": r["medium"], "low": r["low"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] else 0,
+            "affected_software_count": r["affected_software_count"]
+        } for r in rows]}
+
+@app.get("/api/v1/vulnerabilities/by-software")
+async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
+    """Get vulnerability breakdown per software with affected node names."""
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT v.software_name, v.software_version,
+                COUNT(DISTINCT v.id) as vuln_count,
+                MAX(v.cvss_score) as max_cvss,
+                COUNT(DISTINCT CASE WHEN v.severity='CRITICAL' THEN v.id END) as critical,
+                COUNT(DISTINCT CASE WHEN v.severity='HIGH' THEN v.id END) as high,
+                array_agg(DISTINCT n.hostname) as affected_nodes
+            FROM vulnerabilities v
+            JOIN software_current s ON s.name = v.software_name AND s.version = v.software_version
+            JOIN nodes n ON n.id = s.node_id
+            LEFT JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id AND nv.node_id = n.id::text
+            WHERE nv.status IS NULL OR nv.status != 'fixed'
+            GROUP BY v.software_name, v.software_version
+            ORDER BY vuln_count DESC
+            LIMIT 20
+        """)
+        return {"software": [{
+            "software_name": r["software_name"], "software_version": r["software_version"],
+            "vuln_count": r["vuln_count"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] else 0,
+            "critical": r["critical"], "high": r["high"],
+            "affected_nodes": list(r["affected_nodes"])
+        } for r in rows]}
+
 @app.get("/api/v1/vulnerabilities/node/{node_id}")
 async def node_vulnerabilities(node_id: str):
     """Get all vulnerabilities affecting a specific node."""
