@@ -1,255 +1,286 @@
 # Architecture Overview
 
-This document describes the architecture of Octofleet Inventory Platform.
+This document describes the high-level architecture of Octofleet, how its components interact, and the key data flows.
 
-## High-Level Architecture
+## System Components
 
 ```
-                                    ┌─────────────────────┐
-                                    │   Web Dashboard     │
-                                    │   (Next.js 16)      │
-                                    │   Port 3000         │
-                                    └──────────┬──────────┘
-                                               │ HTTP/REST
-                                               ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                        Backend API (FastAPI)                          │
-│                           Port 8080                                   │
-├──────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │  Inventory  │  │    Jobs     │  │  Packages   │  │ Deployments │  │
-│  │   Service   │  │   Service   │  │   Service   │  │   Service   │  │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │   Groups    │  │  Alerting   │  │    RBAC     │  │  Rollouts   │  │
-│  │   Service   │  │   Service   │  │   Service   │  │   Service   │  │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  │
-└──────────────────────────────────────────────────────────────────────┘
-                                               │
-                      ┌────────────────────────┼────────────────────────┐
-                      │                        │                        │
-                      ▼                        ▼                        ▼
-           ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-           │   PostgreSQL     │    │ Octofleet Gateway │    │    Webhooks      │
-           │   + TimescaleDB  │    │   Port 18789     │    │ (Discord/Slack)  │
-           │   Port 5432      │    │                  │    │                  │
-           └──────────────────┘    └────────┬─────────┘    └──────────────────┘
-                                            │ WebSocket
-                      ┌─────────────────────┼─────────────────────┐
-                      │                     │                     │
-                      ▼                     ▼                     ▼
-              ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-              │   Windows    │      │   Windows    │      │    Linux     │
-              │    Agent     │      │    Agent     │      │    Agent     │
-              │   (.NET 8)   │      │   (.NET 8)   │      │   (Bash)     │
-              └──────────────┘      └──────────────┘      └──────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         Frontend                                 │
+│                    Next.js + React + Tailwind                   │
+│                        Port 3000                                │
+│                                                                 │
+│  Dashboard │ Nodes │ Jobs │ Packages │ Security Center │ ...    │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ REST API + WebSocket
+┌──────────────────────────▼──────────────────────────────────────┐
+│                         Backend                                  │
+│                  FastAPI (Python 3.12)                           │
+│                        Port 8080                                │
+│                                                                 │
+│  Routers: auth, nodes, inventory, jobs, security, provisioning  │
+│  Services: alerting, vulnerability scanning, remediation        │
+│  Real-time: WebSocket (terminal, screen sharing, SSE)           │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ SQL (asyncpg)
+┌──────────────────────────▼──────────────────────────────────────┐
+│                        Database                                  │
+│              PostgreSQL 16 + TimescaleDB                        │
+│                        Port 5432                                │
+│                                                                 │
+│  Hypertables: metrics, events (time-series optimized)           │
+│  Regular tables: nodes, jobs, packages, findings, users, etc.   │
+└─────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+    │   Windows    │    │   Windows    │    │    Linux     │
+    │    Agent     │    │    Agent     │    │    Agent     │
+    │   (.NET 8)  │    │   (.NET 8)  │    │    (Bash)   │
+    └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+           │                   │                   │
+           └───────────────────┴───────────────────┘
+                    HTTPS → Backend API
 ```
 
-## Components
+### Frontend (Next.js)
 
-### Frontend (Next.js 16)
+- **Technology:** Next.js 14, React, Tailwind CSS, shadcn/ui
+- **Role:** User-facing dashboard, all management UIs
+- **Communication:** Calls the backend REST API; uses WebSocket for real-time features (terminal, screen sharing)
+- **Key pages:** Dashboard, Node Details, Jobs, Packages, Security Center (12 sub-pages), Provisioning, Reports
 
-The web dashboard is built with Next.js and provides:
+### Backend (FastAPI)
 
-- **Dashboard**: Fleet overview with key metrics
-- **Nodes**: Device list with search, filtering, detail views
-- **Groups**: Static and dynamic device groups
-- **Jobs**: Remote command execution
-- **Packages**: Software catalog management
-- **Deployments**: Package rollouts with progress tracking
-- **Alerts**: Alert management and notification channels
-- **Settings**: User management, API keys, maintenance windows
-
-**Tech Stack**:
-- Next.js 16 with App Router
-- TypeScript
-- Tailwind CSS
-- shadcn/ui components
-- Recharts for visualizations
-
-### Backend API (FastAPI)
-
-Python FastAPI application providing REST API:
-
-**Services**:
-- `inventory` - Store and query device inventory
-- `jobs` - Queue and track remote commands
-- `packages` - Software catalog CRUD
-- `deployments` - Package rollout orchestration
-- `groups` - Device grouping with dynamic rules
-- `alerting` - Alert rules, notifications, webhooks
-- `auth` - JWT authentication, RBAC
-- `rollouts` - Deployment strategies (canary, staged, percentage)
-
-**Key Files**:
-- `main.py` - All API routes
-- `alerting.py` - Alert engine
-- `models.py` - Pydantic schemas
-- `schema.sql` - Database schema
+- **Technology:** Python 3.12, FastAPI, asyncpg (async PostgreSQL driver)
+- **Role:** Central API server, business logic, event processing, report generation
+- **Key modules:**
+  - `routers/` — Route handlers organized by domain (auth, nodes, jobs, security, etc.)
+  - `auth.py` — Authentication (JWT + API Key), RBAC
+  - `alerting.py` — Alert engine with Discord integration
+  - `main.py` — App setup, middleware, and many inline route handlers (~340 endpoints)
+- **Real-time:** WebSocket for terminal sessions and screen sharing; SSE for live updates
 
 ### Database (PostgreSQL + TimescaleDB)
 
-PostgreSQL 16 with TimescaleDB extension for time-series data.
-
-**Tables**:
-| Table | Purpose |
-|-------|---------|
-| `nodes` | Device registry |
-| `hardware` | Hardware inventory |
-| `software` | Installed software |
-| `security` | Security posture |
-| `network` | Network configuration |
-| `browser_data` | Browser extensions/cookies |
-| `hotfixes` | Windows updates |
-| `performance_metrics` | CPU/RAM/Disk (hypertable) |
-| `groups` | Device groups |
-| `group_rules` | Dynamic group rules |
-| `packages` | Software catalog |
-| `deployments` | Package rollouts |
-| `deployment_statuses` | Per-node deployment status |
-| `jobs` | Remote commands |
-| `alerts` | Alert instances |
-| `alert_rules` | Alert definitions |
-| `notification_channels` | Webhook configs |
-| `users` | User accounts |
-| `api_keys` | API key registry |
-| `audit_log` | Action audit trail |
-
-### Octofleet Gateway
-
-The communication hub that manages agent connections:
-
-- WebSocket connections from agents
-- Message routing between backend and agents
-- Node pairing and authentication
-- Command dispatching
+- **Technology:** PostgreSQL 16 with TimescaleDB extension
+- **Schema:** Defined in `backend/schema-full.sql`, seeded by `backend/ci-seed.sql`
+- **TimescaleDB hypertables** are used for time-series data (metrics, events) enabling efficient time-range queries and automatic data retention
+- **Connection:** Async via `asyncpg` connection pool
 
 ### Windows Agent (.NET 8)
 
-Windows Service that runs on managed devices:
-
-**Components**:
-- `NodeWorker` - Gateway connection management
-- `InventoryScheduler` - Periodic inventory collection
-- `JobPoller` - Command execution polling
-- `DeploymentPoller` - Package deployment handling
-- `AutoUpdater` - Self-update from GitHub releases
-
-**Collectors**:
-- `HardwareCollector` - WMI queries for hardware
-- `SoftwareCollector` - Registry enumeration
-- `SecurityCollector` - Firewall, BitLocker, UAC
-- `NetworkCollector` - Adapters, connections
-- `BrowserCollector` - Chrome/Edge/Firefox data
-- `HotfixCollector` - Windows updates
+- **Technology:** .NET 8, runs as a Windows service
+- **Location:** `src/OctofleetAgent.Service/`
+- **Features:**
+  - Hardware/software/security inventory collection
+  - Job polling and execution (PowerShell)
+  - Performance metrics (CPU, RAM, disk, network)
+  - File audit (NTFS change journal / ReadDirectoryChanges)
+  - Screen sharing helper (separate process in user session)
+  - Self-update from GitHub Releases
+- **Communication:** HTTP REST to backend API, authenticated via API key
 
 ### Linux Agent (Bash)
 
-Lightweight Bash script for Linux servers:
+- **Technology:** Bash script, runs as a systemd service
+- **Location:** `linux-agent/`
+- **Features:**
+  - Hardware/software inventory (via standard Linux tools)
+  - Performance metrics (load, CPU, memory, disk I/O)
+  - Job polling and execution (Bash)
+  - SMART disk health monitoring
+- **Communication:** HTTP REST to backend API, authenticated via API key
 
-- Uses `/proc`, `/sys`, `lsb_release` for inventory
-- Runs as systemd service
-- Polls API for jobs/deployments
-- Supports: Ubuntu, Debian, RHEL, Fedora, CentOS, Arch, Alpine
+---
 
-## Data Flow
+## Key Data Flows
 
-### Inventory Collection
-
-```
-Agent                    Gateway                Backend              Database
-  │                         │                      │                    │
-  │──inventory.push────────►│                      │                    │
-  │                         │──POST /inventory────►│                    │
-  │                         │                      │──INSERT/UPDATE────►│
-  │                         │                      │◄───────OK──────────│
-  │                         │◄──────200 OK─────────│                    │
-  │◄──────────OK────────────│                      │                    │
-```
-
-### Job Execution
+### Agent Registration Flow
 
 ```
-UI                      Backend                Gateway                Agent
-│                          │                      │                      │
-│──POST /jobs─────────────►│                      │                      │
-│                          │──INSERT job──────────│                      │
-│◄────201 Created──────────│                      │                      │
-│                          │                      │                      │
-│                          │                      │◄──poll jobs──────────│
-│                          │◄─GET pending jobs────│                      │
-│                          │──return job──────────►│                      │
-│                          │                      │──execute job────────►│
-│                          │                      │                      │
-│                          │                      │◄──result─────────────│
-│                          │◄─POST /jobs/result───│                      │
-│                          │──UPDATE job status───│                      │
+  Agent                          Backend                      Database
+    │                               │                            │
+    │  POST /api/v1/nodes/register  │                            │
+    │  (hostname, OS, hardware)     │                            │
+    │──────────────────────────────►│                            │
+    │                               │  INSERT pending_nodes      │
+    │                               │───────────────────────────►│
+    │                               │                            │
+    │  202 Accepted (pending)       │                            │
+    │◄──────────────────────────────│                            │
+    │                               │                            │
+    │         (Admin approves in UI)│                            │
+    │                               │  INSERT nodes              │
+    │                               │───────────────────────────►│
+    │                               │                            │
+    │  GET /api/v1/pending-nodes/{id}/config                     │
+    │──────────────────────────────►│                            │
+    │                               │                            │
+    │  200 (api_key, config)        │                            │
+    │◄──────────────────────────────│                            │
 ```
 
-### Deployment Flow
+Alternatively, agents can use **enrollment tokens** to auto-register without manual approval:
 
 ```
-1. Admin creates deployment (UI → Backend)
-2. Backend calculates target nodes based on group/strategy
-3. Agent polls for pending deployments
-4. Agent downloads package from URL
-5. Agent verifies hash
-6. Agent runs install command
-7. Agent reports status back to backend
-8. Backend updates deployment progress
-9. For staged rollouts: Backend schedules next batch
+  Agent                          Backend
+    │                               │
+    │  POST /api/v1/enroll          │
+    │  (token, hostname, OS)        │
+    │──────────────────────────────►│
+    │                               │
+    │  200 (node_id, api_key)       │
+    │◄──────────────────────────────│
 ```
 
-## Security
+### Inventory Push Cycle
 
-### Authentication
+Agents push inventory on a regular interval (default: 30 minutes):
 
-- **Users**: JWT tokens with role claims
-- **Agents**: API keys with node binding
-- **Gateway**: Signed challenges (Ed25519)
+```
+  Agent                          Backend                      Database
+    │                               │                            │
+    │  POST /api/v1/inventory/full  │                            │
+    │  { hardware, software,        │                            │
+    │    system, network, security }│                            │
+    │──────────────────────────────►│                            │
+    │                               │  UPSERT inventory tables   │
+    │                               │───────────────────────────►│
+    │                               │                            │
+    │  200 OK                       │                            │
+    │◄──────────────────────────────│                            │
+```
 
-### Authorization (RBAC)
+### Job Execution Flow
 
-| Role | Permissions |
-|------|-------------|
-| Admin | Full access |
-| Operator | Manage devices, deployments, jobs |
-| Viewer | Read-only access |
-| Auditor | View audit logs only |
+```
+  Admin (UI)              Backend                Agent              Database
+    │                        │                     │                   │
+    │  POST /api/v1/jobs     │                     │                   │
+    │  (script, targets)     │                     │                   │
+    │───────────────────────►│                     │                   │
+    │                        │  INSERT job +       │                   │
+    │                        │  job_instances       │                   │
+    │                        │────────────────────────────────────────►│
+    │                        │                     │                   │
+    │                        │    (Agent polls)    │                   │
+    │                        │  GET /jobs/pending  │                   │
+    │                        │◄────────────────────│                   │
+    │                        │                     │                   │
+    │                        │  200 (job details)  │                   │
+    │                        │────────────────────►│                   │
+    │                        │                     │  Execute script   │
+    │                        │                     │  ──────────►      │
+    │                        │                     │                   │
+    │                        │  POST /jobs/result  │                   │
+    │                        │◄────────────────────│                   │
+    │                        │  UPDATE job_instance│                   │
+    │                        │────────────────────────────────────────►│
+```
 
-### Data Protection
+### Security Event Pipeline
 
-- Passwords hashed with bcrypt
-- JWT secrets configurable
-- API keys hashed in database
-- All passwords in .env file
+```
+  Agent                     Backend                          Database
+    │                          │                                │
+    │  POST /ingest/events     │                                │
+    │  (file changes, process  │                                │
+    │   events, login events)  │                                │
+    │─────────────────────────►│                                │
+    │                          │  Store events                  │
+    │                          │───────────────────────────────►│
+    │                          │                                │
+    │                          │  Evaluate behavior rules       │
+    │                          │  ──────────────►               │
+    │                          │                                │
+    │                          │  (If rule matches)             │
+    │                          │  INSERT finding                │
+    │                          │───────────────────────────────►│
+    │                          │                                │
+    │                          │  Trigger alerts                │
+    │                          │  (Discord, etc.)               │
+    │                          │  ──────────────►               │
+```
 
-## Scalability
+---
 
-Current design targets small-to-medium fleets (100-1000 nodes).
+## Network Architecture
 
-**Bottlenecks**:
-- Single PostgreSQL instance
-- Single backend process
-- Gateway connection limits
+```
+                    ┌─────────────────┐
+                    │   Reverse Proxy  │  (Optional: nginx/Caddy)
+                    │   :443 (HTTPS)  │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+     ┌────────▼───┐  ┌──────▼──────┐  ┌───▼────────┐
+     │  Frontend  │  │   Backend   │  │   PXE/     │
+     │   :3000    │  │   :8080     │  │  Tentacle  │
+     └────────────┘  └──────┬──────┘  └────────────┘
+                            │
+                     ┌──────▼──────┐
+                     │  PostgreSQL │
+                     │   :5432     │
+                     │  (localhost │
+                     │    only)    │
+                     └─────────────┘
+```
 
-**Future Improvements**:
-- Read replicas for database
-- Backend horizontal scaling
-- Gateway clustering
-- Message queue for async operations
+- The database port is bound to `127.0.0.1` only (not exposed externally)
+- For production, use a reverse proxy with TLS termination
+- Agents connect to the backend on port 8080 (or through the reverse proxy)
+- The frontend communicates with the backend either directly or via Docker internal networking (`http://backend:8080`)
 
-## Monitoring
+---
 
-### Built-in
+## Technology Stack Summary
 
-- `/health` endpoint for liveness
-- Performance metrics in TimescaleDB
-- Audit log for all mutations
-- Alert system for anomalies
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend | Next.js 14, React, Tailwind, shadcn/ui | User interface |
+| Backend | FastAPI, Python 3.12, asyncpg | API server, business logic |
+| Database | PostgreSQL 16 + TimescaleDB | Data storage, time-series |
+| Windows Agent | .NET 8, C# | Endpoint management (Windows) |
+| Linux Agent | Bash | Endpoint management (Linux) |
+| Containerization | Docker, Docker Compose | Deployment |
+| PDF Reports | ReportLab | Report generation |
+| Vulnerability Data | NVD/CVE (NIST) | CVE scanning |
 
-### External Integration
+---
 
-- Prometheus metrics (planned)
-- OpenTelemetry tracing (planned)
-- Webhook alerts to external systems
+## Directory Structure
+
+```
+octofleet/
+├── backend/                  # FastAPI backend
+│   ├── main.py              # Main application (routes + startup)
+│   ├── auth.py              # Authentication & RBAC
+│   ├── alerting.py          # Alert engine
+│   ├── routers/             # Route modules
+│   │   ├── auth.py          # Auth endpoints
+│   │   ├── nodes.py         # Node management
+│   │   ├── inventory.py     # Inventory endpoints
+│   │   ├── jobs.py          # Job management
+│   │   ├── security.py      # Security/compliance
+│   │   ├── deployments.py   # Software deployment
+│   │   ├── provisioning.py  # PXE provisioning
+│   │   └── ...
+│   ├── schema-full.sql      # Database schema
+│   ├── Dockerfile           # Backend container
+│   └── requirements.txt     # Python dependencies
+├── frontend/                 # Next.js frontend
+│   ├── src/app/             # App router pages
+│   ├── src/components/      # React components
+│   └── Dockerfile           # Frontend container
+├── src/                      # Windows agent (.NET 8)
+│   ├── OctofleetAgent.Service/
+│   └── OctofleetScreenHelper/
+├── linux-agent/              # Linux agent (Bash)
+│   ├── agent.sh
+│   └── install.sh
+├── provisioning/             # PXE/Tentacle setup
+├── docs/                     # Documentation
+├── tests/                    # API + E2E tests
+└── docker-compose.yml        # Main compose file
+```
