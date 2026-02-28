@@ -9128,7 +9128,7 @@ async def get_remediation_summary(pool):
             "fixable_vulnerabilities": fixable,
             "active_packages": active_packages,
             "active_rules": active_rules,
-            "job_counts": {"completed": fixed, "pending": pending, "failed": failed, "running": running},
+            "job_counts": {"success": fixed, "completed": fixed, "approved": pending, "pending": pending, "failed": failed, "running": running},
             "recent_jobs": [{
                 "id": r["id"], "node_id": str(r["node_id"]), "software_name": r["software_name"],
                 "software_version": r["software_version"], "cve_id": r["cve_id"], "status": r["status"],
@@ -9305,6 +9305,9 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     error = data.get("error", "")
     
     success = exit_code == 0
+    # winget returns exit code 1 when "no upgrade available" — treat as success
+    if exit_code == 1 and output and ("keine" in output.lower() or "no applicable" in output.lower() or "no available upgrade" in output.lower() or "neueren paketversionen" in output.lower()):
+        success = True
     status = "success" if success else "failed"
     
     job = await update_remediation_job_status(
