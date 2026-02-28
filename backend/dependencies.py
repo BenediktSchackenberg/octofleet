@@ -7,16 +7,14 @@ import asyncpg
 from typing import Optional, Any
 import os
 import json
+from app.core.config import settings
 
 # Config
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://octofleet:octofleet_inventory_2026@127.0.0.1:5432/inventory"
-)
-API_KEY = os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key")
-GATEWAY_URL = os.getenv("OCTOFLEET_GATEWAY_URL", "http://192.168.0.5:18789")
-GATEWAY_TOKEN = os.getenv("OCTOFLEET_GATEWAY_TOKEN", "")
-INVENTORY_API_URL = os.getenv("OCTOFLEET_INVENTORY_URL", "http://192.168.0.5:8080")
+DATABASE_URL = settings.DATABASE_URL
+API_KEY = settings.API_KEY
+GATEWAY_URL = settings.GATEWAY_URL
+GATEWAY_TOKEN = settings.GATEWAY_TOKEN
+INVENTORY_API_URL = settings.INVENTORY_API_URL
 
 # Database pool - set by main.py on startup
 db_pool: Optional[asyncpg.Pool] = None

@@ -14,22 +14,13 @@ import jwt
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+from app.core.config import settings
 
-# Config - Load persistent JWT secret
-def _load_jwt_secret():
-    secret_file = Path(__file__).parent / ".jwt_secret"
-    if secret_file.exists():
-        return secret_file.read_text().strip()
-    # Fallback: generate and save
-    secret = secrets.token_hex(32)
-    secret_file.write_text(secret)
-    secret_file.chmod(0o600)
-    return secret
-
-JWT_SECRET = os.environ.get("JWT_SECRET", "octofleet-dev-secret-key-2026")
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours for dev
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+# Config - Use centralized settings
+JWT_SECRET = settings.JWT_SECRET
+JWT_ALGORITHM = settings.JWT_ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
 
 # ============== Models ==============
