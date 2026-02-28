@@ -9012,6 +9012,123 @@ async def update_job_status(
 
 # --- Remediation Engine ---
 
+class TriggerRemediationRequest(BaseModel):
+    severity_filter: List[str] = ["CRITICAL", "HIGH"]
+    software_filter: Optional[str] = None
+    node_ids: Optional[List[str]] = None
+    dry_run: bool = True
+
+class RemediationEngine:
+    def __init__(self, pool):
+        self.pool = pool
+
+    async def scan_and_create_jobs(self, severity_filter=None, software_filter=None, node_ids=None, dry_run=True):
+        async with self.pool.acquire() as conn:
+            # Find vulnerabilities with available fixes
+            where = "WHERE 1=1"
+            params = []
+            idx = 1
+            if severity_filter:
+                placeholders = ", ".join(f"${i}" for i in range(idx, idx + len(severity_filter)))
+                where += f" AND UPPER(v.severity) IN ({placeholders})"
+                params.extend([s.upper() for s in severity_filter])
+                idx += len(severity_filter)
+            if software_filter:
+                where += f" AND v.software_name ILIKE ${idx}"
+                params.append(f"%{software_filter}%")
+                idx += 1
+
+            vulns = await conn.fetch(f"""
+                SELECT v.id, v.software_name, v.software_version, v.cve_id, v.severity, v.cvss_score,
+                       nv.node_id
+                FROM vulnerabilities v
+                JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id
+                {where}
+                ORDER BY v.cvss_score DESC NULLS LAST
+                LIMIT 500
+            """, *params)
+
+            if node_ids:
+                vulns = [v for v in vulns if str(v["node_id"]) in node_ids]
+
+            # Match to remediation packages
+            packages = await conn.fetch("SELECT * FROM remediation_packages WHERE enabled = true")
+            pkg_map = {}
+            for p in packages:
+                key = (p["target_software"] or "").lower()
+                if key not in pkg_map:
+                    pkg_map[key] = p
+
+            jobs_created = []
+            jobs_preview = []
+            for v in vulns:
+                sw = (v["software_name"] or "").lower()
+                pkg = pkg_map.get(sw)
+                fix_method = pkg["fix_method"] if pkg else "winget"
+                fix_cmd = pkg["fix_command"] if pkg else f"winget upgrade {v['software_name']}"
+
+                job_info = {
+                    "vulnerabilityId": v["id"],
+                    "nodeId": str(v["node_id"]),
+                    "softwareName": v["software_name"],
+                    "softwareVersion": v["software_version"],
+                    "cveId": v["cve_id"],
+                    "severity": v["severity"],
+                    "fixMethod": fix_method,
+                    "fixCommand": fix_cmd,
+                    "packageId": str(pkg["id"]) if pkg else None,
+                }
+
+                if dry_run:
+                    jobs_preview.append(job_info)
+                else:
+                    row = await conn.fetchrow("""
+                        INSERT INTO remediation_jobs (vulnerability_id, remediation_package_id, node_id,
+                            software_name, software_version, cve_id, status, requires_approval)
+                        VALUES ($1, $2, $3::text, $4, $5, $6, 'pending', false) RETURNING id
+                    """, v["id"], pkg["id"] if pkg else None, str(v["node_id"]),
+                        v["software_name"], v["software_version"], v["cve_id"])
+                    job_info["id"] = str(row["id"])
+                    job_info["status"] = "pending"
+                    jobs_created.append(job_info)
+
+            return {
+                "dryRun": dry_run,
+                "totalVulnerabilities": len(vulns),
+                "jobsCreated": len(jobs_created),
+                "jobsPreview": len(jobs_preview),
+                "jobs": jobs_created if not dry_run else jobs_preview,
+            }
+
+async def get_remediation_summary(pool):
+    async with pool.acquire() as conn:
+        fixed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'completed'") or 0
+        pending = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status IN ('pending', 'approved', 'running')") or 0
+        failed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'failed'") or 0
+        fixable = await conn.fetchval("""
+            SELECT COUNT(DISTINCT v.id) FROM vulnerabilities v
+            JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id
+            WHERE UPPER(v.severity) IN ('CRITICAL', 'HIGH')
+        """) or 0
+        recent = await conn.fetch("""
+            SELECT rj.id, rj.node_id, rj.software_name, rj.cve_id, rj.status, 
+                   rp.fix_method, rj.created_at, rj.completed_at
+            FROM remediation_jobs rj
+            LEFT JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
+            ORDER BY rj.created_at DESC LIMIT 20
+        """)
+        return {
+            "fixed": fixed,
+            "pending": pending,
+            "failed": failed,
+            "fixableCves": fixable,
+            "recentJobs": [{
+                "id": str(r["id"]), "nodeId": r["node_id"], "softwareName": r["software_name"],
+                "cveId": r["cve_id"], "status": r["status"],
+                "createdAt": str(r["created_at"]), "completedAt": str(r["completed_at"]) if r["completed_at"] else None
+            } for r in recent]
+        }
+
 @app.post("/api/v1/remediation/scan")
 async def trigger_remediation_scan(
     data: TriggerRemediationRequest,
