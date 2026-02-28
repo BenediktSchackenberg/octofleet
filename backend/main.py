@@ -15921,8 +15921,8 @@ async def get_agent_status(_: str = Depends(verify_api_key)):
             SELECT n.id, n.hostname, n.os_name, n.agent_version, n.last_seen, n.is_online,
                    (SELECT COUNT(*) FROM job_instances ji WHERE ji.node_id = n.id AND ji.status = 'running') as running_jobs,
                    (SELECT COUNT(*) FROM job_instances ji WHERE ji.node_id = n.id AND ji.status = 'queued') as queued_jobs,
-                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id::text AND rj.status IN ('pending', 'approved')) as pending_remediation,
-                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id::text AND rj.status = 'running') as running_remediation
+                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id AND rj.status IN ('pending', 'approved')) as pending_remediation,
+                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id AND rj.status = 'running') as running_remediation
             FROM nodes n
             ORDER BY n.last_seen DESC NULLS LAST
         """)
