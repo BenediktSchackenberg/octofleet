@@ -70,9 +70,13 @@ export default function ApiKeysPage() {
         setNewKeyName("");
         setExpiresDays("");
         fetchKeys();
+      } else {
+        const errText = await res.text().catch(() => res.statusText);
+        alert(`Failed to create API key: ${res.status} ${errText}`);
       }
     } catch (e) {
       console.error("Failed to create API key:", e);
+      alert("Failed to create API key. Check console for details.");
     }
   }
 

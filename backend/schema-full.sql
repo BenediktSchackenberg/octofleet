@@ -1523,14 +1523,18 @@ CREATE TABLE IF NOT EXISTS public.discovered_systems (
     updated_at timestamptz DEFAULT now()
 );
 
+DO $$ BEGIN CREATE TYPE platform_type AS ENUM ('windows', 'linux', 'macos'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
 CREATE TABLE IF NOT EXISTS public.provisioning_templates (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL,
-    platform text NOT NULL,
-    description text,
-    config jsonb DEFAULT '{}',
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    platform platform_type UNIQUE NOT NULL,
+    display_name VARCHAR(100) NOT NULL,
+    ipxe_template TEXT NOT NULL,
+    drivers JSONB DEFAULT '[]',
+    notes TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.provisioning_images (
@@ -1547,8 +1551,6 @@ CREATE TABLE IF NOT EXISTS public.provisioning_images (
     is_active boolean DEFAULT true,
     created_at timestamptz DEFAULT now()
 );
-
-CREATE TYPE platform_type AS ENUM ('windows', 'linux', 'macos');
 
 CREATE TABLE IF NOT EXISTS public.provisioning_tasks (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
