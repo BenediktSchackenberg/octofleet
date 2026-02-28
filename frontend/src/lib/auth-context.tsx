@@ -177,16 +177,16 @@ export function getApiBase(): string {
 }
 
 export function getAuthHeader(): Record<string, string> {
-  if (typeof window === "undefined") return { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" };
+  if (typeof window === "undefined") {
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+    return apiKey ? { "X-API-Key": apiKey } : {};
+  }
   
   const token = localStorage.getItem("token");
   if (token) {
-    // Send both headers for maximum compatibility
-    return { 
-      "Authorization": `Bearer ${token}`,
-      "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key"
-    };
+    return { "Authorization": `Bearer ${token}` };
   }
-  // Fallback to API key if no token
-  return { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" };
+  // Fallback to API key from env if set
+  const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+  return apiKey ? { "X-API-Key": apiKey } : {};
 }

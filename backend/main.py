@@ -114,10 +114,17 @@ app = FastAPI(
 _cors_env = os.environ.get("CORS_ORIGINS", "*")
 CORS_ORIGINS = ["*"] if _cors_env.strip() == "*" else [o.strip() for o in _cors_env.split(",") if o.strip()]
 
+# When allow_origins=["*"], credentials must be False per CORS spec.
+# Browsers silently block responses when both are set.
+_allow_creds = CORS_ORIGINS != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=_allow_creds,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
     allow_methods=["*"],
     allow_headers=["*"],
 )
