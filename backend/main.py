@@ -125,9 +125,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Global exception handler to ensure CORS headers on 500 errors
 from starlette.responses import JSONResponse
