@@ -9102,17 +9102,20 @@ class RemediationEngine:
 
 async def get_remediation_summary(pool):
     async with pool.acquire() as conn:
-        fixed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'completed'") or 0
+        fixed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status IN ('completed', 'success')") or 0
         pending = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status IN ('pending', 'approved', 'running')") or 0
         failed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'failed'") or 0
+        running = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'running'") or 0
         fixable = await conn.fetchval("""
             SELECT COUNT(DISTINCT v.id) FROM vulnerabilities v
             JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id
             WHERE UPPER(v.severity) IN ('CRITICAL', 'HIGH')
         """) or 0
+        active_packages = await conn.fetchval("SELECT COUNT(*) FROM remediation_packages WHERE enabled = true") or 0
+        active_rules = await conn.fetchval("SELECT COUNT(*) FROM remediation_rules WHERE enabled = true") or 0
         recent = await conn.fetch("""
-            SELECT rj.id, rj.node_id, rj.software_name, rj.cve_id, rj.status, 
-                   rp.fix_method, rj.created_at, rj.completed_at
+            SELECT rj.id, rj.node_id, rj.software_name, rj.software_version, rj.cve_id, rj.status, 
+                   rp.fix_method, rj.created_at, rj.completed_at, rj.exit_code, rj.error_message
             FROM remediation_jobs rj
             LEFT JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
             ORDER BY rj.created_at DESC LIMIT 20
@@ -9122,8 +9125,19 @@ async def get_remediation_summary(pool):
             "pending": pending,
             "failed": failed,
             "fixableCves": fixable,
+            "fixable_vulnerabilities": fixable,
+            "active_packages": active_packages,
+            "active_rules": active_rules,
+            "job_counts": {"completed": fixed, "pending": pending, "failed": failed, "running": running},
+            "recent_jobs": [{
+                "id": r["id"], "node_id": str(r["node_id"]), "software_name": r["software_name"],
+                "software_version": r["software_version"], "cve_id": r["cve_id"], "status": r["status"],
+                "fix_method": r["fix_method"], "exit_code": r["exit_code"], "error_message": r["error_message"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "completed_at": r["completed_at"].isoformat() if r["completed_at"] else None
+            } for r in recent],
             "recentJobs": [{
-                "id": str(r["id"]), "nodeId": r["node_id"], "softwareName": r["software_name"],
+                "id": str(r["id"]), "nodeId": str(r["node_id"]), "softwareName": r["software_name"],
                 "cveId": r["cve_id"], "status": r["status"],
                 "createdAt": str(r["created_at"]), "completedAt": str(r["completed_at"]) if r["completed_at"] else None
             } for r in recent]
@@ -10473,13 +10487,13 @@ async def remediation_live_sse(request: Request, token: str = None, api_key: str
                                     "exit_code": row['exit_code'],
                                     "software_name": row['software_name'],
                                     "cve_id": row['cve_id'],
-                                    "node_id": row['node_id'],
+                                    "node_id": str(row['node_id']),
                                     "created_at": row['created_at'].isoformat() if row['created_at'] else None,
                                     "completed_at": row['completed_at'].isoformat() if row['completed_at'] else None,
                                     "error_message": row['error_message']
                                 }
                             }
-                            yield f"data: {json.dumps(job_data)}\n\n"
+                            yield f"data: {json.dumps(job_data, default=str)}\n\n"
             except Exception as e:
                 logger.error(f"Remediation SSE error: {e}")
             
