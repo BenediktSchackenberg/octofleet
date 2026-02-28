@@ -1734,6 +1734,7 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
                 "SELECT id FROM nodes WHERE node_id = $1", node_id
             )
             if node_row:
+                node_uuid_str = str(node_row['id'])
                 await conn.execute("""
                     INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at)
                     VALUES ($1, $2, $3, $4, $5, NOW())
@@ -1744,7 +1745,7 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
                         disk_health = COALESCE($5, linux_data_current.disk_health),
                         updated_at = NOW()
                 """,
-                    node_row['id'],
+                    node_uuid_str,
                     json.dumps(perf_data) if perf_data else None,
                     json.dumps(services_data) if services_data else None,
                     json.dumps(updates_data) if updates_data else None,
