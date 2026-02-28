@@ -42,6 +42,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-please}
       API_KEY: ${API_KEY:-your-api-key-here}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    volumes:
+      - ${ISO_PATH:-/mnt/isos}:/mnt/isos:ro
     ports:
       - "8080:8080"
     depends_on:

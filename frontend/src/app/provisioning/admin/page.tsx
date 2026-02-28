@@ -110,7 +110,7 @@ function ImageModal({
     setIsSubmitting(true);
     try {
       if (isEdit) {
-        await fetchApi(`/api/v1/provisioning/images/${image.id}`, {
+        await fetchApi(`/provisioning/images/${image.id}`, {
           method: "PUT",
           body: JSON.stringify(form),
         });
@@ -314,7 +314,7 @@ export default function ProvisioningAdminPage() {
     setIsoLoading(true);
     try {
       const data = await fetchApi<{ iso_path: string; isos: ISOInfo[] }>(
-        `/api/v1/provisioning/iso/scan?path=${encodeURIComponent(isoPath)}`
+        `/provisioning/iso/scan?path=${encodeURIComponent(isoPath)}`
       );
       setIsos(data.isos);
     } catch (err) {
@@ -329,7 +329,7 @@ export default function ProvisioningAdminPage() {
     setSetupStatus({ ...setupStatus, [iso.path]: "loading" });
     try {
       const result = await fetchApi<{ status: string; message?: string }>(
-        `/api/v1/provisioning/iso/auto-setup?iso_path=${encodeURIComponent(iso.path)}`,
+        `/provisioning/iso/auto-setup?iso_path=${encodeURIComponent(iso.path)}`,
         { method: "POST" }
       );
       setSetupStatus({ ...setupStatus, [iso.path]: result.status });
@@ -376,7 +376,7 @@ export default function ProvisioningAdminPage() {
   const handleUnmountNfs = async (target: string) => {
     if (!confirm(`Unmount ${target}?`)) return;
     try {
-      await fetchApi(`/api/v1/provisioning/iso/nfs/unmount?target=${encodeURIComponent(target)}`, {
+      await fetchApi(`/provisioning/iso/nfs/unmount?target=${encodeURIComponent(target)}`, {
         method: "POST",
       });
       await loadNfsMounts();
@@ -394,7 +394,7 @@ export default function ProvisioningAdminPage() {
   const handleDeleteImage = async (id: string, name: string) => {
     if (!confirm(`Delete image "${name}"?`)) return;
     try {
-      await fetchApi(`/api/v1/provisioning/images/${id}`, { method: "DELETE" });
+      await fetchApi(`/provisioning/images/${id}`, { method: "DELETE" });
       loadData();
     } catch (err) {
       alert("Failed to delete");

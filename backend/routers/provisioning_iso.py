@@ -136,7 +136,12 @@ def get_current_mounts() -> Dict[str, str]:
 async def scan_isos(path: str = DEFAULT_ISO_PATH):
     """Scan a directory for ISO files"""
     if not os.path.isdir(path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {path}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Directory not found: {path}. If running in Docker, make sure the "
+                   f"host path is bind-mounted into the container (e.g. volumes: "
+                   f"- /mnt/isos:/mnt/isos:ro in docker-compose.yml)."
+        )
     
     # Get current mounts
     current_mounts = get_current_mounts()
