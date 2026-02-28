@@ -53,6 +53,7 @@
     "audit": "Audit",
     "settings": "Einstellungen",
     "apiKeys": "API-Keys",
+    "agentMonitor": "Agent Monitor",
     "logout": "Abmelden",
     "remediation": "Auto-Fix",
     "services": "Services",

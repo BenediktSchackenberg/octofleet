@@ -39,6 +39,7 @@ import {
   ScrollText,
   KeyRound,
   Settings,
+  Monitor,
   type LucideIcon
 } from "lucide-react";
 
@@ -162,6 +163,7 @@ const navGroups: NavGroup[] = [
       { href: "/users", labelKey: "nav.users", icon: Users, permission: "users:read", adminOnly: true },
       { href: "/audit", labelKey: "nav.audit", icon: ScrollText, permission: "audit:read", adminOnly: true },
       { href: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound, permission: "api-keys:read" },
+      { href: "/admin/agents", labelKey: "nav.agentMonitor", icon: Monitor, permission: "admin:read", adminOnly: true },
       { href: "/settings", labelKey: "nav.settings", icon: Settings },
     ]
   }

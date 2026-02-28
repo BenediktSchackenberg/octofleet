@@ -126,6 +126,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Agent activity tracking middleware
+import re as _re
+_AGENT_PATH_PATTERN = _re.compile(
+    r"/api/v1/(?:jobs/pending|terminal/pending|shell/pending|screen/pending|remediation/jobs/pending|live-data|agents)/(?:([^/]+))"
+)
+_AGENT_POST_PATTERNS = [
+    (_re.compile(r"/api/v1/live-data"), "live-data"),
+    (_re.compile(r"/api/v1/agents/([^/]+)/health"), "health-report"),
+    (_re.compile(r"/api/v1/remediation/jobs/(\d+)/result"), "remediation-result"),
+    (_re.compile(r"/api/v1/jobs/instances/([^/]+)/result"), "job-result"),
+]
+
+from collections import deque
+import time as _time
+
+_agent_activity_buffer = deque(maxlen=500)
+
+def log_agent_activity(hostname: str, action: str, detail: str = "", ip: str = "", status_code: int = 200):
+    _agent_activity_buffer.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "hostname": hostname,
+        "action": action,
+        "detail": detail,
+        "ip": ip,
+        "status_code": status_code,
+        "ts": _time.time()
+    })
+
+@app.middleware("http")
+async def agent_activity_middleware(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    ip = request.client.host if request.client else ""
+
+    # Track polling endpoints
+    if "/pending/" in path:
+        m = _re.search(r"/pending/([^/]+)", path)
+        if m:
+            hostname = m.group(1)
+            action = "poll"
+            if "terminal" in path: action = "terminal-poll"
+            elif "shell" in path: action = "shell-poll"
+            elif "screen" in path: action = "screen-poll"
+            elif "remediation" in path: action = "remediation-poll"
+            elif "jobs" in path: action = "job-poll"
+            log_agent_activity(hostname, action, path, ip, response.status_code)
+
+    # Track POST endpoints (health, live-data, results)
+    elif request.method == "POST":
+        for pattern, action in _AGENT_POST_PATTERNS:
+            m = pattern.search(path)
+            if m:
+                hostname = m.group(1) if m.lastindex else "unknown"
+                log_agent_activity(hostname, action, path, ip, response.status_code)
+                break
+
+    return response
+
 # Global exception handler to ensure CORS headers on 500 errors
 from starlette.responses import JSONResponse
 @app.exception_handler(Exception)
@@ -15844,3 +15902,114 @@ async def export_file_activity(
         
         return {"events": [{"ts": str(r["ts"]), "nodeId": r["node_id"], "eventType": r["event_type"],
                            "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]} for r in rows]}
+
+
+
+@app.get("/api/v1/admin/agent-activity")
+async def get_agent_activity(limit: int = 100, _: str = Depends(verify_api_key)):
+    """Get recent agent activity from in-memory buffer."""
+    items = list(_agent_activity_buffer)[-limit:]
+    items.reverse()
+    return {"events": items, "count": len(items)}
+
+
+@app.get("/api/v1/admin/agent-status")
+async def get_agent_status(_: str = Depends(verify_api_key)):
+    """Get live status of all agents with their recent activity."""
+    async with db_pool.acquire() as conn:
+        nodes = await conn.fetch("""
+            SELECT n.id, n.hostname, n.os_name, n.agent_version, n.last_seen, n.is_online,
+                   (SELECT COUNT(*) FROM job_instances ji WHERE ji.node_id = n.id AND ji.status = 'running') as running_jobs,
+                   (SELECT COUNT(*) FROM job_instances ji WHERE ji.node_id = n.id AND ji.status = 'queued') as queued_jobs,
+                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id::text AND rj.status IN ('pending', 'approved')) as pending_remediation,
+                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id::text AND rj.status = 'running') as running_remediation
+            FROM nodes n
+            ORDER BY n.last_seen DESC NULLS LAST
+        """)
+
+        result = []
+        for n in nodes:
+            last_seen = n["last_seen"]
+            now = datetime.now(timezone.utc)
+            if last_seen:
+                ago = (now - last_seen).total_seconds()
+                if ago < 30:
+                    status = "active"
+                elif ago < 120:
+                    status = "idle"
+                elif ago < 600:
+                    status = "stale"
+                else:
+                    status = "offline"
+            else:
+                status = "unknown"
+                ago = None
+
+            # Find recent activity from buffer
+            recent_actions = [e for e in _agent_activity_buffer if e["hostname"] == n["hostname"]][-5:]
+
+            result.append({
+                "id": str(n["id"]),
+                "hostname": n["hostname"],
+                "os_name": n["os_name"],
+                "agent_version": n["agent_version"],
+                "last_seen": last_seen.isoformat() if last_seen else None,
+                "seconds_ago": int(ago) if ago is not None else None,
+                "status": status,
+                "is_online": n["is_online"],
+                "running_jobs": n["running_jobs"],
+                "queued_jobs": n["queued_jobs"],
+                "pending_remediation": n["pending_remediation"],
+                "running_remediation": n["running_remediation"],
+                "recent_actions": recent_actions
+            })
+
+        return {"agents": result}
+
+
+@app.get("/api/v1/admin/agent-live")
+async def agent_live_sse(request: Request, token: str = None):
+    """SSE endpoint for live agent activity stream."""
+    async def event_generator():
+        last_idx = len(_agent_activity_buffer)
+        last_node_check = 0
+
+        while True:
+            if await request.is_disconnected():
+                break
+
+            # Send new activity events
+            current = list(_agent_activity_buffer)
+            if len(current) > last_idx - (len(_agent_activity_buffer) - len(current)):
+                new_events = current[-(len(current) - last_idx):] if last_idx < len(current) else current
+                for evt in new_events[-10:]:
+                    yield f"data: {json.dumps({'type': 'activity', 'event': evt}, default=str)}\n\n"
+                last_idx = len(current)
+
+            # Every 5 seconds, send node status update
+            now = _time.time()
+            if now - last_node_check > 5:
+                last_node_check = now
+                try:
+                    async with db_pool.acquire() as conn:
+                        nodes = await conn.fetch("""
+                            SELECT hostname, last_seen, is_online, agent_version FROM nodes ORDER BY hostname
+                        """)
+                        statuses = []
+                        for n in nodes:
+                            ls = n["last_seen"]
+                            ago = (datetime.now(timezone.utc) - ls).total_seconds() if ls else 9999
+                            statuses.append({
+                                "hostname": n["hostname"],
+                                "last_seen": ls.isoformat() if ls else None,
+                                "seconds_ago": int(ago),
+                                "status": "active" if ago < 30 else "idle" if ago < 120 else "stale" if ago < 600 else "offline",
+                                "agent_version": n["agent_version"]
+                            })
+                        yield f"data: {json.dumps({'type': 'status', 'agents': statuses}, default=str)}\n\n"
+                except Exception as e:
+                    logger.error(f"Agent SSE status error: {e}")
+
+            await asyncio.sleep(2)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
