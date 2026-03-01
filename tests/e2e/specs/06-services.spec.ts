@@ -11,7 +11,7 @@ test.describe('Service Classes', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     await expect(page.locator('body')).not.toBeEmpty();
     
     // Check for Services page
@@ -26,7 +26,7 @@ test.describe('Service Classes', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     // Click Templates/Classes tab
     const templatesTab = page.locator('button:has-text("Templates"), button:has-text("Classes"), button:has-text("Vorlagen")').first();
@@ -44,7 +44,7 @@ test.describe('Service Classes', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     // Switch to templates tab
     const templatesTab = page.locator('button:has-text("Templates"), button:has-text("Classes")').first();
@@ -82,7 +82,7 @@ test.describe('Services', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     // Check for service entries or empty state
     const hasServices = await page.locator('table tbody tr, [class*="card"]').count() > 0;
@@ -98,7 +98,7 @@ test.describe('Services', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     // Click first service link
     const serviceLink = page.locator('table tbody tr a, [href*="/services/"]').first();
@@ -118,13 +118,13 @@ test.describe('Services', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     // Try to click into first service
     const serviceLink = page.locator('table tbody tr a, a[href*="/services/"]').first();
     if (await serviceLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await serviceLink.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(2000);
       await page.waitForTimeout(1000); // Extra wait for dynamic content
       
       // Check for nodes section
@@ -141,13 +141,13 @@ test.describe('Services', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     // Click first service
     const serviceLink = page.locator('table tbody tr a, a[href*="/services/"]').first();
     if (await serviceLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await serviceLink.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(2000);
       
       // Look for Add Node button
       const addNodeBtn = page.locator('button:has-text("Add Node"), button:has-text("+ Add")');
@@ -163,12 +163,12 @@ test.describe('Services', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     const serviceLink = page.locator('table tbody tr a, a[href*="/services/"]').first();
     if (await serviceLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await serviceLink.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(2000);
       
       // Look for Reconcile button
       const reconcileBtn = page.locator('button:has-text("Reconcile")');
@@ -186,12 +186,12 @@ test.describe('Services', () => {
       return;
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     const serviceLink = page.locator('table tbody tr a, a[href*="/services/"]').first();
     if (await serviceLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await serviceLink.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(2000);
       await page.waitForTimeout(1000); // Extra wait for dynamic content
       
       // Look for Activity Log section
