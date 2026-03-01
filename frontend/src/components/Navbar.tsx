@@ -80,7 +80,7 @@ const colorClasses: Record<string, { active: string; inactive: string; dropdown:
   },
   red: { 
     active: "bg-red-500 text-white border-red-500", 
-    inactive: "text-red-400 border-red-500/50 hover:bg-red-500/20",
+    inactive: "text-red-400 border-red-500/50 hover:bg-red-500/100/20",
     dropdown: "text-red-500"
   },
   cyan: { 

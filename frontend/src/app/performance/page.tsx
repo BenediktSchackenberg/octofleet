@@ -136,10 +136,10 @@ function HeatCell({ value, metric }: { value: number | null; metric: "cpu" | "ra
           />
         ))}
       </div>
-      <span className={`text-xs font-mono w-8 ${intensity >= 4 ? "text-red-600 font-bold" : intensity >= 3 ? "text-yellow-600" : ""}`}>
+      <span className={`text-xs font-mono w-8 ${intensity >= 4 ? "text-red-400 font-bold" : intensity >= 3 ? "text-yellow-600" : ""}`}>
         {value !== null ? Math.round(value) : "-"}
       </span>
-      {intensity >= 4 && <AlertTriangle className="h-3 w-3 text-red-600" />}
+      {intensity >= 4 && <AlertTriangle className="h-3 w-3 text-red-400" />}
       {intensity === 3 && <AlertTriangle className="h-3 w-3 text-yellow-600" />}
     </div>
   );
@@ -152,7 +152,7 @@ function StatusBadge({ status }: { status: "crit" | "warn" | "ok" | "offline" | 
     warn: { label: "WARN", className: "bg-yellow-500 text-black", icon: <AlertTriangle className="h-3 w-3" /> },
     ok: { label: "OK", className: "bg-green-600 text-white", icon: <CheckCircle className="h-3 w-3" /> },
     offline: { label: "OFF", className: "bg-muted/500 text-white", icon: <XCircle className="h-3 w-3" /> },
-    stale: { label: "STALE", className: "bg-gray-400 text-white", icon: <Clock className="h-3 w-3" /> },
+    stale: { label: "STALE", className: "bg-zinc-500 text-white", icon: <Clock className="h-3 w-3" /> },
   };
   const c = config[status];
   return (
@@ -230,7 +230,7 @@ function NodeListRow({
         <div className="w-20 h-2.5 bg-muted rounded-full overflow-hidden">
           <div className={`h-full ${bgColor}`} style={{ width: `${pct}%` }} />
         </div>
-        <span className={`text-xs font-mono w-10 ${pct > 90 ? "text-red-600 font-bold" : pct > 75 ? "text-yellow-600" : ""}`}>
+        <span className={`text-xs font-mono w-10 ${pct > 90 ? "text-red-400 font-bold" : pct > 75 ? "text-yellow-600" : ""}`}>
           {value !== null ? `${Math.round(value)}%` : "-"}
         </span>
       </div>

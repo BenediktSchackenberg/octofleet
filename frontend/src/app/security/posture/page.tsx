@@ -81,7 +81,7 @@ export default function PosturePage() {
       {/* Node selector */}
       <div className="flex gap-4 items-center">
         <select
-          className="bg-zinc-800 border border-gray-600 rounded px-3 py-2 text-white"
+          className="bg-zinc-800 border border-zinc-600 rounded px-3 py-2 text-white"
           value={selectedNode}
           onChange={e => loadNode(e.target.value)}
         >
@@ -132,7 +132,7 @@ export default function PosturePage() {
             <div className="flex gap-2 items-center">
               <span className="text-muted-foreground text-sm">Snapshot:</span>
               <select
-                className="bg-zinc-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-white"
                 value={selectedSnapshot?.id || ""}
                 onChange={e => setSelectedSnapshot(snapshots.find(s => s.id === e.target.value) || null)}
               >
@@ -155,7 +155,7 @@ export default function PosturePage() {
                     key={t}
                     onClick={() => setTab(t)}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                      tab === t ? "border-blue-500 text-white" : "border-transparent text-muted-foreground hover:text-gray-200"
+                      tab === t ? "border-blue-500 text-white" : "border-transparent text-muted-foreground hover:text-zinc-200"
                     }`}
                   >
                     {t === "overview" ? "Overview" : t === "packages" ? `Packages (${selectedSnapshot.installedPackages?.length || 0})` : t === "services" ? `Services (${selectedSnapshot.runningServices?.length || 0})` : t === "config" ? "Config" : `Ports (${selectedSnapshot.openPorts?.length || 0})`}
@@ -195,7 +195,7 @@ export default function PosturePage() {
                                 ? "bg-red-900 text-red-300"
                                 : k === "firewallEnabled" && v === true
                                 ? "bg-green-900 text-green-300"
-                                : "bg-gray-700 text-muted-foreground"
+                                : "bg-zinc-700 text-muted-foreground"
                             }`}>
                               {k}: {String(v)}
                             </span>
@@ -237,7 +237,7 @@ export default function PosturePage() {
                             <td className="py-1 font-mono text-xs">{s.name || s}</td>
                             <td className="py-1">{s.displayName || ""}</td>
                             <td className="py-1">
-                              <span className={`px-1.5 py-0.5 rounded text-xs ${s.status === "Running" ? "bg-green-900 text-green-300" : "bg-gray-700 text-muted-foreground"}`}>
+                              <span className={`px-1.5 py-0.5 rounded text-xs ${s.status === "Running" ? "bg-green-900 text-green-300" : "bg-zinc-700 text-muted-foreground"}`}>
                                 {s.status || "?"}
                               </span>
                             </td>

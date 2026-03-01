@@ -52,11 +52,11 @@ export default function ActivityPage() {
       </div>
 
       <div className="flex gap-4 items-center">
-        <select className="bg-zinc-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" value={nodeFilter} onChange={e => setNodeFilter(e.target.value)}>
+        <select className="bg-zinc-800 border border-zinc-600 rounded px-3 py-2 text-white text-sm" value={nodeFilter} onChange={e => setNodeFilter(e.target.value)}>
           <option value="">All nodes</option>
           {nodes.map(n => <option key={n.id || n.node_id} value={n.node_id || n.name}>{n.node_id || n.name}</option>)}
         </select>
-        <select className="bg-zinc-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" value={hours} onChange={e => setHours(Number(e.target.value))}>
+        <select className="bg-zinc-800 border border-zinc-600 rounded px-3 py-2 text-white text-sm" value={hours} onChange={e => setHours(Number(e.target.value))}>
           <option value={1}>Last hour</option><option value={6}>6 hours</option><option value={24}>24 hours</option><option value={72}>3 days</option><option value={168}>7 days</option>
         </select>
         {loading && <span className="text-muted-foreground animate-pulse text-sm">Loading...</span>}
@@ -64,7 +64,7 @@ export default function ActivityPage() {
 
       <div className="flex gap-1 border-b border-border">
         {(["files", "users"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === t ? "border-blue-500 text-white" : "border-transparent text-muted-foreground hover:text-gray-200"}`}>
+          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 ${tab === t ? "border-blue-500 text-white" : "border-transparent text-muted-foreground hover:text-zinc-200"}`}>
             {t === "files" ? "File Activity" : "User Activity"}
           </button>
         ))}

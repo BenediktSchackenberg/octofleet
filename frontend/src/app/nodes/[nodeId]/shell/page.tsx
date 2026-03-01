@@ -292,7 +292,7 @@ export default function ShellPage() {
             <select
               value={shellType}
               onChange={(e) => setShellType(e.target.value as any)}
-              className="bg-zinc-800 border border-gray-600 rounded px-3 py-2"
+              className="bg-zinc-800 border border-zinc-600 rounded px-3 py-2"
             >
               <option value="powershell">PowerShell</option>
               <option value="cmd">CMD</option>
@@ -306,7 +306,7 @@ export default function ShellPage() {
             status === 'pending' ? 'bg-yellow-600' :
             status === 'connecting' ? 'bg-blue-600' :
             status === 'error' ? 'bg-red-600' :
-            'bg-gray-600'
+            'bg-zinc-600'
           }`}>
             {status === 'active' ? '● CONNECTED' :
              status === 'pending' ? '⏳ Waiting...' :
@@ -352,7 +352,7 @@ export default function ShellPage() {
         
         <Link
           href={`/nodes/${nodeId}`}
-          className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded"
+          className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded"
         >
           ← Back to Node
         </Link>

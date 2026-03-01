@@ -339,20 +339,20 @@ export default function SqlPage() {
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      installed: 'bg-green-100 text-green-800',
-      pending: 'bg-yellow-100 text-yellow-800',
-      failed: 'bg-red-100 text-red-800',
-      running: 'bg-blue-100 text-blue-800'
+      installed: 'bg-green-500/20 text-green-400',
+      pending: 'bg-yellow-500/20 text-yellow-400',
+      failed: 'bg-red-500/20 text-red-400',
+      running: 'bg-blue-500/20 text-blue-400'
     };
     return colors[status] || 'bg-muted text-foreground';
   };
 
   const getEditionBadge = (edition: string) => {
     const colors: Record<string, string> = {
-      developer: 'bg-purple-100 text-purple-800',
+      developer: 'bg-purple-500/20 text-purple-400',
       express: 'bg-muted text-foreground',
-      standard: 'bg-blue-100 text-blue-800',
-      enterprise: 'bg-amber-100 text-amber-800'
+      standard: 'bg-blue-500/20 text-blue-400',
+      enterprise: 'bg-amber-500/20 text-amber-400'
     };
     return colors[edition] || 'bg-muted text-foreground';
   };
@@ -394,14 +394,14 @@ export default function SqlPage() {
                 onClick={() => setActiveTab(tab.id as TabType)}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-blue-500 text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 }`}
               >
                 {tab.label}
                 {tab.count !== null && (
                   <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
-                    activeTab === tab.id ? 'bg-blue-100 text-blue-600' : 'bg-muted text-muted-foreground'
+                    activeTab === tab.id ? 'bg-blue-500/20 text-blue-400' : 'bg-muted text-muted-foreground'
                   }`}>
                     {tab.count}
                   </span>
@@ -414,7 +414,7 @@ export default function SqlPage() {
         {/* Content */}
         <div className="mt-6 pb-12">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded mb-4">
               {error}
             </div>
           )}
@@ -452,7 +452,7 @@ export default function SqlPage() {
                       </div>
                       <button
                         onClick={() => deleteConfig(config.id)}
-                        className="text-red-600 hover:text-red-800 text-sm"
+                        className="text-red-400 hover:text-red-300 text-sm"
                       >
                         Delete
                       </button>
@@ -542,19 +542,19 @@ export default function SqlPage() {
                           <div className="flex gap-2">
                             <span className="bg-muted px-2 py-1 rounded text-xs">{a.memberCount} total</span>
                             {a.installedCount > 0 && (
-                              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                              <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs">
                                 {a.installedCount} installed
                               </span>
                             )}
                             {a.pendingCount > 0 && (
-                              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">
+                              <span className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded text-xs">
                                 {a.pendingCount} pending
                               </span>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded text-xs ${a.enabled ? 'bg-green-100 text-green-800' : 'bg-muted text-foreground'}`}>
+                          <span className={`px-2 py-1 rounded text-xs ${a.enabled ? 'bg-green-500/20 text-green-400' : 'bg-muted text-foreground'}`}>
                             {a.enabled ? 'Enabled' : 'Disabled'}
                           </span>
                         </td>
@@ -562,13 +562,13 @@ export default function SqlPage() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => triggerReconcile(a.id)}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              className="text-blue-400 hover:text-blue-300 text-sm font-medium"
                             >
                               Deploy
                             </button>
                             <button
                               onClick={() => deleteAssignment(a.id)}
-                              className="text-red-600 hover:text-red-800 text-sm"
+                              className="text-red-400 hover:text-red-300 text-sm"
                             >
                               Delete
                             </button>
@@ -595,7 +595,7 @@ export default function SqlPage() {
                 <h2 className="text-lg font-medium">Installed Instances</h2>
                 <button
                   onClick={fetchData}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
+                  className="text-blue-400 hover:text-blue-300 text-sm"
                 >
                   ↻ Refresh
                 </button>

@@ -244,9 +244,9 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
       detected: 'bg-muted text-foreground',
-      testing: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-green-100 text-green-800',
-      blocked: 'bg-red-100 text-red-800',
+      testing: 'bg-yellow-500/20 text-yellow-400',
+      approved: 'bg-green-500/20 text-green-400',
+      blocked: 'bg-red-500/20 text-red-400',
       deprecated: 'bg-muted text-muted-foreground'
     };
     return (
@@ -258,9 +258,9 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const getRingBadge = (ring: string) => {
     const styles: Record<string, string> = {
-      pilot: 'bg-blue-100 text-blue-800',
-      broad: 'bg-purple-100 text-purple-800',
-      all: 'bg-green-100 text-green-800'
+      pilot: 'bg-blue-500/20 text-blue-400',
+      broad: 'bg-purple-500/20 text-purple-400',
+      all: 'bg-green-500/20 text-green-400'
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[ring] || 'bg-muted'}`}>
@@ -328,16 +328,16 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
       {/* Sync Result Banner */}
       {syncResult && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-blue-600 text-xl">✅</span>
+            <span className="text-blue-400 text-xl">✅</span>
             <span>
               <strong>Sync complete!</strong> {syncResult.newCount} new CUs added, {syncResult.existingCount} already in catalog.
             </span>
           </div>
           <button
             onClick={() => setSyncResult(null)}
-            className="text-blue-600 hover:text-blue-800"
+            className="text-blue-400 hover:text-blue-300"
           >
             ✕
           </button>
@@ -400,7 +400,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                           href={`https://support.microsoft.com/kb/${cu.kbArticle.replace('KB', '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
+                          className="text-blue-400 hover:underline"
                         >
                           {cu.kbArticle}
                         </a>
@@ -417,13 +417,13 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                           <>
                             <button
                               onClick={() => handleApprove(cu.id, 'pilot')}
-                              className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+                              className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded hover:bg-green-500/20"
                             >
                               ✓ Pilot
                             </button>
                             <button
                               onClick={() => handleApprove(cu.id, 'all')}
-                              className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                              className="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/20"
                             >
                               ✓ All
                             </button>
@@ -432,7 +432,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                         {cu.status === 'approved' && cu.ring !== 'all' && (
                           <button
                             onClick={() => handleApprove(cu.id, 'all')}
-                            className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                            className="text-xs px-2 py-1 bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/20"
                           >
                             → All
                           </button>
@@ -440,7 +440,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                         {cu.status !== 'blocked' && (
                           <button
                             onClick={() => handleBlock(cu.id)}
-                            className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-200"
                           >
                             ✕ Block
                           </button>
@@ -448,7 +448,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                         {cu.status === 'approved' && (
                           <button
                             onClick={() => openDeployModal(cu)}
-                            className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                            className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/20"
                           >
                             🚀 Deploy
                           </button>
@@ -458,7 +458,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                             href={`https://www.catalog.update.microsoft.com/Search.aspx?q=${cu.kbArticle}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
+                            className="text-xs px-2 py-1 bg-indigo-500/20 text-indigo-400 rounded hover:bg-indigo-500/20"
                           >
                             📥 Catalog
                           </a>
@@ -497,7 +497,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
               <div className="text-3xl font-bold text-orange-600">{compliance.summary.outdated}</div>
               <div className="text-muted-foreground">Outdated</div>
             </div>
-            <div className="bg-card rounded-xl shadow p-6 border-l-4 border-gray-400">
+            <div className="bg-card rounded-xl shadow p-6 border-l-4 border-zinc-600">
               <div className="text-3xl font-bold text-muted-foreground">{compliance.summary.unknown}</div>
               <div className="text-muted-foreground">Unknown</div>
             </div>
@@ -510,7 +510,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
               {Object.entries(compliance.latestApproved).map(([version, cu]) => (
                 <div key={version} className="flex items-center gap-2">
                   <span className="font-medium">SQL {version}:</span>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded">CU{cu.cuNumber}</span>
+                  <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded">CU{cu.cuNumber}</span>
                   <span className="text-muted-foreground text-sm">({cu.buildNumber})</span>
                 </div>
               ))}
@@ -524,7 +524,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
           {compliance.outdated.length > 0 && (
             <div className="bg-card rounded-xl shadow overflow-hidden">
               <div className="p-4 border-b bg-orange-50">
-                <h3 className="font-semibold text-orange-800">⚠️ Outdated Instances</h3>
+                <h3 className="font-semibold text-orange-400">⚠️ Outdated Instances</h3>
               </div>
               <table className="min-w-full divide-y divide-border">
                 <thead className="bg-muted/50">
@@ -542,17 +542,17 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                       <td className="px-6 py-4 whitespace-nowrap font-medium">{inst.hostname}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{inst.instanceName}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                        <span className="bg-orange-500/20 text-orange-400 px-2 py-1 rounded">
                           CU{inst.currentCu ?? '?'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
+                        <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded">
                           CU{inst.latestCu}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-red-600 font-medium">{inst.behindBy} CU(s)</span>
+                        <span className="text-red-400 font-medium">{inst.behindBy} CU(s)</span>
                       </td>
                     </tr>
                   ))}
@@ -729,14 +729,14 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
               <div className="flex items-center gap-2 mb-4">
                 <button
                   onClick={() => setSelectedInstances(instances.map(i => i.id))}
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-blue-400 hover:underline"
                 >
                   Select All
                 </button>
                 <span className="text-muted-foreground">|</span>
                 <button
                   onClick={() => setSelectedInstances([])}
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-blue-400 hover:underline"
                 >
                   Clear
                 </button>

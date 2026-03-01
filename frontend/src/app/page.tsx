@@ -895,7 +895,7 @@ export default function HomePage() {
                 <Card className="col-span-6 md:col-span-3 border-blue-500/10 bg-gradient-to-br from-card to-blue-500/5 shadow-md">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
-                      <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600">
+                      <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-400">
                         🗄️ SQL Lifecycle
                       </CardDescription>
                       <Link href="/sql" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
@@ -977,7 +977,7 @@ export default function HomePage() {
                           <div className={`w-3 h-3 rounded-full ${systemHealth?.status === 'ok' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-ping'}`} />
                           <span className="text-xs font-bold uppercase tracking-tighter">Core API</span>
                         </div>
-                        <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.status === 'ok' ? 'text-green-600 border-green-500/20' : 'text-red-600 border-red-500/20'}`}>
+                        <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.status === 'ok' ? 'text-green-600 border-green-500/20' : 'text-red-400 border-red-500/20'}`}>
                           {systemHealth?.status || 'OFFLINE'}
                         </Badge>
                       </div>
@@ -986,7 +986,7 @@ export default function HomePage() {
                           <div className={`w-3 h-3 rounded-full ${systemHealth?.database === 'connected' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-ping'}`} />
                           <span className="text-xs font-bold uppercase tracking-tighter">Database</span>
                         </div>
-                        <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.database === 'connected' ? 'text-green-600 border-green-500/20' : 'text-red-600 border-red-500/20'}`}>
+                        <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.database === 'connected' ? 'text-green-600 border-green-500/20' : 'text-red-400 border-red-500/20'}`}>
                           {systemHealth?.database === 'connected' ? 'ONLINE' : 'ERROR'}
                         </Badge>
                       </div>

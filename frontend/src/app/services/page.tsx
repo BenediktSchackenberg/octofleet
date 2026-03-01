@@ -28,10 +28,10 @@ interface Service {
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 const statusColors: Record<string, string> = {
-  provisioning: 'bg-yellow-100 text-yellow-800',
-  healthy: 'bg-green-100 text-green-800',
-  degraded: 'bg-orange-100 text-orange-800',
-  failed: 'bg-red-100 text-red-800',
+  provisioning: 'bg-yellow-500/20 text-yellow-400',
+  healthy: 'bg-green-500/20 text-green-400',
+  degraded: 'bg-orange-500/20 text-orange-400',
+  failed: 'bg-red-500/20 text-red-400',
   stopped: 'bg-muted text-foreground',
 };
 
@@ -108,7 +108,7 @@ export default function ServicesPage() {
             onClick={() => setActiveTab('services')}
             className={`py-2 px-1 border-b-2 font-medium ${
               activeTab === 'services'
-                ? 'border-blue-500 text-blue-600'
+                ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -118,7 +118,7 @@ export default function ServicesPage() {
             onClick={() => setActiveTab('classes')}
             className={`py-2 px-1 border-b-2 font-medium ${
               activeTab === 'classes'
-                ? 'border-blue-500 text-blue-600'
+                ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -135,7 +135,7 @@ export default function ServicesPage() {
               <p className="text-muted-foreground mb-4">No services configured yet</p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="text-blue-600 hover:underline"
+                className="text-blue-400 hover:underline"
               >
                 Create your first service →
               </button>
@@ -176,7 +176,7 @@ export default function ServicesPage() {
               <p className="text-muted-foreground mb-4">No service templates yet</p>
               <button
                 onClick={() => setShowCreateClassModal(true)}
-                className="text-blue-600 hover:underline"
+                className="text-blue-400 hover:underline"
               >
                 Create your first template →
               </button>
@@ -193,7 +193,7 @@ export default function ServicesPage() {
                     <p className="text-muted-foreground text-sm">{sc.description || 'No description'}</p>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    sc.service_type === 'cluster' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                    sc.service_type === 'cluster' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
                   }`}>
                     {sc.service_type}
                   </span>

@@ -226,7 +226,7 @@ export default function RemediationPage() {
       success: 'bg-green-500/20 text-green-400 border-green-500/30',
       failed: 'bg-red-500/20 text-red-400 border-red-500/30',
       rolled_back: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      skipped: 'bg-muted/500/20 text-muted-foreground border-gray-500/30',
+      skipped: 'bg-muted/500/20 text-muted-foreground border-zinc-600/30',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.pending}`}>
@@ -243,7 +243,7 @@ export default function RemediationPage() {
       script: 'bg-green-600',
     };
     return (
-      <span className={`px-2 py-0.5 rounded text-xs text-white ${colors[method] || 'bg-gray-600'}`}>
+      <span className={`px-2 py-0.5 rounded text-xs text-white ${colors[method] || 'bg-zinc-600'}`}>
         {method}
       </span>
     );
@@ -251,7 +251,7 @@ export default function RemediationPage() {
 
   if (loading && !summary) {
     return (
-      <div className="min-h-screen bg-gray-950 text-gray-100">
+      <div className="min-h-screen bg-zinc-950 text-zinc-100">
         <div className="flex items-center justify-center h-[calc(100vh-64px)]">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
@@ -260,7 +260,7 @@ export default function RemediationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
       
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
@@ -288,7 +288,7 @@ export default function RemediationPage() {
               type="button"
               onClick={() => runScan(true)}
               disabled={scanning}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center gap-2 disabled:opacity-50"
+              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg flex items-center gap-2 disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
               Dry Run
@@ -307,7 +307,7 @@ export default function RemediationPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-500/20 rounded-lg">
                 <CheckCircle className="h-5 w-5 text-green-500" />
@@ -318,7 +318,7 @@ export default function RemediationPage() {
               </div>
             </div>
           </div>
-          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-500/20 rounded-lg">
                 <Clock className="h-5 w-5 text-blue-500" />
@@ -329,7 +329,7 @@ export default function RemediationPage() {
               </div>
             </div>
           </div>
-          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-500/20 rounded-lg">
                 <XCircle className="h-5 w-5 text-red-500" />
@@ -340,7 +340,7 @@ export default function RemediationPage() {
               </div>
             </div>
           </div>
-          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-yellow-500/20 rounded-lg">
                 <AlertTriangle className="h-5 w-5 text-yellow-500" />
@@ -355,7 +355,7 @@ export default function RemediationPage() {
 
         {/* Scan Result */}
         {scanResult && (
-          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800 mb-8">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700 mb-8">
             <h3 className="font-semibold mb-2">Scan Result</h3>
             <div className="grid grid-cols-4 gap-4 text-sm">
               <div>
@@ -379,7 +379,7 @@ export default function RemediationPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-gray-800 pb-2">
+        <div className="flex gap-2 mb-6 border-b border-zinc-700 pb-2">
           {(['dashboard', 'packages', 'rules', 'jobs'] as const).map((tab) => (
             <button
               key={tab}
@@ -397,8 +397,8 @@ export default function RemediationPage() {
 
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
-          <div className="bg-zinc-900 rounded-xl border border-gray-800">
-            <div className="p-4 border-b border-gray-800">
+          <div className="bg-zinc-900 rounded-xl border border-zinc-700">
+            <div className="p-4 border-b border-zinc-700">
               <h2 className="font-semibold">Recent Remediation Jobs</h2>
             </div>
             <div className="overflow-x-auto">
@@ -446,8 +446,8 @@ export default function RemediationPage() {
 
         {/* Packages Tab */}
         {activeTab === 'packages' && (
-          <div className="bg-zinc-900 rounded-xl border border-gray-800">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+          <div className="bg-zinc-900 rounded-xl border border-zinc-700">
+            <div className="p-4 border-b border-zinc-700 flex justify-between items-center">
               <h2 className="font-semibold">Fix Packages</h2>
               <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
                 <Plus className="h-4 w-4" />
@@ -491,8 +491,8 @@ export default function RemediationPage() {
 
         {/* Rules Tab */}
         {activeTab === 'rules' && (
-          <div className="bg-zinc-900 rounded-xl border border-gray-800">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+          <div className="bg-zinc-900 rounded-xl border border-zinc-700">
+            <div className="p-4 border-b border-zinc-700 flex justify-between items-center">
               <h2 className="font-semibold">Remediation Rules</h2>
               <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
                 <Plus className="h-4 w-4" />
@@ -560,8 +560,8 @@ export default function RemediationPage() {
 
         {/* Jobs Tab */}
         {activeTab === 'jobs' && (
-          <div className="bg-zinc-900 rounded-xl border border-gray-800">
-            <div className="p-4 border-b border-gray-800">
+          <div className="bg-zinc-900 rounded-xl border border-zinc-700">
+            <div className="p-4 border-b border-zinc-700">
               <h2 className="font-semibold">All Remediation Jobs</h2>
             </div>
             <div className="overflow-x-auto">

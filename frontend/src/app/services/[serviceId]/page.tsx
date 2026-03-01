@@ -45,20 +45,20 @@ interface LogEntry {
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 const statusColors: Record<string, string> = {
-  provisioning: 'bg-yellow-100 text-yellow-800',
-  healthy: 'bg-green-100 text-green-800',
-  degraded: 'bg-orange-100 text-orange-800',
-  failed: 'bg-red-100 text-red-800',
+  provisioning: 'bg-yellow-500/20 text-yellow-400',
+  healthy: 'bg-green-500/20 text-green-400',
+  degraded: 'bg-orange-500/20 text-orange-400',
+  failed: 'bg-red-500/20 text-red-400',
   stopped: 'bg-muted text-foreground',
   pending: 'bg-muted text-foreground',
-  active: 'bg-green-100 text-green-800',
-  draining: 'bg-yellow-100 text-yellow-800',
-  reconciling: 'bg-blue-100 text-blue-800',
+  active: 'bg-green-500/20 text-green-400',
+  draining: 'bg-yellow-500/20 text-yellow-400',
+  reconciling: 'bg-blue-500/20 text-blue-400',
 };
 
 const healthColors: Record<string, string> = {
   healthy: 'text-green-600',
-  unhealthy: 'text-red-600',
+  unhealthy: 'text-red-400',
   unknown: 'text-muted-foreground',
 };
 
@@ -196,7 +196,7 @@ export default function ServiceDetailPage() {
     return (
       <div className="p-6 text-center">
         <p className="text-muted-foreground">Service not found</p>
-        <Link href="/services" className="text-blue-600 hover:underline">← Back to Services</Link>
+        <Link href="/services" className="text-blue-400 hover:underline">← Back to Services</Link>
       </div>
     );
   }
@@ -209,7 +209,7 @@ export default function ServiceDetailPage() {
     <div className="p-6">
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground mb-4">
-        <Link href="/services" className="hover:text-blue-600">Services</Link>
+        <Link href="/services" className="hover:text-blue-400">Services</Link>
         <span className="mx-2">/</span>
         <span>{service.name}</span>
       </nav>
@@ -249,7 +249,7 @@ export default function ServiceDetailPage() {
           </button>
           <button
             onClick={handleDeleteService}
-            className="px-3 py-1 text-red-600 border border-red-300 rounded hover:bg-red-50"
+            className="px-3 py-1 text-red-400 border border-red-500/30 rounded hover:bg-red-500/10"
           >
             Delete
           </button>
@@ -303,7 +303,7 @@ export default function ServiceDetailPage() {
               {service.nodes.map((node) => (
                 <tr key={node.id} className="border-t hover:bg-muted/50">
                   <td className="p-3">
-                    <Link href={`/nodes/${node.node_id}`} className="text-blue-600 hover:underline">
+                    <Link href={`/nodes/${node.node_id}`} className="text-blue-400 hover:underline">
                       {node.hostname}
                     </Link>
                   </td>
@@ -324,7 +324,7 @@ export default function ServiceDetailPage() {
                   <td className="p-3 text-right">
                     <button
                       onClick={() => handleRemoveNode(node.node_id)}
-                      className="text-red-600 hover:underline text-sm"
+                      className="text-red-400 hover:underline text-sm"
                     >
                       Remove
                     </button>
@@ -348,7 +348,7 @@ export default function ServiceDetailPage() {
             {logs.map((log) => (
               <div key={log.id} className="p-3 flex items-start">
                 <span className={`w-2 h-2 rounded-full mt-1.5 mr-3 ${
-                  log.status === 'success' ? 'bg-green-500' : log.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                  log.status === 'success' ? 'bg-green-500' : log.status === 'failed' ? 'bg-red-500' : 'bg-zinc-500'
                 }`}></span>
                 <div className="flex-1">
                   <p className="text-sm">
@@ -432,7 +432,7 @@ function AddNodeModal({
         {availableNodes.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>All nodes are already assigned to this service</p>
-            <button onClick={onClose} className="mt-4 text-blue-600 hover:underline">Close</button>
+            <button onClick={onClose} className="mt-4 text-blue-400 hover:underline">Close</button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

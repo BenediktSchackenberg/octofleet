@@ -36,7 +36,7 @@ export default function RulesPage() {
     setEvalResult(await res.json());
   };
 
-  const sevColor = (s: string) => ({ critical: "bg-red-600", high: "bg-red-500", medium: "bg-yellow-600", low: "bg-blue-600" }[s] || "bg-gray-600") + " text-white";
+  const sevColor = (s: string) => ({ critical: "bg-red-600", high: "bg-red-500", medium: "bg-yellow-600", low: "bg-blue-600" }[s] || "bg-zinc-600") + " text-white";
 
   return (
     <div className="p-6 space-y-6">
@@ -60,21 +60,21 @@ export default function RulesPage() {
       {showForm && (
         <div className="bg-zinc-800 border border-border rounded-lg p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <input className="bg-zinc-900 border border-gray-600 rounded px-3 py-2 text-white" placeholder="Rule name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-            <select className="bg-zinc-900 border border-gray-600 rounded px-3 py-2 text-white" value={form.ruleType} onChange={e => setForm({ ...form, ruleType: e.target.value })}>
+            <input className="bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-white" placeholder="Rule name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            <select className="bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-white" value={form.ruleType} onChange={e => setForm({ ...form, ruleType: e.target.value })}>
               <option value="threshold">Threshold</option><option value="pattern">Pattern</option><option value="time">Time-based</option>
             </select>
-            <input className="bg-zinc-900 border border-gray-600 rounded px-3 py-2 text-white col-span-2" placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-            <select className="bg-zinc-900 border border-gray-600 rounded px-3 py-2 text-white" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}>
+            <input className="bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-white col-span-2" placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            <select className="bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-white" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}>
               <option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
             </select>
-            <input type="number" className="bg-zinc-900 border border-gray-600 rounded px-3 py-2 text-white" placeholder="Cooldown (sec)" value={form.cooldownSeconds} onChange={e => setForm({ ...form, cooldownSeconds: parseInt(e.target.value) })} />
+            <input type="number" className="bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-white" placeholder="Cooldown (sec)" value={form.cooldownSeconds} onChange={e => setForm({ ...form, cooldownSeconds: parseInt(e.target.value) })} />
           </div>
-          <textarea className="w-full bg-zinc-900 border border-gray-600 rounded px-3 py-2 text-white font-mono text-sm h-24" placeholder='Conditions JSON, e.g. {"eventType":"file.deleted","threshold":100,"timeWindowSeconds":600}' value={form.conditions} onChange={e => setForm({ ...form, conditions: e.target.value })} />
-          <textarea className="w-full bg-zinc-900 border border-gray-600 rounded px-3 py-2 text-white font-mono text-sm h-16" placeholder='Actions JSON, e.g. [{"type":"create_finding","title":"Mass deletion detected"}]' value={form.actions} onChange={e => setForm({ ...form, actions: e.target.value })} />
+          <textarea className="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-white font-mono text-sm h-24" placeholder='Conditions JSON, e.g. {"eventType":"file.deleted","threshold":100,"timeWindowSeconds":600}' value={form.conditions} onChange={e => setForm({ ...form, conditions: e.target.value })} />
+          <textarea className="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-white font-mono text-sm h-16" placeholder='Actions JSON, e.g. [{"type":"create_finding","title":"Mass deletion detected"}]' value={form.actions} onChange={e => setForm({ ...form, actions: e.target.value })} />
           <div className="flex gap-2">
             <button onClick={save} className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm">Save Rule</button>
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded text-sm">Cancel</button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-zinc-600 hover:bg-zinc-700 rounded text-sm">Cancel</button>
           </div>
         </div>
       )}
@@ -86,8 +86,8 @@ export default function RulesPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${sevColor(r.severity)}`}>{r.severity}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${r.enabled ? "bg-green-900 text-green-300" : "bg-gray-700 text-muted-foreground"}`}>{r.enabled ? "Active" : "Disabled"}</span>
-                  <span className="text-xs text-muted-foreground bg-gray-700 px-2 py-0.5 rounded">{r.ruleType}</span>
+                  <span className={`px-2 py-0.5 rounded text-xs ${r.enabled ? "bg-green-900 text-green-300" : "bg-zinc-700 text-muted-foreground"}`}>{r.enabled ? "Active" : "Disabled"}</span>
+                  <span className="text-xs text-muted-foreground bg-zinc-700 px-2 py-0.5 rounded">{r.ruleType}</span>
                 </div>
                 <h3 className="text-white font-medium mt-1">{r.name}</h3>
                 {r.description && <p className="text-muted-foreground text-sm">{r.description}</p>}

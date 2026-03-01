@@ -303,7 +303,7 @@ export default function RepoPage() {
                     <div className="font-medium">{file.displayName}</div>
                     <div className="text-sm text-muted-foreground">{file.filename}</div>
                     {file.category && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                      <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">
                         {file.category}
                       </span>
                     )}
@@ -319,7 +319,7 @@ export default function RepoPage() {
                     <div className="flex gap-2">
                       <a
                         href={`${API_BASE}${file.downloadUrl}`}
-                        className="text-blue-600 hover:underline text-sm"
+                        className="text-blue-400 hover:underline text-sm"
                         download
                       >
                         ⬇️ Download
@@ -332,7 +332,7 @@ export default function RepoPage() {
                       </button>
                       <button
                         onClick={() => handleDelete(file.id, file.filename)}
-                        className="text-red-600 hover:text-red-700 text-sm"
+                        className="text-red-400 hover:text-red-700 text-sm"
                       >
                         🗑️
                       </button>

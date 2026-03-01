@@ -42,7 +42,7 @@ export default function VulnerabilitiesPage() {
       case "high": return "bg-red-500 text-white";
       case "medium": return "bg-yellow-600 text-black";
       case "low": return "bg-blue-600 text-white";
-      default: return "bg-gray-600 text-white";
+      default: return "bg-zinc-600 text-white";
     }
   };
 
@@ -94,7 +94,7 @@ export default function VulnerabilitiesPage() {
       <div className="flex gap-1 border-b border-border">
         {(["fleet", "cves", "nodes", "packages"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-blue-500 text-white" : "border-transparent text-muted-foreground hover:text-gray-200"}`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-blue-500 text-white" : "border-transparent text-muted-foreground hover:text-zinc-200"}`}
           >
             {t === "fleet" ? "Fleet Overview" : t === "cves" ? "Top CVEs" : t === "nodes" ? "By Node" : "By Package"}
           </button>
@@ -124,7 +124,7 @@ export default function VulnerabilitiesPage() {
             <div className="flex gap-2 mb-3">
               {["all", "critical", "high", "medium", "low"].map(s => (
                 <button key={s} onClick={() => setSeverityFilter(s)}
-                  className={`px-3 py-1 rounded text-xs ${severityFilter === s ? "bg-blue-600 text-white" : "bg-gray-700 text-muted-foreground"}`}
+                  className={`px-3 py-1 rounded text-xs ${severityFilter === s ? "bg-blue-600 text-white" : "bg-zinc-700 text-muted-foreground"}`}
                 >{s}</button>
               ))}
             </div>
@@ -158,7 +158,7 @@ export default function VulnerabilitiesPage() {
               <h3 className="text-sm font-semibold text-muted-foreground">Nodes by Vulnerability Count</h3>
               {data.byNode.map(n => (
                 <button key={n.nodeId} onClick={() => loadNodeVulns(n.nodeId)}
-                  className={`w-full text-left p-3 rounded border transition-colors ${selectedNode === n.nodeId ? "border-blue-500 bg-gray-700" : "border-border bg-zinc-900 hover:border-gray-500"}`}>
+                  className={`w-full text-left p-3 rounded border transition-colors ${selectedNode === n.nodeId ? "border-blue-500 bg-zinc-700" : "border-border bg-zinc-900 hover:border-zinc-600"}`}>
                   <div className="flex justify-between">
                     <span className="font-medium text-white">{n.nodeId}</span>
                     <span className="text-muted-foreground">{n.total} vulns</span>

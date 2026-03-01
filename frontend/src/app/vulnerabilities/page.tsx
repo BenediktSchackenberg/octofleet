@@ -179,10 +179,10 @@ export default function VulnerabilitiesPage() {
         <Card className="border-l-4 border-l-red-600">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ShieldX className="h-4 w-4 text-red-600" /> Critical
+              <ShieldX className="h-4 w-4 text-red-400" /> Critical
             </CardTitle>
           </CardHeader>
-          <CardContent><div className="text-3xl font-bold text-red-600">{criticalCount}</div></CardContent>
+          <CardContent><div className="text-3xl font-bold text-red-400">{criticalCount}</div></CardContent>
         </Card>
         <Card className="border-l-4 border-l-orange-500">
           <CardHeader className="pb-2">
@@ -260,7 +260,7 @@ export default function VulnerabilitiesPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <a href={`https://nvd.nist.gov/vuln/detail/${cve.cve_id}`} target="_blank" rel="noopener noreferrer"
-                            className="font-mono text-sm font-medium text-blue-600 hover:underline flex items-center gap-1">
+                            className="font-mono text-sm font-medium text-blue-400 hover:underline flex items-center gap-1">
                             {cve.cve_id} <ExternalLink className="h-3 w-3" />
                           </a>
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(cve.severity)}`}>
@@ -423,7 +423,7 @@ export default function VulnerabilitiesPage() {
                             </div>
                           </div>
                           <a href={`/nodes/${node.hostname}`}
-                            className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                            className="text-sm text-blue-400 hover:underline flex items-center gap-1">
                             Node-Details öffnen <ExternalLink className="h-3 w-3" />
                           </a>
                         </div>
@@ -477,7 +477,7 @@ export default function VulnerabilitiesPage() {
                         <div className="flex items-center gap-4 ml-4">
                           {sw.critical > 0 && (
                             <div className="text-center">
-                              <div className="text-lg font-bold text-red-600">{sw.critical}</div>
+                              <div className="text-lg font-bold text-red-400">{sw.critical}</div>
                               <div className="text-xs text-muted-foreground">Critical</div>
                             </div>
                           )}
@@ -531,7 +531,7 @@ export default function VulnerabilitiesPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
                           <a href={`https://nvd.nist.gov/vuln/detail/${cve.cve_id}`} target="_blank" rel="noopener noreferrer"
-                            className="font-mono text-base font-semibold text-blue-600 hover:underline flex items-center gap-1">
+                            className="font-mono text-base font-semibold text-blue-400 hover:underline flex items-center gap-1">
                             {cve.cve_id} <ExternalLink className="h-3.5 w-3.5" />
                           </a>
                           <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${getSeverityColor(cve.severity)}`}>
@@ -587,16 +587,16 @@ export default function VulnerabilitiesPage() {
                         <td className="py-2 px-3">{new Date(scan.started_at).toLocaleString("de-DE")}</td>
                         <td className="py-2 px-3">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            scan.status === "completed" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
-                            scan.status === "running" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" :
-                            "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            scan.status === "completed" ? "bg-green-500/20 text-green-400 dark:bg-green-900 dark:text-green-200" :
+                            scan.status === "running" ? "bg-blue-500/20 text-blue-400 dark:bg-blue-900 dark:text-blue-200" :
+                            "bg-red-500/20 text-red-400 dark:bg-red-900 dark:text-red-200"
                           }`}>
                             {scan.status === "completed" ? "✓ Fertig" : scan.status === "running" ? "⟳ Läuft..." : "✗ Fehler"}
                           </span>
                         </td>
                         <td className="py-2 px-3 text-right">{scan.packages_scanned}</td>
                         <td className="py-2 px-3 text-right font-medium">{scan.vulnerabilities_found}</td>
-                        <td className="py-2 px-3 text-right text-red-600 font-bold">{scan.critical_count}</td>
+                        <td className="py-2 px-3 text-right text-red-400 font-bold">{scan.critical_count}</td>
                         <td className="py-2 px-3 text-right text-orange-500 font-bold">{scan.high_count}</td>
                       </tr>
                     ))}

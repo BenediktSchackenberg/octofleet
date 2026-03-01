@@ -118,7 +118,7 @@ export function DashboardOverview({
           {/* SQL Server Updates */}
           <Card className="col-span-1 border-blue-500/10 bg-gradient-to-br from-card to-blue-500/5 shadow-xl">
             <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-600">
+              <CardDescription className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-400">
                 🗄️ SQL Lifecycle
               </CardDescription>
             </CardHeader>

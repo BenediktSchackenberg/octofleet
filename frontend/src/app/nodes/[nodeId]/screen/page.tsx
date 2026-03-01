@@ -273,7 +273,7 @@ export default function ScreenViewerPage() {
           status === 'pending' ? 'bg-yellow-600' :
           status === 'connecting' ? 'bg-blue-600' :
           status === 'error' ? 'bg-red-600' :
-          'bg-gray-600'
+          'bg-zinc-600'
         }`}>
           {status === 'streaming' ? '🔴 LIVE' :
            status === 'pending' ? '⏳ Waiting for agent...' :

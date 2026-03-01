@@ -62,16 +62,16 @@ function getChangeLabel(changeType: string): string {
 
 function getCategoryColor(category: string): string {
   const colors: Record<string, string> = {
-    'hardware': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    'full': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    'software': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-    'security': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    'network': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    'system': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    'browser': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    'hardware': 'bg-blue-500/20 text-blue-400 dark:bg-blue-900 dark:text-blue-200',
+    'full': 'bg-blue-500/20 text-blue-400 dark:bg-blue-900 dark:text-blue-200',
+    'software': 'bg-purple-500/20 text-purple-400 dark:bg-purple-900 dark:text-purple-200',
+    'security': 'bg-red-500/20 text-red-400 dark:bg-red-900 dark:text-red-200',
+    'network': 'bg-green-500/20 text-green-400 dark:bg-green-900 dark:text-green-200',
+    'system': 'bg-orange-500/20 text-orange-400 dark:bg-orange-900 dark:text-orange-200',
+    'browser': 'bg-yellow-500/20 text-yellow-400 dark:bg-yellow-900 dark:text-yellow-200',
     'hotfix': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
   };
-  return colors[category.toLowerCase()] || 'bg-muted text-foreground dark:bg-zinc-800 dark:text-gray-200';
+  return colors[category.toLowerCase()] || 'bg-muted text-foreground dark:bg-zinc-800 dark:text-zinc-200';
 }
 
 function getCategoryLabel(category: string): string {

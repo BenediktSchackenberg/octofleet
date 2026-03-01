@@ -49,7 +49,7 @@ function StatusBadge({ status }: { status: string }) {
     running: "bg-purple-500/20 text-purple-400 border-purple-500/30 animate-pulse",
     success: "bg-green-500/20 text-green-400 border-green-500/30",
     failed: "bg-red-500/20 text-red-400 border-red-500/30",
-    cancelled: "bg-muted/500/20 text-muted-foreground border-gray-500/30",
+    cancelled: "bg-muted/500/20 text-muted-foreground border-zinc-600/30",
   };
 
   const icons: Record<string, string> = {
@@ -62,7 +62,7 @@ function StatusBadge({ status }: { status: string }) {
   };
 
   return (
-    <span className={`px-3 py-1 rounded-full text-sm font-medium border ${colors[status] || "bg-muted/500/20 border-gray-500/30"}`}>
+    <span className={`px-3 py-1 rounded-full text-sm font-medium border ${colors[status] || "bg-muted/500/20 border-zinc-600/30"}`}>
       {icons[status]} {status}
     </span>
   );

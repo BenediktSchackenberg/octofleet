@@ -145,7 +145,7 @@ export default function DiscoveredSystemsPage() {
         ) : (
           <div className="bg-zinc-800 rounded-lg overflow-hidden">
             <table className="w-full">
-              <thead className="bg-gray-700">
+              <thead className="bg-zinc-700">
                 <tr>
                   <th className="px-4 py-3 text-left text-muted-foreground">MAC Address</th>
                   <th className="px-4 py-3 text-left text-muted-foreground">IP</th>
@@ -159,7 +159,7 @@ export default function DiscoveredSystemsPage() {
               </thead>
               <tbody>
                 {systems.map((system) => (
-                  <tr key={system.id} className="border-t border-border hover:bg-gray-750">
+                  <tr key={system.id} className="border-t border-border hover:bg-zinc-800">
                     <td className="px-4 py-3 font-mono text-sm text-white">
                       {system.mac_address}
                     </td>
@@ -195,7 +195,7 @@ export default function DiscoveredSystemsPage() {
                             </button>
                             <button
                               onClick={() => updateStatus(system.id, 'ignored')}
-                              className="text-xs bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded"
+                              className="text-xs bg-zinc-600 hover:bg-zinc-700 text-white px-2 py-1 rounded"
                             >
                               Ignore
                             </button>

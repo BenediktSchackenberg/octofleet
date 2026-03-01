@@ -14,7 +14,7 @@ export function MobileTabSelect({ tabs, currentTab, onTabChange }: MobileTabSele
       <select
         value={currentTab}
         onChange={(e) => onTabChange(e.target.value)}
-        className="w-full p-3 rounded-lg border border-border bg-card dark:bg-zinc-800 dark:border-gray-600 text-foreground dark:text-white text-lg font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="w-full p-3 rounded-lg border border-border bg-card dark:bg-zinc-800 dark:border-zinc-600 text-foreground dark:text-white text-lg font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       >
         {tabs.map((tab) => (
           <option key={tab.value} value={tab.value}>

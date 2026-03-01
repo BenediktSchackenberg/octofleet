@@ -109,7 +109,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
     const diffMinutes = (Date.now() - new Date(lastSeen).getTime()) / 1000 / 60;
     if (diffMinutes < 5) return "bg-green-600";
     if (diffMinutes < 60) return "bg-yellow-600";
-    return "bg-gray-400";
+    return "bg-zinc-500";
   };
 
   return (
