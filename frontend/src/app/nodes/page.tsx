@@ -3,8 +3,9 @@ import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
-import { Check, X, Clock, Monitor } from "lucide-react";
+import { Check, X, Clock, Monitor, LayoutGrid, List } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 
 
@@ -153,6 +154,11 @@ export default function NodesPage() {
   const [search, setSearch] = useState("");
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
+    if (typeof window !== "undefined") return (localStorage.getItem("octofleet-nodes-view") as "list" | "grid") || "list";
+    return "list";
+  });
+  const router = useRouter();
 
   useEffect(() => {
     fetchNodes();
@@ -270,6 +276,22 @@ export default function NodesPage() {
               )}
             </p>
           </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setViewMode("list"); localStorage.setItem("octofleet-nodes-view", "list"); }}
+              className={`p-2 rounded-lg border transition-colors ${viewMode === "list" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => { setViewMode("grid"); localStorage.setItem("octofleet-nodes-view", "grid"); }}
+              className={`p-2 rounded-lg border transition-colors ${viewMode === "grid" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
+              title="Grid view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Pending Nodes Section */}
@@ -304,7 +326,45 @@ export default function NodesPage() {
           )}
         </div>
 
-        {/* Nodes Table */}
+        {/* Nodes View */}
+        {viewMode === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredNodes.map((node) => {
+              const healthColor = node.health_status === "critical" ? "border-l-red-500" : node.health_status === "warning" ? "border-l-yellow-500" : "border-l-green-500";
+              const osIcon = node.os_name?.toLowerCase().includes("windows") ? "🪟" : node.os_name?.toLowerCase().includes("linux") ? "🐧" : "🖥️";
+              return (
+                <div
+                  key={node.id}
+                  onClick={() => router.push(`/nodes/${node.node_id}`)}
+                  className={`bg-zinc-900 border border-zinc-800 border-l-4 ${healthColor} rounded-lg p-4 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{osIcon}</span>
+                      <span className="font-semibold text-zinc-100">{node.hostname}</span>
+                    </div>
+                    <span className={`w-2.5 h-2.5 rounded-full mt-1 ${node.is_online ? "bg-green-500 animate-pulse" : "bg-zinc-500"}`} />
+                  </div>
+                  <div className="text-xs text-zinc-400 space-y-1">
+                    <div>{node.os_name}</div>
+                    <div className="flex justify-between">
+                      <span>Agent {node.agent_version || "-"}</span>
+                      <span>{formatLastSeen(node.last_seen)}</span>
+                    </div>
+                  </div>
+                  {node.health_status && node.health_status !== "healthy" && (
+                    <HealthBadge status={node.health_status} count={node.alert_count} />
+                  )}
+                </div>
+              );
+            })}
+            {filteredNodes.length === 0 && (
+              <div className="col-span-full text-center py-8 text-zinc-500">
+                {search ? "Keine Nodes gefunden" : "Keine Nodes vorhanden"}
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
           <table className="w-full">
             <thead>
@@ -356,6 +416,7 @@ export default function NodesPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   );

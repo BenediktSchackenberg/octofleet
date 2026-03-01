@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { ThemeToggle } from "./ThemeToggle";
 import { ExportDropdown } from "./ExportButtons";
 import { LanguageSelector } from "./LanguageSelector";
+import { NotificationCenter } from "./NotificationCenter";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { 
@@ -313,6 +314,7 @@ export function Navbar() {
               <span>Quick Search</span>
               <kbd className="ml-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-sans opacity-70">Ctrl K</kbd>
             </button>
+            <NotificationCenter />
             <ExportDropdown />
             <ThemeToggle />
             <LanguageSelector />

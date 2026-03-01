@@ -14,9 +14,11 @@ import { NodeTree } from "@/components/NodeTree";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search, Plus, Bug, Bell as BellIcon, Zap } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 import { API_BASE } from '@/lib/api-config';
+import { toast } from "sonner";
 
 // Skeleton Components for Loading State
 function Skeleton({ className = "" }: { className?: string }) {
@@ -133,6 +135,7 @@ interface MetricsSummary {
 
 export default function HomePage() {
   const router = useRouter();
+  const { isAdmin } = useAuth();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
@@ -646,6 +649,27 @@ export default function HomePage() {
                   </Button>
                 </div>
               </div>
+
+              {/* Quick Actions */}
+              {isAdmin() && (
+                <div className="flex flex-wrap gap-3 mb-6">
+                  <Link href="/jobs?new=true" className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                    <Zap className="h-4 w-4" /> New Job
+                  </Link>
+                  <button
+                    onClick={async () => {
+                      const res = await apiClient.post("/security/scan", {});
+                      if (res) toast.success("Vulnerability scan started");
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+                  >
+                    <Bug className="h-4 w-4" /> Scan Vulnerabilities
+                  </button>
+                  <Link href="/alerts" className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+                    <BellIcon className="h-4 w-4" /> View Alerts
+                  </Link>
+                </div>
+              )}
 
               {/* Bento Grid */}
               <div className="grid grid-cols-12 gap-6">
