@@ -137,27 +137,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user?.is_superuser || user?.roles?.includes("admin") || false;
   }
 
+    // Always wrap children in provider so useAuth() never crashes
+  const contextValue = { user, token, loading, login, logout, hasPermission, isAdmin };
+
   // Show nothing while checking auth (prevents flash)
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
+      <AuthContext.Provider value={contextValue}>
+        <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </AuthContext.Provider>
     );
   }
 
   // Allow login page without auth
   if (!token && pathname === "/login") {
-    return <>{children}</>;
+    return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
   }
 
   // Block other pages if not authenticated
   if (!token) {
-    return null;
+    return <AuthContext.Provider value={contextValue}>{null}</AuthContext.Provider>;
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, hasPermission, isAdmin }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
