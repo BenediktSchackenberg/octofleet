@@ -10,10 +10,12 @@ from app.db.nodes import upsert_node, update_dynamic_device_groupships
 router = APIRouter(
     prefix="/api/v1/inventory",
     tags=["inventory"],
-    dependencies=[Depends(verify_api_key)]
 )
 
-@router.get("/hardware/fleet")
+# Read-only endpoints require auth
+_auth = [Depends(verify_api_key)]
+
+@router.get("/hardware/fleet", dependencies=_auth)
 async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
     """Get aggregated hardware stats across all nodes"""
     async with db.acquire() as conn:
@@ -125,7 +127,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
             "physicalDisks": physical_disks[:50], "issues": nodes_with_issues[:20]
         }
 
-@router.get("/hardware/{node_id}")
+@router.get("/hardware/{node_id}", dependencies=_auth)
 async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get hardware data for a node"""
     async with db.acquire() as conn:
@@ -145,7 +147,7 @@ async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
         }}
 
-@router.get("/software/{node_id}")
+@router.get("/software/{node_id}", dependencies=_auth)
 async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get software data for a node"""
     async with db.acquire() as conn:
@@ -154,7 +156,7 @@ async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         rows = await conn.fetch("SELECT name, version, publisher, install_date, install_path FROM software_current WHERE node_id = $1 ORDER BY name", node['id'])
         return {"data": {"installedPrograms": [dict(r) for r in rows]}}
 
-@router.get("/hotfixes/{node_id}")
+@router.get("/hotfixes/{node_id}", dependencies=_auth)
 async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get hotfix data for a node"""
     async with db.acquire() as conn:
@@ -171,7 +173,7 @@ async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             
         return {"data": {"hotfixes": [dict(r) for r in hotfix_rows], "updateHistory": update_history, "hotfixCount": len(hotfix_rows), "updateHistoryCount": len(update_history)}}
 
-@router.get("/system/{node_id}")
+@router.get("/system/{node_id}", dependencies=_auth)
 async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get system data for a node"""
     async with db.acquire() as conn:
@@ -188,7 +190,7 @@ async def get_system(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "startupItems": json.loads(row['startup_items']) if row and row['startup_items'] else [], "scheduledTasks": json.loads(row['scheduled_tasks']) if row and row['scheduled_tasks'] else []
         }}
 
-@router.get("/security/{node_id}")
+@router.get("/security/{node_id}", dependencies=_auth)
 async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get security data for a node"""
     async with db.acquire() as conn:
@@ -202,7 +204,7 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "bitlocker": json.loads(row['bitlocker']) if row['bitlocker'] else [], "localAdmins": json.loads(row['local_admins']) if row['local_admins'] else {}
         }}
 
-@router.get("/network/{node_id}")
+@router.get("/network/{node_id}", dependencies=_auth)
 async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get network data for a node"""
     async with db.acquire() as conn:
@@ -215,7 +217,7 @@ async def get_network(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "listeningPorts": json.loads(row['listening_ports']) if row['listening_ports'] else []
         }}
 
-@router.get("/linux/{node_id}")
+@router.get("/linux/{node_id}", dependencies=_auth)
 async def get_linux_data(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get Linux-specific data for a node"""
     async with db.acquire() as conn:
@@ -229,7 +231,7 @@ async def get_linux_data(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
         }}
 
-@router.get("/browser/{node_id}")
+@router.get("/browser/{node_id}", dependencies=_auth)
 async def get_browser_inventory(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get browser inventory for a node"""
     async with db.acquire() as conn:
