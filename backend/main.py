@@ -6673,7 +6673,7 @@ async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(
                 sna.id as assignment_id,
                 sna.role,
                 sna.status as assignment_status,
-                sna.current_state_version,
+                sna.last_reconciled_version,
                 s.id as service_id,
                 s.name as service_name,
                 s.status as service_status,
@@ -6707,9 +6707,9 @@ async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(
                 "configValues": json.loads(a["config_values"]) if a["config_values"] else {},
                 "healthCheck": json.loads(a["health_check"]) if a["health_check"] else {},
                 "driftPolicy": a["drift_policy"],
-                "currentVersion": a["current_state_version"],
+                "currentVersion": a["last_reconciled_version"],
                 "desiredVersion": a["desired_state_version"],
-                "needsReconcile": a["current_state_version"] < a["desired_state_version"]
+                "needsReconcile": (a["last_reconciled_version"] or 0) < (a["desired_state_version"] or 0)
             })
         
         return {"nodeId": node_id, "services": services}
@@ -6729,8 +6729,8 @@ async def update_node_service_status(
             UPDATE service_node_assignments SET
                 status = $3,
                 health_status = $4,
-                current_state_version = COALESCE($5, current_state_version),
-                last_health_check = NOW(),
+                last_reconciled_version = COALESCE($5, last_reconciled_version),
+                last_reconciled_at = NOW(),
                 updated_at = NOW()
             WHERE service_id = $1 AND node_id = $2
         """,

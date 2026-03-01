@@ -1936,3 +1936,32 @@ CREATE TABLE IF NOT EXISTS security_findings (
 );
 CREATE INDEX IF NOT EXISTS idx_findings_status ON security_findings(status, severity);
 CREATE INDEX IF NOT EXISTS idx_findings_node ON security_findings(node_id);
+
+-- Retention & Legal Hold (E21)
+CREATE TABLE IF NOT EXISTS retention_policies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
+    retention_days INTEGER NOT NULL DEFAULT 90,
+    enabled BOOLEAN DEFAULT true,
+    created_by VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS legal_holds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    reason TEXT,
+    table_names JSONB DEFAULT '[]',
+    node_ids JSONB DEFAULT '[]',
+    date_from TIMESTAMPTZ,
+    date_to TIMESTAMPTZ,
+    active BOOLEAN DEFAULT true,
+    created_by VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add download_count to repo_files if missing
+ALTER TABLE repo_files ADD COLUMN IF NOT EXISTS download_count INTEGER DEFAULT 0;
