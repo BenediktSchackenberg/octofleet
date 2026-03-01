@@ -1965,3 +1965,79 @@ CREATE TABLE IF NOT EXISTS legal_holds (
 
 -- Add download_count to repo_files if missing
 ALTER TABLE repo_files ADD COLUMN IF NOT EXISTS download_count INTEGER DEFAULT 0;
+
+-- ============================================================
+-- E30: Patch & Update Orchestration
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS patch_catalog (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kb_id TEXT,
+    title TEXT NOT NULL,
+    description TEXT,
+    severity TEXT DEFAULT 'moderate' CHECK (severity IN ('critical','important','moderate','low')),
+    category TEXT DEFAULT 'security' CHECK (category IN ('security','feature','driver')),
+    os_targets TEXT[] DEFAULT '{}',
+    release_date DATE,
+    supersedes TEXT[] DEFAULT '{}',
+    is_approved BOOLEAN DEFAULT false,
+    is_excluded BOOLEAN DEFAULT false,
+    approved_by TEXT,
+    approved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_patch_catalog_kb ON patch_catalog(kb_id);
+CREATE INDEX IF NOT EXISTS idx_patch_catalog_severity ON patch_catalog(severity);
+
+CREATE TABLE IF NOT EXISTS patch_catalog_nodes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patch_id UUID NOT NULL REFERENCES patch_catalog(id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL,
+    status TEXT DEFAULT 'detected' CHECK (status IN ('detected','approved','downloading','installing','installed','failed','excluded')),
+    detected_at TIMESTAMPTZ DEFAULT NOW(),
+    installed_at TIMESTAMPTZ,
+    error_message TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pcn_patch ON patch_catalog_nodes(patch_id);
+CREATE INDEX IF NOT EXISTS idx_pcn_node ON patch_catalog_nodes(node_id);
+CREATE INDEX IF NOT EXISTS idx_pcn_status ON patch_catalog_nodes(status);
+
+CREATE TABLE IF NOT EXISTS patch_rings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    priority INTEGER DEFAULT 0,
+    delay_hours INTEGER DEFAULT 0,
+    node_group_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS patch_deployments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    patches UUID[] DEFAULT '{}',
+    ring_id UUID REFERENCES patch_rings(id),
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending','in_progress','completed','paused','cancelled')),
+    reboot_policy TEXT DEFAULT 'no_reboot' CHECK (reboot_policy IN ('no_reboot','schedule','force','user_choice')),
+    reboot_schedule_time TIMESTAMPTZ,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_patch_deploy_status ON patch_deployments(status);
+
+CREATE TABLE IF NOT EXISTS patch_deployment_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deployment_id UUID NOT NULL REFERENCES patch_deployments(id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL,
+    patch_id UUID NOT NULL REFERENCES patch_catalog(id),
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending','downloading','installing','installed','failed','excluded')),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error_message TEXT,
+    reboot_required BOOLEAN DEFAULT false,
+    rebooted_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_pdr_deployment ON patch_deployment_results(deployment_id);
+CREATE INDEX IF NOT EXISTS idx_pdr_node ON patch_deployment_results(node_id);

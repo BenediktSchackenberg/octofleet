@@ -154,6 +154,7 @@ const navGroups: NavGroup[] = [
       { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read" },
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read" },
       { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read" },
+      { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read" },
     ]
   },
   {
