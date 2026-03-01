@@ -10192,7 +10192,7 @@ async def list_agent_capabilities():
         """)
         return {"agents": [dict(r) for r in rows]}
 
-@app.post("/api/v1/agents/{node_id}/health", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/agents/{node_id}/health")
 async def report_agent_health(node_id: str, req: Request):
     """Agent reports health metrics: queue depth, drops, CPU overhead, etc."""
     body = await req.json()
