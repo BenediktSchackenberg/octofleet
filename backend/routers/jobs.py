@@ -13,6 +13,9 @@ router = APIRouter(
     dependencies=[Depends(verify_api_key)]
 )
 
+# Separate router for agent endpoints (no auth required - agents may have outdated keys)
+agent_router = APIRouter(prefix="/api/v1", tags=["jobs-agent"])
+
 CHOCO_PACKAGES = {
     "notepad++": "notepadplusplus", "notepadplusplus": "notepadplusplus", "7zip": "7zip", "7-zip": "7zip", "vlc": "vlc", "git": "git",
     "vscode": "vscode", "vs-code": "vscode", "python": "python", "nodejs": "nodejs-lts", "node": "nodejs-lts", "chrome": "googlechrome",
@@ -67,18 +70,10 @@ async def cancel_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
 
 # --- Agent Endpoints ---
 
-@router.get("/jobs/pending/{node_id}")
-async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    async with db.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT ji.id, ji.job_id, j.name, j.command_type, j.command_data
-            FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
-            WHERE ji.node_id = $1 AND ji.status = 'pending'
-            ORDER BY j.priority ASC, ji.queued_at ASC LIMIT 10
-        """, node_id)
-        return {"jobs": [dict(r) for r in rows]}
+# Agent endpoint moved to main.py (no auth required)
+# @agent_router.get("/jobs/pending/{node_id}") is in main.py
 
-@router.post("/jobs/instances/{instance_id}/result")
+@agent_router.post("/jobs/instances/{instance_id}/result")
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         success = data.get("success", False)

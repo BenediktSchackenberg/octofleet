@@ -26,7 +26,7 @@ from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.provisioning_iso import iso_router as provisioning_iso_router
 from routers.nodes import router as nodes_router, pending_router
 from routers.inventory import router as inventory_router
-from routers.jobs import router as jobs_router
+from routers.jobs import router as jobs_router, agent_router as jobs_agent_router
 from routers.mssql import router as mssql_router
 from routers.metrics import router as metrics_router
 from routers.deployments import router as deployments_router
@@ -206,6 +206,7 @@ app.include_router(inventory_router)
 app.include_router(dashboard_router)
 app.include_router(groups_router)
 app.include_router(jobs_router)
+app.include_router(jobs_agent_router)
 app.include_router(mssql_router)
 app.include_router(metrics_router)
 app.include_router(deployments_router)
