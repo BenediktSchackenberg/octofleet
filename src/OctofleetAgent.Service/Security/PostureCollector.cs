@@ -60,7 +60,7 @@ public class PostureCollector : BackgroundService
     {
         var snapshot = new PostureSnapshot
         {
-            NodeId = _config.NodeId ?? Environment.MachineName,
+            NodeId = _config.DisplayName ?? Environment.MachineName,
             SnapshotType = "full"
         };
 
@@ -368,16 +368,16 @@ public class PostureCollector : BackgroundService
 
     private async Task SubmitSnapshotAsync(PostureSnapshot snapshot, CancellationToken ct)
     {
-        var baseUrl = _config.InventoryUrl ?? _config.BackendUrl;
+        var baseUrl = _config.InventoryApiUrl;
         if (string.IsNullOrEmpty(baseUrl)) return;
 
         var url = $"{baseUrl}/api/v1/posture/snapshots";
         var json = JsonSerializer.Serialize(snapshot, JsonOptions);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        if (!string.IsNullOrEmpty(_config.ApiKey))
+        if (!string.IsNullOrEmpty(_config.InventoryApiKey))
             _httpClient.DefaultRequestHeaders.Remove("X-API-Key");
-        _httpClient.DefaultRequestHeaders.Add("X-API-Key", _config.ApiKey);
+        _httpClient.DefaultRequestHeaders.Add("X-API-Key", _config.InventoryApiKey);
 
         var response = await _httpClient.PostAsync(url, content, ct);
         if (!response.IsSuccessStatusCode)
