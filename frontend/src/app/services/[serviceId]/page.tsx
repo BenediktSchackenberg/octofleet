@@ -49,8 +49,8 @@ const statusColors: Record<string, string> = {
   healthy: 'bg-green-100 text-green-800',
   degraded: 'bg-orange-100 text-orange-800',
   failed: 'bg-red-100 text-red-800',
-  stopped: 'bg-gray-100 text-gray-800',
-  pending: 'bg-gray-100 text-gray-800',
+  stopped: 'bg-muted text-foreground',
+  pending: 'bg-muted text-foreground',
   active: 'bg-green-100 text-green-800',
   draining: 'bg-yellow-100 text-yellow-800',
   reconciling: 'bg-blue-100 text-blue-800',
@@ -59,7 +59,7 @@ const statusColors: Record<string, string> = {
 const healthColors: Record<string, string> = {
   healthy: 'text-green-600',
   unhealthy: 'text-red-600',
-  unknown: 'text-gray-400',
+  unknown: 'text-muted-foreground',
 };
 
 export default function ServiceDetailPage() {
@@ -195,7 +195,7 @@ export default function ServiceDetailPage() {
   if (!service) {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-500">Service not found</p>
+        <p className="text-muted-foreground">Service not found</p>
         <Link href="/services" className="text-blue-600 hover:underline">← Back to Services</Link>
       </div>
     );
@@ -208,7 +208,7 @@ export default function ServiceDetailPage() {
   return (
     <div className="p-6">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4">
+      <nav className="text-sm text-muted-foreground mb-4">
         <Link href="/services" className="hover:text-blue-600">Services</Link>
         <span className="mx-2">/</span>
         <span>{service.name}</span>
@@ -218,8 +218,8 @@ export default function ServiceDetailPage() {
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-2xl font-bold">{service.name}</h1>
-          <p className="text-gray-500">{service.description || 'No description'}</p>
-          <p className="text-gray-400 text-sm mt-1">Template: {service.class_name}</p>
+          <p className="text-muted-foreground">{service.description || 'No description'}</p>
+          <p className="text-muted-foreground text-sm mt-1">Template: {service.class_name}</p>
         </div>
         <div className="flex items-center space-x-3">
           <span className={`px-3 py-1 rounded text-sm font-medium ${statusColors[service.status]}`}>
@@ -258,22 +258,22 @@ export default function ServiceDetailPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg border p-4">
-          <p className="text-gray-500 text-sm">Active Nodes</p>
+        <div className="bg-card rounded-lg border p-4">
+          <p className="text-muted-foreground text-sm">Active Nodes</p>
           <p className="text-2xl font-bold">{service.nodes.filter(n => n.status === 'active').length}</p>
         </div>
-        <div className="bg-white rounded-lg border p-4">
-          <p className="text-gray-500 text-sm">Config Version</p>
+        <div className="bg-card rounded-lg border p-4">
+          <p className="text-muted-foreground text-sm">Config Version</p>
           <p className="text-2xl font-bold">v{service.desired_state_version}</p>
         </div>
-        <div className="bg-white rounded-lg border p-4">
-          <p className="text-gray-500 text-sm">Total Nodes</p>
+        <div className="bg-card rounded-lg border p-4">
+          <p className="text-muted-foreground text-sm">Total Nodes</p>
           <p className="text-2xl font-bold">{service.nodes.length}</p>
         </div>
       </div>
 
       {/* Nodes */}
-      <div className="bg-white rounded-lg border mb-6">
+      <div className="bg-card rounded-lg border mb-6">
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="font-semibold">Assigned Nodes</h2>
           <button
@@ -284,31 +284,31 @@ export default function ServiceDetailPage() {
           </button>
         </div>
         {service.nodes.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-muted-foreground">
             No nodes assigned yet
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-muted/50">
               <tr>
-                <th className="text-left p-3 text-sm font-medium text-gray-500">Hostname</th>
-                <th className="text-left p-3 text-sm font-medium text-gray-500">Role</th>
-                <th className="text-left p-3 text-sm font-medium text-gray-500">Status</th>
-                <th className="text-left p-3 text-sm font-medium text-gray-500">Health</th>
-                <th className="text-left p-3 text-sm font-medium text-gray-500">OS</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Hostname</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Role</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Status</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Health</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">OS</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
               {service.nodes.map((node) => (
-                <tr key={node.id} className="border-t hover:bg-gray-50">
+                <tr key={node.id} className="border-t hover:bg-muted/50">
                   <td className="p-3">
                     <Link href={`/nodes/${node.node_id}`} className="text-blue-600 hover:underline">
                       {node.hostname}
                     </Link>
                   </td>
                   <td className="p-3">
-                    <span className="px-2 py-0.5 bg-gray-100 rounded text-sm">{node.role}</span>
+                    <span className="px-2 py-0.5 bg-muted rounded text-sm">{node.role}</span>
                   </td>
                   <td className="p-3">
                     <span className={`px-2 py-0.5 rounded text-sm ${statusColors[node.status]}`}>
@@ -320,7 +320,7 @@ export default function ServiceDetailPage() {
                       {node.health_status === 'healthy' ? '●' : node.health_status === 'unhealthy' ? '○' : '◌'} {node.health_status}
                     </span>
                   </td>
-                  <td className="p-3 text-gray-500 text-sm">{node.os_name}</td>
+                  <td className="p-3 text-muted-foreground text-sm">{node.os_name}</td>
                   <td className="p-3 text-right">
                     <button
                       onClick={() => handleRemoveNode(node.node_id)}
@@ -337,12 +337,12 @@ export default function ServiceDetailPage() {
       </div>
 
       {/* Reconciliation Log */}
-      <div className="bg-white rounded-lg border">
+      <div className="bg-card rounded-lg border">
         <div className="p-4 border-b">
           <h2 className="font-semibold">Activity Log</h2>
         </div>
         {logs.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No activity yet</div>
+          <div className="p-8 text-center text-muted-foreground">No activity yet</div>
         ) : (
           <div className="divide-y">
             {logs.map((log) => (
@@ -353,11 +353,11 @@ export default function ServiceDetailPage() {
                 <div className="flex-1">
                   <p className="text-sm">
                     <span className="font-medium">{log.action}</span>
-                    {log.hostname && <span className="text-gray-500"> on {log.hostname}</span>}
+                    {log.hostname && <span className="text-muted-foreground"> on {log.hostname}</span>}
                   </p>
-                  <p className="text-xs text-gray-500">{log.message}</p>
+                  <p className="text-xs text-muted-foreground">{log.message}</p>
                 </div>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   {new Date(log.started_at).toLocaleString()}
                 </span>
               </div>
@@ -427,10 +427,10 @@ function AddNodeModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      <div className="bg-card rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Add Node to Service</h2>
         {availableNodes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-muted-foreground">
             <p>All nodes are already assigned to this service</p>
             <button onClick={onClose} className="mt-4 text-blue-600 hover:underline">Close</button>
           </div>
@@ -464,7 +464,7 @@ function AddNodeModal({
               </select>
             </div>
             <div className="flex justify-end space-x-2 pt-4">
-              <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
+              <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-muted/50">
                 Cancel
               </button>
               <button

@@ -84,9 +84,9 @@ export default function DiscoveredSystemsPage() {
       pending: 'bg-yellow-500/20 text-yellow-400',
       provisioning: 'bg-purple-500/20 text-purple-400',
       provisioned: 'bg-green-500/20 text-green-400',
-      ignored: 'bg-gray-500/20 text-gray-400'
+      ignored: 'bg-muted/500/20 text-muted-foreground'
     };
-    return colors[status] || 'bg-gray-500/20 text-gray-400';
+    return colors[status] || 'bg-muted/500/20 text-muted-foreground';
   };
 
   const formatDate = (date: string) => {
@@ -100,20 +100,20 @@ export default function DiscoveredSystemsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-zinc-900">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
 <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">Discovered Systems</h1>
-            <p className="text-gray-400">Systems detected via PXE boot</p>
+            <p className="text-muted-foreground">Systems detected via PXE boot</p>
           </div>
           
           <div className="flex gap-4">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-gray-800 text-white rounded px-3 py-2 border border-gray-700"
+              className="bg-zinc-800 text-white rounded px-3 py-2 border border-border"
             >
               <option value="">All Status</option>
               <option value="discovered">Discovered</option>
@@ -133,49 +133,49 @@ export default function DiscoveredSystemsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-400">Loading...</div>
+          <div className="text-center py-12 text-muted-foreground">Loading...</div>
         ) : error ? (
           <div className="text-center py-12 text-red-400">{error}</div>
         ) : systems.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-xl text-gray-300 mb-2">No systems discovered yet</h2>
-            <p className="text-gray-500">Systems will appear here when they boot via PXE</p>
+            <h2 className="text-xl text-muted-foreground mb-2">No systems discovered yet</h2>
+            <p className="text-muted-foreground">Systems will appear here when they boot via PXE</p>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg overflow-hidden">
+          <div className="bg-zinc-800 rounded-lg overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-700">
                 <tr>
-                  <th className="px-4 py-3 text-left text-gray-300">MAC Address</th>
-                  <th className="px-4 py-3 text-left text-gray-300">IP</th>
-                  <th className="px-4 py-3 text-left text-gray-300">Hostname</th>
-                  <th className="px-4 py-3 text-left text-gray-300">Boot Mode</th>
-                  <th className="px-4 py-3 text-left text-gray-300">Boots</th>
-                  <th className="px-4 py-3 text-left text-gray-300">Last Seen</th>
-                  <th className="px-4 py-3 text-left text-gray-300">Status</th>
-                  <th className="px-4 py-3 text-left text-gray-300">Actions</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">MAC Address</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">IP</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">Hostname</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">Boot Mode</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">Boots</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">Last Seen</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-left text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {systems.map((system) => (
-                  <tr key={system.id} className="border-t border-gray-700 hover:bg-gray-750">
+                  <tr key={system.id} className="border-t border-border hover:bg-gray-750">
                     <td className="px-4 py-3 font-mono text-sm text-white">
                       {system.mac_address}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {system.ip_address || '-'}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {system.hostname || '-'}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {system.boot_mode || '-'}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {system.boot_count}
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">
+                    <td className="px-4 py-3 text-muted-foreground text-sm">
                       {formatDate(system.last_seen)}
                     </td>
                     <td className="px-4 py-3">

@@ -151,7 +151,7 @@ function StatusBadge({ status }: { status: "crit" | "warn" | "ok" | "offline" | 
     crit: { label: "CRIT", className: "bg-red-600 text-white", icon: <XCircle className="h-3 w-3" /> },
     warn: { label: "WARN", className: "bg-yellow-500 text-black", icon: <AlertTriangle className="h-3 w-3" /> },
     ok: { label: "OK", className: "bg-green-600 text-white", icon: <CheckCircle className="h-3 w-3" /> },
-    offline: { label: "OFF", className: "bg-gray-500 text-white", icon: <XCircle className="h-3 w-3" /> },
+    offline: { label: "OFF", className: "bg-muted/500 text-white", icon: <XCircle className="h-3 w-3" /> },
     stale: { label: "STALE", className: "bg-gray-400 text-white", icon: <Clock className="h-3 w-3" /> },
   };
   const c = config[status];

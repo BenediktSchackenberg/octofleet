@@ -160,7 +160,7 @@ export function GlobalSearch({ onNodeSelect }: GlobalSearchProps) {
                   "h-2 w-2 shrink-0 fill-current",
                   result.status === "online" && "text-green-500",
                   result.status === "away" && "text-yellow-500",
-                  result.status === "offline" && "text-gray-400"
+                  result.status === "offline" && "text-muted-foreground"
                 )}
               />
               <Monitor className="h-4 w-4 text-muted-foreground shrink-0" />

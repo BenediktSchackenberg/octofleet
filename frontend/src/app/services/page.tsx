@@ -32,7 +32,7 @@ const statusColors: Record<string, string> = {
   healthy: 'bg-green-100 text-green-800',
   degraded: 'bg-orange-100 text-orange-800',
   failed: 'bg-red-100 text-red-800',
-  stopped: 'bg-gray-100 text-gray-800',
+  stopped: 'bg-muted text-foreground',
 };
 
 export default function ServicesPage() {
@@ -80,7 +80,7 @@ export default function ServicesPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Service Orchestration</h1>
-          <p className="text-gray-500">Manage services and service templates</p>
+          <p className="text-muted-foreground">Manage services and service templates</p>
         </div>
         <div className="space-x-2">
           {activeTab === 'services' ? (
@@ -109,7 +109,7 @@ export default function ServicesPage() {
             className={`py-2 px-1 border-b-2 font-medium ${
               activeTab === 'services'
                 ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             Services ({services.length})
@@ -119,7 +119,7 @@ export default function ServicesPage() {
             className={`py-2 px-1 border-b-2 font-medium ${
               activeTab === 'classes'
                 ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             Templates ({serviceClasses.length})
@@ -131,8 +131,8 @@ export default function ServicesPage() {
       {activeTab === 'services' && (
         <div className="grid gap-4">
           {services.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <p className="text-gray-500 mb-4">No services configured yet</p>
+            <div className="text-center py-12 bg-muted/50 rounded-lg">
+              <p className="text-muted-foreground mb-4">No services configured yet</p>
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="text-blue-600 hover:underline"
@@ -145,19 +145,19 @@ export default function ServicesPage() {
               <Link
                 key={service.id}
                 href={`/services/${service.id}`}
-                className="block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow"
+                className="block bg-card rounded-lg border p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-semibold text-lg">{service.name}</h3>
-                    <p className="text-gray-500 text-sm">{service.description || 'No description'}</p>
-                    <p className="text-gray-400 text-xs mt-1">Template: {service.class_name}</p>
+                    <p className="text-muted-foreground text-sm">{service.description || 'No description'}</p>
+                    <p className="text-muted-foreground text-xs mt-1">Template: {service.class_name}</p>
                   </div>
                   <div className="text-right">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[service.status] || 'bg-gray-100'}`}>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[service.status] || 'bg-muted'}`}>
                       {service.status}
                     </span>
-                    <p className="text-gray-500 text-sm mt-2">
+                    <p className="text-muted-foreground text-sm mt-2">
                       {service.active_nodes} node{service.active_nodes !== 1 ? 's' : ''}
                     </p>
                   </div>
@@ -172,8 +172,8 @@ export default function ServicesPage() {
       {activeTab === 'classes' && (
         <div className="grid gap-4 md:grid-cols-2">
           {serviceClasses.length === 0 ? (
-            <div className="col-span-2 text-center py-12 bg-gray-50 rounded-lg">
-              <p className="text-gray-500 mb-4">No service templates yet</p>
+            <div className="col-span-2 text-center py-12 bg-muted/50 rounded-lg">
+              <p className="text-muted-foreground mb-4">No service templates yet</p>
               <button
                 onClick={() => setShowCreateClassModal(true)}
                 className="text-blue-600 hover:underline"
@@ -185,12 +185,12 @@ export default function ServicesPage() {
             serviceClasses.map((sc) => (
               <div
                 key={sc.id}
-                className="bg-white rounded-lg border p-4 hover:shadow-md transition-shadow"
+                className="bg-card rounded-lg border p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-semibold">{sc.name}</h3>
-                    <p className="text-gray-500 text-sm">{sc.description || 'No description'}</p>
+                    <p className="text-muted-foreground text-sm">{sc.description || 'No description'}</p>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     sc.service_type === 'cluster' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
@@ -198,7 +198,7 @@ export default function ServicesPage() {
                     {sc.service_type}
                   </span>
                 </div>
-                <div className="mt-3 flex items-center text-sm text-gray-500">
+                <div className="mt-3 flex items-center text-sm text-muted-foreground">
                   <span>Nodes: {sc.min_nodes}-{sc.max_nodes}</span>
                   <span className="mx-2">•</span>
                   <span>{sc.service_count} service{sc.service_count !== 1 ? 's' : ''} using this</span>
@@ -274,7 +274,7 @@ function CreateServiceModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      <div className="bg-card rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Create Service</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -315,7 +315,7 @@ function CreateServiceModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 border rounded-lg hover:bg-muted/50"
             >
               Cancel
             </button>
@@ -370,7 +370,7 @@ function CreateClassModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      <div className="bg-card rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Create Service Template</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -406,7 +406,7 @@ function CreateClassModal({
             />
           </div>
           <div className="flex justify-end space-x-2 pt-4">
-            <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
+            <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-muted/50">
               Cancel
             </button>
             <button

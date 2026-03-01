@@ -77,7 +77,7 @@ const STATUS_CONFIG = {
   idle: { color: "bg-yellow-500", text: "text-yellow-500", label: "Idle", pulse: false },
   stale: { color: "bg-orange-500", text: "text-orange-500", label: "Stale", pulse: false },
   offline: { color: "bg-red-500", text: "text-red-500", label: "Offline", pulse: false },
-  unknown: { color: "bg-gray-500", text: "text-gray-500", label: "Unknown", pulse: false },
+  unknown: { color: "bg-muted/500", text: "text-muted-foreground", label: "Unknown", pulse: false },
 };
 
 function formatAgo(seconds: number | null): string {

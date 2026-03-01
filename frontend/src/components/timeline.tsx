@@ -71,7 +71,7 @@ function getCategoryColor(category: string): string {
     'browser': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
     'hotfix': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
   };
-  return colors[category.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
+  return colors[category.toLowerCase()] || 'bg-muted text-foreground dark:bg-zinc-800 dark:text-gray-200';
 }
 
 function getCategoryLabel(category: string): string {

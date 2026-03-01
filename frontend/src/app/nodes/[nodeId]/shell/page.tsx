@@ -270,7 +270,7 @@ export default function ShellPage() {
   return (
     <div className="p-6 space-y-4">
       {/* Breadcrumb */}
-      <nav className="flex items-center space-x-2 text-sm text-gray-400">
+      <nav className="flex items-center space-x-2 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-white">Dashboard</Link>
         <span>/</span>
         <Link href="/nodes" className="hover:text-white">Nodes</Link>
@@ -292,7 +292,7 @@ export default function ShellPage() {
             <select
               value={shellType}
               onChange={(e) => setShellType(e.target.value as any)}
-              className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
+              className="bg-zinc-800 border border-gray-600 rounded px-3 py-2"
             >
               <option value="powershell">PowerShell</option>
               <option value="cmd">CMD</option>
@@ -318,7 +318,7 @@ export default function ShellPage() {
           
           {/* Command Count */}
           {status === 'active' && (
-            <span className="text-gray-400 text-sm">
+            <span className="text-muted-foreground text-sm">
               📝 {commandCount} commands
             </span>
           )}
@@ -359,7 +359,7 @@ export default function ShellPage() {
       </div>
       
       {/* Terminal */}
-      <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+      <div className="bg-zinc-900 rounded-lg border border-border overflow-hidden">
         <div
           ref={terminalRef}
           className="w-full"
@@ -368,8 +368,8 @@ export default function ShellPage() {
       </div>
       
       {/* Info */}
-      <div className="text-sm text-gray-500 space-y-1">
-        <p>💡 Shell type: <span className="text-gray-300">{shellType}</span></p>
+      <div className="text-sm text-muted-foreground space-y-1">
+        <p>💡 Shell type: <span className="text-muted-foreground">{shellType}</span></p>
         <p>🔐 All commands are logged for audit purposes.</p>
         <p>⏱️ Sessions timeout after 30 minutes of inactivity.</p>
       </div>

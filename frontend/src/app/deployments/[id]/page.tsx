@@ -46,7 +46,7 @@ interface Deployment {
 }
 
 const statusColors: Record<string, string> = {
-  pending: "bg-gray-500",
+  pending: "bg-muted/500",
   downloading: "bg-blue-400",
   installing: "bg-blue-500",
   success: "bg-green-500",
@@ -223,7 +223,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
             <CardDescription>Ausstehend</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-500">{pendingCount + inProgressCount}</p>
+            <p className="text-2xl font-bold text-muted-foreground">{pendingCount + inProgressCount}</p>
             {inProgressCount > 0 && (
               <p className="text-sm text-blue-500">{inProgressCount} in Bearbeitung</p>
             )}

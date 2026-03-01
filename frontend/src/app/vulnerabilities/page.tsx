@@ -136,7 +136,7 @@ export default function VulnerabilitiesPage() {
       case "HIGH": return "bg-orange-500 text-white";
       case "MEDIUM": return "bg-yellow-500 text-black";
       case "LOW": return "bg-blue-500 text-white";
-      default: return "bg-gray-500 text-white";
+      default: return "bg-muted/500 text-white";
     }
   };
 

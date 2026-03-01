@@ -52,7 +52,7 @@ function StatusBadge({ status }: { status: string }) {
     running: "bg-purple-500/20 text-purple-400 animate-pulse",
     success: "bg-green-500/20 text-green-400",
     failed: "bg-red-500/20 text-red-400",
-    cancelled: "bg-gray-500/20 text-gray-400",
+    cancelled: "bg-muted/500/20 text-muted-foreground",
   };
   
   const icons: Record<string, string> = {
@@ -65,7 +65,7 @@ function StatusBadge({ status }: { status: string }) {
   };
 
   return (
-    <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status] || "bg-gray-500/20"}`}>
+    <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status] || "bg-muted/500/20"}`}>
       {icons[status]} {status}
     </span>
   );
@@ -79,7 +79,7 @@ function SummaryBar({ summary }: { summary: JobSummary }) {
     { key: "queued", count: summary.queued, color: "bg-blue-500" },
     { key: "pending", count: summary.pending, color: "bg-yellow-500" },
     { key: "failed", count: summary.failed, color: "bg-red-500" },
-    { key: "cancelled", count: summary.cancelled, color: "bg-gray-500" },
+    { key: "cancelled", count: summary.cancelled, color: "bg-muted/500" },
   ];
 
   return (

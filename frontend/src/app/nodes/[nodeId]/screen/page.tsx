@@ -202,7 +202,7 @@ export default function ScreenViewerPage() {
   return (
     <div className="p-6 space-y-4">
       {/* Breadcrumb */}
-      <nav className="flex items-center space-x-2 text-sm text-gray-400">
+      <nav className="flex items-center space-x-2 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-white">Dashboard</Link>
         <span>/</span>
         <Link href="/nodes" className="hover:text-white">Nodes</Link>
@@ -285,10 +285,10 @@ export default function ScreenViewerPage() {
         
         {status === 'streaming' && (
           <>
-            <span className="text-gray-400">
+            <span className="text-muted-foreground">
               📊 {stats.fps} FPS
             </span>
-            <span className="text-gray-400">
+            <span className="text-muted-foreground">
               🖼️ {stats.frames} frames
             </span>
           </>
@@ -300,9 +300,9 @@ export default function ScreenViewerPage() {
       </div>
       
       {/* Canvas container */}
-      <div className="bg-gray-900 rounded-lg overflow-hidden border border-gray-700">
+      <div className="bg-zinc-900 rounded-lg overflow-hidden border border-border">
         {status === 'idle' ? (
-          <div className="flex items-center justify-center h-96 text-gray-500">
+          <div className="flex items-center justify-center h-96 text-muted-foreground">
             <div className="text-center">
               <div className="text-6xl mb-4">🖥️</div>
               <p>Click "Start Viewing" to begin screen sharing</p>
@@ -310,7 +310,7 @@ export default function ScreenViewerPage() {
             </div>
           </div>
         ) : status === 'pending' ? (
-          <div className="flex items-center justify-center h-96 text-gray-400">
+          <div className="flex items-center justify-center h-96 text-muted-foreground">
             <div className="text-center">
               <div className="animate-pulse text-6xl mb-4">⏳</div>
               <p>Waiting for agent to connect...</p>
@@ -327,7 +327,7 @@ export default function ScreenViewerPage() {
       </div>
       
       {/* Info */}
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-muted-foreground">
         <p>💡 Screen sharing uses JPEG compression. Quality and FPS affect bandwidth usage.</p>
         <p>🔒 All data is transmitted over encrypted WebSocket connection.</p>
       </div>

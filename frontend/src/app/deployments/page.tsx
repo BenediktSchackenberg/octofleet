@@ -32,7 +32,7 @@ interface Deployment {
 }
 
 const statusColors: Record<string, string> = {
-  pending: "bg-gray-500",
+  pending: "bg-muted/500",
   active: "bg-blue-500",
   paused: "bg-yellow-500",
   completed: "bg-green-500",
@@ -90,7 +90,7 @@ export default function DeploymentsPage() {
     const inProgressPct = (d.in_progress_count / total) * 100;
     
     return (
-      <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden flex">
+      <div className="w-32 h-2 bg-muted rounded-full overflow-hidden flex">
         <div className="bg-green-500 h-full" style={{ width: `${successPct}%` }} />
         <div className="bg-blue-500 h-full" style={{ width: `${inProgressPct}%` }} />
         <div className="bg-red-500 h-full" style={{ width: `${failedPct}%` }} />
@@ -165,7 +165,7 @@ export default function DeploymentsPage() {
             <CardDescription>Ausstehend</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-500">
+            <p className="text-2xl font-bold text-muted-foreground">
               {deployments.reduce((sum, d) => sum + d.pending_count + d.in_progress_count, 0)}
             </p>
           </CardContent>
@@ -288,7 +288,7 @@ export default function DeploymentsPage() {
                       <div className="flex items-center gap-1 text-sm">
                         <CheckCircle className="h-3 w-3 text-green-500" /> {d.success_count}
                         <XCircle className="h-3 w-3 text-red-500 ml-2" /> {d.failed_count}
-                        <Clock className="h-3 w-3 text-gray-400 ml-2" /> {d.pending_count}
+                        <Clock className="h-3 w-3 text-muted-foreground ml-2" /> {d.pending_count}
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">

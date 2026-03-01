@@ -461,7 +461,7 @@ export default function LiveViewPage() {
               <CardDescription>{filteredLogs.length} logs (max 500)</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[500px] overflow-y-auto font-mono text-sm bg-black/5 dark:bg-white/5 rounded p-2">
+              <div className="h-[500px] overflow-y-auto font-mono text-sm bg-black/5 dark:bg-card/5 rounded p-2">
                 {filteredLogs.map(log => (
                   <div key={log.id} className="py-1 border-b border-border/30 hover:bg-accent/50">
                     <span className="text-muted-foreground">
@@ -746,20 +746,20 @@ export default function LiveViewPage() {
                     className="max-w-full max-h-[70vh] object-contain"
                   />
                 ) : (
-                  <div className="text-center text-gray-500 py-16">
+                  <div className="text-center text-muted-foreground py-16">
                     {screenActive ? (
                       <div className="flex flex-col items-center gap-4">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
                         <p>Waiting for screen data...</p>
-                        <p className="text-sm text-gray-600">Make sure the agent is running and has screen capture capability</p>
+                        <p className="text-sm text-muted-foreground">Make sure the agent is running and has screen capture capability</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-4">
-                        <svg className="w-16 h-16 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-16 h-16 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                         <p>Click "Start Viewing" to connect</p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Requires: Windows (DXGI) or Linux (scrot/gnome-screenshot/grim)
                         </p>
                       </div>

@@ -212,7 +212,7 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded-xl shadow-2xl py-2 min-w-[240px] z-50">
+        <div className="absolute top-full left-0 mt-2 bg-card dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded-xl shadow-2xl py-2 min-w-[240px] z-50">
           {visibleItems.map((item) => {
             const itemActive = pathname?.startsWith(item.href);
             const ItemIcon = item.icon;

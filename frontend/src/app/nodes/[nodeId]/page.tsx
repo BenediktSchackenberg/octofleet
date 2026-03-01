@@ -1575,7 +1575,7 @@ export default function NodeDetailPage() {
                             <TableCell>
                               <Badge className={
                                 svc.activeState === 'active' ? 'bg-green-600' : 
-                                svc.activeState === 'failed' ? 'bg-red-600' : 'bg-gray-500'
+                                svc.activeState === 'failed' ? 'bg-red-600' : 'bg-muted/500'
                               }>
                                 {svc.activeState}
                               </Badge>

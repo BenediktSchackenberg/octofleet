@@ -226,7 +226,7 @@ export default function RemediationPage() {
       success: 'bg-green-500/20 text-green-400 border-green-500/30',
       failed: 'bg-red-500/20 text-red-400 border-red-500/30',
       rolled_back: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      skipped: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+      skipped: 'bg-muted/500/20 text-muted-foreground border-gray-500/30',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.pending}`}>
@@ -275,12 +275,12 @@ export default function RemediationPage() {
                     <Wifi className="h-3 w-3" /> Live
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-xs font-normal text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+                  <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground bg-zinc-800 px-2 py-0.5 rounded">
                     <WifiOff className="h-3 w-3" /> Offline
                   </span>
                 )}
               </h1>
-              <p className="text-gray-400 text-sm">Automatically fix vulnerabilities across your fleet</p>
+              <p className="text-muted-foreground text-sm">Automatically fix vulnerabilities across your fleet</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -307,47 +307,47 @@ export default function RemediationPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-500/20 rounded-lg">
                 <CheckCircle className="h-5 w-5 text-green-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{summary?.job_counts?.success || 0}</p>
-                <p className="text-gray-400 text-sm">Fixed</p>
+                <p className="text-muted-foreground text-sm">Fixed</p>
               </div>
             </div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-500/20 rounded-lg">
                 <Clock className="h-5 w-5 text-blue-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{summary?.job_counts?.approved || 0}</p>
-                <p className="text-gray-400 text-sm">Pending</p>
+                <p className="text-muted-foreground text-sm">Pending</p>
               </div>
             </div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-500/20 rounded-lg">
                 <XCircle className="h-5 w-5 text-red-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{summary?.job_counts?.failed || 0}</p>
-                <p className="text-gray-400 text-sm">Failed</p>
+                <p className="text-muted-foreground text-sm">Failed</p>
               </div>
             </div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-yellow-500/20 rounded-lg">
                 <AlertTriangle className="h-5 w-5 text-yellow-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{summary?.fixable_vulnerabilities || 0}</p>
-                <p className="text-gray-400 text-sm">Fixable CVEs</p>
+                <p className="text-muted-foreground text-sm">Fixable CVEs</p>
               </div>
             </div>
           </div>
@@ -355,23 +355,23 @@ export default function RemediationPage() {
 
         {/* Scan Result */}
         {scanResult && (
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 mb-8">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-gray-800 mb-8">
             <h3 className="font-semibold mb-2">Scan Result</h3>
             <div className="grid grid-cols-4 gap-4 text-sm">
               <div>
-                <span className="text-gray-400">Scanned:</span>{' '}
+                <span className="text-muted-foreground">Scanned:</span>{' '}
                 <span className="font-mono">{scanResult.scanned}</span>
               </div>
               <div>
-                <span className="text-gray-400">With Fix:</span>{' '}
+                <span className="text-muted-foreground">With Fix:</span>{' '}
                 <span className="font-mono text-green-400">{scanResult.with_fix_available}</span>
               </div>
               <div>
-                <span className="text-gray-400">Jobs Created:</span>{' '}
+                <span className="text-muted-foreground">Jobs Created:</span>{' '}
                 <span className="font-mono text-blue-400">{scanResult.jobs_created}</span>
               </div>
               <div>
-                <span className="text-gray-400">Skipped:</span>{' '}
+                <span className="text-muted-foreground">Skipped:</span>{' '}
                 <span className="font-mono">{scanResult.jobs_skipped_existing}</span>
               </div>
             </div>
@@ -386,8 +386,8 @@ export default function RemediationPage() {
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-t-lg capitalize ${
                 activeTab === tab
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                  ? 'bg-zinc-800 text-white'
+                  : 'text-muted-foreground hover:text-white hover:bg-zinc-800/50'
               }`}
             >
               {tab}
@@ -397,29 +397,29 @@ export default function RemediationPage() {
 
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl border border-gray-800">
             <div className="p-4 border-b border-gray-800">
               <h2 className="font-semibold">Recent Remediation Jobs</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-800/50">
+                <thead className="bg-zinc-800/50">
                   <tr>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">ID</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Software</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">CVE</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Fix Method</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Status</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Created</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">ID</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Software</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">CVE</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Fix Method</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Status</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Created</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {(summary?.recent_jobs || []).map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-800/30">
+                    <tr key={job.id} className="hover:bg-zinc-800/30">
                       <td className="p-3 font-mono text-sm">{job.id}</td>
                       <td className="p-3">
                         <div className="font-medium">{job.software_name}</div>
-                        <div className="text-gray-400 text-xs">{job.software_version}</div>
+                        <div className="text-muted-foreground text-xs">{job.software_version}</div>
                       </td>
                       <td className="p-3">
                         <a 
@@ -433,7 +433,7 @@ export default function RemediationPage() {
                       </td>
                       <td className="p-3">{getMethodBadge(job.fix_method || 'unknown')}</td>
                       <td className="p-3">{getStatusBadge(job.status)}</td>
-                      <td className="p-3 text-gray-400 text-sm">
+                      <td className="p-3 text-muted-foreground text-sm">
                         {new Date(job.created_at).toLocaleString()}
                       </td>
                     </tr>
@@ -446,7 +446,7 @@ export default function RemediationPage() {
 
         {/* Packages Tab */}
         {activeTab === 'packages' && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl border border-gray-800">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center">
               <h2 className="font-semibold">Fix Packages</h2>
               <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
@@ -456,29 +456,29 @@ export default function RemediationPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-800/50">
+                <thead className="bg-zinc-800/50">
                   <tr>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Name</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Target Software</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Method</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Command</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Enabled</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Name</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Target Software</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Method</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Command</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Enabled</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {packages.map((pkg) => (
-                    <tr key={pkg.id} className="hover:bg-gray-800/30">
+                    <tr key={pkg.id} className="hover:bg-zinc-800/30">
                       <td className="p-3 font-medium">{pkg.name}</td>
                       <td className="p-3">{pkg.target_software}</td>
                       <td className="p-3">{getMethodBadge(pkg.fix_method)}</td>
                       <td className="p-3">
-                        <code className="bg-gray-800 px-2 py-1 rounded text-xs">{pkg.fix_command}</code>
+                        <code className="bg-zinc-800 px-2 py-1 rounded text-xs">{pkg.fix_command}</code>
                       </td>
                       <td className="p-3">
                         {pkg.enabled ? (
                           <span className="text-green-400">●</span>
                         ) : (
-                          <span className="text-gray-500">○</span>
+                          <span className="text-muted-foreground">○</span>
                         )}
                       </td>
                     </tr>
@@ -491,7 +491,7 @@ export default function RemediationPage() {
 
         {/* Rules Tab */}
         {activeTab === 'rules' && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl border border-gray-800">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center">
               <h2 className="font-semibold">Remediation Rules</h2>
               <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
@@ -501,22 +501,22 @@ export default function RemediationPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-800/50">
+                <thead className="bg-zinc-800/50">
                   <tr>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Name</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Min Severity</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Auto Fix</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Approval</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Enabled</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Name</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Min Severity</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Auto Fix</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Approval</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Enabled</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {rules.map((rule) => (
-                    <tr key={rule.id} className="hover:bg-gray-800/30">
+                    <tr key={rule.id} className="hover:bg-zinc-800/30">
                       <td className="p-3">
                         <div className="font-medium">{rule.name}</div>
                         {rule.description && (
-                          <div className="text-gray-400 text-xs">{rule.description}</div>
+                          <div className="text-muted-foreground text-xs">{rule.description}</div>
                         )}
                       </td>
                       <td className="p-3">
@@ -524,7 +524,7 @@ export default function RemediationPage() {
                           rule.min_severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
                           rule.min_severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
                           rule.min_severity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
-                          'bg-gray-500/20 text-gray-400'
+                          'bg-muted/500/20 text-muted-foreground'
                         }`}>
                           {rule.min_severity}
                         </span>
@@ -533,21 +533,21 @@ export default function RemediationPage() {
                         {rule.auto_remediate ? (
                           <span className="text-green-400">Yes</span>
                         ) : (
-                          <span className="text-gray-500">No</span>
+                          <span className="text-muted-foreground">No</span>
                         )}
                       </td>
                       <td className="p-3">
                         {rule.require_approval ? (
                           <span className="text-yellow-400">Required</span>
                         ) : (
-                          <span className="text-gray-500">No</span>
+                          <span className="text-muted-foreground">No</span>
                         )}
                       </td>
                       <td className="p-3">
                         {rule.enabled ? (
                           <span className="text-green-400">●</span>
                         ) : (
-                          <span className="text-gray-500">○</span>
+                          <span className="text-muted-foreground">○</span>
                         )}
                       </td>
                     </tr>
@@ -560,29 +560,29 @@ export default function RemediationPage() {
 
         {/* Jobs Tab */}
         {activeTab === 'jobs' && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800">
+          <div className="bg-zinc-900 rounded-xl border border-gray-800">
             <div className="p-4 border-b border-gray-800">
               <h2 className="font-semibold">All Remediation Jobs</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-800/50">
+                <thead className="bg-zinc-800/50">
                   <tr>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">ID</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Software</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">CVE</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Node</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Status</th>
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">Created</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">ID</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Software</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">CVE</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Node</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Status</th>
+                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Created</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {jobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-800/30">
+                    <tr key={job.id} className="hover:bg-zinc-800/30">
                       <td className="p-3 font-mono text-sm">{job.id}</td>
                       <td className="p-3">
                         <div className="font-medium">{job.software_name}</div>
-                        <div className="text-gray-400 text-xs">{job.software_version}</div>
+                        <div className="text-muted-foreground text-xs">{job.software_version}</div>
                       </td>
                       <td className="p-3">
                         <a 
@@ -594,11 +594,11 @@ export default function RemediationPage() {
                           {job.cve_id}
                         </a>
                       </td>
-                      <td className="p-3 font-mono text-xs text-gray-400">
+                      <td className="p-3 font-mono text-xs text-muted-foreground">
                         {job.node_id.slice(0, 8)}...
                       </td>
                       <td className="p-3">{getStatusBadge(job.status)}</td>
-                      <td className="p-3 text-gray-400 text-sm">
+                      <td className="p-3 text-muted-foreground text-sm">
                         {new Date(job.created_at).toLocaleString()}
                       </td>
                     </tr>

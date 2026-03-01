@@ -243,11 +243,11 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      detected: 'bg-gray-100 text-gray-800',
+      detected: 'bg-muted text-foreground',
       testing: 'bg-yellow-100 text-yellow-800',
       approved: 'bg-green-100 text-green-800',
       blocked: 'bg-red-100 text-red-800',
-      deprecated: 'bg-gray-200 text-gray-500'
+      deprecated: 'bg-muted text-muted-foreground'
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || styles.detected}`}>
@@ -263,7 +263,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
       all: 'bg-green-100 text-green-800'
     };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[ring] || 'bg-gray-100'}`}>
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[ring] || 'bg-muted'}`}>
         {ring}
       </span>
     );
@@ -280,13 +280,13 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveView('catalog')}
-            className={`px-4 py-2 rounded-lg font-medium ${activeView === 'catalog' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+            className={`px-4 py-2 rounded-lg font-medium ${activeView === 'catalog' ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-muted'}`}
           >
             📦 CU Catalog
           </button>
           <button
             onClick={() => setActiveView('compliance')}
-            className={`px-4 py-2 rounded-lg font-medium ${activeView === 'compliance' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+            className={`px-4 py-2 rounded-lg font-medium ${activeView === 'compliance' ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-muted'}`}
           >
             📊 Compliance
           </button>
@@ -374,26 +374,26 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
           </div>
 
           {/* CU Table */}
-          <div className="bg-white rounded-xl shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="bg-card rounded-xl shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CU</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Build</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">KB</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Release Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ring</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Version</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">CU</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Build</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">KB</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Release Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Ring</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-border">
                 {cus.map((cu) => (
-                  <tr key={cu.id} className="hover:bg-gray-50">
+                  <tr key={cu.id} className="hover:bg-muted/50">
                     <td className="px-6 py-4 whitespace-nowrap font-medium">SQL {cu.version}</td>
                     <td className="px-6 py-4 whitespace-nowrap">CU{cu.cuNumber}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cu.buildNumber}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{cu.buildNumber}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {cu.kbArticle ? (
                         <a
@@ -406,7 +406,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                         </a>
                       ) : '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                       {cu.releaseDate ? new Date(cu.releaseDate).toLocaleDateString() : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(cu.status)}</td>
@@ -469,7 +469,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                 ))}
                 {cus.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
                       No cumulative updates in catalog. Add CUs to start tracking.
                     </td>
                   </tr>
@@ -485,60 +485,60 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
         <>
           {/* Summary Cards */}
           <div className="grid grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow p-6">
+            <div className="bg-card rounded-xl shadow p-6">
               <div className="text-3xl font-bold">{compliance.summary.total}</div>
-              <div className="text-gray-500">Total Instances</div>
+              <div className="text-muted-foreground">Total Instances</div>
             </div>
-            <div className="bg-white rounded-xl shadow p-6 border-l-4 border-green-500">
+            <div className="bg-card rounded-xl shadow p-6 border-l-4 border-green-500">
               <div className="text-3xl font-bold text-green-600">{compliance.summary.upToDate}</div>
-              <div className="text-gray-500">Up to Date</div>
+              <div className="text-muted-foreground">Up to Date</div>
             </div>
-            <div className="bg-white rounded-xl shadow p-6 border-l-4 border-orange-500">
+            <div className="bg-card rounded-xl shadow p-6 border-l-4 border-orange-500">
               <div className="text-3xl font-bold text-orange-600">{compliance.summary.outdated}</div>
-              <div className="text-gray-500">Outdated</div>
+              <div className="text-muted-foreground">Outdated</div>
             </div>
-            <div className="bg-white rounded-xl shadow p-6 border-l-4 border-gray-400">
-              <div className="text-3xl font-bold text-gray-600">{compliance.summary.unknown}</div>
-              <div className="text-gray-500">Unknown</div>
+            <div className="bg-card rounded-xl shadow p-6 border-l-4 border-gray-400">
+              <div className="text-3xl font-bold text-muted-foreground">{compliance.summary.unknown}</div>
+              <div className="text-muted-foreground">Unknown</div>
             </div>
           </div>
 
           {/* Latest Approved */}
-          <div className="bg-white rounded-xl shadow p-6">
+          <div className="bg-card rounded-xl shadow p-6">
             <h3 className="font-semibold mb-4">Latest Approved CUs</h3>
             <div className="flex gap-6">
               {Object.entries(compliance.latestApproved).map(([version, cu]) => (
                 <div key={version} className="flex items-center gap-2">
                   <span className="font-medium">SQL {version}:</span>
                   <span className="bg-green-100 text-green-800 px-2 py-1 rounded">CU{cu.cuNumber}</span>
-                  <span className="text-gray-500 text-sm">({cu.buildNumber})</span>
+                  <span className="text-muted-foreground text-sm">({cu.buildNumber})</span>
                 </div>
               ))}
               {Object.keys(compliance.latestApproved).length === 0 && (
-                <span className="text-gray-500">No CUs approved yet</span>
+                <span className="text-muted-foreground">No CUs approved yet</span>
               )}
             </div>
           </div>
 
           {/* Outdated Instances */}
           {compliance.outdated.length > 0 && (
-            <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="bg-card rounded-xl shadow overflow-hidden">
               <div className="p-4 border-b bg-orange-50">
                 <h3 className="font-semibold text-orange-800">⚠️ Outdated Instances</h3>
               </div>
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Host</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Instance</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current CU</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Latest CU</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Behind</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Host</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Instance</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Current CU</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Latest CU</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Behind</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-border">
                   {compliance.outdated.map((inst) => (
-                    <tr key={inst.instanceId} className="hover:bg-gray-50">
+                    <tr key={inst.instanceId} className="hover:bg-muted/50">
                       <td className="px-6 py-4 whitespace-nowrap font-medium">{inst.hostname}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{inst.instanceName}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -566,7 +566,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
       {/* Add CU Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-lg p-6">
             <h2 className="text-xl font-semibold mb-4">Add Cumulative Update</h2>
             
             <div className="space-y-4">
@@ -663,7 +663,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-muted-foreground hover:bg-muted rounded-lg"
               >
                 Cancel
               </button>
@@ -682,9 +682,9 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
       {/* Deploy Modal */}
       {showDeployModal && selectedCu && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-lg p-6">
             <h2 className="text-xl font-semibold mb-2">🚀 Deploy CU{selectedCu.cuNumber}</h2>
-            <p className="text-gray-500 mb-4">
+            <p className="text-muted-foreground mb-4">
               SQL Server {selectedCu.version} - Build {selectedCu.buildNumber}
             </p>
             
@@ -692,14 +692,14 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
               <label className="block text-sm font-medium mb-2">Select Target Instances:</label>
               <div className="border rounded-lg max-h-60 overflow-y-auto">
                 {instances.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
+                  <div className="p-4 text-center text-muted-foreground">
                     No SQL instances found. Add instances in the Instances tab first.
                   </div>
                 ) : (
                   instances.map((inst) => (
                     <label
                       key={inst.id}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                      className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer border-b last:border-b-0"
                     >
                       <input
                         type="checkbox"
@@ -715,7 +715,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                       />
                       <div>
                         <div className="font-medium">{inst.hostname}</div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-muted-foreground">
                           {inst.instanceName} • {inst.version || 'Version unknown'}
                         </div>
                       </div>
@@ -733,14 +733,14 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                 >
                   Select All
                 </button>
-                <span className="text-gray-300">|</span>
+                <span className="text-muted-foreground">|</span>
                 <button
                   onClick={() => setSelectedInstances([])}
                   className="text-sm text-blue-600 hover:underline"
                 >
                   Clear
                 </button>
-                <span className="ml-auto text-sm text-gray-500">
+                <span className="ml-auto text-sm text-muted-foreground">
                   {selectedInstances.length} selected
                 </span>
               </div>
@@ -749,7 +749,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeployModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-muted-foreground hover:bg-muted rounded-lg"
               >
                 Cancel
               </button>

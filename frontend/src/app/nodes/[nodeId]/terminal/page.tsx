@@ -190,7 +190,7 @@ export default function TerminalPage() {
             onClick={() => inputRef.current?.focus()}
           >
             {output.length === 0 ? (
-              <span className="text-gray-500">Click "Start Session" to begin...</span>
+              <span className="text-muted-foreground">Click "Start Session" to begin...</span>
             ) : (
               output.map((line, i) => <span key={i}>{line}</span>)
             )}
@@ -198,7 +198,7 @@ export default function TerminalPage() {
           
           {/* Input Line */}
           {sessionId && (
-            <div className="border-t border-gray-700 p-2 flex items-center gap-2">
+            <div className="border-t border-border p-2 flex items-center gap-2">
               <span className="text-green-400">{'>'}</span>
               <input
                 ref={inputRef}

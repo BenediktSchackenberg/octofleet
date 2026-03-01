@@ -191,14 +191,14 @@ export default function RepoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-muted/50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -206,7 +206,7 @@ export default function RepoPage() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               📦 Software Repository
             </h1>
-            <p className="text-gray-500 mt-1">Local package storage for your fleet</p>
+            <p className="text-muted-foreground mt-1">Local package storage for your fleet</p>
           </div>
           <div className="flex gap-3">
             <button
@@ -227,27 +227,27 @@ export default function RepoPage() {
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow p-6">
+            <div className="bg-card rounded-xl shadow p-6">
               <div className="text-3xl font-bold">{stats.totalFiles}</div>
-              <div className="text-gray-500">Total Files</div>
+              <div className="text-muted-foreground">Total Files</div>
             </div>
-            <div className="bg-white rounded-xl shadow p-6">
+            <div className="bg-card rounded-xl shadow p-6">
               <div className="text-3xl font-bold">{stats.totalSizeFormatted}</div>
-              <div className="text-gray-500">Total Size</div>
+              <div className="text-muted-foreground">Total Size</div>
             </div>
-            <div className="bg-white rounded-xl shadow p-6">
+            <div className="bg-card rounded-xl shadow p-6">
               <div className="text-3xl font-bold">{stats.totalDownloads}</div>
-              <div className="text-gray-500">Downloads</div>
+              <div className="text-muted-foreground">Downloads</div>
             </div>
-            <div className="bg-white rounded-xl shadow p-6">
+            <div className="bg-card rounded-xl shadow p-6">
               <div className="flex gap-2 flex-wrap">
                 {stats.byType.map(t => (
-                  <span key={t.type} className="px-2 py-1 bg-gray-100 rounded text-sm">
+                  <span key={t.type} className="px-2 py-1 bg-muted rounded text-sm">
                     {getTypeIcon(t.type)} {t.count}
                   </span>
                 ))}
               </div>
-              <div className="text-gray-500 mt-2">By Type</div>
+              <div className="text-muted-foreground mt-2">By Type</div>
             </div>
           </div>
         )}
@@ -284,24 +284,24 @@ export default function RepoPage() {
         </div>
 
         {/* Files Table */}
-        <div className="bg-white rounded-xl shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="bg-card rounded-xl shadow overflow-hidden">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-muted/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Downloads</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">File</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Version</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Size</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Downloads</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {files.map(file => (
-                <tr key={file.id} className="hover:bg-gray-50">
+                <tr key={file.id} className="hover:bg-muted/50">
                   <td className="px-6 py-4">
                     <div className="font-medium">{file.displayName}</div>
-                    <div className="text-sm text-gray-500">{file.filename}</div>
+                    <div className="text-sm text-muted-foreground">{file.filename}</div>
                     {file.category && (
                       <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
                         {file.category}
@@ -310,11 +310,11 @@ export default function RepoPage() {
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-lg">{getTypeIcon(file.type)}</span>
-                    <span className="ml-2 text-sm text-gray-600">{file.type.toUpperCase()}</span>
+                    <span className="ml-2 text-sm text-muted-foreground">{file.type.toUpperCase()}</span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{file.version || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{formatSize(file.size)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{file.downloads}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{file.version || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{formatSize(file.size)}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{file.downloads}</td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <a
@@ -326,7 +326,7 @@ export default function RepoPage() {
                       </a>
                       <button
                         onClick={() => navigator.clipboard.writeText(`${API_BASE}${file.downloadUrl}`)}
-                        className="text-gray-500 hover:text-gray-700 text-sm"
+                        className="text-muted-foreground hover:text-foreground text-sm"
                       >
                         📋 Copy URL
                       </button>
@@ -342,7 +342,7 @@ export default function RepoPage() {
               ))}
               {files.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                     No files in repository. Upload some packages to get started!
                   </td>
                 </tr>
@@ -355,7 +355,7 @@ export default function RepoPage() {
       {/* Upload Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-lg p-6">
             <h2 className="text-xl font-semibold mb-4">⬆️ Upload File</h2>
             <form onSubmit={handleUpload} className="space-y-4">
               <div>
@@ -400,7 +400,7 @@ export default function RepoPage() {
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-muted-foreground hover:bg-muted rounded-lg"
                 >
                   Cancel
                 </button>
@@ -420,7 +420,7 @@ export default function RepoPage() {
       {/* Cache Modal */}
       {showCacheModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-lg p-6">
             <h2 className="text-xl font-semibold mb-4">🔗 Cache Remote URL</h2>
             <form onSubmit={handleCache} className="space-y-4">
               <div>
@@ -462,14 +462,14 @@ export default function RepoPage() {
                   />
                 </div>
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 This will download the file from the URL and store it locally.
               </p>
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   type="button"
                   onClick={() => setShowCacheModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-muted-foreground hover:bg-muted rounded-lg"
                 >
                   Cancel
                 </button>

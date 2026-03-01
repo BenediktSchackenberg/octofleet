@@ -82,7 +82,7 @@ const statusColors: Record<string, string> = {
   pending: "bg-yellow-500",
   disk_prep: "bg-blue-500",
   installing: "bg-blue-500",
-  not_installed: "bg-gray-500",
+  not_installed: "bg-muted/500",
   failed: "bg-red-500",
 };
 
@@ -415,8 +415,8 @@ export default function MssqlAssignmentsPage() {
                         <p className="text-2xl font-bold text-yellow-500">{selectedAssignment.summary.pending}</p>
                         <p className="text-xs text-muted-foreground">Ausstehend</p>
                       </div>
-                      <div className="p-2 bg-gray-500/10 rounded">
-                        <p className="text-2xl font-bold text-gray-500">{selectedAssignment.summary.notInstalled}</p>
+                      <div className="p-2 bg-muted/500/10 rounded">
+                        <p className="text-2xl font-bold text-muted-foreground">{selectedAssignment.summary.notInstalled}</p>
                         <p className="text-xs text-muted-foreground">Fehlt</p>
                       </div>
                     </div>
@@ -442,7 +442,7 @@ export default function MssqlAssignmentsPage() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Badge className={statusColors[n.installStatus] || "bg-gray-500"}>
+                              <Badge className={statusColors[n.installStatus] || "bg-muted/500"}>
                                 {statusLabels[n.installStatus] || n.installStatus}
                               </Badge>
                             </TableCell>

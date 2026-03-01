@@ -344,36 +344,36 @@ export default function SqlPage() {
       failed: 'bg-red-100 text-red-800',
       running: 'bg-blue-100 text-blue-800'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || 'bg-muted text-foreground';
   };
 
   const getEditionBadge = (edition: string) => {
     const colors: Record<string, string> = {
       developer: 'bg-purple-100 text-purple-800',
-      express: 'bg-gray-100 text-gray-800',
+      express: 'bg-muted text-foreground',
       standard: 'bg-blue-100 text-blue-800',
       enterprise: 'bg-amber-100 text-amber-800'
     };
-    return colors[edition] || 'bg-gray-100 text-gray-800';
+    return colors[edition] || 'bg-muted text-foreground';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen bg-muted/50 flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted/50">
       {/* Header */}
-      <div className="bg-white shadow">
+      <div className="bg-card shadow">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">🗄️ SQL Server Management</h1>
-              <p className="text-gray-500 mt-1">Deploy and manage SQL Server across your fleet</p>
+              <h1 className="text-2xl font-bold text-foreground">🗄️ SQL Server Management</h1>
+              <p className="text-muted-foreground mt-1">Deploy and manage SQL Server across your fleet</p>
             </div>
           </div>
         </div>
@@ -381,7 +381,7 @@ export default function SqlPage() {
 
       {/* Tabs */}
       <div className="max-w-7xl mx-auto px-4 mt-6">
-        <div className="border-b border-gray-200">
+        <div className="border-b border-border">
           <nav className="-mb-px flex space-x-8">
             {[
               { id: 'configs', label: 'Configurations', count: configs.length },
@@ -395,13 +395,13 @@ export default function SqlPage() {
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 }`}
               >
                 {tab.label}
                 {tab.count !== null && (
                   <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
-                    activeTab === tab.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                    activeTab === tab.id ? 'bg-blue-100 text-blue-600' : 'bg-muted text-muted-foreground'
                   }`}>
                     {tab.count}
                   </span>
@@ -434,7 +434,7 @@ export default function SqlPage() {
               
               <div className="grid gap-4">
                 {configs.map((config) => (
-                  <div key={config.id} className="bg-white rounded-lg shadow p-6">
+                  <div key={config.id} className="bg-card rounded-lg shadow p-6">
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center gap-3">
@@ -442,12 +442,12 @@ export default function SqlPage() {
                           <span className={`px-2 py-1 rounded text-xs font-medium ${getEditionBadge(config.edition)}`}>
                             {config.edition}
                           </span>
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-muted text-foreground">
                             {config.version}
                           </span>
                         </div>
                         {config.description && (
-                          <p className="text-gray-500 mt-1">{config.description}</p>
+                          <p className="text-muted-foreground mt-1">{config.description}</p>
                         )}
                       </div>
                       <button
@@ -460,40 +460,40 @@ export default function SqlPage() {
                     
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="text-gray-500">Instance:</span>
+                        <span className="text-muted-foreground">Instance:</span>
                         <span className="ml-2 font-mono">{config.instanceName}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Port:</span>
+                        <span className="text-muted-foreground">Port:</span>
                         <span className="ml-2">{config.port}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Memory:</span>
+                        <span className="text-muted-foreground">Memory:</span>
                         <span className="ml-2">{config.maxMemoryMb ? `${config.maxMemoryMb} MB` : 'Auto'}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">TempDB:</span>
+                        <span className="text-muted-foreground">TempDB:</span>
                         <span className="ml-2">{config.tempDbFileCount} files × {config.tempDbFileSizeMb} MB</span>
                       </div>
                     </div>
 
                     <div className="mt-4 flex gap-2 text-xs">
-                      <span className="text-gray-500">Disk Layout:</span>
+                      <span className="text-muted-foreground">Disk Layout:</span>
                       {config.diskConfigs.map((d) => (
-                        <span key={d.purpose} className="bg-gray-100 px-2 py-1 rounded">
+                        <span key={d.purpose} className="bg-muted px-2 py-1 rounded">
                           {d.driveLetter}: → {d.purpose}
                         </span>
                       ))}
                     </div>
 
-                    <div className="mt-3 text-xs text-gray-400">
+                    <div className="mt-3 text-xs text-muted-foreground">
                       Features: {config.features.join(', ')} | Collation: {config.collation}
                     </div>
                   </div>
                 ))}
                 
                 {configs.length === 0 && (
-                  <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+                  <div className="bg-card rounded-lg shadow p-8 text-center text-muted-foreground">
                     No configurations yet. Create one to get started.
                   </div>
                 )}
@@ -514,23 +514,23 @@ export default function SqlPage() {
                 </button>
               </div>
               
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              <div className="bg-card rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Config</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Group</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Members</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Config</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Group</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Members</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-card divide-y divide-border">
                     {assignments.map((a) => (
                       <tr key={a.id}>
                         <td className="px-6 py-4">
                           <div className="font-medium">{a.configName}</div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-sm text-muted-foreground">
                             <span className={`inline-block px-2 py-0.5 rounded text-xs ${getEditionBadge(a.edition)}`}>
                               {a.edition}
                             </span>
@@ -540,7 +540,7 @@ export default function SqlPage() {
                         <td className="px-6 py-4 font-medium">{a.groupName}</td>
                         <td className="px-6 py-4">
                           <div className="flex gap-2">
-                            <span className="bg-gray-100 px-2 py-1 rounded text-xs">{a.memberCount} total</span>
+                            <span className="bg-muted px-2 py-1 rounded text-xs">{a.memberCount} total</span>
                             {a.installedCount > 0 && (
                               <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
                                 {a.installedCount} installed
@@ -554,7 +554,7 @@ export default function SqlPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded text-xs ${a.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                          <span className={`px-2 py-1 rounded text-xs ${a.enabled ? 'bg-green-100 text-green-800' : 'bg-muted text-foreground'}`}>
                             {a.enabled ? 'Enabled' : 'Disabled'}
                           </span>
                         </td>
@@ -580,7 +580,7 @@ export default function SqlPage() {
                 </table>
                 
                 {assignments.length === 0 && (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-8 text-center text-muted-foreground">
                     No assignments yet. Assign a config to a group to deploy SQL Server.
                   </div>
                 )}
@@ -601,18 +601,18 @@ export default function SqlPage() {
                 </button>
               </div>
               
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              <div className="bg-card rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Node</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Instance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paths</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Node</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Instance</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Version</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Paths</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-card divide-y divide-border">
                     {instances.map((inst) => (
                       <tr key={inst.id}>
                         <td className="px-6 py-4 font-medium">{inst.nodeName}</td>
@@ -628,7 +628,7 @@ export default function SqlPage() {
                             {inst.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-xs text-gray-500">
+                        <td className="px-6 py-4 text-xs text-muted-foreground">
                           {inst.dataPath && <div>Data: {inst.dataPath}</div>}
                           {inst.logPath && <div>Log: {inst.logPath}</div>}
                           {inst.tempDbPath && <div>TempDB: {inst.tempDbPath}</div>}
@@ -639,7 +639,7 @@ export default function SqlPage() {
                 </table>
                 
                 {instances.length === 0 && (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-8 text-center text-muted-foreground">
                     No SQL Server instances installed yet.
                   </div>
                 )}
@@ -657,7 +657,7 @@ export default function SqlPage() {
       {/* Config Modal */}
       {showConfigModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
             <div className="p-6">
               <h2 className="text-xl font-bold mb-4">
                 {editingConfig ? 'Edit Configuration' : 'New SQL Server Configuration'}
@@ -666,7 +666,7 @@ export default function SqlPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
                     <input
                       type="text"
                       value={configForm.name}
@@ -676,7 +676,7 @@ export default function SqlPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Instance Name</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Instance Name</label>
                     <input
                       type="text"
                       value={configForm.instanceName}
@@ -688,7 +688,7 @@ export default function SqlPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Description</label>
                   <input
                     type="text"
                     value={configForm.description}
@@ -700,7 +700,7 @@ export default function SqlPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Version</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Version</label>
                     <select
                       value={configForm.version}
                       onChange={(e) => setConfigForm({...configForm, version: e.target.value})}
@@ -712,7 +712,7 @@ export default function SqlPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Edition</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Edition</label>
                     <select
                       value={configForm.edition}
                       onChange={(e) => setConfigForm({...configForm, edition: e.target.value})}
@@ -728,7 +728,7 @@ export default function SqlPage() {
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Port</label>
                     <input
                       type="number"
                       value={configForm.port}
@@ -737,7 +737,7 @@ export default function SqlPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Memory (MB)</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Max Memory (MB)</label>
                     <input
                       type="number"
                       value={configForm.maxMemoryMb || ''}
@@ -747,7 +747,7 @@ export default function SqlPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Collation</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">Collation</label>
                     <input
                       type="text"
                       value={configForm.collation}
@@ -759,7 +759,7 @@ export default function SqlPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">TempDB Files</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">TempDB Files</label>
                     <input
                       type="number"
                       value={configForm.tempDbFileCount}
@@ -768,7 +768,7 @@ export default function SqlPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">TempDB Size (MB)</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">TempDB Size (MB)</label>
                     <input
                       type="number"
                       value={configForm.tempDbFileSizeMb}
@@ -786,7 +786,7 @@ export default function SqlPage() {
                         <div className="font-medium capitalize mb-2">{disk.purpose}</div>
                         <div className="space-y-2">
                           <div>
-                            <label className="text-xs text-gray-500">Drive Letter</label>
+                            <label className="text-xs text-muted-foreground">Drive Letter</label>
                             <input
                               type="text"
                               value={disk.driveLetter}
@@ -800,7 +800,7 @@ export default function SqlPage() {
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-500">Folder</label>
+                            <label className="text-xs text-muted-foreground">Folder</label>
                             <input
                               type="text"
                               value={disk.folder}
@@ -833,7 +833,7 @@ export default function SqlPage() {
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                 <button
                   onClick={() => { setShowConfigModal(false); resetConfigForm(); }}
-                  className="px-4 py-2 border rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 border rounded-md hover:bg-muted/50"
                 >
                   Cancel
                 </button>
@@ -853,13 +853,13 @@ export default function SqlPage() {
       {/* Assignment Modal */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-md w-full m-4">
             <div className="p-6">
               <h2 className="text-xl font-bold mb-4">Assign Config to Group</h2>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Configuration *</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Configuration *</label>
                   <select
                     value={assignForm.configId}
                     onChange={(e) => setAssignForm({...assignForm, configId: e.target.value})}
@@ -875,7 +875,7 @@ export default function SqlPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Group *</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Group *</label>
                   <select
                     value={assignForm.groupId}
                     onChange={(e) => setAssignForm({...assignForm, groupId: e.target.value})}
@@ -891,7 +891,7 @@ export default function SqlPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">SA Password *</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">SA Password *</label>
                   <input
                     type="password"
                     value={assignForm.saPassword}
@@ -899,14 +899,14 @@ export default function SqlPage() {
                     className="w-full border rounded-md px-3 py-2"
                     placeholder="SQL Server SA password"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Password for the SQL Server SA account</p>
+                  <p className="text-xs text-muted-foreground mt-1">Password for the SQL Server SA account</p>
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                 <button
                   onClick={() => { setShowAssignModal(false); setAssignForm({ configId: '', groupId: '', saPassword: '' }); }}
-                  className="px-4 py-2 border rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 border rounded-md hover:bg-muted/50"
                 >
                   Cancel
                 </button>

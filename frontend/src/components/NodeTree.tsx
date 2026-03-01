@@ -70,7 +70,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
     switch (status) {
       case "online": return "text-green-500";
       case "away": return "text-yellow-500";
-      default: return "text-gray-400";
+      default: return "text-muted-foreground";
     }
   }
 
@@ -278,7 +278,7 @@ function NodeItem({ node, selected, onClick, indent }: NodeItemProps) {
           "h-2 w-2 shrink-0 fill-current",
           node.status === "online" && "text-green-500",
           node.status === "away" && "text-yellow-500",
-          node.status === "offline" && "text-gray-400"
+          node.status === "offline" && "text-muted-foreground"
         )}
       />
       <Monitor className="h-3 w-3 text-muted-foreground shrink-0" />
