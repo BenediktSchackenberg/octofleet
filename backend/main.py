@@ -5692,7 +5692,7 @@ async def stop_screen_session(
 
 
 @app.get("/api/v1/screen/pending/{node_id}")
-async def get_pending_screen_session(node_id: str, _: str = Depends(verify_api_key)):
+async def get_pending_screen_session(node_id: str):
     """
     Agent endpoint: Check if there's a pending screen session for this node.
     
@@ -5946,7 +5946,6 @@ async def stop_shell_session(
 @app.get("/api/v1/shell/pending/{node_id}")
 async def get_pending_shell_session(
     node_id: str,
-    api_key: str = Header(None, alias="X-API-Key")
 ):
     """
     Agent polls this to check for pending shell sessions.
@@ -7154,7 +7153,7 @@ async def get_terminal_output(session_id: str, _: str = Depends(verify_api_key))
 
 # Agent polling endpoint for terminal commands
 @app.get("/api/v1/terminal/pending/{node_id}")
-async def get_pending_terminal_commands(node_id: str, _: str = Depends(verify_api_key)):
+async def get_pending_terminal_commands(node_id: str):
     """Agent polls this to get pending commands."""
     commands = []
     for session in _terminal_sessions.values():
