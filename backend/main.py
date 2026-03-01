@@ -1200,7 +1200,7 @@ async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-@app.get("/api/v1/jobs/pending/{node_id}", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/jobs/pending/{node_id}")
 async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Get pending jobs for a specific node"""
     # Support both formats: "win-baltasa" and "BALTASA"
