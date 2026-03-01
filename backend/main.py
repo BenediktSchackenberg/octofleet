@@ -5950,9 +5950,6 @@ async def get_pending_shell_session(
     """
     Agent polls this to check for pending shell sessions.
     """
-    if api_key != API_KEY:
-        raise HTTPException(401, "Invalid API key")
-    
     session = shell_session_manager.get_pending_for_node(node_id.upper())
     if not session:
         return {"session": None}
