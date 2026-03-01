@@ -4,7 +4,7 @@ import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { Check, X, Clock, Monitor, LayoutGrid, List } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 
@@ -155,8 +155,8 @@ export default function NodesPage() {
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
-    if (typeof window !== "undefined") return (localStorage.getItem("octofleet-nodes-view") as "list" | "grid") || "list";
-    return "list";
+    if (typeof window !== "undefined") return (localStorage.getItem("octofleet-nodes-view") as "list" | "grid") || "grid";
+    return "grid";
   });
   const router = useRouter();
 
@@ -261,9 +261,7 @@ export default function NodesPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-6xl mx-auto p-6">
         {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: "Nodes" }]} />
-        
-        {/* Header */}
+{/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">🖥️ Nodes</h1>

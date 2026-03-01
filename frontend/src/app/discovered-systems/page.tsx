@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/Navbar';
-import { Breadcrumb } from '@/components/ui-components';
-
 interface DiscoveredSystem {
   id: string;
   mac_address: string;
@@ -105,12 +103,7 @@ export default function DiscoveredSystemsPage() {
     <div className="min-h-screen bg-gray-900">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <Breadcrumb items={[
-          { label: 'Provisioning' },
-          { label: 'Discovered Systems' }
-        ]} />
-
-        <div className="flex justify-between items-center mb-6">
+<div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">Discovered Systems</h1>
             <p className="text-gray-400">Systems detected via PXE boot</p>

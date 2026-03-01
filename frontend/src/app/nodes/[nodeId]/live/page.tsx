@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb } from "@/components/ui-components";
 import Link from "next/link";
 import { API_BASE } from '@/lib/api-config';
 
@@ -271,13 +270,7 @@ export default function LiveViewPage() {
   return (
     <main className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
-        <Breadcrumb items={[
-          { label: "Nodes", href: "/nodes" },
-          { label: nodeId, href: `/nodes/${nodeId}` },
-          { label: "Live View" }
-        ]} />
-        
-        <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold">🔴 Live View</h1>
             <Badge 

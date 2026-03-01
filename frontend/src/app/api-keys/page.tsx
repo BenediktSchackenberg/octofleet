@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader, useAuth } from "@/lib/auth-context";
 import { Plus, Trash2, Key, Copy, Check, AlertTriangle } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
@@ -113,8 +113,7 @@ export default function ApiKeysPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6">
-        <Breadcrumb items={[{ label: "Settings" }, { label: "API Keys" }]} />
-        <h1 className="text-2xl font-bold mb-6">🔑 API Keys</h1>
+<h1 className="text-2xl font-bold mb-6">🔑 API Keys</h1>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -124,9 +123,7 @@ export default function ApiKeysPage() {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <Breadcrumb items={[{ label: "Settings" }, { label: "API Keys" }]} />
-      
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">🔑 API Keys</h1>
           <p className="text-muted-foreground">Manage API access tokens</p>

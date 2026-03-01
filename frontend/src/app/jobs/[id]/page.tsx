@@ -4,7 +4,7 @@ import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { API_URL } from '@/lib/api-config';
 
 
@@ -181,8 +181,7 @@ export default function JobDetailPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
         <div className="max-w-4xl mx-auto">
-          <Breadcrumb items={[{ label: "Jobs", href: "/jobs" }, { label: "Fehler" }]} />
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
+<div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
             <p className="text-red-400">{error || "Job nicht gefunden"}</p>
           </div>
         </div>
@@ -199,9 +198,7 @@ export default function JobDetailPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-6xl mx-auto p-6">
         {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: "Jobs", href: "/jobs" }, { label: job.name }]} />
-        
-        {/* Header */}
+{/* Header */}
         <div className="mb-6">
           <div className="flex items-start justify-between">
             <div>

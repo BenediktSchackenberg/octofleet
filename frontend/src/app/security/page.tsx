@@ -5,7 +5,6 @@ import Link from "next/link";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
-import { Breadcrumb } from "@/components/ui-components";
 import {
   Shield, AlertTriangle, FileSearch, Users, Settings, Database,
   Download, Eye, Activity, ChevronRight, TrendingUp, TrendingDown
@@ -67,9 +66,7 @@ export default function SecurityPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance" }]} />
-        
-        <div className="flex items-center gap-3 mb-6">
+<div className="flex items-center gap-3 mb-6">
           <Shield className="h-8 w-8 text-red-400" />
           <div>
             <h1 className="text-2xl font-bold">Security & Compliance</h1>

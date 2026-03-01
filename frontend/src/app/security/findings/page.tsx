@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { AlertTriangle, CheckCircle, XCircle, Eye } from "lucide-react";
 
 interface Finding { id: string; type: string; title: string; description: string; severity: string; score: number; status: string; first_seen: string; last_seen: string; node_id: string; user_id: string; }
@@ -37,8 +36,7 @@ export default function FindingsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "Findings & Alerts" }]} />
-        <div className="flex items-center gap-3 mb-6">
+<div className="flex items-center gap-3 mb-6">
           <AlertTriangle className="h-8 w-8 text-orange-400" />
           <div><h1 className="text-2xl font-bold">Findings & Alerts</h1><p className="text-zinc-400 text-sm">{total} findings — triage and manage security issues</p></div>
         </div>

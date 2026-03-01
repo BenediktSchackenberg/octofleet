@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
-import { Breadcrumb } from "@/components/ui-components";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
 import { API_BASE } from '@/lib/api-config';
@@ -215,9 +214,7 @@ export default function GroupDetailPage() {
     <main className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
         {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: "Groups", href: "/groups" }, { label: group.name }]} />
-        
-        {/* Header */}
+{/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <div className="flex items-center gap-3 mt-2">

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import { Plus, FolderTree, Tag, Users } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
@@ -97,8 +97,7 @@ export default function GroupsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6">
-        <Breadcrumb items={[{ label: "Groups" }]} />
-        <h1 className="text-2xl font-bold mb-6">📁 Groups</h1>
+<h1 className="text-2xl font-bold mb-6">📁 Groups</h1>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -108,9 +107,7 @@ export default function GroupsPage() {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <Breadcrumb items={[{ label: "Groups" }]} />
-      
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">📁 Groups</h1>
           <p className="text-muted-foreground">{groups.length} groups, {tags.length} tags</p>

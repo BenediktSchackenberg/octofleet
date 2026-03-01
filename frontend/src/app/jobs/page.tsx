@@ -3,6 +3,7 @@ import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import { API_URL } from '@/lib/api-config';
+import { Terminal, Zap, Rocket } from "lucide-react";
 
 
 
@@ -553,15 +554,20 @@ export default function JobsPage() {
         {loading ? (
           <div className="text-center text-zinc-400 py-12">Lade Jobs...</div>
         ) : jobs.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">📭</div>
-            <h2 className="text-xl font-semibold text-white mb-2">Keine Jobs vorhanden</h2>
-            <p className="text-zinc-400 mb-4">Erstelle deinen ersten Job um Befehle remote auszuführen.</p>
+          <div className="text-center py-20">
+            <div className="flex justify-center gap-4 mb-6 text-zinc-500">
+              <Terminal className="w-10 h-10" />
+              <Zap className="w-10 h-10 text-purple-400" />
+              <Rocket className="w-10 h-10" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Keine Jobs vorhanden</h2>
+            <p className="text-zinc-400 mb-1">Erstelle deinen ersten Job um Befehle remote auszuführen.</p>
+            <p className="text-zinc-500 text-sm mb-6">Jobs können Shell-Kommandos, Skripte oder Paket-Installationen auf deinen Nodes ausführen.</p>
             <button
               onClick={() => setShowCreate(true)}
-              className="rounded-lg bg-purple-600 px-6 py-2 text-white hover:bg-purple-500"
+              className="rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 px-8 py-3 text-white font-semibold hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-900/30"
             >
-              Ersten Job erstellen
+              🚀 Ersten Job erstellen
             </button>
           </div>
         ) : (

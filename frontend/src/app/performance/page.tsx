@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Breadcrumb } from "@/components/ui-components";
 import { 
   RefreshCw, Cpu, MemoryStick, HardDrive, Activity, Search, X, Star, StarOff,
   ChevronDown, ChevronRight, Clock, AlertTriangle, CheckCircle, XCircle, Eye, EyeOff,
@@ -621,9 +620,7 @@ export default function PerformancePage() {
   return (
     <main className="min-h-screen bg-background p-6">
       <div className="max-w-[1800px] mx-auto">
-        <Breadcrumb items={[{ label: "Dashboard", href: "/" }, { label: "Performance" }]} />
-        
-        {/* Header */}
+{/* Header */}
         <div className="flex items-center justify-between mb-4 mt-3">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Activity className="h-6 w-6 text-blue-500" />

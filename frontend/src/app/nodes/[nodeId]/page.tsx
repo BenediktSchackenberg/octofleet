@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { Timeline } from "@/components/timeline";
-import { Breadcrumb } from "@/components/ui-components";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { Copy, Check } from "lucide-react";
@@ -442,9 +441,7 @@ export default function NodeDetailPage() {
     <main className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
         {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: "Nodes", href: "/nodes" }, { label: node?.hostname || nodeId }]} />
-        
-        {/* Header */}
+{/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="flex items-center gap-4 mt-2">

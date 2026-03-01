@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { Search, Package, ArrowRight } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 
@@ -85,8 +85,7 @@ export default function SoftwareComparePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6">
-        <Breadcrumb items={[{ label: "Software Compare" }]} />
-        <h1 className="text-2xl font-bold mb-6">📊 Software Compare</h1>
+<h1 className="text-2xl font-bold mb-6">📊 Software Compare</h1>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -96,9 +95,7 @@ export default function SoftwareComparePage() {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <Breadcrumb items={[{ label: "Software Compare" }]} />
-      
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">📊 Software Compare</h1>
           <p className="text-muted-foreground">Compare software versions across nodes</p>

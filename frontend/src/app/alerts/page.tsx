@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb } from "@/components/ui-components";
 import { Bell, Plus, Trash2, TestTube, Check, X } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
 
@@ -169,9 +168,7 @@ export default function AlertsPage() {
 
   return (
     <main className="min-h-screen bg-background p-8">
-      <Breadcrumb items={[{ label: 'Dashboard', href: '/' }, { label: 'Alerts' }]} />
-      
-      <div className="flex items-center gap-3 mb-8">
+<div className="flex items-center gap-3 mb-8">
         <Bell className="h-8 w-8" />
         <h1 className="text-3xl font-bold">Alerts</h1>
       </div>

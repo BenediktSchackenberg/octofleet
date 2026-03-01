@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { FileSearch, Search } from "lucide-react";
 
 interface FileEvent { event_id: string; ts: string; node_id: string; user_id: string; op: string; path: string; old_path: string; process_name: string; file_size: number; success: boolean; }
@@ -30,8 +29,7 @@ export default function FileAuditPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "File & Document Audit" }]} />
-        <div className="flex items-center gap-3 mb-6"><FileSearch className="h-8 w-8 text-green-400" /><div><h1 className="text-2xl font-bold">File & Document Audit</h1><p className="text-zinc-400 text-sm">{total.toLocaleString()} file events — who changed what, when</p></div></div>
+<div className="flex items-center gap-3 mb-6"><FileSearch className="h-8 w-8 text-green-400" /><div><h1 className="text-2xl font-bold">File & Document Audit</h1><p className="text-zinc-400 text-sm">{total.toLocaleString()} file events — who changed what, when</p></div></div>
         <div className="flex gap-3 mb-6 flex-wrap">
           <input placeholder="Search path..." value={filter.path} onChange={e => setFilter({...filter, path: e.target.value})} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm w-64" />
           <input placeholder="Node ID..." value={filter.node_id} onChange={e => setFilter({...filter, node_id: e.target.value})} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm w-48" />

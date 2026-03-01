@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Breadcrumb } from "@/components/ui-components";
 import { Terminal, Play, Square, Trash2 } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
 
@@ -131,14 +130,7 @@ export default function TerminalPage() {
 
   return (
     <main className="min-h-screen bg-background p-8">
-      <Breadcrumb items={[
-        { label: 'Dashboard', href: '/' },
-        { label: 'Nodes', href: '/nodes' },
-        { label: nodeId, href: `/nodes/${nodeId}` },
-        { label: 'Terminal' }
-      ]} />
-      
-      <div className="flex items-center gap-3 mb-6">
+<div className="flex items-center gap-3 mb-6">
         <Terminal className="h-8 w-8" />
         <h1 className="text-3xl font-bold">Remote Terminal</h1>
         <Badge variant={connected ? 'default' : 'secondary'}>

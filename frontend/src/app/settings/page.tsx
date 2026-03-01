@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
@@ -190,9 +190,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-4xl mx-auto p-6">
-        <Breadcrumb items={[{ label: "Settings" }]} />
-        
-        <h1 className="text-2xl font-bold mb-6">⚙️ Einstellungen</h1>
+<h1 className="text-2xl font-bold mb-6">⚙️ Einstellungen</h1>
 
         {/* Quick Links */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">

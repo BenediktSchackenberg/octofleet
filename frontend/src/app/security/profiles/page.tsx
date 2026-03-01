@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { Eye, Plus, Edit, Trash2, Shield } from "lucide-react";
 
 interface Profile {
@@ -76,9 +75,7 @@ export default function MonitoringProfilesPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "Monitoring Profiles" }]} />
-        
-        <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Eye className="h-8 w-8 text-purple-400" />
             <div>

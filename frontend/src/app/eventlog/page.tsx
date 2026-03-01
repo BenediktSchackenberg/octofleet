@@ -3,7 +3,7 @@ import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { EventlogChart } from "@/components/EventlogChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { API_URL } from '@/lib/api-config';
@@ -126,9 +126,7 @@ export default function EventlogPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-7xl mx-auto p-6">
-        <Breadcrumb items={[{ label: "Eventlog" }]} />
-        
-        <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">📋 Windows Eventlog</h1>
             <p className="text-zinc-400 text-sm">Security, System & Application Events</p>

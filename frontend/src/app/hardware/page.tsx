@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Breadcrumb } from "@/components/ui-components";
 import { getAuthHeader } from "@/lib/auth-context";
 import Link from "next/link";
 import { API_BASE } from '@/lib/api-config';
@@ -101,9 +100,7 @@ export default function FleetHardwarePage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 p-8">
       <div className="max-w-7xl mx-auto">
-        <Breadcrumb items={[{ label: "Hardware Fleet" }]} />
-        
-        <h1 className="text-3xl font-bold mb-2">🖥️ Hardware Fleet Overview</h1>
+<h1 className="text-3xl font-bold mb-2">🖥️ Hardware Fleet Overview</h1>
         <p className="text-zinc-400 mb-6">{data.nodeCount} Nodes erfasst</p>
 
         {/* Issues Banner */}

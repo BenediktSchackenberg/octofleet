@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Breadcrumb } from "@/components/ui-components";
 import { Database, Server, HardDrive, Play, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Plus, Link, Trash2 } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
 import { API_BASE } from '@/lib/api-config';
@@ -261,12 +260,7 @@ export default function MssqlAssignmentsPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <Breadcrumb items={[
-        { label: "Deployments", href: "/deployments" },
-        { label: "SQL Server", href: "/deployments/mssql" }
-      ]} />
-
-      <div className="flex items-center justify-between">
+<div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Database className="h-8 w-8" />

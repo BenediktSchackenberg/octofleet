@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { Settings, Plus, Edit, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 
 interface Policy { id: string; name: string; description: string; version: number; definition: Record<string, unknown>; enabled: boolean; severity: string; created_at: string; }
@@ -45,8 +44,7 @@ export default function PoliciesPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "Policies" }]} />
-        <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3"><Settings className="h-8 w-8 text-yellow-400" /><div><h1 className="text-2xl font-bold">Security Policies</h1><p className="text-zinc-400 text-sm">Define behavior rules, thresholds, and detection patterns</p></div></div>
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-sm font-medium transition-colors"><Plus className="h-4 w-4" /> New Policy</button>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { getAuthHeader } from "@/lib/auth-context";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { Card, CardContent } from "@/components/ui/card";
 import { API_URL } from "@/lib/api-config";
 import {
@@ -166,9 +166,7 @@ export default function AgentMonitorPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Admin" }, { label: "Agent Monitor" }]} />
-
-      <div className="flex items-center justify-between">
+<div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Activity className="h-8 w-8 text-green-500" />

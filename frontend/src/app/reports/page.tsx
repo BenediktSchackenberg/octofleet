@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle, AlertCircle } from "lucide-react";
-import { Breadcrumb } from "@/components/ui-components";
 import { getAuthHeader, useAuth } from "@/lib/auth-context";
 import { API_URL } from '@/lib/api-config';
 
@@ -118,14 +117,7 @@ export default function ReportsPage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <Breadcrumb
-        items={[
-          { label: "Dashboard", href: "/" },
-          { label: "Reports" },
-        ]}
-      />
-
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6" />

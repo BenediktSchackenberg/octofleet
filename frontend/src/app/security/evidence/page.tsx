@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { Download, Plus, Package } from "lucide-react";
 
 interface Export { id: string; scope: string; filter_criteria: Record<string, unknown>; manifest_hash: string; created_by: string; created_at: string; }
@@ -29,8 +28,7 @@ export default function EvidencePage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "Evidence & Exports" }]} />
-        <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3"><Download className="h-8 w-8 text-cyan-400" /><div><h1 className="text-2xl font-bold">Evidence & Exports</h1><p className="text-zinc-400 text-sm">Create audit-ready evidence packs for compliance</p></div></div>
           <button onClick={createExport} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg text-sm font-medium"><Plus className="h-4 w-4" /> New Export</button>
         </div>

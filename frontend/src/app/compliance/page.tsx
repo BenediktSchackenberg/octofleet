@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { Shield, ShieldCheck, ShieldX, Lock, Unlock, Flame, FlameKindling } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { API_URL } from '@/lib/api-config';
@@ -84,8 +84,7 @@ export default function CompliancePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6">
-        <Breadcrumb items={[{ label: "Compliance" }]} />
-        <h1 className="text-2xl font-bold mb-6">🛡️ Compliance Dashboard</h1>
+<h1 className="text-2xl font-bold mb-6">🛡️ Compliance Dashboard</h1>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -96,8 +95,7 @@ export default function CompliancePage() {
   if (!data) {
     return (
       <div className="min-h-screen bg-background p-6">
-        <Breadcrumb items={[{ label: "Compliance" }]} />
-        <h1 className="text-2xl font-bold mb-6">🛡️ Compliance Dashboard</h1>
+<h1 className="text-2xl font-bold mb-6">🛡️ Compliance Dashboard</h1>
         <p className="text-muted-foreground">Failed to load compliance data</p>
       </div>
     );
@@ -117,9 +115,7 @@ export default function CompliancePage() {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <Breadcrumb items={[{ label: "Compliance" }]} />
-      
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">🛡️ Compliance Dashboard</h1>
           <p className="text-muted-foreground">Security status across all nodes</p>

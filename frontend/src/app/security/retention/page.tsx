@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { Database, Save, Lock } from "lucide-react";
 
 interface RetentionRule { id: string; category: string; hot_days: number; warm_days: number; cold_days: number; legal_hold: boolean; }
@@ -33,8 +32,7 @@ export default function RetentionPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "Retention & Lifecycle" }]} />
-        <div className="flex items-center gap-3 mb-6"><Database className="h-8 w-8 text-blue-400" /><div><h1 className="text-2xl font-bold">Retention & Data Lifecycle</h1><p className="text-zinc-400 text-sm">Manage data retention, archiving, and legal hold settings</p></div></div>
+<div className="flex items-center gap-3 mb-6"><Database className="h-8 w-8 text-blue-400" /><div><h1 className="text-2xl font-bold">Retention & Data Lifecycle</h1><p className="text-zinc-400 text-sm">Manage data retention, archiving, and legal hold settings</p></div></div>
         <div className="bg-zinc-900/50 border border-blue-500/20 rounded-xl p-4 mb-6 text-sm text-blue-300">
           <strong>Hot</strong> = fast queryable · <strong>Warm</strong> = compressed, slower queries · <strong>Cold</strong> = archived, export only · <strong>Legal Hold</strong> = prevents all deletion
         </div>

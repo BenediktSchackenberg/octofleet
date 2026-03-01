@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { Plus, Trash2, Shield, User as UserIcon, Key } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 
@@ -140,8 +140,7 @@ export default function UsersPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6">
-        <Breadcrumb items={[{ label: "Users" }]} />
-        <h1 className="text-2xl font-bold mb-6">👥 User Management</h1>
+<h1 className="text-2xl font-bold mb-6">👥 User Management</h1>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -151,9 +150,7 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <Breadcrumb items={[{ label: "Users" }]} />
-      
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">👥 User Management</h1>
           <p className="text-muted-foreground">{users.length} users</p>

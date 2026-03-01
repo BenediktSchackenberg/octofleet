@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getAuthHeader } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { API_URL } from '@/lib/api-config';
 
 
@@ -208,13 +207,7 @@ export default function MaintenanceWindowsPage() {
   return (
     <div className="min-h-screen bg-zinc-900 p-6">
       <div className="mx-auto max-w-5xl">
-        <Breadcrumb items={[
-          { label: "Home", href: "/" },
-          { label: "Einstellungen", href: "/settings" },
-          { label: "Wartungsfenster" }
-        ]} />
-
-        <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-white">🕐 Wartungsfenster</h1>
             <p className="text-zinc-400">Deployments nur in definierten Zeitfenstern ausführen</p>

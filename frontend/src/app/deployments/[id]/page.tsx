@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb } from "@/components/ui-components";
 import { Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Trash2, ArrowLeft, Download, Package } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
 
@@ -155,13 +154,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="container mx-auto p-6">
-      <Breadcrumb items={[
-        { label: "Home", href: "/" },
-        { label: "Deployments", href: "/deployments" },
-        { label: deployment.name }
-      ]} />
-
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" asChild>

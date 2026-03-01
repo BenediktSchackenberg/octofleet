@@ -4,7 +4,7 @@ import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { API_URL } from '@/lib/api-config';
 
 
@@ -679,8 +679,7 @@ export default function PackageDetailPage() {
     return (
       <div className="min-h-screen bg-zinc-900 p-6">
         <div className="mx-auto max-w-5xl">
-          <Breadcrumb items={[{ label: "Packages", href: "/packages" }, { label: "Nicht gefunden" }]} />
-          <div className="text-center py-12">
+<div className="text-center py-12">
             <div className="text-6xl mb-4">❌</div>
             <h1 className="text-xl font-bold text-white">Paket nicht gefunden</h1>
           </div>
@@ -693,9 +692,7 @@ export default function PackageDetailPage() {
     <div className="min-h-screen bg-zinc-900 p-6">
       <div className="mx-auto max-w-5xl">
         {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: "Packages", href: "/packages" }, { label: pkg.displayName || pkg.name }]} />
-        
-        {/* Header */}
+{/* Header */}
         <div className="mb-6">
           <Link href="/packages" className="text-zinc-400 hover:text-white text-sm">
             ← Pakete

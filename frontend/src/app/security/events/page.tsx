@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { Activity, Search } from "lucide-react";
 
 interface Event { event_id: string; ts: string; node_id: string; user_id: string; event_type: string; severity: string; payload: Record<string, unknown>; }
@@ -30,8 +29,7 @@ export default function EventsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "Security Events" }]} />
-        <div className="flex items-center gap-3 mb-6"><Activity className="h-8 w-8 text-blue-400" /><div><h1 className="text-2xl font-bold">Security Events</h1><p className="text-zinc-400 text-sm">{total.toLocaleString()} events</p></div></div>
+<div className="flex items-center gap-3 mb-6"><Activity className="h-8 w-8 text-blue-400" /><div><h1 className="text-2xl font-bold">Security Events</h1><p className="text-zinc-400 text-sm">{total.toLocaleString()} events</p></div></div>
         <div className="flex gap-3 mb-6 flex-wrap">
           <input placeholder="Node ID..." value={filter.node_id} onChange={e => setFilter({...filter, node_id: e.target.value})} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm w-48" />
           <input placeholder="Event type..." value={filter.event_type} onChange={e => setFilter({...filter, event_type: e.target.value})} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm w-48" />

@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Breadcrumb } from "@/components/ui-components";
 import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Database, Package, ChevronRight } from "lucide-react";
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
 import { API_BASE } from '@/lib/api-config';
@@ -101,9 +100,7 @@ export default function DeploymentsPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Dashboard", href: "/" }, { label: "Deployments" }]} />
-      
-      <div className="flex items-center justify-between mb-6">
+<div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Rocket className="h-8 w-8" />

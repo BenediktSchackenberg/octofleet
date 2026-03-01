@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
-import { Breadcrumb } from "@/components/ui-components";
 import { Users } from "lucide-react";
 
 interface AuditEvent { id: string; ts: string; actor_user_id: string; action: string; object_type: string; object_id: string; details: Record<string, unknown>; }
@@ -21,8 +20,7 @@ export default function AuditLogPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-        <Breadcrumb items={[{ label: "Security & Compliance", href: "/security" }, { label: "Access Audit" }]} />
-        <div className="flex items-center gap-3 mb-6"><Users className="h-8 w-8 text-pink-400" /><div><h1 className="text-2xl font-bold">Access Audit</h1><p className="text-zinc-400 text-sm">Audit the auditor — who viewed or exported what data</p></div></div>
+<div className="flex items-center gap-3 mb-6"><Users className="h-8 w-8 text-pink-400" /><div><h1 className="text-2xl font-bold">Access Audit</h1><p className="text-zinc-400 text-sm">Audit the auditor — who viewed or exported what data</p></div></div>
         {loading ? <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div></div> :
         events.length === 0 ? <div className="text-center py-20"><Users className="h-16 w-16 text-zinc-700 mx-auto mb-4" /><h3 className="text-lg font-semibold">No audit events</h3><p className="text-zinc-400 text-sm mt-2">Actions like evidence exports and data access will be logged here</p></div> :
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">

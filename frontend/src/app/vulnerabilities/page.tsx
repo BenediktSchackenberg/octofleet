@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getAuthHeader } from "@/lib/auth-context";
-import { Breadcrumb, LoadingSpinner } from "@/components/ui-components";
+import { LoadingSpinner } from "@/components/ui-components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { API_URL } from '@/lib/api-config';
@@ -158,9 +158,7 @@ export default function VulnerabilitiesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Vulnerabilities" }]} />
-
-      <div className="flex items-center justify-between">
+<div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Bug className="h-8 w-8 text-red-500" />
