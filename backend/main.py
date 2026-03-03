@@ -14,6 +14,13 @@ import time
 from uuid import UUID
 import uuid
 import re
+
+def _is_uuid(val: str) -> bool:
+    try:
+        UUID(val)
+        return True
+    except (ValueError, AttributeError):
+        return False
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -11606,6 +11613,13 @@ async def import_patches(data: dict):
     """Import patches from agent scan results. Expects {node_id, patches: [{kb_id, title, ...}]}"""
     node_id = data.get("node_id")
     patches = data.get("patches", [])
+    # Resolve hostname to UUID if needed
+    if node_id and not _is_uuid(node_id):
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT node_id FROM nodes WHERE UPPER(hostname) = UPPER($1)", node_id)
+            if row:
+                node_id = str(row["node_id"])
     imported = 0
     async with db_pool.acquire() as conn:
         for p in patches:
@@ -11870,13 +11884,13 @@ async def cancel_patch_deployment(deployment_id: str):
 
 # -- Agent Endpoints --
 
-@app.post("/api/v1/patches/scan-results", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/patches/scan-results")
 async def submit_patch_scan_results(data: dict):
     """Agent submits available Windows Updates. Same as import but explicit agent endpoint."""
     return await import_patches(data)
 
 
-@app.get("/api/v1/patches/pending/{node_id}", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/patches/pending/{node_id}")
 async def get_pending_patches(node_id: str):
     """Agent polls for patches it needs to install."""
     async with db_pool.acquire() as conn:
@@ -11893,7 +11907,7 @@ async def get_pending_patches(node_id: str):
         return [dict(r) for r in rows]
 
 
-@app.post("/api/v1/patches/results", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/patches/results")
 async def submit_patch_results(data: dict):
     """Agent submits install results for patches."""
     async with db_pool.acquire() as conn:
@@ -12342,5 +12356,219 @@ async def list_baseline_evaluations(baseline_id: str, db: asyncpg.Pool = Depends
             SELECT * FROM config_baseline_evaluations WHERE baseline_id=$1::uuid ORDER BY evaluated_at DESC LIMIT 100
         """, baseline_id)
         return [dict(r) for r in rows]
+
+
+# --- CIS Benchmark Templates ---
+
+CIS_TEMPLATES = {
+    "cis-win-server-2022-l1": {
+        "id": "cis-win-server-2022-l1",
+        "name": "CIS Windows Server 2022/2025 L1",
+        "description": "CIS Benchmark Level 1 for Windows Server 2022/2025 — essential security hardening",
+        "baseline_type": "custom",
+        "rules": [
+            {"rule_name": "Windows Firewall Service Running", "rule_type": "service",
+             "expected_value": {"service": "MpsSvc", "state": "running"},
+             "severity": "critical", "remediation_action": {"type": "start_service", "service": "MpsSvc"}},
+            {"rule_name": "Windows Update Service Enabled", "rule_type": "service",
+             "expected_value": {"service": "wuauserv", "state": "running"},
+             "severity": "high", "remediation_action": {"type": "start_service", "service": "wuauserv"}},
+            {"rule_name": "Remote Registry Disabled", "rule_type": "service",
+             "expected_value": {"service": "RemoteRegistry", "state": "stopped"},
+             "severity": "high", "remediation_action": {"type": "run_command", "command": "Stop-Service RemoteRegistry; Set-Service RemoteRegistry -StartupType Disabled"}},
+            {"rule_name": "WinRM Service Running", "rule_type": "service",
+             "expected_value": {"service": "WinRM", "state": "running"},
+             "severity": "medium", "remediation_action": {"type": "start_service", "service": "WinRM"}},
+            {"rule_name": "Blank Password Use Limited", "rule_type": "registry",
+             "expected_value": {"key_path": r"HKLM\SYSTEM\CurrentControlSet\Control\Lsa", "value_name": "LimitBlankPasswordUse", "expected": "1", "operator": "eq"},
+             "severity": "critical", "remediation_action": {"type": "run_command", "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name LimitBlankPasswordUse -Value 1"}},
+            {"rule_name": "Security Event Log Min Size", "rule_type": "registry",
+             "expected_value": {"key_path": r"HKLM\SYSTEM\CurrentControlSet\Services\EventLog\Security", "value_name": "MaxSize", "expected": "20480", "operator": "gte"},
+             "severity": "high", "remediation_action": {"type": "run_command", "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\EventLog\\Security' -Name MaxSize -Value 20971520"}},
+            {"rule_name": "SMBv1 Disabled", "rule_type": "registry",
+             "expected_value": {"key_path": r"HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters", "value_name": "SMB1", "expected": "0", "operator": "eq"},
+             "severity": "critical", "remediation_action": {"type": "run_command", "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters' -Name SMB1 -Value 0"}},
+            {"rule_name": "NTLMv2 Required", "rule_type": "registry",
+             "expected_value": {"key_path": r"HKLM\SYSTEM\CurrentControlSet\Control\Lsa", "value_name": "LmCompatibilityLevel", "expected": "3", "operator": "gte"},
+             "severity": "critical", "remediation_action": {"type": "run_command", "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name LmCompatibilityLevel -Value 5"}},
+            {"rule_name": "Windows Defender / Antivirus Present", "rule_type": "software",
+             "expected_value": {"package": "Windows Defender", "operator": "installed"},
+             "severity": "critical", "remediation_action": {"type": "run_command", "command": "Install-WindowsFeature -Name Windows-Defender"}},
+        ]
+    },
+    "cis-win11-enterprise-l1": {
+        "id": "cis-win11-enterprise-l1",
+        "name": "CIS Windows 11 Enterprise L1",
+        "description": "CIS Benchmark Level 1 for Windows 11 Enterprise — workstation security hardening",
+        "baseline_type": "custom",
+        "rules": [
+            {"rule_name": "Windows Defender Antivirus Running", "rule_type": "service",
+             "expected_value": {"service": "WinDefend", "state": "running"},
+             "severity": "critical", "remediation_action": {"type": "start_service", "service": "WinDefend"}},
+            {"rule_name": "BitLocker Drive Encryption Running", "rule_type": "service",
+             "expected_value": {"service": "BDESVC", "state": "running"},
+             "severity": "high", "remediation_action": {"type": "start_service", "service": "BDESVC"}},
+            {"rule_name": "UAC Enabled", "rule_type": "registry",
+             "expected_value": {"key_path": r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "value_name": "EnableLUA", "expected": "1", "operator": "eq"},
+             "severity": "critical", "remediation_action": {"type": "run_command", "command": "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name EnableLUA -Value 1"}},
+            {"rule_name": "Secure Boot Enabled", "rule_type": "registry",
+             "expected_value": {"key_path": "SecureBoot", "value_name": "UEFISecureBootEnabled", "expected": "1", "operator": "eq"},
+             "severity": "high", "remediation_action": {"type": "none"}},
+            {"rule_name": "Windows Firewall Domain Profile ON", "rule_type": "registry",
+             "expected_value": {"key_path": r"HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\DomainProfile", "value_name": "EnableFirewall", "expected": "1", "operator": "eq"},
+             "severity": "critical", "remediation_action": {"type": "run_command", "command": "Set-NetFirewallProfile -Profile Domain -Enabled True"}},
+            {"rule_name": "Microsoft Edge or Approved Browser Installed", "rule_type": "software",
+             "expected_value": {"package": "Microsoft Edge", "operator": "installed"},
+             "severity": "medium", "remediation_action": {"type": "install_package", "package": "microsoft-edge"}},
+        ]
+    }
+}
+
+
+@app.get("/api/v1/baselines/templates", dependencies=[Depends(verify_api_key)])
+async def list_baseline_templates():
+    """List available CIS benchmark templates."""
+    return [
+        {"id": t["id"], "name": t["name"], "description": t["description"],
+         "baseline_type": t["baseline_type"], "rule_count": len(t["rules"])}
+        for t in CIS_TEMPLATES.values()
+    ]
+
+
+@app.post("/api/v1/baselines/templates/{template_id}/import", dependencies=[Depends(verify_api_key)])
+async def import_baseline_template(template_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Import a CIS benchmark template as a new baseline with all its rules."""
+    template = CIS_TEMPLATES.get(template_id)
+    if not template:
+        raise not_found("Template not found")
+    import json as _json
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO config_baselines (name, description, baseline_type, rules)
+            VALUES ($1, $2, $3, $4::jsonb) RETURNING *
+        """, template["name"], template["description"], template["baseline_type"], _json.dumps(template["rules"]))
+
+        for rule in template["rules"]:
+            await conn.execute("""
+                INSERT INTO config_baseline_rules (baseline_id, rule_type, rule_name, expected_value, severity, enabled, remediation_action)
+                VALUES ($1, $2, $3, $4::jsonb, $5, true, $6::jsonb)
+            """, row["id"], rule["rule_type"], rule["rule_name"],
+                _json.dumps(rule["expected_value"]), rule.get("severity", "medium"),
+                _json.dumps(rule.get("remediation_action")) if rule.get("remediation_action") else None)
+
+        return {"id": str(row["id"]), "name": row["name"], "status": "imported", "rules_created": len(template["rules"])}
+
+
+# --- Drift Remediation ---
+
+@app.post("/api/v1/baselines/drift/{drift_id}/remediate", dependencies=[Depends(verify_api_key)])
+async def remediate_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Trigger auto-remediation for a specific drift event."""
+    import json as _json
+    async with db.acquire() as conn:
+        drift = await conn.fetchrow("""
+            SELECT d.*, r.rule_type, r.rule_name, r.expected_value, r.remediation_action
+            FROM config_drift_events d
+            LEFT JOIN config_baseline_rules r ON r.id = d.rule_id
+            WHERE d.id = $1::uuid AND d.status IN ('open', 'acknowledged')
+        """, drift_id)
+        if not drift:
+            raise not_found("Drift event not found or not remediable")
+
+        remediation = drift["remediation_action"]
+        if isinstance(remediation, str):
+            remediation = _json.loads(remediation)
+        if not remediation or remediation.get("type") == "none":
+            raise HTTPException(status_code=400, detail="No remediation action configured for this rule")
+
+        # Look up node's text node_id
+        node = await conn.fetchrow("SELECT node_id FROM nodes WHERE id = $1", drift["node_id"])
+        if not node:
+            raise not_found("Node not found")
+        node_text_id = node["node_id"]
+
+        # Create job based on remediation type
+        job_id = str(uuid.uuid4())
+        rem_type = remediation["type"]
+
+        if rem_type == "install_package":
+            command_type = "install"
+            command_data = {"packageName": remediation["package"], "method": "winget"}
+            job_name = f"Remediate: Install {remediation['package']}"
+        elif rem_type == "start_service":
+            command_type = "powershell"
+            svc = remediation["service"]
+            command_data = {"command": f"Start-Service '{svc}'; Set-Service '{svc}' -StartupType Automatic"}
+            job_name = f"Remediate: Start service {svc}"
+        elif rem_type == "run_command":
+            command_type = "powershell"
+            command_data = {"command": remediation["command"]}
+            job_name = f"Remediate: {drift['rule_name'] or 'Custom command'}"
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown remediation type: {rem_type}")
+
+        await conn.execute("""
+            INSERT INTO jobs (id, name, description, target_type, target_id,
+                             command_type, command_data, priority, created_by, timeout_seconds)
+            VALUES ($1::uuid, $2, $3, 'device', $4::uuid, $5, $6::jsonb, 7, 'auto-remediation', 300)
+        """, job_id, job_name, f"Auto-remediation for drift {drift_id}",
+             str(drift["node_id"]), command_type, _json.dumps(command_data))
+
+        await conn.execute("""
+            INSERT INTO job_instances (job_id, node_id, status)
+            VALUES ($1::uuid, $2, 'pending')
+        """, job_id, node_text_id)
+
+        await conn.execute(
+            "UPDATE config_drift_events SET status='remediating' WHERE id=$1::uuid", drift_id)
+
+        return {"status": "remediating", "drift_id": drift_id, "job_id": job_id, "action": remediation}
+
+
+@app.post("/api/v1/baselines/{baseline_id}/remediate-all", dependencies=[Depends(verify_api_key)])
+async def remediate_all_drifts(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Remediate all open drifts for a baseline."""
+    import json as _json
+    async with db.acquire() as conn:
+        drifts = await conn.fetch("""
+            SELECT d.id FROM config_drift_events d
+            JOIN config_baseline_evaluations e ON e.id = d.evaluation_id
+            JOIN config_baseline_rules r ON r.id = d.rule_id
+            WHERE e.baseline_id = $1::uuid AND d.status IN ('open', 'acknowledged')
+            AND r.remediation_action IS NOT NULL
+            AND r.remediation_action::text != '{"type": "none"}'
+        """, baseline_id)
+
+        results = []
+        for drift in drifts:
+            try:
+                result = await remediate_drift(str(drift["id"]), db)
+                results.append({"drift_id": str(drift["id"]), "status": "triggered"})
+            except Exception as e:
+                results.append({"drift_id": str(drift["id"]), "status": "error", "error": str(e)})
+
+        return {"baseline_id": baseline_id, "total": len(drifts), "results": results}
+
+
+# --- Compliance Trends ---
+
+@app.get("/api/v1/baselines/compliance/trends", dependencies=[Depends(verify_api_key)])
+async def compliance_trends(db: asyncpg.Pool = Depends(get_db)):
+    """Get compliance % over time for the last 30 days."""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT DATE(evaluated_at) as day,
+                   COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE compliant = true) as compliant_count
+            FROM config_baseline_evaluations
+            WHERE evaluated_at >= NOW() - INTERVAL '30 days'
+            GROUP BY DATE(evaluated_at)
+            ORDER BY day
+        """)
+        return [
+            {"date": str(r["day"]), "total": r["total"], "compliant": r["compliant_count"],
+             "pct": round(r["compliant_count"] / r["total"] * 100, 1) if r["total"] > 0 else 0}
+            for r in rows
+        ]
 
 
