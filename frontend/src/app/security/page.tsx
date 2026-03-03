@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+
 import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import {
   Shield, AlertTriangle, FileSearch, Users, Settings, Database,
-  Download, Eye, Activity, ChevronRight, TrendingUp, TrendingDown
+  Eye, Activity, ChevronRight, TrendingUp, TrendingDown
 } from "lucide-react";
 
 interface DashboardData {
@@ -21,7 +22,6 @@ interface DashboardData {
 export default function SecurityPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>("overview");
   const { token } = useAuth();
   const { t } = useI18n();
 
@@ -36,21 +36,6 @@ export default function SecurityPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  const tabs = [
-    { id: "overview", label: "Overview", icon: Shield },
-    { id: "findings", label: "Findings & Alerts", icon: AlertTriangle, href: "/security/findings" },
-    { id: "file-audit", label: "File & Document Audit", icon: FileSearch, href: "/security/file-audit" },
-    { id: "events", label: "Security Events", icon: Activity, href: "/security/events" },
-    { id: "policies", label: "Policies", icon: Settings, href: "/security/policies" },
-    { id: "profiles", label: "Monitoring Profiles", icon: Eye, href: "/security/profiles" },
-    { id: "retention", label: "Retention & Lifecycle", icon: Database, href: "/security/retention" },
-    { id: "evidence", label: "Evidence & Exports", icon: Download, href: "/security/evidence" },
-    { id: "audit-log", label: "Access Audit", icon: Users, href: "/security/audit-log" },
-    { id: "posture", label: "Config Posture", icon: Shield, href: "/security/posture" },
-    { id: "vulnerabilities", label: "Vulnerabilities", icon: AlertTriangle, href: "/security/vulnerabilities" },
-    { id: "rules", label: "Behavior Rules", icon: Settings, href: "/security/rules" },
-    { id: "activity", label: "Activity", icon: Activity, href: "/security/activity" },
-  ];
 
   const severityColors: Record<string, string> = {
     critical: "bg-red-500",
@@ -74,38 +59,7 @@ export default function SecurityPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 overflow-x-auto pb-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            if (tab.href) {
-              return (
-                <Link
-                  key={tab.id}
-                  href={tab.href}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </Link>
-              );
-            }
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  activeTab === tab.id
-                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                    : "text-zinc-400 hover:text-white hover:bg-zinc-800"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Tabs removed — navigation is now in the Navbar mega dropdown */}
 
         {loading ? (
           <div className="flex justify-center py-20">
