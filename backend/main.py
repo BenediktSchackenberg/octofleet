@@ -1221,6 +1221,14 @@ async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         lookup_id = node_id[4:].upper()  # win-baltasa -> BALTASA
     
     async with db.acquire() as conn:
+        # Resolve hostname to UUID if needed
+        resolved_id = lookup_id
+        node_row = await conn.fetchrow(
+            "SELECT id FROM nodes WHERE UPPER(hostname) = UPPER($1) OR UPPER(node_id) = UPPER($1) OR id::text = $1",
+            lookup_id
+        )
+        if node_row:
+            resolved_id = str(node_row["id"])
         # Reset stuck 'queued' jobs back to 'pending' (jobs that were picked up but never completed)
         # Uses job timeout or 5 minutes default
         await conn.execute("""
@@ -1237,13 +1245,13 @@ async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
                    ji.attempt, ji.max_attempts, j.timeout_seconds
             FROM job_instances ji
             JOIN jobs j ON j.id = ji.job_id
-            WHERE UPPER(ji.node_id) = UPPER($1) 
+            WHERE (ji.node_id::text = $1 OR UPPER(ji.node_id::text) = UPPER($1))
               AND ji.status = 'pending'
               AND (j.scheduled_at IS NULL OR j.scheduled_at <= NOW())
               AND (j.expires_at IS NULL OR j.expires_at > NOW())
             ORDER BY j.priority ASC, ji.queued_at ASC
             LIMIT 10
-        """, lookup_id)
+        """, resolved_id)
         
         jobs = []
         for row in rows:
