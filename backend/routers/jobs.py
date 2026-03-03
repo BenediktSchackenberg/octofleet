@@ -33,12 +33,17 @@ class SmartInstallRequest(BaseModel):
 async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT job_id, name, command_type, target_type, created_at,
-                   total_instances, pending, queued, running, success, failed, cancelled
-            FROM job_summary
-            ORDER BY created_at DESC LIMIT $1 OFFSET $2
+            SELECT js.job_id, js.name, js.command_type, js.target_type, js.target_id, js.created_at,
+                   js.total_instances, js.pending, js.queued, js.running, js.success, js.failed, js.cancelled,
+                   n.hostname as target_name
+            FROM job_summary js
+            LEFT JOIN nodes n ON n.id::text = js.target_id::text
+            ORDER BY js.created_at DESC LIMIT $1 OFFSET $2
         """, limit, offset)
-        return {"jobs": [dict(r) for r in rows]}
+        return {"jobs": [{
+            **dict(r),
+            "target_name": r["target_name"] or (str(r["target_id"])[:8] if r["target_id"] else "—"),
+        } for r in rows]}
 
 @router.get("/jobs/{job_id}")
 async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
