@@ -22,6 +22,7 @@ interface Job {
   name: string;
   commandType: string;
   targetType: string;
+  targetName?: string;
   createdAt: string;
   summary: JobSummary;
 }
@@ -400,7 +401,7 @@ function JobDetailPanel({ job, onClose, onRetry }: { job: JobDetail; onClose: ()
           </div>
           <div>
             <span className="text-zinc-400">Ziel:</span>
-            <span className="ml-2 text-white">{job.targetType}</span>
+            <span className="ml-2 text-white">{job.targetName || job.targetType}</span>
           </div>
           <div>
             <span className="text-zinc-400">Erstellt:</span>
@@ -478,6 +479,7 @@ export default function JobsPage() {
         name: j.name,
         commandType: j.command_type || j.commandType,
         targetType: j.target_type || j.targetType,
+        targetName: j.targetName || j.target_name || j.targetType || j.target_type,
         createdAt: j.created_at || j.createdAt,
         summary: j.summary || {
           total: j.total_instances ?? 0,
@@ -611,7 +613,7 @@ export default function JobsPage() {
                         {job.commandType}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-zinc-300">{job.targetType}</td>
+                    <td className="px-4 py-3 text-zinc-300">{job.targetName || job.targetType}</td>
                     <td className="px-4 py-3">
                       <SummaryBar summary={job.summary} />
                     </td>

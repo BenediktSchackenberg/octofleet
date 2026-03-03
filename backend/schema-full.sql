@@ -391,41 +391,18 @@ CREATE VIEW public.job_summary AS
     j.name,
     j.command_type,
     j.target_type,
+    j.target_id,
     j.created_at,
     count(ji.id) AS total_instances,
-    count(
-        CASE
-            WHEN (ji.status = 'pending'::text) THEN 1
-            ELSE NULL::integer
-        END) AS pending,
-    count(
-        CASE
-            WHEN (ji.status = 'queued'::text) THEN 1
-            ELSE NULL::integer
-        END) AS queued,
-    count(
-        CASE
-            WHEN (ji.status = 'running'::text) THEN 1
-            ELSE NULL::integer
-        END) AS running,
-    count(
-        CASE
-            WHEN (ji.status = 'success'::text) THEN 1
-            ELSE NULL::integer
-        END) AS success,
-    count(
-        CASE
-            WHEN (ji.status = 'failed'::text) THEN 1
-            ELSE NULL::integer
-        END) AS failed,
-    count(
-        CASE
-            WHEN (ji.status = 'cancelled'::text) THEN 1
-            ELSE NULL::integer
-        END) AS cancelled
-   FROM (public.jobs j
-     LEFT JOIN public.job_instances ji ON ((ji.job_id = j.id)))
-  GROUP BY j.id, j.name, j.command_type, j.target_type, j.created_at;
+    count(CASE WHEN ji.status = 'pending' THEN 1 END) AS pending,
+    count(CASE WHEN ji.status = 'queued' THEN 1 END) AS queued,
+    count(CASE WHEN ji.status = 'running' THEN 1 END) AS running,
+    count(CASE WHEN ji.status = 'success' THEN 1 END) AS success,
+    count(CASE WHEN ji.status = 'failed' THEN 1 END) AS failed,
+    count(CASE WHEN ji.status = 'cancelled' THEN 1 END) AS cancelled
+   FROM public.jobs j
+     LEFT JOIN public.job_instances ji ON ji.job_id = j.id
+  GROUP BY j.id, j.name, j.command_type, j.target_type, j.target_id, j.created_at;
 CREATE TABLE public.maintenance_windows (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,

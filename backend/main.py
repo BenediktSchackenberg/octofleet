@@ -1127,10 +1127,12 @@ async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends
     """List all jobs with summary"""
     async with db.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT job_id, name, command_type, target_type, created_at,
-                   total_instances, pending, queued, running, success, failed, cancelled
-            FROM job_summary
-            ORDER BY created_at DESC
+            SELECT js.job_id, js.name, js.command_type, js.target_type, js.target_id, js.created_at,
+                   js.total_instances, js.pending, js.queued, js.running, js.success, js.failed, js.cancelled,
+                   n.hostname as target_name
+            FROM job_summary js
+            LEFT JOIN nodes n ON n.id::text = js.target_id::text
+            ORDER BY js.created_at DESC
             LIMIT $1 OFFSET $2
         """, limit, offset)
         
@@ -1139,6 +1141,7 @@ async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends
             "name": row["name"],
             "commandType": row["command_type"],
             "targetType": row["target_type"],
+            "targetName": row["target_name"] or (str(row["target_id"])[:8] + "…" if row["target_id"] else "—"),
             "createdAt": row["created_at"].isoformat() if row["created_at"] else None,
             "summary": {
                 "total": row["total_instances"],
@@ -12139,7 +12142,7 @@ CIS_TEMPLATES = {
              "severity": "critical", "remediation_action": {"type": "run_command", "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name LmCompatibilityLevel -Value 5"}},
             {"rule_name": "Windows Defender / Antivirus Present", "rule_type": "software",
              "expected_value": {"package": "Windows Defender", "operator": "installed"},
-             "severity": "critical", "remediation_action": {"type": "run_command", "command": "Install-WindowsFeature -Name Windows-Defender"}},
+             "severity": "critical", "remediation_action": {"type": "run_command", "command": "try { Install-WindowsFeature -Name Windows-Defender -ErrorAction Stop } catch { Add-WindowsCapability -Online -Name 'Microsoft.Windows.Defender~~~~' -ErrorAction Stop }"}},
         ]
     },
     "cis-win11-enterprise-l1": {
