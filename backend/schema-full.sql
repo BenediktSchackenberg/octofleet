@@ -2023,9 +2023,17 @@ CREATE INDEX IF NOT EXISTS idx_pdr_node ON patch_deployment_results(node_id);
 -- E31: Configuration Baselines & Drift Management
 -- ============================================================
 
-CREATE TYPE IF NOT EXISTS config_baseline_type AS ENUM ('software', 'service', 'registry', 'firewall', 'custom');
-CREATE TYPE IF NOT EXISTS baseline_target_type AS ENUM ('node', 'group');
-CREATE TYPE IF NOT EXISTS drift_status AS ENUM ('open', 'acknowledged', 'resolved', 'waived');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'config_baseline_type') THEN
+    CREATE TYPE config_baseline_type AS ENUM ('software', 'service', 'registry', 'firewall', 'custom');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'baseline_target_type') THEN
+    CREATE TYPE baseline_target_type AS ENUM ('node', 'group');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'drift_status') THEN
+    CREATE TYPE drift_status AS ENUM ('open', 'acknowledged', 'resolved', 'waived');
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS config_baselines (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
