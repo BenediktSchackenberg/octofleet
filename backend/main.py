@@ -5458,6 +5458,112 @@ async def get_metrics_history(
 # E15-06: Hardware Export Endpoints
 # ============================================================================
 
+@app.get("/api/v1/hardware/fleet")
+async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
+    """Hardware fleet overview for the Hardware dashboard page"""
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT h.node_id, n.hostname, h.cpu, h.ram, h.disks, h.gpu, h.mainboard, h.bios, h.updated_at
+            FROM hardware_current h
+            JOIN nodes n ON n.id = h.node_id
+        """)
+        
+        node_count = len(rows)
+        total_size_gb = 0
+        used_size_gb = 0
+        cpu_map = {}
+        physical_disks = []
+        issues = []
+        disk_types = {"ssd": 0, "hdd": 0, "unknown": 0}
+        health = {"healthy": 0, "warning": 0, "unhealthy": 0, "unknown": 0}
+        
+        for r in rows:
+            hostname = r["hostname"] or "unknown"
+            node_id = str(r["node_id"])
+            
+            # CPU stats
+            cpu = r["cpu"] or {}
+            cpu_name = cpu.get("name", "Unknown CPU") if isinstance(cpu, dict) else "Unknown CPU"
+            cpu_map[cpu_name] = cpu_map.get(cpu_name, 0) + 1
+            
+            # Disk stats
+            disks = r["disks"] or {}
+            if isinstance(disks, dict):
+                for vol in disks.get("volumes", []):
+                    size = vol.get("sizeGB", 0) or 0
+                    free = vol.get("freeGB", 0) or 0
+                    total_size_gb += size
+                    used_size_gb += (size - free)
+                    
+                    used_pct = vol.get("usedPercent", 0) or 0
+                    if used_pct > 90:
+                        issues.append({
+                            "nodeId": node_id,
+                            "hostname": hostname,
+                            "issue": f"Laufwerk {vol.get('driveLetter', '?')} zu {used_pct:.0f}% belegt",
+                            "severity": "critical" if used_pct > 95 else "warning"
+                        })
+                
+                for pd in disks.get("physical", []):
+                    is_ssd = pd.get("isSsd")
+                    if is_ssd is True:
+                        disk_types["ssd"] += 1
+                    elif is_ssd is False:
+                        disk_types["hdd"] += 1
+                    else:
+                        disk_types["unknown"] += 1
+                    
+                    hs = (pd.get("healthStatus") or "Unknown").lower()
+                    if hs == "healthy":
+                        health["healthy"] += 1
+                    elif hs in ("warning", "degraded"):
+                        health["warning"] += 1
+                        issues.append({
+                            "nodeId": node_id,
+                            "hostname": hostname,
+                            "issue": f"Disk {pd.get('model', '?')} Status: {pd.get('healthStatus')}",
+                            "severity": "warning"
+                        })
+                    elif hs in ("unhealthy", "failed"):
+                        health["unhealthy"] += 1
+                        issues.append({
+                            "nodeId": node_id,
+                            "hostname": hostname,
+                            "issue": f"Disk {pd.get('model', '?')} Status: {pd.get('healthStatus')}",
+                            "severity": "critical"
+                        })
+                    else:
+                        health["unknown"] += 1
+                    
+                    physical_disks.append({
+                        "nodeId": node_id,
+                        "hostname": hostname,
+                        "model": pd.get("model", "Unknown"),
+                        "sizeGB": pd.get("sizeGB", 0),
+                        "isSsd": pd.get("isSsd"),
+                        "healthStatus": pd.get("healthStatus", "Unknown"),
+                        "busType": pd.get("busType"),
+                        "temperature": pd.get("temperature"),
+                        "wearLevel": pd.get("wearLevel"),
+                        "powerOnHours": pd.get("powerOnHours"),
+                    })
+        
+        total_tb = total_size_gb / 1024
+        used_tb = used_size_gb / 1024
+        used_pct = (used_size_gb / total_size_gb * 100) if total_size_gb > 0 else 0
+        
+        cpu_types = [{"name": k, "count": v} for k, v in sorted(cpu_map.items(), key=lambda x: -x[1])]
+        
+        return {
+            "nodeCount": node_count,
+            "storage": {"totalTB": round(total_tb, 2), "usedTB": round(used_tb, 2), "usedPercent": round(used_pct, 1)},
+            "physicalDiskHealth": health,
+            "diskTypes": disk_types,
+            "cpuTypes": cpu_types,
+            "physicalDisks": physical_disks,
+            "issues": issues,
+        }
+
 @app.get("/api/v1/hardware/export")
 async def export_fleet_hardware(
     format: str = "json",
