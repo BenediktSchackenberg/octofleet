@@ -473,7 +473,22 @@ export default function JobsPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/jobs`, { headers: { ...getAuthHeader() } });
       const data = await res.json();
-      setJobs(data.jobs || []);
+      setJobs((data.jobs || []).map((j: any) => ({
+        id: j.job_id || j.id,
+        name: j.name,
+        commandType: j.command_type || j.commandType,
+        targetType: j.target_type || j.targetType,
+        createdAt: j.created_at || j.createdAt,
+        summary: j.summary || {
+          total: j.total_instances ?? 0,
+          pending: j.pending ?? 0,
+          queued: j.queued ?? 0,
+          running: j.running ?? 0,
+          success: j.success ?? 0,
+          failed: j.failed ?? 0,
+          cancelled: j.cancelled ?? 0,
+        },
+      })));
     } catch (err) {
       console.error("Failed to fetch jobs:", err);
     } finally {
