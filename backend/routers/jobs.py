@@ -60,12 +60,30 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         job_uuid = uuid.uuid4()
         target_id = data.get("targetId")
-        # Logic to create job and instances...
+        target_type = data.get("targetType", "device")
         await conn.execute("""
             INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command_data, created_by)
             VALUES ($1, $2, $3, $4, $5::uuid, $6, $7::jsonb, $8)
-        """, job_uuid, data.get("name"), data.get("description"), data.get("targetType"), target_id, data.get("commandType"), json.dumps(data.get("commandData")), "api")
-        return {"id": str(job_uuid), "status": "created"}
+        """, job_uuid, data.get("name"), data.get("description"), target_type, target_id, data.get("commandType"), json.dumps(data.get("commandData")), "api")
+
+        # Create job_instances for target nodes
+        node_ids = []
+        if target_type == "device" and target_id:
+            node_ids = [target_id]
+        elif target_type == "group" and target_id:
+            rows = await conn.fetch("SELECT node_id FROM group_members WHERE group_id = $1", target_id)
+            node_ids = [str(r["node_id"]) for r in rows]
+        elif target_type == "all":
+            rows = await conn.fetch("SELECT id FROM nodes")
+            node_ids = [str(r["id"]) for r in rows]
+
+        for nid in node_ids:
+            await conn.execute("""
+                INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
+                VALUES (gen_random_uuid(), $1, $2::uuid, 'pending', NOW())
+            """, job_uuid, nid)
+
+        return {"id": str(job_uuid), "status": "created", "instances": len(node_ids)}
 
 @router.delete("/jobs/{job_id}")
 async def cancel_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
