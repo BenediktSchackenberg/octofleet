@@ -880,7 +880,7 @@ async def update_onboarding_config(data: Dict[str, Any], db: asyncpg.Pool = Depe
         return {"status": "updated"}
 
 
-@app.post("/api/v1/baselines")
+@app.post("/api/v1/software-baselines")
 async def create_software_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a software baseline (package collection)"""
     async with db.acquire() as conn:
@@ -898,7 +898,7 @@ async def create_software_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depe
         }
 
 
-@app.get("/api/v1/baselines")
+@app.get("/api/v1/software-baselines")
 async def list_software_baselines(db: asyncpg.Pool = Depends(get_db)):
     """List all software baselines"""
     async with db.acquire() as conn:
@@ -919,7 +919,7 @@ async def list_software_baselines(db: asyncpg.Pool = Depends(get_db)):
         return {"baselines": baselines}
 
 
-@app.get("/api/v1/baselines/{baseline_id}")
+@app.get("/api/v1/software-baselines/{baseline_id}")
 async def get_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a specific baseline with its assignments"""
     async with db.acquire() as conn:
@@ -952,7 +952,7 @@ async def get_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get
         }
 
 
-@app.delete("/api/v1/baselines/{baseline_id}")
+@app.delete("/api/v1/software-baselines/{baseline_id}")
 async def delete_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a software baseline"""
     async with db.acquire() as conn:
@@ -966,7 +966,7 @@ async def delete_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(
         return {"status": "deleted", "id": baseline_id}
 
 
-@app.post("/api/v1/baselines/{baseline_id}/assign")
+@app.post("/api/v1/software-baselines/{baseline_id}/assign")
 async def assign_baseline_to_group(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Assign a software baseline to a group"""
     group_id = data.get("groupId")
@@ -1001,7 +1001,7 @@ async def assign_baseline_to_group(baseline_id: str, data: Dict[str, Any], db: a
         }
 
 
-@app.post("/api/v1/baselines/reconcile")
+@app.post("/api/v1/software-baselines/reconcile")
 async def reconcile_all_baselines(db: asyncpg.Pool = Depends(get_db)):
     """
     Reconcile all baseline assignments.
@@ -11969,6 +11969,99 @@ async def create_config_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depend
             return dict(row)
 
 
+@app.get("/api/v1/baselines/evaluations/{eval_id}")
+async def get_evaluation_detail(eval_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM config_baseline_evaluations WHERE id=$1::uuid", eval_id)
+        if not row:
+            raise not_found("Evaluation not found")
+        return dict(row)
+
+
+@app.get("/api/v1/baselines/drift")
+async def list_drift_events(status: str = None, severity: str = None, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        query = "SELECT d.*, r.rule_name, b.name as baseline_name FROM config_drift_events d LEFT JOIN config_baseline_rules r ON r.id=d.rule_id LEFT JOIN config_baseline_evaluations e ON e.id=d.evaluation_id LEFT JOIN config_baselines b ON b.id=e.baseline_id WHERE 1=1"
+        params = []
+        i = 1
+        if status:
+            query += f" AND d.status=${i}"
+            params.append(status)
+            i += 1
+        if severity:
+            query += f" AND d.severity=${i}"
+            params.append(severity)
+            i += 1
+        query += " ORDER BY d.detected_at DESC LIMIT 200"
+        rows = await conn.fetch(query, *params)
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/v1/baselines/drift/summary")
+async def drift_summary(db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        total_baselines = await conn.fetchval("SELECT COUNT(*) FROM config_baselines")
+        total_evals = await conn.fetchval("SELECT COUNT(*) FROM config_baseline_evaluations")
+        compliant_evals = await conn.fetchval("SELECT COUNT(*) FROM config_baseline_evaluations WHERE compliant=true")
+        compliance_pct = round((compliant_evals / total_evals * 100) if total_evals > 0 else 0, 1)
+        open_drifts = await conn.fetch("""
+            SELECT severity, COUNT(*) as count FROM config_drift_events WHERE status='open' GROUP BY severity
+        """)
+        total_open = sum(r["count"] for r in open_drifts)
+        top_nodes = await conn.fetch("""
+            SELECT node_id, COUNT(*) as drift_count FROM config_drift_events WHERE status='open'
+            GROUP BY node_id ORDER BY drift_count DESC LIMIT 5
+        """)
+        last_eval = await conn.fetchval("SELECT MAX(evaluated_at) FROM config_baseline_evaluations")
+        return {
+            "total_baselines": total_baselines,
+            "compliance_pct": compliance_pct,
+            "total_open_drifts": total_open,
+            "drifts_by_severity": {r["severity"]: r["count"] for r in open_drifts},
+            "top_noncompliant_nodes": [{"node_id": str(r["node_id"]), "drift_count": r["drift_count"]} for r in top_nodes],
+            "last_evaluation": last_eval.isoformat() if last_eval else None
+        }
+
+
+@app.post("/api/v1/baselines/drift/{drift_id}/acknowledge")
+async def acknowledge_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE config_drift_events SET status='acknowledged' WHERE id=$1::uuid RETURNING id", drift_id)
+        if not row:
+            raise not_found("Drift event not found")
+        return {"status": "acknowledged"}
+
+
+@app.post("/api/v1/baselines/drift/{drift_id}/waive")
+async def waive_drift(drift_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE config_drift_events SET status='waived', waive_reason=$2 WHERE id=$1::uuid RETURNING id",
+            drift_id, data.get("reason", ""))
+        if not row:
+            raise not_found("Drift event not found")
+        return {"status": "waived"}
+
+
+@app.get("/api/v1/baselines/compliance/{node_id}")
+async def node_compliance(node_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        evals = await conn.fetch("""
+            SELECT e.*, b.name as baseline_name FROM config_baseline_evaluations e
+            JOIN config_baselines b ON b.id=e.baseline_id
+            WHERE e.node_id=$1::uuid ORDER BY e.evaluated_at DESC
+        """, node_id)
+        drifts = await conn.fetch("""
+            SELECT d.*, r.rule_name FROM config_drift_events d
+            LEFT JOIN config_baseline_rules r ON r.id=d.rule_id
+            WHERE d.node_id=$1::uuid AND d.status='open' ORDER BY d.detected_at DESC
+        """, node_id)
+        return {
+            "node_id": node_id,
+            "evaluations": [dict(r) for r in evals],
+            "open_drifts": [dict(r) for r in drifts]
+        }
 @app.get("/api/v1/baselines/{baseline_id}")
 async def get_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
@@ -12251,96 +12344,3 @@ async def list_baseline_evaluations(baseline_id: str, db: asyncpg.Pool = Depends
         return [dict(r) for r in rows]
 
 
-@app.get("/api/v1/baselines/evaluations/{eval_id}")
-async def get_evaluation_detail(eval_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
-    async with db.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM config_baseline_evaluations WHERE id=$1::uuid", eval_id)
-        if not row:
-            raise not_found("Evaluation not found")
-        return dict(row)
-
-
-@app.get("/api/v1/baselines/drift")
-async def list_drift_events(status: str = None, severity: str = None, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
-    async with db.acquire() as conn:
-        query = "SELECT d.*, r.rule_name, b.name as baseline_name FROM config_drift_events d LEFT JOIN config_baseline_rules r ON r.id=d.rule_id LEFT JOIN config_baseline_evaluations e ON e.id=d.evaluation_id LEFT JOIN config_baselines b ON b.id=e.baseline_id WHERE 1=1"
-        params = []
-        i = 1
-        if status:
-            query += f" AND d.status=${i}"
-            params.append(status)
-            i += 1
-        if severity:
-            query += f" AND d.severity=${i}"
-            params.append(severity)
-            i += 1
-        query += " ORDER BY d.detected_at DESC LIMIT 200"
-        rows = await conn.fetch(query, *params)
-        return [dict(r) for r in rows]
-
-
-@app.get("/api/v1/baselines/drift/summary")
-async def drift_summary(db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
-    async with db.acquire() as conn:
-        total_baselines = await conn.fetchval("SELECT COUNT(*) FROM config_baselines")
-        total_evals = await conn.fetchval("SELECT COUNT(*) FROM config_baseline_evaluations")
-        compliant_evals = await conn.fetchval("SELECT COUNT(*) FROM config_baseline_evaluations WHERE compliant=true")
-        compliance_pct = round((compliant_evals / total_evals * 100) if total_evals > 0 else 0, 1)
-        open_drifts = await conn.fetch("""
-            SELECT severity, COUNT(*) as count FROM config_drift_events WHERE status='open' GROUP BY severity
-        """)
-        total_open = sum(r["count"] for r in open_drifts)
-        top_nodes = await conn.fetch("""
-            SELECT node_id, COUNT(*) as drift_count FROM config_drift_events WHERE status='open'
-            GROUP BY node_id ORDER BY drift_count DESC LIMIT 5
-        """)
-        last_eval = await conn.fetchval("SELECT MAX(evaluated_at) FROM config_baseline_evaluations")
-        return {
-            "total_baselines": total_baselines,
-            "compliance_pct": compliance_pct,
-            "total_open_drifts": total_open,
-            "drifts_by_severity": {r["severity"]: r["count"] for r in open_drifts},
-            "top_noncompliant_nodes": [{"node_id": str(r["node_id"]), "drift_count": r["drift_count"]} for r in top_nodes],
-            "last_evaluation": last_eval.isoformat() if last_eval else None
-        }
-
-
-@app.post("/api/v1/baselines/drift/{drift_id}/acknowledge")
-async def acknowledge_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
-    async with db.acquire() as conn:
-        row = await conn.fetchrow(
-            "UPDATE config_drift_events SET status='acknowledged' WHERE id=$1::uuid RETURNING id", drift_id)
-        if not row:
-            raise not_found("Drift event not found")
-        return {"status": "acknowledged"}
-
-
-@app.post("/api/v1/baselines/drift/{drift_id}/waive")
-async def waive_drift(drift_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
-    async with db.acquire() as conn:
-        row = await conn.fetchrow(
-            "UPDATE config_drift_events SET status='waived', waive_reason=$2 WHERE id=$1::uuid RETURNING id",
-            drift_id, data.get("reason", ""))
-        if not row:
-            raise not_found("Drift event not found")
-        return {"status": "waived"}
-
-
-@app.get("/api/v1/baselines/compliance/{node_id}")
-async def node_compliance(node_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
-    async with db.acquire() as conn:
-        evals = await conn.fetch("""
-            SELECT e.*, b.name as baseline_name FROM config_baseline_evaluations e
-            JOIN config_baselines b ON b.id=e.baseline_id
-            WHERE e.node_id=$1::uuid ORDER BY e.evaluated_at DESC
-        """, node_id)
-        drifts = await conn.fetch("""
-            SELECT d.*, r.rule_name FROM config_drift_events d
-            LEFT JOIN config_baseline_rules r ON r.id=d.rule_id
-            WHERE d.node_id=$1::uuid AND d.status='open' ORDER BY d.detected_at DESC
-        """, node_id)
-        return {
-            "node_id": node_id,
-            "evaluations": [dict(r) for r in evals],
-            "open_drifts": [dict(r) for r in drifts]
-        }
