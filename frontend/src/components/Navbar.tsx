@@ -52,6 +52,7 @@ interface NavItem {
   icon: LucideIcon;
   permission?: string;
   adminOnly?: boolean;
+  section?: string; // Section header above this item
 }
 
 interface NavGroup {
@@ -60,6 +61,7 @@ interface NavGroup {
   icon: LucideIcon;
   color: string;
   items: NavItem[];
+  columns?: number; // Multi-column dropdown
 }
 
 // Color mappings for each category
@@ -138,11 +140,24 @@ const navGroups: NavGroup[] = [
     labelKey: "nav.security",
     icon: ShieldCheck,
     color: "red",
+    columns: 2,
     items: [
-      { href: "/security", labelKey: "nav.securityCenter", icon: ShieldCheck },
-      { href: "/vulnerabilities", labelKey: "nav.vulnerabilities", icon: Bug, permission: "vulnerabilities:read" },
-      { href: "/remediation", labelKey: "nav.remediation", icon: Wrench, permission: "vulnerabilities:read" },
-      { href: "/compliance", labelKey: "nav.compliance", icon: ShieldCheck, permission: "compliance:read" },
+      // Column 1: Monitoring & Detection
+      { href: "/security", labelKey: "nav.securityOverview", icon: ShieldCheck, section: "Monitoring" },
+      { href: "/security/findings", labelKey: "nav.findings", icon: Bug },
+      { href: "/security/events", labelKey: "nav.securityEvents", icon: Activity },
+      { href: "/security/profiles", labelKey: "nav.monitoringProfiles", icon: Shield },
+      { href: "/security/rules", labelKey: "nav.behaviorRules", icon: Shield },
+      { href: "/security/policies", labelKey: "nav.securityPolicies", icon: Shield },
+      // Column 2: Compliance & Vulnerability
+      { href: "/vulnerabilities", labelKey: "nav.vulnerabilities", icon: Bug, section: "Compliance" },
+      { href: "/remediation", labelKey: "nav.remediation", icon: Wrench },
+      { href: "/compliance", labelKey: "nav.compliance", icon: ShieldCheck },
+      { href: "/security/posture", labelKey: "nav.configPosture", icon: Shield },
+      { href: "/security/file-audit", labelKey: "nav.fileAudit", icon: Shield },
+      { href: "/security/audit-log", labelKey: "nav.accessAudit", icon: Shield },
+      { href: "/security/evidence", labelKey: "nav.evidence", icon: Shield },
+      { href: "/security/retention", labelKey: "nav.retention", icon: Shield },
     ]
   },
   {
@@ -156,7 +171,6 @@ const navGroups: NavGroup[] = [
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read" },
       { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read" },
       { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read" },
-      { href: "/compliance", labelKey: "nav.baselines", icon: Shield, permission: "compliance:read" },
     ]
   },
   {
@@ -215,8 +229,55 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 bg-card dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded-xl shadow-2xl py-2 min-w-[240px] z-50">
-          {visibleItems.map((item) => {
+        <div className={`absolute top-full left-0 mt-2 bg-card dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded-xl shadow-2xl py-2 z-50 ${
+          group.columns && group.columns > 1 ? 'min-w-[480px]' : 'min-w-[240px]'
+        }`}>
+          {group.columns && group.columns > 1 ? (
+            <div className="grid grid-cols-2 gap-0 divide-x divide-zinc-700/50">
+              {(() => {
+                // Split items into columns by section markers
+                const cols: NavItem[][] = [[]];
+                let currentCol = 0;
+                visibleItems.forEach((item, idx) => {
+                  if (item.section && idx > 0 && cols.length < group.columns!) {
+                    cols.push([]);
+                    currentCol++;
+                  }
+                  cols[currentCol].push(item);
+                });
+                return cols.map((colItems, ci) => (
+                  <div key={ci} className="py-1">
+                    {colItems.map((item) => {
+                      const itemActive = pathname?.startsWith(item.href) && (item.href !== "/security" || pathname === "/security");
+                      const ItemIcon = item.icon;
+                      return (
+                        <div key={item.href}>
+                          {item.section && (
+                            <div className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                              {item.section}
+                            </div>
+                          )}
+                          <Link
+                            href={item.href}
+                            onClick={() => setOpen(false)}
+                            className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors ${
+                              itemActive
+                                ? `${colors.active} mx-2 rounded-lg`
+                                : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                            }`}
+                          >
+                            <ItemIcon className={`h-4 w-4 ${!itemActive ? colors.dropdown : ''}`} />
+                            <span>{t(item.labelKey)}</span>
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ));
+              })()}
+            </div>
+          ) : (
+            visibleItems.map((item) => {
             const itemActive = pathname?.startsWith(item.href);
             const ItemIcon = item.icon;
             return (
@@ -234,7 +295,8 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
                 <span>{t(item.labelKey)}</span>
               </Link>
             );
-          })}
+          })
+          )}
         </div>
       )}
     </div>
