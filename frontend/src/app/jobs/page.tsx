@@ -72,6 +72,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function SummaryBar({ summary }: { summary: JobSummary }) {
+  if (!summary) return null;
   const total = summary.total || 1;
   const segments = [
     { key: "success", count: summary.success, color: "bg-green-500" },
@@ -538,9 +539,9 @@ export default function JobsPage() {
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
             { label: "Gesamt", value: jobs.length, icon: "📋" },
-            { label: "Laufend", value: jobs.reduce((a, j) => a + j.summary.running, 0), icon: "⚡" },
-            { label: "Erfolgreich", value: jobs.reduce((a, j) => a + j.summary.success, 0), icon: "✅" },
-            { label: "Fehlgeschlagen", value: jobs.reduce((a, j) => a + j.summary.failed, 0), icon: "❌" },
+            { label: "Laufend", value: jobs.reduce((a, j) => a + (j?.summary?.running ?? 0), 0), icon: "⚡" },
+            { label: "Erfolgreich", value: jobs.reduce((a, j) => a + (j?.summary?.success ?? 0), 0), icon: "✅" },
+            { label: "Fehlgeschlagen", value: jobs.reduce((a, j) => a + (j?.summary?.failed ?? 0), 0), icon: "❌" },
           ].map((stat) => (
             <div key={stat.label} className="rounded-lg bg-zinc-800 p-4">
               <div className="text-2xl">{stat.icon}</div>
