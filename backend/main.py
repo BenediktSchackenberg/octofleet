@@ -5483,11 +5483,17 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
             
             # CPU stats
             cpu = r["cpu"] or {}
+            if isinstance(cpu, str):
+                try: cpu = json.loads(cpu)
+                except: cpu = {}
             cpu_name = cpu.get("name", "Unknown CPU") if isinstance(cpu, dict) else "Unknown CPU"
             cpu_map[cpu_name] = cpu_map.get(cpu_name, 0) + 1
             
             # Disk stats
             disks = r["disks"] or {}
+            if isinstance(disks, str):
+                try: disks = json.loads(disks)
+                except: disks = {}
             if isinstance(disks, dict):
                 for vol in disks.get("volumes", []):
                     size = vol.get("sizeGB", 0) or 0
