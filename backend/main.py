@@ -12523,19 +12523,28 @@ async def evaluate_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)
 
                 elif rule["rule_type"] == "service":
                     svc_name = ev.get("service", "")
-                    expected_state = ev.get("state", "running")
-                    svc = await conn.fetchrow(
-                        "SELECT name, status FROM services WHERE node_id=$1::text AND LOWER(name) LIKE LOWER($2) LIMIT 1",
-                        str(node_id), f"%{svc_name}%")
-                    if svc:
-                        actual_state = (svc["status"] or "").lower()
-                        if actual_state == expected_state.lower():
+                    expected_state = ev.get("state", "running").lower()
+                    # Services are stored in system_current.services->'services' JSONB array
+                    svc_row = await conn.fetchrow(
+                        "SELECT services FROM system_current WHERE node_id=$1",
+                        node_id)
+                    svc_found = None
+                    if svc_row and svc_row["services"]:
+                        svc_data = svc_row["services"] if isinstance(svc_row["services"], dict) else _json.loads(svc_row["services"])
+                        svc_list = svc_data.get("services", [])
+                        for s in svc_list:
+                            if s.get("name","").lower() == svc_name.lower() or s.get("displayName","").lower() == svc_name.lower():
+                                svc_found = s
+                                break
+                    if svc_found:
+                        actual_state = (svc_found.get("state") or "").lower()
+                        if actual_state == expected_state:
                             rule_result["status"] = "passed"
                             passed += 1
                         else:
                             rule_result["status"] = "failed"
                             failed += 1
-                        rule_result["actual"] = {"service": svc["name"], "state": actual_state}
+                        rule_result["actual"] = {"service": svc_found.get("name"), "state": actual_state, "startMode": svc_found.get("startMode")}
                     else:
                         rule_result["status"] = "failed"
                         rule_result["actual"] = {"service": svc_name, "state": "not_found"}
