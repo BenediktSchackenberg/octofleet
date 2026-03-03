@@ -2070,6 +2070,7 @@ CREATE TABLE IF NOT EXISTS config_baseline_rules (
     expected_value JSONB NOT NULL DEFAULT '{}',
     severity TEXT DEFAULT 'medium' CHECK (severity IN ('critical','high','medium','low','info')),
     enabled BOOLEAN DEFAULT true,
+    remediation_action JSONB DEFAULT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_cbr_baseline ON config_baseline_rules(baseline_id);
@@ -2112,7 +2113,7 @@ CREATE TABLE IF NOT EXISTS config_drift_events (
     severity TEXT DEFAULT 'medium' CHECK (severity IN ('critical','high','medium','low','info')),
     detected_at TIMESTAMPTZ DEFAULT NOW(),
     resolved_at TIMESTAMPTZ,
-    status TEXT DEFAULT 'open' CHECK (status IN ('open','acknowledged','resolved','waived')),
+    status TEXT DEFAULT 'open' CHECK (status IN ('open','acknowledged','resolved','waived','remediating')),
     waive_reason TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_cde_node ON config_drift_events(node_id);

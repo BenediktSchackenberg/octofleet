@@ -1,7 +1,7 @@
 "use client";
 import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
@@ -19,6 +19,7 @@ export default function DriftEvents() {
   const [filter, setFilter] = useState({ status: "", severity: "" });
   const [waiveModal, setWaiveModal] = useState<string | null>(null);
   const [waiveReason, setWaiveReason] = useState("");
+  const [remediating, setRemediating] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -37,6 +38,18 @@ export default function DriftEvents() {
     await fetchData();
   };
 
+  const remediate = async (id: string) => {
+    setRemediating(id);
+    try {
+      const res = await fetch(`${API_BASE}/baselines/drift/${id}/remediate`, { method: "POST", headers: getAuthHeader() });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Remediation failed");
+      }
+      await fetchData();
+    } finally { setRemediating(null); }
+  };
+
   const waive = async () => {
     if (!waiveModal) return;
     await fetch(`${API_BASE}/baselines/drift/${waiveModal}/waive`, {
@@ -52,7 +65,7 @@ export default function DriftEvents() {
     critical: "bg-red-500", high: "bg-orange-500", medium: "bg-yellow-500", low: "bg-blue-500", info: "bg-gray-500",
   };
   const statusColor: Record<string, string> = {
-    open: "bg-red-500", acknowledged: "bg-yellow-500", resolved: "bg-green-500", waived: "bg-gray-500",
+    open: "bg-red-500", acknowledged: "bg-yellow-500", resolved: "bg-green-500", waived: "bg-gray-500", remediating: "bg-purple-500",
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><LoadingSpinner /></div>;
@@ -72,6 +85,7 @@ export default function DriftEvents() {
             <option value="acknowledged">Acknowledged</option>
             <option value="resolved">Resolved</option>
             <option value="waived">Waived</option>
+            <option value="remediating">Remediating</option>
           </select>
           <select value={filter.severity} onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
             className="px-3 py-2 border rounded-lg dark:bg-zinc-800 dark:border-zinc-600 dark:text-white text-sm">
@@ -115,10 +129,16 @@ export default function DriftEvents() {
                     </TableCell>
                     <TableCell className="dark:text-gray-300 text-sm">{new Date(ev.detected_at).toLocaleString()}</TableCell>
                     <TableCell>
-                      {ev.status === "open" && (
+                      {(ev.status === "open" || ev.status === "acknowledged") && (
                         <div className="flex gap-1">
-                          <button onClick={() => acknowledge(ev.id)}
-                            className="text-xs px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700">Ack</button>
+                          <button onClick={() => remediate(ev.id)} disabled={remediating === ev.id}
+                            className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50">
+                            {remediating === ev.id ? "..." : "Remediate"}
+                          </button>
+                          {ev.status === "open" && (
+                            <button onClick={() => acknowledge(ev.id)}
+                              className="text-xs px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700">Ack</button>
+                          )}
                           <button onClick={() => setWaiveModal(ev.id)}
                             className="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700">Waive</button>
                         </div>
@@ -132,7 +152,6 @@ export default function DriftEvents() {
         </CardContent>
       </Card>
 
-      {/* Waive Modal */}
       {waiveModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 w-96 space-y-4 dark:border dark:border-zinc-700">

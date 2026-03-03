@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
-import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Plus, Play, ArrowRight } from "lucide-react";
+import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Plus, Play, ArrowRight, TrendingUp } from "lucide-react";
 import { API_BASE } from "@/lib/api-config";
 
 interface Baseline {
@@ -30,21 +30,31 @@ interface DriftSummary {
   last_evaluation: string | null;
 }
 
+interface TrendPoint {
+  date: string;
+  total: number;
+  compliant: number;
+  pct: number;
+}
+
 export default function ComplianceDashboard() {
   const [baselines, setBaselines] = useState<Baseline[]>([]);
   const [summary, setSummary] = useState<DriftSummary | null>(null);
+  const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
       const headers = getAuthHeader();
-      const [bRes, sRes] = await Promise.all([
+      const [bRes, sRes, tRes] = await Promise.all([
         fetch(`${API_BASE}/baselines`, { headers }),
         fetch(`${API_BASE}/baselines/drift/summary`, { headers }),
+        fetch(`${API_BASE}/baselines/compliance/trends`, { headers }),
       ]);
       if (bRes.ok) setBaselines(await bRes.json());
       if (sRes.ok) setSummary(await sRes.json());
+      if (tRes.ok) setTrends(await tRes.json());
     } catch (e) {
       console.error(e);
     } finally {
@@ -140,6 +150,34 @@ export default function ComplianceDashboard() {
           <AlertTriangle className="w-4 h-4" /> View Drift Events <ArrowRight className="w-3 h-3" />
         </Link>
       </div>
+
+      {/* Compliance Trends */}
+      {trends.length > 0 && (
+        <Card className="dark:bg-zinc-900 dark:border-zinc-700">
+          <CardHeader>
+            <CardTitle className="dark:text-white flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-500" /> Compliance Trend (30 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-32 flex items-end gap-1">
+              {trends.map((t, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${t.date}: ${t.pct}% (${t.compliant}/${t.total})`}>
+                  <div className="w-full rounded-t"
+                    style={{
+                      height: `${Math.max(4, t.pct * 1.2)}px`,
+                      backgroundColor: t.pct >= 80 ? '#22c55e' : t.pct >= 50 ? '#eab308' : '#ef4444',
+                    }}
+                  />
+                  {i % Math.max(1, Math.floor(trends.length / 7)) === 0 && (
+                    <span className="text-[9px] text-gray-500 dark:text-gray-500">{t.date.slice(5)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Baselines Table */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-700">

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
-import { Play, Trash2, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Play, Trash2, ShieldCheck, ShieldAlert, Zap } from "lucide-react";
 import { API_BASE } from "@/lib/api-config";
 
 interface BaselineDetail {
@@ -27,6 +27,7 @@ export default function BaselineDetail() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
+  const [remediating, setRemediating] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -55,6 +56,14 @@ export default function BaselineDetail() {
     await fetchData();
   };
 
+  const remediateAll = async () => {
+    setRemediating(true);
+    try {
+      await fetch(`${API_BASE}/baselines/${id}/remediate-all`, { method: "POST", headers: getAuthHeader() });
+      await fetchData();
+    } finally { setRemediating(false); }
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><LoadingSpinner /></div>;
   if (!baseline) return <div className="p-6 dark:text-white">Baseline not found</div>;
 
@@ -76,6 +85,10 @@ export default function BaselineDetail() {
           <button onClick={evaluate} disabled={evaluating}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
             <Play className="w-4 h-4" /> {evaluating ? "Evaluating..." : "Evaluate Now"}
+          </button>
+          <button onClick={remediateAll} disabled={remediating}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+            <Zap className="w-4 h-4" /> {remediating ? "Remediating..." : "Remediate All Drifts"}
           </button>
         </div>
       </div>
