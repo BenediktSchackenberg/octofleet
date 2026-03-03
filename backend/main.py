@@ -12238,16 +12238,16 @@ async def remediate_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db)):
         rem_type = remediation["type"]
 
         if rem_type == "install_package":
-            command_type = "install"
+            command_type = "install_package"
             command_data = {"packageName": remediation["package"], "method": "winget"}
             job_name = f"Remediate: Install {remediation['package']}"
         elif rem_type == "start_service":
-            command_type = "powershell"
+            command_type = "script"
             svc = remediation["service"]
             command_data = {"command": f"Start-Service '{svc}'; Set-Service '{svc}' -StartupType Automatic"}
             job_name = f"Remediate: Start service {svc}"
         elif rem_type == "run_command":
-            command_type = "powershell"
+            command_type = "script"
             command_data = {"command": remediation["command"]}
             job_name = f"Remediate: {drift['rule_name'] or 'Custom command'}"
         else:
