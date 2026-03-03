@@ -31,6 +31,7 @@ import {
   Bug,
   Wrench,
   ShieldCheck,
+  Shield,
   // Operations
   Activity,
   Bell,
@@ -155,6 +156,7 @@ const navGroups: NavGroup[] = [
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read" },
       { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read" },
       { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read" },
+      { href: "/compliance", labelKey: "nav.baselines", icon: Shield, permission: "compliance:read" },
     ]
   },
   {

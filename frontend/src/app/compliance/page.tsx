@@ -1,340 +1,186 @@
 "use client";
 import { getAuthHeader } from "@/lib/auth-context";
-
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
-import { Shield, ShieldCheck, ShieldX, Lock, Unlock, Flame, FlameKindling } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
-import { API_URL } from '@/lib/api-config';
+import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Plus, Play, ArrowRight } from "lucide-react";
+import { API_BASE } from "@/lib/api-config";
 
-
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
-
-interface ComplianceData {
-  totalNodes: number;
-  defender: { enabled: number; disabled: number; unknown: number };
-  firewall: { enabled: number; disabled: number; unknown: number };
-  bitlocker: { encrypted: number; unencrypted: number; unknown: number };
-  realTimeProtection: { enabled: number; disabled: number; unknown: number };
-  nodes: Array<{
-    nodeId: string;
-    hostname: string;
-    defender: boolean | null;
-    realTimeProtection: boolean | null;
-    firewall: boolean | null;
-    bitlocker: boolean | null;
-  }>;
+interface Baseline {
+  id: string;
+  name: string;
+  description: string;
+  baseline_type: string;
+  version: number;
+  enabled: boolean;
+  rule_count: number;
+  assignment_count: number;
+  created_at: string;
 }
 
-const COLORS = {
-  good: "#22c55e",
-  bad: "#ef4444",
-  unknown: "#71717a"
-};
+interface DriftSummary {
+  total_baselines: number;
+  compliance_pct: number;
+  total_open_drifts: number;
+  drifts_by_severity: Record<string, number>;
+  top_noncompliant_nodes: { node_id: string; drift_count: number }[];
+  last_evaluation: string | null;
+}
 
-export default function CompliancePage() {
-  const [data, setData] = useState<ComplianceData | null>(null);
+export default function ComplianceDashboard() {
+  const [baselines, setBaselines] = useState<Baseline[]>([]);
+  const [summary, setSummary] = useState<DriftSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "issues">("all");
+  const [evaluating, setEvaluating] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  async function fetchData() {
+  const fetchData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/compliance/summary`, {
-        headers: getAuthHeader(),
-      });
-      if (res.ok) {
-        setData(await res.json());
-      }
+      const headers = getAuthHeader();
+      const [bRes, sRes] = await Promise.all([
+        fetch(`${API_BASE}/baselines`, { headers }),
+        fetch(`${API_BASE}/baselines/drift/summary`, { headers }),
+      ]);
+      if (bRes.ok) setBaselines(await bRes.json());
+      if (sRes.ok) setSummary(await sRes.json());
     } catch (e) {
-      console.error("Failed to fetch compliance data:", e);
+      console.error(e);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  function StatusIcon({ value }: { value: boolean | null }) {
-    if (value === true) return <span className="text-green-500">✅</span>;
-    if (value === false) return <span className="text-red-500">❌</span>;
-    return <span className="text-zinc-500">❓</span>;
-  }
+  useEffect(() => { fetchData(); }, []);
 
-  function makePieData(obj: { enabled?: number; disabled?: number; encrypted?: number; unencrypted?: number; unknown: number }) {
-    if ("enabled" in obj) {
-      return [
-        { name: "Enabled", value: obj.enabled || 0, color: COLORS.good },
-        { name: "Disabled", value: obj.disabled || 0, color: COLORS.bad },
-        { name: "Unknown", value: obj.unknown || 0, color: COLORS.unknown },
-      ].filter(d => d.value > 0);
+  const evaluateBaseline = async (id: string) => {
+    setEvaluating(id);
+    try {
+      await fetch(`${API_BASE}/baselines/${id}/evaluate`, { method: "POST", headers: getAuthHeader() });
+      await fetchData();
+    } finally {
+      setEvaluating(null);
     }
-    return [
-      { name: "Encrypted", value: obj.encrypted || 0, color: COLORS.good },
-      { name: "Unencrypted", value: obj.unencrypted || 0, color: COLORS.bad },
-      { name: "Unknown", value: obj.unknown || 0, color: COLORS.unknown },
-    ].filter(d => d.value > 0);
-  }
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background p-6">
-<h1 className="text-2xl font-bold mb-6">🛡️ Compliance Dashboard</h1>
-        <div className="flex justify-center py-12">
-          <LoadingSpinner size="lg" />
-        </div>
-      </div>
-    );
-  }
+  const evaluateAll = async () => {
+    setEvaluating("all");
+    try {
+      for (const b of baselines) {
+        await fetch(`${API_BASE}/baselines/${b.id}/evaluate`, { method: "POST", headers: getAuthHeader() });
+      }
+      await fetchData();
+    } finally {
+      setEvaluating(null);
+    }
+  };
 
-  if (!data) {
-    return (
-      <div className="min-h-screen bg-background p-6">
-<h1 className="text-2xl font-bold mb-6">🛡️ Compliance Dashboard</h1>
-        <p className="text-muted-foreground">Failed to load compliance data</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center h-64"><LoadingSpinner /></div>;
 
-  const hasIssue = (node: ComplianceData["nodes"][0]) => 
-    node.defender === false || 
-    node.realTimeProtection === false || 
-    node.firewall === false || 
-    node.bitlocker === false;
-
-  const filteredNodes = filter === "issues" 
-    ? data.nodes.filter(hasIssue)
-    : data.nodes;
-
-  const issueCount = data.nodes.filter(hasIssue).length;
+  const severityColor: Record<string, string> = {
+    critical: "bg-red-500", high: "bg-orange-500", medium: "bg-yellow-500", low: "bg-blue-500", info: "bg-gray-500",
+  };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-<div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">🛡️ Compliance Dashboard</h1>
-          <p className="text-muted-foreground">Security status across all nodes</p>
-        </div>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold dark:text-white">Compliance Dashboard</h1>
         <div className="flex gap-2">
-          <a 
-            href={`${API_URL}/api/v1/export/compliance?format=csv`}
-            className="px-3 py-2 bg-secondary hover:bg-secondary/80 rounded text-sm"
-          >
-            📥 Export CSV
-          </a>
-          <button
-            onClick={fetchData}
-            className="px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-sm"
-          >
-            🔄 Refresh
+          <button onClick={evaluateAll} disabled={!!evaluating}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            <Play className="w-4 h-4" /> {evaluating === "all" ? "Evaluating..." : "Evaluate All"}
           </button>
+          <Link href="/compliance/baselines/new"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <Plus className="w-4 h-4" /> Create Baseline
+          </Link>
         </div>
       </div>
 
-      {/* Summary Cards with Pie Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {/* Defender */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-green-500" />
-              Windows Defender
-            </CardTitle>
-          </CardHeader>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="dark:bg-zinc-900 dark:border-zinc-700">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Total Baselines</CardTitle></CardHeader>
+          <CardContent><div className="text-3xl font-bold dark:text-white">{summary?.total_baselines ?? 0}</div></CardContent>
+        </Card>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-700">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Compliance</CardTitle></CardHeader>
           <CardContent>
-            <div className="h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={makePieData(data.defender)}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={25}
-                    outerRadius={45}
-                  >
-                    {makePieData(data.defender).map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="text-center text-sm mt-2">
-              <span className="text-green-500">{data.defender.enabled}</span> enabled, 
-              <span className="text-red-500 ml-1">{data.defender.disabled}</span> disabled
+            <div className="text-3xl font-bold dark:text-white flex items-center gap-2">
+              {summary?.compliance_pct ?? 0}%
+              {(summary?.compliance_pct ?? 0) >= 80 ? <ShieldCheck className="w-6 h-6 text-green-500" /> : <ShieldAlert className="w-6 h-6 text-red-500" />}
             </div>
           </CardContent>
         </Card>
-
-        {/* Real-time Protection */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Flame className="h-5 w-5 text-orange-500" />
-              Real-time Protection
-            </CardTitle>
-          </CardHeader>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-700">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Open Drifts</CardTitle></CardHeader>
           <CardContent>
-            <div className="h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={makePieData(data.realTimeProtection)}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={25}
-                    outerRadius={45}
-                  >
-                    {makePieData(data.realTimeProtection).map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="text-center text-sm mt-2">
-              <span className="text-green-500">{data.realTimeProtection.enabled}</span> enabled, 
-              <span className="text-red-500 ml-1">{data.realTimeProtection.disabled}</span> disabled
+            <div className="text-3xl font-bold dark:text-white">{summary?.total_open_drifts ?? 0}</div>
+            <div className="flex gap-1 mt-1">
+              {summary?.drifts_by_severity && Object.entries(summary.drifts_by_severity).map(([sev, count]) => (
+                <Badge key={sev} className={`${severityColor[sev] || "bg-gray-500"} text-white text-xs`}>{sev}: {count}</Badge>
+              ))}
             </div>
           </CardContent>
         </Card>
-
-        {/* Firewall */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-500" />
-              Firewall
-            </CardTitle>
-          </CardHeader>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-700">
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Last Evaluation</CardTitle></CardHeader>
           <CardContent>
-            <div className="h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={makePieData(data.firewall)}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={25}
-                    outerRadius={45}
-                  >
-                    {makePieData(data.firewall).map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="text-center text-sm mt-2">
-              <span className="text-green-500">{data.firewall.enabled}</span> enabled, 
-              <span className="text-red-500 ml-1">{data.firewall.disabled}</span> disabled
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* BitLocker */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Lock className="h-5 w-5 text-purple-500" />
-              BitLocker
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={makePieData(data.bitlocker)}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={25}
-                    outerRadius={45}
-                  >
-                    {makePieData(data.bitlocker).map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="text-center text-sm mt-2">
-              <span className="text-green-500">{data.bitlocker.encrypted}</span> encrypted, 
-              <span className="text-red-500 ml-1">{data.bitlocker.unencrypted}</span> unencrypted
+            <div className="text-lg dark:text-white">
+              {summary?.last_evaluation ? new Date(summary.last_evaluation).toLocaleString() : "Never"}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filter & Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Node Security Status</CardTitle>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setFilter("all")}
-                className={`px-3 py-1 rounded text-sm ${
-                  filter === "all" ? "bg-primary text-primary-foreground" : "bg-secondary"
-                }`}
-              >
-                All ({data.totalNodes})
-              </button>
-              <button
-                onClick={() => setFilter("issues")}
-                className={`px-3 py-1 rounded text-sm ${
-                  filter === "issues" ? "bg-red-600 text-white" : "bg-secondary"
-                }`}
-              >
-                ⚠️ Issues ({issueCount})
-              </button>
-            </div>
-          </div>
-        </CardHeader>
+      {/* Quick Links */}
+      <div className="flex gap-2">
+        <Link href="/compliance/drift" className="text-blue-500 hover:underline flex items-center gap-1">
+          <AlertTriangle className="w-4 h-4" /> View Drift Events <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {/* Baselines Table */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-700">
+        <CardHeader><CardTitle className="dark:text-white">Baselines</CardTitle></CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Hostname</TableHead>
-                <TableHead className="text-center">Defender</TableHead>
-                <TableHead className="text-center">Real-time</TableHead>
-                <TableHead className="text-center">Firewall</TableHead>
-                <TableHead className="text-center">BitLocker</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredNodes.map((node) => (
-                <TableRow key={node.nodeId} className={hasIssue(node) ? "bg-red-950/20" : ""}>
-                  <TableCell>
-                    <Link href={`/nodes/${node.nodeId}`} className="text-primary hover:underline font-medium">
-                      {node.hostname}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-center"><StatusIcon value={node.defender} /></TableCell>
-                  <TableCell className="text-center"><StatusIcon value={node.realTimeProtection} /></TableCell>
-                  <TableCell className="text-center"><StatusIcon value={node.firewall} /></TableCell>
-                  <TableCell className="text-center"><StatusIcon value={node.bitlocker} /></TableCell>
+          {baselines.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No baselines yet. Create one to get started.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="dark:border-zinc-700">
+                  <TableHead className="dark:text-gray-400">Name</TableHead>
+                  <TableHead className="dark:text-gray-400">Type</TableHead>
+                  <TableHead className="dark:text-gray-400">Rules</TableHead>
+                  <TableHead className="dark:text-gray-400">Assignments</TableHead>
+                  <TableHead className="dark:text-gray-400">Version</TableHead>
+                  <TableHead className="dark:text-gray-400">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {baselines.map((b) => (
+                  <TableRow key={b.id} className="dark:border-zinc-700">
+                    <TableCell>
+                      <Link href={`/compliance/baselines/${b.id}`} className="text-blue-500 hover:underline font-medium">{b.name}</Link>
+                      {b.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{b.description}</p>}
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">{b.baseline_type}</Badge></TableCell>
+                    <TableCell className="dark:text-gray-300">{b.rule_count}</TableCell>
+                    <TableCell className="dark:text-gray-300">{b.assignment_count}</TableCell>
+                    <TableCell className="dark:text-gray-300">v{b.version}</TableCell>
+                    <TableCell>
+                      <button onClick={() => evaluateBaseline(b.id)} disabled={!!evaluating}
+                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                        {evaluating === b.id ? "..." : "Evaluate"}
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

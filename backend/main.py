@@ -11926,3 +11926,421 @@ async def submit_patch_results(data: dict):
                     if remaining == 0:
                         await conn.execute("UPDATE patch_deployments SET status='completed', completed_at=NOW() WHERE id=$1", pdr["deployment_id"])
         return {"status": "ok"}
+
+
+# ============================================================
+# E31: Configuration Baselines & Drift Management
+# ============================================================
+
+# --- Baselines CRUD ---
+
+@app.get("/api/v1/baselines")
+async def list_config_baselines(db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT b.*,
+                (SELECT COUNT(*) FROM config_baseline_rules WHERE baseline_id = b.id) as rule_count,
+                (SELECT COUNT(*) FROM config_baseline_assignments WHERE baseline_id = b.id) as assignment_count
+            FROM config_baselines b ORDER BY b.created_at DESC
+        """)
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/v1/baselines")
+async def create_config_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    import json as _json
+    rules = data.get("rules", [])
+    async with db.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow("""
+                INSERT INTO config_baselines (name, description, baseline_type, rules)
+                VALUES ($1, $2, $3, $4::jsonb)
+                RETURNING *
+            """, data["name"], data.get("description", ""), data.get("baseline_type", "software"),
+                _json.dumps(rules))
+            baseline_id = row["id"]
+            for r in rules:
+                await conn.execute("""
+                    INSERT INTO config_baseline_rules (baseline_id, rule_type, rule_name, expected_value, severity, enabled)
+                    VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+                """, baseline_id, r.get("rule_type", data.get("baseline_type", "software")),
+                    r["rule_name"], _json.dumps(r.get("expected_value", {})),
+                    r.get("severity", "medium"), r.get("enabled", True))
+            return dict(row)
+
+
+@app.get("/api/v1/baselines/{baseline_id}")
+async def get_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM config_baselines WHERE id = $1::uuid", baseline_id)
+        if not row:
+            raise not_found("Baseline not found")
+        result = dict(row)
+        result["rules"] = [dict(r) for r in await conn.fetch(
+            "SELECT * FROM config_baseline_rules WHERE baseline_id = $1::uuid ORDER BY created_at", baseline_id)]
+        result["assignments"] = [dict(r) for r in await conn.fetch(
+            "SELECT * FROM config_baseline_assignments WHERE baseline_id = $1::uuid", baseline_id)]
+        return result
+
+
+@app.put("/api/v1/baselines/{baseline_id}")
+async def update_config_baseline(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    import json as _json
+    async with db.acquire() as conn:
+        async with conn.transaction():
+            existing = await conn.fetchrow("SELECT id FROM config_baselines WHERE id = $1::uuid", baseline_id)
+            if not existing:
+                raise not_found("Baseline not found")
+            await conn.execute("""
+                UPDATE config_baselines SET name=COALESCE($2, name), description=COALESCE($3, description),
+                baseline_type=COALESCE($4, baseline_type), updated_at=NOW(), version=version+1
+                WHERE id = $1::uuid
+            """, baseline_id, data.get("name"), data.get("description"), data.get("baseline_type"))
+            if "rules" in data:
+                await conn.execute("DELETE FROM config_baseline_rules WHERE baseline_id = $1::uuid", baseline_id)
+                for r in data["rules"]:
+                    await conn.execute("""
+                        INSERT INTO config_baseline_rules (baseline_id, rule_type, rule_name, expected_value, severity, enabled)
+                        VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6)
+                    """, baseline_id, r.get("rule_type", "software"),
+                        r["rule_name"], _json.dumps(r.get("expected_value", {})),
+                        r.get("severity", "medium"), r.get("enabled", True))
+            return {"status": "updated"}
+
+
+@app.delete("/api/v1/baselines/{baseline_id}")
+async def delete_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        deleted = await conn.fetchrow("DELETE FROM config_baselines WHERE id = $1::uuid RETURNING id", baseline_id)
+        if not deleted:
+            raise not_found("Baseline not found")
+        return {"status": "deleted"}
+
+
+# --- Rules ---
+
+@app.get("/api/v1/baselines/{baseline_id}/rules")
+async def list_baseline_rules(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM config_baseline_rules WHERE baseline_id = $1::uuid ORDER BY created_at", baseline_id)
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/v1/baselines/{baseline_id}/rules")
+async def add_baseline_rule(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    import json as _json
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO config_baseline_rules (baseline_id, rule_type, rule_name, expected_value, severity, enabled)
+            VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6) RETURNING *
+        """, baseline_id, data.get("rule_type", "software"), data["rule_name"],
+            _json.dumps(data.get("expected_value", {})), data.get("severity", "medium"), data.get("enabled", True))
+        return dict(row)
+
+
+@app.put("/api/v1/baselines/rules/{rule_id}")
+async def update_baseline_rule(rule_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    import json as _json
+    async with db.acquire() as conn:
+        sets = []
+        vals = [rule_id]
+        i = 2
+        for field in ["rule_type", "rule_name", "severity", "enabled"]:
+            if field in data:
+                sets.append(f"{field}=${i}")
+                vals.append(data[field])
+                i += 1
+        if "expected_value" in data:
+            sets.append(f"expected_value=${i}::jsonb")
+            vals.append(_json.dumps(data["expected_value"]))
+            i += 1
+        if not sets:
+            return {"status": "no changes"}
+        row = await conn.fetchrow(f"UPDATE config_baseline_rules SET {', '.join(sets)} WHERE id=$1::uuid RETURNING *", *vals)
+        if not row:
+            raise not_found("Rule not found")
+        return dict(row)
+
+
+@app.delete("/api/v1/baselines/rules/{rule_id}")
+async def delete_baseline_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        deleted = await conn.fetchrow("DELETE FROM config_baseline_rules WHERE id=$1::uuid RETURNING id", rule_id)
+        if not deleted:
+            raise not_found("Rule not found")
+        return {"status": "deleted"}
+
+
+# --- Assignments ---
+
+@app.get("/api/v1/baselines/{baseline_id}/assignments")
+async def list_baseline_assignments(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM config_baseline_assignments WHERE baseline_id=$1::uuid", baseline_id)
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/v1/baselines/{baseline_id}/assign")
+async def assign_baseline(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO config_baseline_assignments (baseline_id, target_type, target_id)
+            VALUES ($1::uuid, $2, $3::uuid) RETURNING *
+        """, baseline_id, data["target_type"], data["target_id"])
+        return dict(row)
+
+
+@app.delete("/api/v1/baselines/{baseline_id}/assignments/{assignment_id}")
+async def remove_baseline_assignment(baseline_id: str, assignment_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        deleted = await conn.fetchrow(
+            "DELETE FROM config_baseline_assignments WHERE id=$1::uuid AND baseline_id=$2::uuid RETURNING id",
+            assignment_id, baseline_id)
+        if not deleted:
+            raise not_found("Assignment not found")
+        return {"status": "deleted"}
+
+
+# --- Evaluation & Drift ---
+
+@app.post("/api/v1/baselines/{baseline_id}/evaluate")
+async def evaluate_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    """Evaluate baseline against all assigned nodes using inventory data."""
+    import json as _json
+    async with db.acquire() as conn:
+        baseline = await conn.fetchrow("SELECT * FROM config_baselines WHERE id=$1::uuid", baseline_id)
+        if not baseline:
+            raise not_found("Baseline not found")
+        rules = await conn.fetch("SELECT * FROM config_baseline_rules WHERE baseline_id=$1::uuid AND enabled=true", baseline_id)
+        if not rules:
+            return {"status": "no rules", "evaluations": []}
+
+        # Collect assigned node IDs
+        assignments = await conn.fetch("SELECT * FROM config_baseline_assignments WHERE baseline_id=$1::uuid", baseline_id)
+        node_ids = set()
+        for a in assignments:
+            if a["target_type"] == "node":
+                node_ids.add(a["target_id"])
+            elif a["target_type"] == "group":
+                members = await conn.fetch("SELECT node_id FROM node_group_members WHERE group_id=$1", a["target_id"])
+                for m in members:
+                    node_ids.add(m["node_id"])
+
+        if not node_ids:
+            return {"status": "no assigned nodes", "evaluations": []}
+
+        evaluations = []
+        for node_id in node_ids:
+            total = len(rules)
+            passed = 0
+            failed = 0
+            skipped = 0
+            details = []
+
+            for rule in rules:
+                rule_result = {"rule_id": str(rule["id"]), "rule_name": rule["rule_name"],
+                              "rule_type": rule["rule_type"], "status": "skipped", "expected": None, "actual": None}
+                ev = rule["expected_value"] if isinstance(rule["expected_value"], dict) else _json.loads(rule["expected_value"]) if rule["expected_value"] else {}
+                rule_result["expected"] = ev
+
+                if rule["rule_type"] == "software":
+                    pkg_name = ev.get("package", "")
+                    operator = ev.get("operator", "installed")
+                    sw = await conn.fetchrow(
+                        "SELECT name, version FROM software_current WHERE node_id=$1 AND LOWER(name) LIKE LOWER($2) LIMIT 1",
+                        node_id, f"%{pkg_name}%")
+                    if operator == "installed":
+                        if sw:
+                            rule_result["status"] = "passed"
+                            rule_result["actual"] = {"installed": True, "version": sw["version"]}
+                            passed += 1
+                        else:
+                            rule_result["status"] = "failed"
+                            rule_result["actual"] = {"installed": False}
+                            failed += 1
+                    elif operator == "not_installed":
+                        if not sw:
+                            rule_result["status"] = "passed"
+                            rule_result["actual"] = {"installed": False}
+                            passed += 1
+                        else:
+                            rule_result["status"] = "failed"
+                            rule_result["actual"] = {"installed": True, "version": sw["version"]}
+                            failed += 1
+                    elif operator == "version_eq":
+                        if sw and sw["version"] == ev.get("version", ""):
+                            rule_result["status"] = "passed"
+                            rule_result["actual"] = {"version": sw["version"]}
+                            passed += 1
+                        else:
+                            rule_result["status"] = "failed"
+                            rule_result["actual"] = {"version": sw["version"] if sw else None}
+                            failed += 1
+                    elif operator == "version_gte":
+                        if sw and sw["version"] and sw["version"] >= ev.get("version", ""):
+                            rule_result["status"] = "passed"
+                            rule_result["actual"] = {"version": sw["version"]}
+                            passed += 1
+                        else:
+                            rule_result["status"] = "failed"
+                            rule_result["actual"] = {"version": sw["version"] if sw else None}
+                            failed += 1
+                    else:
+                        skipped += 1
+
+                elif rule["rule_type"] == "service":
+                    svc_name = ev.get("service", "")
+                    expected_state = ev.get("state", "running")
+                    svc = await conn.fetchrow(
+                        "SELECT name, status FROM services WHERE node_id=$1::text AND LOWER(name) LIKE LOWER($2) LIMIT 1",
+                        str(node_id), f"%{svc_name}%")
+                    if svc:
+                        actual_state = (svc["status"] or "").lower()
+                        if actual_state == expected_state.lower():
+                            rule_result["status"] = "passed"
+                            passed += 1
+                        else:
+                            rule_result["status"] = "failed"
+                            failed += 1
+                        rule_result["actual"] = {"service": svc["name"], "state": actual_state}
+                    else:
+                        rule_result["status"] = "failed"
+                        rule_result["actual"] = {"service": svc_name, "state": "not_found"}
+                        failed += 1
+
+                elif rule["rule_type"] in ("registry", "firewall"):
+                    # Skip if no inventory data available for these types
+                    skipped += 1
+                    rule_result["status"] = "skipped"
+                    rule_result["actual"] = {"reason": f"No {rule['rule_type']} inventory data available"}
+
+                else:
+                    skipped += 1
+
+                details.append(rule_result)
+
+            compliant = (failed == 0 and total > 0)
+            eval_row = await conn.fetchrow("""
+                INSERT INTO config_baseline_evaluations
+                (baseline_id, node_id, compliant, total_rules, passed, failed, skipped, details)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::jsonb) RETURNING *
+            """, baseline_id, node_id, compliant, total, passed, failed, skipped, _json.dumps(details))
+
+            # Create drift events for failed rules
+            for d in details:
+                if d["status"] == "failed":
+                    rule_uuid = d.get("rule_id")
+                    await conn.execute("""
+                        INSERT INTO config_drift_events (evaluation_id, rule_id, node_id, expected, actual, severity, status)
+                        VALUES ($1, $2::uuid, $3, $4::jsonb, $5::jsonb, $6, 'open')
+                    """, eval_row["id"], rule_uuid, node_id,
+                        _json.dumps(d.get("expected", {})), _json.dumps(d.get("actual", {})),
+                        next((r["severity"] for r in rules if str(r["id"]) == rule_uuid), "medium"))
+
+            evaluations.append(dict(eval_row))
+
+        return {"status": "evaluated", "evaluations": evaluations}
+
+
+@app.get("/api/v1/baselines/{baseline_id}/evaluations")
+async def list_baseline_evaluations(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT * FROM config_baseline_evaluations WHERE baseline_id=$1::uuid ORDER BY evaluated_at DESC LIMIT 100
+        """, baseline_id)
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/v1/baselines/evaluations/{eval_id}")
+async def get_evaluation_detail(eval_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM config_baseline_evaluations WHERE id=$1::uuid", eval_id)
+        if not row:
+            raise not_found("Evaluation not found")
+        return dict(row)
+
+
+@app.get("/api/v1/baselines/drift")
+async def list_drift_events(status: str = None, severity: str = None, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        query = "SELECT d.*, r.rule_name, b.name as baseline_name FROM config_drift_events d LEFT JOIN config_baseline_rules r ON r.id=d.rule_id LEFT JOIN config_baseline_evaluations e ON e.id=d.evaluation_id LEFT JOIN config_baselines b ON b.id=e.baseline_id WHERE 1=1"
+        params = []
+        i = 1
+        if status:
+            query += f" AND d.status=${i}"
+            params.append(status)
+            i += 1
+        if severity:
+            query += f" AND d.severity=${i}"
+            params.append(severity)
+            i += 1
+        query += " ORDER BY d.detected_at DESC LIMIT 200"
+        rows = await conn.fetch(query, *params)
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/v1/baselines/drift/summary")
+async def drift_summary(db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        total_baselines = await conn.fetchval("SELECT COUNT(*) FROM config_baselines")
+        total_evals = await conn.fetchval("SELECT COUNT(*) FROM config_baseline_evaluations")
+        compliant_evals = await conn.fetchval("SELECT COUNT(*) FROM config_baseline_evaluations WHERE compliant=true")
+        compliance_pct = round((compliant_evals / total_evals * 100) if total_evals > 0 else 0, 1)
+        open_drifts = await conn.fetch("""
+            SELECT severity, COUNT(*) as count FROM config_drift_events WHERE status='open' GROUP BY severity
+        """)
+        total_open = sum(r["count"] for r in open_drifts)
+        top_nodes = await conn.fetch("""
+            SELECT node_id, COUNT(*) as drift_count FROM config_drift_events WHERE status='open'
+            GROUP BY node_id ORDER BY drift_count DESC LIMIT 5
+        """)
+        last_eval = await conn.fetchval("SELECT MAX(evaluated_at) FROM config_baseline_evaluations")
+        return {
+            "total_baselines": total_baselines,
+            "compliance_pct": compliance_pct,
+            "total_open_drifts": total_open,
+            "drifts_by_severity": {r["severity"]: r["count"] for r in open_drifts},
+            "top_noncompliant_nodes": [{"node_id": str(r["node_id"]), "drift_count": r["drift_count"]} for r in top_nodes],
+            "last_evaluation": last_eval.isoformat() if last_eval else None
+        }
+
+
+@app.post("/api/v1/baselines/drift/{drift_id}/acknowledge")
+async def acknowledge_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE config_drift_events SET status='acknowledged' WHERE id=$1::uuid RETURNING id", drift_id)
+        if not row:
+            raise not_found("Drift event not found")
+        return {"status": "acknowledged"}
+
+
+@app.post("/api/v1/baselines/drift/{drift_id}/waive")
+async def waive_drift(drift_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE config_drift_events SET status='waived', waive_reason=$2 WHERE id=$1::uuid RETURNING id",
+            drift_id, data.get("reason", ""))
+        if not row:
+            raise not_found("Drift event not found")
+        return {"status": "waived"}
+
+
+@app.get("/api/v1/baselines/compliance/{node_id}")
+async def node_compliance(node_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+    async with db.acquire() as conn:
+        evals = await conn.fetch("""
+            SELECT e.*, b.name as baseline_name FROM config_baseline_evaluations e
+            JOIN config_baselines b ON b.id=e.baseline_id
+            WHERE e.node_id=$1::uuid ORDER BY e.evaluated_at DESC
+        """, node_id)
+        drifts = await conn.fetch("""
+            SELECT d.*, r.rule_name FROM config_drift_events d
+            LEFT JOIN config_baseline_rules r ON r.id=d.rule_id
+            WHERE d.node_id=$1::uuid AND d.status='open' ORDER BY d.detected_at DESC
+        """, node_id)
+        return {
+            "node_id": node_id,
+            "evaluations": [dict(r) for r in evals],
+            "open_drifts": [dict(r) for r in drifts]
+        }

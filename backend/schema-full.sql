@@ -2041,3 +2041,80 @@ CREATE TABLE IF NOT EXISTS patch_deployment_results (
 );
 CREATE INDEX IF NOT EXISTS idx_pdr_deployment ON patch_deployment_results(deployment_id);
 CREATE INDEX IF NOT EXISTS idx_pdr_node ON patch_deployment_results(node_id);
+
+-- ============================================================
+-- E31: Configuration Baselines & Drift Management
+-- ============================================================
+
+CREATE TYPE IF NOT EXISTS config_baseline_type AS ENUM ('software', 'service', 'registry', 'firewall', 'custom');
+CREATE TYPE IF NOT EXISTS baseline_target_type AS ENUM ('node', 'group');
+CREATE TYPE IF NOT EXISTS drift_status AS ENUM ('open', 'acknowledged', 'resolved', 'waived');
+
+CREATE TABLE IF NOT EXISTS config_baselines (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    baseline_type TEXT NOT NULL DEFAULT 'software' CHECK (baseline_type IN ('software','service','registry','firewall','custom')),
+    version INTEGER DEFAULT 1,
+    rules JSONB DEFAULT '[]'::jsonb,
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS config_baseline_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    baseline_id UUID NOT NULL REFERENCES config_baselines(id) ON DELETE CASCADE,
+    rule_type TEXT NOT NULL CHECK (rule_type IN ('software','service','registry','firewall','custom')),
+    rule_name TEXT NOT NULL,
+    expected_value JSONB NOT NULL DEFAULT '{}',
+    severity TEXT DEFAULT 'medium' CHECK (severity IN ('critical','high','medium','low','info')),
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_cbr_baseline ON config_baseline_rules(baseline_id);
+
+CREATE TABLE IF NOT EXISTS config_baseline_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    baseline_id UUID NOT NULL REFERENCES config_baselines(id) ON DELETE CASCADE,
+    target_type TEXT NOT NULL CHECK (target_type IN ('node','group')),
+    target_id UUID NOT NULL,
+    assigned_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_cba_baseline ON config_baseline_assignments(baseline_id);
+CREATE INDEX IF NOT EXISTS idx_cba_target ON config_baseline_assignments(target_id);
+
+CREATE TABLE IF NOT EXISTS config_baseline_evaluations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    baseline_id UUID NOT NULL REFERENCES config_baselines(id) ON DELETE CASCADE,
+    node_id UUID NOT NULL,
+    evaluated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    compliant BOOLEAN DEFAULT false,
+    total_rules INTEGER DEFAULT 0,
+    passed INTEGER DEFAULT 0,
+    failed INTEGER DEFAULT 0,
+    skipped INTEGER DEFAULT 0,
+    details JSONB DEFAULT '[]'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_cbe_baseline ON config_baseline_evaluations(baseline_id);
+CREATE INDEX IF NOT EXISTS idx_cbe_node ON config_baseline_evaluations(node_id);
+CREATE INDEX IF NOT EXISTS idx_cbe_evaluated ON config_baseline_evaluations(evaluated_at DESC);
+
+-- TimescaleDB hypertable (will be created via direct SQL on the server)
+
+CREATE TABLE IF NOT EXISTS config_drift_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    evaluation_id UUID REFERENCES config_baseline_evaluations(id) ON DELETE SET NULL,
+    rule_id UUID REFERENCES config_baseline_rules(id) ON DELETE SET NULL,
+    node_id UUID NOT NULL,
+    expected JSONB,
+    actual JSONB,
+    severity TEXT DEFAULT 'medium' CHECK (severity IN ('critical','high','medium','low','info')),
+    detected_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    status TEXT DEFAULT 'open' CHECK (status IN ('open','acknowledged','resolved','waived')),
+    waive_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_cde_node ON config_drift_events(node_id);
+CREATE INDEX IF NOT EXISTS idx_cde_status ON config_drift_events(status);
+CREATE INDEX IF NOT EXISTS idx_cde_evaluation ON config_drift_events(evaluation_id);
