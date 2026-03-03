@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { API_BASE } from '@/lib/api-config';
 import { 
-  Shield, Package, FileText, Clock, Play, CheckCircle, 
-  XCircle, AlertTriangle, Settings, Plus, Trash2, RefreshCw,
-  Wifi, WifiOff
+  Shield, Package, Plus, Play, CheckCircle, 
+  XCircle, AlertTriangle, Clock, RefreshCw,
+  Wifi, WifiOff, Search, ArrowUpDown, ArrowUp, ArrowDown,
+  Loader2, Filter
 } from 'lucide-react';
 
 interface RemediationJob {
@@ -54,6 +55,11 @@ interface Summary {
   in_maintenance_window: boolean;
 }
 
+type SortField = 'id' | 'software_name' | 'cve_id' | 'status' | 'created_at';
+type SortDir = 'asc' | 'desc';
+
+const STATUS_OPTIONS = ['all', 'success', 'failed', 'pending', 'approved', 'running', 'skipped', 'rolled_back'] as const;
+
 export default function RemediationPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [packages, setPackages] = useState<RemediationPackage[]>([]);
@@ -65,94 +71,33 @@ export default function RemediationPage() {
   const [scanResult, setScanResult] = useState<any>(null);
   const [liveConnected, setLiveConnected] = useState(false);
 
-
+  // Filters & Sort
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortField, setSortField] = useState<SortField>('id');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const getToken = () => localStorage.getItem('token');
 
   const fetchData = async () => {
     const token = getToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    if (!token) { setLoading(false); return; }
     setLoading(true);
     try {
       const headers = { 'Authorization': `Bearer ${token}` };
-      
       const [summaryRes, packagesRes, rulesRes, jobsRes] = await Promise.all([
         fetch(`${API_BASE}/remediation/summary`, { headers }),
         fetch(`${API_BASE}/remediation/packages`, { headers }),
         fetch(`${API_BASE}/remediation/rules`, { headers }),
-        fetch(`${API_BASE}/remediation/jobs?limit=50`, { headers }),
+        fetch(`${API_BASE}/remediation/jobs?limit=500`, { headers }),
       ]);
-
-      if (summaryRes.ok) {
-        const data = await summaryRes.json();
-        setSummary(data);
-      }
-      if (packagesRes.ok) {
-        const data = await packagesRes.json();
-        setPackages(data.packages || []);
-      }
-      if (rulesRes.ok) {
-        const data = await rulesRes.json();
-        setRules(data.rules || []);
-      }
-      if (jobsRes.ok) {
-        const data = await jobsRes.json();
-        setJobs(data.jobs || []);
-      }
-    } catch (error) {
-      console.error('Error fetching remediation data:', error);
-    }
+      if (summaryRes.ok) setSummary(await summaryRes.json());
+      if (packagesRes.ok) { const d = await packagesRes.json(); setPackages(d.packages || []); }
+      if (rulesRes.ok) { const d = await rulesRes.json(); setRules(d.rules || []); }
+      if (jobsRes.ok) { const d = await jobsRes.json(); setJobs(d.jobs || []); }
+    } catch (error) { console.error('Error fetching remediation data:', error); }
     setLoading(false);
   };
-
-  // SSE for live job updates
-  useEffect(() => {
-    const token = getToken();
-    if (!token) return;
-
-    const eventSource = new EventSource(
-      `${API_BASE}/remediation/live?token=${token}`
-    );
-
-    eventSource.onopen = () => {
-      setLiveConnected(true);
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'job_update') {
-          // Update single job in list
-          setJobs(prev => {
-            const idx = prev.findIndex(j => j.id === data.job.id);
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = data.job;
-              return updated;
-            }
-            return [data.job, ...prev].slice(0, 50);
-          });
-          // Refresh summary when job status changes
-          fetchSummary();
-        }
-      } catch (e) {
-        console.error('SSE parse error:', e);
-      }
-    };
-
-    eventSource.onerror = () => {
-      setLiveConnected(false);
-      eventSource.close();
-    };
-
-    return () => {
-      eventSource.close();
-      setLiveConnected(false);
-    };
-  }, []);
 
   const fetchSummary = async () => {
     const token = getToken();
@@ -161,60 +106,109 @@ export default function RemediationPage() {
       const res = await fetch(`${API_BASE}/remediation/summary`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) {
-        setSummary(await res.json());
-      }
+      if (res.ok) setSummary(await res.json());
     } catch (e) {}
   };
 
+  // SSE for live job updates
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    const eventSource = new EventSource(`${API_BASE}/remediation/live?token=${token}`);
+    eventSource.onopen = () => setLiveConnected(true);
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'job_update') {
+          setJobs(prev => {
+            const idx = prev.findIndex(j => j.id === data.job.id);
+            if (idx >= 0) { const u = [...prev]; u[idx] = data.job; return u; }
+            return [data.job, ...prev];
+          });
+          fetchSummary();
+        }
+      } catch (e) { console.error('SSE parse error:', e); }
+    };
+    eventSource.onerror = () => { setLiveConnected(false); eventSource.close(); };
+    return () => { eventSource.close(); setLiveConnected(false); };
+  }, []);
+
   useEffect(() => {
     fetchData();
-    // Fallback polling if SSE not connected
-    const interval = setInterval(() => {
-      if (!liveConnected) fetchData();
-    }, 30000);
+    const interval = setInterval(() => { if (!liveConnected) fetchData(); }, 30000);
     return () => clearInterval(interval);
   }, []);
 
+  // Running jobs (always visible)
+  const runningJobs = useMemo(() => jobs.filter(j => j.status === 'running'), [jobs]);
+
+  // Filtered + sorted jobs for table
+  const filteredJobs = useMemo(() => {
+    let result = [...jobs];
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter(j => j.status === statusFilter);
+    }
+
+    // Search (software, CVE, ID)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(j =>
+        j.software_name?.toLowerCase().includes(q) ||
+        j.cve_id?.toLowerCase().includes(q) ||
+        String(j.id).includes(q) ||
+        j.fix_method?.toLowerCase().includes(q) ||
+        j.node_id?.toLowerCase().includes(q)
+      );
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'id') cmp = a.id - b.id;
+      else if (sortField === 'created_at') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      else {
+        const aVal = (a[sortField] || '').toString().toLowerCase();
+        const bVal = (b[sortField] || '').toString().toLowerCase();
+        cmp = aVal.localeCompare(bVal);
+      }
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+
+    return result;
+  }, [jobs, statusFilter, searchQuery, sortField, sortDir]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('desc'); }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
+    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
+
   const runScan = async (dryRun: boolean = true) => {
     const token = getToken();
-    if (!token) {
-      console.error('[Remediation] No token available for scan!');
-      alert('Not authenticated. Please log in again.');
-      return;
-    }
+    if (!token) { alert('Not authenticated.'); return; }
     setScanning(true);
     setScanResult(null);
     try {
-      console.log('[Remediation] Making POST request to:', `${API_BASE}/remediation/scan`);
       const res = await fetch(`${API_BASE}/remediation/scan`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          severity_filter: ['CRITICAL', 'HIGH'],
-          dry_run: dryRun,
-        }),
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ severity_filter: ['CRITICAL', 'HIGH'], dry_run: dryRun }),
       });
-      console.log('[Remediation] Response status:', res.status);
       if (res.ok) {
         const result = await res.json();
-        console.log('[Remediation] Scan result:', result);
         setScanResult(result);
-        if (!dryRun) {
-          fetchData(); // Refresh after real scan
-        }
+        if (!dryRun) fetchData();
       } else {
         const errorText = await res.text();
-        console.error('[Remediation] Scan failed:', res.status, errorText);
         alert(`Scan failed: ${res.status} - ${errorText}`);
       }
-    } catch (error) {
-      console.error('Scan error:', error);
-      alert(`Scan error: ${error}`);
-    }
+    } catch (error) { alert(`Scan error: ${error}`); }
     setScanning(false);
   };
 
@@ -226,7 +220,7 @@ export default function RemediationPage() {
       success: 'bg-green-500/20 text-green-400 border-green-500/30',
       failed: 'bg-red-500/20 text-red-400 border-red-500/30',
       rolled_back: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      skipped: 'bg-muted/500/20 text-muted-foreground border-zinc-600/30',
+      skipped: 'bg-zinc-500/20 text-zinc-400 border-zinc-600/30',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.pending}`}>
@@ -237,32 +231,22 @@ export default function RemediationPage() {
 
   const getMethodBadge = (method: string) => {
     const colors: Record<string, string> = {
-      winget: 'bg-blue-600',
-      choco: 'bg-orange-600',
-      package: 'bg-purple-600',
-      script: 'bg-green-600',
+      winget: 'bg-blue-600', choco: 'bg-orange-600', package: 'bg-purple-600', script: 'bg-green-600',
     };
-    return (
-      <span className={`px-2 py-0.5 rounded text-xs text-white ${colors[method] || 'bg-zinc-600'}`}>
-        {method}
-      </span>
-    );
+    return <span className={`px-2 py-0.5 rounded text-xs text-white ${colors[method] || 'bg-zinc-600'}`}>{method}</span>;
   };
 
   if (loading && !summary) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100">
-        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      
-      <main className="container mx-auto px-4 py-8">
+      <main className="max-w-[1920px] mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -275,169 +259,202 @@ export default function RemediationPage() {
                     <Wifi className="h-3 w-3" /> Live
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground bg-zinc-800 px-2 py-0.5 rounded">
+                  <span className="flex items-center gap-1 text-xs font-normal text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
                     <WifiOff className="h-3 w-3" /> Offline
                   </span>
                 )}
               </h1>
-              <p className="text-muted-foreground text-sm">Automatically fix vulnerabilities across your fleet</p>
+              <p className="text-zinc-400 text-sm">Automatically fix vulnerabilities across your fleet</p>
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => runScan(true)}
-              disabled={scanning}
-              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg flex items-center gap-2 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
-              Dry Run
+            <button onClick={() => runScan(true)} disabled={scanning}
+              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg flex items-center gap-2 disabled:opacity-50 text-sm">
+              <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} /> Dry Run
             </button>
-            <button
-              type="button"
-              onClick={() => runScan(false)}
-              disabled={scanning}
-              className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg flex items-center gap-2 disabled:opacity-50"
-            >
-              <Play className="h-4 w-4" />
-              Run Remediation
+            <button onClick={() => runScan(false)} disabled={scanning}
+              className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg flex items-center gap-2 disabled:opacity-50 text-sm">
+              <Play className="h-4 w-4" /> Run Remediation
             </button>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/20 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summary?.job_counts?.success || 0}</p>
-                <p className="text-muted-foreground text-sm">Fixed</p>
-              </div>
-            </div>
+        {/* Stats + Running Jobs Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+          {/* Stats */}
+          <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Fixed', value: summary?.job_counts?.success || 0, icon: CheckCircle, color: 'green' },
+              { label: 'Pending', value: summary?.job_counts?.approved || 0, icon: Clock, color: 'blue' },
+              { label: 'Failed', value: summary?.job_counts?.failed || 0, icon: XCircle, color: 'red' },
+              { label: 'Fixable CVEs', value: summary?.fixable_vulnerabilities || 0, icon: AlertTriangle, color: 'yellow' },
+            ].map(s => (
+              <button key={s.label} onClick={() => {
+                if (s.label === 'Fixed') { setStatusFilter('success'); setActiveTab('dashboard'); }
+                else if (s.label === 'Pending') { setStatusFilter('approved'); setActiveTab('dashboard'); }
+                else if (s.label === 'Failed') { setStatusFilter('failed'); setActiveTab('dashboard'); }
+              }}
+                className="bg-zinc-900 rounded-xl p-4 border border-zinc-700 hover:border-zinc-500 transition-colors text-left">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 bg-${s.color}-500/20 rounded-lg`}>
+                    <s.icon className={`h-5 w-5 text-${s.color}-500`} />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{s.value}</p>
+                    <p className="text-zinc-400 text-sm">{s.label}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
-          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/20 rounded-lg">
-                <Clock className="h-5 w-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summary?.job_counts?.approved || 0}</p>
-                <p className="text-muted-foreground text-sm">Pending</p>
-              </div>
+
+          {/* Running Jobs Panel */}
+          <div className="bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-700 flex items-center gap-2">
+              <Loader2 className={`h-4 w-4 text-purple-400 ${runningJobs.length > 0 ? 'animate-spin' : ''}`} />
+              <span className="text-sm font-semibold">Running Jobs</span>
+              <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+                {runningJobs.length}
+              </span>
             </div>
-          </div>
-          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-500/20 rounded-lg">
-                <XCircle className="h-5 w-5 text-red-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summary?.job_counts?.failed || 0}</p>
-                <p className="text-muted-foreground text-sm">Failed</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-500/20 rounded-lg">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summary?.fixable_vulnerabilities || 0}</p>
-                <p className="text-muted-foreground text-sm">Fixable CVEs</p>
-              </div>
+            <div className="max-h-[160px] overflow-y-auto">
+              {runningJobs.length === 0 ? (
+                <div className="p-4 text-center text-zinc-500 text-sm">No jobs running</div>
+              ) : (
+                runningJobs.map(j => (
+                  <div key={j.id} className="px-4 py-2 border-b border-zinc-800 last:border-0 hover:bg-zinc-800/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium truncate">{j.software_name}</span>
+                      <span className="text-xs font-mono text-purple-400">#{j.id}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-zinc-500 font-mono">{j.cve_id}</span>
+                      {j.fix_method && getMethodBadge(j.fix_method)}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
 
         {/* Scan Result */}
         {scanResult && (
-          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700 mb-8">
+          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-700 mb-6">
             <h3 className="font-semibold mb-2">Scan Result</h3>
             <div className="grid grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Scanned:</span>{' '}
-                <span className="font-mono">{scanResult.scanned}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">With Fix:</span>{' '}
-                <span className="font-mono text-green-400">{scanResult.with_fix_available}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Jobs Created:</span>{' '}
-                <span className="font-mono text-blue-400">{scanResult.jobs_created}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Skipped:</span>{' '}
-                <span className="font-mono">{scanResult.jobs_skipped_existing}</span>
-              </div>
+              <div><span className="text-zinc-400">Scanned:</span> <span className="font-mono">{scanResult.scanned}</span></div>
+              <div><span className="text-zinc-400">With Fix:</span> <span className="font-mono text-green-400">{scanResult.with_fix_available}</span></div>
+              <div><span className="text-zinc-400">Jobs Created:</span> <span className="font-mono text-blue-400">{scanResult.jobs_created}</span></div>
+              <div><span className="text-zinc-400">Skipped:</span> <span className="font-mono">{scanResult.jobs_skipped_existing}</span></div>
             </div>
           </div>
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-zinc-700 pb-2">
-          {(['dashboard', 'packages', 'rules', 'jobs'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-t-lg capitalize ${
-                activeTab === tab
-                  ? 'bg-zinc-800 text-white'
-                  : 'text-muted-foreground hover:text-white hover:bg-zinc-800/50'
-              }`}
-            >
-              {tab}
+        <div className="flex gap-2 mb-4 border-b border-zinc-700 pb-2">
+          {(['dashboard', 'packages', 'rules', 'jobs'] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-t-lg capitalize text-sm ${
+                activeTab === tab ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+              }`}>
+              {tab === 'dashboard' ? 'Jobs' : tab}
             </button>
           ))}
         </div>
 
-        {/* Dashboard Tab */}
-        {activeTab === 'dashboard' && (
+        {/* Dashboard / Jobs Tab */}
+        {(activeTab === 'dashboard' || activeTab === 'jobs') && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-700">
-            <div className="p-4 border-b border-zinc-700">
-              <h2 className="font-semibold">Recent Remediation Jobs</h2>
+            {/* Filter Bar */}
+            <div className="p-4 border-b border-zinc-700 flex flex-wrap items-center gap-3">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search software, CVE, ID, node..."
+                  className="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-zinc-500 placeholder-zinc-500"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-1">
+                <Filter className="h-4 w-4 text-zinc-500" />
+                <div className="flex rounded-lg border border-zinc-700 overflow-hidden">
+                  {STATUS_OPTIONS.map(s => (
+                    <button key={s} onClick={() => setStatusFilter(s)}
+                      className={`px-3 py-1.5 text-xs capitalize transition-colors ${
+                        statusFilter === s
+                          ? 'bg-zinc-600 text-white'
+                          : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+                      }`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Result count */}
+              <span className="text-xs text-zinc-500">
+                {filteredJobs.length} of {jobs.length} jobs
+              </span>
             </div>
+
+            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-zinc-800/50">
                   <tr>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">ID</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Software</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">CVE</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Fix Method</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Status</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Created</th>
+                    {([
+                      ['id', 'ID'],
+                      ['software_name', 'Software'],
+                      ['cve_id', 'CVE'],
+                      ['status', 'Status'],
+                      ['created_at', 'Created'],
+                    ] as [SortField, string][]).map(([field, label]) => (
+                      <th key={field}
+                        onClick={() => toggleSort(field)}
+                        className="text-left p-3 text-zinc-400 font-medium text-sm cursor-pointer hover:text-white select-none">
+                        <div className="flex items-center gap-1">
+                          {label}
+                          <SortIcon field={field} />
+                        </div>
+                      </th>
+                    ))}
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Fix Method</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Node</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {(summary?.recent_jobs || []).map((job) => (
-                    <tr key={job.id} className="hover:bg-zinc-800/30">
-                      <td className="p-3 font-mono text-sm">{job.id}</td>
-                      <td className="p-3">
-                        <div className="font-medium">{job.software_name}</div>
-                        <div className="text-muted-foreground text-xs">{job.software_version}</div>
-                      </td>
-                      <td className="p-3">
-                        <a 
-                          href={`https://nvd.nist.gov/vuln/detail/${job.cve_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:underline font-mono text-sm"
-                        >
-                          {job.cve_id}
-                        </a>
-                      </td>
-                      <td className="p-3">{getMethodBadge(job.fix_method || 'unknown')}</td>
-                      <td className="p-3">{getStatusBadge(job.status)}</td>
-                      <td className="p-3 text-muted-foreground text-sm">
-                        {new Date(job.created_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-zinc-800">
+                  {filteredJobs.length === 0 ? (
+                    <tr><td colSpan={7} className="p-8 text-center text-zinc-500">No jobs match your filters</td></tr>
+                  ) : (
+                    filteredJobs.map(job => (
+                      <tr key={job.id} className={`hover:bg-zinc-800/30 ${job.status === 'running' ? 'bg-purple-500/5' : ''}`}>
+                        <td className="p-3 font-mono text-sm">{job.id}</td>
+                        <td className="p-3">
+                          <div className="font-medium">{job.software_name}</div>
+                          <div className="text-zinc-500 text-xs">{job.software_version}</div>
+                        </td>
+                        <td className="p-3">
+                          <a href={`https://nvd.nist.gov/vuln/detail/${job.cve_id}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="text-blue-400 hover:underline font-mono text-sm">
+                            {job.cve_id}
+                          </a>
+                        </td>
+                        <td className="p-3">{getStatusBadge(job.status)}</td>
+                        <td className="p-3 text-zinc-400 text-sm whitespace-nowrap">
+                          {new Date(job.created_at).toLocaleString()}
+                        </td>
+                        <td className="p-3">{getMethodBadge(job.fix_method || 'unknown')}</td>
+                        <td className="p-3 font-mono text-xs text-zinc-500">{job.node_id?.slice(0, 8)}…</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -450,37 +467,28 @@ export default function RemediationPage() {
             <div className="p-4 border-b border-zinc-700 flex justify-between items-center">
               <h2 className="font-semibold">Fix Packages</h2>
               <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
-                <Plus className="h-4 w-4" />
-                Add Package
+                <Plus className="h-4 w-4" /> Add Package
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-zinc-800/50">
                   <tr>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Name</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Target Software</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Method</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Command</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Enabled</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Name</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Target Software</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Method</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Command</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Enabled</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {packages.map((pkg) => (
+                <tbody className="divide-y divide-zinc-800">
+                  {packages.map(pkg => (
                     <tr key={pkg.id} className="hover:bg-zinc-800/30">
                       <td className="p-3 font-medium">{pkg.name}</td>
                       <td className="p-3">{pkg.target_software}</td>
                       <td className="p-3">{getMethodBadge(pkg.fix_method)}</td>
-                      <td className="p-3">
-                        <code className="bg-zinc-800 px-2 py-1 rounded text-xs">{pkg.fix_command}</code>
-                      </td>
-                      <td className="p-3">
-                        {pkg.enabled ? (
-                          <span className="text-green-400">●</span>
-                        ) : (
-                          <span className="text-muted-foreground">○</span>
-                        )}
-                      </td>
+                      <td className="p-3"><code className="bg-zinc-800 px-2 py-1 rounded text-xs">{pkg.fix_command}</code></td>
+                      <td className="p-3">{pkg.enabled ? <span className="text-green-400">●</span> : <span className="text-zinc-500">○</span>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -495,112 +503,38 @@ export default function RemediationPage() {
             <div className="p-4 border-b border-zinc-700 flex justify-between items-center">
               <h2 className="font-semibold">Remediation Rules</h2>
               <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
-                <Plus className="h-4 w-4" />
-                Add Rule
+                <Plus className="h-4 w-4" /> Add Rule
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-zinc-800/50">
                   <tr>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Name</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Min Severity</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Auto Fix</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Approval</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Enabled</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Name</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Min Severity</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Auto Fix</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Approval</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">Enabled</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {rules.map((rule) => (
+                <tbody className="divide-y divide-zinc-800">
+                  {rules.map(rule => (
                     <tr key={rule.id} className="hover:bg-zinc-800/30">
                       <td className="p-3">
                         <div className="font-medium">{rule.name}</div>
-                        {rule.description && (
-                          <div className="text-muted-foreground text-xs">{rule.description}</div>
-                        )}
+                        {rule.description && <div className="text-zinc-500 text-xs">{rule.description}</div>}
                       </td>
                       <td className="p-3">
                         <span className={`px-2 py-1 rounded text-xs ${
                           rule.min_severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
                           rule.min_severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
                           rule.min_severity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
-                          'bg-muted/500/20 text-muted-foreground'
-                        }`}>
-                          {rule.min_severity}
-                        </span>
+                          'bg-zinc-500/20 text-zinc-400'
+                        }`}>{rule.min_severity}</span>
                       </td>
-                      <td className="p-3">
-                        {rule.auto_remediate ? (
-                          <span className="text-green-400">Yes</span>
-                        ) : (
-                          <span className="text-muted-foreground">No</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {rule.require_approval ? (
-                          <span className="text-yellow-400">Required</span>
-                        ) : (
-                          <span className="text-muted-foreground">No</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {rule.enabled ? (
-                          <span className="text-green-400">●</span>
-                        ) : (
-                          <span className="text-muted-foreground">○</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Jobs Tab */}
-        {activeTab === 'jobs' && (
-          <div className="bg-zinc-900 rounded-xl border border-zinc-700">
-            <div className="p-4 border-b border-zinc-700">
-              <h2 className="font-semibold">All Remediation Jobs</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-zinc-800/50">
-                  <tr>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">ID</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Software</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">CVE</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Node</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Status</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium text-sm">Created</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {jobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-zinc-800/30">
-                      <td className="p-3 font-mono text-sm">{job.id}</td>
-                      <td className="p-3">
-                        <div className="font-medium">{job.software_name}</div>
-                        <div className="text-muted-foreground text-xs">{job.software_version}</div>
-                      </td>
-                      <td className="p-3">
-                        <a 
-                          href={`https://nvd.nist.gov/vuln/detail/${job.cve_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:underline font-mono text-sm"
-                        >
-                          {job.cve_id}
-                        </a>
-                      </td>
-                      <td className="p-3 font-mono text-xs text-muted-foreground">
-                        {job.node_id.slice(0, 8)}...
-                      </td>
-                      <td className="p-3">{getStatusBadge(job.status)}</td>
-                      <td className="p-3 text-muted-foreground text-sm">
-                        {new Date(job.created_at).toLocaleString()}
-                      </td>
+                      <td className="p-3">{rule.auto_remediate ? <span className="text-green-400">Yes</span> : <span className="text-zinc-500">No</span>}</td>
+                      <td className="p-3">{rule.require_approval ? <span className="text-yellow-400">Required</span> : <span className="text-zinc-500">No</span>}</td>
+                      <td className="p-3">{rule.enabled ? <span className="text-green-400">●</span> : <span className="text-zinc-500">○</span>}</td>
                     </tr>
                   ))}
                 </tbody>
