@@ -75,7 +75,8 @@
     "software": "Software",
     "sql": "SQL Server",
     "users": "Benutzer",
-    "vulnerabilities": "Schwachstellen"
+    "vulnerabilities": "Schwachstellen",
+    "queryEngine": "Abfrage-Engine"
   },
   "auth": {
     "login": "Anmelden",

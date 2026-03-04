@@ -75,7 +75,8 @@
     "software": "Software",
     "sql": "SQL Server",
     "users": "Users",
-    "vulnerabilities": "Vulnerabilities"
+    "vulnerabilities": "Vulnerabilities",
+    "queryEngine": "Query Engine"
   },
   "auth": {
     "login": "Login",

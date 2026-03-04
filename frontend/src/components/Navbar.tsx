@@ -43,6 +43,7 @@ import {
   Settings,
   Monitor,
   Search,
+  Terminal,
   type LucideIcon
 } from "lucide-react";
 
@@ -171,6 +172,7 @@ const navGroups: NavGroup[] = [
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read" },
       { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read" },
       { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read" },
+      { href: "/query", labelKey: "nav.queryEngine", icon: Terminal, permission: "nodes:read" },
     ]
   },
   {
