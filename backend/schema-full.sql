@@ -2104,3 +2104,52 @@ CREATE TABLE IF NOT EXISTS config_drift_events (
 CREATE INDEX IF NOT EXISTS idx_cde_node ON config_drift_events(node_id);
 CREATE INDEX IF NOT EXISTS idx_cde_status ON config_drift_events(status);
 CREATE INDEX IF NOT EXISTS idx_cde_evaluation ON config_drift_events(evaluation_id);
+
+-- E38: Software Metering & License Tracking
+CREATE TABLE IF NOT EXISTS software_catalog (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    canonical_name TEXT NOT NULL UNIQUE,
+    publisher TEXT,
+    category TEXT DEFAULT 'Other',
+    is_tracked BOOLEAN DEFAULT true,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS software_normalization_rules (
+    id SERIAL PRIMARY KEY,
+    pattern TEXT NOT NULL,
+    match_type TEXT NOT NULL DEFAULT 'like',
+    catalog_id UUID REFERENCES software_catalog(id) ON DELETE CASCADE,
+    priority INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS software_licenses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    catalog_id UUID REFERENCES software_catalog(id) ON DELETE CASCADE,
+    license_type TEXT NOT NULL DEFAULT 'per_device',
+    total_licenses INT,
+    cost_per_license NUMERIC(10,2),
+    currency TEXT DEFAULT 'EUR',
+    vendor TEXT,
+    contract_id TEXT,
+    expires_at TIMESTAMPTZ,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS software_usage (
+    id BIGSERIAL PRIMARY KEY,
+    node_id UUID NOT NULL,
+    software_name TEXT NOT NULL,
+    catalog_id UUID REFERENCES software_catalog(id),
+    last_used TIMESTAMPTZ,
+    usage_count INT DEFAULT 0,
+    source TEXT DEFAULT 'prefetch',
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_software_usage_node ON software_usage(node_id);
+CREATE INDEX IF NOT EXISTS idx_software_usage_catalog ON software_usage(catalog_id);

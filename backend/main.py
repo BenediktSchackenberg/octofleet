@@ -31,6 +31,7 @@ from alerting import get_alert_manager, update_node_health, check_node_health
 from routers.provisioning import router as provisioning_router, pxe_router
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.provisioning_iso import iso_router as provisioning_iso_router
+from routers.software_metering import router as software_metering_router
 from routers.query_engine import router as query_router
 from routers.nodes import router as nodes_router, pending_router
 from routers.inventory import router as inventory_router
@@ -227,6 +228,7 @@ app.include_router(query_router, tags=["Query Engine"])
 app.include_router(provisioning_vm_router)
 app.include_router(provisioning_iso_router)
 app.include_router(pxe_router)
+app.include_router(software_metering_router, tags=["Software Metering"])
 app.include_router(dashboard_router)
 
 
