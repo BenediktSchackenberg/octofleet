@@ -99,7 +99,7 @@ interface ComplianceSummary {
 }
 
 interface DashboardData {
-  top_installed: { name: string; count: number; publisher: string }[];
+  top_installed: { name: string; count: number; nodeCount?: number; publisher: string }[];
   top_unused: { name: string; node_count: number; days_unused: number }[];
   compliance_summary: ComplianceSummary;
   cost_by_category: { category: string; cost: number }[];
@@ -148,9 +148,9 @@ function formatCurrency(amount: number | null, currency = "EUR") {
 
 // Helpers for camelCase/snake_case field access
 function catName(c: CatalogEntry): string { return c.canonicalName || c.canonical_name || ""; }
-function catNodes(c: CatalogEntry): number | undefined { return c.nodeCount ?? catNodes(c) ?? c.installedCount ?? c.installed_count; }
+function catNodes(c: CatalogEntry): number | undefined { return c.nodeCount ?? c.node_count ?? (c as any).installedCount ?? (c as any).installed_count; }
 function catLicenses(c: CatalogEntry): number | undefined { return c.licenseCount ?? catLicenses(c) ?? c.totalLicenses ?? undefined; }
-function catCompliance(c: CatalogEntry): string | undefined { return c.complianceStatus || catCompliance(c); }
+function catCompliance(c: CatalogEntry): string | undefined { return c.complianceStatus || c.compliance_status; }
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -426,7 +426,7 @@ export default function SoftwareMeteringPage() {
                           <span className="text-sm text-zinc-200">{s.name}</span>
                           <span className="text-xs text-zinc-600 ml-2">{s.publisher}</span>
                         </div>
-                        <span className="text-sm font-mono text-violet-400">{s.count} nodes</span>
+                        <span className="text-sm font-mono text-violet-400">{s.count || s.nodeCount} nodes</span>
                       </div>
                     ))}
                   </div>
