@@ -147,7 +147,23 @@ export default function QueryEnginePage() {
         ]);
         if (schemaRes.ok) {
           const s = await schemaRes.json();
-          setSchema(s.categories || []);
+          // Backend returns categories as dict { "Fleet": [...tables], "Software": [...] }
+          // Convert to array format for frontend
+          const catIcons: Record<string, string> = {
+            Fleet: "🖥️", Software: "📦", Security: "🔒", System: "⚙️",
+            Monitoring: "📡", Compliance: "📏", Operations: "🔧",
+          };
+          const cats = s.categories;
+          if (cats && typeof cats === "object" && !Array.isArray(cats)) {
+            const arr: SchemaCategory[] = Object.entries(cats).map(([name, tables]) => ({
+              name,
+              icon: catIcons[name] || "📁",
+              tables: (tables as SchemaTable[]),
+            }));
+            setSchema(arr);
+          } else if (Array.isArray(cats)) {
+            setSchema(cats);
+          }
         }
         if (templateRes.ok) {
           const t = await templateRes.json();
