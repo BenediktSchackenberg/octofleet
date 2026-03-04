@@ -37,15 +37,22 @@ import {
 
 interface CatalogEntry {
   id: string;
-  canonical_name: string;
+  canonicalName?: string;
+  canonical_name?: string;
   publisher: string | null;
   category: string;
-  is_tracked: boolean;
+  isTracked?: boolean;
+  is_tracked?: boolean;
   notes: string | null;
+  installedCount?: number;
   installed_count?: number;
+  nodeCount?: number;
   node_count?: number;
+  licenseCount?: number;
   licensed_count?: number;
-  compliance_status?: "compliant" | "over_licensed" | "under_licensed" | "unlicensed";
+  totalLicenses?: number | null;
+  complianceStatus?: string;
+  compliance_status?: string;
 }
 
 interface License {
@@ -76,13 +83,19 @@ interface NormRule {
 
 interface ComplianceSummary {
   compliant: number;
-  over_licensed: number;
-  under_licensed: number;
+  over_licensed?: number;
+  overLicensed?: number;
+  under_licensed?: number;
+  underLicensed?: number;
   untracked: number;
-  total_cost: number;
-  potential_savings: number;
-  total_installed: number;
-  total_licensed: number;
+  total_cost?: number;
+  totalCost?: number;
+  potential_savings?: number;
+  potentialSavings?: number;
+  total_installed?: number;
+  totalInstalled?: number;
+  total_licensed?: number;
+  totalLicensed?: number;
 }
 
 interface DashboardData {
@@ -115,7 +128,8 @@ const LICENSE_TYPES = [
 ];
 
 function complianceBadge(status?: string) {
-  switch (status) {
+  const s = status?.replace(/([A-Z])/g, '_$1').toLowerCase(); // camelCase→snake_case
+  switch (s) {
     case "compliant":
       return <span className="flex items-center gap-1 text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded"><CheckCircle2 className="h-3 w-3" />Compliant</span>;
     case "over_licensed":
@@ -131,6 +145,12 @@ function formatCurrency(amount: number | null, currency = "EUR") {
   if (amount == null) return "—";
   return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(amount);
 }
+
+// Helpers for camelCase/snake_case field access
+function catName(c: CatalogEntry): string { return c.canonicalName || c.canonical_name || ""; }
+function catNodes(c: CatalogEntry): number | undefined { return c.nodeCount ?? catNodes(c) ?? c.installedCount ?? c.installed_count; }
+function catLicenses(c: CatalogEntry): number | undefined { return c.licenseCount ?? catLicenses(c) ?? c.totalLicenses ?? undefined; }
+function catCompliance(c: CatalogEntry): string | undefined { return c.complianceStatus || catCompliance(c); }
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -192,30 +212,37 @@ export default function SoftwareMeteringPage() {
         api("/dashboard"),
         api("/compliance"),
       ]);
-      setDashboard(dash);
+      // Normalize camelCase keys from backend
+      setDashboard({
+        top_installed: dash.topInstalled || dash.top_installed || [],
+        top_unused: dash.topUnused || dash.top_unused || [],
+        compliance_summary: dash.compliance || dash.compliance_summary || comp,
+        cost_by_category: dash.costByCategory || dash.cost_by_category || [],
+        recent_changes: dash.recentChanges || dash.recent_changes || [],
+      });
       setCompliance(comp);
     } catch (e: any) { setError(e.message); }
     setLoading(false);
   }, [api]);
 
   const loadCatalog = useCallback(async () => {
-    try { setCatalog((await api("/catalog")).items || await api("/catalog")); } catch {}
+    try { const res = await api("/catalog"); setCatalog(res.catalog || res.items || (Array.isArray(res) ? res : [])); } catch {}
   }, [api]);
 
   const loadLicenses = useCallback(async () => {
-    try { setLicenses((await api("/licenses")).items || await api("/licenses")); } catch {}
+    try { const res = await api("/licenses"); setLicenses(res.licenses || res.items || (Array.isArray(res) ? res : [])); } catch {}
   }, [api]);
 
   const loadRules = useCallback(async () => {
-    try { setRules((await api("/rules")).items || await api("/rules")); } catch {}
+    try { const res = await api("/rules"); setRules(res.rules || res.items || (Array.isArray(res) ? res : [])); } catch {}
   }, [api]);
 
   const loadReclaim = useCallback(async () => {
-    try { setReclaimCandidates((await api("/usage/reclaim")).items || await api("/usage/reclaim")); } catch {}
+    try { const res = await api("/usage/reclaim"); setReclaimCandidates(res.candidates || res.items || (Array.isArray(res) ? res : [])); } catch {}
   }, [api]);
 
   const loadTrueUp = useCallback(async () => {
-    try { setTrueUp((await api("/reports/true-up")).items || await api("/reports/true-up")); } catch {}
+    try { const res = await api("/reports/true-up"); setTrueUp(res.report || res.items || (Array.isArray(res) ? res : [])); } catch {}
   }, [api]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
@@ -233,9 +260,9 @@ export default function SoftwareMeteringPage() {
   const saveCatalog = async () => {
     try {
       if (editingCatalog) {
-        await api(`/catalog/${editingCatalog.id}`, { method: "PUT", body: JSON.stringify(catalogForm) });
+        await api(`/catalog/${editingCatalog.id}`, { method: "PUT", body: JSON.stringify({ canonicalName: catalogForm.canonical_name, publisher: catalogForm.publisher, category: catalogForm.category, notes: catalogForm.notes }) });
       } else {
-        await api("/catalog", { method: "POST", body: JSON.stringify(catalogForm) });
+        await api("/catalog", { method: "POST", body: JSON.stringify({ canonicalName: catalogForm.canonical_name, publisher: catalogForm.publisher, category: catalogForm.category, notes: catalogForm.notes }) });
       }
       setShowCatalogForm(false);
       setEditingCatalog(null);
@@ -311,7 +338,7 @@ export default function SoftwareMeteringPage() {
   // ─── Render ──────────────────────────────────────────────────────
 
   const filteredCatalog = (Array.isArray(catalog) ? catalog : []).filter((c) =>
-        !catalogSearch || c.canonical_name.toLowerCase().includes(catalogSearch.toLowerCase()) || (c.publisher || "").toLowerCase().includes(catalogSearch.toLowerCase())
+        !catalogSearch || catName(c).toLowerCase().includes(catalogSearch.toLowerCase()) || (c.publisher || "").toLowerCase().includes(catalogSearch.toLowerCase())
       );
 
   return (
@@ -367,11 +394,11 @@ export default function SoftwareMeteringPage() {
               <div className="grid grid-cols-6 gap-4">
                 {[
                   { label: "Compliant", value: compliance.compliant, icon: ShieldCheck, color: "green" },
-                  { label: "Over-licensed", value: compliance.over_licensed, icon: TrendingDown, color: "blue" },
-                  { label: "Under-licensed", value: compliance.under_licensed, icon: ShieldAlert, color: "red" },
+                  { label: "Over-licensed", value: compliance.overLicensed ?? compliance.over_licensed ?? 0, icon: TrendingDown, color: "blue" },
+                  { label: "Under-licensed", value: compliance.underLicensed ?? compliance.under_licensed ?? 0, icon: ShieldAlert, color: "red" },
                   { label: "Untracked", value: compliance.untracked, icon: ShieldX, color: "zinc" },
-                  { label: "Total Cost", value: formatCurrency(compliance.total_cost), icon: DollarSign, color: "amber" },
-                  { label: "Potential Savings", value: formatCurrency(compliance.potential_savings), icon: TrendingDown, color: "emerald" },
+                  { label: "Total Cost", value: formatCurrency(compliance.totalCost ?? compliance.total_cost ?? 0), icon: DollarSign, color: "amber" },
+                  { label: "Potential Savings", value: formatCurrency(compliance.potentialSavings ?? compliance.potential_savings ?? 0), icon: TrendingDown, color: "emerald" },
                 ].map((kpi) => (
                   <div key={kpi.label} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -551,14 +578,14 @@ export default function SoftwareMeteringPage() {
                   <tbody className="divide-y divide-zinc-800/50">
                     {filteredCatalog.map((c) => (
                       <tr key={c.id} className="hover:bg-zinc-800/30">
-                        <td className="px-4 py-2.5 text-zinc-200 font-medium">{c.canonical_name}</td>
+                        <td className="px-4 py-2.5 text-zinc-200 font-medium">{catName(c)}</td>
                         <td className="px-4 py-2.5 text-zinc-400">{c.publisher || "—"}</td>
                         <td className="px-4 py-2.5"><span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded">{c.category}</span></td>
-                        <td className="px-4 py-2.5 text-center font-mono">{c.node_count ?? "—"}</td>
-                        <td className="px-4 py-2.5 text-center font-mono">{c.licensed_count ?? "—"}</td>
-                        <td className="px-4 py-2.5 text-center">{complianceBadge(c.compliance_status)}</td>
+                        <td className="px-4 py-2.5 text-center font-mono">{catNodes(c) ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-center font-mono">{catLicenses(c) ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-center">{complianceBadge(catCompliance(c))}</td>
                         <td className="px-4 py-2.5 text-right">
-                          <button onClick={() => { setEditingCatalog(c); setCatalogForm({ canonical_name: c.canonical_name, publisher: c.publisher || "", category: c.category, notes: c.notes || "" }); setShowCatalogForm(true); }} className="text-zinc-500 hover:text-zinc-300 p-1"><Edit className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => { setEditingCatalog(c); setCatalogForm({ canonical_name: catName(c), publisher: c.publisher || "", category: c.category, notes: c.notes || "" }); setShowCatalogForm(true); }} className="text-zinc-500 hover:text-zinc-300 p-1"><Edit className="h-3.5 w-3.5" /></button>
                           <button onClick={() => deleteCatalog(c.id)} className="text-zinc-500 hover:text-red-400 p-1 ml-1"><Trash2 className="h-3.5 w-3.5" /></button>
                         </td>
                       </tr>
@@ -592,7 +619,7 @@ export default function SoftwareMeteringPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <select value={licenseForm.catalog_id} onChange={(e) => setLicenseForm({ ...licenseForm, catalog_id: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
                     <option value="">Select software...</option>
-                    {(Array.isArray(catalog) ? catalog : []).map((c) => <option key={c.id} value={c.id}>{c.canonical_name}</option>)}
+                    {(Array.isArray(catalog) ? catalog : []).map((c) => <option key={c.id} value={c.id}>{catName(c)}</option>)}
                   </select>
                   <select value={licenseForm.license_type} onChange={(e) => setLicenseForm({ ...licenseForm, license_type: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
                     {LICENSE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -674,7 +701,7 @@ export default function SoftwareMeteringPage() {
                   </select>
                   <select value={ruleForm.catalog_id} onChange={(e) => setRuleForm({ ...ruleForm, catalog_id: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
                     <option value="">Map to catalog entry...</option>
-                    {(Array.isArray(catalog) ? catalog : []).map((c) => <option key={c.id} value={c.id}>{c.canonical_name}</option>)}
+                    {(Array.isArray(catalog) ? catalog : []).map((c) => <option key={c.id} value={c.id}>{catName(c)}</option>)}
                   </select>
                   <input type="number" placeholder="Priority" value={ruleForm.priority} onChange={(e) => setRuleForm({ ...ruleForm, priority: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200" />
                 </div>
