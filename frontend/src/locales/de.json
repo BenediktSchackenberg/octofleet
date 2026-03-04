@@ -76,7 +76,8 @@
     "sql": "SQL Server",
     "users": "Benutzer",
     "vulnerabilities": "Schwachstellen",
-    "queryEngine": "Abfrage-Engine"
+    "queryEngine": "Abfrage-Engine",
+    "metering": "Software-Metering"
   },
   "auth": {
     "login": "Anmelden",

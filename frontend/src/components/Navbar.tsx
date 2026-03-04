@@ -44,6 +44,7 @@ import {
   Monitor,
   Search,
   Terminal,
+  BarChart3,
   type LucideIcon
 } from "lucide-react";
 
@@ -123,6 +124,7 @@ const navGroups: NavGroup[] = [
       { href: "/deployments", labelKey: "nav.deployments", icon: Rocket, permission: "deployments:read" },
       { href: "/jobs", labelKey: "nav.jobs", icon: Zap, permission: "jobs:read" },
       { href: "/software-compare", labelKey: "nav.compare", icon: GitCompare, permission: "nodes:read" },
+      { href: "/metering", labelKey: "nav.metering", icon: BarChart3, permission: "nodes:read" },
     ]
   },
   {
