@@ -310,11 +310,9 @@ export default function SoftwareMeteringPage() {
 
   // ─── Render ──────────────────────────────────────────────────────
 
-  const filteredCatalog = catalog.filter
-    ? (Array.isArray(catalog) ? catalog : []).filter((c) =>
+  const filteredCatalog = (Array.isArray(catalog) ? catalog : []).filter((c) =>
         !catalogSearch || c.canonical_name.toLowerCase().includes(catalogSearch.toLowerCase()) || (c.publisher || "").toLowerCase().includes(catalogSearch.toLowerCase())
-      )
-    : [];
+      );
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
