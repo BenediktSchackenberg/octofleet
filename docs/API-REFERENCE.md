@@ -1,6 +1,6 @@
 # API Reference
 
-Octofleet exposes a comprehensive REST API (340+ endpoints) built with FastAPI. Interactive documentation is available at:
+Octofleet exposes a comprehensive REST API (450+ endpoints) built with FastAPI. Interactive documentation is available at:
 
 - **Swagger UI:** http://localhost:8080/docs
 - **ReDoc:** http://localhost:8080/redoc
@@ -378,6 +378,128 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | GET | `/api/v1/repo/download/{file_id}` | API Key | Download file |
 | DELETE | `/api/v1/repo/files/{file_id}` | API Key | Delete file |
 | GET | `/api/v1/repo/stats` | API Key | Repository statistics |
+
+---
+
+### Patch Management
+
+See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/patches/catalog` | API Key | List patches (with search, pagination) |
+| POST | `/api/v1/patches/catalog` | API Key | Create patch manually |
+| POST | `/api/v1/patches/catalog/import` | API Key | Import patches from agent scan |
+| GET | `/api/v1/patches/catalog/{patch_id}` | API Key | Get patch details with affected nodes |
+| PATCH | `/api/v1/patches/catalog/{patch_id}/approve` | API Key | Approve patch for deployment |
+| PATCH | `/api/v1/patches/catalog/{patch_id}/exclude` | API Key | Exclude patch from deployment |
+| GET | `/api/v1/patches/compliance` | API Key | Fleet-wide patch compliance summary |
+| GET | `/api/v1/patches/compliance/nodes` | API Key | Per-node compliance breakdown |
+| GET | `/api/v1/patches/rings` | API Key | List patch rings |
+| POST | `/api/v1/patches/rings` | API Key | Create ring |
+| PUT | `/api/v1/patches/rings/{ring_id}` | API Key | Update ring |
+| DELETE | `/api/v1/patches/rings/{ring_id}` | API Key | Delete ring |
+| GET | `/api/v1/patches/deployments` | API Key | List patch deployments |
+| POST | `/api/v1/patches/deployments` | API Key | Create patch deployment |
+| GET | `/api/v1/patches/deployments/{id}` | API Key | Get deployment details |
+| POST | `/api/v1/patches/deployments/{id}/pause` | API Key | Pause deployment |
+| POST | `/api/v1/patches/deployments/{id}/resume` | API Key | Resume deployment |
+| POST | `/api/v1/patches/deployments/{id}/cancel` | API Key | Cancel deployment |
+| POST | `/api/v1/patches/scan-results` | API Key | Agent submits scan results |
+| GET | `/api/v1/patches/pending/{node_id}` | API Key | Get pending patches for node |
+| POST | `/api/v1/patches/results` | API Key | Agent submits installation results |
+
+### Configuration Baselines
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/baselines` | API Key | List baselines |
+| POST | `/api/v1/baselines` | API Key | Create baseline |
+| GET | `/api/v1/baselines/{baseline_id}` | API Key | Get baseline details |
+| GET | `/api/v1/baselines/templates` | API Key | List CIS benchmark templates |
+| POST | `/api/v1/baselines/templates/{template_id}/import` | API Key | Import CIS template as baseline |
+| GET | `/api/v1/baselines/evaluations/{eval_id}` | API Key | Get evaluation results |
+| GET | `/api/v1/baselines/compliance/{node_id}` | API Key | Node compliance details |
+| GET | `/api/v1/baselines/compliance/trends` | API Key | Compliance trend data |
+| GET | `/api/v1/baselines/drift` | API Key | List drift events |
+| GET | `/api/v1/baselines/drift/summary` | API Key | Drift summary by category |
+| POST | `/api/v1/baselines/drift/{drift_id}/acknowledge` | API Key | Acknowledge drift |
+| POST | `/api/v1/baselines/drift/{drift_id}/waive` | API Key | Waive drift (accept deviation) |
+| POST | `/api/v1/baselines/drift/{drift_id}/remediate` | API Key | Auto-remediate single drift |
+| POST | `/api/v1/baselines/{baseline_id}/remediate-all` | API Key | Auto-remediate all drifts for baseline |
+
+### Content Lifecycle
+
+See [CONTENT-LIFECYCLE.md](CONTENT-LIFECYCLE.md) for detailed documentation.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/content/repositories` | API Key | List repositories |
+| POST | `/api/v1/content/repositories` | API Key | Create repository |
+| GET | `/api/v1/content/repositories/{repo_id}` | API Key | Get repository details |
+| PUT | `/api/v1/content/repositories/{repo_id}` | API Key | Update repository |
+| DELETE | `/api/v1/content/repositories/{repo_id}` | API Key | Delete repository |
+| POST | `/api/v1/content/repositories/{repo_id}/sync` | API Key | Trigger repository sync |
+| GET | `/api/v1/content/repositories/{repo_id}/items` | API Key | List items in repository |
+| POST | `/api/v1/content/repositories/{repo_id}/items` | API Key | Add item to repository |
+| GET | `/api/v1/content/items/{item_id}` | API Key | Get item details |
+| DELETE | `/api/v1/content/items/{item_id}` | API Key | Delete item |
+| GET | `/api/v1/content/snapshots` | API Key | List snapshots |
+| POST | `/api/v1/content/repositories/{repo_id}/snapshots` | API Key | Create snapshot |
+| GET | `/api/v1/content/snapshots/{snap_id}` | API Key | Get snapshot details |
+| DELETE | `/api/v1/content/snapshots/{snap_id}` | API Key | Delete snapshot |
+| GET | `/api/v1/content/snapshots/{snap_id}/diff/{other_id}` | API Key | Compare two snapshots |
+| GET | `/api/v1/content/environments` | API Key | List environments |
+| PUT | `/api/v1/content/environments/{env_id}` | API Key | Update environment |
+| POST | `/api/v1/content/environments/{env_id}/promote` | API Key | Promote snapshot to environment |
+| GET | `/api/v1/content/environments/{env_id}/history` | API Key | Promotion/rollback history |
+| POST | `/api/v1/content/environments/{env_id}/rollback` | API Key | Rollback environment |
+| GET | `/api/v1/content/dashboard` | API Key | Content lifecycle dashboard |
+
+### Query Engine
+
+See [QUERY-ENGINE.md](QUERY-ENGINE.md) for DSL syntax and table reference.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/query/execute` | API Key | Execute a DSL query |
+| GET | `/api/v1/query/schema` | API Key | Get schema (tables, columns, types) |
+| GET | `/api/v1/query/templates` | API Key | Get 18 pre-built query templates |
+| POST | `/api/v1/query/live` | API Key | Execute live query on agents |
+
+### Software Metering
+
+See [SOFTWARE-METERING.md](SOFTWARE-METERING.md) for detailed documentation.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/metering/catalog` | API Key | List software catalog |
+| POST | `/api/v1/metering/catalog` | API Key | Create catalog entry |
+| PUT | `/api/v1/metering/catalog/{id}` | API Key | Update catalog entry |
+| DELETE | `/api/v1/metering/catalog/{id}` | API Key | Delete catalog entry |
+| POST | `/api/v1/metering/catalog/auto-discover` | API Key | Auto-discover from fleet |
+| GET | `/api/v1/metering/rules` | API Key | List normalization rules |
+| POST | `/api/v1/metering/rules` | API Key | Create normalization rule |
+| DELETE | `/api/v1/metering/rules/{id}` | API Key | Delete rule |
+| POST | `/api/v1/metering/rules/test` | API Key | Test pattern against fleet |
+| GET | `/api/v1/metering/licenses` | API Key | List licenses |
+| POST | `/api/v1/metering/licenses` | API Key | Create license |
+| PUT | `/api/v1/metering/licenses/{id}` | API Key | Update license |
+| DELETE | `/api/v1/metering/licenses/{id}` | API Key | Delete license |
+| GET | `/api/v1/metering/compliance` | API Key | Fleet-wide compliance |
+| GET | `/api/v1/metering/compliance/{catalog_id}` | API Key | Per-software compliance |
+| GET | `/api/v1/metering/dashboard` | API Key | Metering dashboard |
+| GET | `/api/v1/metering/usage` | API Key | Usage data |
+| POST | `/api/v1/metering/usage/submit` | API Key | Submit usage data |
+| GET | `/api/v1/metering/usage/reclaim` | API Key | Reclamation candidates |
+| GET | `/api/v1/metering/reports/true-up` | API Key | True-up report |
+
+### Hardware Fleet
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/hardware/fleet` | — | Fleet-wide hardware summary |
+| GET | `/api/v1/hardware/export` | — | Export hardware data |
 
 ---
 

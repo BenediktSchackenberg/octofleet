@@ -18,8 +18,9 @@ This document describes the high-level architecture of Octofleet, how its compon
 │                  FastAPI (Python 3.12)                           │
 │                        Port 8080                                │
 │                                                                 │
-│  Routers: auth, nodes, inventory, jobs, security, provisioning  │
-│  Services: alerting, vulnerability scanning, remediation        │
+│  Routers: auth, nodes, inventory, jobs, security, provisioning,          │
+│           query_engine, content_lifecycle, software_metering, dashboard   │
+│  Services: alerting, vulnerability scanning, remediation, patch mgmt     │
 │  Real-time: WebSocket (terminal, screen sharing, SSE)           │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ SQL (asyncpg)
@@ -47,7 +48,7 @@ This document describes the high-level architecture of Octofleet, how its compon
 - **Technology:** Next.js 14, React, Tailwind CSS, shadcn/ui
 - **Role:** User-facing dashboard, all management UIs
 - **Communication:** Calls the backend REST API; uses WebSocket for real-time features (terminal, screen sharing)
-- **Key pages:** Dashboard, Node Details, Jobs, Packages, Security Center (12 sub-pages), Provisioning, Reports
+- **Key pages:** Dashboard, Node Details, Jobs, Packages, Security Center, Patch Management, Config Baselines, Content Lifecycle, Query Engine, Software Metering, Provisioning, Reports
 
 ### Backend (FastAPI)
 
@@ -57,7 +58,7 @@ This document describes the high-level architecture of Octofleet, how its compon
   - `routers/` — Route handlers organized by domain (auth, nodes, jobs, security, etc.)
   - `auth.py` — Authentication (JWT + API Key), RBAC
   - `alerting.py` — Alert engine with Discord integration
-  - `main.py` — App setup, middleware, and many inline route handlers (~340 endpoints)
+  - `main.py` — App setup, middleware, and many inline route handlers (~450 endpoints)
 - **Real-time:** WebSocket for terminal sessions and screen sharing; SSE for live updates
 
 ### Database (PostgreSQL + TimescaleDB)
@@ -249,6 +250,60 @@ Agents push inventory on a regular interval (default: 30 minutes):
 
 ---
 
+## New Systems in v0.6.0
+
+### Patch Management (E30)
+
+Provides end-to-end Windows patch orchestration:
+
+```
+Agent (PatchScanner.cs)  →  Scan Results  →  Patch Catalog
+                                                    ↓
+                                              Rings (Canary/Pilot/Broad)
+                                                    ↓
+                                              Deployments → Compliance
+```
+
+- Patch catalog auto-populated by agent scans
+- Ring-based deployment strategy
+- Full deployment lifecycle (create/pause/resume/cancel)
+- Per-node and fleet-wide compliance tracking
+
+### Configuration Baselines (E31)
+
+CIS benchmark-based configuration compliance:
+
+- **Templates** — Pre-built CIS benchmarks (Win Server 2022/2025, Win 11)
+- **Baseline Rules** — Registry keys, service states, security policies
+- **Evaluation Engine** — Evaluates nodes against baselines, generates drift events
+- **Auto-Remediation** — Automatically fix drifted settings via agent jobs
+- **Compliance Dashboard** — Trend charts showing compliance over time
+
+### Content Lifecycle (E33)
+
+Repository and content management with environment pipelines. See [CONTENT-LIFECYCLE.md](CONTENT-LIFECYCLE.md).
+
+### Query Engine (E34)
+
+Safe DSL-to-SQL query builder with whitelist-based security:
+
+```
+User Query (JSON DSL) → Parser → Whitelist Check → Parameterized SQL → PostgreSQL
+```
+
+- 22 queryable tables, all columns whitelisted
+- Pre-defined join relationships
+- 18 built-in query templates
+- Live agent queries for real-time data
+
+See [QUERY-ENGINE.md](QUERY-ENGINE.md).
+
+### Software Metering (E38)
+
+License compliance and usage tracking. See [SOFTWARE-METERING.md](SOFTWARE-METERING.md).
+
+---
+
 ## Directory Structure
 
 ```
@@ -265,6 +320,11 @@ octofleet/
 │   │   ├── security.py      # Security/compliance
 │   │   ├── deployments.py   # Software deployment
 │   │   ├── provisioning.py  # PXE provisioning
+│   │   ├── dashboard.py     # Dashboard summary
+│   │   ├── groups.py        # Groups & tags
+│   │   ├── query_engine.py  # Real-time query engine
+│   │   ├── content_lifecycle.py # Content repos & environments
+│   │   ├── software_metering.py # License tracking
 │   │   └── ...
 │   ├── schema-full.sql      # Database schema
 │   ├── Dockerfile           # Backend container
@@ -285,18 +345,27 @@ octofleet/
 └── docker-compose.yml        # Main compose file
 ```
 
-## Backend Modularization (v0.5.6)
+## Backend Modularization (v0.6.0)
 
-The monolithic `main.py` was refactored from ~15,900 lines to ~11,500 lines. Extracted modules:
+The monolithic `main.py` has been progressively refactored. Extracted modules:
 
 | Module | Path | Responsibility |
 |--------|------|----------------|
 | Dashboard | `backend/routers/dashboard.py` | Dashboard summary API |
 | Groups | `backend/routers/groups.py` | Group CRUD, dynamic groups, tag management |
+| Query Engine | `backend/routers/query_engine.py` | DSL-to-SQL query builder, schema introspection, templates, live queries |
+| Content Lifecycle | `backend/routers/content_lifecycle.py` | Content repos, items, snapshots, environments, promotion |
+| Software Metering | `backend/routers/software_metering.py` | Software catalog, licenses, normalization, compliance, usage |
 | Rules Engine | `backend/app/core/rules.py` | Dynamic group rule evaluation |
 | Node DB Helpers | `backend/app/db/nodes.py` | Node upsert, auto-onboard, dynamic groupships |
 | Dependencies | `backend/dependencies.py` | Shared deps: `get_db`, `verify_api_key`, error helpers |
 | Config | `backend/app/core/config.py` | Centralized settings from environment |
+
+Inline in `main.py` (still the largest file):
+- Patch management (catalog, rings, deployments, compliance, agent scan results)
+- Configuration baselines (templates, evaluations, drift, remediation)
+- Hardware fleet aggregation
+- All original core endpoints (nodes, inventory, jobs, security, etc.)
 
 Existing routers (`nodes`, `inventory`, `jobs`, `mssql`) were also extended with code moved from `main.py`.
 

@@ -1,10 +1,10 @@
 # Security Center
 
-The Security Center is Octofleet's comprehensive security monitoring and compliance suite, introduced in v0.5.5 (Epic E21). It provides real-time file auditing, behavioral threat detection, configuration drift monitoring, and forensic evidence capabilities — all from a single dashboard.
+The Security Center is Octofleet's comprehensive security monitoring and compliance suite. It provides real-time file auditing, behavioral threat detection, configuration drift monitoring, patch management, configuration baselines, and forensic evidence capabilities — all from a single dashboard.
 
 ## Overview
 
-The Security Center spans 12 dedicated pages in the frontend and covers:
+The Security Center spans 20+ dedicated pages in the frontend and covers:
 
 - **Security Dashboard** — At-a-glance risk overview
 - **Monitoring Profiles** — Define what to monitor and how
@@ -15,6 +15,9 @@ The Security Center spans 12 dedicated pages in the frontend and covers:
 - **Activity Dashboards** — File and user activity visualization
 - **Evidence Export** — Forensic evidence packaging
 - **Retention & Legal Hold** — Data lifecycle management
+- **Patch Management** — Patch catalog, rings, deployments, compliance *(new in v0.6.0)*
+- **Configuration Baselines** — CIS benchmarks, drift detection, auto-remediation *(new in v0.6.0)*
+- **Content Lifecycle** — Repository management with environment pipelines *(new in v0.6.0)*
 
 ---
 
@@ -342,3 +345,61 @@ Both endpoints support filtering by user, action type, and date range.
 4. **Review the dashboard** as events flow in and findings are generated
 5. **Set up alerts** (Settings → Alert Channels) to get notified on Discord or other channels
 6. **Configure retention** based on your compliance requirements
+
+---
+
+## Patch Management (E30) — NEW in v0.6.0
+
+Octofleet now includes full Windows patch management. See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for the complete guide.
+
+### Quick Overview
+
+- **Patch Catalog** — Central registry of all patches, auto-populated by agent scans
+- **Patch Rings** — Canary → Pilot → Broad rollout strategy for controlled deployment
+- **Deployments** — Full lifecycle (create, schedule, pause, resume, cancel)
+- **Compliance** — Per-node and fleet-wide compliance dashboards
+- **Agent Scanner** — `PatchScanner.cs` discovers missing Windows updates automatically
+
+### Getting Started
+
+1. Agents automatically scan and report available patches
+2. Review the patch catalog and approve/exclude patches
+3. Create patch rings for your rollout strategy
+4. Deploy patches through rings
+5. Monitor compliance
+
+---
+
+## Configuration Baselines (E31) — NEW in v0.6.0
+
+Configuration baselines let you define and enforce configuration standards based on CIS benchmarks.
+
+### CIS Benchmark Templates
+
+Pre-built templates available for:
+- Windows Server 2022
+- Windows Server 2025
+- Windows 11
+
+Import a template to create a baseline with pre-configured rules for registry keys, service states, and security policies.
+
+### Drift Detection & Remediation
+
+- **Automatic evaluation** — Nodes are evaluated against assigned baselines
+- **Drift events** — Created when a node deviates from its baseline
+- **Actions** — Acknowledge, waive, or auto-remediate drifts
+- **Trend charts** — Compliance trends over time
+
+### API Quick Reference
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/baselines` | List baselines |
+| POST | `/api/v1/baselines` | Create baseline |
+| GET | `/api/v1/baselines/templates` | List CIS templates |
+| POST | `/api/v1/baselines/templates/{id}/import` | Import template |
+| GET | `/api/v1/baselines/drift` | List drift events |
+| POST | `/api/v1/baselines/drift/{id}/remediate` | Auto-remediate |
+| GET | `/api/v1/baselines/compliance/trends` | Compliance trends |
+
+See [API-REFERENCE.md](API-REFERENCE.md#configuration-baselines) for the full endpoint list.

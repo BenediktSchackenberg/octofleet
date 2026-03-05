@@ -32,7 +32,7 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 | `OCTOFLEET_GATEWAY_URL` | `http://192.168.0.5:18789` | Gateway URL for inter-service communication |
 | `OCTOFLEET_GATEWAY_TOKEN` | *(empty)* | Token for gateway authentication |
 
-> ⚠️ **Important:** The backend uses `API_KEY` internally, but agents reference it as `INVENTORY_API_KEY` or `API_KEY` depending on the agent version. Make sure the values match.
+> ℹ️ **Note:** The backend uses `API_KEY` internally (with fallback to `INVENTORY_API_KEY` for backward compatibility). Use `API_KEY` for all new deployments. Both agent types reference this as their authentication token.
 
 ### Frontend
 

@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Open-source endpoint management platform</b><br>
-  Monitor your fleet, deploy software, track vulnerabilities, and manage devices from a single dashboard.
+  Monitor your fleet, deploy software, track vulnerabilities, manage patches, and control devices from a single dashboard.
 </p>
 
 <p align="center">
@@ -35,6 +35,7 @@
 - **🪶 Lightweight Agents** — < 20MB footprint, minimal resource usage
 - **🔌 API-First** — Everything accessible via REST API
 - **🌐 Cross-Platform** — Windows and Linux support
+- **🌙 Dark Mode** — Full dark mode across all pages
 
 ---
 
@@ -47,8 +48,9 @@
 ### 📊 Inventory & Monitoring
 - Real-time fleet dashboard with hotspot matrix
 - Hardware inventory (CPU, RAM, Disks, Network)
+- **Hardware Fleet Dashboard** — CPU/disk/storage aggregation, disk health monitoring, physical disk inventory
 - Software inventory with version tracking
-- **Performance monitoring with heat intensity visualization**
+- Performance monitoring with heat intensity visualization
 - Process and network monitoring
 - Fleet-wide trend sparklines
 
@@ -67,8 +69,8 @@
 <tr>
 <td width="50%">
 
-### 🔐 Security & Compliance — NEW in v0.5.6!
-- **Security Center** with 12 dedicated pages
+### 🔐 Security & Compliance
+- **Security Center** with dedicated pages for monitoring, findings, and forensics
 - Vulnerability scanning (NVD/CVE) + fleet-wide aggregation
 - Auto-remediation (winget/Chocolatey)
 - **File audit** — real-time monitoring (Windows + Linux)
@@ -82,50 +84,105 @@
 </td>
 <td width="50%">
 
-### 🖥️ Remote Access & UX — NEW in v0.5.6!
-- **Screen mirroring (live view)**
-- Remote terminal in browser
-- **Agent Activity Monitor** — real-time SSE feed of all agent actions
-- **Command Palette (Ctrl+K)** — instant node search & navigation
-- Discord alert notifications
-- Node health & capability monitoring
+### 🩹 Patch & Update Orchestration — NEW in v0.6.0!
+- **Patch catalog** — centralized KB/update registry
+- **Patch rings** — Canary → Pilot → Broad rollout strategy
+- **Deployment wizard** — create, schedule, pause, resume, cancel
+- **Compliance tracking** — per-node and fleet-wide
+- **Agent-side scanner** — `PatchScanner.cs` discovers missing Windows updates
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-### 🗄️ SQL Server Management (NEW!)
-- Automated SQL Server installation
-- Auto disk preparation (Data/Log/TempDB)
-- Single instance deployment
-- Version support: SQL Server 2025/2022/2019
-- Coming soon: AlwaysOn, Clustering
+### 📐 Configuration Baselines — NEW in v0.6.0!
+- **CIS benchmark templates** (Win Server 2022/2025, Win 11)
+- **Baseline rules** — registry, service, security policy checks
+- **Drift detection** — automatic evaluation with drift events
+- **Auto-remediation** — fix drifted settings automatically
+- **Compliance dashboard** with trend charts
 
 </td>
 <td width="50%">
 
-### 🔌 Zero-Touch Provisioning (NEW!)
+### 📦 Content Lifecycle — NEW in v0.6.0!
+- **Repository management** — APT, YUM, Chocolatey, NuGet, WinGet, Generic
+- **Content snapshots** — freeze repository state at a point in time
+- **Environment pipeline** — Dev → Test → Prod promotion
+- **Promotion & rollback** — advance or revert environments
+- **Snapshot diff** — compare any two snapshots
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🔍 Real-time Query Engine — NEW in v0.6.0!
+- **DSL-to-SQL query builder** with visual WHERE clause builder
+- **22 queryable tables** across fleet, software, security, metrics, events
+- **18 pre-built templates** for common fleet questions
+- **Live agent queries** — processes, services, open ports in real-time
+- **CSV export** for external analysis
+
+</td>
+<td width="50%">
+
+### 📊 Software Metering & Licenses — NEW in v0.6.0!
+- **Software catalog** with auto-discovery from fleet inventory
+- **License compliance** — per-device, per-user, site, enterprise
+- **Normalization rules** — map name variations to catalog entries
+- **Usage tracking** & reclamation candidates
+- **True-up reports** for license reconciliation
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🖥️ Remote Access & UX
+- **Screen mirroring (live view)**
+- Remote terminal in browser
+- **Agent Activity Monitor** — real-time SSE feed
+- **Command Palette (Ctrl+K)** — instant node search & navigation
+- **Mega Dropdown Navigation** — 2-column Security & Compliance mega menu
+- **Dark Mode** — full dark mode across all pages
+- Discord alert notifications
+
+</td>
+<td width="50%">
+
+### 🔌 Zero-Touch Provisioning
 - **PXE boot** — No USB/ISO needed
 - **WinPE deployment** — Full automation
 - **VirtIO support** — KVM/QEMU ready
 - **Multi-VLAN** — Tentacle relay architecture
 - **Driver injection** — Auto hardware detection
-- **Autounattend.xml** — Unattended Windows install
+- **Linux PXE** — Ubuntu 22.04/24.04 via NFS
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-### 🔄 Auto-Update
-- Agents self-update from GitHub Releases
-- SHA256 verification
-- Downgrade protection
+### 🗄️ SQL Server Management
+- Automated SQL Server installation
+- Auto disk preparation (Data/Log/TempDB)
+- Version support: SQL Server 2025/2022/2019
+- Cumulative update deployment & compliance
+
+</td>
+<td width="50%">
+
+### 🔄 Self-Updating Agents
+- Windows agents auto-update from GitHub Releases
+- SHA256 verification & downgrade protection
 - Zero-touch deployment
 - Enrollment tokens for mass rollout
 
 </td>
+</tr>
+<tr>
 <td width="50%">
 
 ### 📊 Reports & Exports
@@ -133,6 +190,15 @@
 - **Excel/CSV/JSON exports** — For all data types
 - **Date range filtering** — 7d/30d/90d presets
 - Report Generator page (`/reports`)
+
+</td>
+<td width="50%">
+
+### 🏗️ Hardware Fleet Dashboard
+- CPU, disk, and storage fleet aggregation
+- Disk health monitoring (SMART)
+- Physical disk inventory across all nodes
+- Hardware export
 
 </td>
 </tr>
@@ -184,200 +250,6 @@ API_KEY="your-api-key"
 
 ---
 
-## 🖥️ Screen Sharing (NEW in v0.5.0)
-
-Remote screen viewing with low latency JPEG streaming:
-
-```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   Browser   │◄──WSS──►│   Backend   │◄──HTTP──│   Agent     │
-│ (Viewer UI) │         │  (FastAPI)  │         │  (Service)  │
-└─────────────┘         └─────────────┘         └──────┬──────┘
-                                                       │ Named Pipe
-                                                ┌──────▼──────┐
-                                                │ ScreenHelper│
-                                                │ (User Sess) │
-                                                └─────────────┘
-```
-
-### How it works:
-1. **OctofleetScreenHelper.exe** runs in the user session (with tray icon)
-2. **OctofleetAgent.Service** connects via Named Pipe IPC
-3. **Backend** streams JPEG frames to browser via WebSocket
-
-### Auto-Start:
-The helper starts automatically at user login via Windows Run key:
-```
-HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\OctofleetScreenHelper
-```
-
-### Manual Test:
-```powershell
-# Start helper manually (for development)
-.\src\OctofleetScreenHelper\bin\Debug\net8.0-windows\OctofleetScreenHelper.exe
-```
-
----
-
-## 🔌 Zero-Touch Provisioning
-
-Deploy Windows servers via PXE boot — no USB drives, no ISOs, no clicking through installers.
-
-```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   VM/Host   │◄──PXE──►│  Tentacle   │◄──API──►│  Octofleet  │
-│  (Booting)  │         │  (Docker)   │         │   Backend   │
-└─────────────┘         └─────────────┘         └─────────────┘
-       │                       │
-       │ TFTP                  │ HTTP
-       └──► ipxe.efi          └──► boot.wim + install.wim
-```
-
-### Quick Start (PXE Server):
-
-```bash
-cd provisioning
-docker-compose up -d
-```
-
-### Boot Sequence:
-1. **PXE ROM** → dnsmasq (ProxyDHCP) → `ipxe.efi`
-2. **iPXE** → HTTP → `boot.ipxe` script
-3. **WinPE** → loads `boot.wim` into RAM
-4. **startnet.cmd** → VirtIO drivers, SMB mount, DISM, bcdboot
-5. **Windows** → boots with injected drivers
-6. **Agent** → auto-installs and connects
-
-### Supported Platforms:
-- ✅ **KVM/QEMU** (Unraid, Proxmox, libvirt)
-- ✅ **Hyper-V** (with PXE boot)
-- ✅ **Bare Metal** (UEFI PXE)
-- 🔜 VMware vSphere
-
-📖 **[Provisioning Guide →](docs/E22-UNIVERSAL-PROVISIONING.md)**
-
----
-
-## 🐧 Linux PXE Boot (NEW!)
-
-Deploy Ubuntu servers via PXE boot with fully automated installation.
-
-### Architecture:
-```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   VM/Host   │◄──PXE──►│  PXE Server │◄──API──►│  Octofleet  │
-│  (Booting)  │         │  (Docker)   │         │   Backend   │
-└─────────────┘         └──────┬──────┘         └─────────────┘
-       │                       │
-       │ NFS                   │ HTTP
-       └──► /mnt/ubuntu-XX.XX └──► kernel + initrd + autoinstall
-```
-
-### Prerequisites:
-
-1. **Mount Ubuntu Live ISOs:**
-```bash
-sudo mount -o loop /path/to/ubuntu-24.04.iso /mnt/ubuntu-24.04
-sudo mount -o loop /path/to/ubuntu-22.04.iso /mnt/ubuntu-22.04
-```
-
-2. **Install and configure NFS server:**
-```bash
-sudo apt install nfs-kernel-server
-echo '/mnt/ubuntu-24.04 *(ro,sync,no_subtree_check,no_root_squash)' | sudo tee -a /etc/exports
-echo '/mnt/ubuntu-22.04 *(ro,sync,no_subtree_check,no_root_squash)' | sudo tee -a /etc/exports
-sudo exportfs -ra
-sudo systemctl restart nfs-server
-```
-
-3. **Verify exports:**
-```bash
-showmount -e localhost
-```
-
-### Boot Sequence:
-1. **PXE ROM** → dnsmasq (ProxyDHCP) → `ipxe.efi`
-2. **iPXE** → API fetches task-specific boot script
-3. **Kernel + initrd** → loaded via HTTP from `/ubuntu-live/XX.XX/casper/`
-4. **casper** → mounts root filesystem via NFS
-5. **Subiquity** → runs autoinstall with cloud-config from API
-6. **Ubuntu** → installed with hostname, user, SSH configured
-
-### Autoinstall Features:
-- 🔐 Pre-configured user (`octofleet`) with SSH access
-- 💾 LVM storage layout using all available space
-- 🌐 DHCP networking with German keyboard layout
-- 📦 Essential packages (curl, wget, htop, vim)
-
-### Supported Ubuntu Versions:
-- ✅ Ubuntu 24.04 LTS (Noble)
-- ✅ Ubuntu 22.04 LTS (Jammy)
-
-> **Note:** Ubuntu Live installer requires NFS. The HTTP `url=` parameter is not reliably supported by casper.
-
----
-
-## 🐧 Linux Agent
-
-Full-featured agent for Linux servers and workstations.
-
-### Features:
-- **Hardware inventory** — CPU, RAM, disks, network interfaces
-- **Software inventory** — Installed packages (dpkg/rpm/pacman)
-- **Performance monitoring** — Load average, CPU per core, memory details
-- **Service monitoring** — systemd services with status
-- **Package updates** — Available updates with security flag
-- **Disk health** — SMART monitoring via smartctl
-
-### Install:
-```bash
-# Quick install (API_URL and API_KEY are required)
-API_URL="http://your-server:8080" API_KEY="your-api-key" \
-  curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo -E bash
-
-# Or manual:
-git clone https://github.com/BenediktSchackenberg/octofleet.git
-cd octofleet/linux-agent
-API_URL="http://your-server:8080" API_KEY="your-api-key" sudo -E ./install.sh
-```
-
-### Configure:
-```bash
-# Edit /opt/openclaw-agent/config.env
-API_URL="http://your-octofleet-server:8080"
-API_KEY="your-api-key"
-NODE_ID=""          # defaults to hostname
-PUSH_INTERVAL=1800  # inventory push (seconds)
-JOB_POLL_INTERVAL=60
-LIVE_DATA_INTERVAL=5
-```
-
-### Commands:
-```bash
-# Service management
-sudo systemctl status openclaw-agent
-sudo systemctl restart openclaw-agent
-
-# Manual run
-/opt/openclaw-agent/agent.sh collect  # Show collected data
-/opt/openclaw-agent/agent.sh push     # Push to server
-```
-
-### Collected Data:
-| Category | Data |
-|----------|------|
-| Hardware | CPU, RAM (modules), Disks, NICs, GPU, Mainboard |
-| Software | Installed packages with versions |
-| System | OS info, hostname, uptime, kernel |
-| Network | Interfaces, connections, open ports |
-| Security | Firewall status, SELinux/AppArmor |
-| Performance | Load average, CPU per core, memory (buffers/cached), swap, disk I/O |
-| Services | All systemd services with status |
-| Updates | Available package updates, security count |
-| Disk Health | SMART status (requires smartctl + root) |
-
----
-
 ## 🏗️ Architecture
 
 ```
@@ -411,58 +283,23 @@ sudo systemctl restart openclaw-agent
 
 ---
 
-## 📸 Screenshots
-
-<details>
-<summary>📈 Dashboard</summary>
-<img src="docs/screenshot-dashboard.png" alt="Dashboard">
-</details>
-
-<details>
-<summary>🔥 Performance Hotspot Matrix</summary>
-<img src="docs/screenshot-performance.png" alt="Performance Monitoring">
-</details>
-
-<details>
-<summary>🖥️ Node Details</summary>
-<img src="docs/screenshot-node.png" alt="Node Details">
-</details>
-
-<details>
-<summary>🔒 Vulnerability Scanner</summary>
-<img src="docs/screenshot-vulns.png" alt="Vulnerabilities">
-</details>
-
-<details>
-<summary>⚡ Live View</summary>
-<img src="docs/screenshot-live.png" alt="Live View">
-</details>
-
-<details>
-<summary>🖥️ Screen Sharing (NEW!)</summary>
-<img src="docs/screenshot-screen.png" alt="Screen Sharing">
-</details>
-
-<details>
-<summary>🐙 Windows Agent TUI</summary>
-<img src="docs/screenshot-agent.png" alt="Agent TUI">
-</details>
-
----
-
 ## 📚 Documentation
 
 | Topic | Link |
 |-------|------|
-| Quick Start | [Wiki: Quick-Start](../../wiki/Quick-Start) |
-| Installation | [Wiki: Installation](../../wiki/Installation) |
-| Configuration | [Wiki: Configuration](../../wiki/Configuration) |
-| **API Reference** | [Swagger UI](http://localhost:8080/docs) • [ReDoc](http://localhost:8080/redoc) |
+| Quick Start | [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) |
+| Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Configuration | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
+| **API Reference** | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) • [Swagger UI](http://localhost:8080/docs) |
+| Security Center | [docs/SECURITY-CENTER.md](docs/SECURITY-CENTER.md) |
+| Patch Management | [docs/PATCH-MANAGEMENT.md](docs/PATCH-MANAGEMENT.md) |
+| Content Lifecycle | [docs/CONTENT-LIFECYCLE.md](docs/CONTENT-LIFECYCLE.md) |
+| Query Engine | [docs/QUERY-ENGINE.md](docs/QUERY-ENGINE.md) |
+| Software Metering | [docs/SOFTWARE-METERING.md](docs/SOFTWARE-METERING.md) |
 | Agent Setup | [docs/AGENT-SETUP.md](docs/AGENT-SETUP.md) |
-| Troubleshooting | [Wiki: Troubleshooting](../../wiki/Troubleshooting) |
-| **Roadmap** | [Wiki: Roadmap](../../wiki/Roadmap) |
+| Roadmap | [docs/ROADMAP-ENTERPRISE.md](docs/ROADMAP-ENTERPRISE.md) |
 
-### 🔌 API Endpoints (158 total)
+### 🔌 API Endpoints (~450 total)
 
 The backend exposes a full REST API with automatic OpenAPI documentation:
 
@@ -477,7 +314,7 @@ open http://localhost:8080/redoc
 curl http://localhost:8080/openapi.json
 ```
 
-**Key Endpoints:**
+**Key Endpoint Groups:**
 | Category | Endpoints | Description |
 |----------|-----------|-------------|
 | `/api/v1/nodes` | 15 | Node inventory, search, tree view |
@@ -488,6 +325,13 @@ curl http://localhost:8080/openapi.json
 | `/api/v1/remediation` | 23 | Auto-remediation, health checks |
 | `/api/v1/services` | 10 | Service orchestration |
 | `/api/v1/deployments` | 8 | Software deployment |
+| `/api/v1/patches` | 20 | Patch catalog, rings, deployments, compliance |
+| `/api/v1/baselines` | ~25 | Config baselines, rules, evaluations, drift, templates, remediation |
+| `/api/v1/content` | 22 | Content repos, items, snapshots, environments, promotion |
+| `/api/v1/query` | 4 | Query engine (execute, schema, templates, live) |
+| `/api/v1/metering` | ~20 | Software catalog, licenses, compliance, reclamation |
+| `/api/v1/hardware` | 2 | Hardware fleet aggregation & export |
+| `/api/v1/security/*` | 34 | Security monitoring, events, findings, evidence, audit |
 
 ---
 
@@ -518,14 +362,16 @@ cd tests/e2e && npx playwright test
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INVENTORY_API_KEY` | `octofleet-inventory-dev-key` | API key for agent authentication |
+| `API_KEY` | `octofleet-inventory-dev-key` | API key for agent authentication |
 | `DATABASE_URL` | `postgresql://octofleet:...@127.0.0.1:5432/inventory` | PostgreSQL connection string |
 | `JWT_SECRET` | Auto-generated | Secret for JWT tokens (persistent) |
 | `NVD_API_KEY` | None | NVD API key for vulnerability scanning |
 | `OCTOFLEET_GATEWAY_URL` | `http://192.168.0.5:18789` | Octofleet gateway URL |
 | `OCTOFLEET_GATEWAY_TOKEN` | Empty | Token for gateway authentication |
 
-> ⚠️ **Important:** Use `INVENTORY_API_KEY` (not `API_KEY`) for all API authentication. The API key must match between backend and agents.
+> ℹ️ The backend reads `API_KEY` from the environment (with fallback to `INVENTORY_API_KEY` for backward compatibility). Use `API_KEY` for new deployments.
+
+📖 **[Full Configuration Reference →](docs/CONFIGURATION.md)**
 
 ---
 
@@ -548,14 +394,24 @@ We love contributions! Octofleet is built by the community, for the community.
 
 ## 🗺️ Roadmap
 
-See our [public roadmap](../../wiki/Roadmap) for planned features:
+See the [Enterprise Roadmap](docs/ROADMAP-ENTERPRISE.md) and [public roadmap](../../wiki/Roadmap) for planned features.
 
-- **Q1 2026:** Multi-tenancy, Reporting & Analytics
-- **Q2 2026:** macOS Agent, Mobile App
-- **Q3 2026:** Compliance Frameworks, Enterprise SSO
-- **Q4 2026:** AI-Powered Insights, Predictive Maintenance
+### ✅ Completed in v0.6.0
+- E30 Patch & Update Orchestration
+- E31 Configuration Baselines & Drift Management
+- E33 Content Repository & Lifecycle Management
+- E34 Real-time Query Engine
+- E38 Software Metering & License Tracking
 
-[View Full Roadmap →](../../wiki/Roadmap)
+### 🔜 Upcoming
+- macOS Agent
+- LDAP/Active Directory & SSO/OIDC integration
+- Ansible/DSC integration
+- Cloud provider integration (Azure, AWS, Proxmox)
+- Multi-tenancy
+- High Availability
+
+[View Full Roadmap →](docs/ROADMAP-ENTERPRISE.md)
 
 ---
 

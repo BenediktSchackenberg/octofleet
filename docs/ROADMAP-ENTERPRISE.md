@@ -2,6 +2,22 @@
 
 > "Vom Motorrad zum Panzer" - Meddl!
 
+## ✅ Completed in v0.6.0
+
+| Epic | Feature | Status |
+|------|---------|--------|
+| **E30** | Patch & Update Orchestration | ✅ Complete |
+| **E31** | Configuration Baselines & Drift Management | ✅ Complete |
+| **E33** | Content Repository & Lifecycle Management | ✅ Complete |
+| **E34** | Real-time Query Engine | ✅ Complete |
+| **E38** | Software Metering & License Tracking | ✅ Complete |
+
+Plus: Hardware Fleet Dashboard, Dark Mode, Mega Dropdown Navigation, Self-Updating Agents.
+
+See individual docs: [Patch Management](PATCH-MANAGEMENT.md) · [Query Engine](QUERY-ENGINE.md) · [Content Lifecycle](CONTENT-LIFECYCLE.md) · [Software Metering](SOFTWARE-METERING.md)
+
+---
+
 ## 📊 Gap Analysis: Octofleet vs Foreman
 
 | Feature | Foreman | Octofleet | Priority |
@@ -353,14 +369,20 @@
 ## 📅 Timeline
 
 ```
-2026
-├── Feb: Current State (E1-E20 complete)
-├── Mar: Phase 1 - Enterprise Auth (E21-E22)
-├── Apr: Phase 2 - Config Management (E23-E24)
-├── May-Jun: Phase 3 - Provisioning (E25-E26)
-├── Jul: Phase 4 - Cloud Integration (E27-E28)
-├── Aug: Phase 5 - Platform Features (E29-E30)
-└── Sep: Phase 6 - Enterprise Scale (E31-E33)
+2025-2026
+├── E1-E20: Core Platform (complete)
+├── E21: Security Center (complete — v0.5.5)
+├── E30: Patch & Update Orchestration (complete — v0.6.0) ✅
+├── E31: Configuration Baselines & Drift Management (complete — v0.6.0) ✅
+├── E33: Content Repository & Lifecycle Management (complete — v0.6.0) ✅
+├── E34: Real-time Query Engine (complete — v0.6.0) ✅
+├── E38: Software Metering & License Tracking (complete — v0.6.0) ✅
+│
+├── Next: Enterprise Auth (LDAP/AD, SSO/OIDC)
+├── Next: Config Management (Ansible, DSC)
+├── Next: Cloud Integration (Azure, AWS, Proxmox)
+├── Next: macOS Agent
+└── Next: Multi-Tenancy & HA
 
 Target: Enterprise-Ready by Q3 2026
 ```

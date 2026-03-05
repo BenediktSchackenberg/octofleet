@@ -57,7 +57,7 @@ API_URL="http://your-server:8080" API_KEY="your-api-key" \
   curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo -E bash
 ```
 
-Replace `your-server` with your Octofleet server's IP/hostname and `your-api-key` with the API key from your `.env` or docker-compose config (default: `your-api-key-here`).
+Replace `your-server` with your Octofleet server's IP/hostname and `your-api-key` with the API key from your `.env` or docker-compose config (env var: `API_KEY`, default: `your-api-key-here`).
 
 > 📖 For detailed agent setup, see [AGENT-SETUP.md](AGENT-SETUP.md).
 
@@ -90,6 +90,11 @@ Now that you have a node reporting in, explore these features:
 - **📦 Packages** — Track and deploy software
 - **🔐 Security Center** — File audit, behavior rules, and compliance monitoring
 - **📈 Performance** — Real-time metrics and trend visualization
+- **🩹 Patch Management** — Manage Windows updates with rings and compliance tracking *(new in v0.6.0)*
+- **📐 Config Baselines** — CIS benchmarks with drift detection *(new in v0.6.0)*
+- **📦 Content Lifecycle** — Repository management with Dev → Test → Prod pipelines *(new in v0.6.0)*
+- **🔍 Query Engine** — Ask questions about your fleet with a visual query builder *(new in v0.6.0)*
+- **📊 Software Metering** — License tracking and compliance *(new in v0.6.0)*
 
 ## Environment Variables
 
@@ -124,6 +129,11 @@ docker compose logs -f backend
 
 - 📖 [Architecture Overview](ARCHITECTURE.md) — How the system works
 - 🔐 [Security Center Guide](SECURITY-CENTER.md) — File audit, behavior rules, findings
+- 🩹 [Patch Management](PATCH-MANAGEMENT.md) — Windows update orchestration *(new in v0.6.0)*
+- 📐 [Configuration Baselines](SECURITY-CENTER.md#configuration-baselines) — CIS benchmarks & drift detection *(new in v0.6.0)*
+- 📦 [Content Lifecycle](CONTENT-LIFECYCLE.md) — Repository & environment management *(new in v0.6.0)*
+- 🔍 [Query Engine](QUERY-ENGINE.md) — Fleet-wide query builder *(new in v0.6.0)*
+- 📊 [Software Metering](SOFTWARE-METERING.md) — License tracking *(new in v0.6.0)*
 - 🔧 [Configuration Reference](CONFIGURATION.md) — All environment variables
 - 📡 [API Reference](API-REFERENCE.md) — REST API documentation
 - 🌐 [PXE Provisioning](PXE-PROVISIONING.md) — Zero-touch OS deployment
