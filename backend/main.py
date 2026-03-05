@@ -44,6 +44,7 @@ from routers.security import router as security_router
 from routers.auth import router as auth_router, users_router
 from routers.dashboard import router as dashboard_router
 from routers.groups import router as groups_router
+from routers.content_lifecycle import router as content_lifecycle_router
 from app.core.rules import evaluate_dynamic_rule
 from app.db.nodes import update_dynamic_device_groupships, auto_onboard_node, upsert_node
 from auth import (
@@ -214,6 +215,7 @@ app.include_router(pending_router)
 app.include_router(inventory_router)
 app.include_router(dashboard_router)
 app.include_router(groups_router)
+app.include_router(content_lifecycle_router, tags=["Content Lifecycle"])
 app.include_router(jobs_router)
 app.include_router(jobs_agent_router)
 app.include_router(mssql_router)
