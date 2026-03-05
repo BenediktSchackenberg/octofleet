@@ -45,6 +45,7 @@ import {
   Search,
   Terminal,
   BarChart3,
+  Layers,
   type LucideIcon
 } from "lucide-react";
 
@@ -134,6 +135,7 @@ const navGroups: NavGroup[] = [
     color: "amber",
     items: [
       { href: "/provisioning", labelKey: "nav.provisioning", icon: Network, permission: "services:read" },
+      { href: "/content", labelKey: "nav.contentLifecycle", icon: Layers, permission: "services:read" },
       { href: "/sql", labelKey: "nav.sql", icon: Database, permission: "services:read" },
       { href: "/services", labelKey: "nav.services", icon: LinkIcon, permission: "services:read" },
     ]

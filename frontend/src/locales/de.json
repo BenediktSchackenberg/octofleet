@@ -77,7 +77,8 @@
     "users": "Benutzer",
     "vulnerabilities": "Schwachstellen",
     "queryEngine": "Abfrage-Engine",
-    "metering": "Software-Metering"
+    "metering": "Software-Metering",
+    "contentLifecycle": "Content-Lifecycle"
   },
   "auth": {
     "login": "Anmelden",

@@ -77,7 +77,8 @@
     "users": "Users",
     "vulnerabilities": "Vulnerabilities",
     "queryEngine": "Query Engine",
-    "metering": "Software Metering"
+    "metering": "Software Metering",
+    "contentLifecycle": "Content Lifecycle"
   },
   "auth": {
     "login": "Login",
