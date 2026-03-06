@@ -11937,9 +11937,10 @@ async def create_patch_deployment(data: dict, request: Request):
         deployment_id = row["id"]
         # Create per-node results for each patch × node in ring
         ring_id = data.get("ring_id")
+        ring = None
         if ring_id:
             ring = await conn.fetchrow("SELECT node_group_id FROM patch_rings WHERE id=$1", ring_id)
-                    if ring and ring["node_group_id"]:
+            if ring and ring["node_group_id"]:
                 nodes = await conn.fetch(
                     "SELECT node_id FROM device_groups WHERE group_id=$1",
                     ring["node_group_id"])
