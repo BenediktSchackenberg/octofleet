@@ -34,6 +34,15 @@ import {
   Edit,
   Filter,
   Download,
+  ClipboardCheck,
+  FileText,
+  ScrollText,
+  ShieldCheck,
+  ShieldAlert,
+  XCircle,
+  Check,
+  Ban,
+  Activity,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -107,6 +116,60 @@ interface DashboardData {
   reposByType: { type: string; count: number }[];
 }
 
+interface PromotionRequest {
+  id: string;
+  environmentId: string;
+  environmentName?: string;
+  snapshotId: string;
+  snapshotName?: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  requestedBy: string;
+  comment: string | null;
+  reviewedBy?: string | null;
+  reviewComment?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+  reviewedAt?: string | null;
+}
+
+interface ApprovalRule {
+  environmentId: string;
+  environmentName?: string;
+  requiredApprovals: number;
+  allowSelfApproval: boolean;
+}
+
+interface ContentPolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  policyType: string;
+  config: Record<string, any>;
+  enforcementMode: "enforce" | "warn" | "audit";
+  enabled: boolean;
+  assignedEnvironments?: { id: string; name: string; color: string }[];
+  createdAt: string;
+}
+
+interface AuditLogEntry {
+  id: string;
+  actionType: string;
+  environmentId: string | null;
+  environmentName?: string;
+  snapshotId: string | null;
+  snapshotName?: string;
+  actor: string;
+  details?: string | null;
+  createdAt: string;
+}
+
+interface ValidationResult {
+  environmentId: string;
+  snapshotId: string;
+  passed: boolean;
+  results: { policyId: string; policyName: string; passed: boolean; message: string }[];
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 const REPO_TYPES = [
@@ -116,6 +179,15 @@ const REPO_TYPES = [
   { value: "nuget", label: "NuGet", icon: "📦" },
   { value: "winget", label: "WinGet", icon: "🪟" },
   { value: "generic", label: "Generic", icon: "📁" },
+];
+
+const POLICY_TYPES = [
+  { value: "minimum_age", label: "Minimum Age" },
+  { value: "required_packages", label: "Required Packages" },
+  { value: "blocked_packages", label: "Blocked Packages" },
+  { value: "size_limit", label: "Size Limit" },
+  { value: "vulnerability_check", label: "Vulnerability Check" },
+  { value: "custom", label: "Custom" },
 ];
 
 function formatSize(bytes: number | null | undefined): string {
@@ -138,14 +210,43 @@ function timeAgo(date: string | null): string {
   return `${days}d ago`;
 }
 
+function formatDate(date: string | null): string {
+  if (!date) return "—";
+  return new Date(date).toLocaleString();
+}
+
 function repoTypeIcon(type: string): string {
   return REPO_TYPES.find((t) => t.value === type)?.icon || "📁";
 }
 
+const statusColors: Record<string, { bg: string; text: string }> = {
+  pending: { bg: "bg-amber-500/20", text: "text-amber-400" },
+  approved: { bg: "bg-green-500/20", text: "text-green-400" },
+  rejected: { bg: "bg-red-500/20", text: "text-red-400" },
+  cancelled: { bg: "bg-zinc-500/20", text: "text-zinc-400" },
+};
+
+const actionColors: Record<string, { bg: string; text: string }> = {
+  promoted: { bg: "bg-green-500/20", text: "text-green-400" },
+  rolled_back: { bg: "bg-amber-500/20", text: "text-amber-400" },
+  request_created: { bg: "bg-blue-500/20", text: "text-blue-400" },
+  approved: { bg: "bg-green-500/20", text: "text-green-400" },
+  rejected: { bg: "bg-red-500/20", text: "text-red-400" },
+  policy_violated: { bg: "bg-red-500/20", text: "text-red-400" },
+};
+
+const enforcementColors: Record<string, { bg: string; text: string }> = {
+  enforce: { bg: "bg-red-500/20", text: "text-red-400" },
+  warn: { bg: "bg-amber-500/20", text: "text-amber-400" },
+  audit: { bg: "bg-blue-500/20", text: "text-blue-400" },
+};
+
 // ─── Component ───────────────────────────────────────────────────────
 
+type TabId = "pipeline" | "repositories" | "snapshots" | "items" | "approvals" | "policies" | "auditlog";
+
 export default function ContentLifecyclePage() {
-  const [activeTab, setActiveTab] = useState<"pipeline" | "repositories" | "snapshots" | "items">("pipeline");
+  const [activeTab, setActiveTab] = useState<TabId>("pipeline");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -179,10 +280,39 @@ export default function ContentLifecyclePage() {
   const [diffSnapshot2, setDiffSnapshot2] = useState("");
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
 
-  // Promote
+  // Promote (legacy direct)
   const [showPromote, setShowPromote] = useState(false);
   const [promoteEnvId, setPromoteEnvId] = useState("");
   const [promoteSnapshotId, setPromoteSnapshotId] = useState("");
+
+  // Approvals
+  const [promotionRequests, setPromotionRequests] = useState<PromotionRequest[]>([]);
+  const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
+  const [showRequestPromotion, setShowRequestPromotion] = useState(false);
+  const [requestForm, setRequestForm] = useState({ environment_id: "", snapshot_id: "", comment: "" });
+  const [approveModal, setApproveModal] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
+  const [reviewInput, setReviewInput] = useState("");
+  const [approvalFilter, setApprovalFilter] = useState<string>("all");
+
+  // Policies
+  const [policies, setPolicies] = useState<ContentPolicy[]>([]);
+  const [showPolicyForm, setShowPolicyForm] = useState(false);
+  const [policyForm, setPolicyForm] = useState({ name: "", description: "", policy_type: "minimum_age", config: "{}", enforcement_mode: "warn", enabled: true });
+  const [assignModal, setAssignModal] = useState<ContentPolicy | null>(null);
+  const [assignEnvId, setAssignEnvId] = useState("");
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [validatingEnvId, setValidatingEnvId] = useState<string | null>(null);
+
+  // Audit Log
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditFilterEnv, setAuditFilterEnv] = useState("");
+  const [auditFilterAction, setAuditFilterAction] = useState("");
+  const [auditFilterFrom, setAuditFilterFrom] = useState("");
+  const [auditFilterTo, setAuditFilterTo] = useState("");
+
+  // Pipeline extras
+  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
+  const [policyCounts, setPolicyCounts] = useState<Record<string, number>>({});
 
   // ─── API ─────────────────────────────────────────────────────────
 
@@ -195,6 +325,7 @@ export default function ContentLifecyclePage() {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || `HTTP ${res.status}`);
     }
+    if (res.status === 204) return null;
     return res.json();
   }, []);
 
@@ -238,13 +369,70 @@ export default function ContentLifecyclePage() {
     } catch (e: any) { setError(e.message); }
   }, [api]);
 
+  const loadPromotionRequests = useCallback(async () => {
+    try {
+      const res = await api("/promotion-requests");
+      setPromotionRequests(Array.isArray(res) ? res : res.requests || []);
+    } catch (e: any) { setError(e.message); }
+  }, [api]);
+
+  const loadApprovalRules = useCallback(async () => {
+    try {
+      const res = await api("/approval-rules");
+      setApprovalRules(Array.isArray(res) ? res : res.rules || []);
+    } catch (e: any) { setError(e.message); }
+  }, [api]);
+
+  const loadPolicies = useCallback(async () => {
+    try {
+      const res = await api("/policies");
+      setPolicies(Array.isArray(res) ? res : res.policies || []);
+    } catch (e: any) { setError(e.message); }
+  }, [api]);
+
+  const loadAuditLog = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (auditFilterEnv) params.set("environment_id", auditFilterEnv);
+      if (auditFilterAction) params.set("action_type", auditFilterAction);
+      if (auditFilterFrom) params.set("from", auditFilterFrom);
+      if (auditFilterTo) params.set("to", auditFilterTo);
+      const qs = params.toString();
+      const res = await api(`/promotion-log${qs ? `?${qs}` : ""}`);
+      setAuditLog(Array.isArray(res) ? res : res.entries || res.log || []);
+    } catch (e: any) { setError(e.message); }
+  }, [api, auditFilterEnv, auditFilterAction, auditFilterFrom, auditFilterTo]);
+
+  const loadPipelineExtras = useCallback(async () => {
+    try {
+      const [requests, pols] = await Promise.all([
+        api("/promotion-requests?status=pending").catch(() => []),
+        api("/policies").catch(() => []),
+      ]);
+      const reqs = Array.isArray(requests) ? requests : requests?.requests || [];
+      const counts: Record<string, number> = {};
+      reqs.forEach((r: PromotionRequest) => { counts[r.environmentId] = (counts[r.environmentId] || 0) + 1; });
+      setPendingCounts(counts);
+
+      const allPolicies = Array.isArray(pols) ? pols : pols?.policies || [];
+      const pCounts: Record<string, number> = {};
+      allPolicies.forEach((p: ContentPolicy) => {
+        (p.assignedEnvironments || []).forEach((e) => { pCounts[e.id] = (pCounts[e.id] || 0) + 1; });
+      });
+      setPolicyCounts(pCounts);
+    } catch { /* ignore */ }
+  }, [api]);
+
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
   useEffect(() => {
     if (activeTab === "repositories") loadRepos();
     if (activeTab === "snapshots") { loadSnapshots(); loadRepos(); }
-    if (activeTab === "pipeline") loadDashboard();
-  }, [activeTab, loadRepos, loadSnapshots, loadDashboard]);
+    if (activeTab === "pipeline") { loadDashboard(); loadPipelineExtras(); }
+    if (activeTab === "approvals") { loadPromotionRequests(); loadApprovalRules(); loadSnapshots(); }
+    if (activeTab === "policies") { loadPolicies(); loadSnapshots(); }
+    if (activeTab === "auditlog") { loadAuditLog(); }
+  }, [activeTab, loadRepos, loadSnapshots, loadDashboard, loadPromotionRequests, loadApprovalRules, loadPolicies, loadAuditLog, loadPipelineExtras]);
 
   useEffect(() => {
     if (selectedRepo) loadItems(selectedRepo.id);
@@ -325,6 +513,92 @@ export default function ContentLifecyclePage() {
     try { await api(`/environments/${envId}/rollback`, { method: "POST" }); loadDashboard(); } catch (e: any) { setError(e.message); }
   };
 
+  // Approvals
+  const requestPromotion = async () => {
+    try {
+      await api(`/environments/${requestForm.environment_id}/request-promotion`, {
+        method: "POST",
+        body: JSON.stringify({ snapshot_id: requestForm.snapshot_id, comment: requestForm.comment }),
+      });
+      setShowRequestPromotion(false);
+      setRequestForm({ environment_id: "", snapshot_id: "", comment: "" });
+      loadPromotionRequests();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const handleApproveReject = async () => {
+    if (!approveModal) return;
+    try {
+      if (approveModal.action === "approve") {
+        await api(`/promotion-requests/${approveModal.id}/approve`, { method: "POST", body: JSON.stringify({ comment: reviewInput }) });
+      } else {
+        await api(`/promotion-requests/${approveModal.id}/reject`, { method: "POST", body: JSON.stringify({ reason: reviewInput }) });
+      }
+      setApproveModal(null);
+      setReviewInput("");
+      loadPromotionRequests();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const cancelRequest = async (id: string) => {
+    try {
+      await api(`/promotion-requests/${id}/cancel`, { method: "POST", body: JSON.stringify({}) });
+      loadPromotionRequests();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  // Policies
+  const createPolicy = async () => {
+    try {
+      let config;
+      try { config = JSON.parse(policyForm.config); } catch { setError("Invalid JSON in config"); return; }
+      await api("/policies", {
+        method: "POST",
+        body: JSON.stringify({ ...policyForm, config }),
+      });
+      setShowPolicyForm(false);
+      setPolicyForm({ name: "", description: "", policy_type: "minimum_age", config: "{}", enforcement_mode: "warn", enabled: true });
+      loadPolicies();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const togglePolicy = async (policy: ContentPolicy) => {
+    try {
+      await api(`/policies/${policy.id}`, { method: "PUT", body: JSON.stringify({ enabled: !policy.enabled }) });
+      loadPolicies();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const deletePolicy = async (id: string) => {
+    if (!confirm("Delete this policy?")) return;
+    try { await api(`/policies/${id}`, { method: "DELETE" }); loadPolicies(); } catch (e: any) { setError(e.message); }
+  };
+
+  const assignPolicy = async (policyId: string, envId: string) => {
+    try {
+      await api(`/policies/${policyId}/assign`, { method: "POST", body: JSON.stringify({ environment_id: envId }) });
+      setAssignModal(null);
+      setAssignEnvId("");
+      loadPolicies();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const unassignPolicy = async (policyId: string, envId: string) => {
+    try {
+      await api(`/policies/${policyId}/unassign/${envId}`, { method: "DELETE" });
+      loadPolicies();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const validateEnvironment = async (envId: string, snapshotId: string) => {
+    setValidatingEnvId(envId);
+    try {
+      const res = await api(`/environments/${envId}/validate`, { method: "POST", body: JSON.stringify({ snapshot_id: snapshotId }) });
+      setValidationResult(res);
+    } catch (e: any) { setError(e.message); }
+    setValidatingEnvId(null);
+  };
+
   // ─── Render ──────────────────────────────────────────────────────
 
   const filteredRepos = (Array.isArray(repos) ? repos : []).filter(
@@ -334,6 +608,12 @@ export default function ContentLifecyclePage() {
   const filteredItems = (Array.isArray(items) ? items : []).filter(
     (i) => !itemSearch || i.name.toLowerCase().includes(itemSearch.toLowerCase())
   );
+
+  const filteredRequests = promotionRequests.filter(
+    (r) => approvalFilter === "all" || r.status === approvalFilter
+  );
+
+  const rulesMap = new Map(approvalRules.map((r) => [r.environmentId, r]));
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -352,11 +632,14 @@ export default function ContentLifecyclePage() {
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-zinc-900 rounded-lg p-1 w-fit">
           {([
-            { id: "pipeline", label: "Pipeline", icon: GitBranch },
-            { id: "repositories", label: "Repositories", icon: Database },
-            { id: "snapshots", label: "Snapshots", icon: Camera },
-            { id: "items", label: "Browse", icon: Package },
-          ] as const).map((tab) => (
+            { id: "pipeline" as TabId, label: "Pipeline", icon: GitBranch },
+            { id: "repositories" as TabId, label: "Repositories", icon: Database },
+            { id: "snapshots" as TabId, label: "Snapshots", icon: Camera },
+            { id: "items" as TabId, label: "Browse", icon: Package },
+            { id: "approvals" as TabId, label: "Approvals", icon: ClipboardCheck },
+            { id: "policies" as TabId, label: "Policies", icon: Shield },
+            { id: "auditlog" as TabId, label: "Audit Log", icon: ScrollText },
+          ]).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -408,9 +691,14 @@ export default function ContentLifecyclePage() {
                   <GitBranch className="h-4 w-4 text-amber-400" />
                   <span className="text-sm font-semibold">Environment Pipeline</span>
                 </div>
-                <button onClick={() => { setShowPromote(true); loadSnapshots(); }} className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded text-xs font-medium">
-                  <Rocket className="h-3.5 w-3.5" /> Promote
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowRequestPromotion(true); loadSnapshots(); }} className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-xs font-medium">
+                    <ClipboardCheck className="h-3.5 w-3.5" /> Request Promotion
+                  </button>
+                  <button onClick={() => { setShowPromote(true); loadSnapshots(); }} className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded text-xs font-medium">
+                    <Rocket className="h-3.5 w-3.5" /> Promote
+                  </button>
+                </div>
               </div>
 
               <div className="p-6">
@@ -421,6 +709,12 @@ export default function ContentLifecyclePage() {
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: env.color }} />
                           <span className="font-semibold">{env.name}</span>
+                          {(pendingCounts[env.id] || 0) > 0 && (
+                            <span className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-xs">{pendingCounts[env.id]} pending</span>
+                          )}
+                          {(policyCounts[env.id] || 0) > 0 && (
+                            <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs">{policyCounts[env.id]} policies</span>
+                          )}
                         </div>
                         {env.activeSnapshotName || env.activeSnapshotId ? (
                           <div className="space-y-2">
@@ -434,12 +728,46 @@ export default function ContentLifecyclePage() {
                                 <span className="text-xs text-zinc-500">{timeAgo(env.promotedAt)}</span>
                               </div>
                             )}
-                            <button onClick={() => rollback(env.id)} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-amber-400 mt-2">
-                              <RotateCcw className="h-3 w-3" /> Rollback
-                            </button>
+                            <div className="flex items-center gap-2 mt-2">
+                              <button onClick={() => rollback(env.id)} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-amber-400">
+                                <RotateCcw className="h-3 w-3" /> Rollback
+                              </button>
+                              {env.activeSnapshotId && (
+                                <button
+                                  onClick={() => validateEnvironment(env.id, env.activeSnapshotId!)}
+                                  disabled={validatingEnvId === env.id}
+                                  className="flex items-center gap-1 text-xs text-zinc-500 hover:text-blue-400"
+                                >
+                                  {validatingEnvId === env.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />} Validate
+                                </button>
+                              )}
+                              {rulesMap.has(env.id) && (
+                                <button
+                                  onClick={() => { setShowRequestPromotion(true); setRequestForm({ ...requestForm, environment_id: env.id }); loadSnapshots(); }}
+                                  className="flex items-center gap-1 text-xs text-zinc-500 hover:text-amber-400"
+                                >
+                                  <ClipboardCheck className="h-3 w-3" /> Request
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ) : (
-                          <p className="text-xs text-zinc-600">No snapshot promoted</p>
+                          <div>
+                            <p className="text-xs text-zinc-600 mb-2">No snapshot promoted</p>
+                            {rulesMap.has(env.id) && (
+                              <button
+                                onClick={() => { setShowRequestPromotion(true); setRequestForm({ ...requestForm, environment_id: env.id }); loadSnapshots(); }}
+                                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-amber-400"
+                              >
+                                <ClipboardCheck className="h-3 w-3" /> Request Promotion
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {rulesMap.has(env.id) && (
+                          <div className="mt-2 text-xs text-zinc-600 flex items-center gap-1">
+                            <Shield className="h-3 w-3" /> {rulesMap.get(env.id)!.requiredApprovals} approval{rulesMap.get(env.id)!.requiredApprovals !== 1 ? "s" : ""} required
+                          </div>
                         )}
                       </div>
                       {i < environments.length - 1 && (
@@ -450,6 +778,28 @@ export default function ContentLifecyclePage() {
                 </div>
               </div>
             </div>
+
+            {/* Validation Result */}
+            {validationResult && (
+              <div className={`border rounded-lg p-4 ${validationResult.passed ? "bg-green-500/5 border-green-500/30" : "bg-red-500/5 border-red-500/30"}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    {validationResult.passed ? <CheckCircle2 className="h-4 w-4 text-green-400" /> : <XCircle className="h-4 w-4 text-red-400" />}
+                    Validation {validationResult.passed ? "Passed" : "Failed"}
+                  </h3>
+                  <button onClick={() => setValidationResult(null)} className="text-zinc-500 hover:text-zinc-300"><X className="h-4 w-4" /></button>
+                </div>
+                <div className="space-y-1">
+                  {validationResult.results.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      {r.passed ? <Check className="h-3.5 w-3.5 text-green-400" /> : <X className="h-3.5 w-3.5 text-red-400" />}
+                      <span className="text-zinc-300">{r.policyName}</span>
+                      <span className="text-xs text-zinc-500">{r.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Repos by Type + Recent Promotions */}
             {dashboard && (
@@ -792,7 +1142,7 @@ export default function ContentLifecyclePage() {
               <div className="py-12 text-center">
                 <Camera className="h-12 w-12 text-zinc-700 mx-auto mb-3" />
                 <p className="text-zinc-500">No snapshots yet</p>
-                <p className="text-xs text-zinc-600 mt-1">Create a snapshot to freeze a repository's state</p>
+                <p className="text-xs text-zinc-600 mt-1">Create a snapshot to freeze a repository&apos;s state</p>
               </div>
             )}
 
@@ -843,6 +1193,282 @@ export default function ContentLifecyclePage() {
           </div>
         )}
 
+        {/* ═══ Approvals Tab ═══ */}
+        {activeTab === "approvals" && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                {["all", "pending", "approved", "rejected", "cancelled"].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setApprovalFilter(f)}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      approvalFilter === f ? "bg-amber-500/20 text-amber-400" : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => { setShowRequestPromotion(true); loadSnapshots(); }}
+                className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium"
+              >
+                <Rocket className="h-4 w-4" /> Request Promotion
+              </button>
+            </div>
+
+            {/* Approval Rules */}
+            {approvalRules.length > 0 && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+                <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-amber-400" />
+                  <span className="text-sm font-semibold">Approval Rules</span>
+                </div>
+                <div className="divide-y divide-zinc-800/50">
+                  {approvalRules.map((rule) => (
+                    <div key={rule.environmentId} className="flex items-center justify-between px-4 py-3">
+                      <span className="text-sm text-zinc-200">{rule.environmentName || rule.environmentId}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">
+                          {rule.requiredApprovals} approval{rule.requiredApprovals !== 1 ? "s" : ""} required
+                        </span>
+                        {rule.allowSelfApproval && (
+                          <span className="text-xs bg-zinc-500/20 text-zinc-400 px-2 py-0.5 rounded">Self-approve OK</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Requests List */}
+            <div className="space-y-3">
+              {filteredRequests.map((req) => {
+                const sc = statusColors[req.status] || statusColors.cancelled;
+                return (
+                  <div key={req.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <span className={`${sc.bg} ${sc.text} px-2 py-0.5 rounded text-xs font-medium`}>
+                          {req.status}
+                        </span>
+                        <span className="text-sm font-medium text-zinc-200">{req.environmentName || req.environmentId}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-zinc-600" />
+                        <span className="text-sm text-zinc-300">{req.snapshotName || req.snapshotId?.slice(0, 8)}</span>
+                      </div>
+                      <span className="text-xs text-zinc-500">{timeAgo(req.createdAt)}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-zinc-500">
+                      <span>Requested by {req.requestedBy}</span>
+                      {req.comment && <span className="text-zinc-400">"{req.comment}"</span>}
+                    </div>
+                    {req.reviewedBy && (
+                      <div className="mt-1 text-xs text-zinc-500">
+                        Reviewed by {req.reviewedBy} {req.reviewedAt && `• ${timeAgo(req.reviewedAt)}`}
+                        {req.reviewComment && <span className="text-zinc-400 ml-1">"{req.reviewComment}"</span>}
+                        {req.rejectionReason && <span className="text-red-400 ml-1">Reason: {req.rejectionReason}</span>}
+                      </div>
+                    )}
+                    {req.status === "pending" && (
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => { setApproveModal({ id: req.id, action: "approve" }); setReviewInput(""); }}
+                          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-medium"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Approve
+                        </button>
+                        <button
+                          onClick={() => { setApproveModal({ id: req.id, action: "reject" }); setReviewInput(""); }}
+                          className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-medium"
+                        >
+                          <Ban className="h-3.5 w-3.5" /> Reject
+                        </button>
+                        <button
+                          onClick={() => cancelRequest(req.id)}
+                          className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-xs"
+                        >
+                          <X className="h-3.5 w-3.5" /> Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {filteredRequests.length === 0 && (
+                <div className="py-12 text-center">
+                  <ClipboardCheck className="h-12 w-12 text-zinc-700 mx-auto mb-3" />
+                  <p className="text-zinc-500">No promotion requests</p>
+                  <p className="text-xs text-zinc-600 mt-1">Request a promotion to get started</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Policies Tab ═══ */}
+        {activeTab === "policies" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-400">{policies.length} Policies</h2>
+              <button
+                onClick={() => setShowPolicyForm(true)}
+                className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium"
+              >
+                <Plus className="h-4 w-4" /> Create Policy
+              </button>
+            </div>
+
+            {showPolicyForm && (
+              <div className="bg-zinc-900 border border-amber-500/30 rounded-lg p-4 space-y-3">
+                <h3 className="text-sm font-semibold">New Policy</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="text" placeholder="Policy name" value={policyForm.name} onChange={(e) => setPolicyForm({ ...policyForm, name: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200" />
+                  <select value={policyForm.policy_type} onChange={(e) => setPolicyForm({ ...policyForm, policy_type: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
+                    {POLICY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  <input type="text" placeholder="Description" value={policyForm.description} onChange={(e) => setPolicyForm({ ...policyForm, description: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 col-span-2" />
+                  <textarea
+                    placeholder='Config JSON, e.g. {"min_days": 7}'
+                    value={policyForm.config}
+                    onChange={(e) => setPolicyForm({ ...policyForm, config: e.target.value })}
+                    rows={3}
+                    className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 font-mono col-span-2"
+                  />
+                  <select value={policyForm.enforcement_mode} onChange={(e) => setPolicyForm({ ...policyForm, enforcement_mode: e.target.value })} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
+                    <option value="enforce">Enforce</option>
+                    <option value="warn">Warn</option>
+                    <option value="audit">Audit</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={createPolicy} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded text-sm">Create</button>
+                  <button onClick={() => setShowPolicyForm(false)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {policies.map((policy) => {
+                const ec = enforcementColors[policy.enforcementMode] || enforcementColors.audit;
+                return (
+                  <div key={policy.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <Shield className="h-4 w-4 text-amber-400" />
+                        <span className="font-medium text-zinc-200">{policy.name}</span>
+                        <span className="bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded text-xs">{policy.policyType}</span>
+                        <span className={`${ec.bg} ${ec.text} px-2 py-0.5 rounded text-xs`}>{policy.enforcementMode}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => togglePolicy(policy)}
+                          className={`px-3 py-1 rounded text-xs font-medium ${
+                            policy.enabled ? "bg-green-500/20 text-green-400" : "bg-zinc-700 text-zinc-500"
+                          }`}
+                        >
+                          {policy.enabled ? "Enabled" : "Disabled"}
+                        </button>
+                        <button
+                          onClick={() => { setAssignModal(policy); setAssignEnvId(""); }}
+                          className="text-zinc-500 hover:text-amber-400 p-1" title="Assign to environment"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => deletePolicy(policy.id)} className="text-zinc-500 hover:text-red-400 p-1">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {policy.description && <p className="text-xs text-zinc-500 mb-2">{policy.description}</p>}
+                    {policy.assignedEnvironments && policy.assignedEnvironments.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {policy.assignedEnvironments.map((env) => (
+                          <span key={env.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs" style={{ backgroundColor: `${env.color}20`, color: env.color }}>
+                            {env.name}
+                            <button onClick={() => unassignPolicy(policy.id, env.id)} className="hover:opacity-70">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {policies.length === 0 && (
+                <div className="py-12 text-center">
+                  <Shield className="h-12 w-12 text-zinc-700 mx-auto mb-3" />
+                  <p className="text-zinc-500">No policies defined</p>
+                  <p className="text-xs text-zinc-600 mt-1">Create a policy to enforce content rules</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Audit Log Tab ═══ */}
+        {activeTab === "auditlog" && (
+          <div className="space-y-4">
+            {/* Filters */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-zinc-500" />
+                <select value={auditFilterEnv} onChange={(e) => setAuditFilterEnv(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200">
+                  <option value="">All environments</option>
+                  {environments.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+              <select value={auditFilterAction} onChange={(e) => setAuditFilterAction(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200">
+                <option value="">All actions</option>
+                {["promoted", "rolled_back", "request_created", "approved", "rejected", "policy_violated"].map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+              <input type="date" value={auditFilterFrom} onChange={(e) => setAuditFilterFrom(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200" placeholder="From" />
+              <input type="date" value={auditFilterTo} onChange={(e) => setAuditFilterTo(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200" placeholder="To" />
+              <button onClick={loadAuditLog} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-2 rounded text-sm">Apply</button>
+            </div>
+
+            {/* Log Entries */}
+            <div className="space-y-2">
+              {auditLog.map((entry) => {
+                const ac = actionColors[entry.actionType] || { bg: "bg-zinc-500/20", text: "text-zinc-400" };
+                return (
+                  <div key={entry.id} className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 flex items-center gap-4">
+                    <span className={`${ac.bg} ${ac.text} px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap`}>
+                      {entry.actionType}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-sm">
+                        {entry.environmentName && <span className="text-zinc-300">{entry.environmentName}</span>}
+                        {entry.snapshotName && (
+                          <>
+                            <ArrowRight className="h-3 w-3 text-zinc-600" />
+                            <span className="text-zinc-400">{entry.snapshotName}</span>
+                          </>
+                        )}
+                      </div>
+                      {entry.details && <p className="text-xs text-zinc-600 truncate">{entry.details}</p>}
+                    </div>
+                    <span className="text-xs text-zinc-500 whitespace-nowrap">{entry.actor}</span>
+                    <span className="text-xs text-zinc-600 whitespace-nowrap">{formatDate(entry.createdAt)}</span>
+                  </div>
+                );
+              })}
+              {auditLog.length === 0 && (
+                <div className="py-12 text-center">
+                  <ScrollText className="h-12 w-12 text-zinc-700 mx-auto mb-3" />
+                  <p className="text-zinc-500">No audit log entries</p>
+                  <p className="text-xs text-zinc-600 mt-1">Promotion actions will appear here</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ═══ Promote Modal ═══ */}
         {showPromote && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowPromote(false)}>
@@ -870,6 +1496,102 @@ export default function ContentLifecyclePage() {
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowPromote(false)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm">Cancel</button>
                 <button onClick={promote} disabled={!promoteEnvId || !promoteSnapshotId} className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded text-sm">Promote</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Request Promotion Modal ═══ */}
+        {showRequestPromotion && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowRequestPromotion(false)}>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-[480px] space-y-4" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <ClipboardCheck className="h-5 w-5 text-amber-400" />
+                Request Promotion
+              </h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Target Environment</label>
+                  <select value={requestForm.environment_id} onChange={(e) => setRequestForm({ ...requestForm, environment_id: e.target.value })} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
+                    <option value="">Select environment...</option>
+                    {environments.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Snapshot</label>
+                  <select value={requestForm.snapshot_id} onChange={(e) => setRequestForm({ ...requestForm, snapshot_id: e.target.value })} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
+                    <option value="">Select snapshot...</option>
+                    {snapshots.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.repositoryName}) — {s.itemCount} items</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Comment</label>
+                  <input type="text" value={requestForm.comment} onChange={(e) => setRequestForm({ ...requestForm, comment: e.target.value })} placeholder="Why should this be promoted?" className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200" />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setShowRequestPromotion(false)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm">Cancel</button>
+                <button onClick={requestPromotion} disabled={!requestForm.environment_id || !requestForm.snapshot_id} className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded text-sm">Submit Request</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Approve/Reject Modal ═══ */}
+        {approveModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setApproveModal(null)}>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-[420px] space-y-4" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                {approveModal.action === "approve" ? (
+                  <><CheckCircle2 className="h-5 w-5 text-green-400" /> Approve Request</>
+                ) : (
+                  <><XCircle className="h-5 w-5 text-red-400" /> Reject Request</>
+                )}
+              </h2>
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">
+                  {approveModal.action === "approve" ? "Comment (optional)" : "Reason for rejection"}
+                </label>
+                <input
+                  type="text"
+                  value={reviewInput}
+                  onChange={(e) => setReviewInput(e.target.value)}
+                  placeholder={approveModal.action === "approve" ? "Looks good..." : "Reason..."}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setApproveModal(null)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm">Cancel</button>
+                <button
+                  onClick={handleApproveReject}
+                  className={`text-white px-4 py-2 rounded text-sm ${
+                    approveModal.action === "approve" ? "bg-green-600 hover:bg-green-500" : "bg-red-600 hover:bg-red-500"
+                  }`}
+                >
+                  {approveModal.action === "approve" ? "Approve" : "Reject"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Assign Policy Modal ═══ */}
+        {assignModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setAssignModal(null)}>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-[420px] space-y-4" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Shield className="h-5 w-5 text-amber-400" />
+                Assign &quot;{assignModal.name}&quot; to Environment
+              </h2>
+              <select value={assignEnvId} onChange={(e) => setAssignEnvId(e.target.value)} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
+                <option value="">Select environment...</option>
+                {environments.filter((e) => !(assignModal.assignedEnvironments || []).some((ae) => ae.id === e.id)).map((e) => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setAssignModal(null)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm">Cancel</button>
+                <button onClick={() => assignPolicy(assignModal.id, assignEnvId)} disabled={!assignEnvId} className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded text-sm">Assign</button>
               </div>
             </div>
           </div>
