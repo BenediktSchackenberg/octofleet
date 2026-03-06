@@ -52,6 +52,14 @@ export default function PatchesPage() {
       if (res.ok) { setShowRingForm(false); setRingForm({ name: '', description: '', delay_hours: 0 }); fetchAll(); }
     } catch (e) { console.error(e); }
   };
+
+  const deleteRing = async (id: string) => {
+    if (!confirm('Delete this ring?')) return;
+    try {
+      await fetch(`${API_BASE}/patches/rings/${id}`, { method: 'DELETE', headers: { ...getAuthHeader() } });
+      fetchAll();
+    } catch (e) { console.error(e); }
+  };
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -254,6 +262,7 @@ export default function PatchesPage() {
                 </div>
                 {r.description && <p className="text-sm text-muted-foreground mt-2">{r.description}</p>}
                 <div className="text-xs text-muted-foreground mt-2">Delay: {r.delay_hours}h after previous ring</div>
+                <button onClick={() => deleteRing(r.id)} className="mt-2 text-xs text-red-400 hover:text-red-300">Delete</button>
               </div>
             ))}
             {rings.length === 0 && <div className="col-span-3 text-center text-muted-foreground py-8">No rings configured. Create rings to organize patch rollouts.</div>}
