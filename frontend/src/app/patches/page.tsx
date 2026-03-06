@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { API_BASE } from '@/lib/api-config';
+import { getAuthHeader } from '@/lib/auth-context';
 import Link from 'next/link';
 import {
   Shield, Package, CheckCircle, XCircle, AlertTriangle, Clock,
@@ -39,6 +40,18 @@ export default function PatchesPage() {
   const [compliance, setCompliance] = useState<ComplianceData|null>(null);
   const [patches, setPatches] = useState<PatchItem[]>([]);
   const [rings, setRings] = useState<Ring[]>([]);
+  const [showRingForm, setShowRingForm] = useState(false);
+  const [ringForm, setRingForm] = useState({ name: '', description: '', delay_hours: 0 });
+
+  const createRing = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/patches/rings`, {
+        method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: ringForm.name, description: ringForm.description, delay_hours: ringForm.delay_hours, sort_order: rings.length + 1 }),
+      });
+      if (res.ok) { setShowRingForm(false); setRingForm({ name: '', description: '', delay_hours: 0 }); fetchAll(); }
+    } catch (e) { console.error(e); }
+  };
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -213,6 +226,24 @@ export default function PatchesPage() {
       {/* Rings Tab */}
       {tab === 'rings' && (
         <div className="space-y-4">
+          {!showRingForm ? (
+            <button onClick={() => setShowRingForm(true)} className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-medium">
+              <Plus className="h-4 w-4" /> New Ring
+            </button>
+          ) : (
+            <div className="bg-card border border-cyan-500/30 rounded-xl p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Create Patch Ring</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <input type="text" placeholder="Ring name" value={ringForm.name} onChange={e => setRingForm({...ringForm, name: e.target.value})} className="bg-background border border-border rounded px-3 py-2 text-sm text-foreground" />
+                <input type="text" placeholder="Description" value={ringForm.description} onChange={e => setRingForm({...ringForm, description: e.target.value})} className="bg-background border border-border rounded px-3 py-2 text-sm text-foreground" />
+                <input type="number" placeholder="Delay (hours)" value={ringForm.delay_hours} onChange={e => setRingForm({...ringForm, delay_hours: parseInt(e.target.value)||0})} className="bg-background border border-border rounded px-3 py-2 text-sm text-foreground" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={createRing} className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded text-sm">Create</button>
+                <button onClick={() => setShowRingForm(false)} className="bg-muted hover:bg-muted/80 text-muted-foreground px-4 py-2 rounded text-sm">Cancel</button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {rings.map(r => (
               <div key={r.id} className="bg-card border border-border rounded-xl p-4">
