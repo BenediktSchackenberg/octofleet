@@ -217,7 +217,11 @@ export default function SoftwareMeteringPage() {
         top_installed: dash.topInstalled || dash.top_installed || [],
         top_unused: dash.topUnused || dash.top_unused || [],
         compliance_summary: dash.compliance || dash.compliance_summary || comp,
-        cost_by_category: dash.costByCategory || dash.cost_by_category || [],
+        cost_by_category: (() => {
+          const raw = dash.costByCategory || dash.cost_by_category || {};
+          if (Array.isArray(raw)) return raw;
+          return Object.entries(raw).map(([category, cost]) => ({ category, cost: cost as number }));
+        })(),
         recent_changes: dash.recentChanges || dash.recent_changes || [],
       });
       setCompliance(comp);
