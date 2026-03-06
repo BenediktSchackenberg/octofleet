@@ -28,6 +28,7 @@ interface PatchItem {
 
 interface Ring {
   id: string; name: string; description: string; priority: number; delay_hours: number;
+  node_group_id?: string;
 }
 
 interface Deployment {
@@ -41,15 +42,16 @@ export default function PatchesPage() {
   const [patches, setPatches] = useState<PatchItem[]>([]);
   const [rings, setRings] = useState<Ring[]>([]);
   const [showRingForm, setShowRingForm] = useState(false);
-  const [ringForm, setRingForm] = useState({ name: '', description: '', delay_hours: 0 });
+  const [ringForm, setRingForm] = useState({ name: '', description: '', delay_hours: 0, group_ids: [] as string[] });
+  const [groups, setGroups] = useState<{id:string;name:string}[]>([]);
 
   const createRing = async () => {
     try {
       const res = await fetch(`${API_BASE}/patches/rings`, {
         method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: ringForm.name, description: ringForm.description, delay_hours: ringForm.delay_hours, sort_order: rings.length + 1 }),
+        body: JSON.stringify({ name: ringForm.name, description: ringForm.description, delay_hours: ringForm.delay_hours, sort_order: rings.length + 1, node_group_id: ringForm.group_ids[0] || null }),
       });
-      if (res.ok) { setShowRingForm(false); setRingForm({ name: '', description: '', delay_hours: 0 }); fetchAll(); }
+      if (res.ok) { setShowRingForm(false); setRingForm({ name: '', description: '', delay_hours: 0, group_ids: [] }); fetchAll(); }
     } catch (e) { console.error(e); }
   };
 
@@ -73,16 +75,18 @@ export default function PatchesPage() {
     setLoading(true);
     const headers = { 'Authorization': `Bearer ${token}` };
     try {
-      const [compRes, catRes, ringRes, depRes] = await Promise.all([
+      const [compRes, catRes, ringRes, depRes, grpRes] = await Promise.all([
         fetch(`${API_BASE}/patches/compliance`, { headers }),
         fetch(`${API_BASE}/patches/catalog?limit=100${search ? `&search=${search}` : ''}${severityFilter ? `&severity=${severityFilter}` : ''}`, { headers }),
         fetch(`${API_BASE}/patches/rings`, { headers }),
         fetch(`${API_BASE}/patches/deployments?limit=50`, { headers }),
+        fetch(`${API_BASE}/groups`, { headers }),
       ]);
       if (compRes.ok) setCompliance(await compRes.json());
       if (catRes.ok) { const d = await catRes.json(); setPatches(d.items || []); }
       if (ringRes.ok) setRings(await ringRes.json());
       if (depRes.ok) setDeployments(await depRes.json());
+      if (grpRes.ok) { const d = await grpRes.json(); setGroups(d.groups || d || []); }
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -246,6 +250,18 @@ export default function PatchesPage() {
                 <input type="text" placeholder="Description" value={ringForm.description} onChange={e => setRingForm({...ringForm, description: e.target.value})} className="bg-background border border-border rounded px-3 py-2 text-sm text-foreground" />
                 <input type="number" placeholder="Delay (hours)" value={ringForm.delay_hours} onChange={e => setRingForm({...ringForm, delay_hours: parseInt(e.target.value)||0})} className="bg-background border border-border rounded px-3 py-2 text-sm text-foreground" />
               </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Assign Groups</label>
+                <div className="flex flex-wrap gap-2">
+                  {groups.map(g => (
+                    <button key={g.id} type="button" onClick={() => setRingForm({...ringForm, group_ids: ringForm.group_ids.includes(g.id) ? ringForm.group_ids.filter(x=>x!==g.id) : [...ringForm.group_ids, g.id]})}
+                      className={`px-3 py-1 rounded text-xs border ${ringForm.group_ids.includes(g.id) ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' : 'bg-background text-muted-foreground border-border hover:border-cyan-500/30'}`}>
+                      {g.name}
+                    </button>
+                  ))}
+                  {groups.length === 0 && <span className="text-xs text-muted-foreground">No groups yet — create one under Fleet → Groups</span>}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button onClick={createRing} className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded text-sm">Create</button>
                 <button onClick={() => setShowRingForm(false)} className="bg-muted hover:bg-muted/80 text-muted-foreground px-4 py-2 rounded text-sm">Cancel</button>
@@ -261,6 +277,7 @@ export default function PatchesPage() {
                   <span className="text-xs text-muted-foreground ml-auto">Priority {r.priority}</span>
                 </div>
                 {r.description && <p className="text-sm text-muted-foreground mt-2">{r.description}</p>}
+                {r.node_group_id && <div className="text-xs mt-2"><span className="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded">{groups.find(g=>g.id===r.node_group_id)?.name || 'Group'}</span></div>}
                 <div className="text-xs text-muted-foreground mt-2">Delay: {r.delay_hours}h after previous ring</div>
                 <button onClick={() => deleteRing(r.id)} className="mt-2 text-xs text-red-400 hover:text-red-300">Delete</button>
               </div>
