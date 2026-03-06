@@ -11939,13 +11939,12 @@ async def create_patch_deployment(data: dict, request: Request):
         ring_id = data.get("ring_id")
         if ring_id:
             ring = await conn.fetchrow("SELECT node_group_id FROM patch_rings WHERE id=$1", ring_id)
-            if ring and ring["node_group_id"]:
+                    if ring and ring["node_group_id"]:
                 nodes = await conn.fetch(
-                    "SELECT node_id FROM node_group_members WHERE group_id=$1",
+                    "SELECT node_id FROM device_groups WHERE group_id=$1",
                     ring["node_group_id"])
-                node_ids = [n["node_id"] for n in nodes]
+                node_ids = [str(n["node_id"]) for n in nodes]
             else:
-                # All nodes
                 node_ids_rows = await conn.fetch("SELECT node_id FROM nodes")
                 node_ids = [n["node_id"] for n in node_ids_rows]
         else:
@@ -12584,7 +12583,7 @@ async def evaluate_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)
             if a["target_type"] == "node":
                 node_ids.add(a["target_id"])
             elif a["target_type"] == "group":
-                members = await conn.fetch("SELECT node_id FROM node_group_members WHERE group_id=$1", a["target_id"])
+                members = await conn.fetch("SELECT node_id FROM device_groups WHERE group_id=$1", a["target_id"])
                 for m in members:
                     node_ids.add(m["node_id"])
 
