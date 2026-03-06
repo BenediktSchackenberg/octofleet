@@ -11993,7 +11993,7 @@ async def get_patch_deployment(deployment_id: str):
         results = await conn.fetch("""
             SELECT pdr.*, n.hostname, pc.title as patch_title, pc.kb_id
             FROM patch_deployment_results pdr
-            LEFT JOIN nodes n ON n.node_id = pdr.node_id
+            LEFT JOIN nodes n ON n.id::text = pdr.node_id
             LEFT JOIN patch_catalog pc ON pc.id = pdr.patch_id
             WHERE pdr.deployment_id=$1 ORDER BY n.hostname, pc.title
         """, deployment_id)
