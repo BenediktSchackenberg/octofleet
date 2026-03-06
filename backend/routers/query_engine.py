@@ -1,15 +1,17 @@
 """
 E34: Real-time Query Engine
 Safe DSL-to-SQL query builder with schema introspection and templates.
+Phase 2: Saved queries, history, schedules, dashboards & stats.
 """
 import time
 import json
 import asyncio
+import uuid
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, timezone
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
@@ -289,6 +291,75 @@ class LiveQueryRequest(BaseModel):
     params: Dict[str, Any] = Field(default_factory=dict)
 
 
+class ExecuteQueryRequest(QueryRequest):
+    explain: bool = Field(default=False, description="If true, return generated SQL without executing")
+
+    model_config = {"populate_by_name": True}
+
+
+class SavedQueryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    query_dsl: Dict[str, Any]
+    category: str = "Custom"
+    tags: List[str] = Field(default_factory=list)
+    is_public: bool = False
+
+
+class SavedQueryUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    query_dsl: Optional[Dict[str, Any]] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_public: Optional[bool] = None
+
+
+class ScheduleCreate(BaseModel):
+    saved_query_id: str
+    name: str
+    cron_expression: str
+    output_format: str = "json"
+    output_config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ScheduleUpdate(BaseModel):
+    name: Optional[str] = None
+    cron_expression: Optional[str] = None
+    enabled: Optional[bool] = None
+    output_format: Optional[str] = None
+    output_config: Optional[Dict[str, Any]] = None
+
+
+class DashboardCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    layout: List[Any] = Field(default_factory=list)
+    is_default: bool = False
+
+
+class DashboardUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    layout: Optional[List[Any]] = None
+    is_default: Optional[bool] = None
+
+
+class WidgetCreate(BaseModel):
+    saved_query_id: str
+    title: Optional[str] = None
+    visualization: str = "table"
+    position: Dict[str, Any] = Field(default_factory=lambda: {"x": 0, "y": 0, "w": 6, "h": 4})
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class WidgetUpdate(BaseModel):
+    title: Optional[str] = None
+    visualization: Optional[str] = None
+    position: Optional[Dict[str, Any]] = None
+    config: Optional[Dict[str, Any]] = None
+
+
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 def _validate_column(table: str, col: str) -> str:
@@ -400,12 +471,39 @@ def _build_query(req: QueryRequest):
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
 
+async def _log_query_history(db, query_dsl, sql_generated, row_count, runtime_ms, status, error_message=None):
+    """Log a query execution to query_history and return the history entry ID."""
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO query_history (query_dsl, sql_generated, row_count, runtime_ms, status, error_message)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
+            json.dumps(query_dsl) if isinstance(query_dsl, dict) else query_dsl,
+            sql_generated, row_count, runtime_ms, status, error_message,
+        )
+        return str(row["id"])
+
+
 @router.post("/execute")
-async def execute_query(req: QueryRequest, db: asyncpg.Pool = Depends(get_db)):
-    """Execute a safe DSL query translated to SQL."""
-    sql, params = _build_query(req)
+async def execute_query(req: ExecuteQueryRequest, db: asyncpg.Pool = Depends(get_db)):
+    """Execute a safe DSL query translated to SQL. With explain=true, returns SQL only."""
+    # Build the base query from parent class fields
+    base_req = QueryRequest(
+        **{"from": req.from_table, "select": req.select, "joins": req.joins,
+           "where": req.where, "groupBy": req.groupBy, "orderBy": req.orderBy,
+           "limit": req.limit, "offset": req.offset}
+    )
+    sql, params = _build_query(base_req)
+
+    query_dsl = req.model_dump(by_alias=True, exclude={"explain"})
+
+    # Explain mode: return SQL without executing
+    if req.explain:
+        return {"sql": sql, "params": [str(p) for p in params], "explain": True}
 
     t0 = time.monotonic()
+    status = "success"
+    error_msg = None
+    rows = []
     try:
         async with db.acquire() as conn:
             rows = await asyncio.wait_for(
@@ -413,8 +511,16 @@ async def execute_query(req: QueryRequest, db: asyncpg.Pool = Depends(get_db)):
                 timeout=QUERY_TIMEOUT_S,
             )
     except asyncio.TimeoutError:
-        raise HTTPException(504, "Query exceeded 10 s timeout")
+        status = "timeout"
+        error_msg = "Query exceeded 10 s timeout"
+        elapsed = round((time.monotonic() - t0) * 1000, 1)
+        await _log_query_history(db, query_dsl, sql, 0, elapsed, status, error_msg)
+        raise HTTPException(504, error_msg)
     except asyncpg.PostgresError as e:
+        status = "error"
+        error_msg = str(e)
+        elapsed = round((time.monotonic() - t0) * 1000, 1)
+        await _log_query_history(db, query_dsl, sql, 0, elapsed, status, error_msg)
         raise HTTPException(400, f"Query error: {e}")
 
     elapsed = round((time.monotonic() - t0) * 1000, 1)
@@ -426,12 +532,15 @@ async def execute_query(req: QueryRequest, db: asyncpg.Pool = Depends(get_db)):
         columns = []
         data = []
 
+    query_id = await _log_query_history(db, query_dsl, sql, len(data), elapsed, status)
+
     return {
         "columns": columns,
         "rows": data,
         "rowCount": len(data),
         "executionMs": elapsed,
-        "sql": sql,  # useful for debugging; remove in prod if desired
+        "sql": sql,
+        "queryId": query_id,
     }
 
 
@@ -460,6 +569,461 @@ async def get_schema():
 async def get_templates():
     """Pre-built query templates for common fleet questions."""
     return {"templates": QUERY_TEMPLATES}
+
+
+# ─── Saved Queries ──────────────────────────────────────────────────────────
+
+@router.get("/saved")
+async def list_saved_queries(
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
+    is_public: Optional[bool] = None,
+    db: asyncpg.Pool = Depends(get_db),
+):
+    conditions = []
+    params = []
+    if category:
+        params.append(category)
+        conditions.append(f"category = ${len(params)}")
+    if tag:
+        params.append(tag)
+        conditions.append(f"${len(params)} = ANY(tags)")
+    if is_public is not None:
+        params.append(is_public)
+        conditions.append(f"is_public = ${len(params)}")
+    where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+    async with db.acquire() as conn:
+        rows = await conn.fetch(f"SELECT * FROM saved_queries{where} ORDER BY created_at DESC", *params)
+    return [_serialise_row(dict(r)) for r in rows]
+
+
+@router.post("/saved")
+async def create_saved_query(req: SavedQueryCreate, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO saved_queries (name, description, query_dsl, category, tags, is_public)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING *""",
+            req.name, req.description, json.dumps(req.query_dsl), req.category, req.tags, req.is_public,
+        )
+    return _serialise_row(dict(row))
+
+
+@router.get("/saved/{query_id}")
+async def get_saved_query(query_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM saved_queries WHERE id = $1", uuid.UUID(query_id))
+    if not row:
+        raise HTTPException(404, "Saved query not found")
+    return _serialise_row(dict(row))
+
+
+@router.put("/saved/{query_id}")
+async def update_saved_query(query_id: str, req: SavedQueryUpdate, db: asyncpg.Pool = Depends(get_db)):
+    updates = []
+    params = []
+    data = req.model_dump(exclude_none=True)
+    for key, val in data.items():
+        if key == "query_dsl":
+            val = json.dumps(val)
+        params.append(val)
+        updates.append(f"{key} = ${len(params)}")
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+    params.append(uuid.UUID(query_id))
+    updates.append(f"updated_at = now()")
+    sql = f"UPDATE saved_queries SET {', '.join(updates)} WHERE id = ${len(params)} RETURNING *"
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(sql, *params)
+    if not row:
+        raise HTTPException(404, "Saved query not found")
+    return _serialise_row(dict(row))
+
+
+@router.delete("/saved/{query_id}")
+async def delete_saved_query(query_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        result = await conn.execute("DELETE FROM saved_queries WHERE id = $1", uuid.UUID(query_id))
+    if result == "DELETE 0":
+        raise HTTPException(404, "Saved query not found")
+    return {"deleted": True}
+
+
+@router.post("/saved/{query_id}/run")
+async def run_saved_query(query_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Execute a saved query's DSL, update stats, log to history."""
+    async with db.acquire() as conn:
+        sq = await conn.fetchrow("SELECT * FROM saved_queries WHERE id = $1", uuid.UUID(query_id))
+    if not sq:
+        raise HTTPException(404, "Saved query not found")
+
+    dsl = sq["query_dsl"] if isinstance(sq["query_dsl"], dict) else json.loads(sq["query_dsl"])
+    query_req = QueryRequest(**{"from": dsl.get("from"), **{k: v for k, v in dsl.items() if k != "from"}})
+    sql, params = _build_query(query_req)
+
+    t0 = time.monotonic()
+    status = "success"
+    error_msg = None
+    rows = []
+    try:
+        async with db.acquire() as conn:
+            rows = await asyncio.wait_for(conn.fetch(sql, *params), timeout=QUERY_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        status = "timeout"
+        error_msg = "Query exceeded 10 s timeout"
+    except asyncpg.PostgresError as e:
+        status = "error"
+        error_msg = str(e)
+
+    elapsed = round((time.monotonic() - t0) * 1000, 1)
+    row_count = len(rows)
+
+    # Log to history
+    history_id = await _log_query_history(db, dsl, sql, row_count, elapsed, status, error_msg)
+
+    # Update saved query stats
+    async with db.acquire() as conn:
+        await conn.execute(
+            """UPDATE saved_queries SET run_count = run_count + 1, last_run_at = now(),
+               avg_runtime_ms = CASE WHEN avg_runtime_ms IS NULL THEN $1
+                   ELSE (avg_runtime_ms * (run_count - 1) + $1) / run_count END,
+               updated_at = now() WHERE id = $2""",
+            elapsed, uuid.UUID(query_id),
+        )
+
+    if status != "success":
+        raise HTTPException(504 if status == "timeout" else 400, error_msg)
+
+    columns = list(rows[0].keys()) if rows else []
+    data = [_serialise_row(dict(r)) for r in rows]
+
+    return {
+        "columns": columns, "rows": data, "rowCount": row_count,
+        "executionMs": elapsed, "sql": sql, "queryId": history_id,
+    }
+
+
+@router.post("/saved/{query_id}/duplicate")
+async def duplicate_saved_query(query_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        sq = await conn.fetchrow("SELECT * FROM saved_queries WHERE id = $1", uuid.UUID(query_id))
+    if not sq:
+        raise HTTPException(404, "Saved query not found")
+    dsl = sq["query_dsl"] if isinstance(sq["query_dsl"], str) else json.dumps(sq["query_dsl"])
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO saved_queries (name, description, query_dsl, category, tags, is_public)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING *""",
+            f"{sq['name']} (copy)", sq["description"], dsl, sq["category"], sq["tags"], sq["is_public"],
+        )
+    return _serialise_row(dict(row))
+
+
+# ─── Query History ──────────────────────────────────────────────────────────
+
+@router.get("/history")
+async def list_query_history(
+    status: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    limit: int = Query(default=50, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    conditions = []
+    params: list = []
+    if status:
+        params.append(status)
+        conditions.append(f"status = ${len(params)}")
+    if from_date:
+        params.append(from_date)
+        conditions.append(f"created_at >= ${len(params)}::timestamptz")
+    if to_date:
+        params.append(to_date)
+        conditions.append(f"created_at <= ${len(params)}::timestamptz")
+    where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+    params.extend([limit, offset])
+    sql = f"SELECT * FROM query_history{where} ORDER BY created_at DESC LIMIT ${len(params)-1} OFFSET ${len(params)}"
+    async with db.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+        count_row = await conn.fetchrow(f"SELECT COUNT(*) as total FROM query_history{where}", *params[:-2])
+    return {"items": [_serialise_row(dict(r)) for r in rows], "total": count_row["total"]}
+
+
+@router.delete("/history")
+async def clear_query_history(
+    older_than: Optional[str] = None,
+    db: asyncpg.Pool = Depends(get_db),
+):
+    if older_than:
+        async with db.acquire() as conn:
+            result = await conn.execute("DELETE FROM query_history WHERE created_at < $1::timestamptz", older_than)
+    else:
+        async with db.acquire() as conn:
+            result = await conn.execute("DELETE FROM query_history")
+    count = int(result.split()[-1])
+    return {"deleted": count}
+
+
+# ─── Scheduled Queries ──────────────────────────────────────────────────────
+
+@router.get("/schedules")
+async def list_schedules(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT sq.*, s.name as saved_query_name FROM scheduled_queries sq
+               LEFT JOIN saved_queries s ON sq.saved_query_id = s.id ORDER BY sq.created_at DESC"""
+        )
+    return [_serialise_row(dict(r)) for r in rows]
+
+
+@router.post("/schedules")
+async def create_schedule(req: ScheduleCreate, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        # Verify saved query exists
+        sq = await conn.fetchrow("SELECT id FROM saved_queries WHERE id = $1", uuid.UUID(req.saved_query_id))
+        if not sq:
+            raise HTTPException(404, "Saved query not found")
+        row = await conn.fetchrow(
+            """INSERT INTO scheduled_queries (saved_query_id, name, cron_expression, output_format, output_config)
+               VALUES ($1, $2, $3, $4, $5) RETURNING *""",
+            uuid.UUID(req.saved_query_id), req.name, req.cron_expression,
+            req.output_format, json.dumps(req.output_config),
+        )
+    return _serialise_row(dict(row))
+
+
+@router.put("/schedules/{schedule_id}")
+async def update_schedule(schedule_id: str, req: ScheduleUpdate, db: asyncpg.Pool = Depends(get_db)):
+    updates = []
+    params = []
+    data = req.model_dump(exclude_none=True)
+    for key, val in data.items():
+        if key == "output_config":
+            val = json.dumps(val)
+        params.append(val)
+        updates.append(f"{key} = ${len(params)}")
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+    params.append(uuid.UUID(schedule_id))
+    sql = f"UPDATE scheduled_queries SET {', '.join(updates)} WHERE id = ${len(params)} RETURNING *"
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(sql, *params)
+    if not row:
+        raise HTTPException(404, "Schedule not found")
+    return _serialise_row(dict(row))
+
+
+@router.delete("/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        result = await conn.execute("DELETE FROM scheduled_queries WHERE id = $1", uuid.UUID(schedule_id))
+    if result == "DELETE 0":
+        raise HTTPException(404, "Schedule not found")
+    return {"deleted": True}
+
+
+@router.post("/schedules/{schedule_id}/run-now")
+async def run_schedule_now(schedule_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Execute a scheduled query immediately."""
+    async with db.acquire() as conn:
+        sched = await conn.fetchrow(
+            "SELECT sq.*, s.query_dsl FROM scheduled_queries sq JOIN saved_queries s ON sq.saved_query_id = s.id WHERE sq.id = $1",
+            uuid.UUID(schedule_id),
+        )
+    if not sched:
+        raise HTTPException(404, "Schedule not found")
+
+    dsl = sched["query_dsl"] if isinstance(sched["query_dsl"], dict) else json.loads(sched["query_dsl"])
+    query_req = QueryRequest(**{"from": dsl.get("from"), **{k: v for k, v in dsl.items() if k != "from"}})
+    sql, params = _build_query(query_req)
+
+    t0 = time.monotonic()
+    status = "success"
+    rows = []
+    try:
+        async with db.acquire() as conn:
+            rows = await asyncio.wait_for(conn.fetch(sql, *params), timeout=QUERY_TIMEOUT_S)
+    except Exception as e:
+        status = "error"
+
+    elapsed = round((time.monotonic() - t0) * 1000, 1)
+
+    # Log result
+    async with db.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO scheduled_query_results (scheduled_query_id, row_count, runtime_ms, status, result_summary)
+               VALUES ($1, $2, $3, $4, $5)""",
+            uuid.UUID(schedule_id), len(rows), elapsed, status,
+            json.dumps({"columns": list(rows[0].keys()) if rows else []}),
+        )
+        await conn.execute(
+            "UPDATE scheduled_queries SET last_run_at = now(), last_status = $1 WHERE id = $2",
+            status, uuid.UUID(schedule_id),
+        )
+
+    data = [_serialise_row(dict(r)) for r in rows]
+    return {"rows": data, "rowCount": len(data), "executionMs": elapsed, "status": status}
+
+
+@router.get("/schedules/{schedule_id}/results")
+async def get_schedule_results(
+    schedule_id: str,
+    limit: int = Query(default=20, le=100),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM scheduled_query_results WHERE scheduled_query_id = $1 ORDER BY created_at DESC LIMIT $2",
+            uuid.UUID(schedule_id), limit,
+        )
+    return [_serialise_row(dict(r)) for r in rows]
+
+
+# ─── Dashboards ─────────────────────────────────────────────────────────────
+
+@router.get("/dashboards")
+async def list_dashboards(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM query_dashboards ORDER BY created_at DESC")
+    return [_serialise_row(dict(r)) for r in rows]
+
+
+@router.post("/dashboards")
+async def create_dashboard(req: DashboardCreate, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO query_dashboards (name, description, layout, is_default)
+               VALUES ($1, $2, $3, $4) RETURNING *""",
+            req.name, req.description, json.dumps(req.layout), req.is_default,
+        )
+    return _serialise_row(dict(row))
+
+
+@router.get("/dashboards/{dashboard_id}")
+async def get_dashboard(dashboard_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        dash = await conn.fetchrow("SELECT * FROM query_dashboards WHERE id = $1", uuid.UUID(dashboard_id))
+        if not dash:
+            raise HTTPException(404, "Dashboard not found")
+        widgets = await conn.fetch(
+            """SELECT w.*, s.name as query_name, s.query_dsl FROM query_dashboard_widgets w
+               JOIN saved_queries s ON w.saved_query_id = s.id WHERE w.dashboard_id = $1 ORDER BY w.created_at""",
+            uuid.UUID(dashboard_id),
+        )
+    result = _serialise_row(dict(dash))
+    result["widgets"] = [_serialise_row(dict(w)) for w in widgets]
+    return result
+
+
+@router.put("/dashboards/{dashboard_id}")
+async def update_dashboard(dashboard_id: str, req: DashboardUpdate, db: asyncpg.Pool = Depends(get_db)):
+    updates = []
+    params = []
+    data = req.model_dump(exclude_none=True)
+    for key, val in data.items():
+        if key == "layout":
+            val = json.dumps(val)
+        params.append(val)
+        updates.append(f"{key} = ${len(params)}")
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+    updates.append("updated_at = now()")
+    params.append(uuid.UUID(dashboard_id))
+    sql = f"UPDATE query_dashboards SET {', '.join(updates)} WHERE id = ${len(params)} RETURNING *"
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(sql, *params)
+    if not row:
+        raise HTTPException(404, "Dashboard not found")
+    return _serialise_row(dict(row))
+
+
+@router.delete("/dashboards/{dashboard_id}")
+async def delete_dashboard(dashboard_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        result = await conn.execute("DELETE FROM query_dashboards WHERE id = $1", uuid.UUID(dashboard_id))
+    if result == "DELETE 0":
+        raise HTTPException(404, "Dashboard not found")
+    return {"deleted": True}
+
+
+@router.post("/dashboards/{dashboard_id}/widgets")
+async def add_widget(dashboard_id: str, req: WidgetCreate, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        dash = await conn.fetchrow("SELECT id FROM query_dashboards WHERE id = $1", uuid.UUID(dashboard_id))
+        if not dash:
+            raise HTTPException(404, "Dashboard not found")
+        row = await conn.fetchrow(
+            """INSERT INTO query_dashboard_widgets (dashboard_id, saved_query_id, title, visualization, position, config)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING *""",
+            uuid.UUID(dashboard_id), uuid.UUID(req.saved_query_id), req.title,
+            req.visualization, json.dumps(req.position), json.dumps(req.config),
+        )
+    return _serialise_row(dict(row))
+
+
+@router.put("/dashboards/{dashboard_id}/widgets/{widget_id}")
+async def update_widget(dashboard_id: str, widget_id: str, req: WidgetUpdate, db: asyncpg.Pool = Depends(get_db)):
+    updates = []
+    params = []
+    data = req.model_dump(exclude_none=True)
+    for key, val in data.items():
+        if key in ("position", "config"):
+            val = json.dumps(val)
+        params.append(val)
+        updates.append(f"{key} = ${len(params)}")
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+    params.extend([uuid.UUID(dashboard_id), uuid.UUID(widget_id)])
+    sql = f"UPDATE query_dashboard_widgets SET {', '.join(updates)} WHERE dashboard_id = ${len(params)-1} AND id = ${len(params)} RETURNING *"
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(sql, *params)
+    if not row:
+        raise HTTPException(404, "Widget not found")
+    return _serialise_row(dict(row))
+
+
+@router.delete("/dashboards/{dashboard_id}/widgets/{widget_id}")
+async def delete_widget(dashboard_id: str, widget_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM query_dashboard_widgets WHERE dashboard_id = $1 AND id = $2",
+            uuid.UUID(dashboard_id), uuid.UUID(widget_id),
+        )
+    if result == "DELETE 0":
+        raise HTTPException(404, "Widget not found")
+    return {"deleted": True}
+
+
+# ─── Query Stats ────────────────────────────────────────────────────────────
+
+@router.get("/stats")
+async def get_query_stats(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        total = await conn.fetchrow("SELECT COUNT(*) as total, AVG(runtime_ms) as avg_ms FROM query_history")
+        today = await conn.fetchrow(
+            "SELECT COUNT(*) as total FROM query_history WHERE created_at >= CURRENT_DATE"
+        )
+        week = await conn.fetchrow(
+            "SELECT COUNT(*) as total FROM query_history WHERE created_at >= date_trunc('week', CURRENT_DATE)"
+        )
+        top_saved = await conn.fetch(
+            "SELECT id, name, run_count, avg_runtime_ms FROM saved_queries ORDER BY run_count DESC LIMIT 10"
+        )
+        # Top tables from query_dsl
+        top_tables = await conn.fetch(
+            """SELECT query_dsl->>'from' as table_name, COUNT(*) as cnt
+               FROM query_history WHERE query_dsl->>'from' IS NOT NULL
+               GROUP BY query_dsl->>'from' ORDER BY cnt DESC LIMIT 10"""
+        )
+    return {
+        "totalQueries": total["total"],
+        "avgRuntimeMs": round(total["avg_ms"], 1) if total["avg_ms"] else 0,
+        "queriesToday": today["total"],
+        "queriesThisWeek": week["total"],
+        "topSavedQueries": [_serialise_row(dict(r)) for r in top_saved],
+        "topTables": [{"table": r["table_name"], "count": r["cnt"]} for r in top_tables],
+    }
+
 
 
 @router.post("/live")
