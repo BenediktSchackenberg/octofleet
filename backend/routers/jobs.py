@@ -35,9 +35,10 @@ async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends
         rows = await conn.fetch("""
             SELECT js.job_id, js.name, js.command_type, js.target_type, js.target_id, js.created_at,
                    js.total_instances, js.pending, js.queued, js.running, js.success, js.failed, js.cancelled,
-                   n.hostname as target_name
+                   COALESCE(n.hostname, g.name) as target_name
             FROM job_summary js
             LEFT JOIN nodes n ON n.id::text = js.target_id::text
+            LEFT JOIN groups g ON g.id::text = js.target_id::text
             ORDER BY js.created_at DESC LIMIT $1 OFFSET $2
         """, limit, offset)
         return {"jobs": [{
