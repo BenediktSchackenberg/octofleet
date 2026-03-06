@@ -11956,6 +11956,27 @@ async def create_patch_deployment(data: dict, request: Request):
                     INSERT INTO patch_deployment_results (deployment_id, node_id, patch_id, status)
                     VALUES ($1,$2,$3,'pending')
                 """, deployment_id, nid, patch_id)
+
+        # Also create a Job so it shows on the Jobs page
+        import uuid as _uuid
+        job_uuid = _uuid.uuid4()
+        patch_names = ", ".join(data.get("patches", [])[:3])
+        await conn.execute("""
+            INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command_data, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+        """, job_uuid, data.get("name", f"Patch Deployment"),
+            f"Patch deployment: {patch_names}",
+            "group" if ring_id else "all",
+            str(ring.get("node_group_id", "")) if ring_id and ring and ring.get("node_group_id") else None,
+            "patch_install",
+            json.dumps({"deployment_id": str(deployment_id), "patches": data.get("patches", []), "reboot_policy": data.get("reboot_policy", "no_reboot")}),
+            username)
+        for nid in node_ids:
+            await conn.execute("""
+                INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
+                VALUES (gen_random_uuid(), $1, $2::uuid, 'pending', NOW())
+            """, job_uuid, nid)
+
         return dict(row)
 
 
