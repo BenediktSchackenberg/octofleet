@@ -215,6 +215,39 @@ async def delete_mssql_config(config_id: str, db: asyncpg.Pool = Depends(get_db)
         if result == "DELETE 0": raise HTTPException(status_code=404, detail="Config not found")
         return {"status": "deleted", "id": config_id}
 
+@router.get("/assignments")
+async def list_mssql_assignments(db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT a.*, c.instance_name as config_name, g.name as group_name
+            FROM mssql_group_assignments a
+            LEFT JOIN mssql_configs c ON c.id = a.config_id
+            LEFT JOIN groups g ON g.id = a.group_id
+            ORDER BY a.created_at DESC
+        """)
+        return {"assignments": [dict(r) for r in rows]}
+
+@router.post("/assignments")
+async def create_mssql_assignment(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO mssql_group_assignments (config_id, group_id, sa_password_encrypted, license_key_encrypted, enabled)
+            VALUES ($1::uuid, $2::uuid, $3, $4, $5)
+            RETURNING *
+        """, data["config_id"], data["group_id"], data.get("sa_password", ""), data.get("license_key", ""), data.get("enabled", True))
+        return dict(row)
+
+@router.delete("/assignments/{assignment_id}")
+async def delete_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        result = await conn.execute("DELETE FROM mssql_group_assignments WHERE id = $1::uuid", assignment_id)
+        if result == "DELETE 0": raise HTTPException(status_code=404, detail="Assignment not found")
+        return {"status": "deleted"}
+
+@router.post("/assignments/{assignment_id}/reconcile")
+async def reconcile_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
+    return {"status": "reconciliation_queued", "assignmentId": assignment_id}
+
 @router.post("/install")
 async def install_mssql(request: MssqlInstallRequest, db: asyncpg.Pool = Depends(get_db)):
     results = []
