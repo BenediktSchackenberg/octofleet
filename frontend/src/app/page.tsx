@@ -267,7 +267,7 @@ export default function HomePage() {
   }
 
   function handleNodeSelect(nodeId: string) {
-    setSelectedNodeId(nodeId);
+    router.push(`/nodes/${nodeId}`);
   }
 
   function formatRelativeTime(timestamp: string | null) {
