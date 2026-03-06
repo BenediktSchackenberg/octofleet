@@ -360,6 +360,9 @@ public class JobPoller : BackgroundService
             
             case "service_reconcile":
                 return await ExecuteServiceReconcileAsync(payload, timeoutSeconds, ct);
+
+            case "patch_install":
+                return await ExecutePatchInstallAsync(payload, ct);
                 
             default:
                 // Default to script/command execution
@@ -895,6 +898,57 @@ if ($svc) {{
         result = defaultPattern.Replace(result, m => m.Groups[2].Value);
         
         return result;
+    }
+
+    /// <summary>
+    /// Execute a patch_install job via WUA COM API.
+    /// </summary>
+    private async Task<CommandResult> ExecutePatchInstallAsync(JsonElement payload, CancellationToken ct)
+    {
+        var kbIds = new List<string>();
+        string rebootPolicy = "no_reboot";
+        string? rebootScheduleTime = null;
+
+        if (payload.TryGetProperty("kb_ids", out var kbArr) && kbArr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in kbArr.EnumerateArray())
+                if (item.GetString() is string s) kbIds.Add(s);
+        }
+
+        if (payload.TryGetProperty("reboot_policy", out var rp))
+            rebootPolicy = rp.GetString() ?? "no_reboot";
+
+        if (payload.TryGetProperty("reboot_schedule_time", out var rst))
+            rebootScheduleTime = rst.GetString();
+
+        if (kbIds.Count == 0)
+        {
+            return new CommandResult
+            {
+                ExitCode = -1,
+                Stderr = "No kb_ids specified in patch_install payload"
+            };
+        }
+
+        try
+        {
+            var result = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _logger, ct);
+
+            return new CommandResult
+            {
+                ExitCode = result.Success ? 0 : 1,
+                Stdout = result.ToJson(),
+                Stderr = result.ErrorMessage ?? ""
+            };
+        }
+        catch (Exception ex)
+        {
+            return new CommandResult
+            {
+                ExitCode = -1,
+                Stderr = $"PatchInstaller exception: {ex.Message}"
+            };
+        }
     }
 
     /// <summary>

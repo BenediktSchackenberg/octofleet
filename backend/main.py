@@ -1347,7 +1347,23 @@ try {{
                             "timeout": 30
                         }
                         command_type = "run"
-            
+
+            # Resolve patch catalog IDs to KB IDs for patch_install jobs
+            if command_type == "patch_install":
+                patches = command_data.get("patches", []) if isinstance(command_data, dict) else []
+                if patches:
+                    kb_rows = await conn.fetch("""
+                        SELECT id::text, kb_id FROM patch_catalog WHERE id::text = ANY($1::text[])
+                    """, patches)
+                    kb_ids = [r["kb_id"] for r in kb_rows if r["kb_id"]]
+                    if isinstance(command_data, dict):
+                        command_payload = {
+                            **command_data,
+                            "kb_ids": kb_ids,
+                        }
+                    else:
+                        command_payload = {"kb_ids": kb_ids, "reboot_policy": "no_reboot"}
+
             jobs.append({
                 # camelCase (new agents)
                 "instanceId": str(row["id"]),
@@ -1490,6 +1506,73 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
                             print(f"✅ VM created: {task['hostname']} - MAC: {mac_address}")
                 except Exception as e:
                     print(f"Error processing VM creation result: {e}")
+
+        # Handle patch_install job results
+        job_detail = await conn.fetchrow(
+            "SELECT command_type, command_data FROM jobs WHERE id = $1", row["job_id"])
+        if job_detail and job_detail["command_type"] == "patch_install":
+            try:
+                cmd_data = job_detail["command_data"]
+                if isinstance(cmd_data, str):
+                    cmd_data = json.loads(cmd_data)
+                deployment_id = cmd_data.get("deployment_id")
+                patch_ids = cmd_data.get("patches", [])
+                node_id = str(row["node_id"])
+
+                # Parse installed/failed KBs from stdout JSON
+                installed_kbs = []
+                failed_kbs = []
+                reboot_required = False
+                try:
+                    patch_output = json.loads(stdout) if stdout else {}
+                    installed_kbs = patch_output.get("installed", [])
+                    failed_kbs = patch_output.get("failed", [])
+                    reboot_required = patch_output.get("reboot_required", False)
+                except:
+                    pass
+
+                # Map installed KB IDs back to patch catalog IDs
+                if installed_kbs:
+                    installed_rows = await conn.fetch(
+                        "SELECT id::text, kb_id FROM patch_catalog WHERE kb_id = ANY($1::text[])",
+                        installed_kbs)
+                    installed_patch_ids = {r["id"] for r in installed_rows}
+                else:
+                    installed_patch_ids = set()
+
+                for patch_id in patch_ids:
+                    p_status = "installed" if patch_id in installed_patch_ids else (
+                        "failed" if not success else "installed")
+
+                    # Update deployment results
+                    if deployment_id:
+                        await conn.execute("""
+                            UPDATE patch_deployment_results
+                            SET status = $1, installed_at = CASE WHEN $1='installed' THEN NOW() ELSE NULL END
+                            WHERE deployment_id = $2 AND node_id = $3 AND patch_id = $4
+                        """, p_status, deployment_id, node_id, patch_id)
+
+                    # Update patch_catalog_nodes
+                    await conn.execute("""
+                        UPDATE patch_catalog_nodes SET status = $1,
+                            installed_at = CASE WHEN $1='installed' THEN NOW() ELSE NULL END
+                        WHERE patch_id = $2 AND node_id = $3::uuid
+                    """, p_status, patch_id, node_id)
+
+                # Check if all results for deployment are done
+                if deployment_id:
+                    remaining = await conn.fetchval("""
+                        SELECT COUNT(*) FROM patch_deployment_results
+                        WHERE deployment_id = $1 AND status = 'pending'
+                    """, deployment_id)
+                    if remaining == 0:
+                        await conn.execute(
+                            "UPDATE patch_deployments SET status='completed', completed_at=NOW() WHERE id=$1",
+                            deployment_id)
+
+                print(f"✅ patch_install result: installed={installed_kbs}, failed={failed_kbs}, reboot={reboot_required}")
+            except Exception as e:
+                print(f"Error processing patch_install result: {e}")
         
         return {
             "status": status,
