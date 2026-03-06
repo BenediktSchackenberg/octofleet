@@ -220,18 +220,36 @@ Open http://localhost:3000 — Login: `admin` / `admin`
 
 ### Option 2: Install Agent
 
-**Windows (PowerShell as Admin):**
+**Windows (PowerShell as Admin — one-liner):**
 ```powershell
-iwr "https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1" -OutFile "$env:TEMP\install.ps1"
-& "$env:TEMP\install.ps1" -GatewayUrl "http://your-server:8080" -GatewayToken "your-gateway-token"
+irm https://github.com/BenediktSchackenberg/octofleet/releases/latest/download/Install-OctofleetAgent.ps1 | iex
 ```
 
 Then configure `C:\ProgramData\Octofleet\service-config.json`:
 ```json
 {
-  "GatewayUrl": "http://your-server:8080",
-  "GatewayToken": "your-gateway-token"
+  "InventoryApiUrl": "http://your-server:8080",
+  "InventoryApiKey": "your-api-key",
+  "GatewayUrl": "http://your-server:18789",
+  "GatewayToken": "your-gateway-token",
+  "DisplayName": "MY-SERVER",
+  "AutoPushInventory": true,
+  "ScheduledPushEnabled": true,
+  "ScheduledPushIntervalMinutes": 30
 }
+```
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `InventoryApiUrl` | Backend API URL (port 8080) | **Yes** |
+| `InventoryApiKey` | API key for authentication | **Yes** |
+| `GatewayUrl` | Gateway URL for remote access (port 18789) | No |
+| `GatewayToken` | Gateway auth token | No |
+| `DisplayName` | Node display name in UI | No (defaults to hostname) |
+
+Restart the service after config changes:
+```powershell
+Restart-Service OctofleetNodeAgent
 ```
 
 **Linux:**
