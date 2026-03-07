@@ -1,5 +1,6 @@
 """Report helper functions extracted from main.py"""
 from typing import List
+from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
