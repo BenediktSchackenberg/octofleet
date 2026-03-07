@@ -7,7 +7,7 @@ from remediation import (
     RemediationPackageCreate, RemediationPackageUpdate,
     RemediationRuleCreate, RemediationRuleUpdate,
     TriggerRemediationRequest, ApproveRemediationRequest,
-    RemediationEngine,
+    RemediationEngine, MaintenanceWindowCreate,
 )
 import asyncpg
 from typing import Optional, Dict, List, Any
