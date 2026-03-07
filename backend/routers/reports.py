@@ -27,6 +27,36 @@ from reportlab.graphics.charts.barcharts import VerticalBarChart
 
 router = APIRouter(tags=["Reports"])
 
+def create_pdf_styles():
+    """Create custom styles for PDF reports"""
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name='ReportTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        spaceAfter=30,
+        textColor=colors.HexColor('#1a1a2e')
+    ))
+    styles.add(ParagraphStyle(
+        name='SectionTitle',
+        parent=styles['Heading2'],
+        fontSize=16,
+        spaceAfter=12,
+        spaceBefore=20,
+        textColor=colors.HexColor('#16213e')
+    ))
+    styles.add(ParagraphStyle(
+        name='SubSection',
+        parent=styles['Heading3'],
+        fontSize=12,
+        spaceAfter=8,
+        textColor=colors.HexColor('#0f3460')
+    ))
+    return styles
+
+
+
+
 
 @router.get("/api/v1/export/nodes", dependencies=[Depends(verify_api_key)])
 async def export_nodes(format: str = "json", db: asyncpg.Pool = Depends(get_db)):
