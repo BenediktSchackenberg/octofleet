@@ -3,6 +3,8 @@ Octofleet API - Reports Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from dependencies import get_db, verify_api_key
+from app.core.report_helpers import create_pdf_styles, create_status_table, create_header_footer, create_pie_chart, auto_column_width, style_excel_header
+from routers.security import get_compliance_summary
 from io import BytesIO
 import asyncpg
 from typing import Optional, Dict, List, Any
