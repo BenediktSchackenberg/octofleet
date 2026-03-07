@@ -7,7 +7,8 @@ import json
 import secrets
 import jwt
 from datetime import datetime, timedelta
-from dependencies import get_db, verify_api_key, not_found, API_KEY
+from dependencies import get_db, verify_api_key, require_scope, not_found, API_KEY
+from auth import require_auth, require_permission
 
 # Use the JWT secret from auth module
 try:
@@ -363,14 +364,14 @@ async def register_pending_node(request: Request, db: asyncpg.Pool = Depends(get
         
         return {"status": "pending", "pendingId": str(pending_id), "message": f"Node {hostname} registered"}
 
-@pending_router.get("/pending-nodes", dependencies=[Depends(verify_api_key)])
+@pending_router.get("/pending-nodes", dependencies=[Depends(require_auth)])
 async def list_pending_nodes(db: asyncpg.Pool = Depends(get_db)):
     """List all pending nodes"""
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT id, hostname, os_name, os_version, ip_address, agent_version, machine_id, status, created_at FROM pending_nodes WHERE status = 'pending' ORDER BY created_at DESC")
         return {"pending": [{"id": str(r['id']), "hostname": r['hostname'], "osName": r['os_name'], "osVersion": r['os_version'], "ipAddress": r['ip_address'], "agentVersion": r['agent_version'], "machineId": r['machine_id'], "createdAt": r['created_at'].isoformat() if r['created_at'] else None} for r in rows]}
 
-@pending_router.post("/pending-nodes/{pending_id}/approve", dependencies=[Depends(verify_api_key)])
+@pending_router.post("/pending-nodes/{pending_id}/approve", dependencies=[Depends(require_permission("nodes:write"))])
 async def approve_pending_node(pending_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
     """Approve a pending node"""
     async with db.acquire() as conn:
@@ -389,7 +390,7 @@ async def approve_pending_node(pending_id: str, request: Request, db: asyncpg.Po
         await conn.execute("UPDATE pending_nodes SET status = 'approved', approved_at = NOW(), approved_by = $2, generated_api_key = $3 WHERE id = $1", uuid.UUID(pending_id), approver, node_api_key)
         return {"status": "approved", "nodeId": pending_id, "hostname": row['hostname']}
 
-@pending_router.delete("/pending-nodes/{pending_id}/reject", dependencies=[Depends(verify_api_key)])
+@pending_router.delete("/pending-nodes/{pending_id}/reject", dependencies=[Depends(require_permission("nodes:write"))])
 async def reject_pending_node(pending_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
     """Reject a pending node"""
     async with db.acquire() as conn:

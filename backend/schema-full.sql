@@ -88,6 +88,7 @@ CREATE TABLE public.api_keys (
     key_hash character varying(255) NOT NULL,
     name character varying(100) NOT NULL,
     permissions text[] DEFAULT '{}'::text[],
+    scopes text[] DEFAULT '{agent}'::text[],
     expires_at timestamp with time zone,
     last_used timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),

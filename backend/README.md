@@ -20,7 +20,7 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 
 Environment variables:
 - `DATABASE_URL` - PostgreSQL connection string (default: `postgresql://octofleet:octofleet_2026@127.0.0.1:5432/inventory`)
-- `INVENTORY_API_KEY` - API key for authentication (default: `octofleet-dev-key`)
+- `INVENTORY_API_KEY` - API key for authentication (required, no default)
 
 ## API Endpoints
 
@@ -44,7 +44,7 @@ All POST endpoints require `X-API-Key` header.
 ```bash
 curl -X POST http://localhost:8080/api/v1/inventory/hardware \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: octofleet-dev-key" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "nodeId": "my-pc",
     "hostname": "DESKTOP-ABC",

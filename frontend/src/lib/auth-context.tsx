@@ -28,7 +28,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Permission mappings for roles
+// Fallback permission mappings for roles (used when backend /auth/permissions is unavailable)
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ["*"],
   operator: [
@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resolvedPermissions, setResolvedPermissions] = useState<string[] | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -75,6 +76,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setLoading(false);
   }, []);
+
+  // Fetch resolved permissions from backend when token is available
+  useEffect(() => {
+    if (!token) {
+      setResolvedPermissions(null);
+      return;
+    }
+    fetch(`${API_URL}/api/v1/auth/permissions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.permissions) {
+          setResolvedPermissions(data.permissions);
+        }
+      })
+      .catch(() => {
+        // Fallback: use local ROLE_PERMISSIONS matrix
+        setResolvedPermissions(null);
+      });
+  }, [token]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -116,11 +138,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return false;
     if (user.is_superuser) return true;
     
-    // Get permissions from user's roles
+    // Use backend-resolved permissions if available, else fall back to local matrix
     const userPermissions = new Set<string>();
-    for (const role of user.roles || []) {
-      const perms = ROLE_PERMISSIONS[role] || [];
-      perms.forEach(p => userPermissions.add(p));
+    if (resolvedPermissions) {
+      resolvedPermissions.forEach(p => userPermissions.add(p));
+    } else {
+      for (const role of user.roles || []) {
+        const perms = ROLE_PERMISSIONS[role] || [];
+        perms.forEach(p => userPermissions.add(p));
+      }
     }
     
     if (userPermissions.has("*")) return true;

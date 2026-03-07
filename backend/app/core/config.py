@@ -1,7 +1,10 @@
+import logging
 import os
 import secrets
 from pathlib import Path
 from typing import List, Optional
+
+log = logging.getLogger(__name__)
 
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -13,8 +16,8 @@ class Settings:
     API_V1_STR: str = "/api/v1"
     
     # Security
-    API_KEY: str = os.getenv("API_KEY", os.getenv("INVENTORY_API_KEY", "octofleet-inventory-dev-key"))
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "octofleet-dev-secret-key-2026")
+    API_KEY: str = os.getenv("API_KEY", os.getenv("INVENTORY_API_KEY", ""))
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "")
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -39,6 +42,12 @@ class Settings:
         # Update JWT secret from persistent file if not provided in env
         if not os.getenv("JWT_SECRET"):
             self.JWT_SECRET = self.load_persistent_jwt_secret()
+        
+        # Warn about insecure defaults
+        if not self.API_KEY:
+            log.warning("API_KEY is not set! Set API_KEY or INVENTORY_API_KEY environment variable.")
+        if self.JWT_SECRET in ("", "octofleet-dev-secret-key-2026"):
+            log.warning("JWT_SECRET is empty or using old default! Set JWT_SECRET environment variable.")
 
     def load_persistent_jwt_secret(self):
         """Ensure JWT_SECRET is loaded from file or persisted if not in env"""

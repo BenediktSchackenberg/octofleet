@@ -1,28 +1,29 @@
-# Build output
+# Python
+backend/venv/
+backend/.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Node
+node_modules/
+**/node_modules/
+
+# .NET Build
 bin/
 obj/
 out/
-dist/
-build/
+*.nupkg
 
-# Visual Studio
+# IDE
 .vs/
+.vscode/
+.idea/
+*.swp
+*.swo
 *.user
 *.suo
-*.userosscache
-*.sln.docstates
-*.rsuser
-
-# NuGet
-packages/
-!frontend/src/app/packages/
-*.nupkg
-project.lock.json
-project.fragment.lock.json
-
-# Logs
-*.log
-logs/
 
 # OS
 .DS_Store
@@ -30,53 +31,24 @@ Thumbs.db
 desktop.ini
 
 # Secrets
+backend/.jwt_secret
 *.env
 .env.*
+!.env.example
+!frontend/.env.example
 appsettings.Development.json
 appsettings.Local.json
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-backend/venv/
-backend/__pycache__/
-*.pyc
-
-# Environment files with secrets
-.env
-.env.local
-.env.*.local
-!.env.example
-!frontend/.env.example
-
-# Python
-__pycache__/
-*.pyc
-venv/
-.venv/
-node_modules/
-**/node_modules/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Test results
+# Test artifacts
 test-results/
 playwright-report/
+tests/reports/
+tests/e2e/videos/
+tests/e2e/test-results/
 
 # Build artifacts
+dist/
+build/
 *.zip
 provisioning/drivers/virtio-win.iso
-
-backend/venv/
-**/__pycache__/
-*.pyc
-node_modules/
+backend/.jwt_secret

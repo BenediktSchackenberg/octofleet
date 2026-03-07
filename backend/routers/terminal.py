@@ -3,14 +3,66 @@ Octofleet API - Terminal Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, WebSocket, WebSocketDisconnect
 from dependencies import API_KEY, db_pool, get_db, verify_api_key
+from auth import get_current_user, decode_token
+from screen_session import screen_session_manager, ScreenSessionState
+from shell_session import shell_session_manager, ShellSessionState
 import asyncpg
 from typing import Optional, Dict, List, Any
 import uuid
 import asyncio
 import io
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Terminal"])
+
+# In-memory terminal sessions (simple polling-based terminals)
+_terminal_sessions: dict = {}
+
+
+class TerminalSession:
+    def __init__(self, session_id: str, node_id: str, shell: str):
+        self.session_id = session_id
+        self.node_id = node_id
+        self.shell = shell
+        self.pending_commands: list = []
+        self.output_buffer: list = []
+        self.connected = False
+        from datetime import datetime
+        self.created_at = datetime.utcnow()
+
+
+async def log_audit(pool, action: str, user_id: str = None, resource_type: str = None, resource_id: str = None, details: dict = None):
+    """Log an audit event to the database."""
+    import json as _json
+    from uuid import UUID
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO audit_log (user_id, action, resource_type, resource_id, details)
+                   VALUES ($1, $2, $3, $4, $5)""",
+                UUID(user_id) if user_id and user_id != "system" else None,
+                action, resource_type, resource_id,
+                _json.dumps(details) if details else None
+            )
+    except Exception as e:
+        logger.warning(f"Failed to log audit event: {e}")
+
+
+async def _validate_ws_token(websocket: WebSocket) -> Optional[dict]:
+    """Validate JWT token from WebSocket query params. Returns payload or None (after closing)."""
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="Authentication required")
+        return None
+    try:
+        payload = decode_token(token)
+        return payload
+    except Exception:
+        await websocket.close(code=1008, reason="Invalid token")
+        return None
 
 
 @router.post("/api/v1/screen/start/{node_id}")
@@ -143,6 +195,11 @@ async def screen_viewer_websocket(websocket: WebSocket, session_id: str):
     - Server sends: {"type": "info", "resolution": "1920x1080", "fps": 15}
     - Server sends: {"type": "closed", "reason": "..."}
     """
+    # Auth check before accept
+    user_payload = await _validate_ws_token(websocket)
+    if user_payload is None:
+        return
+
     await websocket.accept()
     logger.info(f"Viewer WebSocket connected for session {session_id}")
     
@@ -379,6 +436,11 @@ async def shell_viewer_websocket(websocket: WebSocket, session_id: str):
     - Server sends: {"type": "info", "state": "active"}
     - Server sends: {"type": "closed", "reason": "..."}
     """
+    # Auth check before accept
+    user_payload = await _validate_ws_token(websocket)
+    if user_payload is None:
+        return
+
     await websocket.accept()
     logger.info(f"Shell viewer WebSocket connected for session {session_id}")
     
@@ -639,6 +701,11 @@ async def post_terminal_output(session_id: str, request: Request, _: str = Depen
 @router.websocket("/api/v1/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
     """WebSocket for real-time terminal communication."""
+    # Auth check before accept
+    user_payload = await _validate_ws_token(websocket)
+    if user_payload is None:
+        return
+
     await websocket.accept()
     
     if session_id not in _terminal_sessions:

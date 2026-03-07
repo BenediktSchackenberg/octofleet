@@ -73,6 +73,7 @@ class RoleResponse(BaseModel):
 class APIKeyCreate(BaseModel):
     name: str
     expires_days: Optional[int] = None
+    scopes: Optional[List[str]] = None  # Default to ["agent"] if not specified
 
 class APIKeyResponse(BaseModel):
     id: str

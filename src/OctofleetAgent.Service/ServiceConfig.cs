@@ -19,8 +19,8 @@ public class ServiceConfig
     public bool AutoStart { get; set; } = true;
     
     // Inventory Backend settings
-    public string InventoryApiUrl { get; set; } = "http://localhost:8080";
-    public string InventoryApiKey { get; set; } = "octofleet-inventory-dev-key";
+    public string InventoryApiUrl { get; set; } = "";
+    public string InventoryApiKey { get; set; } = "";
     public bool AutoPushInventory { get; set; } = true;
     
     // Scheduled Inventory Push settings
@@ -29,7 +29,7 @@ public class ServiceConfig
     
     // Pending approval workflow
     public string? PendingId { get; set; }  // Set when registered, cleared when approved
-    public string? DiscoveryUrl { get; set; } = "http://192.168.0.5:8080";  // Default discovery URL
+    public string? DiscoveryUrl { get; set; } = null;  // Discovery URL - must be configured
 
     // Software Repository settings (Epic #57 Issue #62)
     public string? RepoUrl { get; set; }  // e.g., "http://192.168.0.5:8080/api/v1/repo"
@@ -83,7 +83,6 @@ public class ServiceConfig
     // Inventory backend is configured (required for basic functionality)
     public bool IsInventoryConfigured => 
         !string.IsNullOrEmpty(InventoryApiUrl) && 
-        InventoryApiUrl != "http://localhost:8080" &&
         !string.IsNullOrEmpty(InventoryApiKey);
     
     // Legacy: keep for backwards compatibility

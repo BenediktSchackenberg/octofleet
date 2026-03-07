@@ -85,7 +85,7 @@ import matplotlib.pyplot as plt
 from dependencies import (
     not_found, bad_request, conflict, internal_error,
     API_KEY, DATABASE_URL, GATEWAY_URL, GATEWAY_TOKEN, INVENTORY_API_URL,
-    verify_api_key, verify_api_key_or_query,
+    verify_api_key, verify_api_key_or_query, require_scope,
     sanitize_for_postgres, parse_datetime, get_db, set_db_pool,
     db_pool as _deps_db_pool
 )
@@ -241,7 +241,6 @@ app.include_router(provisioning_vm_router)
 app.include_router(provisioning_iso_router)
 app.include_router(pxe_router)
 app.include_router(software_metering_router, tags=["Software Metering"])
-app.include_router(dashboard_router)
 app.include_router(remediation_router)
 app.include_router(patches_router)
 app.include_router(baselines_router)
@@ -435,157 +434,6 @@ async def register_pending_node(request: Request):
         "pendingId": str(pending_id),
         "message": f"Node {hostname} registered. Awaiting admin approval."
     }
-
-
-@app.get("/api/v1/pending-nodes")
-async def list_pending_nodes(request: Request, _: str = Depends(verify_api_key)):
-    """List all pending nodes awaiting approval"""
-    pool = await get_db()
-    
-    rows = await pool.fetch("""
-        SELECT id, hostname, os_name, os_version, ip_address, agent_version, 
-               machine_id, status, created_at
-        FROM pending_nodes
-        WHERE status = 'pending'
-        ORDER BY created_at DESC
-    """)
-    
-    return {
-        "pending": [
-            {
-                "id": str(row['id']),
-                "hostname": row['hostname'],
-                "osName": row['os_name'],
-                "osVersion": row['os_version'],
-                "ipAddress": row['ip_address'],
-                "agentVersion": row['agent_version'],
-                "machineId": row['machine_id'],
-                "createdAt": row['created_at'].isoformat() if row['created_at'] else None
-            }
-            for row in rows
-        ]
-    }
-
-
-@app.post("/api/v1/pending-nodes/{pending_id}/approve")
-async def approve_pending_node(pending_id: str, request: Request, _: str = Depends(verify_api_key)):
-    """Approve a pending node and generate its config"""
-    pool = await get_db()
-    
-    # Get pending node
-    row = await pool.fetchrow(
-        "SELECT * FROM pending_nodes WHERE id = $1 AND status = 'pending'",
-        uuid.UUID(pending_id)
-    )
-    
-    if not row:
-        raise HTTPException(status_code=404, detail="Pending node not found or already processed")
-    
-    # Generate per-node API key
-    node_api_key = secrets.token_urlsafe(32)
-    
-    # Get approver from JWT if available
-    approver = "admin"
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        try:
-            token = auth_header[7:]
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            approver = payload.get("sub", "admin")
-        except:
-            pass
-    
-    # Update pending node status
-    await pool.execute("""
-        UPDATE pending_nodes 
-        SET status = 'approved', approved_at = NOW(), approved_by = $2, generated_api_key = $3
-        WHERE id = $1
-    """, uuid.UUID(pending_id), approver, node_api_key)
-    
-    # Get server URL from request
-    server_url = f"http://{request.headers.get('host', 'localhost:8080')}"
-    
-    return {
-        "status": "approved",
-        "nodeId": pending_id,
-        "hostname": row['hostname'],
-        "message": f"Node {row['hostname']} approved successfully"
-    }
-
-
-@app.delete("/api/v1/pending-nodes/{pending_id}/reject")
-async def reject_pending_node(pending_id: str, request: Request, _: str = Depends(verify_api_key)):
-    """Reject a pending node"""
-    pool = await get_db()
-    
-    # Get approver from JWT
-    rejecter = "admin"
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        try:
-            token = auth_header[7:]
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            rejecter = payload.get("sub", "admin")
-        except:
-            pass
-    
-    result = await pool.execute("""
-        UPDATE pending_nodes 
-        SET status = 'rejected', rejected_at = NOW(), rejected_by = $2
-        WHERE id = $1 AND status = 'pending'
-    """, uuid.UUID(pending_id), rejecter)
-    
-    if result == "UPDATE 0":
-        raise HTTPException(status_code=404, detail="Pending node not found")
-    
-    return {"status": "rejected", "message": "Node rejected"}
-
-
-@app.get("/api/v1/pending-nodes/{pending_id}/config")
-async def get_pending_node_config(pending_id: str):
-    """
-    Agent polls this to get config after approval.
-    No auth required - pending_id acts as a one-time token.
-    """
-    pool = await get_db()
-    
-    row = await pool.fetchrow(
-        "SELECT * FROM pending_nodes WHERE id = $1",
-        uuid.UUID(pending_id)
-    )
-    
-    if not row:
-        raise HTTPException(status_code=404, detail="Unknown pending ID")
-    
-    if row['status'] == 'pending':
-        return {"status": "pending", "message": "Awaiting admin approval"}
-    
-    if row['status'] == 'rejected':
-        return {"status": "rejected", "message": "Node was rejected by admin"}
-    
-    if row['status'] == 'approved':
-        # Mark config as fetched
-        if not row['config_fetched_at']:
-            await pool.execute(
-                "UPDATE pending_nodes SET config_fetched_at = NOW() WHERE id = $1",
-                uuid.UUID(pending_id)
-            )
-        
-        # Return the config the agent should write
-        return {
-            "status": "approved",
-            "config": {
-                "InventoryApiUrl": f"http://192.168.0.5:8080",  # TODO: make configurable
-                "InventoryApiKey": row['generated_api_key'] or API_KEY,
-                "DisplayName": row['hostname'],
-                "AutoPushInventory": True,
-                "ScheduledPushEnabled": True,
-                "ScheduledPushIntervalMinutes": 30
-            }
-        }
-    
-    return {"status": "unknown"}
-
 
 # ============================================
 
@@ -2821,7 +2669,7 @@ async def list_api_keys(user: CurrentUser = Depends(require_auth)):
         if user.is_superuser or user.has_permission("users:read"):
             # Admin sees all keys
             keys = await conn.fetch(
-                """SELECT k.id, k.user_id, u.username, k.name, k.permissions, 
+                """SELECT k.id, k.user_id, u.username, k.name, k.permissions, k.scopes,
                           k.expires_at, k.last_used, k.created_at, k.is_active
                    FROM api_keys k
                    LEFT JOIN users u ON k.user_id = u.id
@@ -2830,7 +2678,7 @@ async def list_api_keys(user: CurrentUser = Depends(require_auth)):
         else:
             # User sees own keys
             keys = await conn.fetch(
-                """SELECT id, user_id, name, permissions, expires_at, last_used, created_at, is_active
+                """SELECT id, user_id, name, permissions, scopes, expires_at, last_used, created_at, is_active
                    FROM api_keys WHERE user_id = $1
                    ORDER BY created_at DESC""",
                 UUID(user.id)
@@ -2844,6 +2692,7 @@ async def list_api_keys(user: CurrentUser = Depends(require_auth)):
                     "username": k.get("username"),
                     "name": k["name"],
                     "permissions": k["permissions"] or [],
+                    "scopes": list(k["scopes"]) if k["scopes"] else ["agent"],
                     "expires_at": k["expires_at"].isoformat() if k["expires_at"] else None,
                     "last_used": k["last_used"].isoformat() if k["last_used"] else None,
                     "created_at": k["created_at"].isoformat() if k["created_at"] else None,
@@ -2871,13 +2720,15 @@ async def create_api_key(
         expires_at = datetime.utcnow() + timedelta(days=data.expires_days)
     
     async with db_pool.acquire() as conn:
+        scopes = data.scopes if data.scopes else ["agent"]
         key = await conn.fetchrow(
-            """INSERT INTO api_keys (user_id, key_hash, name, expires_at)
-               VALUES ($1, $2, $3, $4)
+            """INSERT INTO api_keys (user_id, key_hash, name, scopes, expires_at)
+               VALUES ($1, $2, $3, $4, $5)
                RETURNING id, name, created_at, expires_at""",
             UUID(user.id) if user.id != "system" else None,
             key_hash,
             data.name,
+            scopes,
             expires_at
         )
         
@@ -2886,6 +2737,7 @@ async def create_api_key(
             "id": str(key["id"]),
             "name": key["name"],
             "key": raw_key,  # Only shown once!
+            "scopes": scopes,
             "created_at": key["created_at"].isoformat(),
             "expires_at": key["expires_at"].isoformat() if key["expires_at"] else None,
             "warning": "Save this key now! It won't be shown again."
@@ -2953,7 +2805,7 @@ async def list_maintenance_windows():
         return {"windows": [dict(r) for r in rows]}
 
 
-@app.post("/api/v1/maintenance-windows", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/maintenance-windows", dependencies=[Depends(require_auth)])
 async def create_maintenance_window(data: dict):
     """Create a maintenance window"""
     required = ["name", "startTime", "endTime"]
@@ -2986,7 +2838,7 @@ async def get_maintenance_window(window_id: str):
         return dict(row)
 
 
-@app.put("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(verify_api_key)])
+@app.put("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(require_auth)])
 async def update_maintenance_window(window_id: str, data: dict):
     """Update a maintenance window"""
     async with db_pool.acquire() as conn:
@@ -3010,7 +2862,7 @@ async def update_maintenance_window(window_id: str, data: dict):
         return {"status": "updated"}
 
 
-@app.delete("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(verify_api_key)])
+@app.delete("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(require_auth)])
 async def delete_maintenance_window(window_id: str):
     """Delete a maintenance window"""
     async with db_pool.acquire() as conn:
@@ -5321,7 +5173,7 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 API_URL="${API_URL:-http://192.168.0.5:8080}"
-API_KEY="${API_KEY:-octofleet-inventory-dev-key}"
+API_KEY="${API_KEY:?API_KEY must be set}"
 NODE_ID="${NODE_ID:-$(hostname)}"
 POLL_INTERVAL="${POLL_INTERVAL:-30}"
 
@@ -5443,7 +5295,7 @@ async def get_linux_agent():
 async def get_autoinstall_config(
     hostname: str,
     api_url: str = "http://192.168.0.5:8080",
-    api_key: str = "octofleet-inventory-dev-key",
+    api_key: str = "",
     task_id: Optional[str] = None
 ):
     """Generate Ubuntu autoinstall config with Octofleet agent pre-installed"""

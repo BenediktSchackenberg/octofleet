@@ -154,7 +154,7 @@ async def verify_api_key(
             key_hash = hash_api_key(x_api_key)
             async with db_pool.acquire() as conn:
                 row = await conn.fetchrow(
-                    """SELECT id, user_id, name FROM api_keys 
+                    """SELECT id, user_id, name, scopes FROM api_keys 
                        WHERE key_hash = $1 AND is_active = true 
                        AND (expires_at IS NULL OR expires_at > NOW())""",
                     key_hash
@@ -165,8 +165,13 @@ async def verify_api_key(
                         "UPDATE api_keys SET last_used = NOW() WHERE id = $1",
                         row["id"]
                     )
+                    scopes = list(row["scopes"]) if row["scopes"] else ["agent"]
+                    # Store scopes in request state for downstream dependencies
+                    if request:
+                        request.state.api_key_scopes = scopes
                     return {"sub": str(row["user_id"]) if row["user_id"] else "system", 
-                            "api_key_name": row["name"], "permissions": ["*"]}
+                            "api_key_name": row["name"], "permissions": ["*"],
+                            "scopes": scopes}
         except Exception:
             pass  # DB not ready or other error, fall through
     
@@ -212,6 +217,39 @@ async def verify_api_key_or_query(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid API key or token"
     )
+
+
+# ============== API Key Scopes ==============
+
+SCOPES = {
+    "agent": "Agent inventory/job operations",
+    "admin": "Full administrative access",
+    "read": "Read-only access",
+    "write": "Read-write access",
+}
+
+
+def require_scope(scope: str):
+    """Dependency that checks if the current API key has the required scope.
+    Must be used after verify_api_key has run (which sets request.state.api_key_scopes).
+    JWT-authenticated users (human auth) bypass scope checks.
+    """
+    async def scope_checker(request: Request, auth=Depends(verify_api_key)):
+        # JWT users bypass scope checks (they use role-based permissions)
+        if isinstance(auth, dict) and "scopes" not in auth:
+            return auth
+        # Centralized API key (env var) gets all scopes
+        if isinstance(auth, str):
+            return auth
+        # Check scopes from API key
+        scopes = getattr(request.state, "api_key_scopes", [])
+        if "admin" in scopes or scope in scopes:
+            return auth
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"API key missing required scope: {scope}"
+        )
+    return scope_checker
 
 
 def sanitize_for_postgres(value: Any) -> Any:

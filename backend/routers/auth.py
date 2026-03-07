@@ -148,3 +148,25 @@ async def delete_user(user_id: str, user: CurrentUser = Depends(require_permissi
     async with db.acquire() as conn:
         await conn.execute("DELETE FROM users WHERE id = $1", UUID(user_id))
         return {"status": "deleted"}
+
+
+@router.get("/permissions")
+async def get_my_permissions(user: CurrentUser = Depends(require_auth), db: asyncpg.Pool = Depends(get_db)):
+    """Return the current user's resolved permissions based on their roles.
+    Used by the frontend to avoid hardcoding the role→permission matrix."""
+    if user.is_superuser:
+        return {"permissions": ["*"], "roles": ["admin"]}
+
+    if user.id == "system":
+        return {"permissions": ["*"], "roles": ["admin"]}
+
+    async with db.acquire() as conn:
+        roles = await conn.fetch(
+            """SELECT r.name FROM roles r
+               JOIN user_roles ur ON r.id = ur.role_id
+               WHERE ur.user_id = $1""",
+            UUID(user.id)
+        )
+        role_names = [r["name"] for r in roles]
+        permissions = get_permissions_for_roles(role_names)
+        return {"permissions": permissions, "roles": role_names}
