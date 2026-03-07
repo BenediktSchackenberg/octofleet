@@ -11,7 +11,6 @@ import { Search, Package, ArrowRight } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface TopSoftware {
   name: string;

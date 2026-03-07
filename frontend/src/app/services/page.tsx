@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getAuthHeader } from "@/lib/auth-context";
 import Link from 'next/link';
 import { API_URL } from '@/lib/api-config';
 
@@ -25,7 +26,6 @@ interface Service {
 }
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 const statusColors: Record<string, string> = {
   provisioning: 'bg-yellow-500/20 text-yellow-400',
@@ -50,8 +50,8 @@ export default function ServicesPage() {
   const fetchData = async () => {
     try {
       const [servicesRes, classesRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/services`, { headers: { 'X-API-Key': API_KEY } }),
-        fetch(`${API_URL}/api/v1/service-classes`, { headers: { 'X-API-Key': API_KEY } }),
+        fetch(`${API_URL}/api/v1/services`, { headers: getAuthHeader() }),
+        fetch(`${API_URL}/api/v1/service-classes`, { headers: getAuthHeader() }),
       ]);
       
       const servicesData = await servicesRes.json();
@@ -256,7 +256,7 @@ function CreateServiceModal({
     try {
       const res = await fetch(`${API_URL}/api/v1/services`, {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, description, classId }),
       });
       
@@ -352,7 +352,7 @@ function CreateClassModal({
     try {
       const res = await fetch(`${API_URL}/api/v1/service-classes`, {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, description, serviceType }),
       });
       

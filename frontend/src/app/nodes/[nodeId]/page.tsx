@@ -46,7 +46,6 @@ function CopyButton({ text, className = "" }: { text: string; className?: string
 }
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 interface NodeDetails {
   id: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { getAuthHeader } from "@/lib/auth-context";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ export default function TerminalPage() {
   // Helper for API headers
   const getHeaders = (contentType = false): Record<string, string> => {
     const headers: Record<string, string> = {
-      'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key'
+      ...getAuthHeader()
     };
     const token = localStorage.getItem('token');
     if (token) headers['Authorization'] = `Bearer ${token}`;

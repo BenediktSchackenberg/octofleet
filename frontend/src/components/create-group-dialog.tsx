@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getAuthHeader } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +19,6 @@ import { useRouter } from "next/navigation";
 import { API_BASE } from '@/lib/api-config';
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 export function CreateGroupDialog() {
   const [open, setOpen] = useState(false);
@@ -38,7 +38,7 @@ export function CreateGroupDialog() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY,
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           name: name.trim(),

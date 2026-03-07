@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getAuthHeader } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +18,6 @@ import { Tag, Plus, X, Check } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface TagInfo {
   id: string;
@@ -50,7 +50,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
   async function fetchAllTags() {
     try {
       const res = await fetch(`${API_BASE}/tags`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -68,7 +68,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
+          ...getAuthHeader(),
         },
         body: JSON.stringify({ tagIds: [tagId] }),
       });
@@ -89,7 +89,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
+          ...getAuthHeader(),
         },
         body: JSON.stringify({ tagIds: [tagId] }),
       });
@@ -111,7 +111,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           name: newTagName.trim(),

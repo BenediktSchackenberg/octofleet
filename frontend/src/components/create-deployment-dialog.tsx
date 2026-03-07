@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getAuthHeader } from "@/lib/auth-context";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,6 @@ import { Loader2 } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface PackageVersion {
   id: string;
@@ -61,7 +61,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
   }, [open]);
 
   async function fetchData() {
-    const headers = { "X-API-Key": API_KEY };
+    const headers = getAuthHeader();
     const [pvRes, groupRes, nodeRes] = await Promise.all([
       fetch(`${API_BASE}/package-versions`, { headers }),
       fetch(`${API_BASE}/groups`, { headers }),
@@ -83,7 +83,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
     try {
       const res = await fetch(`${API_BASE}/deployments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           description: description || null,
@@ -102,7 +102,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
         if (rolloutStrategy !== "immediate" && data.id) {
           await fetch(`${API_BASE}/deployments/${data.id}/rollout`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+            headers: { ...getAuthHeader(), "Content-Type": "application/json" },
             body: JSON.stringify({
               strategy: rolloutStrategy,
               config: rolloutConfig,

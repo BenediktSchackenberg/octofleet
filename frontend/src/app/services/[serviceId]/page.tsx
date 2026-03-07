@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getAuthHeader } from "@/lib/auth-context";
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_URL } from '@/lib/api-config';
@@ -42,7 +43,6 @@ interface LogEntry {
 }
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'octofleet-dev-key';
 
 const statusColors: Record<string, string> = {
   provisioning: 'bg-yellow-500/20 text-yellow-400',
@@ -83,7 +83,7 @@ export default function ServiceDetailPage() {
   const fetchService = async () => {
     try {
       const res = await fetch(`${API_URL}/api/v1/services/${serviceId}`, {
-        headers: { 'X-API-Key': API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         setService(await res.json());
@@ -98,7 +98,7 @@ export default function ServiceDetailPage() {
   const fetchLogs = async () => {
     try {
       const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/logs?limit=20`, {
-        headers: { 'X-API-Key': API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -112,7 +112,7 @@ export default function ServiceDetailPage() {
   const fetchNodes = async () => {
     try {
       const res = await fetch(`${API_URL}/api/v1/nodes`, {
-        headers: { 'X-API-Key': API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -129,7 +129,7 @@ export default function ServiceDetailPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/nodes/${nodeId}`, {
         method: 'DELETE',
-        headers: { 'X-API-Key': API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         fetchService();
@@ -146,7 +146,7 @@ export default function ServiceDetailPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/services/${serviceId}`, {
         method: 'DELETE',
-        headers: { 'X-API-Key': API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         router.push('/services');
@@ -166,7 +166,7 @@ export default function ServiceDetailPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/reconcile`, {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
+        headers: getAuthHeader(),
       });
       
       if (res.ok) {
@@ -408,7 +408,7 @@ function AddNodeModal({
     try {
       const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/nodes`, {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ nodeId, role }),
       });
       

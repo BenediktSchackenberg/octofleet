@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { getAuthHeader } from "@/lib/auth-context";
 import { Search, Circle, Monitor } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -61,7 +62,7 @@ export function GlobalSearch({ onNodeSelect }: GlobalSearchProps) {
       try {
         const res = await fetch(
           `${API_URL}/api/v1/nodes/search?q=${encodeURIComponent(query)}`,
-          { headers: { "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key" } }
+          { headers: getAuthHeader() }
         );
         if (res.ok) {
           const data = await res.json();

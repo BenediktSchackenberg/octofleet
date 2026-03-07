@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getAuthHeader } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +28,6 @@ import { Plus, Trash2, Sparkles, Eye } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface Condition {
   id: string;
@@ -116,7 +116,7 @@ export function CreateDynamicGroupDialog() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
+          ...getAuthHeader(),
         },
         body: JSON.stringify({ rule: buildRule() }),
       });
@@ -144,7 +144,7 @@ export function CreateDynamicGroupDialog() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
+          ...getAuthHeader(),
         },
         body: JSON.stringify({
           name: name.trim(),
@@ -160,7 +160,7 @@ export function CreateDynamicGroupDialog() {
         // Immediately evaluate the group to populate members
         await fetch(`${API_BASE}/groups/${data.group.id}/evaluate`, {
           method: "POST",
-          headers: { "X-API-Key": API_KEY },
+          headers: getAuthHeader(),
         });
 
         setOpen(false);

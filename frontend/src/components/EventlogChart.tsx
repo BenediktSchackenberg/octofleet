@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getAuthHeader } from "@/lib/auth-context";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from "recharts";
 import { API_URL } from '@/lib/api-config';
 
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-dev-key";
 
 interface TrendData {
   day: string;
@@ -30,7 +30,7 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
   async function fetchTrends() {
     try {
       const res = await fetch(`${API_URL}/api/v1/eventlog/trends?days=${days}`, {
-        headers: { "X-API-Key": API_KEY },
+        headers: getAuthHeader(),
       });
       if (res.ok) {
         const json = await res.json();
