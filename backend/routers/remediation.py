@@ -3,6 +3,12 @@ Octofleet API - Remediation Routes
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Request
 from dependencies import API_KEY, db_pool, get_db, verify_api_key
+from remediation import (
+    RemediationPackageCreate, RemediationPackageUpdate,
+    RemediationRuleCreate, RemediationRuleUpdate,
+    TriggerRemediationRequest, ApproveRemediationRequest,
+    RemediationEngine,
+)
 import asyncpg
 from typing import Optional, Dict, List, Any
 from starlette.responses import StreamingResponse

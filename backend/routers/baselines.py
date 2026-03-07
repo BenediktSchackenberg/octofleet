@@ -3,6 +3,7 @@ Octofleet API - Baselines Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from dependencies import db_pool, get_db, verify_api_key
+from app.core.cis_templates import CIS_TEMPLATES, CHOCO_PACKAGES
 import asyncpg
 from typing import Optional, Dict, List, Any
 import uuid

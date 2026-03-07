@@ -3,6 +3,8 @@ Octofleet API - Packages Routes
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Header, Request, UploadFile
 from dependencies import db_pool, get_db, verify_api_key
+import os
+MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))
 import asyncpg
 from typing import Optional, Dict, List, Any
 from fastapi.responses import FileResponse

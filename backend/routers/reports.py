@@ -3,6 +3,7 @@ Octofleet API - Reports Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from dependencies import db_pool, get_db, verify_api_key
+from io import BytesIO
 import asyncpg
 from typing import Optional, Dict, List, Any
 from starlette.responses import StreamingResponse

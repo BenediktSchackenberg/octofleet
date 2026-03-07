@@ -3,6 +3,7 @@ Octofleet API - Vulnerabilities Routes
 """
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Header, Request
 from dependencies import API_KEY, db_pool, get_db, verify_api_key
+from remediation import RemediationEngine
 import asyncpg
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta, timezone
