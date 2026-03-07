@@ -2,7 +2,7 @@
 Octofleet API - Monitoring Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
-from dependencies import db_pool, get_db, verify_api_key
+from dependencies import get_pool, get_db, verify_api_key
 import asyncpg
 from typing import Optional, Dict, List, Any
 import uuid
@@ -23,14 +23,14 @@ async def delete_detection_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db)
 
 @router.get("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
 async def list_monitoring_profiles():
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
         return {"profiles": [dict(r) for r in rows]}
 
 
 @router.get("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
 async def get_monitoring_profile(profile_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
@@ -40,7 +40,7 @@ async def get_monitoring_profile(profile_id: str):
 @router.post("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
 async def create_monitoring_profile(req: Request):
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO monitoring_profiles (name, description, sensors, sampling, include_paths, exclude_paths, created_by)
             VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7)
@@ -55,7 +55,7 @@ async def create_monitoring_profile(req: Request):
 @router.put("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
 async def update_monitoring_profile(profile_id: str, req: Request):
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE monitoring_profiles SET
                 name = COALESCE($2, name),
@@ -79,14 +79,14 @@ async def update_monitoring_profile(profile_id: str, req: Request):
 
 @router.delete("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
 async def delete_monitoring_profile(profile_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("DELETE FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
         return {"status": "deleted"}
 
 
 @router.get("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
 async def list_monitoring_assignments():
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT a.*, p.name as profile_name
             FROM monitoring_assignments a
@@ -99,7 +99,7 @@ async def list_monitoring_assignments():
 @router.post("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
 async def create_monitoring_assignment(req: Request):
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO monitoring_assignments (target_type, target_id, profile_id, priority, status, start_time, end_time)
             VALUES ($1, $2, $3::uuid, $4, $5, $6, $7)
@@ -113,7 +113,7 @@ async def create_monitoring_assignment(req: Request):
 @router.put("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
 async def update_monitoring_assignment(assignment_id: str, req: Request):
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE monitoring_assignments SET
                 status = COALESCE($2, status),
@@ -129,14 +129,14 @@ async def update_monitoring_assignment(assignment_id: str, req: Request):
 
 @router.delete("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
 async def delete_monitoring_assignment(assignment_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("DELETE FROM monitoring_assignments WHERE id = $1::uuid", assignment_id)
         return {"status": "deleted"}
 
 
 @router.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(verify_api_key)])
 async def get_effective_policy(node_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         # Check direct node assignment first, then group assignments
         row = await conn.fetchrow("""
             SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
@@ -167,7 +167,7 @@ async def ingest_events(req: Request):
     body = await req.json()
     events = body.get("events", [body] if "event_type" in body else [])
     inserted = 0
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         for evt in events:
             event_type = evt.get("event_type", "unknown")
             # Route file events to file_events table
@@ -196,7 +196,7 @@ async def query_events(
     severity: str = None, since: str = None, until: str = None,
     limit: int = 100, offset: int = 0
 ):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -235,7 +235,7 @@ async def query_file_events(
     path: str = None, since: str = None, until: str = None,
     limit: int = 100, offset: int = 0
 ):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -273,7 +273,7 @@ async def list_findings(
     status: str = None, severity: str = None, node_id: str = None,
     limit: int = 50, offset: int = 0
 ):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -299,7 +299,7 @@ async def list_findings(
 
 @router.get("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
 async def get_finding(finding_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM findings WHERE id = $1::uuid", finding_id)
         if not row:
             raise HTTPException(status_code=404, detail="Finding not found")
@@ -309,7 +309,7 @@ async def get_finding(finding_id: str):
 @router.put("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
 async def update_finding(finding_id: str, req: Request):
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE findings SET
                 status = COALESCE($2, status),
@@ -323,7 +323,7 @@ async def update_finding(finding_id: str, req: Request):
 
 @router.get("/api/v1/retention", dependencies=[Depends(verify_api_key)])
 async def get_retention_config():
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM retention_config ORDER BY category")
         return {"retention": [dict(r) for r in rows]}
 
@@ -331,7 +331,7 @@ async def get_retention_config():
 @router.put("/api/v1/retention/{category}", dependencies=[Depends(verify_api_key)])
 async def update_retention_config(category: str, req: Request):
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             UPDATE retention_config SET
                 hot_days = COALESCE($2, hot_days),
@@ -349,7 +349,7 @@ async def update_retention_config(category: str, req: Request):
 
 @router.get("/api/v1/evidence/exports", dependencies=[Depends(verify_api_key)])
 async def list_evidence_exports():
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM evidence_exports ORDER BY created_at DESC LIMIT 50")
         return {"exports": [dict(r) for r in rows]}
 
@@ -357,7 +357,7 @@ async def list_evidence_exports():
 @router.post("/api/v1/evidence/export", dependencies=[Depends(verify_api_key)])
 async def create_evidence_export(req: Request):
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         # Create export record
         row = await conn.fetchrow("""
             INSERT INTO evidence_exports (scope, filter_criteria, created_by)
@@ -377,7 +377,7 @@ async def query_ui_audit_events(
     actor: str = None, action: str = None, since: str = None,
     limit: int = 100, offset: int = 0
 ):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -404,7 +404,7 @@ async def query_ui_audit_events(
 async def report_agent_capabilities(node_id: str, req: Request):
     """Agent reports its capabilities, OS info, and available sensors."""
     body = await req.json()
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO agent_capabilities (node_id, sensors, agent_version, os_type, os_version, kernel_build, permissions, last_seen)
             VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7::jsonb, now())
@@ -425,7 +425,7 @@ async def report_agent_capabilities(node_id: str, req: Request):
 
 @router.get("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
 async def get_agent_capabilities(node_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", node_id)
         if not row:
             raise HTTPException(status_code=404, detail="No capabilities reported for this node")
@@ -435,7 +435,7 @@ async def get_agent_capabilities(node_id: str):
 @router.get("/api/v1/agents/capabilities", dependencies=[Depends(verify_api_key)])
 async def list_agent_capabilities():
     """List all agents with their capabilities and health status."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT ac.*, n.hostname, n.os
             FROM agent_capabilities ac
@@ -450,7 +450,7 @@ async def report_agent_health(node_id: str, req: Request):
     """Agent reports health metrics: queue depth, drops, CPU overhead, etc."""
     body = await req.json()
     # Store as a normalized event
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("""
             INSERT INTO events_normalized (node_id, event_type, severity, payload)
             VALUES ($1, 'agent.health', $2, $3::jsonb)
@@ -483,7 +483,7 @@ async def ingest_normalized_events(req: Request):
     inserted = 0
     findings_created = 0
     
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         for evt in events:
             event_type = evt.get("event_type", "unknown")
             event_subtype = evt.get("event_subtype", "")
@@ -558,7 +558,7 @@ async def ingest_normalized_events(req: Request):
 @router.get("/api/v1/agents/{node_id}/health/history", dependencies=[Depends(verify_api_key)])
 async def get_agent_health_history(node_id: str, limit: int = 50):
     """Get recent health reports for a node."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT ts, payload FROM events_normalized
             WHERE node_id = $1 AND event_type = 'agent.health'

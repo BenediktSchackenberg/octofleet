@@ -2,7 +2,7 @@
 Octofleet API - Packages Routes
 """
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Header, Request, UploadFile
-from dependencies import db_pool, get_db, verify_api_key
+from dependencies import get_pool, get_db, verify_api_key
 import os
 MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))
 import asyncpg
@@ -542,7 +542,7 @@ async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool =
 @router.get("/api/v1/package-versions", dependencies=[Depends(verify_api_key)])
 async def list_package_versions(limit: int = 100):
     """List package versions for deployment creation"""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT pv.id, pv.version, p.id as package_id, p.name as package_name, p.display_name
             FROM package_versions pv

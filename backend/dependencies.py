@@ -288,3 +288,7 @@ def get_username_from_auth(auth: Any) -> str:
     if isinstance(auth, dict):
         return auth.get("sub") or auth.get("username") or auth.get("email", "unknown")
     return "api-key"
+
+def get_pool():
+    """Get the current database pool (non-async, for direct use)"""
+    return db_pool

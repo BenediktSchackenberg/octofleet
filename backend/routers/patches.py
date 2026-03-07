@@ -2,7 +2,7 @@
 Octofleet API - Patches Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from dependencies import db_pool, get_db, verify_api_key
+from dependencies import get_pool, get_db, verify_api_key
 import asyncpg
 from typing import Optional, Dict, List, Any
 import uuid
@@ -16,7 +16,7 @@ async def list_patch_catalog(
     severity: str = None, category: str = None, approved: str = None,
     search: str = None, limit: int = 100, offset: int = 0
 ):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         conditions = []
         params = []
         idx = 1
@@ -44,7 +44,7 @@ async def list_patch_catalog(
 
 @router.post("/api/v1/patches/catalog", dependencies=[Depends(verify_api_key)])
 async def create_patch(data: dict):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO patch_catalog (kb_id, title, description, severity, category, os_targets, release_date, supersedes)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
@@ -61,13 +61,13 @@ async def import_patches(data: dict):
     patches = data.get("patches", [])
     # Resolve hostname to UUID if needed
     if node_id and not _is_uuid(node_id):
-        async with db_pool.acquire() as conn:
+        async with get_pool().acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT node_id FROM nodes WHERE UPPER(hostname) = UPPER($1)", node_id)
             if row:
                 node_id = str(row["node_id"])
     imported = 0
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         for p in patches:
             # Upsert patch catalog entry
             existing = await conn.fetchrow("SELECT id FROM patch_catalog WHERE kb_id = $1", p.get("kb_id"))
@@ -95,7 +95,7 @@ async def import_patches(data: dict):
 async def approve_patch(patch_id: str, request: Request):
     user = getattr(request.state, "user", None)
     username = user.get("username", "system") if user else "system"
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("""
             UPDATE patch_catalog SET is_approved=true, is_excluded=false, approved_by=$2, approved_at=NOW()
             WHERE id=$1
@@ -105,7 +105,7 @@ async def approve_patch(patch_id: str, request: Request):
 
 @router.patch("/api/v1/patches/catalog/{patch_id}/exclude", dependencies=[Depends(verify_api_key)])
 async def exclude_patch(patch_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_catalog SET is_excluded=true, is_approved=false WHERE id=$1", patch_id)
         # Also exclude all node entries
         await conn.execute("UPDATE patch_catalog_nodes SET status='excluded' WHERE patch_id=$1", patch_id)
@@ -114,7 +114,7 @@ async def exclude_patch(patch_id: str):
 
 @router.get("/api/v1/patches/catalog/{patch_id}", dependencies=[Depends(verify_api_key)])
 async def get_patch_detail(patch_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         patch = await conn.fetchrow("SELECT * FROM patch_catalog WHERE id=$1", patch_id)
         if not patch:
             raise HTTPException(404, "Patch not found")
@@ -130,7 +130,7 @@ async def get_patch_detail(patch_id: str):
 
 @router.get("/api/v1/patches/compliance", dependencies=[Depends(verify_api_key)])
 async def get_patch_compliance():
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         total_patches = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog")
         approved = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog WHERE is_approved=true")
         total_node_patches = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog_nodes")
@@ -166,7 +166,7 @@ async def get_patch_compliance():
 
 @router.get("/api/v1/patches/compliance/nodes", dependencies=[Depends(verify_api_key)])
 async def get_node_compliance(limit: int = 100, offset: int = 0):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT pcn.node_id, n.hostname,
                 COUNT(*) as total_patches,
@@ -184,14 +184,14 @@ async def get_node_compliance(limit: int = 100, offset: int = 0):
 
 @router.get("/api/v1/patches/rings", dependencies=[Depends(verify_api_key)])
 async def list_patch_rings():
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM patch_rings ORDER BY priority")
         return [dict(r) for r in rows]
 
 
 @router.post("/api/v1/patches/rings", dependencies=[Depends(verify_api_key)])
 async def create_patch_ring(data: dict):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO patch_rings (name, description, priority, delay_hours, node_group_id)
             VALUES ($1,$2,$3,$4,$5) RETURNING *
@@ -202,7 +202,7 @@ async def create_patch_ring(data: dict):
 
 @router.put("/api/v1/patches/rings/{ring_id}", dependencies=[Depends(verify_api_key)])
 async def update_patch_ring(ring_id: str, data: dict):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("""
             UPDATE patch_rings SET name=COALESCE($2,name), description=COALESCE($3,description),
             priority=COALESCE($4,priority), delay_hours=COALESCE($5,delay_hours),
@@ -215,14 +215,14 @@ async def update_patch_ring(ring_id: str, data: dict):
 
 @router.delete("/api/v1/patches/rings/{ring_id}", dependencies=[Depends(verify_api_key)])
 async def delete_patch_ring(ring_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("DELETE FROM patch_rings WHERE id=$1", ring_id)
         return {"deleted": True}
 
 
 @router.get("/api/v1/patches/deployments", dependencies=[Depends(verify_api_key)])
 async def list_patch_deployments(status: str = None, limit: int = 50, offset: int = 0):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         where = ""
         params = []
         idx = 1
@@ -241,7 +241,7 @@ async def list_patch_deployments(status: str = None, limit: int = 50, offset: in
 async def create_patch_deployment(data: dict, request: Request):
     user = getattr(request.state, "user", None)
     username = user.get("username", "system") if user else "system"
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO patch_deployments (name, patches, ring_id, reboot_policy, reboot_schedule_time, created_by)
             VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
@@ -296,7 +296,7 @@ async def create_patch_deployment(data: dict, request: Request):
 
 @router.get("/api/v1/patches/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
 async def get_patch_deployment(deployment_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         dep = await conn.fetchrow("""
             SELECT pd.*, pr.name as ring_name FROM patch_deployments pd
             LEFT JOIN patch_rings pr ON pr.id=pd.ring_id WHERE pd.id=$1
@@ -325,21 +325,21 @@ async def get_patch_deployment(deployment_id: str):
 
 @router.post("/api/v1/patches/deployments/{deployment_id}/pause", dependencies=[Depends(verify_api_key)])
 async def pause_patch_deployment(deployment_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_deployments SET status='paused' WHERE id=$1 AND status='in_progress'", deployment_id)
         return {"status": "paused"}
 
 
 @router.post("/api/v1/patches/deployments/{deployment_id}/resume", dependencies=[Depends(verify_api_key)])
 async def resume_patch_deployment(deployment_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_deployments SET status='in_progress' WHERE id=$1 AND status='paused'", deployment_id)
         return {"status": "in_progress"}
 
 
 @router.post("/api/v1/patches/deployments/{deployment_id}/cancel", dependencies=[Depends(verify_api_key)])
 async def cancel_patch_deployment(deployment_id: str):
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_deployments SET status='cancelled', completed_at=NOW() WHERE id=$1", deployment_id)
         await conn.execute("UPDATE patch_deployment_results SET status='excluded' WHERE deployment_id=$1 AND status='pending'", deployment_id)
         return {"status": "cancelled"}
@@ -354,7 +354,7 @@ async def submit_patch_scan_results(data: dict):
 @router.get("/api/v1/patches/pending/{node_id}")
 async def get_pending_patches(node_id: str):
     """Agent polls for patches it needs to install."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT pdr.id as result_id, pdr.deployment_id, pdr.patch_id,
                 pc.kb_id, pc.title, pc.category,
@@ -371,7 +371,7 @@ async def get_pending_patches(node_id: str):
 @router.post("/api/v1/patches/results")
 async def submit_patch_results(data: dict):
     """Agent submits install results for patches."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         for result in data.get("results", []):
             result_id = result.get("result_id")
             status = result.get("status", "installed")

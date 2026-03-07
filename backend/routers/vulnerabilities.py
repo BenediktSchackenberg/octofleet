@@ -2,7 +2,7 @@
 Octofleet API - Vulnerabilities Routes
 """
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Header, Request
-from dependencies import API_KEY, db_pool, get_db, verify_api_key
+from dependencies import API_KEY, get_pool, get_db, verify_api_key
 from remediation import RemediationEngine
 import asyncpg
 from typing import Optional, Dict, List, Any
@@ -17,13 +17,13 @@ router = APIRouter(tags=["Vulnerabilities"])
 @router.get("/api/v1/vulnerabilities/summary")
 async def vulnerability_summary():
     """Get vulnerability dashboard summary."""
-    return await get_vulnerability_summary(db_pool)
+    return await get_vulnerability_summary(get_pool())
 
 
 @router.get("/api/v1/vulnerabilities/by-node")
 async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
     """Get vulnerability breakdown per node with severity counts."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT n.id, n.hostname, n.os_name, n.last_seen,
                 COUNT(DISTINCT v.id) as total_vulns,
@@ -53,7 +53,7 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
 @router.get("/api/v1/vulnerabilities/by-software")
 async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
     """Get vulnerability breakdown per software with affected node names."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT v.software_name, v.software_version,
                 COUNT(DISTINCT v.id) as vuln_count,
@@ -81,7 +81,7 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
 @router.get("/api/v1/vulnerabilities/node/{node_id}")
 async def node_vulnerabilities(node_id: str):
     """Get all vulnerabilities affecting a specific node."""
-    vulns = await get_node_vulnerabilities(db_pool, node_id)
+    vulns = await get_node_vulnerabilities(get_pool(), node_id)
     return {"vulnerabilities": vulns, "count": len(vulns)}
 
 
@@ -92,7 +92,7 @@ async def list_vulnerabilities(
     offset: int = 0
 ):
     """List all discovered vulnerabilities with optional filtering."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         query = """
             SELECT 
                 v.*,
@@ -135,10 +135,10 @@ async def list_vulnerabilities(
 async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
     """Trigger a full vulnerability scan of all software inventory."""
     nvd_api_key = os.environ.get("NVD_API_KEY")
-    scanner = VulnerabilityScanner(db_pool, nvd_api_key)
+    scanner = VulnerabilityScanner(get_pool(), nvd_api_key)
     
     # Create scan record
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         scan_id = await conn.fetchval("""
             INSERT INTO vulnerability_scans (status) VALUES ('running') RETURNING id
         """)
@@ -146,7 +146,7 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
     async def run_scan():
         try:
             result = await scanner.scan_all_nodes()
-            async with db_pool.acquire() as conn:
+            async with get_pool().acquire() as conn:
                 await conn.execute("""
                     UPDATE vulnerability_scans SET
                         completed_at = NOW(),
@@ -166,7 +166,7 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
             
             # AUTO-REMEDIATION: After vuln scan completes, create remediation jobs
             try:
-                engine = RemediationEngine(db_pool)
+                engine = RemediationEngine(get_pool())
                 remediation_result = await engine.scan_and_create_jobs(
                     severity_filter=['CRITICAL', 'HIGH'],
                     dry_run=False
@@ -176,7 +176,7 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
                 logger.error(f"Auto-remediation failed: {re}")
                 
         except Exception as e:
-            async with db_pool.acquire() as conn:
+            async with get_pool().acquire() as conn:
                 await conn.execute("""
                     UPDATE vulnerability_scans SET
                         completed_at = NOW(),
@@ -193,7 +193,7 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
 @router.get("/api/v1/vulnerabilities/scans")
 async def list_vulnerability_scans(limit: int = 10):
     """Get vulnerability scan history."""
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT * FROM vulnerability_scans
             ORDER BY started_at DESC
@@ -220,7 +220,7 @@ async def suppress_vulnerability(
     if expires_days:
         expires_at = datetime.utcnow() + timedelta(days=expires_days)
     
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         await conn.execute("""
             INSERT INTO vulnerability_suppressions (cve_id, software_name, reason, suppressed_by, expires_at)
             VALUES ($1, $2, $3, $4, $5)

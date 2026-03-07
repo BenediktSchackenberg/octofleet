@@ -2,7 +2,7 @@
 Octofleet API - Services Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from dependencies import db_pool, get_db, verify_api_key
+from dependencies import get_db, verify_api_key
 import asyncpg
 from typing import Optional, Dict, List, Any
 import uuid

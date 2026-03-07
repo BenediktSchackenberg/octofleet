@@ -2,7 +2,7 @@
 Octofleet API - Remediation Routes
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Request
-from dependencies import API_KEY, db_pool, get_db, verify_api_key
+from dependencies import API_KEY, get_pool, get_db, verify_api_key
 from remediation import (
     RemediationPackageCreate, RemediationPackageUpdate,
     RemediationRuleCreate, RemediationRuleUpdate,
@@ -28,7 +28,7 @@ async def list_remediation_packages(
     _: str = Depends(verify_api_key)
 ):
     """List all remediation packages (fix mappings)."""
-    packages = await get_remediation_packages(db_pool, enabled_only)
+    packages = await get_remediation_packages(get_pool(), enabled_only)
     return {"packages": packages}
 
 
@@ -38,7 +38,7 @@ async def get_remediation_package_by_id(
     _: str = Depends(verify_api_key)
 ):
     """Get a specific remediation package."""
-    pkg = await get_remediation_package(db_pool, package_id)
+    pkg = await get_remediation_package(get_pool(), package_id)
     if not pkg:
         raise HTTPException(status_code=404, detail="Remediation package not found")
     return pkg
@@ -51,7 +51,7 @@ async def create_remediation_package_endpoint(
 ):
     """Create a new remediation package (CVE → Fix mapping)."""
     try:
-        pkg = await create_remediation_package(db_pool, data)
+        pkg = await create_remediation_package(get_pool(), data)
         return pkg
     except Exception as e:
         if "duplicate key" in str(e):
@@ -66,7 +66,7 @@ async def update_remediation_package_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Update a remediation package."""
-    pkg = await update_remediation_package(db_pool, package_id, data)
+    pkg = await update_remediation_package(get_pool(), package_id, data)
     if not pkg:
         raise HTTPException(status_code=404, detail="Remediation package not found")
     return pkg
@@ -78,7 +78,7 @@ async def delete_remediation_package_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Delete a remediation package."""
-    deleted = await delete_remediation_package(db_pool, package_id)
+    deleted = await delete_remediation_package(get_pool(), package_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Remediation package not found")
     return {"status": "deleted", "id": package_id}
@@ -90,7 +90,7 @@ async def list_remediation_rules(
     _: str = Depends(verify_api_key)
 ):
     """List all remediation rules."""
-    rules = await get_remediation_rules(db_pool, enabled_only)
+    rules = await get_remediation_rules(get_pool(), enabled_only)
     return {"rules": rules}
 
 
@@ -100,7 +100,7 @@ async def get_remediation_rule_by_id(
     _: str = Depends(verify_api_key)
 ):
     """Get a specific remediation rule."""
-    rule = await get_remediation_rule(db_pool, rule_id)
+    rule = await get_remediation_rule(get_pool(), rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Remediation rule not found")
     return rule
@@ -112,7 +112,7 @@ async def create_remediation_rule_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Create a new remediation rule."""
-    rule = await create_remediation_rule(db_pool, data)
+    rule = await create_remediation_rule(get_pool(), data)
     return rule
 
 
@@ -123,7 +123,7 @@ async def update_remediation_rule_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Update a remediation rule."""
-    rule = await update_remediation_rule(db_pool, rule_id, data)
+    rule = await update_remediation_rule(get_pool(), rule_id, data)
     if not rule:
         raise HTTPException(status_code=404, detail="Remediation rule not found")
     return rule
@@ -135,7 +135,7 @@ async def delete_remediation_rule_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Delete a remediation rule."""
-    deleted = await delete_remediation_rule(db_pool, rule_id)
+    deleted = await delete_remediation_rule(get_pool(), rule_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Remediation rule not found")
     return {"status": "deleted", "id": rule_id}
@@ -144,7 +144,7 @@ async def delete_remediation_rule_endpoint(
 @router.get("/api/v1/remediation/maintenance-windows")
 async def list_maintenance_windows(_: str = Depends(verify_api_key)):
     """List all maintenance windows."""
-    windows = await get_maintenance_windows(db_pool)
+    windows = await get_maintenance_windows(get_pool())
     return {"windows": windows}
 
 
@@ -154,14 +154,14 @@ async def create_maintenance_window_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Create a new maintenance window."""
-    window = await create_maintenance_window(db_pool, data)
+    window = await create_maintenance_window(get_pool(), data)
     return window
 
 
 @router.get("/api/v1/remediation/maintenance-windows/active")
 async def check_maintenance_window(_: str = Depends(verify_api_key)):
     """Check if we're currently in a maintenance window."""
-    in_window = await is_in_maintenance_window(db_pool)
+    in_window = await is_in_maintenance_window(get_pool())
     return {"in_maintenance_window": in_window}
 
 
@@ -173,7 +173,7 @@ async def list_remediation_jobs(
     _: str = Depends(verify_api_key)
 ):
     """List remediation jobs with filters."""
-    jobs = await get_remediation_jobs(db_pool, status, node_id, limit)
+    jobs = await get_remediation_jobs(get_pool(), status, node_id, limit)
     return {"jobs": jobs}
 
 
@@ -183,7 +183,7 @@ async def get_remediation_job_by_id(
     _: str = Depends(verify_api_key)
 ):
     """Get a specific remediation job."""
-    job = await get_remediation_job(db_pool, job_id)
+    job = await get_remediation_job(get_pool(), job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Remediation job not found")
     return job
@@ -195,7 +195,7 @@ async def approve_jobs(
     _: str = Depends(verify_api_key)
 ):
     """Approve pending remediation jobs."""
-    count = await approve_remediation_jobs(db_pool, data.job_ids, data.approved_by)
+    count = await approve_remediation_jobs(get_pool(), data.job_ids, data.approved_by)
     return {"approved_count": count}
 
 
@@ -210,7 +210,7 @@ async def update_job_status(
 ):
     """Update remediation job status (called by agent after execution)."""
     job = await update_remediation_job_status(
-        db_pool, job_id, status, exit_code, output_log, error_message
+        get_pool(), job_id, status, exit_code, output_log, error_message
     )
     if not job:
         raise HTTPException(status_code=404, detail="Remediation job not found")
@@ -232,7 +232,7 @@ async def trigger_remediation_scan(
     3. Apply rules to determine action
     4. Create remediation jobs (or show dry-run results)
     """
-    engine = RemediationEngine(db_pool)
+    engine = RemediationEngine(get_pool())
     results = await engine.scan_and_create_jobs(
         severity_filter=data.severity_filter,
         software_filter=data.software_filter,
@@ -254,7 +254,7 @@ async def one_click_fix(
     Creates a remediation job immediately (no approval required).
     """
     # Get the vulnerability
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         vuln = await conn.fetchrow(
             "SELECT * FROM vulnerabilities WHERE id = $1", vulnerability_id
         )
@@ -263,7 +263,7 @@ async def one_click_fix(
         vuln = dict(vuln)
     
     # Find fix package
-    engine = RemediationEngine(db_pool)
+    engine = RemediationEngine(get_pool())
     fix_pkg = await engine.find_fix_for_vulnerability(vuln)
     if not fix_pkg:
         raise HTTPException(
@@ -274,7 +274,7 @@ async def one_click_fix(
     # Create job without approval requirement
     from remediation import create_remediation_job
     job = await create_remediation_job(
-        db_pool,
+        get_pool(),
         vulnerability_id=vulnerability_id,
         remediation_package_id=fix_pkg['id'],
         rule_id=None,  # Manual trigger, no rule
@@ -304,7 +304,7 @@ async def get_pending_remediation_jobs(node_id: str):
     The agent polls this endpoint and executes the fix commands.
     """
     # Resolve node_id to UUID
-    async with db_pool.acquire() as conn:
+    async with get_pool().acquire() as conn:
         # Support both formats: "win-baltasa" and "BALTASA"
         lookup_id = node_id
         if node_id.startswith("win-"):
@@ -383,7 +383,7 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     status = "success" if success else "failed"
     
     job = await update_remediation_job_status(
-        db_pool,
+        get_pool(),
         job_id=job_id,
         status=status,
         exit_code=exit_code,
@@ -397,7 +397,7 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     # On success: mark related node_vulnerabilities as remediated
     if success:
         try:
-            async with db_pool.acquire() as conn:
+            async with get_pool().acquire() as conn:
                 # Get the job details to find node_id and vulnerability_id
                 job_row = await conn.fetchrow(
                     "SELECT node_id, vulnerability_id, software_name FROM remediation_jobs WHERE id = $1", job_id
@@ -436,7 +436,7 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
 @router.get("/api/v1/remediation/summary")
 async def remediation_dashboard(_: str = Depends(verify_api_key)):
     """Get remediation dashboard summary."""
-    summary = await get_remediation_summary(db_pool)
+    summary = await get_remediation_summary(get_pool())
     return summary
 
 
@@ -459,7 +459,7 @@ async def remediation_live_sse(request: Request, token: str = None, api_key: str
                 break
             
             try:
-                async with db_pool.acquire() as conn:
+                async with get_pool().acquire() as conn:
                     rows = await conn.fetch("""
                         SELECT id, status, exit_code, software_name, cve_id, node_id,
                                created_at, completed_at, error_message
