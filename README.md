@@ -33,7 +33,7 @@
 - **💯 100% Self-Hosted** — Your data stays on your infrastructure
 - **🔓 Fully Open Source** — No license fees, no vendor lock-in
 - **🪶 Lightweight Agents** — < 20MB footprint, minimal resource usage
-- **🔌 API-First** — Everything accessible via REST API
+- **🔌 API-First** — 509 endpoints accessible via REST API
 - **🌐 Cross-Platform** — Windows and Linux support
 - **🌙 Dark Mode** — Full dark mode across all pages
 
@@ -279,8 +279,8 @@ API_KEY="your-api-key"
                       │ REST API
 ┌─────────────────────▼───────────────────────────────────────┐
 │                        Backend                               │
-│                 (FastAPI + Python 3.12)                     │
-│                     localhost:8080                          │
+│            (FastAPI + Python 3.12 — 22 Routers)            │
+│              509 endpoints · localhost:8080                 │
 └─────────────────────┬───────────────────────────────────────┘
                       │ SQL
 ┌─────────────────────▼───────────────────────────────────────┐

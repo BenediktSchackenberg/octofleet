@@ -18,9 +18,12 @@ This document describes the high-level architecture of Octofleet, how its compon
 │                  FastAPI (Python 3.12)                           │
 │                        Port 8080                                │
 │                                                                 │
-│  Routers: auth, nodes, inventory, jobs, security, provisioning,          │
-│           query_engine, content_lifecycle, software_metering, dashboard   │
-│  Services: alerting, vulnerability scanning, remediation, patch mgmt     │
+│  22 Routers · 509 Endpoints                                    │
+│  Routers: auth, nodes, inventory, jobs, security, provisioning,│
+│    dashboard, groups, remediation, patches, baselines, reports, │
+│    services, monitoring, terminal, packages, vulnerabilities,  │
+│    hardware, query_engine, content_lifecycle, software_metering,│
+│    mssql, deployments, metrics, alerting                       │
 │  Real-time: WebSocket (terminal, screen sharing, SSE)           │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ SQL (asyncpg)
@@ -55,7 +58,12 @@ This document describes the high-level architecture of Octofleet, how its compon
 - **Technology:** Python 3.12, FastAPI, asyncpg (async PostgreSQL driver)
 - **Role:** Central API server, business logic, event processing, report generation
 - **Key modules:**
-  - `routers/` — Route handlers organized by domain (auth, nodes, jobs, security, etc.)
+  - `routers/` — 30 route modules organized by domain:
+    - **Core:** auth, nodes, groups, inventory, dashboard, jobs, deployments
+    - **Security:** security, monitoring_mgmt, baselines, vulnerabilities, remediation
+    - **Ops:** patches, packages_mgmt, services_mgmt, terminal, hardware, reports
+    - **Platform:** query_engine, content_lifecycle, software_metering, alerting, metrics, mssql
+    - **Provisioning:** provisioning, provisioning_iso, provisioning_vm, provisioning_domain, provisioning_linux_boot, provisioning_postinstall
   - `auth.py` — Authentication (JWT + API Key), RBAC
   - `alerting.py` — Alert engine with Discord integration
   - `main.py` — App setup, middleware, and many inline route handlers (~450 endpoints)
@@ -356,6 +364,16 @@ The monolithic `main.py` has been progressively refactored. Extracted modules:
 | Query Engine | `backend/routers/query_engine.py` | DSL-to-SQL query builder, schema introspection, templates, live queries |
 | Content Lifecycle | `backend/routers/content_lifecycle.py` | Content repos, items, snapshots, environments, promotion |
 | Software Metering | `backend/routers/software_metering.py` | Software catalog, licenses, normalization, compliance, usage |
+| Remediation | `backend/routers/remediation.py` | Auto-remediation engine, jobs, scan results |
+| Patches | `backend/routers/patches.py` | Patch catalog, rings, deployments, compliance |
+| Baselines | `backend/routers/baselines.py` | Config baselines, drift detection, CIS benchmarks |
+| Services | `backend/routers/services_mgmt.py` | Service orchestration, classes, node assignments |
+| Reports | `backend/routers/reports.py` | PDF/Excel reports, fleet/security/inventory exports |
+| Monitoring | `backend/routers/monitoring_mgmt.py` | Monitoring profiles, posture, findings, evidence, audit |
+| Terminal | `backend/routers/terminal.py` | Remote terminal, screen sharing, shell sessions |
+| Packages | `backend/routers/packages_mgmt.py` | Package management, sources, repo files |
+| Vulnerabilities | `backend/routers/vulnerabilities.py` | CVE tracking, fleet view, node/software breakdown |
+| Hardware | `backend/routers/hardware.py` | Hardware fleet aggregation, disk health, CPU inventory |
 | Rules Engine | `backend/app/core/rules.py` | Dynamic group rule evaluation |
 | Node DB Helpers | `backend/app/db/nodes.py` | Node upsert, auto-onboard, dynamic groupships |
 | Dependencies | `backend/dependencies.py` | Shared deps: `get_db`, `verify_api_key`, error helpers |
