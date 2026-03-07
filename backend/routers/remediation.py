@@ -13,6 +13,7 @@ import asyncpg
 from typing import Optional, Dict, List, Any
 from starlette.responses import StreamingResponse
 import uuid
+from uuid import UUID
 import json
 import asyncio
 import io
