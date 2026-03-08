@@ -645,10 +645,24 @@ async def ingest_normalized_events(req: Request):
                     payload[key] = evt[key]
             
             severity = evt.get("severity", "info")
-            ts = evt.get("timestamp")  # Optional: agent-provided timestamp
+            ts_raw = evt.get("timestamp")
+            ts = None
+            if ts_raw:
+                from datetime import datetime as _dt, timezone as _tz
+                try:
+                    ts = _dt.fromisoformat(ts_raw.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    ts = None
             
             # Route file events to file_events table
-            if event_type.startswith("file.") or (event_type == "file" and event_subtype):
+            # Agent sends event_type like "Created", "Changed", "Deleted", "Renamed"
+            file_ops = {"created", "changed", "deleted", "renamed", "modified"}
+            is_file_event = (
+                event_type.startswith("file.") or
+                event_type == "file" or
+                event_type.lower() in file_ops
+            )
+            if is_file_event:
                 file_info = evt.get("file", {})
                 op = event_subtype or file_info.get("operation") or event_type
                 proc = evt.get("process", {})
@@ -657,7 +671,7 @@ async def ingest_normalized_events(req: Request):
                     await conn.execute("""
                         INSERT INTO file_events (ts, node_id, user_id, op, path, old_path, new_path,
                             process_name, pid, hash_before, hash_after, file_size, success)
-                        VALUES ($1::timestamptz, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                     """, ts, node_id, user_id, op,
                         file_info.get("path") or file_info.get("normalized_path"),
                         file_info.get("old_path"), file_info.get("new_path"),
@@ -679,7 +693,7 @@ async def ingest_normalized_events(req: Request):
                 if ts:
                     await conn.execute("""
                         INSERT INTO events_normalized (ts, node_id, user_id, event_type, severity, payload)
-                        VALUES ($1::timestamptz, $2, $3, $4, $5, $6::jsonb)
+                        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
                     """, ts, node_id, user_id, event_type, severity, json.dumps(payload))
                 else:
                     await conn.execute("""
