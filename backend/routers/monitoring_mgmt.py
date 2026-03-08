@@ -259,13 +259,18 @@ async def get_effective_policy(node_id: str):
         resolved_id = node_id
         uuid_row = await conn.fetchval("SELECT id::text FROM nodes WHERE hostname = $1", node_id)
         if uuid_row:
-            resolved_id = uuid_row
-        # Check direct node assignment first, then group assignments
+            resolved_id = str(uuid_row)
+        # Also try: node_id might already be a UUID
+        if not uuid_row:
+            uuid_row2 = await conn.fetchval("SELECT id::text FROM nodes WHERE id::text = $1", node_id)
+            if uuid_row2:
+                resolved_id = str(uuid_row2)
+        # Check direct node assignment — match both hostname and UUID
         row = await conn.fetchrow("""
             SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
             FROM monitoring_assignments a
             JOIN monitoring_profiles p ON p.id = a.profile_id
-            WHERE a.target_type = 'node' AND (a.target_id = $1 OR a.target_id = $2) AND a.status = 'active'
+            WHERE a.target_type = 'node' AND a.target_id IN ($1, $2) AND a.status = 'active'
                 AND (a.end_time IS NULL OR a.end_time > now())
             ORDER BY a.priority DESC LIMIT 1
         """, node_id, resolved_id)
