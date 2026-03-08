@@ -2,7 +2,6 @@
 import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { Eye, Plus, Edit, Trash2, Shield } from "lucide-react";
 
@@ -45,9 +44,11 @@ export default function MonitoringProfilesPage() {
       include_paths: form.include_paths.split("\n").filter(Boolean),
       exclude_paths: form.exclude_paths.split("\n").filter(Boolean),
     };
-    const url = editProfile ? `${API_BASE}/monitoring/profiles/${editProfile.id}` : `${API_BASE}/monitoring/profiles`;
-    const method = editProfile ? "PUT" : "POST";
-    await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (editProfile) {
+      await apiClient.put(`/monitoring/profiles/${editProfile.id}`, { body });
+    } else {
+      await apiClient.post(`/monitoring/profiles`, { body });
+    }
     setShowCreate(false);
     setEditProfile(null);
     setForm({ name: "", description: "", sensors: {}, include_paths: "", exclude_paths: "" });
@@ -60,14 +61,26 @@ export default function MonitoringProfilesPage() {
     fetchProfiles();
   }
 
+  function parseSensors(s: unknown): Record<string, boolean> {
+    if (!s) return {};
+    if (typeof s === "string") { try { return JSON.parse(s); } catch { return {}; } }
+    return s as Record<string, boolean>;
+  }
+
+  function parsePaths(p: unknown): string[] {
+    if (!p) return [];
+    if (typeof p === "string") { try { return JSON.parse(p); } catch { return []; } }
+    return p as string[];
+  }
+
   function openEdit(p: Profile) {
     setEditProfile(p);
     setForm({
       name: p.name,
       description: p.description || "",
-      sensors: p.sensors || {},
-      include_paths: (p.include_paths || []).join("\n"),
-      exclude_paths: (p.exclude_paths || []).join("\n"),
+      sensors: parseSensors(p.sensors),
+      include_paths: parsePaths(p.include_paths).join("\n"),
+      exclude_paths: parsePaths(p.exclude_paths).join("\n"),
     });
     setShowCreate(true);
   }
@@ -177,7 +190,7 @@ export default function MonitoringProfilesPage() {
                 </div>
                 {p.description && <p className="text-zinc-400 text-sm mb-3">{p.description}</p>}
                 <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(p.sensors || {}).filter(([, v]) => v).map(([key]) => (
+                  {Object.entries(parseSensors(p.sensors)).filter(([, v]) => v).map(([key]) => (
                     <span key={key} className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded text-xs">
                       {key.replace(/_/g, " ")}
                     </span>

@@ -127,11 +127,23 @@ async def delete_detection_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db)
         return {"status": "deleted"}
 
 
+def _parse_json_fields(d: dict, fields: tuple = ("sensors", "permissions", "sampling", "include_paths", "exclude_paths")) -> dict:
+    """Parse JSON string fields that asyncpg may return as text."""
+    import json as _json
+    for f in fields:
+        if isinstance(d.get(f), str):
+            try:
+                d[f] = _json.loads(d[f])
+            except (ValueError, TypeError):
+                pass
+    return d
+
+
 @router.get("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
 async def list_monitoring_profiles():
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
-        return {"profiles": [dict(r) for r in rows]}
+        return {"profiles": [_parse_json_fields(dict(r)) for r in rows]}
 
 
 @router.get("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
@@ -140,7 +152,7 @@ async def get_monitoring_profile(profile_id: str):
         row = await conn.fetchrow("SELECT * FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
-        return dict(row)
+        return _parse_json_fields(dict(row))
 
 
 @router.post("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
@@ -155,7 +167,7 @@ async def create_monitoring_profile(req: Request):
             json.dumps(body.get("sensors", {})), json.dumps(body.get("sampling", {})),
             json.dumps(body.get("include_paths", [])), json.dumps(body.get("exclude_paths", [])),
             body.get("created_by"))
-        return dict(row)
+        return _parse_json_fields(dict(row))
 
 
 @router.put("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
@@ -180,7 +192,7 @@ async def update_monitoring_profile(profile_id: str, req: Request):
             json.dumps(body.get("exclude_paths")) if "exclude_paths" in body else None)
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
-        return dict(row)
+        return _parse_json_fields(dict(row))
 
 
 @router.delete("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
@@ -542,21 +554,12 @@ async def get_agent_capabilities(node_id: str):
                 row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", resolved)
         if not row:
             raise HTTPException(status_code=404, detail="No capabilities reported for this node")
-        result = dict(row)
-        # Parse JSON string fields that asyncpg returns as text
-        for field in ("sensors", "permissions"):
-            if isinstance(result.get(field), str):
-                try:
-                    result[field] = _json.loads(result[field])
-                except (ValueError, TypeError):
-                    pass
-        return result
+        return _parse_json_fields(dict(row))
 
 
 @router.get("/api/v1/agents/capabilities", dependencies=[Depends(verify_api_key)])
 async def list_agent_capabilities():
     """List all agents with their capabilities and health status."""
-    import json as _json
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT ac.*, n.hostname, n.os
@@ -564,17 +567,7 @@ async def list_agent_capabilities():
             LEFT JOIN nodes n ON n.id = ac.node_id OR n.hostname = ac.node_id
             ORDER BY ac.last_seen DESC
         """)
-        result = []
-        for r in rows:
-            d = dict(r)
-            for field in ("sensors", "permissions"):
-                if isinstance(d.get(field), str):
-                    try:
-                        d[field] = _json.loads(d[field])
-                    except (ValueError, TypeError):
-                        pass
-            result.append(d)
-        return {"agents": result}
+        return {"agents": [_parse_json_fields(dict(r)) for r in rows]}
 
 
 @router.post("/api/v1/agents/{node_id}/health")
