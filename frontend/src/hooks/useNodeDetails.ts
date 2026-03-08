@@ -181,24 +181,24 @@ export function useNodeDetails(nodeId: string) {
     setRefreshing(true);
     try {
       const [hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
-        apiClient.get(`/inventory/hardware/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/software/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/hotfixes/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/system/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/security/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/network/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/browser/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/browser/${nodeId}/critical`, { showErrorToast: false }),
+        apiClient.richGet(`/inventory/hardware/${nodeId}`),
+        apiClient.richGet(`/inventory/software/${nodeId}`),
+        apiClient.richGet(`/inventory/hotfixes/${nodeId}`),
+        apiClient.richGet(`/inventory/system/${nodeId}`),
+        apiClient.richGet(`/inventory/security/${nodeId}`),
+        apiClient.richGet(`/inventory/network/${nodeId}`),
+        apiClient.richGet(`/inventory/browser/${nodeId}`),
+        apiClient.richGet<CriticalCookiesData>(`/inventory/browser/${nodeId}/critical`),
       ]);
 
-      if (hwRes) { setHardware(hwRes.hwRes || { }); }
-      if (swRes) { setSoftware(swRes.swRes?.installedPrograms || []); }
-      if (hfRes) { setHotfixes({ hotfixes: hfRes.hfRes?.hotfixes || [], updateHistory: hfRes.hfRes?.updateHistory || [] }); }
-      if (sysRes) { setSystem(sysRes.sysRes || { }); }
-      if (secRes) { setSecurity(secRes.secRes || { }); }
-      if (netRes) { setNetwork(netRes.netRes || { }); }
-      if (brRes) { setBrowser(brRes.brRes || { }); }
-      if (critRes) { setCriticalCookies(critRes); }
+      if (hwRes.ok && hwRes.data) { setHardware((hwRes.data as Record<string, unknown>).hwRes as HardwareData || {}); }
+      if (swRes.ok && swRes.data) { setSoftware(((swRes.data as Record<string, unknown>).swRes as Record<string, unknown>)?.installedPrograms as SoftwareItem[] || []); }
+      if (hfRes.ok && hfRes.data) { const d = (hfRes.data as Record<string, unknown>).hfRes as Record<string, unknown>; setHotfixes({ hotfixes: (d?.hotfixes || []) as HotfixData["hotfixes"], updateHistory: (d?.updateHistory || []) as HotfixData["updateHistory"] }); }
+      if (sysRes.ok && sysRes.data) { setSystem((sysRes.data as Record<string, unknown>).sysRes as SystemData || {}); }
+      if (secRes.ok && secRes.data) { setSecurity((secRes.data as Record<string, unknown>).secRes as SecurityData || {}); }
+      if (netRes.ok && netRes.data) { setNetwork((netRes.data as Record<string, unknown>).netRes as NetworkData || {}); }
+      if (brRes.ok && brRes.data) { setBrowser((brRes.data as Record<string, unknown>).brRes as BrowserData || {}); }
+      if (critRes.ok && critRes.data) { setCriticalCookies(critRes.data); }
     } catch (err) {
       console.error("Failed to refresh inventory:", err);
     } finally {
@@ -210,40 +210,36 @@ export function useNodeDetails(nodeId: string) {
     setLoading(true);
     try {
       const [nodeRes, historyRes, hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
-        apiClient.get(`/nodes/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/nodes/${nodeId}/history?limit=50`, { showErrorToast: false }),
-        apiClient.get(`/inventory/hardware/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/software/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/hotfixes/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/system/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/security/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/network/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/browser/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/inventory/browser/${nodeId}/critical`, { showErrorToast: false }),
+        apiClient.richGet<NodeDetails>(`/nodes/${nodeId}`),
+        apiClient.richGet<{ changes?: InventoryChange[] }>(`/nodes/${nodeId}/history?limit=50`),
+        apiClient.richGet(`/inventory/hardware/${nodeId}`),
+        apiClient.richGet(`/inventory/software/${nodeId}`),
+        apiClient.richGet(`/inventory/hotfixes/${nodeId}`),
+        apiClient.richGet(`/inventory/system/${nodeId}`),
+        apiClient.richGet(`/inventory/security/${nodeId}`),
+        apiClient.richGet(`/inventory/network/${nodeId}`),
+        apiClient.richGet(`/inventory/browser/${nodeId}`),
+        apiClient.richGet<CriticalCookiesData>(`/inventory/browser/${nodeId}/critical`),
       ]);
 
-      if (nodeRes) setNode(nodeRes);
-      if (historyRes) { setHistory(historyRes.changes || []); }
-      if (hwRes) { setHardware(hwRes.hwRes || { }); }
-      if (swRes) { setSoftware(swRes.swRes?.installedPrograms || []); }
-      if (hfRes) { setHotfixes({ hotfixes: hfRes.hfRes?.hotfixes || [], updateHistory: hfRes.hfRes?.updateHistory || [] }); }
-      if (sysRes) { setSystem(sysRes.sysRes || { }); }
-      if (secRes) { setSecurity(secRes.secRes || { }); }
-      if (netRes) { setNetwork(netRes.netRes || { }); }
-      if (brRes) { setBrowser(brRes.brRes || { }); }
-      if (critRes) { setCriticalCookies(critRes); }
+      if (nodeRes.ok && nodeRes.data) setNode(nodeRes.data);
+      if (historyRes.ok && historyRes.data) { setHistory(historyRes.data.changes || []); }
+      if (hwRes.ok && hwRes.data) { setHardware((hwRes.data as Record<string, unknown>).hwRes as HardwareData || {}); }
+      if (swRes.ok && swRes.data) { setSoftware(((swRes.data as Record<string, unknown>).swRes as Record<string, unknown>)?.installedPrograms as SoftwareItem[] || []); }
+      if (hfRes.ok && hfRes.data) { const d = (hfRes.data as Record<string, unknown>).hfRes as Record<string, unknown>; setHotfixes({ hotfixes: (d?.hotfixes || []) as HotfixData["hotfixes"], updateHistory: (d?.updateHistory || []) as HotfixData["updateHistory"] }); }
+      if (sysRes.ok && sysRes.data) { setSystem((sysRes.data as Record<string, unknown>).sysRes as SystemData || {}); }
+      if (secRes.ok && secRes.data) { setSecurity((secRes.data as Record<string, unknown>).secRes as SecurityData || {}); }
+      if (netRes.ok && netRes.data) { setNetwork((netRes.data as Record<string, unknown>).netRes as NetworkData || {}); }
+      if (brRes.ok && brRes.data) { setBrowser((brRes.data as Record<string, unknown>).brRes as BrowserData || {}); }
+      if (critRes.ok && critRes.data) { setCriticalCookies(critRes.data); }
 
       // Fetch Linux-specific data
-      try {
-        const linuxRes = await apiClient.get(`/inventory/linux/${nodeId}`, { showErrorToast: false });
-        if (linuxRes) { setLinuxData(linuxRes.linuxRes || null); }
-      } catch {}
+      const linuxRes = await apiClient.richGet<{ linuxRes?: LinuxData }>(`/inventory/linux/${nodeId}`);
+      if (linuxRes.ok && linuxRes.data) { setLinuxData(linuxRes.data.linuxRes || null); }
 
       // Fetch eventlog separately
-      try {
-        const eventsRes = await apiClient.get(`/nodes/${nodeId}/eventlog?limit=100`, { showErrorToast: false });
-        if (eventsRes) { setEvents(eventsRes.events || []); }
-      } catch {}
+      const eventsRes = await apiClient.richGet<{ events?: EventlogEntry[] }>(`/nodes/${nodeId}/eventlog?limit=100`);
+      if (eventsRes.ok && eventsRes.data) { setEvents(eventsRes.data.events || []); }
     } catch (err) {
       console.error("Failed to fetch data:", err);
     } finally {

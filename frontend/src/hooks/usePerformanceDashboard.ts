@@ -130,14 +130,14 @@ export function usePerformanceDashboard() {
       const bucket = TIME_RANGES.find(t => t.value === timeRange)?.bucket || 5;
 
       const [fleetRes, tsRes, groupsRes] = await Promise.all([
-        apiClient.get(`/metrics/fleet?hours=${hours}`, { showErrorToast: false }),
-        apiClient.get(`/metrics/timeseries?hours=${hours}&bucket_minutes=${bucket}`, { showErrorToast: false }),
-        apiClient.get(`/groups`, { showErrorToast: false }),
+        apiClient.richGet<{ nodes?: NodeMetrics[] }>(`/metrics/fleet?hours=${hours}`),
+        apiClient.richGet<TimeseriesData>(`/metrics/timeseries?hours=${hours}&bucket_minutes=${bucket}`),
+        apiClient.richGet<{ groups?: Group[] }>(`/groups`),
       ]);
 
-      if (fleetRes) { setNodes(fleetRes.nodes || []); }
-      if (tsRes) { setFleetTimeseries(tsRes); }
-      if (groupsRes) { setGroups(groupsRes.groups || []); }
+      if (fleetRes.ok && fleetRes.data) { setNodes(fleetRes.data.nodes || []); }
+      if (tsRes.ok && tsRes.data) { setFleetTimeseries(tsRes.data); }
+      if (groupsRes.ok && groupsRes.data) { setGroups(groupsRes.data.groups || []); }
       setLastRefresh(new Date());
     } catch (e) {
       console.error("Failed to fetch:", e);
@@ -160,8 +160,8 @@ export function usePerformanceDashboard() {
     if (!drawerNode) { setDrawerTimeseries(null); return; }
     (async () => {
       try {
-        const res = await apiClient.get(`/metrics/node/${drawerNode.id}?hours=1&bucket_minutes=5`, { showErrorToast: false });
-        if (res) { setDrawerTimeseries(res); }
+        const res = await apiClient.richGet<NodeTimeseries>(`/metrics/node/${drawerNode.id}?hours=1&bucket_minutes=5`);
+        if (res.ok && res.data) { setDrawerTimeseries(res.data); }
       } catch (e) { console.error("Failed to fetch node timeseries:", e); }
     })();
   }, [drawerNode]);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, ApiResponse } from "@/lib/api-client";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -163,24 +163,29 @@ export function useMetering() {
 
   // ─── API helpers ─────────────────────────────────────────────────
 
-  const api = useCallback(async <T = unknown>(path: string, opts?: { method?: string; body?: Record<string, unknown> }): Promise<T> => {
+  const api = useCallback(async <T = unknown>(path: string, opts?: { method?: string; body?: Record<string, unknown> }): Promise<ApiResponse<T>> => {
     const endpoint = `/metering${path}`;
     const method = (opts?.method || 'GET').toUpperCase();
-    const reqOpts = { showErrorToast: false };
-    let data: unknown;
     if (method === 'POST') {
-      data = await apiClient.post(endpoint, opts?.body ?? {}, reqOpts);
+      return apiClient.richPost<T>(endpoint, opts?.body ?? {});
     } else if (method === 'PUT') {
-      data = await apiClient.put(endpoint, opts?.body ?? {}, reqOpts);
+      // No richPut available, wrap put result
+      try {
+        const data = await apiClient.put<T>(endpoint, opts?.body ?? {}, { showErrorToast: false });
+        return { ok: data !== null, data, error: data === null ? `API request failed: PUT ${endpoint}` : null, status: data !== null ? 200 : 0 };
+      } catch (e) {
+        return { ok: false, data: null, error: e instanceof Error ? e.message : String(e), status: 0 };
+      }
     } else if (method === 'DELETE') {
-      data = await apiClient.delete(endpoint, reqOpts);
+      try {
+        const data = await apiClient.delete<T>(endpoint, { showErrorToast: false });
+        return { ok: true, data, error: null, status: 200 };
+      } catch (e) {
+        return { ok: false, data: null, error: e instanceof Error ? e.message : String(e), status: 0 };
+      }
     } else {
-      data = await apiClient.get(endpoint, reqOpts);
+      return apiClient.richGet<T>(endpoint);
     }
-    if (data === null) {
-      throw new Error(`API request failed: ${method} ${endpoint}`);
-    }
-    return data as T;
   }, []);
 
   // ─── Loaders ─────────────────────────────────────────────────────
@@ -190,66 +195,77 @@ export function useMetering() {
     setError(null);
     try {
       interface DashboardResponse {
-        topInstalled?: CatalogEntry[]; top_installed?: CatalogEntry[];
-        topUnused?: CatalogEntry[]; top_unused?: CatalogEntry[];
+        topInstalled?: DashboardData["top_installed"]; top_installed?: DashboardData["top_installed"];
+        topUnused?: DashboardData["top_unused"]; top_unused?: DashboardData["top_unused"];
         compliance?: ComplianceSummary; compliance_summary?: ComplianceSummary;
         costByCategory?: Record<string, number> | { category: string; cost: number }[];
         cost_by_category?: Record<string, number> | { category: string; cost: number }[];
-        recentChanges?: unknown[]; recent_changes?: unknown[];
+        recentChanges?: DashboardData["recent_changes"]; recent_changes?: DashboardData["recent_changes"];
       }
-      const [dash, comp] = await Promise.all([
+      const [dashRes, compRes] = await Promise.all([
         api<DashboardResponse>("/dashboard"),
         api<ComplianceSummary>("/compliance"),
       ]);
-      setDashboard({
-        top_installed: dash.topInstalled || dash.top_installed || [],
-        top_unused: dash.topUnused || dash.top_unused || [],
-        compliance_summary: dash.compliance || dash.compliance_summary || comp,
-        cost_by_category: (() => {
-          const raw = dash.costByCategory || dash.cost_by_category || {};
-          if (Array.isArray(raw)) return raw;
-          return Object.entries(raw).map(([category, cost]) => ({ category, cost: cost as number }));
-        })(),
-        recent_changes: dash.recentChanges || dash.recent_changes || [],
-      });
-      setCompliance(comp);
+      if (dashRes.ok && dashRes.data && compRes.ok && compRes.data) {
+        const dash = dashRes.data;
+        const comp = compRes.data;
+        setDashboard({
+          top_installed: dash.topInstalled || dash.top_installed || [],
+          top_unused: dash.topUnused || dash.top_unused || [],
+          compliance_summary: dash.compliance || dash.compliance_summary || comp,
+          cost_by_category: (() => {
+            const raw = dash.costByCategory || dash.cost_by_category || {};
+            if (Array.isArray(raw)) return raw;
+            return Object.entries(raw).map(([category, cost]) => ({ category, cost: cost as number }));
+          })(),
+          recent_changes: dash.recentChanges || dash.recent_changes || [],
+        });
+        setCompliance(comp);
+      } else {
+        setError(dashRes.error || compRes.error || "Failed to load dashboard");
+      }
     } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   }, [api]);
 
   const loadCatalog = useCallback(async () => {
-    try {
-      const res = await api<{ catalog?: CatalogEntry[]; items?: CatalogEntry[] }>("/catalog");
-      setCatalog(res.catalog || res.items || (Array.isArray(res) ? res as unknown as CatalogEntry[] : []));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api<{ catalog?: CatalogEntry[]; items?: CatalogEntry[] }>("/catalog");
+    if (res.ok && res.data) {
+      const d = res.data;
+      setCatalog(d.catalog || d.items || (Array.isArray(d) ? d as unknown as CatalogEntry[] : []));
+    } else if (res.error) { setError(res.error); }
   }, [api]);
 
   const loadLicenses = useCallback(async () => {
-    try {
-      const res = await api<{ licenses?: License[]; items?: License[] }>("/licenses");
-      setLicenses(res.licenses || res.items || (Array.isArray(res) ? res as unknown as License[] : []));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api<{ licenses?: License[]; items?: License[] }>("/licenses");
+    if (res.ok && res.data) {
+      const d = res.data;
+      setLicenses(d.licenses || d.items || (Array.isArray(d) ? d as unknown as License[] : []));
+    } else if (res.error) { setError(res.error); }
   }, [api]);
 
   const loadRules = useCallback(async () => {
-    try {
-      const res = await api<{ rules?: NormRule[]; items?: NormRule[] }>("/rules");
-      setRules(res.rules || res.items || (Array.isArray(res) ? res as unknown as NormRule[] : []));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api<{ rules?: NormRule[]; items?: NormRule[] }>("/rules");
+    if (res.ok && res.data) {
+      const d = res.data;
+      setRules(d.rules || d.items || (Array.isArray(d) ? d as unknown as NormRule[] : []));
+    } else if (res.error) { setError(res.error); }
   }, [api]);
 
   const loadReclaim = useCallback(async () => {
-    try {
-      const res = await api<{ candidates?: ReclaimCandidate[]; items?: ReclaimCandidate[] }>("/usage/reclaim");
-      setReclaimCandidates(res.candidates || res.items || (Array.isArray(res) ? res as unknown as ReclaimCandidate[] : []));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api<{ candidates?: ReclaimCandidate[]; items?: ReclaimCandidate[] }>("/usage/reclaim");
+    if (res.ok && res.data) {
+      const d = res.data;
+      setReclaimCandidates(d.candidates || d.items || (Array.isArray(d) ? d as unknown as ReclaimCandidate[] : []));
+    } else if (res.error) { setError(res.error); }
   }, [api]);
 
   const loadTrueUp = useCallback(async () => {
-    try {
-      const res = await api<{ report?: TrueUpEntry[]; items?: TrueUpEntry[] }>("/reports/true-up");
-      setTrueUp(res.report || res.items || (Array.isArray(res) ? res as unknown as TrueUpEntry[] : []));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api<{ report?: TrueUpEntry[]; items?: TrueUpEntry[] }>("/reports/true-up");
+    if (res.ok && res.data) {
+      const d = res.data;
+      setTrueUp(d.report || d.items || (Array.isArray(d) ? d as unknown as TrueUpEntry[] : []));
+    } else if (res.error) { setError(res.error); }
   }, [api]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
@@ -265,81 +281,83 @@ export function useMetering() {
   // ─── CRUD ────────────────────────────────────────────────────────
 
   const saveCatalog = async () => {
-    try {
-      if (editingCatalog) {
-        await api(`/catalog/${editingCatalog.id}`, { method: "PUT", body: JSON.stringify({ canonicalName: catalogForm.canonical_name, publisher: catalogForm.publisher, category: catalogForm.category, notes: catalogForm.notes }) });
-      } else {
-        await api("/catalog", { method: "POST", body: JSON.stringify({ canonicalName: catalogForm.canonical_name, publisher: catalogForm.publisher, category: catalogForm.category, notes: catalogForm.notes }) });
-      }
+    const body = { canonicalName: catalogForm.canonical_name, publisher: catalogForm.publisher, category: catalogForm.category, notes: catalogForm.notes };
+    const res = editingCatalog
+      ? await api(`/catalog/${editingCatalog.id}`, { method: "PUT", body: body as unknown as Record<string, unknown> })
+      : await api("/catalog", { method: "POST", body: body as unknown as Record<string, unknown> });
+    if (res.ok) {
       setShowCatalogForm(false);
       setEditingCatalog(null);
       setCatalogForm({ canonical_name: "", publisher: "", category: "Other", notes: "" });
       loadCatalog();
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    } else if (res.error) { setError(res.error); }
   };
 
   const deleteCatalog = async (id: string) => {
     if (!confirm("Delete this catalog entry and all associated licenses/rules?")) return;
-    try { await api(`/catalog/${id}`, { method: "DELETE" }); loadCatalog(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api(`/catalog/${id}`, { method: "DELETE" });
+    if (res.ok) { loadCatalog(); } else if (res.error) { setError(res.error); }
   };
 
   const autoDiscover = async () => {
     setLoading(true);
-    try {
-      const res: any = await api("/catalog/auto-discover", { method: "POST" });
+    const res = await api<{ created?: number }>("/catalog/auto-discover", { method: "POST" });
+    if (res.ok && res.data) {
       setError(null);
       loadCatalog();
-      alert(`Auto-discovered ${res.created || 0} new software entries!`);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+      alert(`Auto-discovered ${res.data.created || 0} new software entries!`);
+    } else if (res.error) { setError(res.error); }
     setLoading(false);
   };
 
   const saveLicense = async () => {
-    try {
-      await api("/licenses", {
-        method: "POST",
-        body: JSON.stringify({
-          ...licenseForm,
-          total_licenses: licenseForm.total_licenses ? parseInt(licenseForm.total_licenses) : null,
-          cost_per_license: licenseForm.cost_per_license ? parseFloat(licenseForm.cost_per_license) : null,
-          expires_at: licenseForm.expires_at || null,
-        }),
-      });
+    const res = await api("/licenses", {
+      method: "POST",
+      body: {
+        ...licenseForm,
+        total_licenses: licenseForm.total_licenses ? parseInt(licenseForm.total_licenses) : null,
+        cost_per_license: licenseForm.cost_per_license ? parseFloat(licenseForm.cost_per_license) : null,
+        expires_at: licenseForm.expires_at || null,
+      } as unknown as Record<string, unknown>,
+    });
+    if (res.ok) {
       setShowLicenseForm(false);
       setLicenseForm({ catalog_id: "", license_type: "per_device", total_licenses: "", cost_per_license: "", currency: "EUR", vendor: "", contract_id: "", expires_at: "", notes: "" });
       loadLicenses();
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    } else if (res.error) { setError(res.error); }
   };
 
   const deleteLicense = async (id: string) => {
     if (!confirm("Delete this license?")) return;
-    try { await api(`/licenses/${id}`, { method: "DELETE" }); loadLicenses(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api(`/licenses/${id}`, { method: "DELETE" });
+    if (res.ok) { loadLicenses(); } else if (res.error) { setError(res.error); }
   };
 
   const saveRule = async () => {
-    try {
-      await api("/rules", {
-        method: "POST",
-        body: JSON.stringify({ ...ruleForm, priority: parseInt(ruleForm.priority) || 0 }),
-      });
+    const res = await api("/rules", {
+      method: "POST",
+      body: { ...ruleForm, priority: parseInt(ruleForm.priority) || 0 } as unknown as Record<string, unknown>,
+    });
+    if (res.ok) {
       setShowRuleForm(false);
       setRuleForm({ pattern: "", match_type: "like", catalog_id: "", priority: "0" });
       loadRules();
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    } else if (res.error) { setError(res.error); }
   };
 
   const testRule = async () => {
-    try {
-      const res: any = await api("/rules/test", {
-        method: "POST",
-        body: JSON.stringify({ pattern: ruleForm.pattern, match_type: ruleForm.match_type }),
-      });
-      setRuleTestResult(res.matches || []);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api<{ matches?: string[] }>("/rules/test", {
+      method: "POST",
+      body: { pattern: ruleForm.pattern, match_type: ruleForm.match_type },
+    });
+    if (res.ok && res.data) {
+      setRuleTestResult(res.data.matches || []);
+    } else if (res.error) { setError(res.error); }
   };
 
   const deleteRule = async (id: number) => {
-    try { await api(`/rules/${id}`, { method: "DELETE" }); loadRules(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    const res = await api(`/rules/${id}`, { method: "DELETE" });
+    if (res.ok) { loadRules(); } else if (res.error) { setError(res.error); }
   };
 
   // Filtered catalog
