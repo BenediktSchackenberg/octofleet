@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { OsDistributionChart } from "@/components/OsDistributionChart";
 import { getAuthHeader } from "@/lib/auth-context";
@@ -134,7 +134,7 @@ interface MetricsSummary {
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
@@ -151,6 +151,16 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  const [taskCounts, setTaskCounts] = useState<{ approvals: number; findings: number; failedJobs: number; offline: number } | null>(null);
+
+  // Time-based greeting
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return "Good morning";
+    if (h >= 12 && h < 17) return "Good afternoon";
+    if (h >= 17 && h < 22) return "Good evening";
+    return "Good night";
+  }, []);
 
   
 
@@ -165,6 +175,7 @@ export default function HomePage() {
     fetchSqlCatalog();
     fetchSystemHealth();
     fetchRecentAlerts();
+    fetchTaskCounts();
   }, []);
 
   useEffect(() => {
@@ -202,6 +213,21 @@ export default function HomePage() {
   async function fetchRecentAlerts() {
     const data = await apiClient.get<any[]>("/alert-history?limit=5");
     if (data) setRecentAlerts(data);
+  }
+
+  async function fetchTaskCounts() {
+    const c = { approvals: 0, findings: 0, failedJobs: 0, offline: 0 };
+    const results = await Promise.allSettled([
+      apiClient.get<{ pending: any[] }>("/pending-nodes"),
+      apiClient.get<{ findings: any[]; total: number }>("/security/findings?severity=critical&limit=1"),
+      apiClient.get<{ jobs: any[] }>("/jobs?status=failed&limit=1"),
+      apiClient.get<{ nodes: any[] }>("/nodes"),
+    ]);
+    if (results[0].status === "fulfilled" && results[0].value?.pending) c.approvals = results[0].value.pending.length;
+    if (results[1].status === "fulfilled" && results[1].value) c.findings = results[1].value.total || results[1].value.findings?.length || 0;
+    if (results[2].status === "fulfilled" && results[2].value?.jobs) c.failedJobs = results[2].value.jobs.length;
+    if (results[3].status === "fulfilled" && results[3].value?.nodes) c.offline = results[3].value.nodes.filter((n: any) => n.status !== "online").length;
+    setTaskCounts(c);
   }
 
   async function fetchMetrics() {
@@ -637,17 +663,42 @@ export default function HomePage() {
               {/* Header */}
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="text-3xl font-extrabold tracking-tight text-foreground">Dashboard</h2>
+                  <h2 className="text-3xl font-extrabold tracking-tight text-foreground">{greeting}{user?.username ? `, ${user.username}` : ""}</h2>
                   <p className="text-muted-foreground flex items-center gap-2">
                     <Monitor className="h-4 w-4" /> Global Fleet Overview
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="shadow-sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); }}>
+                  <Button variant="outline" size="sm" className="shadow-sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); fetchTaskCounts(); }}>
                     <RefreshCw className="h-4 w-4 mr-2" /> Refresh
                   </Button>
                 </div>
               </div>
+
+              {/* Today's Tasks Widget */}
+              {taskCounts && (taskCounts.approvals + taskCounts.findings + taskCounts.failedJobs + taskCounts.offline > 0) && (
+                <Card className="mb-6 border-zinc-800 bg-zinc-900/50">
+                  <CardContent className="p-4 flex items-center gap-4 flex-wrap">
+                    <AlertCircle className="h-5 w-5 text-orange-400" />
+                    <span className="text-sm font-medium text-foreground">Today&apos;s Tasks:</span>
+                    <div className="flex items-center gap-3 flex-wrap text-sm">
+                      {taskCounts.approvals > 0 && (
+                        <Link href="/tasks" className="text-orange-400 hover:underline">{taskCounts.approvals} pending approval{taskCounts.approvals !== 1 ? "s" : ""}</Link>
+                      )}
+                      {taskCounts.findings > 0 && (
+                        <Link href="/tasks" className="text-red-400 hover:underline">{taskCounts.findings} critical finding{taskCounts.findings !== 1 ? "s" : ""}</Link>
+                      )}
+                      {taskCounts.failedJobs > 0 && (
+                        <Link href="/tasks" className="text-yellow-400 hover:underline">{taskCounts.failedJobs} failed job{taskCounts.failedJobs !== 1 ? "s" : ""}</Link>
+                      )}
+                      {taskCounts.offline > 0 && (
+                        <Link href="/tasks" className="text-zinc-400 hover:underline">{taskCounts.offline} offline device{taskCounts.offline !== 1 ? "s" : ""}</Link>
+                      )}
+                    </div>
+                    <Link href="/tasks" className="ml-auto text-xs text-muted-foreground hover:text-foreground">View all →</Link>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Quick Actions */}
               {isAdmin() && (

@@ -141,7 +141,7 @@ const navGroups: NavGroup[] = [
 // Standalone items (no sub-items)
 const standaloneItems: { href: string; label: string; labelKey: string; icon: LucideIcon }[] = [
   { href: "/", label: "Start", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  // { href: "/tasks", label: "Tasks", labelKey: "nav.tasks", icon: AlertTriangle }, // E41 Phase 2: page not built yet
+  { href: "/tasks", label: "Tasks", labelKey: "nav.tasks", icon: AlertTriangle },
 ];
 
 const STORAGE_KEY = "octofleet-sidebar-collapsed";
