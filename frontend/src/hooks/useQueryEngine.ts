@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { apiClient } from "@/lib/api-client";
+import { useState } from "react";
+import { useQuerySchema } from "./useQuerySchema";
+import { useQueryExecution } from "./useQueryExecution";
+import { useQueryHistory } from "./useQueryHistory";
 
-// ─── Types ───────────────────────────────────────────────────────────
+// ─── Types (re-exported for consumers) ───────────────────────────────
 
 export interface SchemaTable {
   name: string;
@@ -177,564 +179,64 @@ export function formatTime(iso?: string): string {
 
 export type TabId = "builder" | "live" | "templates" | "history" | "saved" | "schedules" | "dashboards";
 
-// ─── Hook ────────────────────────────────────────────────────────────
+// ─── Orchestrator Hook ───────────────────────────────────────────────
 
 export function useQueryEngine() {
-  // Schema
-  const [schema, setSchema] = useState<SchemaCategory[]>([]);
-  const [templates, setTemplates] = useState<QueryTemplate[]>([]);
-  const [expandedCat, setExpandedCat] = useState<string | null>(null);
-  const [expandedTable, setExpandedTable] = useState<string | null>(null);
-
-  // Query builder
-  const [selectedTable, setSelectedTable] = useState("nodes");
-  const [selectedJoin, setSelectedJoin] = useState("");
-  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
-  const [whereClauses, setWhereClauses] = useState<WhereClause[]>([]);
-  const [orderBy, setOrderBy] = useState("");
-  const [orderDir, setOrderDir] = useState("ASC");
-  const [limit, setLimit] = useState(100);
-  const [groupBy, setGroupBy] = useState("");
-
-  // Results
-  const [result, setResult] = useState<QueryResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Live query
-  const [liveMode, setLiveMode] = useState(false);
-  const [liveCommand, setLiveCommand] = useState("processes");
-  const [liveResults, setLiveResults] = useState<LiveResult[]>([]);
-  const [liveRunning, setLiveRunning] = useState(false);
-
-  // History (local fallback)
-  const [history, setHistory] = useState<{ query: QueryDSL; time: string; ms: number; rows: number }[]>([]);
-
-  // Tab
   const [activeTab, setActiveTab] = useState<TabId>("builder");
 
-  // Stats
-  const [stats, setStats] = useState<QueryStats | null>(null);
+  const schemaHook = useQuerySchema(activeTab);
+  const execHook = useQueryExecution(schemaHook.getTableColumns);
+  const historyHook = useQueryHistory(activeTab, execHook.buildCurrentDSL, execHook.setError);
 
-  // Saved queries
-  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
-  const [savedSearch, setSavedSearch] = useState("");
-  const [savedCategoryFilter, setSavedCategoryFilter] = useState("");
-  const [savedLoading, setSavedLoading] = useState(false);
-  const [showSaveForm, setShowSaveForm] = useState(false);
-  const [saveForm, setSaveForm] = useState({ name: "", description: "", category: "", tags: "", is_public: true });
-  const [savedRunResult, setSavedRunResult] = useState<{ id: string; result: QueryResult } | null>(null);
-  const [editingSaved, setEditingSaved] = useState<SavedQuery | null>(null);
-
-  // Schedules
-  const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
-  const [schedulesLoading, setSchedulesLoading] = useState(false);
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({ saved_query_id: "", name: "", cron_expression: "0 0 * * *", output_format: "JSON" });
-  const [expandedSchedule, setExpandedSchedule] = useState<string | null>(null);
-  const [scheduleResults, setScheduleResults] = useState<Record<string, ScheduleResult[]>>({});
-
-  // Dashboards
-  const [dashboards, setDashboards] = useState<DashboardMeta[]>([]);
-  const [selectedDashboard, setSelectedDashboard] = useState<Dashboard | null>(null);
-  const [dashboardsLoading, setDashboardsLoading] = useState(false);
-  const [showDashboardForm, setShowDashboardForm] = useState(false);
-  const [dashboardForm, setDashboardForm] = useState({ name: "", description: "" });
-  const [showWidgetForm, setShowWidgetForm] = useState(false);
-  const [widgetForm, setWidgetForm] = useState({ saved_query_id: "", title: "", visualization: "table", position: 0 });
-  const [editingDashboard, setEditingDashboard] = useState(false);
-  const [editingWidget, setEditingWidget] = useState<DashboardWidget | null>(null);
-
-  // History (backend)
-  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [expandedHistorySql, setExpandedHistorySql] = useState<string | null>(null);
-
-  // ─── Fetch schema & templates ────────────────────────────────────
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const [schemaRes, templateRes] = await Promise.all([
-          apiClient.richGet<{ categories?: Record<string, SchemaTable[]> | SchemaCategory[] }>(`/query/schema`),
-          apiClient.richGet<{ templates?: QueryTemplate[] }>(`/query/templates`),
-        ]);
-        if (schemaRes.ok && schemaRes.data) {
-          const catIcons: Record<string, string> = {
-            Fleet: "🖥️", Software: "📦", Security: "🔒", System: "⚙️",
-            Monitoring: "📡", Compliance: "📏", Operations: "🔧", };
-          const cats = schemaRes.data.categories;
-          if (cats && typeof cats === "object" && !Array.isArray(cats)) {
-            const arr: SchemaCategory[] = Object.entries(cats).map(([name, tables]) => ({
-              name,
-              icon: catIcons[name] || "📁",
-              tables: (tables as SchemaTable[]),
-            }));
-            setSchema(arr);
-          } else if (Array.isArray(cats)) {
-            setSchema(cats);
-          }
-        }
-        if (templateRes.ok && templateRes.data) { setTemplates(templateRes.data.templates || []); }
-      } catch (err) {
-        console.error("Failed to load schema/templates", err);
-      }
-    }
-    load();
-  }, []);
-
-  // Fetch stats
-  useEffect(() => {
-    async function loadStats() {
-      const res = await apiClient.richGet<QueryStats>(`/query/stats`);
-      if (res.ok && res.data) setStats(res.data);
-    }
-    loadStats();
-  }, [activeTab]);
-
-  // Get all columns for the selected table
-  const tableColumns = schema
-    .flatMap((c) => c.tables)
-    .find((t) => t.name === selectedTable)?.columns || [];
-
-  const joinTableColumns = selectedJoin
-    ? schema.flatMap((c) => c.tables).find((t) => t.name === selectedJoin)?.columns || []
-    : [];
-
-  const allColumns = [
-    ...tableColumns.map((c) => ({ ...c, table: selectedTable })),
-    ...joinTableColumns.map((c) => ({ ...c, table: selectedJoin })),
-  ];
-
-  // ─── Execute Query ───────────────────────────────────────────────
-
-  const buildCurrentDSL = useCallback((): QueryDSL => ({
-    from: selectedTable,
-    ...(selectedJoin && { join: selectedJoin }),
-    ...(selectedColumns.length > 0 && { select: selectedColumns }),
-    ...(whereClauses.length > 0 && { where: whereClauses }),
-    ...(groupBy && { groupBy: groupBy.split(",").map((s) => s.trim()) }),
-    ...(orderBy && { orderBy: [{ field: orderBy, dir: orderDir }] }),
-    limit,
-  }), [selectedTable, selectedJoin, selectedColumns, whereClauses, groupBy, orderBy, orderDir, limit]);
-
-  const executeQuery = useCallback(
-    async (dsl?: QueryDSL) => {
-      setLoading(true);
-      setError(null);
-
-      const query: QueryDSL = dsl || buildCurrentDSL();
-
-      try {
-        const res = await apiClient.richPost<QueryResult>(`/query/execute`, query);
-
-        if (!res.ok || !res.data) {
-          setError(res.error || 'Query execution failed');
-          return;
-        }
-
-        const data = res.data;
-        setResult(data);
-
-        setHistory((prev) => [
-          { query, time: new Date().toLocaleTimeString(), ms: data.executionMs, rows: data.rowCount },
-          ...prev.slice(0, 49),
-        ]);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [buildCurrentDSL]
-  );
-
-  // ─── Live Query via SSE ──────────────────────────────────────────
-
-  const executeLiveQuery = useCallback(async () => {
-    setLiveRunning(true);
-    setLiveResults([]);
-    setError(null);
-
-    try {
-      const res = await apiClient.richPost(`/query/live`, { command: liveCommand });
-
-      if (!res.ok) {
-        setError(res.error || 'Live query failed');
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLiveRunning(false);
-    }
-  }, [liveCommand]);
-
-  // ─── Load template ───────────────────────────────────────────────
-
+  // loadTemplate and loadDSLIntoBuilder need to also switch tab
   const loadTemplate = (t: QueryTemplate) => {
-    setSelectedTable(t.query.from);
-    setSelectedJoin(t.query.join || "");
-    setSelectedColumns(t.query.select || []);
-    setWhereClauses(t.query.where || []);
-    setGroupBy(t.query.groupBy?.join(", ") || "");
-    setOrderBy(t.query.orderBy?.[0]?.field || "");
-    setOrderDir(t.query.orderBy?.[0]?.dir || "ASC");
-    setLimit(t.query.limit || 100);
+    execHook.loadTemplate(t);
     setActiveTab("builder");
   };
 
   const loadDSLIntoBuilder = (dsl: QueryDSL) => {
-    setSelectedTable(dsl.from);
-    setSelectedJoin(dsl.join || "");
-    setSelectedColumns(dsl.select || []);
-    setWhereClauses(dsl.where || []);
-    setGroupBy(dsl.groupBy?.join(", ") || "");
-    setOrderBy(dsl.orderBy?.[0]?.field || "");
-    setOrderDir(dsl.orderBy?.[0]?.dir || "ASC");
-    setLimit(dsl.limit || 100);
+    execHook.loadDSLIntoBuilder(dsl);
     setActiveTab("builder");
-  };
-
-  // ─── Add / remove where clause ──────────────────────────────────
-
-  const addWhere = () => {
-    setWhereClauses([...whereClauses, { field: tableColumns[0]?.name || "", op: "=", value: "" }]);
-  };
-
-  const removeWhere = (idx: number) => {
-    setWhereClauses(whereClauses.filter((_, i) => i !== idx));
-  };
-
-  const updateWhere = (idx: number, patch: Partial<WhereClause>) => {
-    setWhereClauses(whereClauses.map((w, i) => (i === idx ? { ...w, ...patch } : w)));
-  };
-
-  // ─── Export CSV ──────────────────────────────────────────────────
-
-  const exportCsv = () => {
-    if (!result) return;
-    const header = result.columns.join(",");
-    const rows = result.rows.map((r) =>
-      result.columns.map((c) => {
-        const val = r[c];
-        const str = val === null || val === undefined ? "" : String(val);
-        return str.includes(",") || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
-      }).join(",")
-    );
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `query-${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ─── Copy JSON ───────────────────────────────────────────────────
-
-  const copyJson = () => {
-    if (!result) return;
-    navigator.clipboard.writeText(JSON.stringify(result.rows, null, 2));
-  };
-
-  // ─── Saved Queries API ──────────────────────────────────────────
-
-  const fetchSaved = useCallback(async () => {
-    setSavedLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (savedCategoryFilter) params.set("category", savedCategoryFilter);
-      if (savedSearch) params.set("tags", savedSearch);
-      const res = await apiClient.richGet<SavedQuery[] | { queries?: SavedQuery[] }>(`/query/saved?${params}`);
-      if (res.ok && res.data) {
-        const d = res.data;
-        setSavedQueries(Array.isArray(d) ? d : d.queries || []);
-      }
-    } catch {} finally { setSavedLoading(false); }
-  }, [savedCategoryFilter, savedSearch]);
-
-  useEffect(() => { if (activeTab === "saved") fetchSaved(); }, [activeTab, fetchSaved]);
-
-  const saveCurrent = async () => {
-    try {
-      const body = {
-        name: saveForm.name,
-        description: saveForm.description,
-        query_dsl: buildCurrentDSL(),
-        category: saveForm.category,
-        tags: saveForm.tags.split(",").map(t => t.trim()).filter(Boolean),
-        is_public: saveForm.is_public,
-      };
-      const res = await apiClient.richPost(`/query/saved`, body);
-      if (res.ok) {
-        setShowSaveForm(false);
-        setSaveForm({ name: "", description: "", category: "", tags: "", is_public: true });
-        fetchSaved();
-      }
-    } catch {}
-  };
-
-  const deleteSaved = async (id: string) => {
-    try {
-      await apiClient.delete(`/query/saved/${id}`, { showErrorToast: false });
-      fetchSaved();
-    } catch {}
-  };
-
-  const duplicateSaved = async (id: string) => {
-    try {
-      const res = await apiClient.richPost(`/query/saved/${id}/duplicate`, {});
-      if (res.ok) fetchSaved();
-    } catch {}
-  };
-
-  const runSaved = async (sq: SavedQuery) => {
-    try {
-      const res = await apiClient.richPost<QueryResult>(`/query/saved/${sq.id}/run`, {});
-      if (res.ok && res.data) {
-        setSavedRunResult({ id: sq.id, result: res.data });
-      }
-    } catch {}
-  };
-
-  const togglePublic = async (sq: SavedQuery) => {
-    try {
-      await apiClient.put(`/query/saved/${sq.id}`, { is_public: !sq.is_public }, { showErrorToast: false });
-      fetchSaved();
-    } catch {}
-  };
-
-  const updateSavedQuery = async (sq: SavedQuery) => {
-    try {
-      await apiClient.put(`/query/saved/${sq.id}`, { name: sq.name, description: sq.description, category: sq.category, tags: sq.tags }, { showErrorToast: false });
-      setEditingSaved(null);
-      fetchSaved();
-    } catch {}
-  };
-
-  // ─── Schedules API ──────────────────────────────────────────────
-
-  const fetchSchedules = useCallback(async () => {
-    setSchedulesLoading(true);
-    try {
-      const res = await apiClient.richGet<ScheduleEntry[] | { schedules?: ScheduleEntry[] }>(`/query/schedules`);
-      if (res.ok && res.data) {
-        const d = res.data;
-        setSchedules(Array.isArray(d) ? d : d.schedules || []);
-      }
-    } catch {} finally { setSchedulesLoading(false); }
-  }, []);
-
-  useEffect(() => { if (activeTab === "schedules") fetchSchedules(); }, [activeTab, fetchSchedules]);
-
-  const createSchedule = async () => {
-    try {
-      const res = await apiClient.richPost(`/query/schedules`, scheduleForm);
-      if (res.ok) {
-        setShowScheduleForm(false);
-        setScheduleForm({ saved_query_id: "", name: "", cron_expression: "0 0 * * *", output_format: "JSON" });
-        fetchSchedules();
-      }
-    } catch {}
-  };
-
-  const deleteSchedule = async (id: string) => {
-    try {
-      await apiClient.delete(`/query/schedules/${id}`, { showErrorToast: false });
-      fetchSchedules();
-    } catch {}
-  };
-
-  const toggleSchedule = async (s: ScheduleEntry) => {
-    try {
-      await apiClient.put(`/query/schedules/${s.id}`, { enabled: !s.enabled }, { showErrorToast: false });
-      fetchSchedules();
-    } catch {}
-  };
-
-  const runScheduleNow = async (id: string) => {
-    try {
-      const res = await apiClient.richPost(`/query/schedules/${id}/run-now`, {});
-      if (res.ok) fetchSchedules();
-    } catch {}
-  };
-
-  const fetchScheduleResults = async (id: string) => {
-    try {
-      const res = await apiClient.richGet<ScheduleResult[] | { results?: ScheduleResult[] }>(`/query/schedules/${id}/results`);
-      if (res.ok && res.data) {
-        const d = res.data;
-        setScheduleResults(prev => ({ ...prev, [id]: Array.isArray(d) ? d : d.results || [] }));
-      }
-    } catch {}
-  };
-
-  // ─── Dashboards API ─────────────────────────────────────────────
-
-  const fetchDashboards = useCallback(async () => {
-    setDashboardsLoading(true);
-    try {
-      const res = await apiClient.richGet<DashboardMeta[] | { dashboards?: DashboardMeta[] }>(`/query/dashboards`);
-      if (res.ok && res.data) {
-        const d = res.data;
-        setDashboards(Array.isArray(d) ? d : d.dashboards || []);
-      }
-    } catch {} finally { setDashboardsLoading(false); }
-  }, []);
-
-  useEffect(() => { if (activeTab === "dashboards") fetchDashboards(); }, [activeTab, fetchDashboards]);
-
-  const loadDashboardById = async (id: string) => {
-    try {
-      const res = await apiClient.richGet<Dashboard>(`/query/dashboards/${id}`);
-      if (res.ok && res.data) setSelectedDashboard(res.data);
-    } catch {}
-  };
-
-  const createDashboard = async () => {
-    try {
-      const res = await apiClient.richPost<{ id?: string }>(`/query/dashboards`, dashboardForm);
-      if (res.ok && res.data) {
-        setShowDashboardForm(false);
-        setDashboardForm({ name: "", description: "" });
-        fetchDashboards();
-        if (res.data.id) loadDashboardById(res.data.id);
-      }
-    } catch {}
-  };
-
-  const deleteDashboard = async (id: string) => {
-    try {
-      await apiClient.delete(`/query/dashboards/${id}`, { showErrorToast: false });
-      setSelectedDashboard(null);
-      fetchDashboards();
-    } catch {}
-  };
-
-  const updateDashboard = async () => {
-    if (!selectedDashboard) return;
-    try {
-      await apiClient.put(`/query/dashboards/${selectedDashboard.id}`, { name: selectedDashboard.name, description: selectedDashboard.description }, { showErrorToast: false });
-      setEditingDashboard(false);
-      fetchDashboards();
-    } catch {}
-  };
-
-  const addWidget = async () => {
-    if (!selectedDashboard) return;
-    try {
-      const res = await apiClient.richPost(`/query/dashboards/${selectedDashboard.id}/widgets`, widgetForm);
-      if (res.ok) {
-        setShowWidgetForm(false);
-        setWidgetForm({ saved_query_id: "", title: "", visualization: "table", position: 0 });
-        loadDashboardById(selectedDashboard.id);
-      }
-    } catch {}
-  };
-
-  const removeWidget = async (wid: string) => {
-    if (!selectedDashboard) return;
-    try {
-      await apiClient.delete(`/query/dashboards/${selectedDashboard.id}/widgets/${wid}`, { showErrorToast: false });
-      loadDashboardById(selectedDashboard.id);
-    } catch {}
-  };
-
-  const updateWidgetFn = async (w: DashboardWidget) => {
-    if (!selectedDashboard) return;
-    try {
-      await apiClient.put(`/query/dashboards/${selectedDashboard.id}/widgets/${w.id}`, { title: w.title, visualization: w.visualization, saved_query_id: w.saved_query_id }, { showErrorToast: false });
-      setEditingWidget(null);
-      loadDashboardById(selectedDashboard.id);
-    } catch {}
-  };
-
-  // ─── History API ────────────────────────────────────────────────
-
-  const fetchHistory = useCallback(async () => {
-    setHistoryLoading(true);
-    try {
-      const res = await apiClient.richGet<HistoryEntry[] | { history?: HistoryEntry[] }>(`/query/history?limit=50`);
-      if (res.ok && res.data) {
-        const d = res.data;
-        setHistoryEntries(Array.isArray(d) ? d : d.history || []);
-      }
-    } catch {} finally { setHistoryLoading(false); }
-  }, []);
-
-  useEffect(() => { if (activeTab === "history") fetchHistory(); }, [activeTab, fetchHistory]);
-
-  const clearHistory = async () => {
-    try {
-      await apiClient.delete(`/query/history`, { showErrorToast: false });
-      setHistoryEntries([]);
-    } catch {}
-  };
-
-  const saveHistoryAsSaved = async (entry: HistoryEntry) => {
-    try {
-      const res = await apiClient.richPost(`/query/saved`, {
-        name: `Query from ${new Date(entry.created_at).toLocaleString()}`,
-        description: "",
-        query_dsl: entry.query_dsl,
-        category: "",
-        tags: [],
-        is_public: false,
-      });
-      if (res.ok) setError(null);
-    } catch {}
   };
 
   return {
     // Schema
-    schema, templates, expandedCat, setExpandedCat, expandedTable, setExpandedTable,
+    schema: schemaHook.schema,
+    templates: schemaHook.templates,
+    expandedCat: schemaHook.expandedCat, setExpandedCat: schemaHook.setExpandedCat,
+    expandedTable: schemaHook.expandedTable, setExpandedTable: schemaHook.setExpandedTable,
+    stats: schemaHook.stats,
     // Query builder
-    selectedTable, setSelectedTable, selectedJoin, setSelectedJoin,
-    selectedColumns, setSelectedColumns, whereClauses, setWhereClauses,
-    orderBy, setOrderBy, orderDir, setOrderDir, limit, setLimit,
-    groupBy, setGroupBy,
+    selectedTable: execHook.selectedTable, setSelectedTable: execHook.setSelectedTable,
+    selectedJoin: execHook.selectedJoin, setSelectedJoin: execHook.setSelectedJoin,
+    selectedColumns: execHook.selectedColumns, setSelectedColumns: execHook.setSelectedColumns,
+    whereClauses: execHook.whereClauses, setWhereClauses: execHook.setWhereClauses,
+    orderBy: execHook.orderBy, setOrderBy: execHook.setOrderBy,
+    orderDir: execHook.orderDir, setOrderDir: execHook.setOrderDir,
+    limit: execHook.limit, setLimit: execHook.setLimit,
+    groupBy: execHook.groupBy, setGroupBy: execHook.setGroupBy,
     // Results
-    result, loading, error, setError,
+    result: execHook.result, loading: execHook.loading,
+    error: execHook.error, setError: execHook.setError,
     // Live query
-    liveMode, setLiveMode, liveCommand, setLiveCommand,
-    liveResults, liveRunning, executeLiveQuery,
+    liveMode: execHook.liveMode, setLiveMode: execHook.setLiveMode,
+    liveCommand: execHook.liveCommand, setLiveCommand: execHook.setLiveCommand,
+    liveResults: execHook.liveResults, liveRunning: execHook.liveRunning,
+    executeLiveQuery: execHook.executeLiveQuery,
     // History (local)
-    history,
+    history: execHook.history,
     // Tab
     activeTab, setActiveTab,
-    // Stats
-    stats,
     // Columns
-    tableColumns, joinTableColumns, allColumns,
+    tableColumns: execHook.tableColumns, joinTableColumns: execHook.joinTableColumns,
+    allColumns: execHook.allColumns,
     // Actions
-    buildCurrentDSL, executeQuery, loadTemplate, loadDSLIntoBuilder,
-    addWhere, removeWhere, updateWhere,
-    exportCsv, copyJson,
+    buildCurrentDSL: execHook.buildCurrentDSL, executeQuery: execHook.executeQuery,
+    loadTemplate, loadDSLIntoBuilder,
+    addWhere: execHook.addWhere, removeWhere: execHook.removeWhere,
+    updateWhere: execHook.updateWhere,
+    exportCsv: execHook.exportCsv, copyJson: execHook.copyJson,
     // Saved queries
-    savedQueries, savedSearch, setSavedSearch,
-    savedCategoryFilter, setSavedCategoryFilter,
-    savedLoading, showSaveForm, setShowSaveForm,
-    saveForm, setSaveForm, savedRunResult, setSavedRunResult,
-    editingSaved, setEditingSaved,
-    fetchSaved, saveCurrent, deleteSaved, duplicateSaved,
-    runSaved, togglePublic, updateSavedQuery,
-    // Schedules
-    schedules, schedulesLoading, showScheduleForm, setShowScheduleForm,
-    scheduleForm, setScheduleForm, expandedSchedule, setExpandedSchedule,
-    scheduleResults,
-    createSchedule, deleteSchedule, toggleSchedule, runScheduleNow, fetchScheduleResults,
-    // Dashboards
-    dashboards, selectedDashboard, setSelectedDashboard,
-    dashboardsLoading, showDashboardForm, setShowDashboardForm,
-    dashboardForm, setDashboardForm, showWidgetForm, setShowWidgetForm,
-    widgetForm, setWidgetForm, editingDashboard, setEditingDashboard,
-    editingWidget, setEditingWidget,
-    createDashboard, deleteDashboard, updateDashboard,
-    addWidget, removeWidget, updateWidget: updateWidgetFn,
-    loadDashboard: loadDashboardById,
-    // History (backend)
-    historyEntries, historyLoading, expandedHistorySql, setExpandedHistorySql,
-    clearHistory, saveHistoryAsSaved,
+    ...historyHook,
   };
 }
