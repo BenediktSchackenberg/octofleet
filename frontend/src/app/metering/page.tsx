@@ -35,6 +35,15 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────
 
+interface TrueUpEntry {
+  name: string;
+  purchased: number | null;
+  installed: number;
+  used: number | null;
+  status: string;
+  total_cost: number;
+}
+
 interface CatalogEntry {
   id: string;
   canonicalName?: string;
@@ -49,8 +58,10 @@ interface CatalogEntry {
   nodeCount?: number;
   node_count?: number;
   licenseCount?: number;
+  license_count?: number;
   licensed_count?: number;
   totalLicenses?: number | null;
+  total_licenses?: number | null;
   complianceStatus?: string;
   compliance_status?: string;
 }
@@ -148,8 +159,8 @@ function formatCurrency(amount: number | null, currency = "EUR") {
 
 // Helpers for camelCase/snake_case field access
 function catName(c: CatalogEntry): string { return c.canonicalName || c.canonical_name || ""; }
-function catNodes(c: CatalogEntry): number | undefined { return c.nodeCount ?? c.node_count ?? (c as any).installedCount ?? (c as any).installed_count; }
-function catLicenses(c: CatalogEntry): number | undefined { return c.licenseCount ?? catLicenses(c) ?? c.totalLicenses ?? undefined; }
+function catNodes(c: CatalogEntry): number | undefined { return c.nodeCount ?? c.node_count ?? c.installedCount ?? c.installed_count; }
+function catLicenses(c: CatalogEntry): number | undefined { return c.licenseCount ?? c.license_count ?? c.licensed_count ?? c.totalLicenses ?? c.total_licenses ?? undefined; }
 function catCompliance(c: CatalogEntry): string | undefined { return c.complianceStatus || c.compliance_status; }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -187,7 +198,7 @@ export default function SoftwareMeteringPage() {
   const [reclaimCandidates, setReclaimCandidates] = useState<ReclaimCandidate[]>([]);
 
   // True-up report
-  const [trueUp, setTrueUp] = useState<any[] | null>(null);
+  const [trueUp, setTrueUp] = useState<TrueUpEntry[] | null>(null);
 
   // ─── API helpers ─────────────────────────────────────────────────
 
@@ -225,7 +236,7 @@ export default function SoftwareMeteringPage() {
         recent_changes: dash.recentChanges || dash.recent_changes || [],
       });
       setCompliance(comp);
-    } catch (e: any) { setError(e.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   }, [api]);
 
@@ -272,12 +283,12 @@ export default function SoftwareMeteringPage() {
       setEditingCatalog(null);
       setCatalogForm({ canonical_name: "", publisher: "", category: "Other", notes: "" });
       loadCatalog();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const deleteCatalog = async (id: string) => {
     if (!confirm("Delete this catalog entry and all associated licenses/rules?")) return;
-    try { await api(`/catalog/${id}`, { method: "DELETE" }); loadCatalog(); } catch (e: any) { setError(e.message); }
+    try { await api(`/catalog/${id}`, { method: "DELETE" }); loadCatalog(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const autoDiscover = async () => {
@@ -287,7 +298,7 @@ export default function SoftwareMeteringPage() {
       setError(null);
       loadCatalog();
       alert(`Auto-discovered ${res.created || 0} new software entries!`);
-    } catch (e: any) { setError(e.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   };
 
@@ -305,12 +316,12 @@ export default function SoftwareMeteringPage() {
       setShowLicenseForm(false);
       setLicenseForm({ catalog_id: "", license_type: "per_device", total_licenses: "", cost_per_license: "", currency: "EUR", vendor: "", contract_id: "", expires_at: "", notes: "" });
       loadLicenses();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const deleteLicense = async (id: string) => {
     if (!confirm("Delete this license?")) return;
-    try { await api(`/licenses/${id}`, { method: "DELETE" }); loadLicenses(); } catch (e: any) { setError(e.message); }
+    try { await api(`/licenses/${id}`, { method: "DELETE" }); loadLicenses(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const saveRule = async () => {
@@ -322,7 +333,7 @@ export default function SoftwareMeteringPage() {
       setShowRuleForm(false);
       setRuleForm({ pattern: "", match_type: "like", catalog_id: "", priority: "0" });
       loadRules();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const testRule = async () => {
@@ -332,11 +343,11 @@ export default function SoftwareMeteringPage() {
         body: JSON.stringify({ pattern: ruleForm.pattern, match_type: ruleForm.match_type }),
       });
       setRuleTestResult(res.matches || []);
-    } catch (e: any) { setError(e.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const deleteRule = async (id: number) => {
-    try { await api(`/rules/${id}`, { method: "DELETE" }); loadRules(); } catch (e: any) { setError(e.message); }
+    try { await api(`/rules/${id}`, { method: "DELETE" }); loadRules(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   // ─── Render ──────────────────────────────────────────────────────
@@ -813,7 +824,7 @@ export default function SoftwareMeteringPage() {
               <button onClick={() => {
                 if (!trueUp) return;
                 const csv = ["Software,Purchased,Installed,Used,Status,Cost"].concat(
-                  trueUp.map((r: any) => `"${r.name}",${r.purchased},${r.installed},${r.used},${r.status},${r.total_cost}`)
+                  trueUp.map((r: TrueUpEntry) => `"${r.name}",${r.purchased},${r.installed},${r.used},${r.status},${r.total_cost}`)
                 ).join("\n");
                 const blob = new Blob([csv], { type: "text/csv" });
                 const url = URL.createObjectURL(blob);
@@ -836,7 +847,7 @@ export default function SoftwareMeteringPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/50">
-                  {(trueUp || []).map((r: any, i: number) => (
+                  {(trueUp || []).map((r: TrueUpEntry, i: number) => (
                     <tr key={i} className="hover:bg-zinc-800/30">
                       <td className="px-4 py-2.5 text-zinc-200 font-medium">{r.name}</td>
                       <td className="px-4 py-2.5 text-center font-mono">{r.purchased ?? "∞"}</td>

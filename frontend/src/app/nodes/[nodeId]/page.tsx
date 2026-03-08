@@ -431,9 +431,9 @@ export default function NodeDetailPage() {
   const secData: any = security || {};
   const netData: any = network || {};
   const browserData: any = browser || {};
-  const ramData: any = (hwData as any).ram || hwData.data?.memory || {};
-  const gpuList: any[] = (hwData as any).gpu || hwData.data?.gpus || [];
-  const nicsList: any = (hwData as any).nics || hwData.data?.network || {};
+  const ramData: any = hwData.ram || hwData.data?.memory || {};
+  const gpuList: any[] = hwData.gpu || hwData.data?.gpus || [];
+  const nicsList: any = hwData.nics || hwData.data?.network || {};
   const totalUpdatesCount = hotfixes.hotfixes.length + hotfixes.updateHistory.length;
 
   return (
