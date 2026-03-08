@@ -125,6 +125,37 @@ async def get_db() -> asyncpg.Pool:
     return db_pool
 
 
+def _permissions_for_scopes(scopes: list) -> list:
+    """Map API key scopes to specific permissions (P1-1 fix)."""
+    SCOPE_PERMISSIONS = {
+        "agent": [
+            "inventory:write", "jobs:read", "jobs:poll",
+            "terminal:pending", "nodes:heartbeat",
+        ],
+        "admin": ["*"],
+        "read": [
+            "nodes:read", "groups:read", "jobs:read", "packages:read",
+            "deployments:read", "alerts:read", "eventlog:read",
+            "compliance:read", "settings:read", "reports:read",
+        ],
+        "write": [
+            "nodes:read", "nodes:write", "groups:read", "groups:write",
+            "jobs:read", "jobs:create", "jobs:execute", "jobs:cancel",
+            "packages:read", "packages:write", "packages:deploy",
+            "deployments:read", "deployments:write",
+            "alerts:read", "alerts:write", "eventlog:read",
+            "compliance:read", "settings:read", "reports:read",
+        ],
+    }
+    permissions: set = set()
+    for scope in scopes:
+        perms = SCOPE_PERMISSIONS.get(scope, [])
+        if "*" in perms:
+            return ["*"]
+        permissions.update(perms)
+    return list(permissions)
+
+
 async def verify_api_key(
     request: Request = None,
     x_api_key: str = Header(None),
@@ -169,8 +200,10 @@ async def verify_api_key(
                     # Store scopes in request state for downstream dependencies
                     if request:
                         request.state.api_key_scopes = scopes
+                    # Map scopes to specific permissions
+                    permissions = _permissions_for_scopes(scopes)
                     return {"sub": str(row["user_id"]) if row["user_id"] else "system", 
-                            "api_key_name": row["name"], "permissions": ["*"],
+                            "api_key_name": row["name"], "permissions": permissions,
                             "scopes": scopes}
         except Exception:
             pass  # DB not ready or other error, fall through

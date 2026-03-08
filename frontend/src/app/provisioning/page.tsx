@@ -20,9 +20,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { API_BASE } from '@/lib/api-config';
+import { getAuthHeader } from '@/lib/auth-context';
 
-
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-inventory-dev-key";
 
 // Types
 interface ProvisioningTask {
@@ -65,7 +64,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": API_KEY,
+      ...getAuthHeader(),
       ...options?.headers,
     },
   });

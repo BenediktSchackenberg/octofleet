@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
-from auth import decode_token, get_current_user
+from auth import decode_token, get_current_user, require_auth, require_permission
 from dependencies import API_KEY, db_pool, verify_api_key
 from screen_session import ScreenSessionState, screen_session_manager
 from shell_session import ShellSessionState, shell_session_manager
@@ -50,18 +50,48 @@ async def log_audit(pool, action: str, user_id: str = None, resource_type: str =
         logger.warning(f"Failed to log audit event: {e}")
 
 
-async def _validate_ws_token(websocket: WebSocket) -> Optional[dict]:
-    """Validate JWT token from WebSocket query params. Returns payload or None (after closing)."""
+async def _validate_ws_token(websocket: WebSocket, session_id: str = None) -> Optional[dict]:
+    """Validate JWT token from WebSocket query params. Returns payload or None (after closing).
+    
+    Checks:
+    - Token must be present
+    - Token must be a valid access token (not refresh)
+    - If session_id is provided, validates session ownership
+    """
     token = websocket.query_params.get("token")
     if not token:
         await websocket.close(code=1008, reason="Authentication required")
         return None
     try:
         payload = decode_token(token)
+        # Only allow access tokens, not refresh tokens
+        if payload.get("type") != "access":
+            await websocket.close(code=1008, reason="Invalid token type")
+            return None
         return payload
     except Exception:
         await websocket.close(code=1008, reason="Invalid token")
         return None
+
+
+async def _validate_ws_token_with_ownership(
+    websocket: WebSocket, session_id: str, get_session_fn, owner_field: str = "user_id"
+) -> Optional[dict]:
+    """Validate JWT and verify the caller owns the session."""
+    payload = await _validate_ws_token(websocket, session_id)
+    if payload is None:
+        return None
+    # Verify session ownership
+    session = get_session_fn(session_id)
+    if session:
+        session_owner = getattr(session, owner_field, None)
+        user_id = payload.get("sub")
+        # Allow superusers (permission "*") or matching owner
+        permissions = payload.get("permissions", [])
+        if "*" not in permissions and session_owner and user_id != session_owner:
+            await websocket.close(code=4003, reason="Not authorized for this session")
+            return None
+    return payload
 
 
 @router.post("/api/v1/screen/start/{node_id}")
@@ -71,7 +101,7 @@ async def start_screen_session(
     max_fps: int = 15,
     resolution: str = "auto",
     monitor: int = 0,
-    user: dict = Depends(get_current_user)
+    user=Depends(require_permission("terminal:write"))
 ):
     """
     Start a screen viewing session for a node.
@@ -144,7 +174,7 @@ async def get_screen_session(session_id: str, _: str = Depends(verify_api_key)):
 @router.delete("/api/v1/screen/session/{session_id}")
 async def stop_screen_session(
     session_id: str, 
-    user: dict = Depends(get_current_user)
+    user=Depends(require_permission("terminal:write"))
 ):
     """Stop a screen viewing session."""
     success = await screen_session_manager.close_session(session_id, "user_request")
@@ -194,8 +224,10 @@ async def screen_viewer_websocket(websocket: WebSocket, session_id: str):
     - Server sends: {"type": "info", "resolution": "1920x1080", "fps": 15}
     - Server sends: {"type": "closed", "reason": "..."}
     """
-    # Auth check before accept
-    user_payload = await _validate_ws_token(websocket)
+    # Auth check before accept (with session ownership validation)
+    user_payload = await _validate_ws_token_with_ownership(
+        websocket, session_id, screen_session_manager.get_session
+    )
     if user_payload is None:
         return
 
@@ -345,7 +377,7 @@ async def screen_agent_websocket(websocket: WebSocket, session_id: str, api_key:
 async def start_shell_session(
     node_id: str,
     shell_type: str = "powershell",  # powershell, cmd, bash
-    user: dict = Depends(get_current_user)
+    user=Depends(require_permission("terminal:write"))
 ):
     """
     Start a remote shell session for a node.
@@ -364,7 +396,7 @@ async def start_shell_session(
         session = await shell_session_manager.create_session(
             session_id=session_id,
             node_id=node_id.upper(),
-            user_id=user.get("id", "unknown"),
+            user_id=user.id,
             shell_type=shell_type
         )
         
@@ -372,7 +404,7 @@ async def start_shell_session(
         await log_audit(
             db_pool, 
             action="shell_session_start",
-            user_id=user.get("id"),
+            user_id=user.id,
             resource_type="shell_session",
             resource_id=session_id,
             details={"node_id": node_id, "shell_type": shell_type}
@@ -392,7 +424,7 @@ async def start_shell_session(
 @router.post("/api/v1/shell/stop/{session_id}")
 async def stop_shell_session(
     session_id: str,
-    user: dict = Depends(get_current_user)
+    user=Depends(require_permission("terminal:write"))
 ):
     """Stop a shell session."""
     session = shell_session_manager.get_session(session_id)
@@ -435,8 +467,10 @@ async def shell_viewer_websocket(websocket: WebSocket, session_id: str):
     - Server sends: {"type": "info", "state": "active"}
     - Server sends: {"type": "closed", "reason": "..."}
     """
-    # Auth check before accept
-    user_payload = await _validate_ws_token(websocket)
+    # Auth check before accept (with session ownership validation)
+    user_payload = await _validate_ws_token_with_ownership(
+        websocket, session_id, shell_session_manager.get_session
+    )
     if user_payload is None:
         return
 
@@ -701,7 +735,7 @@ async def post_terminal_output(session_id: str, request: Request, _: str = Depen
 async def terminal_websocket(websocket: WebSocket, session_id: str):
     """WebSocket for real-time terminal communication."""
     # Auth check before accept
-    user_payload = await _validate_ws_token(websocket)
+    user_payload = await _validate_ws_token(websocket, session_id)
     if user_payload is None:
         return
 

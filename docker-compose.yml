@@ -16,7 +16,7 @@ services:
     container_name: octofleet-inventory-db
     environment:
       POSTGRES_USER: octofleet
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-octofleet-secret-change-me}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       POSTGRES_DB: inventory
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -38,9 +38,9 @@ services:
       dockerfile: Dockerfile
     container_name: octofleet-inventory-api
     environment:
-      DATABASE_URL: postgresql://octofleet:${DB_PASSWORD:-octofleet-secret-change-me}@db:5432/inventory
-      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-please}
-      API_KEY: ${API_KEY:-your-api-key-here}
+      DATABASE_URL: postgresql://octofleet:${DB_PASSWORD:?DB_PASSWORD must be set}@db:5432/inventory
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      API_KEY: ${API_KEY:?API_KEY must be set}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
       - ${ISO_PATH:-/mnt/isos}:/mnt/isos:ro

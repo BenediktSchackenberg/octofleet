@@ -28,7 +28,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Fallback permission mappings for roles (used when backend /auth/permissions is unavailable)
+// FALLBACK ONLY: Used when the backend /api/v1/auth/permissions endpoint is unreachable.
+// The authoritative source is the backend ROLE_PERMISSIONS in auth.py.
+// Do NOT rely on this for access control decisions — always prefer resolvedPermissions from the API.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ["*"],
   operator: [
@@ -208,16 +210,9 @@ export function getApiBase(): string {
 }
 
 export function getAuthHeader(): Record<string, string> {
-  if (typeof window === "undefined") {
-    const apiKey = process.env.NEXT_PUBLIC_API_KEY;
-    return apiKey ? { "X-API-Key": apiKey } : {};
-  }
-  
-  const token = localStorage.getItem("token");
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (token) {
     return { "Authorization": `Bearer ${token}` };
   }
-  // Fallback to API key from env if set
-  const apiKey = process.env.NEXT_PUBLIC_API_KEY;
-  return apiKey ? { "X-API-Key": apiKey } : {};
+  return {};
 }

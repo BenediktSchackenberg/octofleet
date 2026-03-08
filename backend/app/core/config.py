@@ -23,17 +23,14 @@ class Settings:
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://octofleet:octofleet_inventory_2026@127.0.0.1:5432/inventory"
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     DB_POOL_MIN_SIZE: int = 2
     DB_POOL_MAX_SIZE: int = 10
     
-    # Service URLs
-    GATEWAY_URL: str = os.getenv("OCTOFLEET_GATEWAY_URL", "http://192.168.0.5:18789")
+    # Service URLs - no LAN IP defaults; must be explicitly configured
+    GATEWAY_URL: str = os.getenv("OCTOFLEET_GATEWAY_URL", "")
     GATEWAY_TOKEN: str = os.getenv("OCTOFLEET_GATEWAY_TOKEN", "")
-    INVENTORY_API_URL: str = os.getenv("OCTOFLEET_INVENTORY_URL", "http://192.168.0.5:8080")
+    INVENTORY_API_URL: str = os.getenv("OCTOFLEET_INVENTORY_URL", "")
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
@@ -46,8 +43,10 @@ class Settings:
         # Warn about insecure defaults
         if not self.API_KEY:
             log.warning("API_KEY is not set! Set API_KEY or INVENTORY_API_KEY environment variable.")
-        if self.JWT_SECRET in ("", "octofleet-dev-secret-key-2026"):
-            log.warning("JWT_SECRET is empty or using old default! Set JWT_SECRET environment variable.")
+        if not self.JWT_SECRET:
+            log.warning("JWT_SECRET is empty! Set JWT_SECRET environment variable.")
+        if not self.DATABASE_URL:
+            log.warning("DATABASE_URL is not set! Set DATABASE_URL environment variable.")
 
     def load_persistent_jwt_secret(self):
         """Ensure JWT_SECRET is loaded from file or persisted if not in env"""
