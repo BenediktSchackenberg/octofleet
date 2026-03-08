@@ -266,14 +266,15 @@ async def get_effective_policy(node_id: str):
             if uuid_row2:
                 resolved_id = str(uuid_row2)
         # Check direct node assignment — match both hostname and UUID
+        candidates = [node_id, resolved_id]
         row = await conn.fetchrow("""
             SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
             FROM monitoring_assignments a
             JOIN monitoring_profiles p ON p.id = a.profile_id
-            WHERE a.target_type = 'node' AND a.target_id IN ($1, $2) AND a.status = 'active'
+            WHERE a.target_type = 'node' AND a.target_id = ANY($1::text[]) AND a.status = 'active'
                 AND (a.end_time IS NULL OR a.end_time > now())
             ORDER BY a.priority DESC LIMIT 1
-        """, node_id, resolved_id)
+        """, candidates)
         if not row:
             # Fallback to group assignments
             row = await conn.fetchrow("""
@@ -281,10 +282,10 @@ async def get_effective_policy(node_id: str):
                 FROM monitoring_assignments a
                 JOIN monitoring_profiles p ON p.id = a.profile_id
                 JOIN device_groups dg ON dg.group_id = a.target_id::uuid
-                WHERE a.target_type = 'group' AND (dg.node_id::text = $1 OR dg.node_id::text = $2) AND a.status = 'active'
+                WHERE a.target_type = 'group' AND dg.node_id::text = ANY($1::text[]) AND a.status = 'active'
                     AND (a.end_time IS NULL OR a.end_time > now())
                 ORDER BY a.priority DESC LIMIT 1
-            """, node_id, resolved_id)
+            """, candidates)
         if not row:
             return {"policy": None, "message": "No monitoring policy assigned"}
         return {"policy": _parse_json_fields(dict(row))}
