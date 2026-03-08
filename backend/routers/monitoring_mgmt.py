@@ -531,24 +531,50 @@ async def report_agent_capabilities(node_id: str, req: Request):
 
 @router.get("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
 async def get_agent_capabilities(node_id: str):
+    import json as _json
     async with get_pool().acquire() as conn:
+        # Try by node_id directly, then resolve hostname→UUID
         row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", node_id)
         if not row:
+            # Frontend sends UUID but agent registers with hostname — try reverse lookup
+            resolved = await conn.fetchval("SELECT hostname FROM nodes WHERE id::text = $1", node_id)
+            if resolved:
+                row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", resolved)
+        if not row:
             raise HTTPException(status_code=404, detail="No capabilities reported for this node")
-        return dict(row)
+        result = dict(row)
+        # Parse JSON string fields that asyncpg returns as text
+        for field in ("sensors", "permissions"):
+            if isinstance(result.get(field), str):
+                try:
+                    result[field] = _json.loads(result[field])
+                except (ValueError, TypeError):
+                    pass
+        return result
 
 
 @router.get("/api/v1/agents/capabilities", dependencies=[Depends(verify_api_key)])
 async def list_agent_capabilities():
     """List all agents with their capabilities and health status."""
+    import json as _json
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
             SELECT ac.*, n.hostname, n.os
             FROM agent_capabilities ac
-            LEFT JOIN nodes n ON n.id = ac.node_id
+            LEFT JOIN nodes n ON n.id = ac.node_id OR n.hostname = ac.node_id
             ORDER BY ac.last_seen DESC
         """)
-        return {"agents": [dict(r) for r in rows]}
+        result = []
+        for r in rows:
+            d = dict(r)
+            for field in ("sensors", "permissions"):
+                if isinstance(d.get(field), str):
+                    try:
+                        d[field] = _json.loads(d[field])
+                    except (ValueError, TypeError):
+                        pass
+            result.append(d)
+        return {"agents": result}
 
 
 @router.post("/api/v1/agents/{node_id}/health")

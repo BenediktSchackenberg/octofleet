@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
-import { Shield, Activity, Cpu, HardDrive, AlertTriangle, CheckCircle, Clock, Wifi, WifiOff } from "lucide-react";
+import { Shield, Activity, Cpu, HardDrive, AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, FileSearch, Network, KeyRound, Settings, Eye, FolderLock } from "lucide-react";
 
 interface Capabilities {
   node_id: string;
-  sensors: Record<string, boolean>;
+  sensors: Record<string, boolean> | string;
   agent_version: string;
   os_type: string;
   os_version: string;
   kernel_build: string;
-  permissions: Record<string, unknown>;
+  permissions: Record<string, unknown> | string;
   last_seen: string;
 }
 
@@ -21,6 +21,43 @@ interface HealthEntry {
   drop_count: number;
   watcher_count: number;
   cpu_overhead_estimate: string;
+}
+
+// Sensor display config: icon, label, description
+const SENSOR_INFO: Record<string, { icon: typeof Shield; label: string; description: string }> = {
+  file_audit: { icon: FileSearch, label: "File Audit", description: "Tracks file system changes, creations, deletions" },
+  process_monitor: { icon: Cpu, label: "Process Monitor", description: "Monitors process creation and termination" },
+  network_monitor: { icon: Network, label: "Network Monitor", description: "Tracks network connections and traffic" },
+  registry_monitor: { icon: Settings, label: "Registry Monitor", description: "Watches Windows registry changes" },
+  logon_events: { icon: KeyRound, label: "Logon Events", description: "Captures user login/logout activity" },
+  service_changes: { icon: Eye, label: "Service Changes", description: "Detects Windows service modifications" },
+};
+
+function parseSensors(raw: Record<string, boolean> | string | null): Record<string, boolean> {
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  return raw;
+}
+
+function parsePermissions(raw: Record<string, unknown> | string | null): Record<string, unknown> {
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  return raw;
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
@@ -60,19 +97,23 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
         <h3 className="text-lg font-semibold mb-1">No Monitoring Data</h3>
         <p className="text-zinc-400 text-sm">
           This node hasn&apos;t reported any monitoring capabilities yet.<br />
-          The agent needs to be updated to support security monitoring (v0.5.1+).
+          Make sure the agent is running and has a monitoring profile assigned.
         </p>
       </div>
     );
   }
 
+  const sensors = parseSensors(caps?.sensors ?? null);
+  const permissions = parsePermissions(caps?.permissions ?? null);
   const isOnline = caps?.last_seen && (Date.now() - new Date(caps.last_seen).getTime()) < 10 * 60 * 1000;
   const lastHealth = health[0];
   const hasDrops = lastHealth && lastHealth.drop_count > 0;
+  const activeSensors = Object.entries(sensors).filter(([, v]) => v).length;
+  const totalSensors = Object.keys(sensors).length;
 
   return (
     <div className="space-y-4">
-      {/* Agent Info Card */}
+      {/* Agent Status Card */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -86,38 +127,73 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <span className="text-xs text-zinc-500">Agent Version</span>
-            <div className="font-mono text-sm">{caps?.agent_version || "—"}</div>
+          <div className="p-3 bg-zinc-800/50 rounded-lg">
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Version</span>
+            <div className="font-mono text-sm mt-1 text-purple-300">{caps?.agent_version || "—"}</div>
           </div>
-          <div>
-            <span className="text-xs text-zinc-500">OS</span>
-            <div className="text-sm">{caps?.os_type} {caps?.os_version?.split(' ').slice(0, 3).join(' ')}</div>
+          <div className="p-3 bg-zinc-800/50 rounded-lg">
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">OS</span>
+            <div className="text-sm mt-1">{caps?.os_type} Build {caps?.kernel_build}</div>
           </div>
-          <div>
-            <span className="text-xs text-zinc-500">Build</span>
-            <div className="font-mono text-sm">{caps?.kernel_build || "—"}</div>
+          <div className="p-3 bg-zinc-800/50 rounded-lg">
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Running As</span>
+            <div className="text-sm mt-1 flex items-center gap-1">
+              {permissions.is_admin ? (
+                <span className="text-amber-400 flex items-center gap-1"><Shield className="h-3 w-3" /> Admin</span>
+              ) : (
+                <span className="text-zinc-300">{String(permissions.service_account || "—")}</span>
+              )}
+            </div>
           </div>
-          <div>
-            <span className="text-xs text-zinc-500">Last Seen</span>
-            <div className="text-sm">{caps?.last_seen ? new Date(caps.last_seen).toLocaleString() : "—"}</div>
+          <div className="p-3 bg-zinc-800/50 rounded-lg">
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Last Seen</span>
+            <div className="text-sm mt-1">{caps?.last_seen ? timeAgo(caps.last_seen) : "—"}</div>
           </div>
         </div>
       </div>
 
       {/* Sensors Card */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-          <Activity className="h-5 w-5 text-blue-400" />
-          Sensors
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {caps?.sensors && Object.entries(caps.sensors).map(([sensor, active]) => (
-            <div key={sensor} className={`flex items-center gap-2 p-3 rounded-lg border ${active ? "bg-green-500/10 border-green-500/30" : "bg-zinc-800 border-zinc-700"}`}>
-              {active ? <CheckCircle className="h-4 w-4 text-green-400" /> : <div className="h-4 w-4 rounded-full bg-zinc-600" />}
-              <span className="text-sm capitalize">{sensor.replace(/_/g, " ")}</span>
-            </div>
-          ))}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Activity className="h-5 w-5 text-blue-400" />
+            Security Sensors
+          </h2>
+          <span className="text-sm text-zinc-400">
+            <span className="text-green-400 font-bold">{activeSensors}</span> / {totalSensors} active
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Object.entries(sensors).map(([sensor, active]) => {
+            const info = SENSOR_INFO[sensor] || { icon: FolderLock, label: sensor.replace(/_/g, " "), description: "" };
+            const SensorIcon = info.icon;
+            return (
+              <div key={sensor} className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${
+                active 
+                  ? "bg-green-500/5 border-green-500/20 hover:bg-green-500/10" 
+                  : "bg-zinc-800/50 border-zinc-700/50 hover:bg-zinc-800"
+              }`}>
+                <div className={`p-2 rounded-lg ${active ? "bg-green-500/20" : "bg-zinc-700/50"}`}>
+                  <SensorIcon className={`h-4 w-4 ${active ? "text-green-400" : "text-zinc-500"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-medium capitalize ${active ? "text-green-300" : "text-zinc-400"}`}>
+                      {info.label}
+                    </span>
+                    {active ? (
+                      <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />
+                    ) : (
+                      <div className="h-3.5 w-3.5 rounded-full border border-zinc-600 shrink-0" />
+                    )}
+                  </div>
+                  {info.description && (
+                    <p className="text-xs text-zinc-500 mt-0.5 leading-tight">{info.description}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -126,35 +202,35 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <Cpu className="h-5 w-5 text-green-400" />
-            Health Status
+            Agent Health
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-3 bg-zinc-800 rounded-lg">
-              <span className="text-xs text-zinc-500">Queue Depth</span>
-              <div className={`text-2xl font-bold ${lastHealth.queue_depth > 1000 ? "text-red-400" : lastHealth.queue_depth > 100 ? "text-yellow-400" : "text-green-400"}`}>
-                {lastHealth.queue_depth}
+            <div className="p-3 bg-zinc-800/50 rounded-lg">
+              <span className="text-xs text-zinc-500 uppercase tracking-wider">Queue Depth</span>
+              <div className={`text-2xl font-bold mt-1 ${lastHealth.queue_depth > 1000 ? "text-red-400" : lastHealth.queue_depth > 100 ? "text-yellow-400" : "text-green-400"}`}>
+                {lastHealth.queue_depth.toLocaleString()}
               </div>
             </div>
-            <div className="p-3 bg-zinc-800 rounded-lg">
-              <span className="text-xs text-zinc-500">Dropped Events</span>
-              <div className={`text-2xl font-bold ${hasDrops ? "text-red-400" : "text-green-400"}`}>
-                {lastHealth.drop_count}
+            <div className="p-3 bg-zinc-800/50 rounded-lg">
+              <span className="text-xs text-zinc-500 uppercase tracking-wider">Dropped Events</span>
+              <div className={`text-2xl font-bold mt-1 ${hasDrops ? "text-red-400" : "text-green-400"}`}>
+                {lastHealth.drop_count.toLocaleString()}
               </div>
             </div>
-            <div className="p-3 bg-zinc-800 rounded-lg">
-              <span className="text-xs text-zinc-500">Active Watchers</span>
-              <div className="text-2xl font-bold text-blue-400">{lastHealth.watcher_count}</div>
+            <div className="p-3 bg-zinc-800/50 rounded-lg">
+              <span className="text-xs text-zinc-500 uppercase tracking-wider">Active Watchers</span>
+              <div className="text-2xl font-bold mt-1 text-blue-400">{lastHealth.watcher_count}</div>
             </div>
-            <div className="p-3 bg-zinc-800 rounded-lg">
-              <span className="text-xs text-zinc-500">CPU Overhead</span>
-              <div className="text-2xl font-bold text-green-400">{lastHealth.cpu_overhead_estimate}</div>
+            <div className="p-3 bg-zinc-800/50 rounded-lg">
+              <span className="text-xs text-zinc-500 uppercase tracking-wider">CPU Overhead</span>
+              <div className="text-2xl font-bold mt-1 text-green-400">{lastHealth.cpu_overhead_estimate}</div>
             </div>
           </div>
 
           {hasDrops && (
             <div className="mt-4 flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-300">
-              <AlertTriangle className="h-4 w-4" />
-              Events are being dropped! The agent queue is overloaded. Consider reducing monitored paths or increasing batch intervals.
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Events are being dropped! Consider reducing monitored paths or increasing batch intervals.
             </div>
           )}
         </div>
@@ -170,18 +246,18 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-zinc-400 border-b border-zinc-800">
-                  <th className="text-left p-2">Time</th>
-                  <th className="text-right p-2">Queue</th>
-                  <th className="text-right p-2">Drops</th>
-                  <th className="text-right p-2">Watchers</th>
-                  <th className="text-right p-2">CPU</th>
+                <tr className="text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800">
+                  <th className="text-left p-2 pb-3">Time</th>
+                  <th className="text-right p-2 pb-3">Queue</th>
+                  <th className="text-right p-2 pb-3">Drops</th>
+                  <th className="text-right p-2 pb-3">Watchers</th>
+                  <th className="text-right p-2 pb-3">CPU</th>
                 </tr>
               </thead>
               <tbody>
                 {health.slice(0, 10).map((h, i) => (
-                  <tr key={i} className="border-b border-zinc-800/50">
-                    <td className="p-2 text-xs text-zinc-400">{new Date(h.ts).toLocaleString()}</td>
+                  <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                    <td className="p-2 text-xs text-zinc-400">{timeAgo(h.ts)}</td>
                     <td className="p-2 text-right font-mono">{h.queue_depth}</td>
                     <td className={`p-2 text-right font-mono ${h.drop_count > 0 ? "text-red-400" : ""}`}>{h.drop_count}</td>
                     <td className="p-2 text-right font-mono">{h.watcher_count}</td>
