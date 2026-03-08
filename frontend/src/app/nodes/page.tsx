@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
+import { StatusBadge, statusToVariant } from "@/components/ui/StatusBadge";
 import { Check, X, Clock, Monitor, LayoutGrid, List } from "lucide-react";
 
 
@@ -370,7 +371,9 @@ export default function NodesPage() {
                   className="hover:bg-zinc-800/50 transition-colors"
                 >
                   <td className="p-4">
-                    <StatusDot online={node.is_online} />
+                    <StatusBadge variant={statusToVariant(node.is_online ? 'online' : 'offline')} dot>
+                      {node.is_online ? 'Online' : 'Offline'}
+                    </StatusBadge>
                   </td>
                   <td className="p-4">
                     <Link

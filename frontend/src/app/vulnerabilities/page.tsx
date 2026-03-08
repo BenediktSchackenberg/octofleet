@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -155,21 +156,16 @@ export default function VulnerabilitiesPage() {
 
   return (
     <div className="p-6 space-y-6">
-<div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Bug className="h-8 w-8 text-red-500" />
-            Vulnerability Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            CVE-Tracking für installierte Software — powered by NVD
-          </p>
-        </div>
-        <Button onClick={triggerScan} disabled={scanning}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${scanning ? "animate-spin" : ""}`} />
-          {scanning ? "Scanning..." : "Scan starten"}
-        </Button>
-      </div>
+<PageHeader
+        title="🛡️ Vulnerability Dashboard"
+        description="CVE-Tracking für installierte Software — powered by NVD"
+        actions={
+          <Button onClick={triggerScan} disabled={scanning}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${scanning ? "animate-spin" : ""}`} />
+            {scanning ? "Scanning..." : "Scan starten"}
+          </Button>
+        }
+      />
 
       {/* Severity Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">

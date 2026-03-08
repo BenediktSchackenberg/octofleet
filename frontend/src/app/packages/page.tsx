@@ -5,6 +5,7 @@ import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { API_URL } from '@/lib/api-config';
+import { PageHeader } from "@/components/ui/PageHeader";
 
 
 
@@ -233,26 +234,26 @@ export default function PackagesPage() {
     <div className="min-h-screen bg-zinc-900 p-6">
       <div className="mx-auto max-w-7xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-white">📦 Pakete</h1>
-            <p className="text-zinc-400">Software-Katalog für Deployment</p>
-          </div>
-          <div className="flex gap-3">
-            <Link
-              href="/"
-              className="rounded-lg bg-zinc-700 px-4 py-2 text-white hover:bg-zinc-600"
-            >
-              ← Dashboard
-            </Link>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-500"
-            >
-              + Neues Paket
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="📦 Pakete"
+          description="Software-Katalog für Deployment"
+          actions={
+            <div className="flex gap-3">
+              <Link
+                href="/"
+                className="rounded-lg bg-zinc-700 px-4 py-2 text-white hover:bg-zinc-600"
+              >
+                ← Dashboard
+              </Link>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-500"
+              >
+                + Neues Paket
+              </button>
+            </div>
+          }
+        />
 
         <div className="flex gap-6">
           {/* Sidebar - Categories */}

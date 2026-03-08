@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { API_BASE } from '@/lib/api-config';
+import { PageHeader } from "@/components/ui/PageHeader";
 import { 
   Shield, Package, Plus, Play, CheckCircle, 
   XCircle, AlertTriangle, Clock, RefreshCw,
@@ -243,36 +244,31 @@ export default function RemediationPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <main className="max-w-[1920px] mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8 text-green-500" />
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                Auto-Remediation
-                {liveConnected ? (
-                  <span className="flex items-center gap-1 text-xs font-normal text-green-400 bg-green-900/30 px-2 py-0.5 rounded">
-                    <Wifi className="h-3 w-3" /> Live
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-xs font-normal text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
-                    <WifiOff className="h-3 w-3" /> Offline
-                  </span>
-                )}
-              </h1>
-              <p className="text-zinc-400 text-sm">Automatically fix vulnerabilities across your fleet</p>
+        <PageHeader
+          title="🛡️ Auto-Remediation"
+          description="Automatically fix vulnerabilities across your fleet"
+          actions={
+            <div className="flex items-center gap-2">
+              {liveConnected ? (
+                <span className="flex items-center gap-1 text-xs font-normal text-green-400 bg-green-900/30 px-2 py-0.5 rounded">
+                  <Wifi className="h-3 w-3" /> Live
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs font-normal text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
+                  <WifiOff className="h-3 w-3" /> Offline
+                </span>
+              )}
+              <button onClick={() => runScan(true)} disabled={scanning}
+                className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg flex items-center gap-2 disabled:opacity-50 text-sm">
+                <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} /> Dry Run
+              </button>
+              <button onClick={() => runScan(false)} disabled={scanning}
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg flex items-center gap-2 disabled:opacity-50 text-sm">
+                <Play className="h-4 w-4" /> Run Remediation
+              </button>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => runScan(true)} disabled={scanning}
-              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg flex items-center gap-2 disabled:opacity-50 text-sm">
-              <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} /> Dry Run
-            </button>
-            <button onClick={() => runScan(false)} disabled={scanning}
-              className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg flex items-center gap-2 disabled:opacity-50 text-sm">
-              <Play className="h-4 w-4" /> Run Remediation
-            </button>
-          </div>
-        </div>
+          }
+        />
 
         {/* Stats + Running Jobs Row */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">

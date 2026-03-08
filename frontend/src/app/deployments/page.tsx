@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Database, Package, ChevronRight } from "lucide-react";
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 
 
@@ -92,25 +93,22 @@ export default function DeploymentsPage() {
 
   return (
     <div className="container mx-auto p-6">
-<div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Rocket className="h-8 w-8" />
-            Deployments
-          </h1>
-          <p className="text-muted-foreground">Softwareverteilung an Nodes und Gruppen</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchDeployments}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Aktualisieren
-          </Button>
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neues Deployment
-          </Button>
-        </div>
-      </div>
+<PageHeader
+        title="🚀 Deployments"
+        description="Softwareverteilung an Nodes und Gruppen"
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={fetchDeployments}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Aktualisieren
+            </Button>
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neues Deployment
+            </Button>
+          </div>
+        }
+      />
 
       {/* E5-13: Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">

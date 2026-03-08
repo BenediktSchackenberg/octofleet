@@ -3,6 +3,8 @@ import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState } from "react";
 import { Terminal, Zap, Rocket } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusBadge as StatusBadgeNew, statusToVariant } from "@/components/ui/StatusBadge";
 
 
 
@@ -46,29 +48,7 @@ interface JobDetail extends Job {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    pending: "bg-yellow-500/20 text-yellow-400",
-    queued: "bg-blue-500/20 text-blue-400",
-    running: "bg-purple-500/20 text-purple-400 animate-pulse",
-    success: "bg-green-500/20 text-green-400",
-    failed: "bg-red-500/20 text-red-400",
-    cancelled: "bg-muted/500/20 text-muted-foreground",
-  };
-  
-  const icons: Record<string, string> = {
-    pending: "⏳",
-    queued: "📋",
-    running: "⚡",
-    success: "✅",
-    failed: "❌",
-    cancelled: "🚫",
-  };
-
-  return (
-    <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status] || "bg-muted/500/20"}`}>
-      {icons[status]} {status}
-    </span>
-  );
+  return <StatusBadgeNew variant={statusToVariant(status)} dot>{status}</StatusBadgeNew>;
 }
 
 function SummaryBar({ summary }: { summary: JobSummary }) {
@@ -529,18 +509,18 @@ export default function JobsPage() {
     <div className="min-h-screen bg-zinc-900 p-6">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-white">🚀 Jobs</h1>
-            <p className="text-zinc-400">Remote-Befehle an Geräte und Gruppen senden</p>
-          </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-500"
-          >
-            + Neuer Job
-          </button>
-        </div>
+        <PageHeader
+          title="🚀 Jobs"
+          description="Remote-Befehle an Geräte und Gruppen senden"
+          actions={
+            <button
+              onClick={() => setShowCreate(true)}
+              className="rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-500"
+            >
+              + Neuer Job
+            </button>
+          }
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">

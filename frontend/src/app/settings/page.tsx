@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api-client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 
@@ -169,7 +170,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-4xl mx-auto p-6">
-<h1 className="text-2xl font-bold mb-6">⚙️ Einstellungen</h1>
+<PageHeader title="⚙️ Einstellungen" />
 
         {/* Quick Links */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">

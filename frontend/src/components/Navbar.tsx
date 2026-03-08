@@ -67,37 +67,37 @@ interface NavGroup {
   columns?: number; // Multi-column dropdown
 }
 
-// Color mappings for each category
+// Neutral color scheme: zinc for inactive, cyan for active
 const colorClasses: Record<string, { active: string; inactive: string; dropdown: string }> = {
   emerald: { 
-    active: "bg-emerald-500 text-white border-emerald-500", 
-    inactive: "text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/20",
-    dropdown: "text-emerald-500"
+    active: "bg-cyan-500/10 text-cyan-400 border-cyan-500", 
+    inactive: "text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200",
+    dropdown: "text-cyan-500"
   },
   blue: { 
-    active: "bg-blue-500 text-white border-blue-500", 
-    inactive: "text-blue-400 border-blue-500/50 hover:bg-blue-500/20",
-    dropdown: "text-blue-500"
+    active: "bg-cyan-500/10 text-cyan-400 border-cyan-500", 
+    inactive: "text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200",
+    dropdown: "text-cyan-500"
   },
   amber: { 
-    active: "bg-amber-500 text-white border-amber-500", 
-    inactive: "text-amber-400 border-amber-500/50 hover:bg-amber-500/20",
-    dropdown: "text-amber-500"
+    active: "bg-cyan-500/10 text-cyan-400 border-cyan-500", 
+    inactive: "text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200",
+    dropdown: "text-cyan-500"
   },
   red: { 
-    active: "bg-red-500 text-white border-red-500", 
-    inactive: "text-red-400 border-red-500/50 hover:bg-red-500/100/20",
-    dropdown: "text-red-500"
+    active: "bg-cyan-500/10 text-cyan-400 border-cyan-500", 
+    inactive: "text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200",
+    dropdown: "text-cyan-500"
   },
   cyan: { 
-    active: "bg-cyan-500 text-white border-cyan-500", 
-    inactive: "text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/20",
+    active: "bg-cyan-500/10 text-cyan-400 border-cyan-500", 
+    inactive: "text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200",
     dropdown: "text-cyan-500"
   },
   purple: { 
-    active: "bg-purple-500 text-white border-purple-500", 
-    inactive: "text-purple-400 border-purple-500/50 hover:bg-purple-500/20",
-    dropdown: "text-purple-500"
+    active: "bg-cyan-500/10 text-cyan-400 border-cyan-500", 
+    inactive: "text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200",
+    dropdown: "text-cyan-500"
   },
 };
 
@@ -314,7 +314,7 @@ export function Navbar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { t } = useI18n();
-  const dashboardColors = colorClasses.amber;
+  const dashboardColors = colorClasses.cyan;
 
   function isGroupActive(group: NavGroup): boolean {
     return group.items.some(item => 

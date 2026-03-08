@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { PageHeader } from "@/components/ui/PageHeader";
 
 interface ServiceClass {
   id: string;
@@ -76,29 +77,29 @@ export default function ServicesPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Service Orchestration</h1>
-          <p className="text-muted-foreground">Manage services and service templates</p>
-        </div>
-        <div className="space-x-2">
-          {activeTab === 'services' ? (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              + New Service
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowCreateClassModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              + New Template
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Service Orchestration"
+        description="Manage services and service templates"
+        actions={
+          <div className="space-x-2">
+            {activeTab === 'services' ? (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + New Service
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowCreateClassModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + New Template
+              </button>
+            )}
+          </div>
+        }
+      />
 
       {/* Tabs */}
       <div className="border-b mb-6">

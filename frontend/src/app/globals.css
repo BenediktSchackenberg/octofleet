@@ -1,3 +1,25 @@
+:root {
+  --surface-primary: #09090b;
+  --surface-secondary: #18181b;
+  --surface-tertiary: #27272a;
+  --surface-hover: #27272a;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent-primary: #06b6d4;
+  --accent-hover: #22d3ee;
+  --status-success: #10b981;
+  --status-warning: #f59e0b;
+  --status-danger: #ef4444;
+  --status-info: #3b82f6;
+  --status-success-bg: rgba(16, 185, 129, 0.15);
+  --status-warning-bg: rgba(245, 158, 11, 0.15);
+  --status-danger-bg: rgba(239, 68, 68, 0.15);
+  --status-info-bg: rgba(59, 130, 246, 0.15);
+  --border-primary: #27272a;
+  --border-secondary: #3f3f46;
+}
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -136,41 +158,6 @@
   --border: oklch(0.88 0 0);
   --input: oklch(0.88 0 0);
   --ring: oklch(0.4 0.2 260);
-}
-
-/* Light mode overrides for zinc colors */
-.light .bg-zinc-900 {
-  background-color: #ffffff !important;
-}
-.light .bg-zinc-950 {
-  background-color: #fafafa !important;
-}
-.light .bg-zinc-800 {
-  background-color: #f4f4f5 !important;
-}
-.light .bg-zinc-700 {
-  background-color: #e4e4e7 !important;
-}
-.light .text-zinc-100 {
-  color: #18181b !important;
-}
-.light .text-zinc-400 {
-  color: #71717a !important;
-}
-.light .text-zinc-500 {
-  color: #71717a !important;
-}
-.light .text-white {
-  color: #18181b !important;
-}
-.light .border-zinc-800 {
-  border-color: #e4e4e7 !important;
-}
-.light .border-zinc-700 {
-  border-color: #d4d4d8 !important;
-}
-.light .hover\:bg-zinc-800:hover {
-  background-color: #e4e4e7 !important;
 }
 
 /* Hide scrollbar for nav */
