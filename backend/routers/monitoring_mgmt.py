@@ -255,29 +255,34 @@ async def delete_monitoring_assignment(assignment_id: str):
 @router.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(verify_api_key)])
 async def get_effective_policy(node_id: str):
     async with get_pool().acquire() as conn:
+        # Resolve hostname to UUID if needed
+        resolved_id = node_id
+        uuid_row = await conn.fetchval("SELECT id::text FROM nodes WHERE hostname = $1", node_id)
+        if uuid_row:
+            resolved_id = uuid_row
         # Check direct node assignment first, then group assignments
         row = await conn.fetchrow("""
             SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
             FROM monitoring_assignments a
             JOIN monitoring_profiles p ON p.id = a.profile_id
-            WHERE a.target_type = 'node' AND a.target_id = $1 AND a.status = 'active'
+            WHERE a.target_type = 'node' AND (a.target_id = $1 OR a.target_id = $2) AND a.status = 'active'
                 AND (a.end_time IS NULL OR a.end_time > now())
             ORDER BY a.priority DESC LIMIT 1
-        """, node_id)
+        """, node_id, resolved_id)
         if not row:
             # Fallback to group assignments
             row = await conn.fetchrow("""
                 SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
                 FROM monitoring_assignments a
                 JOIN monitoring_profiles p ON p.id = a.profile_id
-                JOIN group_members gm ON gm.group_id = a.target_id::uuid
-                WHERE a.target_type = 'group' AND gm.node_id = $1 AND a.status = 'active'
+                JOIN device_groups dg ON dg.group_id = a.target_id::uuid
+                WHERE a.target_type = 'group' AND (dg.node_id::text = $1 OR dg.node_id::text = $2) AND a.status = 'active'
                     AND (a.end_time IS NULL OR a.end_time > now())
                 ORDER BY a.priority DESC LIMIT 1
-            """, node_id)
+            """, node_id, resolved_id)
         if not row:
             return {"policy": None, "message": "No monitoring policy assigned"}
-        return {"policy": dict(row)}
+        return {"policy": _parse_json_fields(dict(row))}
 
 
 @router.post("/api/v1/ingest/events", dependencies=[Depends(verify_api_key)])
