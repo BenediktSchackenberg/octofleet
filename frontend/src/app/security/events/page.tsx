@@ -1,6 +1,6 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { Activity, Search } from "lucide-react";
 
@@ -16,7 +16,7 @@ export default function EventsPage() {
   async function fetchEvents() {
     const params = new URLSearchParams();
     Object.entries(filter).forEach(([k, v]) => { if (v) params.set(k, v); });
-    const res = await fetch(`${API_BASE}/events?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await apiClient.get(`/events?${params}`, { showErrorToast: false });
     const data = await res.json();
     setEvents(data.events || []);
     setTotal(data.total || 0);

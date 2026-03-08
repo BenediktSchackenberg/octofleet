@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tag, Plus, X, Check } from "lucide-react";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -49,9 +48,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
 
   async function fetchAllTags() {
     try {
-      const res = await fetch(`${API_BASE}/tags`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/tags`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setAllTags(data.tags || []);
@@ -64,14 +61,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
   async function handleAddTag(tagId: string) {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/devices/${nodeId}/tags`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ tagIds: [tagId] }),
-      });
+      const res = await apiClient.post(`/devices/${nodeId}/tags`, { tagIds: [tagId] }, { showErrorToast: false });
       if (res.ok) {
         onTagsChanged();
       }
@@ -85,14 +75,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
   async function handleRemoveTag(tagId: string) {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/devices/${nodeId}/tags`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ tagIds: [tagId] }),
-      });
+      const res = await apiClient.delete(`/devices/${nodeId}/tags`, { showErrorToast: false });
       if (res.ok) {
         onTagsChanged();
       }
@@ -107,17 +90,10 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
     if (!newTagName.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch(`${API_BASE}/tags`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/tags`, {
           name: newTagName.trim(),
           color: newTagColor,
-        }),
-      });
+        }, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         // Add the new tag to the node immediately

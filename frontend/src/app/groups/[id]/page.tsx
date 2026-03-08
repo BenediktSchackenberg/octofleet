@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,7 +15,6 @@ import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
-import { API_BASE } from '@/lib/api-config';
 
 interface GroupMember {
   id: string;
@@ -68,7 +68,7 @@ export default function GroupDetailPage() {
 
   async function fetchGroup() {
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}`, { headers: getHeaders() });
+      const res = await apiClient.get(`/groups/${groupId}`, { showErrorToast: false });
       if (!res.ok) {
         router.push("/groups");
         return;
@@ -89,15 +89,11 @@ export default function GroupDetailPage() {
   async function handleSaveEdit() {
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}`, {
-        method: "PATCH",
-        headers: getHeaders(),
-        body: JSON.stringify({
+      const res = await apiClient.patch(`/groups/${groupId}`, {
           name: editName,
           description: editDescription || null,
           color: editColor || null,
-        }),
-      });
+        }, { showErrorToast: false });
       if (res.ok) {
         await fetchGroup();
         setShowEditDialog(false);
@@ -115,10 +111,7 @@ export default function GroupDetailPage() {
   async function handleDelete() {
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
+      const res = await apiClient.delete(`/groups/${groupId}`, { showErrorToast: false });
       if (res.ok) {
         router.push("/groups");
       } else {
@@ -134,11 +127,7 @@ export default function GroupDetailPage() {
 
   async function handleRemoveMember(memberId: string) {
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}/members`, {
-        method: "DELETE",
-        headers: { ...getHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ nodeIds: [memberId] }),
-      });
+      const res = await apiClient.delete(`/groups/${groupId}/members`, { showErrorToast: false });
       if (res.ok) {
         await fetchGroup();
       }
@@ -150,10 +139,7 @@ export default function GroupDetailPage() {
   async function handleEvaluate() {
     setEvaluating(true);
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}/evaluate`, {
-        method: "POST",
-        headers: getHeaders(),
-      });
+      const res = await apiClient.post(`/groups/${groupId}/evaluate`, {}, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         await fetchGroup();

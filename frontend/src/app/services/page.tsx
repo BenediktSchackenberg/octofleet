@@ -1,9 +1,8 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getAuthHeader } from "@/lib/auth-context";
 import Link from 'next/link';
-import { API_URL } from '@/lib/api-config';
 
 interface ServiceClass {
   id: string;
@@ -50,8 +49,8 @@ export default function ServicesPage() {
   const fetchData = async () => {
     try {
       const [servicesRes, classesRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/services`, { headers: getAuthHeader() }),
-        fetch(`${API_URL}/api/v1/service-classes`, { headers: getAuthHeader() }),
+        apiClient.get(`/services`, { showErrorToast: false }),
+        apiClient.get(`/service-classes`, { showErrorToast: false }),
       ]);
       
       const servicesData = await servicesRes.json();
@@ -254,11 +253,7 @@ function CreateServiceModal({
     setSaving(true);
     
     try {
-      const res = await fetch(`${API_URL}/api/v1/services`, {
-        method: 'POST',
-        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, classId }),
-      });
+      const res = await apiClient.post(`/services`, { name, description, classId }, { showErrorToast: false });
       
       if (res.ok) {
         onCreated();
@@ -350,11 +345,7 @@ function CreateClassModal({
     setSaving(true);
     
     try {
-      const res = await fetch(`${API_URL}/api/v1/service-classes`, {
-        method: 'POST',
-        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, serviceType }),
-      });
+      const res = await apiClient.post(`/service-classes`, { name, description, serviceType }, { showErrorToast: false });
       
       if (res.ok) {
         onCreated();

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
-import { API_BASE } from "@/lib/api-config";
+import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
 
 export default function RulesPage() {
@@ -11,7 +10,7 @@ export default function RulesPage() {
   const [form, setForm] = useState({ name: "", description: "", ruleType: "threshold", severity: "medium", enabled: true, cooldownSeconds: 300, conditions: "{}", actions: "[]" });
   const [evalResult, setEvalResult] = useState<any>(null);
 
-  const load = () => fetch(`${API_BASE}/security/rules`, { headers: getAuthHeader() })
+  const load = () => apiClient.get(`/security/rules`, { showErrorToast: false })
     .then(r => r.json()).then(d => setRules(d.rules || [])).catch(() => {});
 
   useEffect(() => { load(); }, []);
@@ -19,7 +18,7 @@ export default function RulesPage() {
   const save = async () => {
     try {
       const body = { ...form, conditions: JSON.parse(form.conditions), actions: JSON.parse(form.actions) };
-      await fetch(`${API_BASE}/security/rules`, { method: "POST", headers: { ...getAuthHeader(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      await apiClient.post(`/security/rules`, body, { showErrorToast: false });
       setShowForm(false);
       setForm({ name: "", description: "", ruleType: "threshold", severity: "medium", enabled: true, cooldownSeconds: 300, conditions: "{}", actions: "[]" });
       load();
@@ -27,12 +26,12 @@ export default function RulesPage() {
   };
 
   const deleteRule = async (id: string) => {
-    await fetch(`${API_BASE}/security/rules/${id}`, { method: "DELETE", headers: getAuthHeader() });
+    await apiClient.delete(`/security/rules/${id}`, { showErrorToast: false });
     load();
   };
 
   const evaluate = async () => {
-    const res = await fetch(`${API_BASE}/security/rules/evaluate`, { method: "POST", headers: { ...getAuthHeader(), "Content-Type": "application/json" }, body: "{}" });
+    const res = await apiClient.post(`/security/rules/evaluate`, "{}", { showErrorToast: false });
     setEvalResult(await res.json());
   };
 

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
-import { getAuthHeader } from "@/lib/auth-context";
+import { apiClient } from "@/lib/api-client";
 import { Shield, Activity, Cpu, HardDrive, AlertTriangle, CheckCircle, Clock, Wifi, WifiOff } from "lucide-react";
 
 interface Capabilities {
@@ -34,9 +33,9 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
     if (!nodeId) return;
 
     Promise.all([
-      fetch(`${API_BASE}/agents/${nodeId}/capabilities`, { headers: getAuthHeader() })
+      apiClient.get(`/agents/${nodeId}/capabilities`, { showErrorToast: false })
         .then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${API_BASE}/agents/${nodeId}/health/history?limit=20`, { headers: getAuthHeader() })
+      apiClient.get(`/agents/${nodeId}/health/history?limit=20`, { showErrorToast: false })
         .then(r => r.ok ? r.json() : { history: [] }).catch(() => ({ history: [] })),
     ]).then(([capsData, healthData]) => {
       setCaps(capsData);

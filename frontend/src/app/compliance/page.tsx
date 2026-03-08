@@ -1,5 +1,5 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Plus, Play, ArrowRight, TrendingUp } from "lucide-react";
-import { API_BASE } from "@/lib/api-config";
 
 interface Baseline {
   id: string;
@@ -46,11 +45,10 @@ export default function ComplianceDashboard() {
 
   const fetchData = async () => {
     try {
-      const headers = getAuthHeader();
       const [bRes, sRes, tRes] = await Promise.all([
-        fetch(`${API_BASE}/baselines`, { headers }),
-        fetch(`${API_BASE}/baselines/drift/summary`, { headers }),
-        fetch(`${API_BASE}/baselines/compliance/trends`, { headers }),
+        apiClient.get(`/baselines`, { showErrorToast: false }),
+        apiClient.get(`/baselines/drift/summary`, { showErrorToast: false }),
+        apiClient.get(`/baselines/compliance/trends`, { showErrorToast: false }),
       ]);
       if (bRes.ok) setBaselines(await bRes.json());
       if (sRes.ok) setSummary(await sRes.json());
@@ -67,7 +65,7 @@ export default function ComplianceDashboard() {
   const evaluateBaseline = async (id: string) => {
     setEvaluating(id);
     try {
-      await fetch(`${API_BASE}/baselines/${id}/evaluate`, { method: "POST", headers: getAuthHeader() });
+      await apiClient.post(`/baselines/${id}/evaluate`, {}, { showErrorToast: false });
       await fetchData();
     } finally {
       setEvaluating(null);
@@ -78,7 +76,7 @@ export default function ComplianceDashboard() {
     setEvaluating("all");
     try {
       for (const b of baselines) {
-        await fetch(`${API_BASE}/baselines/${b.id}/evaluate`, { method: "POST", headers: getAuthHeader() });
+        await apiClient.post(`/baselines/${b.id}/evaluate`, {}, { showErrorToast: false });
       }
       await fetchData();
     } finally {

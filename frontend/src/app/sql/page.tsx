@@ -1,9 +1,9 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CuManagement from './CuManagement';
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -141,10 +141,10 @@ export default function SqlPage() {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [configsRes, assignmentsRes, instancesRes, groupsRes] = await Promise.all([
-        fetch(`${API_BASE}/mssql/configs`, { headers }),
-        fetch(`${API_BASE}/mssql/assignments`, { headers }),
-        fetch(`${API_BASE}/mssql/instances`, { headers }),
-        fetch(`${API_BASE}/groups`, { headers })
+        apiClient.get(`/mssql/configs`, { showErrorToast: false }),
+        apiClient.get(`/mssql/assignments`, { showErrorToast: false }),
+        apiClient.get(`/mssql/instances`, { showErrorToast: false }),
+        apiClient.get(`/groups`, { showErrorToast: false })
       ]);
 
       if (!configsRes.ok || !assignmentsRes.ok || !instancesRes.ok) {
@@ -180,13 +180,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/mssql/configs`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/mssql/configs`, {
           name: configForm.name,
           description: configForm.description || null,
           edition: configForm.edition,
@@ -206,8 +200,7 @@ export default function SqlPage() {
             volume_label: d.volumeLabel,
             folder: d.folder
           }))
-        })
-      });
+        }, { showErrorToast: false });
 
       if (!res.ok) {
         const errData = await res.json();
@@ -229,10 +222,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/mssql/configs/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.delete(`/mssql/configs/${id}`, { showErrorToast: false });
 
       if (!res.ok) throw new Error('Failed to delete');
       fetchData();
@@ -246,18 +236,11 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/mssql/assignments`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/mssql/assignments`, {
           configId: assignForm.configId,
           groupId: assignForm.groupId,
           saPassword: assignForm.saPassword
-        })
-      });
+        }, { showErrorToast: false });
 
       if (!res.ok) {
         const errData = await res.json();
@@ -279,10 +262,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/mssql/assignments/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.delete(`/mssql/assignments/${id}`, { showErrorToast: false });
 
       if (!res.ok) throw new Error('Failed to delete');
       fetchData();
@@ -296,10 +276,7 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE}/mssql/assignments/${assignmentId}/reconcile`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.post(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
 
       if (!res.ok) {
         const errData = await res.json();

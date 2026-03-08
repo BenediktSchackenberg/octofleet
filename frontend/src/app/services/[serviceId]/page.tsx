@@ -1,10 +1,9 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getAuthHeader } from "@/lib/auth-context";
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { API_URL } from '@/lib/api-config';
 
 interface Service {
   id: string;
@@ -82,9 +81,7 @@ export default function ServiceDetailPage() {
 
   const fetchService = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/services/${serviceId}`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/services/${serviceId}`, { showErrorToast: false });
       if (res.ok) {
         setService(await res.json());
       }
@@ -97,9 +94,7 @@ export default function ServiceDetailPage() {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/logs?limit=20`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/services/${serviceId}/logs?limit=20`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || []);
@@ -111,9 +106,7 @@ export default function ServiceDetailPage() {
 
   const fetchNodes = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/nodes`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/nodes`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setAllNodes(data.nodes || []);
@@ -127,10 +120,7 @@ export default function ServiceDetailPage() {
     if (!confirm('Remove this node from the service?')) return;
     
     try {
-      const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/nodes/${nodeId}`, {
-        method: 'DELETE',
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.delete(`/services/${serviceId}/nodes/${nodeId}`, { showErrorToast: false });
       if (res.ok) {
         fetchService();
         fetchLogs();
@@ -144,10 +134,7 @@ export default function ServiceDetailPage() {
     if (!confirm('Delete this service? This cannot be undone.')) return;
     
     try {
-      const res = await fetch(`${API_URL}/api/v1/services/${serviceId}`, {
-        method: 'DELETE',
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.delete(`/services/${serviceId}`, { showErrorToast: false });
       if (res.ok) {
         router.push('/services');
       }
@@ -164,10 +151,7 @@ export default function ServiceDetailPage() {
     
     setReconciling(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/reconcile`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.post(`/services/${serviceId}/reconcile`, {}, { showErrorToast: false });
       
       if (res.ok) {
         const data = await res.json();
@@ -406,11 +390,7 @@ function AddNodeModal({
     setSaving(true);
     
     try {
-      const res = await fetch(`${API_URL}/api/v1/services/${serviceId}/nodes`, {
-        method: 'POST',
-        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodeId, role }),
-      });
+      const res = await apiClient.post(`/services/${serviceId}/nodes`, { nodeId, role }, { showErrorToast: false });
       
       if (res.ok) {
         onAdded();

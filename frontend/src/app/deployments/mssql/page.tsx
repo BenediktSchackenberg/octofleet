@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,8 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database, Server, HardDrive, Play, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Plus, Link, Trash2 } from "lucide-react";
-import { getAuthHeader } from "@/lib/auth-context";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -129,13 +128,12 @@ export default function MssqlAssignmentsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const headers = { ...getAuthHeader() };
       
       const [assignmentsRes, configsRes, groupsRes, editionsRes] = await Promise.all([
-        fetch(`${API_BASE}/mssql/assignments`, { headers }),
-        fetch(`${API_BASE}/mssql/configs`, { headers }),
-        fetch(`${API_BASE}/groups`, { headers }),
-        fetch(`${API_BASE}/mssql/editions`, { headers }),
+        apiClient.get(`/mssql/assignments`, { showErrorToast: false }),
+        apiClient.get(`/mssql/configs`, { showErrorToast: false }),
+        apiClient.get(`/groups`, { showErrorToast: false }),
+        apiClient.get(`/mssql/editions`, { showErrorToast: false }),
       ]);
 
       const [assignmentsData, configsData, groupsData, editionsData] = await Promise.all([
@@ -157,12 +155,8 @@ export default function MssqlAssignmentsPage() {
   };
 
   const handleCreateConfig = async () => {
-    const headers = { ...getAuthHeader(), "Content-Type": "application/json" };
     
-    const res = await fetch(`${API_BASE}/mssql/configs`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
+    const res = await apiClient.post(`/mssql/configs`, {
         ...newConfig,
         features: ["SQLEngine"],
         includeSsms: true,
@@ -171,8 +165,7 @@ export default function MssqlAssignmentsPage() {
           { purpose: "log", diskNumber: 2, driveLetter: "E", volumeLabel: "SQL_Logs", folder: "Logs" },
           { purpose: "tempdb", diskNumber: 3, driveLetter: "F", volumeLabel: "SQL_TempDB", folder: "TempDB" },
         ],
-      }),
-    });
+      }, { showErrorToast: false });
 
     if (res.ok) {
       setShowNewConfig(false);
@@ -187,13 +180,8 @@ export default function MssqlAssignmentsPage() {
       return;
     }
 
-    const headers = { ...getAuthHeader(), "Content-Type": "application/json" };
     
-    const res = await fetch(`${API_BASE}/mssql/assignments`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(newAssignment),
-    });
+    const res = await apiClient.post(`/mssql/assignments`, newAssignment, { showErrorToast: false });
 
     if (res.ok) {
       setShowNewAssignment(false);
@@ -204,13 +192,9 @@ export default function MssqlAssignmentsPage() {
 
   const handleReconcile = async (assignmentId: string) => {
     setReconciling(assignmentId);
-    const headers = { ...getAuthHeader() };
     
     try {
-      const res = await fetch(`${API_BASE}/mssql/assignments/${assignmentId}/reconcile`, {
-        method: "POST",
-        headers,
-      });
+      const res = await apiClient.post(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
       
       if (res.ok) {
         const data = await res.json();
@@ -228,11 +212,7 @@ export default function MssqlAssignmentsPage() {
   const handleDeleteAssignment = async (assignmentId: string) => {
     if (!confirm("Assignment wirklich löschen?")) return;
     
-    const headers = { ...getAuthHeader() };
-    await fetch(`${API_BASE}/mssql/assignments/${assignmentId}`, {
-      method: "DELETE",
-      headers,
-    });
+    await apiClient.delete(`/mssql/assignments/${assignmentId}`, { showErrorToast: false });
     
     fetchData();
     if (selectedAssignment?.id === assignmentId) {
@@ -241,8 +221,7 @@ export default function MssqlAssignmentsPage() {
   };
 
   const loadAssignmentDetail = async (assignmentId: string) => {
-    const headers = { ...getAuthHeader() };
-    const res = await fetch(`${API_BASE}/mssql/assignments/${assignmentId}`, { headers });
+    const res = await apiClient.get(`/mssql/assignments/${assignmentId}`, { showErrorToast: false });
     if (res.ok) {
       setSelectedAssignment(await res.json());
     }

@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect } from 'react';
-import { API_BASE } from '@/lib/api-config';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Pause, Play, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -27,7 +27,7 @@ export default function DeploymentDetailPage() {
 
   const fetchData = async () => {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/patches/deployments/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await apiClient.get(`/patches/deployments/${id}`, { showErrorToast: false });
     if (res.ok) setDep(await res.json());
     setLoading(false);
   };
@@ -36,9 +36,7 @@ export default function DeploymentDetailPage() {
 
   const doAction = async (action: string) => {
     const token = getToken();
-    await fetch(`${API_BASE}/patches/deployments/${id}/${action}`, {
-      method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-    });
+    await apiClient.post(`/patches/deployments/${id}/${action}`, {}, { showErrorToast: false });
     fetchData();
   };
 

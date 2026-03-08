@@ -1,8 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
-import { API_URL } from '@/lib/api-config';
 import { Terminal, Zap, Rocket } from "lucide-react";
 
 
@@ -126,9 +125,9 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   useEffect(() => {
     // Fetch packages, nodes, and groups
     Promise.all([
-      fetch(`${API_URL}/api/v1/packages`, { headers: { ...getAuthHeader() } }),
-      fetch(`${API_URL}/api/v1/nodes`, { headers: { ...getAuthHeader() } }),
-      fetch(`${API_URL}/api/v1/groups`, { headers: { ...getAuthHeader() } }),
+      apiClient.get(`/packages`, { showErrorToast: false }),
+      apiClient.get(`/nodes`, { showErrorToast: false }),
+      apiClient.get(`/groups`, { showErrorToast: false }),
     ]).then(async ([pkgRes, nodeRes, groupRes]) => {
       if (pkgRes.ok) {
         const data = await pkgRes.json();
@@ -151,9 +150,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
       setLoadingVersions(true);
       setVersions([]);
       setSelectedVersionId("");
-      fetch(`${API_URL}/api/v1/packages/${selectedPackageId}`, { 
-        headers: { ...getAuthHeader() } 
-      })
+      apiClient.get(`/packages/${selectedPackageId}`, { showErrorToast: false })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data?.versions) {
@@ -206,11 +203,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
         body.targetGroupId = targetId;
       }
 
-      const res = await fetch(`${API_URL}/api/v1/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify(body),
-      });
+      const res = await apiClient.post(`/jobs`, body, { showErrorToast: false });
 
       if (res.ok) {
         onCreated();
@@ -472,7 +465,7 @@ export default function JobsPage() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs`, { headers: { ...getAuthHeader() } });
+      const res = await apiClient.get(`/jobs`, { showErrorToast: false });
       const data = await res.json();
       setJobs((data.jobs || []).map((j: any) => ({
         id: j.job_id || j.id,
@@ -500,7 +493,7 @@ export default function JobsPage() {
 
   const fetchJobDetail = async (jobId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}`, { headers: { ...getAuthHeader() } });
+      const res = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
       const data = await res.json();
       setSelectedJob(data);
     } catch (err) {
@@ -510,10 +503,7 @@ export default function JobsPage() {
 
   const retryInstance = async (instanceId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs/instances/${instanceId}/retry`, {
-        method: "POST",
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.post(`/jobs/instances/${instanceId}/retry`, {}, { showErrorToast: false });
       if (res.ok) {
         // Refresh the job detail
         if (selectedJob) {

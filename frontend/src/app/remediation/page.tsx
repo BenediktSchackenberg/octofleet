@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -86,10 +87,10 @@ export default function RemediationPage() {
     try {
       const headers = { 'Authorization': `Bearer ${token}` };
       const [summaryRes, packagesRes, rulesRes, jobsRes] = await Promise.all([
-        fetch(`${API_BASE}/remediation/summary`, { headers }),
-        fetch(`${API_BASE}/remediation/packages`, { headers }),
-        fetch(`${API_BASE}/remediation/rules`, { headers }),
-        fetch(`${API_BASE}/remediation/jobs?limit=500`, { headers }),
+        apiClient.get(`/remediation/summary`, { showErrorToast: false }),
+        apiClient.get(`/remediation/packages`, { showErrorToast: false }),
+        apiClient.get(`/remediation/rules`, { showErrorToast: false }),
+        apiClient.get(`/remediation/jobs?limit=500`, { showErrorToast: false }),
       ]);
       if (summaryRes.ok) setSummary(await summaryRes.json());
       if (packagesRes.ok) { const d = await packagesRes.json(); setPackages(d.packages || []); }
@@ -103,9 +104,7 @@ export default function RemediationPage() {
     const token = getToken();
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/remediation/summary`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.get(`/remediation/summary`, { showErrorToast: false });
       if (res.ok) setSummary(await res.json());
     } catch (e) {}
   };
@@ -195,11 +194,7 @@ export default function RemediationPage() {
     setScanning(true);
     setScanResult(null);
     try {
-      const res = await fetch(`${API_BASE}/remediation/scan`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ severity_filter: ['CRITICAL', 'HIGH'], dry_run: dryRun }),
-      });
+      const res = await apiClient.post(`/remediation/scan`, { severity_filter: ['CRITICAL', 'HIGH'], dry_run: dryRun }, { showErrorToast: false });
       if (res.ok) {
         const result = await res.json();
         setScanResult(result);

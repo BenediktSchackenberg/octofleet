@@ -1,11 +1,10 @@
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Save, Download, Shield } from "lucide-react";
-import { API_BASE } from "@/lib/api-config";
+import { apiClient } from "@/lib/api-client";
 
 interface Rule {
   rule_name: string;
@@ -37,7 +36,7 @@ export default function CreateBaseline() {
   const [importing, setImporting] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/baselines/templates`, { headers: getAuthHeader() })
+    apiClient.get(`/baselines/templates`, { showErrorToast: false })
       .then((r) => r.ok ? r.json() : [])
       .then(setTemplates)
       .catch(() => {});
@@ -46,10 +45,7 @@ export default function CreateBaseline() {
   const importTemplate = async (templateId: string) => {
     setImporting(templateId);
     try {
-      const res = await fetch(`${API_BASE}/baselines/templates/${templateId}/import`, {
-        method: "POST",
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.post(`/baselines/templates/${templateId}/import`, {}, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         router.push(`/compliance/baselines/${data.id}`);
@@ -80,11 +76,7 @@ export default function CreateBaseline() {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/baselines`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, baseline_type: baselineType, rules }),
-      });
+      const res = await apiClient.post(`/baselines`, { name, description, baseline_type: baselineType, rules }, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         router.push(`/compliance/baselines/${data.id}`);

@@ -1,11 +1,10 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { API_URL } from '@/lib/api-config';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -92,12 +91,11 @@ export default function VulnerabilitiesPage() {
 
   const fetchData = async () => {
     try {
-      const headers = getAuthHeader();
       const [summaryRes, nodesRes, softwareRes, scansRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/vulnerabilities/summary`, { headers }),
-        fetch(`${API_URL}/api/v1/vulnerabilities/by-node`, { headers }),
-        fetch(`${API_URL}/api/v1/vulnerabilities/by-software`, { headers }),
-        fetch(`${API_URL}/api/v1/vulnerabilities/scans?limit=5`, { headers }),
+        apiClient.get(`/vulnerabilities/summary`, { showErrorToast: false }),
+        apiClient.get(`/vulnerabilities/by-node`, { showErrorToast: false }),
+        apiClient.get(`/vulnerabilities/by-software`, { showErrorToast: false }),
+        apiClient.get(`/vulnerabilities/scans?limit=5`, { showErrorToast: false }),
       ]);
 
       if (summaryRes.ok) setSummary(await summaryRes.json());
@@ -120,8 +118,7 @@ export default function VulnerabilitiesPage() {
   const triggerScan = async () => {
     setScanning(true);
     try {
-      const headers = { ...getAuthHeader(), "Content-Type": "application/json" };
-      const res = await fetch(`${API_URL}/api/v1/vulnerabilities/scan`, { method: "POST", headers });
+      const res = await apiClient.post(`/vulnerabilities/scan`, {}, { showErrorToast: false });
       if (res.ok) setTimeout(fetchData, 2000);
     } catch (err) {
       setError("Failed to start scan");

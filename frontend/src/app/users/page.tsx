@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Plus, Trash2, Shield, User as UserIcon, Key } from "lucide-react";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -52,8 +52,8 @@ export default function UsersPage() {
   async function fetchData() {
     try {
       const [usersRes, rolesRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/users`, { headers: getAuthHeader() }),
-        fetch(`${API_URL}/api/v1/roles`, { headers: getAuthHeader() }),
+        apiClient.get(`/users`, { showErrorToast: false }),
+        apiClient.get(`/roles`, { showErrorToast: false }),
       ]);
       
       if (usersRes.ok) {
@@ -73,11 +73,7 @@ export default function UsersPage() {
 
   async function createUser() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/users`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify(newUser),
-      });
+      const res = await apiClient.post(`/users`, newUser, { showErrorToast: false });
       if (res.ok) {
         setShowCreate(false);
         setNewUser({ username: "", password: "", email: "", display_name: "" });
@@ -91,10 +87,7 @@ export default function UsersPage() {
   async function deleteUser(userId: string) {
     if (!confirm("Delete this user?")) return;
     try {
-      await fetch(`${API_URL}/api/v1/users/${userId}`, {
-        method: "DELETE",
-        headers: getAuthHeader(),
-      });
+      await apiClient.delete(`/users/${userId}`, { showErrorToast: false });
       fetchData();
     } catch (e) {
       console.error("Failed to delete user:", e);
@@ -103,10 +96,7 @@ export default function UsersPage() {
 
   async function toggleRole(userId: string, roleName: string, hasRole: boolean) {
     try {
-      await fetch(`${API_URL}/api/v1/users/${userId}/roles/${roleName}`, {
-        method: hasRole ? "DELETE" : "POST",
-        headers: getAuthHeader(),
-      });
+      await apiClient.get(`/users/${userId}/roles/${roleName}`, { showErrorToast: false });
       fetchData();
     } catch (e) {
       console.error("Failed to toggle role:", e);
@@ -115,11 +105,7 @@ export default function UsersPage() {
 
   async function toggleActive(userId: string, isActive: boolean) {
     try {
-      await fetch(`${API_URL}/api/v1/users/${userId}`, {
-        method: "PUT",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: !isActive }),
-      });
+      await apiClient.put(`/users/${userId}`, { is_active: !isActive }, { showErrorToast: false });
       fetchData();
     } catch (e) {
       console.error("Failed to toggle user status:", e);

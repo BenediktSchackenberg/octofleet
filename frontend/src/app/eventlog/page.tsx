@@ -1,12 +1,11 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
 import { EventlogChart } from "@/components/EventlogChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -88,9 +87,7 @@ export default function EventlogPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/eventlog/summary?hours=${hours}`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/eventlog/summary?hours=${hours}`, { showErrorToast: false });
       const data = await res.json();
       setSummary(data.summaryByNode || []);
       setCriticalEvents(data.recentCritical || []);

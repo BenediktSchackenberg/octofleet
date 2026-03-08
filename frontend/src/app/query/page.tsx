@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
-import { API_BASE } from "@/lib/api-config";
+import { apiClient } from "@/lib/api-client";
 import {
   Search,
   Play,
@@ -294,8 +293,8 @@ export default function QueryEnginePage() {
     async function load() {
       try {
         const [schemaRes, templateRes] = await Promise.all([
-          fetch(`${API_BASE}/query/schema`, { headers: getAuthHeader() }),
-          fetch(`${API_BASE}/query/templates`, { headers: getAuthHeader() }),
+          apiClient.get(`/query/schema`, { showErrorToast: false }),
+          apiClient.get(`/query/templates`, { showErrorToast: false }),
         ]);
         if (schemaRes.ok) {
           const s = await schemaRes.json();
@@ -330,7 +329,7 @@ export default function QueryEnginePage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        const res = await fetch(`${API_BASE}/query/stats`, { headers: getAuthHeader() });
+        const res = await apiClient.get(`/query/stats`, { showErrorToast: false });
         if (res.ok) setStats(await res.json());
       } catch {}
     }
@@ -371,11 +370,7 @@ export default function QueryEnginePage() {
       const query: QueryDSL = dsl || buildCurrentDSL();
 
       try {
-        const res = await fetch(`${API_BASE}/query/execute`, {
-          method: "POST",
-          headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-          body: JSON.stringify(query),
-        });
+        const res = await apiClient.post(`/query/execute`, query, { showErrorToast: false });
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -406,11 +401,7 @@ export default function QueryEnginePage() {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE}/query/live`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ command: liveCommand }),
-      });
+      const res = await apiClient.post(`/query/live`, { command: liveCommand }, { showErrorToast: false });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -525,7 +516,7 @@ export default function QueryEnginePage() {
       const params = new URLSearchParams();
       if (savedCategoryFilter) params.set("category", savedCategoryFilter);
       if (savedSearch) params.set("tags", savedSearch);
-      const res = await fetch(`${API_BASE}/query/saved?${params}`, { headers: getAuthHeader() });
+      const res = await apiClient.get(`/query/saved?${params}`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setSavedQueries(Array.isArray(data) ? data : data.queries || []);
@@ -545,11 +536,7 @@ export default function QueryEnginePage() {
         tags: saveForm.tags.split(",").map(t => t.trim()).filter(Boolean),
         is_public: saveForm.is_public,
       };
-      const res = await fetch(`${API_BASE}/query/saved`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const res = await apiClient.post(`/query/saved`, body, { showErrorToast: false });
       if (res.ok) {
         setShowSaveForm(false);
         setSaveForm({ name: "", description: "", category: "", tags: "", is_public: true });
@@ -560,24 +547,21 @@ export default function QueryEnginePage() {
 
   const deleteSaved = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/query/saved/${id}`, { method: "DELETE", headers: getAuthHeader() });
+      await apiClient.delete(`/query/saved/${id}`, { showErrorToast: false });
       fetchSaved();
     } catch {}
   };
 
   const duplicateSaved = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/query/saved/${id}/duplicate`, { method: "POST", headers: getAuthHeader() });
+      await apiClient.post(`/query/saved/${id}/duplicate`, {}, { showErrorToast: false });
       fetchSaved();
     } catch {}
   };
 
   const runSaved = async (sq: SavedQuery) => {
     try {
-      const res = await fetch(`${API_BASE}/query/saved/${sq.id}/run`, {
-        method: "POST",
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.post(`/query/saved/${sq.id}/run`, {}, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setSavedRunResult({ id: sq.id, result: data });
@@ -587,22 +571,14 @@ export default function QueryEnginePage() {
 
   const togglePublic = async (sq: SavedQuery) => {
     try {
-      await fetch(`${API_BASE}/query/saved/${sq.id}`, {
-        method: "PUT",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ is_public: !sq.is_public }),
-      });
+      await apiClient.put(`/query/saved/${sq.id}`, { is_public: !sq.is_public }, { showErrorToast: false });
       fetchSaved();
     } catch {}
   };
 
   const updateSavedQuery = async (sq: SavedQuery) => {
     try {
-      await fetch(`${API_BASE}/query/saved/${sq.id}`, {
-        method: "PUT",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ name: sq.name, description: sq.description, category: sq.category, tags: sq.tags }),
-      });
+      await apiClient.put(`/query/saved/${sq.id}`, { name: sq.name, description: sq.description, category: sq.category, tags: sq.tags }, { showErrorToast: false });
       setEditingSaved(null);
       fetchSaved();
     } catch {}
@@ -613,7 +589,7 @@ export default function QueryEnginePage() {
   const fetchSchedules = useCallback(async () => {
     setSchedulesLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/query/schedules`, { headers: getAuthHeader() });
+      const res = await apiClient.get(`/query/schedules`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setSchedules(Array.isArray(data) ? data : data.schedules || []);
@@ -625,11 +601,7 @@ export default function QueryEnginePage() {
 
   const createSchedule = async () => {
     try {
-      const res = await fetch(`${API_BASE}/query/schedules`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify(scheduleForm),
-      });
+      const res = await apiClient.post(`/query/schedules`, scheduleForm, { showErrorToast: false });
       if (res.ok) {
         setShowScheduleForm(false);
         setScheduleForm({ saved_query_id: "", name: "", cron_expression: "0 0 * * *", output_format: "JSON" });
@@ -640,32 +612,28 @@ export default function QueryEnginePage() {
 
   const deleteSchedule = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/query/schedules/${id}`, { method: "DELETE", headers: getAuthHeader() });
+      await apiClient.delete(`/query/schedules/${id}`, { showErrorToast: false });
       fetchSchedules();
     } catch {}
   };
 
   const toggleSchedule = async (s: ScheduleEntry) => {
     try {
-      await fetch(`${API_BASE}/query/schedules/${s.id}`, {
-        method: "PUT",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !s.enabled }),
-      });
+      await apiClient.put(`/query/schedules/${s.id}`, { enabled: !s.enabled }, { showErrorToast: false });
       fetchSchedules();
     } catch {}
   };
 
   const runScheduleNow = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/query/schedules/${id}/run-now`, { method: "POST", headers: getAuthHeader() });
+      await apiClient.post(`/query/schedules/${id}/run-now`, {}, { showErrorToast: false });
       fetchSchedules();
     } catch {}
   };
 
   const fetchScheduleResults = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/query/schedules/${id}/results`, { headers: getAuthHeader() });
+      const res = await apiClient.get(`/query/schedules/${id}/results`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setScheduleResults(prev => ({ ...prev, [id]: Array.isArray(data) ? data : data.results || [] }));
@@ -678,7 +646,7 @@ export default function QueryEnginePage() {
   const fetchDashboards = useCallback(async () => {
     setDashboardsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/query/dashboards`, { headers: getAuthHeader() });
+      const res = await apiClient.get(`/query/dashboards`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setDashboards(Array.isArray(data) ? data : data.dashboards || []);
@@ -690,18 +658,14 @@ export default function QueryEnginePage() {
 
   const loadDashboard = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/query/dashboards/${id}`, { headers: getAuthHeader() });
+      const res = await apiClient.get(`/query/dashboards/${id}`, { showErrorToast: false });
       if (res.ok) setSelectedDashboard(await res.json());
     } catch {}
   };
 
   const createDashboard = async () => {
     try {
-      const res = await fetch(`${API_BASE}/query/dashboards`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify(dashboardForm),
-      });
+      const res = await apiClient.post(`/query/dashboards`, dashboardForm, { showErrorToast: false });
       if (res.ok) {
         setShowDashboardForm(false);
         setDashboardForm({ name: "", description: "" });
@@ -714,7 +678,7 @@ export default function QueryEnginePage() {
 
   const deleteDashboard = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/query/dashboards/${id}`, { method: "DELETE", headers: getAuthHeader() });
+      await apiClient.delete(`/query/dashboards/${id}`, { showErrorToast: false });
       setSelectedDashboard(null);
       fetchDashboards();
     } catch {}
@@ -723,11 +687,7 @@ export default function QueryEnginePage() {
   const updateDashboard = async () => {
     if (!selectedDashboard) return;
     try {
-      await fetch(`${API_BASE}/query/dashboards/${selectedDashboard.id}`, {
-        method: "PUT",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ name: selectedDashboard.name, description: selectedDashboard.description }),
-      });
+      await apiClient.put(`/query/dashboards/${selectedDashboard.id}`, { name: selectedDashboard.name, description: selectedDashboard.description }, { showErrorToast: false });
       setEditingDashboard(false);
       fetchDashboards();
     } catch {}
@@ -736,11 +696,7 @@ export default function QueryEnginePage() {
   const addWidget = async () => {
     if (!selectedDashboard) return;
     try {
-      const res = await fetch(`${API_BASE}/query/dashboards/${selectedDashboard.id}/widgets`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify(widgetForm),
-      });
+      const res = await apiClient.post(`/query/dashboards/${selectedDashboard.id}/widgets`, widgetForm, { showErrorToast: false });
       if (res.ok) {
         setShowWidgetForm(false);
         setWidgetForm({ saved_query_id: "", title: "", visualization: "table", position: 0 });
@@ -752,7 +708,7 @@ export default function QueryEnginePage() {
   const removeWidget = async (wid: string) => {
     if (!selectedDashboard) return;
     try {
-      await fetch(`${API_BASE}/query/dashboards/${selectedDashboard.id}/widgets/${wid}`, { method: "DELETE", headers: getAuthHeader() });
+      await apiClient.delete(`/query/dashboards/${selectedDashboard.id}/widgets/${wid}`, { showErrorToast: false });
       loadDashboard(selectedDashboard.id);
     } catch {}
   };
@@ -760,11 +716,7 @@ export default function QueryEnginePage() {
   const updateWidget = async (w: DashboardWidget) => {
     if (!selectedDashboard) return;
     try {
-      await fetch(`${API_BASE}/query/dashboards/${selectedDashboard.id}/widgets/${w.id}`, {
-        method: "PUT",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ title: w.title, visualization: w.visualization, saved_query_id: w.saved_query_id }),
-      });
+      await apiClient.put(`/query/dashboards/${selectedDashboard.id}/widgets/${w.id}`, { title: w.title, visualization: w.visualization, saved_query_id: w.saved_query_id }, { showErrorToast: false });
       setEditingWidget(null);
       loadDashboard(selectedDashboard.id);
     } catch {}
@@ -775,7 +727,7 @@ export default function QueryEnginePage() {
   const fetchHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/query/history?limit=50`, { headers: getAuthHeader() });
+      const res = await apiClient.get(`/query/history?limit=50`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setHistoryEntries(Array.isArray(data) ? data : data.history || []);
@@ -787,25 +739,21 @@ export default function QueryEnginePage() {
 
   const clearHistory = async () => {
     try {
-      await fetch(`${API_BASE}/query/history`, { method: "DELETE", headers: getAuthHeader() });
+      await apiClient.delete(`/query/history`, { showErrorToast: false });
       setHistoryEntries([]);
     } catch {}
   };
 
   const saveHistoryAsSaved = async (entry: HistoryEntry) => {
     try {
-      const res = await fetch(`${API_BASE}/query/saved`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/query/saved`, {
           name: `Query from ${new Date(entry.created_at).toLocaleString()}`,
           description: "",
           query_dsl: entry.query_dsl,
           category: "",
           tags: [],
           is_public: false,
-        }),
-      });
+        }, { showErrorToast: false });
       if (res.ok) setError(null);
     } catch {}
   };

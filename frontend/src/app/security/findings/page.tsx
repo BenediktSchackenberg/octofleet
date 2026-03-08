@@ -1,6 +1,6 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { AlertTriangle, CheckCircle, XCircle, Eye } from "lucide-react";
 
@@ -17,7 +17,7 @@ export default function FindingsPage() {
     const params = new URLSearchParams();
     if (filter.severity) params.set("severity", filter.severity);
     if (filter.status) params.set("status", filter.status);
-    const res = await fetch(`${API_BASE}/findings?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await apiClient.get(`/findings?${params}`, { showErrorToast: false });
     const data = await res.json();
     setFindings(data.findings || []);
     setTotal(data.total || 0);
@@ -27,7 +27,7 @@ export default function FindingsPage() {
   useEffect(() => { if (token) fetchFindings(); }, [token, filter]);
 
   async function updateStatus(id: string, status: string) {
-    await fetch(`${API_BASE}/findings/${id}`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    await apiClient.put(`/findings/${id}`, { status }, { showErrorToast: false });
     fetchFindings();
   }
 

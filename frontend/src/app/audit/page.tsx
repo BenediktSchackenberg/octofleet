@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -5,9 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Search, Filter, RefreshCw } from "lucide-react";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -62,9 +61,7 @@ export default function AuditPage() {
       if (filter.action) params.set("action", filter.action);
       if (filter.resource_type) params.set("resource_type", filter.resource_type);
 
-      const res = await fetch(`${API_URL}/api/v1/audit?${params}`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/audit?${params}`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setEntries(data.entries || []);

@@ -1,5 +1,4 @@
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -8,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Play, Trash2, ShieldCheck, ShieldAlert, Zap } from "lucide-react";
-import { API_BASE } from "@/lib/api-config";
+import { apiClient } from "@/lib/api-client";
 
 interface BaselineDetail {
   id: string; name: string; description: string; baseline_type: string; version: number;
@@ -31,10 +30,9 @@ export default function BaselineDetail() {
 
   const fetchData = async () => {
     try {
-      const headers = getAuthHeader();
       const [bRes, eRes] = await Promise.all([
-        fetch(`${API_BASE}/baselines/${id}`, { headers }),
-        fetch(`${API_BASE}/baselines/${id}/evaluations`, { headers }),
+        apiClient.get(`/baselines/${id}`, { showErrorToast: false }),
+        apiClient.get(`/baselines/${id}/evaluations`, { showErrorToast: false }),
       ]);
       if (bRes.ok) setBaseline(await bRes.json());
       if (eRes.ok) setEvaluations(await eRes.json());
@@ -46,20 +44,20 @@ export default function BaselineDetail() {
   const evaluate = async () => {
     setEvaluating(true);
     try {
-      await fetch(`${API_BASE}/baselines/${id}/evaluate`, { method: "POST", headers: getAuthHeader() });
+      await apiClient.post(`/baselines/${id}/evaluate`, {}, { showErrorToast: false });
       await fetchData();
     } finally { setEvaluating(false); }
   };
 
   const deleteRule = async (ruleId: string) => {
-    await fetch(`${API_BASE}/baselines/rules/${ruleId}`, { method: "DELETE", headers: getAuthHeader() });
+    await apiClient.delete(`/baselines/rules/${ruleId}`, { showErrorToast: false });
     await fetchData();
   };
 
   const remediateAll = async () => {
     setRemediating(true);
     try {
-      await fetch(`${API_BASE}/baselines/${id}/remediate-all`, { method: "POST", headers: getAuthHeader() });
+      await apiClient.post(`/baselines/${id}/remediate-all`, {}, { showErrorToast: false });
       await fetchData();
     } finally { setRemediating(false); }
   };

@@ -1,5 +1,5 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Database, Package, ChevronRight } from "lucide-react";
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -51,9 +50,7 @@ export default function DeploymentsPage() {
 
   async function fetchDeployments() {
     try {
-      const res = await fetch(`${API_BASE}/deployments`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/deployments`, { showErrorToast: false });
       if (res.ok) {
         setDeployments(await res.json());
       }
@@ -67,11 +64,7 @@ export default function DeploymentsPage() {
   async function toggleStatus(id: string, currentStatus: string) {
     const newStatus = currentStatus === "active" ? "paused" : "active";
     try {
-      await fetch(`${API_BASE}/deployments/${id}`, {
-        method: "PATCH",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      await apiClient.patch(`/deployments/${id}`, { status: newStatus }, { showErrorToast: false });
       fetchDeployments();
     } catch (e) {
       console.error("Failed to update deployment:", e);

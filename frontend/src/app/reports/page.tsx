@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState } from "react";
@@ -281,9 +282,7 @@ export default function ReportsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={async () => {
-                    const res = await fetch(`${API_URL}/api/v1/export/${exp.type}/excel`, {
-                      headers: getAuthHeader(),
-                    });
+                    const res = await apiClient.get(`/export/${exp.type}/excel`, { showErrorToast: false });
                     if (res.ok) {
                       const blob = await res.blob();
                       const url = URL.createObjectURL(blob);

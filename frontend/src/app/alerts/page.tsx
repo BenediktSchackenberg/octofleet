@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Bell, Plus, Trash2, TestTube, Check, X } from "lucide-react";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -76,9 +76,9 @@ export default function AlertsPage() {
     
     try {
       const [channelsRes, rulesRes, historyRes] = await Promise.all([
-        fetch(`${API_BASE}/alert-channels`, { headers }),
-        fetch(`${API_BASE}/alert-rules`, { headers }),
-        fetch(`${API_BASE}/alert-history?limit=20`, { headers }),
+        apiClient.get(`/alert-channels`, { showErrorToast: false }),
+        apiClient.get(`/alert-rules`, { showErrorToast: false }),
+        apiClient.get(`/alert-history?limit=20`, { showErrorToast: false }),
       ]);
       
       if (channelsRes.ok) setChannels(await channelsRes.json());
@@ -92,19 +92,12 @@ export default function AlertsPage() {
 
   async function createChannel() {
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API_BASE}/alert-channels`, {
-      method: 'POST',
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const res = await apiClient.post(`/alert-channels`, {
         name: newChannelName,
         channel_type: 'discord',
         config: { webhook_url: newWebhookUrl },
         enabled: true
-      })
-    });
+      }, { showErrorToast: false });
     if (res.ok) {
       setShowNewChannel(false);
       setNewChannelName('');
@@ -115,20 +108,13 @@ export default function AlertsPage() {
 
   async function createRule() {
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API_BASE}/alert-rules`, {
-      method: 'POST',
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const res = await apiClient.post(`/alert-rules`, {
         name: newRuleName,
         event_type: newRuleEvent,
         channel_id: newRuleChannel,
         cooldown_minutes: 15,
         enabled: true
-      })
-    });
+      }, { showErrorToast: false });
     if (res.ok) {
       setShowNewRule(false);
       setNewRuleName('');
@@ -139,29 +125,20 @@ export default function AlertsPage() {
   async function deleteChannel(id: string) {
     if (!confirm('Delete this channel?')) return;
     const token = localStorage.getItem('token');
-    await fetch(`${API_BASE}/alert-channels/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    await apiClient.delete(`/alert-channels/${id}`, { showErrorToast: false });
     fetchData();
   }
 
   async function deleteRule(id: string) {
     if (!confirm('Delete this rule?')) return;
     const token = localStorage.getItem('token');
-    await fetch(`${API_BASE}/alert-rules/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    await apiClient.delete(`/alert-rules/${id}`, { showErrorToast: false });
     fetchData();
   }
 
   async function testChannel(id: string) {
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API_BASE}/alert-channels/${id}/test`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await apiClient.post(`/alert-channels/${id}/test`, {}, { showErrorToast: false });
     const data = await res.json();
     alert(data.status === 'sent' ? '✅ Test sent!' : '❌ Test failed');
   }

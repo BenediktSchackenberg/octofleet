@@ -1,5 +1,5 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -43,9 +43,7 @@ export default function SoftwareComparePage() {
 
   async function fetchTopSoftware() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/software/compare`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/software/compare`, { showErrorToast: false });
       if (res.ok) {
         const json = await res.json();
         setTopSoftware(json.topSoftware || []);
@@ -61,9 +59,7 @@ export default function SoftwareComparePage() {
     setComparing(true);
     setSearchQuery(name);
     try {
-      const res = await fetch(`${API_URL}/api/v1/software/compare?software_name=${encodeURIComponent(name)}`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/software/compare?software_name=${encodeURIComponent(name)}`, { showErrorToast: false });
       if (res.ok) {
         setCompareResult(await res.json());
       }

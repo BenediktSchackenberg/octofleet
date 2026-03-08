@@ -1,11 +1,10 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -125,9 +124,7 @@ export default function JobDetailPage() {
 
   async function fetchJob() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}`, {
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
       if (!res.ok) {
         if (res.status === 404) {
           setError("Job nicht gefunden");
@@ -149,10 +146,7 @@ export default function JobDetailPage() {
   async function retryInstance(instanceId: string) {
     setRetrying(instanceId);
     try {
-      const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}/instances/${instanceId}/retry`, {
-        method: "POST",
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.post(`/jobs/${jobId}/instances/${instanceId}/retry`, {}, { showErrorToast: false });
       if (res.ok) {
         await fetchJob();
       }

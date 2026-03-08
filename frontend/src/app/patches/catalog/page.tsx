@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect } from 'react';
-import { API_BASE } from '@/lib/api-config';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Shield, Server, CheckCircle, XCircle, Clock } from 'lucide-react';
@@ -26,7 +26,7 @@ export default function PatchCatalogPage() {
   useEffect(() => {
     if (!patchId) { setLoading(false); return; }
     const token = getToken();
-    fetch(`${API_BASE}/patches/catalog/${patchId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+    apiClient.get(`/patches/catalog/${patchId}`, { showErrorToast: false })
       .then(r => r.json()).then(d => { setPatch(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, [patchId]);

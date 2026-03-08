@@ -1,9 +1,8 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -34,9 +33,7 @@ export function OsDistributionChart({ showVersions = false }: { showVersions?: b
 
   async function fetchData() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/nodes/os-distribution`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/nodes/os-distribution`, { showErrorToast: false });
       if (res.ok) {
         const json = await res.json();
         setData(json.distribution || []);

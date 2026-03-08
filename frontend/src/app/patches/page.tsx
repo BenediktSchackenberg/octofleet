@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { API_BASE } from '@/lib/api-config';
-import { getAuthHeader } from '@/lib/auth-context';
+import { apiClient } from "@/lib/api-client";
 import Link from 'next/link';
 import {
   Shield, Package, CheckCircle, XCircle, AlertTriangle, Clock,
@@ -47,10 +46,7 @@ export default function PatchesPage() {
 
   const createRing = async () => {
     try {
-      const res = await fetch(`${API_BASE}/patches/rings`, {
-        method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: ringForm.name, description: ringForm.description, delay_hours: ringForm.delay_hours, sort_order: rings.length + 1, node_group_id: ringForm.group_ids[0] || null }),
-      });
+      const res = await apiClient.post(`/patches/rings`, { name: ringForm.name, description: ringForm.description, delay_hours: ringForm.delay_hours, sort_order: rings.length + 1, node_group_id: ringForm.group_ids[0] || null }, { showErrorToast: false });
       if (res.ok) { setShowRingForm(false); setRingForm({ name: '', description: '', delay_hours: 0, group_ids: [] }); fetchAll(); }
     } catch (e) { console.error(e); }
   };
@@ -58,7 +54,7 @@ export default function PatchesPage() {
   const deleteRing = async (id: string) => {
     if (!confirm('Delete this ring?')) return;
     try {
-      await fetch(`${API_BASE}/patches/rings/${id}`, { method: 'DELETE', headers: { ...getAuthHeader() } });
+      await apiClient.delete(`/patches/rings/${id}`, { showErrorToast: false });
       fetchAll();
     } catch (e) { console.error(e); }
   };
@@ -76,11 +72,11 @@ export default function PatchesPage() {
     const headers = { 'Authorization': `Bearer ${token}` };
     try {
       const [compRes, catRes, ringRes, depRes, grpRes] = await Promise.all([
-        fetch(`${API_BASE}/patches/compliance`, { headers }),
-        fetch(`${API_BASE}/patches/catalog?limit=100${search ? `&search=${search}` : ''}${severityFilter ? `&severity=${severityFilter}` : ''}`, { headers }),
-        fetch(`${API_BASE}/patches/rings`, { headers }),
-        fetch(`${API_BASE}/patches/deployments?limit=50`, { headers }),
-        fetch(`${API_BASE}/groups`, { headers }),
+        apiClient.get(`/patches/compliance`, { showErrorToast: false }),
+        apiClient.get(`/patches/catalog?limit=100${search ? `&search=${search}` : ''}${severityFilter ? `&severity=${severityFilter}` : ''}`, { showErrorToast: false }),
+        apiClient.get(`/patches/rings`, { showErrorToast: false }),
+        apiClient.get(`/patches/deployments?limit=50`, { showErrorToast: false }),
+        apiClient.get(`/groups`, { showErrorToast: false }),
       ]);
       if (compRes.ok) setCompliance(await compRes.json());
       if (catRes.ok) { const d = await catRes.json(); setPatches(d.items || []); }
@@ -95,17 +91,13 @@ export default function PatchesPage() {
 
   const approvePatch = async (id: string) => {
     const token = getToken();
-    await fetch(`${API_BASE}/patches/catalog/${id}/approve`, {
-      method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }
-    });
+    await apiClient.patch(`/patches/catalog/${id}/approve`, {}, { showErrorToast: false });
     fetchAll();
   };
 
   const excludePatch = async (id: string) => {
     const token = getToken();
-    await fetch(`${API_BASE}/patches/catalog/${id}/exclude`, {
-      method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }
-    });
+    await apiClient.patch(`/patches/catalog/${id}/exclude`, {}, { showErrorToast: false });
     fetchAll();
   };
 

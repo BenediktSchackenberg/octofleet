@@ -1,6 +1,6 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { Users } from "lucide-react";
 
@@ -13,7 +13,7 @@ export default function AuditLogPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API_BASE}/audit/ui-events`, { headers: { Authorization: `Bearer ${token}` } })
+    apiClient.get(`/audit/ui-events`, { showErrorToast: false })
       .then(r => r.json()).then(d => setEvents(d.events || [])).catch(console.error).finally(() => setLoading(false));
   }, [token]);
 

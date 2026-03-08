@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState } from "react";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { useI18n } from "@/lib/i18n-context";
 import { Lock, User, AlertCircle } from "lucide-react";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -25,11 +25,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+      const res = await apiClient.post(`/auth/login`, { username, password }, { showErrorToast: false });
 
       if (!res.ok) {
         const data = await res.json();

@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -32,17 +31,10 @@ export function CreateTagDialog() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/tags`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/tags`, {
           name: name.trim(),
           color: color,
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (res.ok) {
         setOpen(false);

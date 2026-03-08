@@ -1,9 +1,9 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 
@@ -80,9 +80,7 @@ export default function SettingsPage() {
 
   async function fetchSettings() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/settings/nvd_api_key`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/settings/nvd_api_key`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         if (data.value) {
@@ -98,14 +96,7 @@ export default function SettingsPage() {
   async function saveNvdApiKey() {
     setSavingNvdKey(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/settings/nvd_api_key`, {
-        method: "PUT",
-        headers: {
-          ...getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ value: nvdApiKey }),
-      });
+      const res = await apiClient.put(`/settings/nvd_api_key`, { value: nvdApiKey }, { showErrorToast: false });
       if (res.ok) {
         setNvdApiKeySaved(true);
         setNvdApiKeyMasked(true);
@@ -117,9 +108,7 @@ export default function SettingsPage() {
 
   async function fetchTokens() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/enrollment-tokens`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/enrollment-tokens`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setTokens(data.tokens || []);
@@ -132,19 +121,12 @@ export default function SettingsPage() {
   async function createToken() {
     setCreating(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/enrollment-tokens`, {
-        method: "POST",
-        headers: { 
-          ...getAuthHeader(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/enrollment-tokens`, {
           description,
           expiresHours,
           maxUses,
           createdBy: "admin"
-        })
-      });
+        }, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setNewToken({ token: data.token, installCommand: data.installCommand });
@@ -166,10 +148,7 @@ export default function SettingsPage() {
   async function revokeToken(tokenId: string) {
     if (!confirm("Token wirklich widerrufen?")) return;
     
-    await fetch(`${API_URL}/api/v1/enrollment-tokens/${tokenId}`, {
-      method: "DELETE",
-      headers: getAuthHeader(),
-    });
+    await apiClient.delete(`/enrollment-tokens/${tokenId}`, { showErrorToast: false });
     fetchTokens();
   }
 

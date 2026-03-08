@@ -1,6 +1,6 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { Download, Plus, Package } from "lucide-react";
 
@@ -12,7 +12,7 @@ export default function EvidencePage() {
   const { token, user } = useAuth();
 
   async function fetchExports() {
-    const res = await fetch(`${API_BASE}/evidence/exports`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await apiClient.get(`/evidence/exports`, { showErrorToast: false });
     const data = await res.json();
     setExports(data.exports || []);
     setLoading(false);
@@ -20,8 +20,7 @@ export default function EvidencePage() {
   useEffect(() => { if (token) fetchExports(); }, [token]);
 
   async function createExport() {
-    await fetch(`${API_BASE}/evidence/export`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ scope: "manual", created_by: user?.username || "admin", filter: { type: "full_export", timestamp: new Date().toISOString() } }) });
+    await apiClient.post(`/evidence/export`, { scope: "manual", created_by: user?.username || "admin", filter: { type: "full_export", timestamp: new Date().toISOString() } }, { showErrorToast: false });
     fetchExports();
   }
 

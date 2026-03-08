@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState } from "react";
@@ -121,9 +122,7 @@ export function ExportDropdown() {
   async function downloadExcel(type: string) {
     setExporting(type);
     try {
-      const res = await fetch(`${API_URL}/api/v1/export/${type}/excel`, {
-        headers: getAuthHeader()
-      });
+      const res = await apiClient.get(`/export/${type}/excel`, { showErrorToast: false });
       if (res.ok) {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);

@@ -1,5 +1,5 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Trash2, ArrowLeft, Download, Package } from "lucide-react";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -75,9 +74,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
 
   async function fetchDeployment() {
     try {
-      const res = await fetch(`${API_BASE}/deployments/${id}`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/deployments/${id}`, { showErrorToast: false });
       if (res.ok) {
         setDeployment(await res.json());
       }
@@ -91,29 +88,18 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
   async function toggleStatus() {
     if (!deployment) return;
     const newStatus = deployment.status === "active" ? "paused" : "active";
-    await fetch(`${API_BASE}/deployments/${id}`, {
-      method: "PATCH",
-      headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
-    });
+    await apiClient.patch(`/deployments/${id}`, { status: newStatus }, { showErrorToast: false });
     fetchDeployment();
   }
 
   async function cancelDeployment() {
-    await fetch(`${API_BASE}/deployments/${id}`, {
-      method: "PATCH",
-      headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "cancelled" }),
-    });
+    await apiClient.patch(`/deployments/${id}`, { status: "cancelled" }, { showErrorToast: false });
     fetchDeployment();
   }
 
   async function deleteDeployment() {
     if (!confirm("Deployment wirklich löschen?")) return;
-    await fetch(`${API_BASE}/deployments/${id}`, {
-      method: "DELETE",
-      headers: getAuthHeader(),
-    });
+    await apiClient.delete(`/deployments/${id}`, { showErrorToast: false });
     router.push("/deployments");
   }
 

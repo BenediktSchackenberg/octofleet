@@ -1,9 +1,9 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -43,13 +43,7 @@ export default function ScreenViewerPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/v1/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await apiClient.post(`/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {}, { showErrorToast: false });
       
       if (!response.ok) {
         const err = await response.json();
@@ -167,10 +161,7 @@ export default function ScreenViewerPage() {
     if (sessionId) {
       try {
         const token = localStorage.getItem('token');
-        await fetch(`${API_URL}/api/v1/screen/session/${sessionId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        await apiClient.delete(`/screen/session/${sessionId}`, { showErrorToast: false });
       } catch (err) {
         console.error('Error stopping session:', err);
       }

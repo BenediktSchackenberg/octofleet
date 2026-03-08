@@ -1,9 +1,8 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from "recharts";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -29,9 +28,7 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
 
   async function fetchTrends() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/eventlog/trends?days=${days}`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/eventlog/trends?days=${days}`, { showErrorToast: false });
       if (res.ok) {
         const json = await res.json();
         setData(json.trends || []);

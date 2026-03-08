@@ -1,9 +1,9 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import {
@@ -27,9 +27,7 @@ export default function SecurityPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API_BASE}/security/dashboard`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiClient.get(`/security/dashboard`, { showErrorToast: false })
       .then((r) => r.json())
       .then(setData)
       .catch(console.error)

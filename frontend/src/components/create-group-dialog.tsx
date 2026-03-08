@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -34,19 +33,12 @@ export function CreateGroupDialog() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/groups`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/groups`, {
           name: name.trim(),
           description: description.trim() || null,
           color: color,
           is_dynamic: false,
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (res.ok) {
         setOpen(false);

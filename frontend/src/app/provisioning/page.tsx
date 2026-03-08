@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -19,8 +20,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { API_BASE } from '@/lib/api-config';
-import { getAuthHeader } from '@/lib/auth-context';
 
 
 // Types
@@ -60,14 +59,7 @@ interface ProvisioningTemplate {
 
 // API Functions
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeader(),
-      ...options?.headers,
-    },
-  });
+  const res = await apiClient.get(`${endpoint}`, { showErrorToast: false });
   if (!res.ok) {
     throw new Error(`API Error: ${res.status} ${res.statusText}`);
   }

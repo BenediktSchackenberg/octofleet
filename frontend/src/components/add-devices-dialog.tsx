@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,8 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { API_BASE } from '@/lib/api-config';
-import { getAuthHeader } from '@/lib/auth-context';
 
 interface Node {
   id: string;
@@ -46,9 +45,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
 
   const fetchNodes = async () => {
     try {
-      const res = await fetch(`${API_BASE}/nodes`, {
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.get(`/nodes`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         // Filter out nodes that are already members
@@ -75,17 +72,10 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/groups/${groupId}/members`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/groups/${groupId}/members`, {
           nodeIds: selectedIds,
           assigned_by: 'admin',
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (res.ok) {
         setOpen(false);

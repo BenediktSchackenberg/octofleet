@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import Link from "next/link";
-import { API_BASE } from '@/lib/api-config';
+import { apiClient } from "@/lib/api-client";
 
 
 
@@ -43,7 +42,7 @@ export default function FleetHardwarePage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`${API_BASE}/hardware/fleet`, { headers: getAuthHeader() });
+        const res = await apiClient.get(`/hardware/fleet`, { showErrorToast: false });
         if (res.ok) {
           const json = await res.json();
           setData(json);

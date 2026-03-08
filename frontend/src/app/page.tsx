@@ -17,7 +17,6 @@ import Link from "next/link";
 import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search, Plus, Bug, Bell as BellIcon, Zap } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
-import { API_BASE } from '@/lib/api-config';
 import { toast } from "sonner";
 
 // Skeleton Components for Loading State

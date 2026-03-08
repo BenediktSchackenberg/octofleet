@@ -1,11 +1,10 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -74,17 +73,13 @@ function EditPackageDialog({ pkg, onClose, onUpdated }: { pkg: Package; onClose:
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/packages/${pkg.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({
+      const res = await apiClient.put(`/packages/${pkg.id}`, {
           displayName,
           vendor: vendor || null,
           description: description || null,
           category: category || null,
           homepageUrl: homepageUrl || null,
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (!res.ok) {
         const data = await res.json();
@@ -206,18 +201,14 @@ function EditVersionDialog({ packageId, version, onClose, onUpdated }: { package
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/packages/${packageId}/versions/${version.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({
+      const res = await apiClient.put(`/packages/${packageId}/versions/${version.id}`, {
           installCommand: installCommand || null,
           uninstallCommand: uninstallCommand || null,
           silentInstall,
           requiresAdmin,
           requiresReboot,
           releaseNotes: releaseNotes || null,
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (!res.ok) {
         const data = await res.json();
@@ -340,18 +331,14 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/packages/${packageId}/versions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/packages/${packageId}/versions`, {
           version,
           filename,
           downloadUrl: downloadUrl || null,
           installCommand: installCommand || null,
           sha256Hash: sha256Hash || null,
           isLatest: true,
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (!res.ok) {
         const data = await res.json();
@@ -470,11 +457,7 @@ function AddRuleDialog({ packageId, versionId, onClose, onCreated }: { packageId
     setLoading(true);
 
     try {
-      await fetch(`${API_URL}/api/v1/packages/${packageId}/versions/${versionId}/detection-rules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ type: ruleType, config }),
-      });
+      await apiClient.post(`/packages/${packageId}/versions/${versionId}/detection-rules`, { type: ruleType, config }, { showErrorToast: false });
       onCreated();
       onClose();
     } catch (err) {
@@ -624,9 +607,7 @@ export default function PackageDetailPage() {
 
   const fetchPackage = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/packages/${packageId}`, {
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.get(`/packages/${packageId}`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setPkg(data);
@@ -640,9 +621,7 @@ export default function PackageDetailPage() {
 
   const fetchVersionRules = async (versionId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/packages/${packageId}/versions/${versionId}`, {
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.get(`/packages/${packageId}/versions/${versionId}`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setVersionRules((prev) => ({ ...prev, [versionId]: data.detectionRules || [] }));

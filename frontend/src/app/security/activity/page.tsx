@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
+import { apiClient } from "@/lib/api-client";
 import { API_BASE } from "@/lib/api-config";
 import Link from "next/link";
 
@@ -15,7 +15,7 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/nodes`, { headers: getAuthHeader() })
+    apiClient.get(`/nodes`, { showErrorToast: false })
       .then(r => r.json()).then(d => setNodes(Array.isArray(d) ? d : d.nodes || [])).catch(() => {});
   }, []);
 
@@ -25,8 +25,8 @@ export default function ActivityPage() {
     if (nodeFilter) params.set("node_id", nodeFilter);
     
     const [fRes, uRes] = await Promise.all([
-      fetch(`${API_BASE}/security/activity/files?${params}`, { headers: getAuthHeader() }),
-      fetch(`${API_BASE}/security/activity/users?${params}`, { headers: getAuthHeader() })
+      apiClient.get(`/security/activity/files?${params}`, { showErrorToast: false }),
+      apiClient.get(`/security/activity/users?${params}`, { showErrorToast: false })
     ]);
     setFileData(await fRes.json());
     setUserData(await uRes.json());

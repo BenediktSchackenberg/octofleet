@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
-import { getAuthHeader, useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { Plus, Trash2, Key, Copy, Check, AlertTriangle } from "lucide-react";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -40,9 +40,7 @@ export default function ApiKeysPage() {
 
   async function fetchKeys() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/api-keys`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/api-keys`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setKeys(data.keys || []);
@@ -56,14 +54,10 @@ export default function ApiKeysPage() {
 
   async function createKey() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/api-keys`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/api-keys`, {
           name: newKeyName,
           expires_days: expiresDays ? Number(expiresDays) : null,
-        }),
-      });
+        }, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setCreatedKey(data.key);
@@ -83,10 +77,7 @@ export default function ApiKeysPage() {
   async function revokeKey(keyId: string) {
     if (!confirm("Revoke this API key?")) return;
     try {
-      await fetch(`${API_URL}/api/v1/api-keys/${keyId}`, {
-        method: "DELETE",
-        headers: getAuthHeader(),
-      });
+      await apiClient.delete(`/api-keys/${keyId}`, { showErrorToast: false });
       fetchKeys();
     } catch (e) {
       console.error("Failed to revoke API key:", e);

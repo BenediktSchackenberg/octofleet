@@ -1,12 +1,11 @@
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
 import Link from "next/link";
-import { API_BASE } from "@/lib/api-config";
+import { apiClient } from "@/lib/api-client";
 
 interface DriftEvent {
   id: string; node_id: string; expected: any; actual: any; severity: string;
@@ -26,7 +25,7 @@ export default function DriftEvents() {
       const params = new URLSearchParams();
       if (filter.status) params.set("status", filter.status);
       if (filter.severity) params.set("severity", filter.severity);
-      const res = await fetch(`${API_BASE}/baselines/drift?${params}`, { headers: getAuthHeader() });
+      const res = await apiClient.get(`/baselines/drift?${params}`, { showErrorToast: false });
       if (res.ok) setEvents(await res.json());
     } finally { setLoading(false); }
   };
@@ -34,14 +33,14 @@ export default function DriftEvents() {
   useEffect(() => { fetchData(); }, [filter]);
 
   const acknowledge = async (id: string) => {
-    await fetch(`${API_BASE}/baselines/drift/${id}/acknowledge`, { method: "POST", headers: getAuthHeader() });
+    await apiClient.post(`/baselines/drift/${id}/acknowledge`, {}, { showErrorToast: false });
     await fetchData();
   };
 
   const remediate = async (id: string) => {
     setRemediating(id);
     try {
-      const res = await fetch(`${API_BASE}/baselines/drift/${id}/remediate`, { method: "POST", headers: getAuthHeader() });
+      const res = await apiClient.post(`/baselines/drift/${id}/remediate`, {}, { showErrorToast: false });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         alert(err.detail || "Remediation failed");
@@ -52,10 +51,7 @@ export default function DriftEvents() {
 
   const waive = async () => {
     if (!waiveModal) return;
-    await fetch(`${API_BASE}/baselines/drift/${waiveModal}/waive`, {
-      method: "POST", headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: waiveReason }),
-    });
+    await apiClient.post(`/baselines/drift/${waiveModal}/waive`, { reason: waiveReason }, { showErrorToast: false });
     setWaiveModal(null);
     setWaiveReason("");
     await fetchData();

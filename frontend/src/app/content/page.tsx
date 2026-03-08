@@ -1,8 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
-import { API_BASE } from "@/lib/api-config";
 import {
   Archive,
   Box,
@@ -317,10 +316,7 @@ export default function ContentLifecyclePage() {
   // ─── API ─────────────────────────────────────────────────────────
 
   const api = useCallback(async (path: string, opts?: RequestInit) => {
-    const res = await fetch(`${API_BASE}/content${path}`, {
-      ...opts,
-      headers: { ...getAuthHeader(), "Content-Type": "application/json", ...opts?.headers },
-    });
+    const res = await apiClient.get(`/content${path}`, { showErrorToast: false });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || `HTTP ${res.status}`);

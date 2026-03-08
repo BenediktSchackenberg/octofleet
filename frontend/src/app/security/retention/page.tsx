@@ -1,6 +1,6 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { Database, Save, Lock } from "lucide-react";
 
@@ -13,7 +13,7 @@ export default function RetentionPage() {
   const { token } = useAuth();
 
   async function fetchRules() {
-    const res = await fetch(`${API_BASE}/retention`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await apiClient.get(`/retention`, { showErrorToast: false });
     const data = await res.json();
     setRules(data.retention || []);
     setLoading(false);
@@ -22,7 +22,7 @@ export default function RetentionPage() {
 
   async function updateRule(category: string, field: string, value: number | boolean) {
     setSaving(category);
-    await fetch(`${API_BASE}/retention/${category}`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ [field]: value }) });
+    await apiClient.put(`/retention/${category}`, { [field]: value }, { showErrorToast: false });
     await fetchRules();
     setSaving(null);
   }

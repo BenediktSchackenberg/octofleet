@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -7,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Terminal, Play, Square, Trash2 } from "lucide-react";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -49,9 +49,7 @@ export default function TerminalPage() {
     if (sessionId) {
       pollRef.current = setInterval(async () => {
         try {
-          const res = await fetch(`${API_BASE}/terminal/session/${sessionId}/output`, {
-            headers: getHeaders()
-          });
+          const res = await apiClient.get(`/terminal/session/${sessionId}/output`, { showErrorToast: false });
           if (res.ok) {
             const data = await res.json();
             if (data.output && data.output.length > 0) {
@@ -71,11 +69,7 @@ export default function TerminalPage() {
     setLoading(true);
     setOutput([`[Starting ${shell} session...]\n`]);
     try {
-      const res = await fetch(`${API_BASE}/terminal/start/${nodeId}`, {
-        method: 'POST',
-        headers: getHeaders(true),
-        body: JSON.stringify({ shell })
-      });
+      const res = await apiClient.post(`/terminal/start/${nodeId}`, { shell }, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setSessionId(data.sessionId);
@@ -94,10 +88,7 @@ export default function TerminalPage() {
   async function stopSession() {
     if (!sessionId) return;
     try {
-      await fetch(`${API_BASE}/terminal/session/${sessionId}`, {
-        method: 'DELETE',
-        headers: getHeaders()
-      });
+      await apiClient.delete(`/terminal/session/${sessionId}`, { showErrorToast: false });
     } catch (e) {}
     setSessionId(null);
     setOutput(prev => [...prev, '\n[Session ended]\n']);
@@ -112,11 +103,7 @@ export default function TerminalPage() {
     setInput('');
     
     try {
-      await fetch(`${API_BASE}/terminal/session/${sessionId}/input`, {
-        method: 'POST',
-        headers: getHeaders(true),
-        body: JSON.stringify({ command: cmd })
-      });
+      await apiClient.post(`/terminal/session/${sessionId}/input`, { command: cmd }, { showErrorToast: false });
     } catch (e) {
       setOutput(prev => [...prev, '[Error sending command]\n']);
     }

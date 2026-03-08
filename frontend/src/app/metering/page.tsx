@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
-import { API_BASE } from "@/lib/api-config";
+import { apiClient } from "@/lib/api-client";
 import {
   Package,
   Shield,
@@ -203,15 +202,23 @@ export default function SoftwareMeteringPage() {
   // ─── API helpers ─────────────────────────────────────────────────
 
   const api = useCallback(async (path: string, opts?: RequestInit) => {
-    const res = await fetch(`${API_BASE}/metering${path}`, {
-      ...opts,
-      headers: { ...getAuthHeader(), "Content-Type": "application/json", ...opts?.headers },
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP ${res.status}`);
+    const endpoint = `/metering${path}`;
+    const method = (opts?.method || 'GET').toUpperCase();
+    const reqOpts = { showErrorToast: false };
+    let data: unknown;
+    if (method === 'POST') {
+      data = await apiClient.post(endpoint, opts?.body ? JSON.parse(opts.body as string) : {}, reqOpts);
+    } else if (method === 'PUT') {
+      data = await apiClient.put(endpoint, opts?.body ? JSON.parse(opts.body as string) : {}, reqOpts);
+    } else if (method === 'DELETE') {
+      data = await apiClient.delete(endpoint, reqOpts);
+    } else {
+      data = await apiClient.get(endpoint, reqOpts);
     }
-    return res.json();
+    if (data === null) {
+      throw new Error(`API request failed: ${method} ${endpoint}`);
+    }
+    return data;
   }, []);
 
   // ─── Loaders ─────────────────────────────────────────────────────

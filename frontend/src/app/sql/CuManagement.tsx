@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect } from 'react';
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -78,10 +78,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch(`${API_BASE}/mssql/sync-catalog`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
+      const res = await apiClient.post(`/mssql/sync-catalog`, {}, { showErrorToast: false });
       if (!res.ok) throw new Error('Sync failed');
       const data = await res.json();
       setSyncResult({
@@ -98,15 +95,14 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const fetchCus = async () => {
     try {
-      let url = `${API_BASE}/mssql/cumulative-updates`;
+      let endpoint = `/mssql/cumulative-updates`;
       const params = new URLSearchParams();
       if (versionFilter) params.append('version', versionFilter);
       if (statusFilter) params.append('status', statusFilter);
-      if (params.toString()) url += `?${params.toString()}`;
+      if (params.toString()) endpoint += `?${params.toString()}`;
       
-      const res = await fetch(url, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed to fetch CUs');
-      const data = await res.json();
+      const data = await apiClient.get<{ cumulativeUpdates: any[] }>(endpoint, { showErrorToast: false });
+      if (!data) throw new Error('Failed to fetch CUs');
       setCus(data.cumulativeUpdates || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch CUs');
@@ -115,9 +111,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const fetchCompliance = async () => {
     try {
-      const res = await fetch(`${API_BASE}/mssql/cu-compliance`, {
-        headers: getAuthHeaders()
-      });
+      const res = await apiClient.get(`/mssql/cu-compliance`, { showErrorToast: false });
       if (!res.ok) throw new Error('Failed to fetch compliance');
       const data = await res.json();
       setCompliance(data);
@@ -128,9 +122,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const fetchInstances = async () => {
     try {
-      const res = await fetch(`${API_BASE}/mssql/instances`, {
-        headers: getAuthHeaders()
-      });
+      const res = await apiClient.get(`/mssql/instances`, { showErrorToast: false });
       if (!res.ok) return;
       const data = await res.json();
       setInstances(data.instances || []);
@@ -143,14 +135,10 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     if (!selectedCu || selectedInstances.length === 0) return;
     
     try {
-      const res = await fetch(`${API_BASE}/mssql/deploy-cu`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/mssql/deploy-cu`, {
           cuId: selectedCu.id,
           instanceIds: selectedInstances
-        })
-      });
+        }, { showErrorToast: false });
       if (!res.ok) throw new Error('Failed to create deploy jobs');
       const data = await res.json();
       alert(`✅ Created ${data.jobsCreated} deployment job(s)`);
@@ -179,11 +167,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const handleApprove = async (cuId: string, ring: string) => {
     try {
-      const res = await fetch(`${API_BASE}/mssql/cumulative-updates/${cuId}/approve`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ring })
-      });
+      const res = await apiClient.post(`/mssql/cumulative-updates/${cuId}/approve`, { ring }, { showErrorToast: false });
       if (!res.ok) throw new Error('Failed to approve CU');
       await fetchCus();
     } catch (err) {
@@ -196,11 +180,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     if (!reason) return;
     
     try {
-      const res = await fetch(`${API_BASE}/mssql/cumulative-updates/${cuId}/block`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      });
+      const res = await apiClient.post(`/mssql/cumulative-updates/${cuId}/block`, { reason }, { showErrorToast: false });
       if (!res.ok) throw new Error('Failed to block CU');
       await fetchCus();
     } catch (err) {
@@ -210,11 +190,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const handleAddCu = async () => {
     try {
-      const res = await fetch(`${API_BASE}/mssql/cumulative-updates`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCu)
-      });
+      const res = await apiClient.post(`/mssql/cumulative-updates`, newCu, { showErrorToast: false });
       if (!res.ok) throw new Error('Failed to add CU');
       setShowAddModal(false);
       await fetchCus();
@@ -227,11 +203,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     if (!confirm('Create patch jobs for all outdated instances?')) return;
     
     try {
-      const res = await fetch(`${API_BASE}/mssql/patch-outdated`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
+      const res = await apiClient.post(`/mssql/patch-outdated`, {}, { showErrorToast: false });
       if (!res.ok) throw new Error('Failed to create patch jobs');
       const data = await res.json();
       alert(`Created ${data.jobsCreated} patch jobs`);

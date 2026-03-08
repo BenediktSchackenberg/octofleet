@@ -1,5 +1,5 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -13,7 +13,6 @@ import { Timeline } from "@/components/timeline";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { Copy, Check } from "lucide-react";
-import { API_BASE } from '@/lib/api-config';
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 
 // Copy to clipboard component
@@ -253,17 +252,16 @@ export default function NodeDetailPage() {
   async function refreshInventory() {
     setRefreshing(true);
     try {
-      const headers = getAuthHeader();
       
       const [hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
-        fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/software/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/hotfixes/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/system/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/browser/${nodeId}/critical`, { headers }),
+        apiClient.get(`/inventory/hardware/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/software/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/hotfixes/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/system/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/security/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/network/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/browser/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/browser/${nodeId}/critical`, { showErrorToast: false }),
       ]);
 
       if (hwRes.ok) {
@@ -310,19 +308,18 @@ export default function NodeDetailPage() {
   async function fetchNodeDetails() {
     setLoading(true);
     try {
-      const headers = getAuthHeader();
       
       const [nodeRes, historyRes, hwRes, swRes, hfRes, sysRes, secRes, netRes, brRes, critRes] = await Promise.all([
-        fetch(`${API_BASE}/nodes/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/nodes/${nodeId}/history?limit=50`, { headers }),
-        fetch(`${API_BASE}/inventory/hardware/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/software/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/hotfixes/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/system/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/security/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/network/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/browser/${nodeId}`, { headers }),
-        fetch(`${API_BASE}/inventory/browser/${nodeId}/critical`, { headers }),
+        apiClient.get(`/nodes/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/nodes/${nodeId}/history?limit=50`, { showErrorToast: false }),
+        apiClient.get(`/inventory/hardware/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/software/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/hotfixes/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/system/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/security/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/network/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/browser/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/inventory/browser/${nodeId}/critical`, { showErrorToast: false }),
       ]);
 
       if (nodeRes.ok) setNode(await nodeRes.json());
@@ -367,7 +364,7 @@ export default function NodeDetailPage() {
       
       // Fetch Linux-specific data (performance, services, updates, diskHealth)
       try {
-        const linuxRes = await fetch(`${API_BASE}/inventory/linux/${nodeId}`, { headers });
+        const linuxRes = await apiClient.get(`/inventory/linux/${nodeId}`, { showErrorToast: false });
         if (linuxRes.ok) {
           const data = await linuxRes.json();
           setLinuxData(data.data || null);
@@ -378,7 +375,7 @@ export default function NodeDetailPage() {
       
       // Fetch eventlog separately (may not exist for all nodes)
       try {
-        const eventsRes = await fetch(`${API_BASE}/nodes/${nodeId}/eventlog?limit=100`, { headers });
+        const eventsRes = await apiClient.get(`/nodes/${nodeId}/eventlog?limit=100`, { showErrorToast: false });
         if (eventsRes.ok) {
           const eventsData = await eventsRes.json();
           setEvents(eventsData.events || []);

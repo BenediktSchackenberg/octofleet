@@ -1,12 +1,11 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Check, X, Clock, Monitor, LayoutGrid, List } from "lucide-react";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -167,9 +166,7 @@ export default function NodesPage() {
 
   async function fetchNodes() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/nodes`, {
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.get(`/nodes`, { showErrorToast: false });
       const data = await res.json();
       setNodes(data.nodes || []);
     } catch (err) {
@@ -181,9 +178,7 @@ export default function NodesPage() {
 
   async function fetchPendingNodes() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/pending-nodes`, {
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.get(`/pending-nodes`, { showErrorToast: false });
       const data = await res.json();
       setPendingNodes(data.pending || []);
     } catch (err) {
@@ -194,10 +189,7 @@ export default function NodesPage() {
   async function handleApprove(pendingId: string) {
     setApproving(pendingId);
     try {
-      const res = await fetch(`${API_URL}/api/v1/pending-nodes/${pendingId}/approve`, {
-        method: "POST",
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.post(`/pending-nodes/${pendingId}/approve`, {}, { showErrorToast: false });
       
       if (res.ok) {
         // Refresh both lists
@@ -218,10 +210,7 @@ export default function NodesPage() {
     
     setApproving(pendingId);
     try {
-      const res = await fetch(`${API_URL}/api/v1/pending-nodes/${pendingId}/reject`, {
-        method: "DELETE",
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.delete(`/pending-nodes/${pendingId}/reject`, { showErrorToast: false });
       
       if (res.ok) {
         await fetchPendingNodes();

@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -61,11 +60,10 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
   }, [open]);
 
   async function fetchData() {
-    const headers = getAuthHeader();
     const [pvRes, groupRes, nodeRes] = await Promise.all([
-      fetch(`${API_BASE}/package-versions`, { headers }),
-      fetch(`${API_BASE}/groups`, { headers }),
-      fetch(`${API_BASE}/nodes`, { headers }),
+      apiClient.get(`/package-versions`, { showErrorToast: false }),
+      apiClient.get(`/groups`, { showErrorToast: false }),
+      apiClient.get(`/nodes`, { showErrorToast: false }),
     ]);
     if (pvRes.ok) setPackageVersions(await pvRes.json());
     if (groupRes.ok) setGroups(await groupRes.json());
@@ -81,10 +79,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/deployments`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/deployments`, {
           name,
           description: description || null,
           packageVersionId,
@@ -94,20 +89,15 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           scheduledStart: scheduledStart || null,
           scheduledEnd: scheduledEnd || null,
           maintenanceWindowOnly,
-        }),
-      });
+        }, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         // Configure rollout strategy if not immediate
         if (rolloutStrategy !== "immediate" && data.id) {
-          await fetch(`${API_BASE}/deployments/${data.id}/rollout`, {
-            method: "POST",
-            headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-            body: JSON.stringify({
+          await apiClient.post(`/deployments/${data.id}/rollout`, {
               strategy: rolloutStrategy,
               config: rolloutConfig,
-            }),
-          });
+            }, { showErrorToast: false });
         }
         onCreated();
         onOpenChange(false);

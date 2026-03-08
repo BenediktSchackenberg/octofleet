@@ -1,9 +1,8 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getAuthHeader } from "@/lib/auth-context";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -43,17 +42,13 @@ function CreateWindowDialog({ onClose, onCreated }: { onClose: () => void; onCre
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/maintenance-windows`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/maintenance-windows`, {
           name,
           description: description || null,
           startTime,
           endTime,
           daysOfWeek,
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (!res.ok) {
         const data = await res.json();
@@ -170,9 +165,7 @@ export default function MaintenanceWindowsPage() {
 
   const fetchWindows = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/maintenance-windows`, {
-        headers: getAuthHeader(),
-      });
+      const res = await apiClient.get(`/maintenance-windows`, { showErrorToast: false });
       const data = await res.json();
       setWindows(data.windows || []);
     } catch (err) {
@@ -183,20 +176,13 @@ export default function MaintenanceWindowsPage() {
   };
 
   const toggleActive = async (id: string, isActive: boolean) => {
-    await fetch(`${API_URL}/api/v1/maintenance-windows/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...getAuthHeader() },
-      body: JSON.stringify({ isActive: !isActive }),
-    });
+    await apiClient.put(`/maintenance-windows/${id}`, { isActive: !isActive }, { showErrorToast: false });
     fetchWindows();
   };
 
   const deleteWindow = async (id: string) => {
     if (!confirm("Wartungsfenster wirklich löschen?")) return;
-    await fetch(`${API_URL}/api/v1/maintenance-windows/${id}`, {
-      method: "DELETE",
-      headers: getAuthHeader(),
-    });
+    await apiClient.delete(`/maintenance-windows/${id}`, { showErrorToast: false });
     fetchWindows();
   };
 

@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -680,10 +681,7 @@ export default function LiveViewPage() {
                         // Stop session on server
                         try {
                           const token = localStorage.getItem('token');
-                          await fetch(`${API_BASE}/screen/stop/${nodeId}`, {
-                            method: 'POST',
-                            headers: { Authorization: `Bearer ${token}` }
-                          });
+                          await apiClient.post(`/screen/stop/${nodeId}`, {}, { showErrorToast: false });
                         } catch (e) {}
                       } else {
                         // Start streaming
@@ -693,14 +691,7 @@ export default function LiveViewPage() {
                         try {
                           const token = localStorage.getItem('token');
                           // Start session
-                          const startRes = await fetch(`${API_BASE}/screen/start/${nodeId}`, {
-                            method: 'POST',
-                            headers: { 
-                              Authorization: `Bearer ${token}`,
-                              'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ quality: screenQuality })
-                          });
+                          const startRes = await apiClient.post(`/screen/start/${nodeId}`, { quality: screenQuality }, { showErrorToast: false });
                           
                           if (startRes.ok) {
                             const data = await startRes.json();
@@ -708,9 +699,7 @@ export default function LiveViewPage() {
                             // Poll for frames
                             screenIntervalRef.current = setInterval(async () => {
                               try {
-                                const frameRes = await fetch(`${API_BASE}/screen/frame/${data.sessionId}`, {
-                                  headers: { Authorization: `Bearer ${token}` }
-                                });
+                                const frameRes = await apiClient.get(`/screen/frame/${data.sessionId}`, { showErrorToast: false });
                                 if (frameRes.ok) {
                                   const blob = await frameRes.blob();
                                   if (blob.size > 0) {

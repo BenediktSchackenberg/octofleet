@@ -1,5 +1,4 @@
 "use client";
-import { getAuthHeader } from "@/lib/auth-context";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
@@ -16,7 +15,7 @@ import {
   Terminal, RotateCcw, ExternalLink, Server, Monitor
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { API_BASE } from '@/lib/api-config';
+import { apiClient } from "@/lib/api-client";
 
 
 
@@ -435,9 +434,9 @@ export default function PerformancePage() {
       const bucket = TIME_RANGES.find(t => t.value === timeRange)?.bucket || 5;
       
       const [fleetRes, tsRes, groupsRes] = await Promise.all([
-        fetch(`${API_BASE}/metrics/fleet?hours=${hours}`, { headers: getAuthHeader() }),
-        fetch(`${API_BASE}/metrics/timeseries?hours=${hours}&bucket_minutes=${bucket}`, { headers: getAuthHeader() }),
-        fetch(`${API_BASE}/groups`, { headers: getAuthHeader() }),
+        apiClient.get(`/metrics/fleet?hours=${hours}`, { showErrorToast: false }),
+        apiClient.get(`/metrics/timeseries?hours=${hours}&bucket_minutes=${bucket}`, { showErrorToast: false }),
+        apiClient.get(`/groups`, { showErrorToast: false }),
       ]);
       
       if (fleetRes.ok) {
@@ -480,7 +479,7 @@ export default function PerformancePage() {
     
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/metrics/node/${drawerNode.id}?hours=1&bucket_minutes=5`, { headers: getAuthHeader() });
+        const res = await apiClient.get(`/metrics/node/${drawerNode.id}?hours=1&bucket_minutes=5`, { showErrorToast: false });
         if (res.ok) {
           const json = await res.json();
           setDrawerTimeseries(json);

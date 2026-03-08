@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 import { getAuthHeader } from "@/lib/auth-context";
 
@@ -67,17 +68,13 @@ function CreatePackageDialog({ onClose, onCreated }: { onClose: () => void; onCr
     const pkgName = name || displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/packages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/packages`, {
           name: pkgName,
           displayName: displayName || name,
           vendor: vendor || null,
           description: description || null,
           category: category || null,
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (!res.ok) {
         const data = await res.json();
@@ -219,9 +216,7 @@ export default function PackagesPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/package-categories`, {
-        headers: { ...getAuthHeader() },
-      });
+      const res = await apiClient.get(`/package-categories`, { showErrorToast: false });
       const data = await res.json();
       setCategories(data.categories || []);
     } catch (err) {

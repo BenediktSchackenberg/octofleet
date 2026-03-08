@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -54,9 +55,7 @@ export default function RepoPage() {
       if (typeFilter) params.append('file_type', typeFilter);
       if (categoryFilter) params.append('category', categoryFilter);
       
-      const res = await fetch(`${API_BASE}/repo/files?${params}`, {
-        headers: getAuthHeaders()
-      });
+      const res = await apiClient.get(`/repo/files?${params}`, { showErrorToast: false });
       if (res.ok) {
         const data = await res.json();
         setFiles(data.files || []);
@@ -68,9 +67,7 @@ export default function RepoPage() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`${API_BASE}/repo/stats`, {
-        headers: getAuthHeaders()
-      });
+      const res = await apiClient.get(`/repo/stats`, { showErrorToast: false });
       if (res.ok) {
         setStats(await res.json());
       }
@@ -103,11 +100,7 @@ export default function RepoPage() {
     const formData = new FormData(form);
     
     try {
-      const res = await fetch(`${API_BASE}/repo/upload`, {
-        method: 'POST',
-        headers: { 'X-API-Key': getAuthHeaders()['X-API-Key'] },
-        body: formData
-      });
+      const res = await apiClient.post(`/repo/upload`, formData, { showErrorToast: false });
       
       if (!res.ok) throw new Error('Upload failed');
       
@@ -136,11 +129,7 @@ export default function RepoPage() {
     };
     
     try {
-      const res = await fetch(`${API_BASE}/repo/cache`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      const res = await apiClient.post(`/repo/cache`, data, { showErrorToast: false });
       
       if (!res.ok) {
         const err = await res.json();
@@ -162,10 +151,7 @@ export default function RepoPage() {
     if (!confirm(`Delete ${filename}?`)) return;
     
     try {
-      const res = await fetch(`${API_BASE}/repo/files/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+      const res = await apiClient.delete(`/repo/files/${id}`, { showErrorToast: false });
       if (res.ok) {
         fetchFiles();
         fetchStats();

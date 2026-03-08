@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,9 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Plus, FolderTree, Tag, Users } from "lucide-react";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -45,8 +44,8 @@ export default function GroupsPage() {
   async function fetchData() {
     try {
       const [groupsRes, tagsRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/groups`, { headers: getAuthHeader() }),
-        fetch(`${API_URL}/api/v1/tags`, { headers: getAuthHeader() }),
+        apiClient.get(`/groups`, { showErrorToast: false }),
+        apiClient.get(`/tags`, { showErrorToast: false }),
       ]);
       
       if (groupsRes.ok) {
@@ -66,11 +65,7 @@ export default function GroupsPage() {
 
   async function createGroup() {
     try {
-      const res = await fetch(`${API_URL}/api/v1/groups`, {
-        method: "POST",
-        headers: { ...getAuthHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify(newGroup),
-      });
+      const res = await apiClient.post(`/groups`, newGroup, { showErrorToast: false });
       if (res.ok) {
         setShowCreateGroup(false);
         setNewGroup({ name: "", description: "", color: "#3b82f6" });
@@ -84,10 +79,7 @@ export default function GroupsPage() {
   async function deleteGroup(groupId: string) {
     if (!confirm("Delete this group?")) return;
     try {
-      await fetch(`${API_URL}/api/v1/groups/${groupId}`, {
-        method: "DELETE",
-        headers: getAuthHeader(),
-      });
+      await apiClient.delete(`/groups/${groupId}`, { showErrorToast: false });
       fetchData();
     } catch (e) {
       console.error("Failed to delete group:", e);

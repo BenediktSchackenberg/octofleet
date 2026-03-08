@@ -1,6 +1,6 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 import { useState, useEffect } from "react";
-import { API_BASE } from "@/lib/api-config";
 import { useAuth } from "@/lib/auth-context";
 import { Settings, Plus, Edit, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 
@@ -14,7 +14,7 @@ export default function PoliciesPage() {
   const { token } = useAuth();
 
   async function fetchPolicies() {
-    const res = await fetch(`${API_BASE}/security/policies`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await apiClient.get(`/security/policies`, { showErrorToast: false });
     const data = await res.json();
     setPolicies(data.policies || []);
     setLoading(false);
@@ -25,19 +25,18 @@ export default function PoliciesPage() {
     e.preventDefault();
     let def = {};
     try { def = JSON.parse(form.definition); } catch { alert("Invalid JSON in definition"); return; }
-    await fetch(`${API_BASE}/security/policies`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name, description: form.description, severity: form.severity, definition: def, enabled: form.enabled }) });
+    await apiClient.post(`/security/policies`, { name: form.name, description: form.description, severity: form.severity, definition: def, enabled: form.enabled }, { showErrorToast: false });
     setShowCreate(false); setForm({ name: "", description: "", severity: "medium", definition: "{}", enabled: true }); fetchPolicies();
   }
 
   async function togglePolicy(id: string, enabled: boolean) {
-    await fetch(`${API_BASE}/security/policies/${id}`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) });
+    await apiClient.put(`/security/policies/${id}`, { enabled }, { showErrorToast: false });
     fetchPolicies();
   }
 
   async function deletePolicy(id: string) {
     if (!confirm("Delete this policy?")) return;
-    await fetch(`${API_BASE}/security/policies/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    await apiClient.delete(`/security/policies/${id}`, { showErrorToast: false });
     fetchPolicies();
   }
 

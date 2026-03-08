@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,7 +25,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Sparkles, Eye } from "lucide-react";
-import { API_BASE } from '@/lib/api-config';
 
 
 
@@ -112,14 +111,7 @@ export function CreateDynamicGroupDialog() {
     setPreviewing(true);
     setPreview(null);
     try {
-      const res = await fetch(`${API_BASE}/groups/preview-rule`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({ rule: buildRule() }),
-      });
+      const res = await apiClient.post(`/groups/preview-rule`, { rule: buildRule() }, { showErrorToast: false });
 
       if (res.ok) {
         const data = await res.json();
@@ -140,28 +132,18 @@ export function CreateDynamicGroupDialog() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/groups`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post(`/groups`, {
           name: name.trim(),
           description: description.trim() || null,
           color: color,
           isDynamic: true,
           dynamicRule: buildRule(),
-        }),
-      });
+        }, { showErrorToast: false });
 
       if (res.ok) {
         const data = await res.json();
         // Immediately evaluate the group to populate members
-        await fetch(`${API_BASE}/groups/${data.group.id}/evaluate`, {
-          method: "POST",
-          headers: getAuthHeader(),
-        });
+        await apiClient.post(`/groups/${data.group.id}/evaluate`, {}, { showErrorToast: false });
 
         setOpen(false);
         resetForm();

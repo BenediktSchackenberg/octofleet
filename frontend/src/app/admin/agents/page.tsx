@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Card, CardContent } from "@/components/ui/card";
 import { API_URL } from "@/lib/api-config";
@@ -98,10 +98,9 @@ export default function AgentMonitorPage() {
 
   const fetchData = async () => {
     try {
-      const headers = getAuthHeader();
       const [statusRes, actRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/admin/agent-status`, { headers }),
-        fetch(`${API_URL}/api/v1/admin/agent-activity?limit=500`, { headers }),
+        apiClient.get(`/admin/agent-status`, { showErrorToast: false }),
+        apiClient.get(`/admin/agent-activity?limit=500`, { showErrorToast: false }),
       ]);
       if (statusRes.ok) {
         const d = await statusRes.json();

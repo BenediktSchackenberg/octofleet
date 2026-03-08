@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,7 +21,6 @@ import {
   Check,
 } from "lucide-react";
 import Link from "next/link";
-import { API_BASE } from '@/lib/api-config';
 
 
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "octofleet-inventory-dev-key";
@@ -58,14 +58,7 @@ interface ISOInfo {
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": API_KEY,
-      ...options?.headers,
-    },
-  });
+  const res = await apiClient.get(`${endpoint}`, { showErrorToast: false });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || `API Error: ${res.status}`);

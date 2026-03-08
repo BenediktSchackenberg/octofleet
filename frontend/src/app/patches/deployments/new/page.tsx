@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 'use client';
 
 import { useState, useEffect } from 'react';
-import { API_BASE } from '@/lib/api-config';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Shield, CheckCircle } from 'lucide-react';
@@ -26,8 +26,8 @@ export default function NewDeploymentPage() {
     const token = getToken();
     const headers = { 'Authorization': `Bearer ${token}` };
     Promise.all([
-      fetch(`${API_BASE}/patches/catalog?approved=true&limit=500`, { headers }).then(r => r.json()),
-      fetch(`${API_BASE}/patches/rings`, { headers }).then(r => r.json()),
+      apiClient.get(`/patches/catalog?approved=true&limit=500`, { showErrorToast: false }).then(r => r.json()),
+      apiClient.get(`/patches/rings`, { showErrorToast: false }).then(r => r.json()),
     ]).then(([catData, ringData]) => {
       setPatches(catData.items || []);
       setRings(ringData || []);
@@ -41,11 +41,7 @@ export default function NewDeploymentPage() {
   const create = async () => {
     setCreating(true);
     const token = getToken();
-    const res = await fetch(`${API_BASE}/patches/deployments`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, patches: selectedPatches, ring_id: selectedRing || null, reboot_policy: rebootPolicy })
-    });
+    const res = await apiClient.post(`/patches/deployments`, { name, patches: selectedPatches, ring_id: selectedRing || null, reboot_policy: rebootPolicy }, { showErrorToast: false });
     if (res.ok) {
       const data = await res.json();
       router.push(`/patches/deployments/${data.id}`);

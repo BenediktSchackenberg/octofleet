@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
-import { API_BASE } from "@/lib/api-config";
+import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
 
 interface PostureSnapshot {
@@ -32,7 +31,7 @@ export default function PosturePage() {
   const [tab, setTab] = useState<"overview" | "packages" | "services" | "config" | "ports">("overview");
 
   useEffect(() => {
-    fetch(`${API_BASE}/nodes`, { headers: getAuthHeader() })
+    apiClient.get(`/nodes`, { showErrorToast: false })
       .then(r => r.json())
       .then(data => setNodes(Array.isArray(data) ? data : data.nodes || []))
       .catch(() => {});
@@ -45,8 +44,8 @@ export default function PosturePage() {
     setComparison(null);
     try {
       const [snapRes, compRes] = await Promise.all([
-        fetch(`${API_BASE}/posture/snapshots/${nodeId}`, { headers: getAuthHeader() }),
-        fetch(`${API_BASE}/posture/compare/${nodeId}`, { headers: getAuthHeader() })
+        apiClient.get(`/posture/snapshots/${nodeId}`, { showErrorToast: false }),
+        apiClient.get(`/posture/compare/${nodeId}`, { showErrorToast: false })
       ]);
       const snapData = await snapRes.json();
       const compData = await compRes.json();
