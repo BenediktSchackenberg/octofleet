@@ -99,8 +99,8 @@ export default function AgentMonitorPage() {
   const fetchData = async () => {
     try {
       const [statusRes, actRes] = await Promise.all([
-        apiClient.get(`/admin/agent-status`, { showErrorToast: false }),
-        apiClient.get(`/admin/agent-activity?limit=500`, { showErrorToast: false }),
+        apiClient.get<{agents: AgentStatus[]}>(`/admin/agent-status`, { showErrorToast: false }),
+        apiClient.get<{events: ActivityEvent[]}>(`/admin/agent-activity?limit=500`, { showErrorToast: false }),
       ]);
       if (statusRes) { setAgents(statusRes.agents || []); }
       if (actRes) { setActivity(actRes.events || []); }
