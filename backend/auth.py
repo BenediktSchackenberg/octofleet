@@ -165,7 +165,28 @@ async def get_current_user(
                 permissions=["*"],
                 is_superuser=True
             )
-        # TODO: Check api_keys table
+        # Check api_keys table in DB
+        try:
+            from dependencies import get_pool, _permissions_for_scopes
+            pool = get_pool()
+            if pool:
+                key_hash = hash_api_key(api_key)
+                async with pool.acquire() as conn:
+                    row = await conn.fetchrow(
+                        "SELECT id, user_id, name, scopes FROM api_keys WHERE key_hash = $1 AND is_active = true AND (expires_at IS NULL OR expires_at > NOW())",
+                        key_hash
+                    )
+                    if row:
+                        scopes = list(row["scopes"]) if row["scopes"] else ["agent"]
+                        permissions = _permissions_for_scopes(scopes)
+                        return CurrentUser(
+                            id=str(row["user_id"]) if row["user_id"] else "system",
+                            username=row["name"],
+                            permissions=permissions,
+                            is_superuser="*" in permissions
+                        )
+        except Exception:
+            pass
         return None
     
     # Check JWT

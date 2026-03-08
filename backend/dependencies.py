@@ -170,7 +170,10 @@ async def verify_api_key(
 
             from auth import JWT_SECRET
             payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            return payload  # Valid JWT
+            if payload.get("type") != "access":
+                pass  # Fall through, don't accept refresh tokens
+            else:
+                return payload
         except Exception:
             pass  # Fall through to API key check
     

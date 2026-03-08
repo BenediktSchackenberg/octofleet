@@ -49,7 +49,13 @@ class Settings:
             log.warning("DATABASE_URL is not set! Set DATABASE_URL environment variable.")
 
     def load_persistent_jwt_secret(self):
-        """Ensure JWT_SECRET is loaded from file or persisted if not in env"""
+        """Ensure JWT_SECRET is loaded from file or persisted if not in env.
+        
+        ⚠️  SECURITY WARNING: This writes the JWT signing secret to disk in plaintext.
+        The file is chmod 600 on Unix, but anyone with root/container access can read it.
+        Prefer setting JWT_SECRET via environment variable in production.
+        This fallback exists so container restarts don't invalidate all tokens.
+        """
         secret_file = BASE_DIR / ".jwt_secret"
         if secret_file.exists():
             try:

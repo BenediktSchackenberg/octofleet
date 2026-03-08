@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from auth import decode_token, get_current_user, require_auth, require_permission
-from dependencies import API_KEY, db_pool, verify_api_key
+from dependencies import API_KEY, db_pool, require_scope, verify_api_key
 from screen_session import ScreenSessionState, screen_session_manager
 from shell_session import ShellSessionState, shell_session_manager
 
@@ -139,7 +139,7 @@ async def start_screen_session(
 
 
 @router.get("/api/v1/screen/sessions")
-async def list_screen_sessions(_: str = Depends(verify_api_key)):
+async def list_screen_sessions(_=Depends(require_permission("terminal:read"))):
     """List all active screen sessions."""
     return {
         "sessions": screen_session_manager.list_sessions(),
@@ -149,7 +149,7 @@ async def list_screen_sessions(_: str = Depends(verify_api_key)):
 
 
 @router.get("/api/v1/screen/session/{session_id}")
-async def get_screen_session(session_id: str, _: str = Depends(verify_api_key)):
+async def get_screen_session(session_id: str, _=Depends(require_permission("terminal:read"))):
     """Get details of a screen session."""
     session = screen_session_manager.get_session(session_id)
     if not session:
@@ -193,7 +193,7 @@ async def stop_screen_session(
 
 
 @router.get("/api/v1/screen/pending/{node_id}")
-async def get_pending_screen_session(node_id: str):
+async def get_pending_screen_session(node_id: str, _=Depends(verify_api_key)):
     """
     Agent endpoint: Check if there's a pending screen session for this node.
     
@@ -438,7 +438,7 @@ async def stop_shell_session(
 
 @router.get("/api/v1/shell/pending/{node_id}")
 async def get_pending_shell_session(
-    node_id: str,
+    node_id: str, _=Depends(verify_api_key),
 ):
     """
     Agent polls this to check for pending shell sessions.
@@ -451,7 +451,6 @@ async def get_pending_shell_session(
         "session": {
             "session_id": session.session_id,
             "shell_type": session.shell_type,
-            "user_id": session.user_id
         }
     }
 
@@ -632,7 +631,7 @@ async def shell_agent_websocket(websocket: WebSocket, session_id: str, api_key: 
 
 
 @router.post("/api/v1/terminal/start/{node_id}")
-async def start_terminal_session(node_id: str, request: Request, _: str = Depends(verify_api_key)):
+async def start_terminal_session(node_id: str, request: Request, _=Depends(require_permission("terminal:write"))):
     """Start a new terminal session for a node."""
     data = await request.json() if request.headers.get('content-type') == 'application/json' else {}
     shell = data.get('shell', 'powershell')  # powershell, cmd, bash
@@ -650,7 +649,7 @@ async def start_terminal_session(node_id: str, request: Request, _: str = Depend
 
 
 @router.get("/api/v1/terminal/sessions")
-async def list_terminal_sessions(_: str = Depends(verify_api_key)):
+async def list_terminal_sessions(_=Depends(require_permission("terminal:read"))):
     """List active terminal sessions."""
     return [
         {
@@ -665,7 +664,7 @@ async def list_terminal_sessions(_: str = Depends(verify_api_key)):
 
 
 @router.delete("/api/v1/terminal/session/{session_id}")
-async def stop_terminal_session(session_id: str, _: str = Depends(verify_api_key)):
+async def stop_terminal_session(session_id: str, _=Depends(require_permission("terminal:write"))):
     """Stop a terminal session."""
     if session_id in _terminal_sessions:
         del _terminal_sessions[session_id]
@@ -673,7 +672,7 @@ async def stop_terminal_session(session_id: str, _: str = Depends(verify_api_key
 
 
 @router.post("/api/v1/terminal/session/{session_id}/input")
-async def send_terminal_input(session_id: str, request: Request, _: str = Depends(verify_api_key)):
+async def send_terminal_input(session_id: str, request: Request, _=Depends(require_permission("terminal:write"))):
     """Send input to a terminal session."""
     if session_id not in _terminal_sessions:
         raise HTTPException(404, "Session not found")
@@ -688,7 +687,7 @@ async def send_terminal_input(session_id: str, request: Request, _: str = Depend
 
 
 @router.get("/api/v1/terminal/session/{session_id}/output")
-async def get_terminal_output(session_id: str, _: str = Depends(verify_api_key)):
+async def get_terminal_output(session_id: str, _=Depends(require_permission("terminal:read"))):
     """Get output from a terminal session."""
     if session_id not in _terminal_sessions:
         raise HTTPException(404, "Session not found")
@@ -701,7 +700,7 @@ async def get_terminal_output(session_id: str, _: str = Depends(verify_api_key))
 
 
 @router.get("/api/v1/terminal/pending/{node_id}")
-async def get_pending_terminal_commands(node_id: str):
+async def get_pending_terminal_commands(node_id: str, _=Depends(verify_api_key)):
     """Agent polls this to get pending commands."""
     commands = []
     for session in _terminal_sessions.values():
@@ -716,7 +715,7 @@ async def get_pending_terminal_commands(node_id: str):
 
 
 @router.post("/api/v1/terminal/output/{session_id}")
-async def post_terminal_output(session_id: str, request: Request, _: str = Depends(verify_api_key)):
+async def post_terminal_output(session_id: str, request: Request, _=Depends(require_scope("agent"))):
     """Agent posts command output here."""
     if session_id not in _terminal_sessions:
         raise HTTPException(404, "Session not found")
@@ -731,11 +730,16 @@ async def post_terminal_output(session_id: str, request: Request, _: str = Depen
     return {"status": "received"}
 
 
+def _get_terminal_session(session_id: str):
+    """Get a terminal session by ID (for ownership validation)."""
+    return _terminal_sessions.get(session_id)
+
+
 @router.websocket("/api/v1/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
     """WebSocket for real-time terminal communication."""
-    # Auth check before accept
-    user_payload = await _validate_ws_token(websocket, session_id)
+    # Auth check before accept (with session ownership validation)
+    user_payload = await _validate_ws_token_with_ownership(websocket, session_id, _get_terminal_session, owner_field="user_id")
     if user_payload is None:
         return
 
