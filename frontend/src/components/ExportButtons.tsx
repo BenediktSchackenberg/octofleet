@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api-client";
 "use client";
+import { apiClient } from "@/lib/api-client";
 
 import { useState } from "react";
 import { Download, FileJson, FileSpreadsheet, Table2 } from "lucide-react";

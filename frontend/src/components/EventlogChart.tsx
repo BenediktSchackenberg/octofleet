@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api-client";
 "use client";
+import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from "recharts";

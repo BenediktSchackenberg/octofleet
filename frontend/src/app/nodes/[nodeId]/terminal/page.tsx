@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api-client";
 "use client";
+import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getAuthHeader } from "@/lib/auth-context";

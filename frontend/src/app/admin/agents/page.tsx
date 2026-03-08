@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api-client";
 "use client";
+import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState, useRef } from "react";
 import { LoadingSpinner } from "@/components/ui-components";

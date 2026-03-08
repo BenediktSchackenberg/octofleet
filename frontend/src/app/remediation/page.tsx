@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api-client";
 'use client';
+import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { API_BASE } from '@/lib/api-config';
