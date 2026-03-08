@@ -320,14 +320,30 @@ async def ingest_events(req: Request):
     return {"inserted": inserted}
 
 
+@router.get("/api/v1/events/stats", dependencies=[Depends(verify_api_key)])
+async def get_event_stats():
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT event_type, COUNT(*) as count
+            FROM events_normalized
+            WHERE event_type NOT LIKE 'agent.%'
+            GROUP BY event_type ORDER BY count DESC
+        """)
+        file_count = await conn.fetchval("SELECT COUNT(*) FROM file_events")
+        stats = [{"event_type": r["event_type"], "count": r["count"]} for r in rows]
+        stats.append({"event_type": "file.all", "count": file_count})
+        return {"stats": stats}
+
+
 @router.get("/api/v1/events", dependencies=[Depends(verify_api_key)])
 async def query_events(
     node_id: str = None, user_id: str = None, event_type: str = None,
-    severity: str = None, since: str = None, until: str = None,
+    type_prefix: str = None, severity: str = None, search: str = None,
+    since: str = None, until: str = None,
     limit: int = 100, offset: int = 0
 ):
     async with get_pool().acquire() as conn:
-        conditions = []
+        conditions = ["event_type NOT LIKE 'agent.%'"]
         params = []
         idx = 1
         if node_id:
@@ -339,9 +355,15 @@ async def query_events(
         if event_type:
             conditions.append(f"event_type = ${idx}")
             params.append(event_type); idx += 1
+        if type_prefix:
+            conditions.append(f"event_type LIKE ${idx}")
+            params.append(type_prefix + "%"); idx += 1
         if severity:
             conditions.append(f"severity = ${idx}")
             params.append(severity); idx += 1
+        if search:
+            conditions.append(f"payload::text ILIKE ${idx}")
+            params.append(f"%{search}%"); idx += 1
         if since:
             conditions.append(f"ts >= ${idx}::timestamptz")
             params.append(since); idx += 1
@@ -349,14 +371,19 @@ async def query_events(
             conditions.append(f"ts <= ${idx}::timestamptz")
             params.append(until); idx += 1
 
-        where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        where = "WHERE " + " AND ".join(conditions)
         params.extend([limit, offset])
         rows = await conn.fetch(f"""
             SELECT * FROM events_normalized {where}
             ORDER BY ts DESC LIMIT ${idx} OFFSET ${idx+1}
         """, *params)
         count = await conn.fetchval(f"SELECT count(*) FROM events_normalized {where}", *params[:-2])
-        return {"events": [dict(r) for r in rows], "total": count}
+        events = []
+        for r in rows:
+            d = dict(r)
+            d["payload"] = _parse_json_fields({"payload": d.get("payload", {})}).get("payload", {})
+            events.append(d)
+        return {"events": events, "total": count}
 
 
 @router.get("/api/v1/events/files", dependencies=[Depends(verify_api_key)])
