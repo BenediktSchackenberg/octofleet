@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
 import { StatusBadge, statusToVariant } from "@/components/ui/StatusBadge";
-import { Check, X, Clock, Monitor, LayoutGrid, List } from "lucide-react";
+import { Check, X, Clock, Monitor, LayoutGrid, List, Plus } from "lucide-react";
+import { OnboardingDialog } from "@/components/onboarding-dialog";
 
 
 
@@ -263,6 +264,11 @@ export default function NodesPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <OnboardingDialog trigger={
+              <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors text-sm font-medium">
+                <Plus className="h-4 w-4" /> Add Device
+              </button>
+            } />
             <button
               onClick={() => { setViewMode("list"); localStorage.setItem("octofleet-nodes-view", "list"); }}
               className={`p-2 rounded-lg border transition-colors ${viewMode === "list" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}

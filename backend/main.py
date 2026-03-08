@@ -722,6 +722,46 @@ async def list_smart_install_packages():
 
 
 
+@app.get("/api/v1/onboarding/agent-config")
+async def download_agent_config(request: Request):
+    """Generate a ready-to-use service-config.json for new agents."""
+    import json as _json
+    # Derive server URL from request
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8080"))
+    scheme = request.headers.get("x-forwarded-proto", "http")
+    api_url = f"{scheme}://{host}"
+
+    config = {
+        "InventoryApiUrl": api_url,
+        "InventoryApiKey": settings.API_KEY,
+        "AutoPushInventory": True,
+        "AutoStart": True,
+        "ScheduledPushEnabled": True,
+        "ScheduledPushIntervalMinutes": 30
+    }
+    return JSONResponse(content=config, headers={
+        "Content-Disposition": "attachment; filename=service-config.json"
+    })
+
+
+@app.get("/api/v1/onboarding/install-command")
+async def get_install_command(request: Request):
+    """Generate a one-liner PowerShell install command with pre-filled config."""
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8080"))
+    scheme = request.headers.get("x-forwarded-proto", "http")
+    api_url = f"{scheme}://{host}"
+    api_key = settings.API_KEY
+
+    # One-liner that downloads installer and passes config
+    ps_command = (
+        f'$env:OCTOFLEET_API_URL="{api_url}"; '
+        f'$env:OCTOFLEET_API_KEY="{api_key}"; '
+        f'irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1 | iex'
+    )
+    
+    return {"command": ps_command, "apiUrl": api_url, "apiKey": api_key}
+
+
 @app.get("/api/v1/onboarding/config")
 async def get_onboarding_config(db: asyncpg.Pool = Depends(get_db)):
     """Get onboarding configuration"""

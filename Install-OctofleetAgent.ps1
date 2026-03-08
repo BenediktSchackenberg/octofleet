@@ -216,23 +216,37 @@ function Install-OctofleetAgent {
     }
     
     # Only create minimal config - agent will auto-register and get full config
-    if (-not (Test-Path $configPath) -or $GatewayUrl -or $GatewayToken) {
+    if (-not (Test-Path $configPath) -or $GatewayUrl -or $GatewayToken -or $env:OCTOFLEET_API_URL) {
         Write-Status "Creating configuration at $configPath..."
         
         $config = @{
-            # Discovery URL - agent will register here and wait for approval
-            DiscoveryUrl = if ($GatewayUrl) { $GatewayUrl } else { "" }
             DisplayName = $env:COMPUTERNAME
         }
         
-        # If full config provided, use it (backwards compatibility)
-        if ($GatewayUrl -and $GatewayUrl -notlike "http://localhost*") {
+        # New: env-based config from onboarding endpoint
+        if ($env:OCTOFLEET_API_URL) {
+            $config.InventoryApiUrl = $env:OCTOFLEET_API_URL
+            $config.InventoryApiKey = if ($env:OCTOFLEET_API_KEY) { $env:OCTOFLEET_API_KEY } else { "" }
+            $config.AutoPushInventory = $true
+            $config.ScheduledPushEnabled = $true
+            $config.ScheduledPushIntervalMinutes = 30
+            $config.AutoStart = $true
+        }
+        # Legacy: Gateway URL based config
+        elseif ($GatewayUrl -and $GatewayUrl -notlike "http://localhost*") {
             $config.InventoryApiUrl = $GatewayUrl
-            $config.InventoryApiKey = "octofleet-inventory-dev-key"
+            $config.InventoryApiKey = ""
             $config.AutoPushInventory = $true
             $config.ScheduledPushEnabled = $true
             $config.ScheduledPushIntervalMinutes = 30
         }
+        else {
+            $config.DiscoveryUrl = if ($GatewayUrl) { $GatewayUrl } else { "" }
+        }
+        
+        # Gateway config (optional)
+        if ($GatewayUrl) { $config.GatewayUrl = $GatewayUrl }
+        if ($GatewayToken) { $config.GatewayToken = $GatewayToken }
         
         $config | ConvertTo-Json -Depth 10 | Out-File -FilePath $configPath -Encoding UTF8
     }
