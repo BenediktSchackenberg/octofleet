@@ -160,7 +160,7 @@ export function usePerformanceDashboard() {
     if (!drawerNode) { setDrawerTimeseries(null); return; }
     (async () => {
       try {
-        const res = await apiClient.richGet<NodeTimeseries>(`/metrics/node/${drawerNode.id}?hours=1&bucket_minutes=5`);
+        const res = await apiClient.richGet<NodeTimeseries>(`/nodes/${drawerNode.id}/metrics/history?hours=1&bucket_minutes=5`);
         if (res.ok && res.data) { setDrawerTimeseries(res.data); }
       } catch (e) { console.error("Failed to fetch node timeseries:", e); }
     })();
