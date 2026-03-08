@@ -141,7 +141,7 @@ const navGroups: NavGroup[] = [
 // Standalone items (no sub-items)
 const standaloneItems: { href: string; label: string; labelKey: string; icon: LucideIcon }[] = [
   { href: "/", label: "Start", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Tasks", labelKey: "nav.tasks", icon: AlertTriangle },
+  // { href: "/tasks", label: "Tasks", labelKey: "nav.tasks", icon: AlertTriangle }, // E41 Phase 2: page not built yet
 ];
 
 const STORAGE_KEY = "octofleet-sidebar-collapsed";
@@ -258,7 +258,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
               }`}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="text-sm font-medium truncate">{t(labelKey) || label}</span>}
+              {!collapsed && <span className="text-sm font-medium truncate">{(() => { const v = t(labelKey); return v && !v.includes('.') ? v : label; })()}</span>}
             </Link>
           );
         })}
@@ -315,7 +315,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
                   key={item.href}
                   href={item.href}
                   onClick={onMobileClose}
-                  title={collapsed ? t(item.labelKey) : undefined}
+                  title={collapsed ? ((() => { const v = t(item.labelKey); return v && !v.includes('.') ? v : item.labelKey.split('.').pop(); })()) : undefined}
                   className={`flex items-center gap-3 h-9 rounded-lg mb-0.5 transition-colors ${
                     collapsed ? "justify-center px-0" : "px-3 pl-5"
                   } ${
@@ -325,7 +325,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
                   }`}
                 >
                   <ItemIcon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span className="text-sm truncate">{t(item.labelKey)}</span>}
+                  {!collapsed && <span className="text-sm truncate">{(() => { const v = t(item.labelKey); return v && !v.includes('.') ? v : item.labelKey.split('.').pop(); })()}</span>}
                 </Link>
               );
             })}
