@@ -45,9 +45,9 @@ export default function MonitoringProfilesPage() {
       exclude_paths: form.exclude_paths.split("\n").filter(Boolean),
     };
     if (editProfile) {
-      await apiClient.put(`/monitoring/profiles/${editProfile.id}`, { body });
+      await apiClient.put(`/monitoring/profiles/${editProfile.id}`, body);
     } else {
-      await apiClient.post(`/monitoring/profiles`, { body });
+      await apiClient.post(`/monitoring/profiles`, body);
     }
     setShowCreate(false);
     setEditProfile(null);
