@@ -691,16 +691,15 @@ export default function LiveViewPage() {
                         try {
                           const token = localStorage.getItem('token');
                           // Start session
-                          const startRes = await apiClient.post(`/screen/start/${nodeId}`, { quality: screenQuality }, { showErrorToast: false });
+                          const data = await apiClient.post(`/screen/start/${nodeId}`, { quality: screenQuality }, { showErrorToast: false });
                           
-                          if (startRes.ok) {
-                            const data = await startRes.json();
+                          if (data) {
                             
                             // Poll for frames
                             screenIntervalRef.current = setInterval(async () => {
                               try {
                                 const frameRes = await apiClient.get(`/screen/frame/${data.sessionId}`, { showErrorToast: false });
-                                if (frameRes.ok) {
+                                if (frameRes) {
                                   const blob = await frameRes.blob();
                                   if (blob.size > 0) {
                                     const url = URL.createObjectURL(blob);
@@ -800,12 +799,11 @@ function PerformanceChart({ nodeId }: { nodeId: string }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(
+      const data = await fetch(
         `${API_BASE}/nodes/${nodeId}/metrics/history?hours=${hours}&interval=${interval}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         setHistoryData(data.data);
       }
     } catch (err) {

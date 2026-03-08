@@ -116,12 +116,11 @@ export function PerformanceTab({ nodeId }: Props) {
     
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(
+      const json = await fetch(
         `${API_BASE}/nodes/${nodeId}/metrics/history?hours=${hours}&interval=${interval}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
-      if (res.ok) {
-        const json = await res.json();
+      if (json) {
         const data = json.data.map((d: any) => ({
           timestamp: new Date(d.timestamp).getTime(),
           time: new Date(d.timestamp).toLocaleString('de-DE', {

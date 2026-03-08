@@ -31,18 +31,17 @@ export function CreateTagDialog() {
 
     setLoading(true);
     try {
-      const res = await apiClient.post(`/tags`, {
+      const data = await apiClient.post(`/tags`, {
           name: name.trim(),
           color: color,
         }, { showErrorToast: false });
 
-      if (res.ok) {
+      if (data) {
         setOpen(false);
         setName("");
         setColor("#22c55e");
         router.refresh();
       } else {
-        const data = await res.json();
         alert(`Fehler: ${data.detail || 'Unbekannter Fehler'}`);
       }
     } catch (err) {

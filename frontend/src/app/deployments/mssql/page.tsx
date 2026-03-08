@@ -137,10 +137,10 @@ export default function MssqlAssignmentsPage() {
       ]);
 
       const [assignmentsData, configsData, groupsData, editionsData] = await Promise.all([
-        assignmentsRes.json(),
-        configsRes.json(),
-        groupsRes.json(),
-        editionsRes.json(),
+        assignmentsRes,
+        configsRes,
+        groupsRes,
+        editionsRes,
       ]);
 
       setAssignments(assignmentsData.assignments || []);
@@ -167,7 +167,7 @@ export default function MssqlAssignmentsPage() {
         ],
       }, { showErrorToast: false });
 
-    if (res.ok) {
+    if (res) {
       setShowNewConfig(false);
       setNewConfig({ name: "", edition: "developer", version: "2022", instanceName: "MSSQLSERVER", port: 1433 });
       fetchData();
@@ -183,7 +183,7 @@ export default function MssqlAssignmentsPage() {
     
     const res = await apiClient.post(`/mssql/assignments`, newAssignment, { showErrorToast: false });
 
-    if (res.ok) {
+    if (res) {
       setShowNewAssignment(false);
       setNewAssignment({ configId: "", groupId: "", saPassword: "" });
       fetchData();
@@ -194,10 +194,9 @@ export default function MssqlAssignmentsPage() {
     setReconciling(assignmentId);
     
     try {
-      const res = await apiClient.post(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
+      const data = await apiClient.post(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
       
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         alert(`${data.nodesProcessed} Jobs erstellt!`);
         fetchData();
         if (selectedAssignment?.id === assignmentId) {
@@ -222,8 +221,8 @@ export default function MssqlAssignmentsPage() {
 
   const loadAssignmentDetail = async (assignmentId: string) => {
     const res = await apiClient.get(`/mssql/assignments/${assignmentId}`, { showErrorToast: false });
-    if (res.ok) {
-      setSelectedAssignment(await res.json());
+    if (res) {
+      setSelectedAssignment(res);
     }
   };
 

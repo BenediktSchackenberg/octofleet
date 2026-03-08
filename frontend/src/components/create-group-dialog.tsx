@@ -33,21 +33,20 @@ export function CreateGroupDialog() {
 
     setLoading(true);
     try {
-      const res = await apiClient.post(`/groups`, {
+      const data = await apiClient.post(`/groups`, {
           name: name.trim(),
           description: description.trim() || null,
           color: color,
           is_dynamic: false,
         }, { showErrorToast: false });
 
-      if (res.ok) {
+      if (data) {
         setOpen(false);
         setName("");
         setDescription("");
         setColor("#3b82f6");
         router.refresh();
       } else {
-        const data = await res.json();
         alert(`Fehler: ${data.detail || 'Unbekannter Fehler'}`);
       }
     } catch (err) {

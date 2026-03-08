@@ -68,12 +68,11 @@ export default function GroupDetailPage() {
 
   async function fetchGroup() {
     try {
-      const res = await apiClient.get(`/groups/${groupId}`, { showErrorToast: false });
-      if (!res.ok) {
+      const data = await apiClient.get(`/groups/${groupId}`, { showErrorToast: false });
+      if (!data) {
         router.push("/groups");
         return;
       }
-      const data = await res.json();
       setGroup(data);
       setEditName(data.name);
       setEditDescription(data.description || "");
@@ -94,7 +93,7 @@ export default function GroupDetailPage() {
           description: editDescription || null,
           color: editColor || null,
         }, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         await fetchGroup();
         setShowEditDialog(false);
       } else {
@@ -112,7 +111,7 @@ export default function GroupDetailPage() {
     setSaving(true);
     try {
       const res = await apiClient.delete(`/groups/${groupId}`, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         router.push("/groups");
       } else {
         alert("Fehler beim Löschen");
@@ -128,7 +127,7 @@ export default function GroupDetailPage() {
   async function handleRemoveMember(memberId: string) {
     try {
       const res = await apiClient.delete(`/groups/${groupId}/members`, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         await fetchGroup();
       }
     } catch (e) {
@@ -139,9 +138,8 @@ export default function GroupDetailPage() {
   async function handleEvaluate() {
     setEvaluating(true);
     try {
-      const res = await apiClient.post(`/groups/${groupId}/evaluate`, {}, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.post(`/groups/${groupId}/evaluate`, {}, { showErrorToast: false });
+      if (data) {
         await fetchGroup();
         alert(`Regel neu evaluiert: ${data.added} hinzugefügt, ${data.removed} entfernt`);
       } else {

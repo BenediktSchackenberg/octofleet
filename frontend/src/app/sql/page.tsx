@@ -140,30 +140,21 @@ export default function SqlPage() {
     try {
       const headers = { 'Authorization': `Bearer ${token}` };
       
-      const [configsRes, assignmentsRes, instancesRes, groupsRes] = await Promise.all([
+      const [configsData, assignmentsData, instancesData, groupsData] = await Promise.all([
         apiClient.get(`/mssql/configs`, { showErrorToast: false }),
         apiClient.get(`/mssql/assignments`, { showErrorToast: false }),
         apiClient.get(`/mssql/instances`, { showErrorToast: false }),
         apiClient.get(`/groups`, { showErrorToast: false })
       ]);
 
-      if (!configsRes.ok || !assignmentsRes.ok || !instancesRes.ok) {
-        if (configsRes.status === 401) {
-          router.push('/login');
-          return;
-        }
+      if (!configsData || !assignmentsData || !instancesData) {
         throw new Error('Failed to fetch data');
       }
-
-      const configsData = await configsRes.json();
-      const assignmentsData = await assignmentsRes.json();
-      const instancesData = await instancesRes.json();
-      const groupsData = await groupsRes.json();
 
       setConfigs(configsData.configs || []);
       setAssignments(assignmentsData.assignments || []);
       setInstances(instancesData.instances || []);
-      setGroups(groupsData.groups || groupsData || []);
+      setGroups(groupsData?.groups || groupsData || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -202,9 +193,8 @@ export default function SqlPage() {
           }))
         }, { showErrorToast: false });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Failed to create config');
+      if (!res) {
+        throw new Error('Failed to create config');
       }
 
       setShowConfigModal(false);
@@ -224,7 +214,7 @@ export default function SqlPage() {
     try {
       const res = await apiClient.delete(`/mssql/configs/${id}`, { showErrorToast: false });
 
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res) throw new Error('Failed to delete');
       fetchData();
     } catch (err) {
       alert('Error deleting config');
@@ -242,9 +232,8 @@ export default function SqlPage() {
           saPassword: assignForm.saPassword
         }, { showErrorToast: false });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Failed to create assignment');
+      if (!res) {
+        throw new Error('Failed to create assignment');
       }
 
       setShowAssignModal(false);
@@ -264,7 +253,7 @@ export default function SqlPage() {
     try {
       const res = await apiClient.delete(`/mssql/assignments/${id}`, { showErrorToast: false });
 
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res) throw new Error('Failed to delete');
       fetchData();
     } catch (err) {
       alert('Error deleting assignment');
@@ -276,14 +265,12 @@ export default function SqlPage() {
     if (!token) return;
 
     try {
-      const res = await apiClient.post(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
+      const data = await apiClient.post(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Failed to trigger reconcile');
+      if (!data) {
+        throw new Error('Failed to trigger reconcile');
       }
 
-      const data = await res.json();
       alert(`Reconcile triggered! ${data.jobsCreated || 0} jobs created.`);
       fetchData();
     } catch (err) {

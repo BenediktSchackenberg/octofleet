@@ -26,8 +26,8 @@ export default function NewDeploymentPage() {
     const token = getToken();
     const headers = { 'Authorization': `Bearer ${token}` };
     Promise.all([
-      apiClient.get(`/patches/catalog?approved=true&limit=500`, { showErrorToast: false }).then(r => r.json()),
-      apiClient.get(`/patches/rings`, { showErrorToast: false }).then(r => r.json()),
+      apiClient.get(`/patches/catalog?approved=true&limit=500`, { showErrorToast: false }),
+      apiClient.get(`/patches/rings`, { showErrorToast: false }),
     ]).then(([catData, ringData]) => {
       setPatches(catData.items || []);
       setRings(ringData || []);
@@ -41,9 +41,8 @@ export default function NewDeploymentPage() {
   const create = async () => {
     setCreating(true);
     const token = getToken();
-    const res = await apiClient.post(`/patches/deployments`, { name, patches: selectedPatches, ring_id: selectedRing || null, reboot_policy: rebootPolicy }, { showErrorToast: false });
-    if (res.ok) {
-      const data = await res.json();
+    const data = await apiClient.post(`/patches/deployments`, { name, patches: selectedPatches, ring_id: selectedRing || null, reboot_policy: rebootPolicy }, { showErrorToast: false });
+    if (data) {
       router.push(`/patches/deployments/${data.id}`);
     }
     setCreating(false);

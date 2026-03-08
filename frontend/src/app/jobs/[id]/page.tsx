@@ -124,16 +124,11 @@ export default function JobDetailPage() {
 
   async function fetchJob() {
     try {
-      const res = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
-      if (!res.ok) {
-        if (res.status === 404) {
-          setError("Job nicht gefunden");
-        } else {
-          setError(`Fehler: ${res.status}`);
-        }
+      const data = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
+      if (!data) {
+        setError("Job nicht gefunden");
         return;
       }
-      const data = await res.json();
       setJob(data);
       setError(null);
     } catch (err) {
@@ -147,7 +142,7 @@ export default function JobDetailPage() {
     setRetrying(instanceId);
     try {
       const res = await apiClient.post(`/jobs/${jobId}/instances/${instanceId}/retry`, {}, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         await fetchJob();
       }
     } finally {

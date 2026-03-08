@@ -27,7 +27,7 @@ export default function PatchCatalogPage() {
     if (!patchId) { setLoading(false); return; }
     const token = getToken();
     apiClient.get(`/patches/catalog/${patchId}`, { showErrorToast: false })
-      .then(r => r.json()).then(d => { setPatch(d); setLoading(false); })
+      .then(d => { setPatch(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, [patchId]);
 

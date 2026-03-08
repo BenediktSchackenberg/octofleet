@@ -16,7 +16,7 @@ export default function ActivityPage() {
 
   useEffect(() => {
     apiClient.get(`/nodes`, { showErrorToast: false })
-      .then(r => r.json()).then(d => setNodes(Array.isArray(d) ? d : d.nodes || [])).catch(() => {});
+      .then(d => setNodes(Array.isArray(d) ? d : d.nodes || [])).catch(() => {});
   }, []);
 
   const loadData = async () => {
@@ -28,8 +28,8 @@ export default function ActivityPage() {
       apiClient.get(`/security/activity/files?${params}`, { showErrorToast: false }),
       apiClient.get(`/security/activity/users?${params}`, { showErrorToast: false })
     ]);
-    setFileData(await fRes.json());
-    setUserData(await uRes.json());
+    setFileData(fRes);
+    setUserData(uRes);
     setLoading(false);
   };
 

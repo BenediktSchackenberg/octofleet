@@ -52,8 +52,8 @@ export default function DeploymentsPage() {
   async function fetchDeployments() {
     try {
       const res = await apiClient.get(`/deployments`, { showErrorToast: false });
-      if (res.ok) {
-        setDeployments(await res.json());
+      if (res) {
+        setDeployments(res);
       }
     } catch (e) {
       console.error("Failed to fetch deployments:", e);

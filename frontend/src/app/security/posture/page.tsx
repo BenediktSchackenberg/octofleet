@@ -32,7 +32,7 @@ export default function PosturePage() {
 
   useEffect(() => {
     apiClient.get(`/nodes`, { showErrorToast: false })
-      .then(r => r.json())
+      
       .then(data => setNodes(Array.isArray(data) ? data : data.nodes || []))
       .catch(() => {});
   }, []);
@@ -43,15 +43,13 @@ export default function PosturePage() {
     setSelectedSnapshot(null);
     setComparison(null);
     try {
-      const [snapRes, compRes] = await Promise.all([
+      const [snapData, compData] = await Promise.all([
         apiClient.get(`/posture/snapshots/${nodeId}`, { showErrorToast: false }),
         apiClient.get(`/posture/compare/${nodeId}`, { showErrorToast: false })
       ]);
-      const snapData = await snapRes.json();
-      const compData = await compRes.json();
-      setSnapshots(snapData.snapshots || []);
+      setSnapshots(snapData?.snapshots || []);
       setComparison(compData);
-      if (snapData.snapshots?.length > 0) setSelectedSnapshot(snapData.snapshots[0]);
+      if (snapData?.snapshots?.length > 0) setSelectedSnapshot(snapData.snapshots[0]);
     } catch { }
     setLoading(false);
   };

@@ -56,9 +56,8 @@ export default function RepoPage() {
       if (typeFilter) params.append('file_type', typeFilter);
       if (categoryFilter) params.append('category', categoryFilter);
       
-      const res = await apiClient.get(`/repo/files?${params}`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/repo/files?${params}`, { showErrorToast: false });
+      if (data) {
         setFiles(data.files || []);
       }
     } catch (err) {
@@ -69,8 +68,8 @@ export default function RepoPage() {
   const fetchStats = async () => {
     try {
       const res = await apiClient.get(`/repo/stats`, { showErrorToast: false });
-      if (res.ok) {
-        setStats(await res.json());
+      if (res) {
+        setStats(res);
       }
     } catch (err) {
       console.error('Failed to fetch stats:', err);
@@ -103,7 +102,7 @@ export default function RepoPage() {
     try {
       const res = await apiClient.post(`/repo/upload`, formData, { showErrorToast: false });
       
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res) throw new Error('Upload failed');
       
       setShowUploadModal(false);
       fetchFiles();
@@ -132,9 +131,8 @@ export default function RepoPage() {
     try {
       const res = await apiClient.post(`/repo/cache`, data, { showErrorToast: false });
       
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Cache failed');
+      if (!res) {
+        throw new Error('Cache failed');
       }
       
       setShowCacheModal(false);
@@ -153,7 +151,7 @@ export default function RepoPage() {
     
     try {
       const res = await apiClient.delete(`/repo/files/${id}`, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         fetchFiles();
         fetchStats();
       }

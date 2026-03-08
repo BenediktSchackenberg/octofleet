@@ -42,9 +42,8 @@ export default function FleetHardwarePage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await apiClient.get(`/hardware/fleet`, { showErrorToast: false });
-        if (res.ok) {
-          const json = await res.json();
+        const json = await apiClient.get(`/hardware/fleet`, { showErrorToast: false });
+        if (json) {
           setData(json);
         } else {
           setError(`API Error: ${res.status}`);

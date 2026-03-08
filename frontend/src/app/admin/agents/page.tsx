@@ -102,14 +102,8 @@ export default function AgentMonitorPage() {
         apiClient.get(`/admin/agent-status`, { showErrorToast: false }),
         apiClient.get(`/admin/agent-activity?limit=500`, { showErrorToast: false }),
       ]);
-      if (statusRes.ok) {
-        const d = await statusRes.json();
-        setAgents(d.agents || []);
-      }
-      if (actRes.ok) {
-        const d = await actRes.json();
-        setActivity(d.events || []);
-      }
+      if (statusRes) { setAgents(statusRes.agents || []); }
+      if (actRes) { setActivity(actRes.events || []); }
     } catch (err) {
       console.error("Failed to fetch agent data", err);
     } finally {

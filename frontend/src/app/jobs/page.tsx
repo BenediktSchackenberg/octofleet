@@ -109,18 +109,9 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
       apiClient.get(`/nodes`, { showErrorToast: false }),
       apiClient.get(`/groups`, { showErrorToast: false }),
     ]).then(async ([pkgRes, nodeRes, groupRes]) => {
-      if (pkgRes.ok) {
-        const data = await pkgRes.json();
-        setPackages(data.packages || data || []);
-      }
-      if (nodeRes.ok) {
-        const data = await nodeRes.json();
-        setNodes(data.nodes || data || []);
-      }
-      if (groupRes.ok) {
-        const data = await groupRes.json();
-        setGroups(data.groups || data || []);
-      }
+      if (pkgRes) { setPackages(pkgRes.packages || pkgRes || []); }
+      if (nodeRes) { setNodes(nodeRes.nodes || nodeRes || []); }
+      if (groupRes) { setGroups(groupRes.groups || groupRes || []); }
     });
   }, []);
 
@@ -131,7 +122,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
       setVersions([]);
       setSelectedVersionId("");
       apiClient.get(`/packages/${selectedPackageId}`, { showErrorToast: false })
-        .then(res => res.ok ? res.json() : null)
+        
         .then(data => {
           if (data?.versions) {
             setVersions(data.versions);
@@ -185,12 +176,11 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
 
       const res = await apiClient.post(`/jobs`, body, { showErrorToast: false });
 
-      if (res.ok) {
+      if (res) {
         onCreated();
         onClose();
       } else {
-        const err = await res.json();
-        alert(`Fehler: ${err.detail || "Unbekannt"}`);
+        alert("Fehler beim Erstellen des Jobs");
       }
     } catch (err) {
       console.error("Failed to create job:", err);
@@ -445,8 +435,7 @@ export default function JobsPage() {
 
   const fetchJobs = async () => {
     try {
-      const res = await apiClient.get(`/jobs`, { showErrorToast: false });
-      const data = await res.json();
+      const data = await apiClient.get(`/jobs`, { showErrorToast: false });
       setJobs((data.jobs || []).map((j: any) => ({
         id: j.job_id || j.id,
         name: j.name,
@@ -473,8 +462,7 @@ export default function JobsPage() {
 
   const fetchJobDetail = async (jobId: string) => {
     try {
-      const res = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
-      const data = await res.json();
+      const data = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
       setSelectedJob(data);
     } catch (err) {
       console.error("Failed to fetch job detail:", err);
@@ -484,15 +472,14 @@ export default function JobsPage() {
   const retryInstance = async (instanceId: string) => {
     try {
       const res = await apiClient.post(`/jobs/instances/${instanceId}/retry`, {}, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         // Refresh the job detail
         if (selectedJob) {
           fetchJobDetail(selectedJob.id);
         }
         fetchJobs();
       } else {
-        const err = await res.json();
-        alert(`Retry fehlgeschlagen: ${err.detail || "Unbekannt"}`);
+        alert("Retry fehlgeschlagen");
       }
     } catch (err) {
       console.error("Failed to retry instance:", err);

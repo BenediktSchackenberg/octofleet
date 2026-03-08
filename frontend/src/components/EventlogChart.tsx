@@ -28,9 +28,8 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
 
   async function fetchTrends() {
     try {
-      const res = await apiClient.get(`/eventlog/trends?days=${days}`, { showErrorToast: false });
-      if (res.ok) {
-        const json = await res.json();
+      const json = await apiClient.get(`/eventlog/trends?days=${days}`, { showErrorToast: false });
+      if (json) {
         setData(json.trends || []);
       }
     } catch (e) {

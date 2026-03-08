@@ -50,9 +50,9 @@ export default function ComplianceDashboard() {
         apiClient.get(`/baselines/drift/summary`, { showErrorToast: false }),
         apiClient.get(`/baselines/compliance/trends`, { showErrorToast: false }),
       ]);
-      if (bRes.ok) setBaselines(await bRes.json());
-      if (sRes.ok) setSummary(await sRes.json());
-      if (tRes.ok) setTrends(await tRes.json());
+      if (bRes) setBaselines(bRes);
+      if (sRes) setSummary(sRes);
+      if (tRes) setTrends(tRes);
     } catch (e) {
       console.error(e);
     } finally {

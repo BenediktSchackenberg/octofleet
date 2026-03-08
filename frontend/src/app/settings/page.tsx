@@ -81,9 +81,8 @@ export default function SettingsPage() {
 
   async function fetchSettings() {
     try {
-      const res = await apiClient.get(`/settings/nvd_api_key`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/settings/nvd_api_key`, { showErrorToast: false });
+      if (data) {
         if (data.value) {
           setNvdApiKey(data.value);
           setNvdApiKeySaved(true);
@@ -98,7 +97,7 @@ export default function SettingsPage() {
     setSavingNvdKey(true);
     try {
       const res = await apiClient.put(`/settings/nvd_api_key`, { value: nvdApiKey }, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         setNvdApiKeySaved(true);
         setNvdApiKeyMasked(true);
       }
@@ -109,9 +108,8 @@ export default function SettingsPage() {
 
   async function fetchTokens() {
     try {
-      const res = await apiClient.get(`/enrollment-tokens`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/enrollment-tokens`, { showErrorToast: false });
+      if (data) {
         setTokens(data.tokens || []);
       }
     } finally {
@@ -122,22 +120,20 @@ export default function SettingsPage() {
   async function createToken() {
     setCreating(true);
     try {
-      const res = await apiClient.post(`/enrollment-tokens`, {
+      const data = await apiClient.post(`/enrollment-tokens`, {
           description,
           expiresHours,
           maxUses,
           createdBy: "admin"
         }, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         setNewToken({ token: data.token, installCommand: data.installCommand });
         fetchTokens();
         setDescription("");
         setExpiresHours(24);
         setMaxUses(10);
       } else {
-        const errText = await res.text().catch(() => "Unknown error");
-        alert(`Failed to create token: ${res.status} ${errText}`);
+        alert("Failed to create token.");
       }
     } catch (err) {
       alert(`Network error creating token: ${err}`);

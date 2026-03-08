@@ -47,13 +47,13 @@ export function ExportButtons({ type, className = "", showExcel = true }: Export
       } else {
         // Fetch and download JSON
         const url = `${API_URL}/api/v1/export/${type}?format=${format}`;
-        const res = await fetch(url, {
+        const data = await fetch(url, {
           headers: getAuthHeader()
         });
         
-        if (res.ok) {
-          const data = await res.json();
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        if (data.ok) {
+          const jsonData = await data.json();
+          const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
           const downloadUrl = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = downloadUrl;
@@ -122,7 +122,9 @@ export function ExportDropdown() {
   async function downloadExcel(type: string) {
     setExporting(type);
     try {
-      const res = await apiClient.get(`/export/${type}/excel`, { showErrorToast: false });
+      const res = await fetch(`${API_URL}/api/v1/export/${type}/excel`, {
+        headers: getAuthHeader(),
+      });
       if (res.ok) {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);

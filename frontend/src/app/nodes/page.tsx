@@ -167,8 +167,7 @@ export default function NodesPage() {
 
   async function fetchNodes() {
     try {
-      const res = await apiClient.get(`/nodes`, { showErrorToast: false });
-      const data = await res.json();
+      const data = await apiClient.get(`/nodes`, { showErrorToast: false });
       setNodes(data.nodes || []);
     } catch (err) {
       console.error("Failed to fetch nodes:", err);
@@ -179,8 +178,7 @@ export default function NodesPage() {
 
   async function fetchPendingNodes() {
     try {
-      const res = await apiClient.get(`/pending-nodes`, { showErrorToast: false });
-      const data = await res.json();
+      const data = await apiClient.get(`/pending-nodes`, { showErrorToast: false });
       setPendingNodes(data.pending || []);
     } catch (err) {
       console.error("Failed to fetch pending nodes:", err);
@@ -192,7 +190,7 @@ export default function NodesPage() {
     try {
       const res = await apiClient.post(`/pending-nodes/${pendingId}/approve`, {}, { showErrorToast: false });
       
-      if (res.ok) {
+      if (res) {
         // Refresh both lists
         await fetchPendingNodes();
         await fetchNodes();
@@ -213,7 +211,7 @@ export default function NodesPage() {
     try {
       const res = await apiClient.delete(`/pending-nodes/${pendingId}/reject`, { showErrorToast: false });
       
-      if (res.ok) {
+      if (res) {
         await fetchPendingNodes();
       }
     } catch (err) {

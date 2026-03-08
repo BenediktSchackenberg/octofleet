@@ -81,9 +81,9 @@ export default function AlertsPage() {
         apiClient.get(`/alert-history?limit=20`, { showErrorToast: false }),
       ]);
       
-      if (channelsRes.ok) setChannels(await channelsRes.json());
-      if (rulesRes.ok) setRules(await rulesRes.json());
-      if (historyRes.ok) setHistory(await historyRes.json());
+      if (channelsRes) setChannels(channelsRes);
+      if (rulesRes) setRules(rulesRes);
+      if (historyRes) setHistory(historyRes);
     } catch (e) {
       console.error('Failed to fetch alerts:', e);
     }
@@ -98,7 +98,7 @@ export default function AlertsPage() {
         config: { webhook_url: newWebhookUrl },
         enabled: true
       }, { showErrorToast: false });
-    if (res.ok) {
+    if (res) {
       setShowNewChannel(false);
       setNewChannelName('');
       setNewWebhookUrl('');
@@ -115,7 +115,7 @@ export default function AlertsPage() {
         cooldown_minutes: 15,
         enabled: true
       }, { showErrorToast: false });
-    if (res.ok) {
+    if (res) {
       setShowNewRule(false);
       setNewRuleName('');
       fetchData();
@@ -138,8 +138,7 @@ export default function AlertsPage() {
 
   async function testChannel(id: string) {
     const token = localStorage.getItem('token');
-    const res = await apiClient.post(`/alert-channels/${id}/test`, {}, { showErrorToast: false });
-    const data = await res.json();
+    const data = await apiClient.post(`/alert-channels/${id}/test`, {}, { showErrorToast: false });
     alert(data.status === 'sent' ? '✅ Test sent!' : '❌ Test failed');
   }
 

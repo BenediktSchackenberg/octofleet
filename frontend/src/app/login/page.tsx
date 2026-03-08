@@ -25,14 +25,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await apiClient.post(`/auth/login`, { username, password }, { showErrorToast: false });
+      const data = await apiClient.post(`/auth/login`, { username, password }, { showErrorToast: false });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.detail || t("auth.loginError"));
+      if (!data) {
+        throw new Error(t("auth.loginError"));
       }
 
-      const data = await res.json();
       
       // Store token and user info
       localStorage.setItem("token", data.access_token);

@@ -48,14 +48,8 @@ export default function GroupsPage() {
         apiClient.get(`/tags`, { showErrorToast: false }),
       ]);
       
-      if (groupsRes.ok) {
-        const data = await groupsRes.json();
-        setGroups(data.groups || []);
-      }
-      if (tagsRes.ok) {
-        const data = await tagsRes.json();
-        setTags(data.tags || []);
-      }
+      if (groupsRes) { setGroups(groupsRes.groups || []); }
+      if (tagsRes) { setTags(tagsRes.tags || []); }
     } catch (e) {
       console.error("Failed to fetch groups:", e);
     } finally {
@@ -66,7 +60,7 @@ export default function GroupsPage() {
   async function createGroup() {
     try {
       const res = await apiClient.post(`/groups`, newGroup, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         setShowCreateGroup(false);
         setNewGroup({ name: "", description: "", color: "#3b82f6" });
         fetchData();

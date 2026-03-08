@@ -34,8 +34,8 @@ export default function BaselineDetail() {
         apiClient.get(`/baselines/${id}`, { showErrorToast: false }),
         apiClient.get(`/baselines/${id}/evaluations`, { showErrorToast: false }),
       ]);
-      if (bRes.ok) setBaseline(await bRes.json());
-      if (eRes.ok) setEvaluations(await eRes.json());
+      if (bRes) setBaseline(bRes);
+      if (eRes) setEvaluations(eRes);
     } finally { setLoading(false); }
   };
 

@@ -16,8 +16,7 @@ export default function EventsPage() {
   async function fetchEvents() {
     const params = new URLSearchParams();
     Object.entries(filter).forEach(([k, v]) => { if (v) params.set(k, v); });
-    const res = await apiClient.get(`/events?${params}`, { showErrorToast: false });
-    const data = await res.json();
+    const data = await apiClient.get(`/events?${params}`, { showErrorToast: false });
     setEvents(data.events || []);
     setTotal(data.total || 0);
     setLoading(false);

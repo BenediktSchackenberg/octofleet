@@ -43,9 +43,8 @@ export default function SoftwareComparePage() {
 
   async function fetchTopSoftware() {
     try {
-      const res = await apiClient.get(`/software/compare`, { showErrorToast: false });
-      if (res.ok) {
-        const json = await res.json();
+      const json = await apiClient.get(`/software/compare`, { showErrorToast: false });
+      if (json) {
         setTopSoftware(json.topSoftware || []);
       }
     } catch (e) {
@@ -60,8 +59,8 @@ export default function SoftwareComparePage() {
     setSearchQuery(name);
     try {
       const res = await apiClient.get(`/software/compare?software_name=${encodeURIComponent(name)}`, { showErrorToast: false });
-      if (res.ok) {
-        setCompareResult(await res.json());
+      if (res) {
+        setCompareResult(res);
       }
     } catch (e) {
       console.error("Failed to compare software:", e);

@@ -48,9 +48,8 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
 
   async function fetchAllTags() {
     try {
-      const res = await apiClient.get(`/tags`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/tags`, { showErrorToast: false });
+      if (data) {
         setAllTags(data.tags || []);
       }
     } catch (e) {
@@ -62,7 +61,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
     setLoading(true);
     try {
       const res = await apiClient.post(`/devices/${nodeId}/tags`, { tagIds: [tagId] }, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         onTagsChanged();
       }
     } catch (e) {
@@ -76,7 +75,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
     setLoading(true);
     try {
       const res = await apiClient.delete(`/devices/${nodeId}/tags`, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         onTagsChanged();
       }
     } catch (e) {
@@ -90,12 +89,11 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
     if (!newTagName.trim()) return;
     setCreating(true);
     try {
-      const res = await apiClient.post(`/tags`, {
+      const data = await apiClient.post(`/tags`, {
           name: newTagName.trim(),
           color: newTagColor,
         }, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         // Add the new tag to the node immediately
         await handleAddTag(data.tag.id);
         setNewTagName("");

@@ -317,12 +317,10 @@ export default function ContentLifecyclePage() {
 
   const api = useCallback(async (path: string, opts?: RequestInit) => {
     const res = await apiClient.get(`/content${path}`, { showErrorToast: false });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP ${res.status}`);
+    if (!res) {
+      throw new Error('API request failed');
     }
-    if (res.status === 204) return null;
-    return res.json();
+    return res;
   }, []);
 
   // ─── Loaders ─────────────────────────────────────────────────────

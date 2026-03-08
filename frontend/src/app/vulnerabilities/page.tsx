@@ -99,10 +99,10 @@ export default function VulnerabilitiesPage() {
         apiClient.get(`/vulnerabilities/scans?limit=5`, { showErrorToast: false }),
       ]);
 
-      if (summaryRes.ok) setSummary(await summaryRes.json());
-      if (nodesRes.ok) { const d = await nodesRes.json(); setNodeVulns(d.nodes || []); }
-      if (softwareRes.ok) { const d = await softwareRes.json(); setSoftwareVulns(d.software || []); }
-      if (scansRes.ok) { const d = await scansRes.json(); setScans(d.scans || []); }
+      if (summaryRes) setSummary(summaryRes);
+      if (nodesRes) { setNodeVulns(nodesRes.nodes || []); }
+      if (softwareRes) { setSoftwareVulns(softwareRes.software || []); }
+      if (scansRes) { setScans(scansRes.scans || []); }
     } catch (err) {
       setError("Failed to load vulnerability data");
     } finally {
@@ -120,7 +120,7 @@ export default function VulnerabilitiesPage() {
     setScanning(true);
     try {
       const res = await apiClient.post(`/vulnerabilities/scan`, {}, { showErrorToast: false });
-      if (res.ok) setTimeout(fetchData, 2000);
+      if (res) setTimeout(fetchData, 2000);
     } catch (err) {
       setError("Failed to start scan");
     } finally {

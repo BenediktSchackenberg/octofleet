@@ -65,12 +65,9 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
       apiClient.get(`/groups`, { showErrorToast: false }),
       apiClient.get(`/nodes`, { showErrorToast: false }),
     ]);
-    if (pvRes.ok) setPackageVersions(await pvRes.json());
-    if (groupRes.ok) setGroups(await groupRes.json());
-    if (nodeRes.ok) {
-      const data = await nodeRes.json();
-      setNodes(data.nodes || data || []);
-    }
+    if (pvRes) setPackageVersions(pvRes);
+    if (groupRes) setGroups(groupRes);
+    if (nodeRes) { setNodes(nodeRes.nodes || nodeRes || []); }
   }
 
   async function handleSubmit() {
@@ -79,7 +76,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
     setLoading(true);
     try {
-      const res = await apiClient.post(`/deployments`, {
+      const data = await apiClient.post(`/deployments`, {
           name,
           description: description || null,
           packageVersionId,
@@ -90,8 +87,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           scheduledEnd: scheduledEnd || null,
           maintenanceWindowOnly,
         }, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         // Configure rollout strategy if not immediate
         if (rolloutStrategy !== "immediate" && data.id) {
           await apiClient.post(`/deployments/${data.id}/rollout`, {

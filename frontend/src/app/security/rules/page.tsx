@@ -11,7 +11,7 @@ export default function RulesPage() {
   const [evalResult, setEvalResult] = useState<any>(null);
 
   const load = () => apiClient.get(`/security/rules`, { showErrorToast: false })
-    .then(r => r.json()).then(d => setRules(d.rules || [])).catch(() => {});
+    .then(d => setRules(d.rules || [])).catch(() => {});
 
   useEffect(() => { load(); }, []);
 
@@ -32,7 +32,7 @@ export default function RulesPage() {
 
   const evaluate = async () => {
     const res = await apiClient.post(`/security/rules/evaluate`, "{}", { showErrorToast: false });
-    setEvalResult(await res.json());
+    setEvalResult(res);
   };
 
   const sevColor = (s: string) => ({ critical: "bg-red-600", high: "bg-red-500", medium: "bg-yellow-600", low: "bg-blue-600" }[s] || "bg-zinc-600") + " text-white";

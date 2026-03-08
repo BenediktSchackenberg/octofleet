@@ -29,8 +29,7 @@ export default function MonitoringProfilesPage() {
   const defaultSensors = ["file_audit", "process_monitor", "network_monitor", "registry_monitor", "logon_events", "service_changes"];
 
   async function fetchProfiles() {
-    const res = await apiClient.get(`/monitoring/profiles`, { showErrorToast: false });
-    const data = await res.json();
+    const data = await apiClient.get(`/monitoring/profiles`, { showErrorToast: false });
     setProfiles(data.profiles || []);
     setLoading(false);
   }

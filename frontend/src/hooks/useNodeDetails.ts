@@ -191,14 +191,14 @@ export function useNodeDetails(nodeId: string) {
         apiClient.get(`/inventory/browser/${nodeId}/critical`, { showErrorToast: false }),
       ]);
 
-      if (hwRes.ok) { const data = await hwRes.json(); setHardware(data.data || {}); }
-      if (swRes.ok) { const data = await swRes.json(); setSoftware(data.data?.installedPrograms || []); }
-      if (hfRes.ok) { const data = await hfRes.json(); setHotfixes({ hotfixes: data.data?.hotfixes || [], updateHistory: data.data?.updateHistory || [] }); }
-      if (sysRes.ok) { const data = await sysRes.json(); setSystem(data.data || {}); }
-      if (secRes.ok) { const data = await secRes.json(); setSecurity(data.data || {}); }
-      if (netRes.ok) { const data = await netRes.json(); setNetwork(data.data || {}); }
-      if (brRes.ok) { const data = await brRes.json(); setBrowser(data.data || {}); }
-      if (critRes.ok) { setCriticalCookies(await critRes.json()); }
+      if (hwRes) { setHardware(hwRes.hwRes || { }); }
+      if (swRes) { setSoftware(swRes.swRes?.installedPrograms || []); }
+      if (hfRes) { setHotfixes({ hotfixes: hfRes.hfRes?.hotfixes || [], updateHistory: hfRes.hfRes?.updateHistory || [] }); }
+      if (sysRes) { setSystem(sysRes.sysRes || { }); }
+      if (secRes) { setSecurity(secRes.secRes || { }); }
+      if (netRes) { setNetwork(netRes.netRes || { }); }
+      if (brRes) { setBrowser(brRes.brRes || { }); }
+      if (critRes) { setCriticalCookies(critRes); }
     } catch (err) {
       console.error("Failed to refresh inventory:", err);
     } finally {
@@ -222,27 +222,27 @@ export function useNodeDetails(nodeId: string) {
         apiClient.get(`/inventory/browser/${nodeId}/critical`, { showErrorToast: false }),
       ]);
 
-      if (nodeRes.ok) setNode(await nodeRes.json());
-      if (historyRes.ok) { const data = await historyRes.json(); setHistory(data.changes || []); }
-      if (hwRes.ok) { const data = await hwRes.json(); setHardware(data.data || {}); }
-      if (swRes.ok) { const data = await swRes.json(); setSoftware(data.data?.installedPrograms || []); }
-      if (hfRes.ok) { const data = await hfRes.json(); setHotfixes({ hotfixes: data.data?.hotfixes || [], updateHistory: data.data?.updateHistory || [] }); }
-      if (sysRes.ok) { const data = await sysRes.json(); setSystem(data.data || {}); }
-      if (secRes.ok) { const data = await secRes.json(); setSecurity(data.data || {}); }
-      if (netRes.ok) { const data = await netRes.json(); setNetwork(data.data || {}); }
-      if (brRes.ok) { const data = await brRes.json(); setBrowser(data.data || {}); }
-      if (critRes.ok) { setCriticalCookies(await critRes.json()); }
+      if (nodeRes) setNode(nodeRes);
+      if (historyRes) { setHistory(historyRes.changes || []); }
+      if (hwRes) { setHardware(hwRes.hwRes || { }); }
+      if (swRes) { setSoftware(swRes.swRes?.installedPrograms || []); }
+      if (hfRes) { setHotfixes({ hotfixes: hfRes.hfRes?.hotfixes || [], updateHistory: hfRes.hfRes?.updateHistory || [] }); }
+      if (sysRes) { setSystem(sysRes.sysRes || { }); }
+      if (secRes) { setSecurity(secRes.secRes || { }); }
+      if (netRes) { setNetwork(netRes.netRes || { }); }
+      if (brRes) { setBrowser(brRes.brRes || { }); }
+      if (critRes) { setCriticalCookies(critRes); }
 
       // Fetch Linux-specific data
       try {
         const linuxRes = await apiClient.get(`/inventory/linux/${nodeId}`, { showErrorToast: false });
-        if (linuxRes.ok) { const data = await linuxRes.json(); setLinuxData(data.data || null); }
+        if (linuxRes) { setLinuxData(linuxRes.linuxRes || null); }
       } catch {}
 
       // Fetch eventlog separately
       try {
         const eventsRes = await apiClient.get(`/nodes/${nodeId}/eventlog?limit=100`, { showErrorToast: false });
-        if (eventsRes.ok) { const eventsData = await eventsRes.json(); setEvents(eventsData.events || []); }
+        if (eventsRes) { setEvents(eventsRes.events || []); }
       } catch {}
     } catch (err) {
       console.error("Failed to fetch data:", err);

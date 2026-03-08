@@ -61,9 +61,8 @@ export default function AuditPage() {
       if (filter.action) params.set("action", filter.action);
       if (filter.resource_type) params.set("resource_type", filter.resource_type);
 
-      const res = await apiClient.get(`/audit?${params}`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/audit?${params}`, { showErrorToast: false });
+      if (data) {
         setEntries(data.entries || []);
         setTotal(data.total || 0);
       }

@@ -56,14 +56,8 @@ export default function UsersPage() {
         apiClient.get(`/roles`, { showErrorToast: false }),
       ]);
       
-      if (usersRes.ok) {
-        const data = await usersRes.json();
-        setUsers(data.users || []);
-      }
-      if (rolesRes.ok) {
-        const data = await rolesRes.json();
-        setRoles(data.roles || []);
-      }
+      if (usersRes) { setUsers(usersRes.users || []); }
+      if (rolesRes) { setRoles(rolesRes.roles || []); }
     } catch (e) {
       console.error("Failed to fetch users:", e);
     } finally {
@@ -74,7 +68,7 @@ export default function UsersPage() {
   async function createUser() {
     try {
       const res = await apiClient.post(`/users`, newUser, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         setShowCreate(false);
         setNewUser({ username: "", password: "", email: "", display_name: "" });
         fetchData();

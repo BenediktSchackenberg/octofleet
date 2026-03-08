@@ -43,12 +43,11 @@ export function MetricsHistoryChart({ nodeId, title = "Performance History" }: M
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await fetch(
+        const json = await fetch(
           `/api/v1/nodes/${nodeId}/metrics/history?hours=${hours}&interval=${interval}`,
           { headers: getAuthHeader() }
         );
-        if (res.ok) {
-          const json = await res.json();
+        if (json) {
           // Transform data for recharts
           const chartData = (json.data || []).map((point: DataPoint) => ({
             time: new Date(point.timestamp).toLocaleTimeString("de-DE", {

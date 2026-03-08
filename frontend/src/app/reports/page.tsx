@@ -1,5 +1,7 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
+import { getAuthHeader } from "@/lib/auth-context";
+import { API_BASE } from "@/lib/api-config";
 
 import { useState } from "react";
 import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle, AlertCircle } from "lucide-react";
@@ -100,13 +102,8 @@ export default function ReportsPage() {
         // Track download
         setRecentDownloads((prev) => [{ name: report.name, time: new Date() }, ...prev.slice(0, 4)]);
       } else {
-        const err = await res.text();
-        console.error("Report generation failed:", err);
-        if (res.status === 401) {
-          setError("Authentication failed. Please log in again.");
-        } else {
-          setError(`Failed to generate report: ${res.status} - ${err}`);
-        }
+        console.error("Report generation failed");
+        setError("Failed to generate report.");
       }
     } catch (e) {
       console.error("Report generation error:", e);
@@ -282,7 +279,9 @@ export default function ReportsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={async () => {
-                    const res = await apiClient.get(`/export/${exp.type}/excel`, { showErrorToast: false });
+                    const res = await fetch(`${API_BASE}/export/${exp.type}/excel`, {
+                      headers: getAuthHeader(),
+                    });
                     if (res.ok) {
                       const blob = await res.blob();
                       const url = URL.createObjectURL(blob);

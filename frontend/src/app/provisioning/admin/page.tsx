@@ -58,12 +58,11 @@ interface ISOInfo {
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await apiClient.get(`${endpoint}`, { showErrorToast: false });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `API Error: ${res.status}`);
+  const res = await apiClient.get<T>(`${endpoint}`, { showErrorToast: false });
+  if (!res) {
+    throw new Error('API request failed');
   }
-  return res.json();
+  return res;
 }
 
 // ============================================

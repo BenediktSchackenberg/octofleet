@@ -42,7 +42,7 @@ function CreateWindowDialog({ onClose, onCreated }: { onClose: () => void; onCre
     setError("");
 
     try {
-      const res = await apiClient.post(`/maintenance-windows`, {
+      const data = await apiClient.post(`/maintenance-windows`, {
           name,
           description: description || null,
           startTime,
@@ -50,9 +50,8 @@ function CreateWindowDialog({ onClose, onCreated }: { onClose: () => void; onCre
           daysOfWeek,
         }, { showErrorToast: false });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.detail || "Fehler beim Erstellen");
+      if (!data) {
+        throw new Error("Fehler beim Erstellen");
       }
 
       onCreated();
@@ -165,8 +164,7 @@ export default function MaintenanceWindowsPage() {
 
   const fetchWindows = async () => {
     try {
-      const res = await apiClient.get(`/maintenance-windows`, { showErrorToast: false });
-      const data = await res.json();
+      const data = await apiClient.get(`/maintenance-windows`, { showErrorToast: false });
       setWindows(data.windows || []);
     } catch (err) {
       console.error("Failed to fetch windows:", err);

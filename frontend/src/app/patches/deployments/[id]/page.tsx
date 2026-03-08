@@ -28,7 +28,7 @@ export default function DeploymentDetailPage() {
   const fetchData = async () => {
     const token = getToken();
     const res = await apiClient.get(`/patches/deployments/${id}`, { showErrorToast: false });
-    if (res.ok) setDep(await res.json());
+    if (res) setDep(res);
     setLoading(false);
   };
 

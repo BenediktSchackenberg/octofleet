@@ -82,8 +82,8 @@ export default function ServiceDetailPage() {
   const fetchService = async () => {
     try {
       const res = await apiClient.get(`/services/${serviceId}`, { showErrorToast: false });
-      if (res.ok) {
-        setService(await res.json());
+      if (res) {
+        setService(res);
       }
     } catch (error) {
       console.error('Failed to fetch service:', error);
@@ -94,9 +94,8 @@ export default function ServiceDetailPage() {
 
   const fetchLogs = async () => {
     try {
-      const res = await apiClient.get(`/services/${serviceId}/logs?limit=20`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/services/${serviceId}/logs?limit=20`, { showErrorToast: false });
+      if (data) {
         setLogs(data.logs || []);
       }
     } catch (error) {
@@ -106,9 +105,8 @@ export default function ServiceDetailPage() {
 
   const fetchNodes = async () => {
     try {
-      const res = await apiClient.get(`/nodes`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/nodes`, { showErrorToast: false });
+      if (data) {
         setAllNodes(data.nodes || []);
       }
     } catch (error) {
@@ -121,7 +119,7 @@ export default function ServiceDetailPage() {
     
     try {
       const res = await apiClient.delete(`/services/${serviceId}/nodes/${nodeId}`, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         fetchService();
         fetchLogs();
       }
@@ -135,7 +133,7 @@ export default function ServiceDetailPage() {
     
     try {
       const res = await apiClient.delete(`/services/${serviceId}`, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         router.push('/services');
       }
     } catch (error) {
@@ -151,15 +149,13 @@ export default function ServiceDetailPage() {
     
     setReconciling(true);
     try {
-      const res = await apiClient.post(`/services/${serviceId}/reconcile`, {}, { showErrorToast: false });
+      const data = await apiClient.post(`/services/${serviceId}/reconcile`, {}, { showErrorToast: false });
       
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         alert(`Reconciliation triggered! ${data.jobsCreated} job(s) created.`);
         fetchLogs();
       } else {
-        const error = await res.text();
-        alert(`Reconciliation failed: ${error}`);
+        alert('Reconciliation failed.');
       }
     } catch (error) {
       alert('Failed to trigger reconciliation');
@@ -392,11 +388,10 @@ function AddNodeModal({
     try {
       const res = await apiClient.post(`/services/${serviceId}/nodes`, { nodeId, role }, { showErrorToast: false });
       
-      if (res.ok) {
+      if (res) {
         onAdded();
       } else {
-        const err = await res.json();
-        alert(err.detail || 'Failed to add node');
+        alert('Failed to add node');
       }
     } catch (error) {
       alert('Error adding node');

@@ -14,8 +14,7 @@ export default function PoliciesPage() {
   const { token } = useAuth();
 
   async function fetchPolicies() {
-    const res = await apiClient.get(`/security/policies`, { showErrorToast: false });
-    const data = await res.json();
+    const data = await apiClient.get(`/security/policies`, { showErrorToast: false });
     setPolicies(data.policies || []);
     setLoading(false);
   }

@@ -93,10 +93,10 @@ export default function RemediationPage() {
         apiClient.get(`/remediation/rules`, { showErrorToast: false }),
         apiClient.get(`/remediation/jobs?limit=500`, { showErrorToast: false }),
       ]);
-      if (summaryRes.ok) setSummary(await summaryRes.json());
-      if (packagesRes.ok) { const d = await packagesRes.json(); setPackages(d.packages || []); }
-      if (rulesRes.ok) { const d = await rulesRes.json(); setRules(d.rules || []); }
-      if (jobsRes.ok) { const d = await jobsRes.json(); setJobs(d.jobs || []); }
+      if (summaryRes) setSummary(summaryRes);
+      if (packagesRes) { setPackages(packagesRes.packages || []); }
+      if (rulesRes) { setRules(rulesRes.rules || []); }
+      if (jobsRes) { setJobs(jobsRes.jobs || []); }
     } catch (error) { console.error('Error fetching remediation data:', error); }
     setLoading(false);
   };
@@ -106,7 +106,7 @@ export default function RemediationPage() {
     if (!token) return;
     try {
       const res = await apiClient.get(`/remediation/summary`, { showErrorToast: false });
-      if (res.ok) setSummary(await res.json());
+      if (res) setSummary(res);
     } catch (e) {}
   };
 
@@ -196,13 +196,11 @@ export default function RemediationPage() {
     setScanResult(null);
     try {
       const res = await apiClient.post(`/remediation/scan`, { severity_filter: ['CRITICAL', 'HIGH'], dry_run: dryRun }, { showErrorToast: false });
-      if (res.ok) {
-        const result = await res.json();
-        setScanResult(result);
+      if (res) {
+        setScanResult(res);
         if (!dryRun) fetchData();
       } else {
-        const errorText = await res.text();
-        alert(`Scan failed: ${res.status} - ${errorText}`);
+        alert('Scan failed.');
       }
     } catch (error) { alert(`Scan error: ${error}`); }
     setScanning(false);

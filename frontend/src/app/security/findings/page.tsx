@@ -17,8 +17,7 @@ export default function FindingsPage() {
     const params = new URLSearchParams();
     if (filter.severity) params.set("severity", filter.severity);
     if (filter.status) params.set("status", filter.status);
-    const res = await apiClient.get(`/findings?${params}`, { showErrorToast: false });
-    const data = await res.json();
+    const data = await apiClient.get(`/findings?${params}`, { showErrorToast: false });
     setFindings(data.findings || []);
     setTotal(data.total || 0);
     setLoading(false);

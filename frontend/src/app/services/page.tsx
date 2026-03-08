@@ -49,16 +49,13 @@ export default function ServicesPage() {
 
   const fetchData = async () => {
     try {
-      const [servicesRes, classesRes] = await Promise.all([
+      const [servicesData, classesData] = await Promise.all([
         apiClient.get(`/services`, { showErrorToast: false }),
         apiClient.get(`/service-classes`, { showErrorToast: false }),
       ]);
       
-      const servicesData = await servicesRes.json();
-      const classesData = await classesRes.json();
-      
-      setServices(servicesData.services || []);
-      setServiceClasses(classesData.serviceClasses || []);
+      setServices(servicesData?.services || []);
+      setServiceClasses(classesData?.serviceClasses || []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -256,7 +253,7 @@ function CreateServiceModal({
     try {
       const res = await apiClient.post(`/services`, { name, description, classId }, { showErrorToast: false });
       
-      if (res.ok) {
+      if (res) {
         onCreated();
       } else {
         alert('Failed to create service');
@@ -348,7 +345,7 @@ function CreateClassModal({
     try {
       const res = await apiClient.post(`/service-classes`, { name, description, serviceType }, { showErrorToast: false });
       
-      if (res.ok) {
+      if (res) {
         onCreated();
       } else {
         alert('Failed to create template');

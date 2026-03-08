@@ -14,7 +14,7 @@ export default function AuditLogPage() {
   useEffect(() => {
     if (!token) return;
     apiClient.get(`/audit/ui-events`, { showErrorToast: false })
-      .then(r => r.json()).then(d => setEvents(d.events || [])).catch(console.error).finally(() => setLoading(false));
+      .then(d => setEvents(d.events || [])).catch(console.error).finally(() => setLoading(false));
   }, [token]);
 
   return (

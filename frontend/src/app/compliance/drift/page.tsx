@@ -26,7 +26,7 @@ export default function DriftEvents() {
       if (filter.status) params.set("status", filter.status);
       if (filter.severity) params.set("severity", filter.severity);
       const res = await apiClient.get(`/baselines/drift?${params}`, { showErrorToast: false });
-      if (res.ok) setEvents(await res.json());
+      if (res) setEvents(res);
     } finally { setLoading(false); }
   };
 
@@ -41,9 +41,8 @@ export default function DriftEvents() {
     setRemediating(id);
     try {
       const res = await apiClient.post(`/baselines/drift/${id}/remediate`, {}, { showErrorToast: false });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.detail || "Remediation failed");
+      if (!res) {
+        alert("Remediation failed");
       }
       await fetchData();
     } finally { setRemediating(null); }

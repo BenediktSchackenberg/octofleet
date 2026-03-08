@@ -45,17 +45,15 @@ export default function ScreenViewerPage() {
       const token = localStorage.getItem('token');
       const response = await apiClient.post(`/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {}, { showErrorToast: false });
       
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || 'Failed to start session');
+      if (!response) {
+        throw new Error('Failed to start session');
       }
       
-      const data = await response.json();
-      setSessionId(data.session_id);
+      setSessionId(response.session_id);
       setStatus('pending');
       
       // Connect WebSocket
-      connectWebSocket(data.session_id, token!);
+      connectWebSocket(response.session_id, token!);
     } catch (err: any) {
       setError(err.message);
       setStatus('error');

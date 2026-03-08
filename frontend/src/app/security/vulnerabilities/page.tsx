@@ -23,15 +23,14 @@ export default function VulnerabilitiesPage() {
 
   useEffect(() => {
     apiClient.get(`/security/vulnerabilities/fleet`, { showErrorToast: false })
-      .then(r => r.json())
+      
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
   const loadNodeVulns = async (nodeId: string) => {
     setSelectedNode(nodeId);
-    const res = await apiClient.get(`/vulnerabilities/node/${nodeId}`, { showErrorToast: false });
-    const d = await res.json();
+    const d = await apiClient.get(`/vulnerabilities/node/${nodeId}`, { showErrorToast: false });
     setNodeVulns(d.vulnerabilities || []);
   };
 

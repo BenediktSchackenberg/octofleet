@@ -259,12 +259,9 @@ export function useQueryEngine() {
           apiClient.get(`/query/schema`, { showErrorToast: false }),
           apiClient.get(`/query/templates`, { showErrorToast: false }),
         ]);
-        if (schemaRes.ok) {
-          const s = await schemaRes.json();
-          const catIcons: Record<string, string> = {
+        if (schemaRes) { const catIcons: Record<string, string> = {
             Fleet: "🖥️", Software: "📦", Security: "🔒", System: "⚙️",
-            Monitoring: "📡", Compliance: "📏", Operations: "🔧",
-          };
+            Monitoring: "📡", Compliance: "📏", Operations: "🔧", };
           const cats = s.categories;
           if (cats && typeof cats === "object" && !Array.isArray(cats)) {
             const arr: SchemaCategory[] = Object.entries(cats).map(([name, tables]) => ({
@@ -277,10 +274,7 @@ export function useQueryEngine() {
             setSchema(cats);
           }
         }
-        if (templateRes.ok) {
-          const t = await templateRes.json();
-          setTemplates(t.templates || []);
-        }
+        if (templateRes) { setTemplates(templateRes.templates || []); }
       } catch (err) {
         console.error("Failed to load schema/templates", err);
       }
@@ -293,7 +287,7 @@ export function useQueryEngine() {
     async function loadStats() {
       try {
         const res = await apiClient.get(`/query/stats`, { showErrorToast: false });
-        if (res.ok) setStats(await res.json());
+        if (res) setStats(res);
       } catch {}
     }
     loadStats();
@@ -335,12 +329,11 @@ export function useQueryEngine() {
       try {
         const res = await apiClient.post(`/query/execute`, query, { showErrorToast: false });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: res.statusText }));
-          throw new Error(err.detail || `HTTP ${res.status}`);
+        if (!res) {
+          throw new Error('Query execution failed');
         }
 
-        const data: QueryResult = await res.json();
+        const data: QueryResult = res;
         setResult(data);
 
         setHistory((prev) => [
@@ -366,34 +359,8 @@ export function useQueryEngine() {
     try {
       const res = await apiClient.post(`/query/live`, { command: liveCommand }, { showErrorToast: false });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || `HTTP ${res.status}`);
-      }
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (reader) {
-        let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.type === "result") {
-                  setLiveResults((prev) => [...prev, data]);
-                }
-              } catch {}
-            }
-          }
-        }
+      if (!res) {
+        throw new Error('Live query failed');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -479,9 +446,8 @@ export function useQueryEngine() {
       const params = new URLSearchParams();
       if (savedCategoryFilter) params.set("category", savedCategoryFilter);
       if (savedSearch) params.set("tags", savedSearch);
-      const res = await apiClient.get(`/query/saved?${params}`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/query/saved?${params}`, { showErrorToast: false });
+      if (data) {
         setSavedQueries(Array.isArray(data) ? data : data.queries || []);
       }
     } catch {} finally { setSavedLoading(false); }
@@ -500,7 +466,7 @@ export function useQueryEngine() {
         is_public: saveForm.is_public,
       };
       const res = await apiClient.post(`/query/saved`, body, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         setShowSaveForm(false);
         setSaveForm({ name: "", description: "", category: "", tags: "", is_public: true });
         fetchSaved();
@@ -524,9 +490,8 @@ export function useQueryEngine() {
 
   const runSaved = async (sq: SavedQuery) => {
     try {
-      const res = await apiClient.post(`/query/saved/${sq.id}/run`, {}, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.post(`/query/saved/${sq.id}/run`, {}, { showErrorToast: false });
+      if (data) {
         setSavedRunResult({ id: sq.id, result: data });
       }
     } catch {}
@@ -552,9 +517,8 @@ export function useQueryEngine() {
   const fetchSchedules = useCallback(async () => {
     setSchedulesLoading(true);
     try {
-      const res = await apiClient.get(`/query/schedules`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/query/schedules`, { showErrorToast: false });
+      if (data) {
         setSchedules(Array.isArray(data) ? data : data.schedules || []);
       }
     } catch {} finally { setSchedulesLoading(false); }
@@ -565,7 +529,7 @@ export function useQueryEngine() {
   const createSchedule = async () => {
     try {
       const res = await apiClient.post(`/query/schedules`, scheduleForm, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         setShowScheduleForm(false);
         setScheduleForm({ saved_query_id: "", name: "", cron_expression: "0 0 * * *", output_format: "JSON" });
         fetchSchedules();
@@ -596,9 +560,8 @@ export function useQueryEngine() {
 
   const fetchScheduleResults = async (id: string) => {
     try {
-      const res = await apiClient.get(`/query/schedules/${id}/results`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/query/schedules/${id}/results`, { showErrorToast: false });
+      if (data) {
         setScheduleResults(prev => ({ ...prev, [id]: Array.isArray(data) ? data : data.results || [] }));
       }
     } catch {}
@@ -609,9 +572,8 @@ export function useQueryEngine() {
   const fetchDashboards = useCallback(async () => {
     setDashboardsLoading(true);
     try {
-      const res = await apiClient.get(`/query/dashboards`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/query/dashboards`, { showErrorToast: false });
+      if (data) {
         setDashboards(Array.isArray(data) ? data : data.dashboards || []);
       }
     } catch {} finally { setDashboardsLoading(false); }
@@ -622,18 +584,17 @@ export function useQueryEngine() {
   const loadDashboardById = async (id: string) => {
     try {
       const res = await apiClient.get(`/query/dashboards/${id}`, { showErrorToast: false });
-      if (res.ok) setSelectedDashboard(await res.json());
+      if (res) setSelectedDashboard(res);
     } catch {}
   };
 
   const createDashboard = async () => {
     try {
-      const res = await apiClient.post(`/query/dashboards`, dashboardForm, { showErrorToast: false });
-      if (res.ok) {
+      const d = await apiClient.post(`/query/dashboards`, dashboardForm, { showErrorToast: false });
+      if (d) {
         setShowDashboardForm(false);
         setDashboardForm({ name: "", description: "" });
         fetchDashboards();
-        const d = await res.json();
         if (d.id) loadDashboardById(d.id);
       }
     } catch {}
@@ -660,7 +621,7 @@ export function useQueryEngine() {
     if (!selectedDashboard) return;
     try {
       const res = await apiClient.post(`/query/dashboards/${selectedDashboard.id}/widgets`, widgetForm, { showErrorToast: false });
-      if (res.ok) {
+      if (res) {
         setShowWidgetForm(false);
         setWidgetForm({ saved_query_id: "", title: "", visualization: "table", position: 0 });
         loadDashboardById(selectedDashboard.id);
@@ -690,9 +651,8 @@ export function useQueryEngine() {
   const fetchHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const res = await apiClient.get(`/query/history?limit=50`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/query/history?limit=50`, { showErrorToast: false });
+      if (data) {
         setHistoryEntries(Array.isArray(data) ? data : data.history || []);
       }
     } catch {} finally { setHistoryLoading(false); }
@@ -717,7 +677,7 @@ export function useQueryEngine() {
         tags: [],
         is_public: false,
       }, { showErrorToast: false });
-      if (res.ok) setError(null);
+      if (res) setError(null);
     } catch {}
   };
 

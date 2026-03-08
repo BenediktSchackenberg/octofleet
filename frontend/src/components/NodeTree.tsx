@@ -40,11 +40,10 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
   async function fetchTree() {
     try {
       const apiUrl = API_URL;
-      const res = await fetch(`${apiUrl}/api/v1/nodes/tree`, {
+      const data = await fetch(`${apiUrl}/api/v1/nodes/tree`, {
         headers: getAuthHeader()
       });
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         setTree(data);
       }
     } catch (e) {

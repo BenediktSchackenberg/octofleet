@@ -47,7 +47,7 @@ export default function PatchesPage() {
   const createRing = async () => {
     try {
       const res = await apiClient.post(`/patches/rings`, { name: ringForm.name, description: ringForm.description, delay_hours: ringForm.delay_hours, sort_order: rings.length + 1, node_group_id: ringForm.group_ids[0] || null }, { showErrorToast: false });
-      if (res.ok) { setShowRingForm(false); setRingForm({ name: '', description: '', delay_hours: 0, group_ids: [] }); fetchAll(); }
+      if (res) { setShowRingForm(false); setRingForm({ name: '', description: '', delay_hours: 0, group_ids: [] }); fetchAll(); }
     } catch (e) { console.error(e); }
   };
 
@@ -78,11 +78,11 @@ export default function PatchesPage() {
         apiClient.get(`/patches/deployments?limit=50`, { showErrorToast: false }),
         apiClient.get(`/groups`, { showErrorToast: false }),
       ]);
-      if (compRes.ok) setCompliance(await compRes.json());
-      if (catRes.ok) { const d = await catRes.json(); setPatches(d.items || []); }
-      if (ringRes.ok) setRings(await ringRes.json());
-      if (depRes.ok) setDeployments(await depRes.json());
-      if (grpRes.ok) { const d = await grpRes.json(); setGroups(d.groups || d || []); }
+      if (compRes) setCompliance(compRes);
+      if (catRes) { setPatches(catRes.items || []); }
+      if (ringRes) setRings(ringRes);
+      if (depRes) setDeployments(depRes);
+      if (grpRes) { setGroups(grpRes.groups || grpRes || []); }
     } catch (e) { console.error(e); }
     setLoading(false);
   };

@@ -111,10 +111,9 @@ export function CreateDynamicGroupDialog() {
     setPreviewing(true);
     setPreview(null);
     try {
-      const res = await apiClient.post(`/groups/preview-rule`, { rule: buildRule() }, { showErrorToast: false });
+      const data = await apiClient.post(`/groups/preview-rule`, { rule: buildRule() }, { showErrorToast: false });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         setPreview(data);
       } else {
         alert("Fehler bei der Vorschau");
@@ -132,7 +131,7 @@ export function CreateDynamicGroupDialog() {
 
     setLoading(true);
     try {
-      const res = await apiClient.post(`/groups`, {
+      const data = await apiClient.post(`/groups`, {
           name: name.trim(),
           description: description.trim() || null,
           color: color,
@@ -140,8 +139,7 @@ export function CreateDynamicGroupDialog() {
           dynamicRule: buildRule(),
         }, { showErrorToast: false });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         // Immediately evaluate the group to populate members
         await apiClient.post(`/groups/${data.group.id}/evaluate`, {}, { showErrorToast: false });
 
@@ -149,7 +147,6 @@ export function CreateDynamicGroupDialog() {
         resetForm();
         router.refresh();
       } else {
-        const data = await res.json();
         alert(`Fehler: ${data.detail || "Unbekannter Fehler"}`);
       }
     } catch (err) {

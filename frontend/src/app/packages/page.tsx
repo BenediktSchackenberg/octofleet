@@ -69,7 +69,7 @@ function CreatePackageDialog({ onClose, onCreated }: { onClose: () => void; onCr
     const pkgName = name || displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
     try {
-      const res = await apiClient.post(`/packages`, {
+      const data = await apiClient.post(`/packages`, {
           name: pkgName,
           displayName: displayName || name,
           vendor: vendor || null,
@@ -77,8 +77,7 @@ function CreatePackageDialog({ onClose, onCreated }: { onClose: () => void; onCr
           category: category || null,
         }, { showErrorToast: false });
 
-      if (!res.ok) {
-        const data = await res.json();
+      if (!data) {
         throw new Error(data.detail || "Failed to create package");
       }
 
@@ -203,10 +202,9 @@ export default function PackagesPage() {
       if (selectedCategory) url += `category=${selectedCategory}&`;
       if (search) url += `search=${encodeURIComponent(search)}`;
 
-      const res = await fetch(url, {
+      const data = await fetch(url, {
         headers: { ...getAuthHeader() },
       });
-      const data = await res.json();
       setPackages(data.packages || []);
     } catch (err) {
       console.error("Failed to fetch packages:", err);
@@ -217,8 +215,7 @@ export default function PackagesPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await apiClient.get(`/package-categories`, { showErrorToast: false });
-      const data = await res.json();
+      const data = await apiClient.get(`/package-categories`, { showErrorToast: false });
       setCategories(data.categories || []);
     } catch (err) {
       console.error("Failed to fetch categories:", err);

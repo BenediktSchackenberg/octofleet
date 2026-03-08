@@ -45,9 +45,8 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
 
   const fetchNodes = async () => {
     try {
-      const res = await apiClient.get(`/nodes`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.get(`/nodes`, { showErrorToast: false });
+      if (data) {
         // Filter out nodes that are already members
         const available = (data.nodes || []).filter(
           (n: Node) => !existingMemberIds.includes(n.id)
@@ -72,18 +71,17 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
 
     setLoading(true);
     try {
-      const res = await apiClient.post(`/groups/${groupId}/members`, {
+      const data = await apiClient.post(`/groups/${groupId}/members`, {
           nodeIds: selectedIds,
           assigned_by: 'admin',
         }, { showErrorToast: false });
 
-      if (res.ok) {
+      if (data) {
         setOpen(false);
         setSelectedIds([]);
         onMembersAdded?.();
         router.refresh();
       } else {
-        const data = await res.json();
         alert(`Fehler: ${data.detail || 'Unbekannter Fehler'}`);
       }
     } catch (err) {

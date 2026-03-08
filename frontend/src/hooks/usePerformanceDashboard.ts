@@ -135,9 +135,9 @@ export function usePerformanceDashboard() {
         apiClient.get(`/groups`, { showErrorToast: false }),
       ]);
 
-      if (fleetRes.ok) { const json = await fleetRes.json(); setNodes(json.nodes || []); }
-      if (tsRes.ok) { const json = await tsRes.json(); setFleetTimeseries(json); }
-      if (groupsRes.ok) { const json = await groupsRes.json(); setGroups(json.groups || []); }
+      if (fleetRes) { setNodes(fleetRes.nodes || []); }
+      if (tsRes) { setFleetTimeseries(tsRes); }
+      if (groupsRes) { setGroups(groupsRes.groups || []); }
       setLastRefresh(new Date());
     } catch (e) {
       console.error("Failed to fetch:", e);
@@ -161,7 +161,7 @@ export function usePerformanceDashboard() {
     (async () => {
       try {
         const res = await apiClient.get(`/metrics/node/${drawerNode.id}?hours=1&bucket_minutes=5`, { showErrorToast: false });
-        if (res.ok) { const json = await res.json(); setDrawerTimeseries(json); }
+        if (res) { setDrawerTimeseries(res); }
       } catch (e) { console.error("Failed to fetch node timeseries:", e); }
     })();
   }, [drawerNode]);

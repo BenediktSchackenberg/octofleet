@@ -50,12 +50,11 @@ export default function ShellPage() {
         }
       );
       
-      if (!response.ok) {
-        throw new Error(`Failed to start session: ${response.statusText}`);
+      if (!response) {
+        throw new Error('Failed to start session');
       }
       
-      const data = await response.json();
-      setSessionId(data.session_id);
+      setSessionId(response.session_id);
       setStatus('pending');
       
       // Initialize terminal

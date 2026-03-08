@@ -37,7 +37,7 @@ export default function CreateBaseline() {
 
   useEffect(() => {
     apiClient.get(`/baselines/templates`, { showErrorToast: false })
-      .then((r) => r.ok ? r.json() : [])
+      .then(r => r || [])
       .then(setTemplates)
       .catch(() => {});
   }, []);
@@ -45,9 +45,8 @@ export default function CreateBaseline() {
   const importTemplate = async (templateId: string) => {
     setImporting(templateId);
     try {
-      const res = await apiClient.post(`/baselines/templates/${templateId}/import`, {}, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.post(`/baselines/templates/${templateId}/import`, {}, { showErrorToast: false });
+      if (data) {
         router.push(`/compliance/baselines/${data.id}`);
       }
     } finally {
@@ -76,9 +75,8 @@ export default function CreateBaseline() {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await apiClient.post(`/baselines`, { name, description, baseline_type: baselineType, rules }, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.post(`/baselines`, { name, description, baseline_type: baselineType, rules }, { showErrorToast: false });
+      if (data) {
         router.push(`/compliance/baselines/${data.id}`);
       }
     } finally {

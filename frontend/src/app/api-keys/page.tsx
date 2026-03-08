@@ -41,9 +41,8 @@ export default function ApiKeysPage() {
   async function fetchKeys() {
     try {
       const res = await apiClient.get(`/api-keys`, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
-        setKeys(data.keys || []);
+      if (res) {
+        setKeys(res.keys || []);
       }
     } catch (e) {
       console.error("Failed to fetch API keys:", e);
@@ -58,15 +57,13 @@ export default function ApiKeysPage() {
           name: newKeyName,
           expires_days: expiresDays ? Number(expiresDays) : null,
         }, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
-        setCreatedKey(data.key);
+      if (res) {
+        setCreatedKey(res.key);
         setNewKeyName("");
         setExpiresDays("");
         fetchKeys();
       } else {
-        const errText = await res.text().catch(() => res.statusText);
-        alert(`Failed to create API key: ${res.status} ${errText}`);
+        alert("Failed to create API key.");
       }
     } catch (e) {
       console.error("Failed to create API key:", e);

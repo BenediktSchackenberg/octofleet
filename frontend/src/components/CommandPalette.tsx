@@ -144,12 +144,11 @@ export function CommandPalette() {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(
+        const data = await fetch(
           `${API_URL}/api/v1/nodes/search?q=${encodeURIComponent(query)}`,
           { headers: getAuthHeader() }
         );
-        if (res.ok) {
-          const data = await res.json();
+        if (data) {
           setResults(data.nodes || []);
         }
       } catch (e) {

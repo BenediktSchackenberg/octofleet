@@ -75,8 +75,8 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
   async function fetchDeployment() {
     try {
       const res = await apiClient.get(`/deployments/${id}`, { showErrorToast: false });
-      if (res.ok) {
-        setDeployment(await res.json());
+      if (res) {
+        setDeployment(res);
       }
     } catch (e) {
       console.error("Failed to fetch deployment:", e);

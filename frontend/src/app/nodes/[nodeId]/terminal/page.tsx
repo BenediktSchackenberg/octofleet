@@ -49,9 +49,8 @@ export default function TerminalPage() {
     if (sessionId) {
       pollRef.current = setInterval(async () => {
         try {
-          const res = await apiClient.get(`/terminal/session/${sessionId}/output`, { showErrorToast: false });
-          if (res.ok) {
-            const data = await res.json();
+          const data = await apiClient.get(`/terminal/session/${sessionId}/output`, { showErrorToast: false });
+          if (data) {
             if (data.output && data.output.length > 0) {
               setOutput(prev => [...prev, ...data.output]);
               setConnected(true);
@@ -69,14 +68,12 @@ export default function TerminalPage() {
     setLoading(true);
     setOutput([`[Starting ${shell} session...]\n`]);
     try {
-      const res = await apiClient.post(`/terminal/start/${nodeId}`, { shell }, { showErrorToast: false });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await apiClient.post(`/terminal/start/${nodeId}`, { shell }, { showErrorToast: false });
+      if (data) {
         setSessionId(data.sessionId);
         setOutput([`[Session started: ${shell}]\n`]);
       } else {
-        const errorText = await res.text();
-        setOutput([`[Error: ${res.status} - ${errorText}]\n`]);
+        setOutput([`[Error: Failed to start session]\n`]);
       }
     } catch (e) {
       console.error('Failed to start session:', e);
