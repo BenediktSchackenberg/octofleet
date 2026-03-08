@@ -1,10 +1,12 @@
 import json
+from typing import Any, Dict
+from uuid import UUID
+
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Any, Dict, List
-from uuid import UUID
-from dependencies import get_db, verify_api_key, not_found, bad_request, conflict
+
 from app.core.rules import evaluate_dynamic_rule
+from dependencies import bad_request, conflict, get_db, not_found, verify_api_key
 
 router = APIRouter(
     prefix="/api/v1",

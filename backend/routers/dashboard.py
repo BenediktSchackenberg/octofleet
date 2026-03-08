@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+
 import asyncpg
-from typing import Any, Dict, List
-from datetime import datetime
+from fastapi import APIRouter, Depends
+
 from dependencies import get_db, verify_api_key
 
 router = APIRouter(

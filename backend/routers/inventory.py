@@ -1,11 +1,13 @@
 import json
-import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import Optional, List, Dict, Any
 from datetime import datetime
-from dependencies import get_db, verify_api_key, not_found, sanitize_for_postgres, parse_datetime
+from typing import Any, Dict
+
+import asyncpg
+from fastapi import APIRouter, Depends
+
 from alerting import update_node_health
-from app.db.nodes import upsert_node, update_dynamic_device_groupships
+from app.db.nodes import update_dynamic_device_groupships, upsert_node
+from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres, verify_api_key
 
 router = APIRouter(
     prefix="/api/v1/inventory",

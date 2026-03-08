@@ -2,18 +2,25 @@
 Octofleet Inventory Backend
 FastAPI server for receiving and storing inventory data from Windows Agents
 """
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Header, status, Request, BackgroundTasks, Body, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-import asyncpg
-from typing import Optional, Any, Dict, List
-from pydantic import BaseModel, Field
-import os
 import json
+import os
 import time
-from uuid import UUID
 import uuid
-import re
+from contextlib import asynccontextmanager
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+import asyncpg
+from fastapi import (
+    Body,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
 
 def _is_uuid(val: str) -> bool:
     try:
@@ -21,73 +28,80 @@ def _is_uuid(val: str) -> bool:
         return True
     except (ValueError, AttributeError):
         return False
-import secrets
 from datetime import datetime, timedelta, timezone
 
-# E7: Alerting imports
-from alerting import get_alert_manager, update_node_health, check_node_health
-
-# E19: Provisioning imports
-from routers.provisioning import router as provisioning_router, pxe_router
-from routers.provisioning_vm import vm_router as provisioning_vm_router
-from routers.provisioning_iso import iso_router as provisioning_iso_router
-from routers.software_metering import router as software_metering_router
-from routers.query_engine import router as query_router
-from routers.nodes import router as nodes_router, pending_router
-from routers.inventory import router as inventory_router
-from routers.jobs import router as jobs_router, agent_router as jobs_agent_router
-from routers.mssql import router as mssql_router
-from routers.metrics import router as metrics_router
-from routers.deployments import router as deployments_router
-from routers.alerting import router as alerting_router
-from routers.security import router as security_router
-from routers.auth import router as auth_router, users_router
-from routers.dashboard import router as dashboard_router
-from routers.groups import router as groups_router
-from routers.content_lifecycle import router as content_lifecycle_router
-from app.core.rules import evaluate_dynamic_rule
-from app.db.nodes import update_dynamic_device_groupships, auto_onboard_node, upsert_node
-from auth import (
-    UserCreate, UserUpdate, UserResponse, LoginRequest, TokenResponse,
-    RoleCreate, RoleResponse, APIKeyCreate, APIKeyResponse,
-    hash_password, verify_password, hash_api_key,
-    create_access_token, create_refresh_token, decode_token,
-    get_current_user, require_auth, require_permission, CurrentUser,
-    get_permissions_for_roles
-)
-from routers.provisioning_domain import generate_autounattend, generate_djoin_script
-from routers.provisioning_postinstall import execute_post_install, handle_provisioning_complete
-from routers.remediation import router as remediation_router
-from routers.patches import router as patches_router
-from routers.baselines import router as baselines_router
-from routers.services_mgmt import router as services_mgmt_router
-from routers.reports import router as reports_router
-from routers.monitoring_mgmt import router as monitoring_mgmt_router
-from routers.terminal import router as terminal_router
-from routers.packages_mgmt import router as packages_mgmt_router
-from routers.vulnerabilities import router as vulnerabilities_router
-from routers.hardware import router as hardware_router
+import matplotlib
 
 # E19: PDF Report imports
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
-from reportlab.graphics.shapes import Drawing
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.charts.barcharts import VerticalBarChart
-import matplotlib
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import (
+    Table,
+    TableStyle,
+)
+
+from auth import (
+    APIKeyCreate,
+    CurrentUser,
+    RoleCreate,
+    UserCreate,
+    hash_api_key,
+    hash_password,
+    require_auth,
+    require_permission,
+)
+from routers.alerting import router as alerting_router
+from routers.auth import router as auth_router
+from routers.auth import users_router
+from routers.baselines import router as baselines_router
+from routers.content_lifecycle import router as content_lifecycle_router
+from routers.dashboard import router as dashboard_router
+from routers.deployments import router as deployments_router
+from routers.groups import router as groups_router
+from routers.hardware import router as hardware_router
+from routers.inventory import router as inventory_router
+from routers.jobs import agent_router as jobs_agent_router
+from routers.jobs import router as jobs_router
+from routers.metrics import router as metrics_router
+from routers.monitoring_mgmt import router as monitoring_mgmt_router
+from routers.mssql import router as mssql_router
+from routers.nodes import pending_router
+from routers.nodes import router as nodes_router
+from routers.packages_mgmt import router as packages_mgmt_router
+from routers.patches import router as patches_router
+from routers.provisioning import pxe_router
+
+# E7: Alerting imports
+# E19: Provisioning imports
+from routers.provisioning import router as provisioning_router
+from routers.provisioning_domain import generate_autounattend
+from routers.provisioning_iso import iso_router as provisioning_iso_router
+from routers.provisioning_vm import vm_router as provisioning_vm_router
+from routers.query_engine import router as query_router
+from routers.remediation import router as remediation_router
+from routers.reports import router as reports_router
+from routers.security import router as security_router
+from routers.services_mgmt import router as services_mgmt_router
+from routers.software_metering import router as software_metering_router
+from routers.terminal import router as terminal_router
+from routers.vulnerabilities import router as vulnerabilities_router
+
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 
 # Centralized dependencies - single source of truth for auth and config
 from dependencies import (
-    not_found, bad_request, conflict, internal_error,
-    API_KEY, DATABASE_URL, GATEWAY_URL, GATEWAY_TOKEN, INVENTORY_API_URL,
-    verify_api_key, verify_api_key_or_query, require_scope,
-    sanitize_for_postgres, parse_datetime, get_db, set_db_pool,
-    db_pool as _deps_db_pool
+    DATABASE_URL,
+    bad_request,
+    conflict,
+    get_db,
+    not_found,
+    parse_datetime,
+    sanitize_for_postgres,
+    set_db_pool,
+    verify_api_key,
+    verify_api_key_or_query,
 )
 
 # Local db_pool reference (set during lifespan)
@@ -118,7 +132,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ Failed to check/provision admin user: {e}")
         
-    print(f"✅ Database pool created")
+    print("✅ Database pool created")
     yield
     # Shutdown
     if db_pool:
@@ -152,6 +166,7 @@ app.add_middleware(
 
 # Agent activity tracking middleware
 import re as _re
+
 _AGENT_PATH_PATTERN = _re.compile(
     r"/api/v1/(?:jobs/pending|terminal/pending|shell/pending|screen/pending|remediation/jobs/pending|live-data|agents)/(?:([^/]+))"
 )
@@ -162,8 +177,8 @@ _AGENT_POST_PATTERNS = [
     (_re.compile(r"/api/v1/jobs/instances/([^/]+)/result"), "job-result"),
 ]
 
-from collections import deque
 import time as _time
+from collections import deque
 
 _agent_activity_buffer = deque(maxlen=500)
 
@@ -210,6 +225,8 @@ async def agent_activity_middleware(request: Request, call_next):
 
 # Global exception handler to ensure CORS headers on 500 errors
 from starlette.responses import JSONResponse
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
@@ -261,7 +278,7 @@ async def test_sse():
         for i in range(5):
             yield f"event: tick\ndata: {i}\n\n"
             await asyncio.sleep(1)
-        yield f"event: done\ndata: finished\n\n"
+        yield "event: done\ndata: finished\n\n"
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
@@ -282,7 +299,7 @@ async def test_sse():
         for i in range(5):
             yield f"event: tick\ndata: {i}\n\n"
             await asyncio.sleep(1)
-        yield f"event: done\ndata: finished\n\n"
+        yield "event: done\ndata: finished\n\n"
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
@@ -703,16 +720,6 @@ async def list_smart_install_packages():
 # E19: MSSQL Deployment Module
 # ============================================
 
-from mssql_module import (
-    generate_disk_prep_script,
-    generate_install_script,
-    MssqlInstallRequest,
-    DiskConfig,
-    DiskConfigSection,
-    SqlPaths,
-    MSSQL_DOWNLOADS,
-    EDITIONS as MSSQL_EDITIONS
-)
 
 
 @app.get("/api/v1/onboarding/config")
@@ -2309,15 +2316,11 @@ async def compare_software(software_name: str = None, db: asyncpg.Pool = Depends
 # Feature 6: Export Functions - CSV/JSON export
 # ============================================================================
 
-from fastapi.responses import StreamingResponse
-import io
-import csv
-
+from datetime import datetime
 
 # --- Gateway Status Endpoint (E11-05) ---
-
 import aiohttp
-from datetime import datetime
+from fastapi.responses import StreamingResponse
 
 # Track gateway start time for uptime calculation
 GATEWAY_START_TIME = datetime.utcnow()
@@ -2341,7 +2344,7 @@ async def get_gateway_status():
                         "pendingJobs": data.get("pendingJobs", 0),
                         "lastCheck": datetime.utcnow().isoformat() + "Z"
                     }
-    except Exception as e:
+    except Exception:
         pass
     
     # Fallback: Try basic connectivity check
@@ -2374,6 +2377,7 @@ async def get_gateway_status():
 # In-memory log buffer for demo purposes
 # In production, this would read from actual gateway logs
 import collections
+
 LOG_BUFFER = collections.deque(maxlen=500)
 
 def add_log_entry(level: str, message: str, node_id: str = None, job_id: str = None):
@@ -2438,7 +2442,7 @@ async def assign_role(
     async with db_pool.acquire() as conn:
         role = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", role_name)
         if not role:
-            raise not_found("Role", role_id)
+            raise not_found("Role", role_name)
         
         await conn.execute(
             """INSERT INTO user_roles (user_id, role_id, assigned_by)
@@ -2461,7 +2465,7 @@ async def remove_role(
     async with db_pool.acquire() as conn:
         role = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", role_name)
         if not role:
-            raise not_found("Role", role_id)
+            raise not_found("Role", role_name)
         
         await conn.execute(
             "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2",
@@ -2874,6 +2878,7 @@ async def delete_maintenance_window(window_id: str):
 async def check_maintenance_window(node_id: str):
     """Check if a node is currently in a maintenance window"""
     from datetime import datetime
+
     import pytz
     
     async with db_pool.acquire() as conn:
@@ -3134,8 +3139,8 @@ async def advance_rollout(deployment_id: str):
 # E13: Vulnerability Tracking API
 # ============================================
 
-from vulnerability import VulnerabilityScanner, get_vulnerability_summary, get_node_vulnerabilities
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -3199,8 +3204,9 @@ async def delete_setting(key: str):
 @app.get("/api/v1/test/nvd")
 async def test_nvd():
     """Test NVD API connectivity."""
-    import httpx
     from urllib.parse import quote
+
+    import httpx
     
     keyword = "Google Chrome"
     url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={quote(keyword)}&resultsPerPage=1"
@@ -3222,20 +3228,7 @@ async def test_nvd():
 # E14: Auto-Remediation API
 # ============================================
 
-from remediation import (
-    RemediationPackageCreate, RemediationPackageUpdate,
-    RemediationRuleCreate, RemediationRuleUpdate,
-    MaintenanceWindowCreate, TriggerRemediationRequest, ApproveRemediationRequest,
-    get_remediation_packages, get_remediation_package, create_remediation_package,
-    update_remediation_package, delete_remediation_package,
-    get_remediation_rules, get_remediation_rule, create_remediation_rule,
-    update_remediation_rule, delete_remediation_rule,
-    get_maintenance_windows, create_maintenance_window, is_in_maintenance_window,
-    get_remediation_jobs, get_remediation_job, approve_remediation_jobs,
-    update_remediation_job_status, get_remediation_summary,
-    RemediationEngine
-)
-
+from remediation import RemediationEngine, TriggerRemediationRequest, get_remediation_summary
 
 # --- Remediation Packages (Fix Mappings) ---
 
@@ -3561,7 +3554,7 @@ async def live_data_generator(node_id: str, session_id: str, pool):
             
     except asyncio.CancelledError:
         pass
-    except Exception as e:
+    except Exception:
         pass
     finally:
         if session_id in live_sessions:
@@ -3807,7 +3800,8 @@ async def get_metrics_history(
 # E17: Screen Mirroring Endpoints
 # =============================================================================
 
-from screen_session import screen_session_manager, ScreenSessionState
+from screen_session import screen_session_manager
+
 
 @app.on_event("startup")
 async def start_screen_manager():
@@ -3822,7 +3816,8 @@ async def stop_screen_manager():
 # REMOTE SHELL (E19)
 # =============================================================================
 
-from shell_session import shell_session_manager, ShellSessionState
+from shell_session import shell_session_manager
+
 
 @app.on_event("startup")
 async def start_shell_manager():
@@ -3862,6 +3857,7 @@ async def stop_shell_manager():
 # ============================================================================
 
 import aiohttp
+
 
 async def send_discord_webhook(webhook_url: str, embed: dict) -> bool:
     """Send a Discord webhook message."""
@@ -4242,8 +4238,9 @@ _cache: Dict[str, tuple] = {}
 # =============================================================================
 # Software Repository Endpoints (Epic #57)
 # =============================================================================
-import aiofiles
 import hashlib
+
+import aiofiles
 
 REPO_BASE_PATH = os.environ.get("OCTOFLEET_REPO_PATH", os.path.expanduser("~/.openclaw/repo"))
 MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))  # 5GB
@@ -4274,10 +4271,9 @@ async def compute_file_sha256(filepath: str) -> str:
 # =============================================================================
 # Export Endpoints (Epic #19 - Reporting & Exports)
 # =============================================================================
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
-from io import BytesIO
+
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
 
 def style_excel_header(ws, row=1):
     """Apply header styling to first row."""
@@ -4887,14 +4883,16 @@ async def list_task_events(task_id: str, db: asyncpg.Pool = Depends(get_db)):
 # E20: PDF Report Generation
 # ============================================================================
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.pyplot as plt
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import (
+    Table,
+    TableStyle,
+)
+
 matplotlib.use('Agg')  # Non-interactive backend
 
 
@@ -4987,7 +4985,7 @@ async def list_discovered_systems(
         
         rows = await conn.fetch(query, *params)
         total = await conn.fetchval("SELECT COUNT(*) FROM discovered_systems" + 
-                                    (f" WHERE status = $1" if status else ""),
+                                    (" WHERE status = $1" if status else ""),
                                     *([status] if status else []))
         
         return {
@@ -6233,7 +6231,7 @@ async def update_finding(finding_id: str, data: Dict[str, Any], db: asyncpg.Pool
                 idx += 1
         
         if "status" in data and data["status"] in ("closed", "false_positive"):
-            updates.append(f"closed_at = NOW()")
+            updates.append("closed_at = NOW()")
             updates.append(f"closed_by = ${idx}")
             params.append(data.get("closedBy", "api"))
             idx += 1

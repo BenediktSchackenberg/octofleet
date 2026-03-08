@@ -3,14 +3,15 @@ Octofleet Provisioning API Router
 E19: PXE Zero-Touch Provisioning
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Response
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List
-from datetime import datetime
-import uuid
-import re
-import os
 import json
+import os
+import re
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel, Field, validator
 
 router = APIRouter(prefix="/api/v1/provisioning", tags=["provisioning"])
 

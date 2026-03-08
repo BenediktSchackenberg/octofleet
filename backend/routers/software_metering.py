@@ -2,14 +2,14 @@
 E38: Software Metering & License Tracking
 Catalog, normalization, licenses, compliance, usage, and reporting endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Optional, List, Dict, Any
-from uuid import UUID
-import asyncpg
-import json
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+from uuid import UUID
 
-from dependencies import get_db, verify_api_key, not_found
+import asyncpg
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(prefix="/api/v1/metering", dependencies=[Depends(verify_api_key)])
 

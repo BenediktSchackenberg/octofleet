@@ -1,31 +1,40 @@
 """
 Octofleet API - Reports Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from dependencies import get_db, verify_api_key
-from app.core.report_helpers import create_status_table, create_header_footer, create_pie_chart, auto_column_width, style_excel_header
-from routers.security import get_compliance_summary
-from io import BytesIO
-import asyncpg
-from typing import Optional, Dict, List, Any
-from starlette.responses import StreamingResponse
-import json
-from datetime import datetime, timedelta, timezone
-import io
 import csv
-import os
-import time
-import re
+import io
+from datetime import datetime
+from io import BytesIO
+from typing import Optional
+
+import asyncpg
+from fastapi import APIRouter, Depends
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import PatternFill
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
-from reportlab.graphics.shapes import Drawing
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm, inch
+from reportlab.platypus import (
+    Image,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+from starlette.responses import StreamingResponse
+
+from app.core.report_helpers import (
+    auto_column_width,
+    create_header_footer,
+    create_pie_chart,
+    create_status_table,
+    style_excel_header,
+)
+from dependencies import get_db, verify_api_key
+from routers.security import get_compliance_summary
 
 router = APIRouter(tags=["Reports"])
 
@@ -1050,7 +1059,7 @@ async def generate_security_report_pdf(db: asyncpg.Pool = Depends(get_db)):
         )
         elements.append(Image(vuln_chart, width=3*inch, height=3*inch))
         elements.append(Spacer(1, 20))
-    except Exception as e:
+    except Exception:
         pass
     
     # Top CVEs Table

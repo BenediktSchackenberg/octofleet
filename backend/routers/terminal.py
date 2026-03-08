@@ -1,18 +1,17 @@
 """
 Octofleet API - Terminal Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, WebSocket, WebSocketDisconnect
-from dependencies import API_KEY, db_pool, get_db, verify_api_key
-from auth import get_current_user, decode_token
-from screen_session import screen_session_manager, ScreenSessionState
-from shell_session import shell_session_manager, ShellSessionState
-import asyncpg
-from typing import Optional, Dict, List, Any
-import uuid
 import asyncio
-import io
-import re
 import logging
+import uuid
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+
+from auth import decode_token, get_current_user
+from dependencies import API_KEY, db_pool, verify_api_key
+from screen_session import ScreenSessionState, screen_session_manager
+from shell_session import ShellSessionState, shell_session_manager
 
 logger = logging.getLogger(__name__)
 

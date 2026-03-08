@@ -1,15 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-import asyncpg
-from typing import Optional, List, Dict, Any
-from uuid import UUID
 from datetime import datetime
-from dependencies import get_db, not_found
+from uuid import UUID
+
+import asyncpg
+from fastapi import APIRouter, Depends, HTTPException
+
 from auth import (
-    UserCreate, UserUpdate, UserResponse, LoginRequest, TokenResponse,
-    hash_password, verify_password, create_access_token,
-    require_auth, require_permission, CurrentUser,
-    get_permissions_for_roles
+    CurrentUser,
+    LoginRequest,
+    TokenResponse,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+    create_access_token,
+    get_permissions_for_roles,
+    hash_password,
+    require_auth,
+    require_permission,
+    verify_password,
 )
+from dependencies import get_db, not_found
 
 router = APIRouter(
     prefix="/api/v1/auth",

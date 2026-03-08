@@ -1,17 +1,21 @@
 """
 Octofleet API - Packages Routes
 """
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Header, Request, UploadFile
-from dependencies import get_pool, get_db, verify_api_key
 import os
+
+import aiofiles
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+
+from app.core.file_utils import compute_file_sha256, detect_repo_file_type, get_repo_storage_path
+from dependencies import get_db, get_pool, not_found, verify_api_key
+
 MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))
-import asyncpg
-from typing import Optional, Dict, List, Any
-from fastapi.responses import FileResponse
-import uuid
 import json
-import aiohttp
 import os
+import uuid
+from typing import Any, Dict, Optional
+
+import asyncpg
 
 router = APIRouter(tags=["Packages"])
 
@@ -560,7 +564,6 @@ async def repo_upload_file(
     db: asyncpg.Pool = Depends(get_db)
 ):
     """Upload a file to the repository. Use multipart/form-data with 'file' field."""
-    from fastapi import UploadFile
     
     form = await request.form()
     file = form.get("file")

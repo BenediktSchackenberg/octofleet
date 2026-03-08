@@ -1,27 +1,16 @@
-import json
-import asyncpg
-import uuid
-import secrets
-import jwt
-import httpx
 import re
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
-from datetime import datetime, timedelta
+import uuid
+from datetime import datetime
 from html.parser import HTMLParser
+from typing import Any, Dict, Optional
 
-from dependencies import get_db, verify_api_key, not_found, API_KEY
-from mssql_module import (
-    generate_disk_prep_script,
-    generate_install_script,
-    MssqlInstallRequest,
-    MSSQL_DOWNLOADS,
-    EDITIONS as MSSQL_EDITIONS,
-    DiskConfig,
-    DiskConfigSection,
-    SqlPaths
-)
+import asyncpg
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+
+from dependencies import get_db, verify_api_key
+from mssql_module import EDITIONS as MSSQL_EDITIONS
+from mssql_module import MSSQL_DOWNLOADS, MssqlInstallRequest
 
 # Use the JWT secret from auth module
 try:

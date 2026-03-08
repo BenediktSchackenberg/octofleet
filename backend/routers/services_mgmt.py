@@ -1,13 +1,13 @@
 """
 Octofleet API - Services Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from dependencies import get_db, verify_api_key
-import asyncpg
-from typing import Optional, Dict, List, Any
-import uuid
 import json
-import secrets
+from typing import Any, Dict
+
+import asyncpg
+from fastapi import APIRouter, Depends, HTTPException
+
+from dependencies import bad_request, get_db, not_found, verify_api_key
 
 router = APIRouter(tags=["Services"])
 

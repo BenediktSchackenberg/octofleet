@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+
 import asyncpg
-from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException
+
 from dependencies import get_db, verify_api_key
 
 router = APIRouter(

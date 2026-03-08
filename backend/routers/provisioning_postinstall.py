@@ -3,8 +3,9 @@ Post-Install Orchestration for Octofleet Provisioning
 Handles automatic package installation, group assignment, and configuration after OS deployment
 """
 
-from typing import List, Dict, Any, Optional
 import json
+from typing import Any, Dict
+
 
 async def execute_post_install(
     node_id: str,

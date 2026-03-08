@@ -11,7 +11,6 @@ Automatically fixes vulnerabilities by:
 Epic 14 Implementation
 """
 
-import asyncio
 import logging
 import re
 from datetime import datetime, time, timezone
@@ -26,8 +25,9 @@ logger = logging.getLogger(__name__)
 # Models (Pydantic)
 # ============================================
 
-from pydantic import BaseModel, Field
 from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class RemediationPackageCreate(BaseModel):

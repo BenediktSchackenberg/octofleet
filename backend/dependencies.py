@@ -1,12 +1,11 @@
 """
 Shared dependencies for Octofleet API routers
 """
-from fastapi import Depends, HTTPException, Header, status, Request
-from fastapi.responses import JSONResponse
+from typing import Any, Optional
+
 import asyncpg
-from typing import Optional, Any
-import os
-import json
+from fastapi import Depends, Header, HTTPException, Request, status
+
 from app.core.config import settings
 
 # Config
@@ -137,6 +136,7 @@ async def verify_api_key(
         token = authorization[7:]
         try:
             import jwt
+
             from auth import JWT_SECRET
             payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
             return payload  # Valid JWT
@@ -194,6 +194,7 @@ async def verify_api_key_or_query(
             return token
         try:
             import jwt
+
             from auth import JWT_SECRET
             payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
             return payload
@@ -204,6 +205,7 @@ async def verify_api_key_or_query(
         auth_token = authorization[7:]
         try:
             import jwt
+
             from auth import JWT_SECRET
             payload = jwt.decode(auth_token, JWT_SECRET, algorithms=["HS256"])
             return payload

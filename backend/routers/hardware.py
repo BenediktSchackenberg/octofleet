@@ -1,14 +1,13 @@
 """
 Octofleet API - Hardware Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from dependencies import get_db, verify_api_key
-import asyncpg
-from typing import Optional, Dict, List, Any
 import json
-import io
-import csv
-import re
+from datetime import datetime
+
+import asyncpg
+from fastapi import APIRouter, Depends, HTTPException
+
+from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(tags=["Hardware"])
 
@@ -156,8 +155,8 @@ async def export_fleet_hardware(
         """)
         
         if format.lower() == "csv":
-            import io
             import csv
+            import io
             output = io.StringIO()
             writer = csv.writer(output)
             writer.writerow(['node_id', 'hostname', 'os_name', 'is_online', 'cpu_name', 'cpu_cores', 'ram_gb', 'disk_count', 'updated_at'])
@@ -176,7 +175,7 @@ async def export_fleet_hardware(
         
         # JSON format
         return {
-            "exportedAt": dt.utcnow().isoformat(),
+            "exportedAt": datetime.utcnow().isoformat(),
             "nodeCount": len(rows),
             "nodes": [
                 {
@@ -220,7 +219,7 @@ async def export_node_hardware(
         data = {
             "nodeId": node_id,
             "hostname": node['hostname'],
-            "exportedAt": dt.utcnow().isoformat(),
+            "exportedAt": datetime.utcnow().isoformat(),
             "cpu": json.loads(hw['cpu']) if hw['cpu'] else {},
             "ram": json.loads(hw['ram']) if hw['ram'] else {},
             "disks": json.loads(hw['disks']) if hw['disks'] else {},
@@ -233,8 +232,8 @@ async def export_node_hardware(
         
         if format.lower() == "csv":
             # Flatten for CSV
-            import io
             import csv
+            import io
             output = io.StringIO()
             writer = csv.writer(output)
             

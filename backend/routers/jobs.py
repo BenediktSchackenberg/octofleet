@@ -1,11 +1,12 @@
 import json
-import asyncpg
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
-from datetime import datetime
-from dependencies import get_db, verify_api_key, not_found
+from typing import Any, Dict, List
+
+import asyncpg
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(
     prefix="/api/v1",

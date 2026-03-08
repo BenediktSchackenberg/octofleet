@@ -3,8 +3,8 @@ Domain Join Module for Octofleet Provisioning
 Supports offline (djoin) and online domain join methods
 """
 
-from typing import Optional
 import base64
+from typing import Optional
 
 # PowerShell script to generate offline domain join blob
 DJOIN_GENERATE_SCRIPT = '''

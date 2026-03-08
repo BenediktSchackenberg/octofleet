@@ -2,18 +2,15 @@
 RBAC Authentication & Authorization Module
 """
 import hashlib
-import secrets
-import os
-from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Optional, List
-from functools import wraps
+from typing import List, Optional
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
 from app.core.config import settings
 
 # Config - Use centralized settings

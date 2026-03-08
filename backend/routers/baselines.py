@@ -1,13 +1,15 @@
 """
 Octofleet API - Baselines Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from dependencies import get_db, verify_api_key
-from app.core.cis_templates import CIS_TEMPLATES, CHOCO_PACKAGES
-import asyncpg
-from typing import Optional, Dict, List, Any
-import uuid
 import json
+import uuid
+from typing import Any, Dict
+
+import asyncpg
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.core.cis_templates import CHOCO_PACKAGES, CIS_TEMPLATES
+from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(tags=["Baselines"])
 
@@ -609,7 +611,6 @@ async def remediate_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db)):
 @router.post("/api/v1/baselines/{baseline_id}/remediate-all", dependencies=[Depends(verify_api_key)])
 async def remediate_all_drifts(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Remediate all open drifts for a baseline."""
-    import json as _json
     async with db.acquire() as conn:
         drifts = await conn.fetch("""
             SELECT d.id FROM config_drift_events d

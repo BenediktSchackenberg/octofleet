@@ -3,15 +3,15 @@ E34: Real-time Query Engine
 Safe DSL-to-SQL query builder with schema introspection and templates.
 Phase 2: Saved queries, history, schedules, dashboards & stats.
 """
-import time
-import json
 import asyncio
+import json
+import time
 import uuid
-from typing import Optional, List, Dict, Any, Literal
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
@@ -630,7 +630,7 @@ async def update_saved_query(query_id: str, req: SavedQueryUpdate, db: asyncpg.P
     if not updates:
         raise HTTPException(400, "No fields to update")
     params.append(uuid.UUID(query_id))
-    updates.append(f"updated_at = now()")
+    updates.append("updated_at = now()")
     sql = f"UPDATE saved_queries SET {', '.join(updates)} WHERE id = ${len(params)} RETURNING *"
     async with db.acquire() as conn:
         row = await conn.fetchrow(sql, *params)
@@ -843,7 +843,7 @@ async def run_schedule_now(schedule_id: str, db: asyncpg.Pool = Depends(get_db))
     try:
         async with db.acquire() as conn:
             rows = await asyncio.wait_for(conn.fetch(sql, *params), timeout=QUERY_TIMEOUT_S)
-    except Exception as e:
+    except Exception:
         status = "error"
 
     elapsed = round((time.monotonic() - t0) * 1000, 1)
@@ -1038,7 +1038,7 @@ async def live_query(req: LiveQueryRequest, db: asyncpg.Pool = Depends(get_db)):
             if req.targets:
                 placeholders = ", ".join(f"${i+1}" for i in range(len(req.targets)))
                 nodes = await conn.fetch(
-                    f"SELECT id, node_id, hostname FROM nodes WHERE node_id = ANY($1) OR hostname = ANY($1)",
+                    "SELECT id, node_id, hostname FROM nodes WHERE node_id = ANY($1) OR hostname = ANY($1)",
                     req.targets,
                 )
             else:

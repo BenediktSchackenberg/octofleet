@@ -1,7 +1,10 @@
 import json
-import asyncpg
 from uuid import UUID
+
+import asyncpg
+
 from app.core.rules import evaluate_dynamic_rule
+
 
 async def update_dynamic_device_groupships(db: asyncpg.Pool, node_uuid: UUID, node_data: dict):
     """
@@ -114,7 +117,7 @@ async def upsert_node(db: asyncpg.Pool, node_id: str, hostname: str,
         if is_new:
             try:
                 await auto_onboard_node(conn, node_id, node_uuid)
-            except Exception as e:
+            except Exception:
                 # Don't fail registration if onboarding fails
                 pass
         

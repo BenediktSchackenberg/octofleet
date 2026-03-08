@@ -1,14 +1,120 @@
 """
 Octofleet API - Monitoring Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
-from dependencies import get_pool, get_db, verify_api_key
-import asyncpg
-from typing import Optional, Dict, List, Any
-import uuid
 import json
+from typing import Any, Dict
+
+import asyncpg
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from dependencies import get_db, get_pool, verify_api_key
 
 router = APIRouter(tags=["Monitoring"])
+def _compute_posture_diff(baseline: dict, current: dict) -> dict:
+    """Compute structured diff between two posture snapshots"""
+    changes = []
+    
+    # OS info changes
+    b_os = baseline.get("osInfo") or {}
+    c_os = current.get("osInfo") or {}
+    if isinstance(b_os, str):
+        try: b_os = json.loads(b_os)
+        except: b_os = {}
+    if isinstance(c_os, str):
+        try: c_os = json.loads(c_os)
+        except: c_os = {}
+    for key in set(list(b_os.keys()) + list(c_os.keys())):
+        if b_os.get(key) != c_os.get(key):
+            changes.append({"category": "os", "field": key, "old": b_os.get(key), "new": c_os.get(key), "severity": "medium"})
+    
+    # Installed packages diff
+    b_pkgs = set()
+    c_pkgs = set()
+    b_pkg_list = baseline.get("installedPackages") or []
+    c_pkg_list = current.get("installedPackages") or []
+    if isinstance(b_pkg_list, str):
+        try: b_pkg_list = json.loads(b_pkg_list)
+        except: b_pkg_list = []
+    if isinstance(c_pkg_list, str):
+        try: c_pkg_list = json.loads(c_pkg_list)
+        except: c_pkg_list = []
+    for p in b_pkg_list:
+        name = p.get("name", p) if isinstance(p, dict) else str(p)
+        b_pkgs.add(name)
+    for p in c_pkg_list:
+        name = p.get("name", p) if isinstance(p, dict) else str(p)
+        c_pkgs.add(name)
+    
+    for pkg in c_pkgs - b_pkgs:
+        changes.append({"category": "packages", "change": "added", "name": pkg, "severity": "low"})
+    for pkg in b_pkgs - c_pkgs:
+        changes.append({"category": "packages", "change": "removed", "name": pkg, "severity": "medium"})
+    
+    # Services diff
+    b_svcs = set()
+    c_svcs = set()
+    b_svc_list = baseline.get("runningServices") or []
+    c_svc_list = current.get("runningServices") or []
+    if isinstance(b_svc_list, str):
+        try: b_svc_list = json.loads(b_svc_list)
+        except: b_svc_list = []
+    if isinstance(c_svc_list, str):
+        try: c_svc_list = json.loads(c_svc_list)
+        except: c_svc_list = []
+    for s in b_svc_list:
+        name = s.get("name", s) if isinstance(s, dict) else str(s)
+        b_svcs.add(name)
+    for s in c_svc_list:
+        name = s.get("name", s) if isinstance(s, dict) else str(s)
+        c_svcs.add(name)
+    
+    for svc in c_svcs - b_svcs:
+        changes.append({"category": "services", "change": "started", "name": svc, "severity": "low"})
+    for svc in b_svcs - c_svcs:
+        changes.append({"category": "services", "change": "stopped", "name": svc, "severity": "medium"})
+    
+    # Config setting changes (SSH, RDP, SMB, firewall, local admins)
+    b_cfg = baseline.get("configSettings") or {}
+    c_cfg = current.get("configSettings") or {}
+    if isinstance(b_cfg, str):
+        try: b_cfg = json.loads(b_cfg)
+        except: b_cfg = {}
+    if isinstance(c_cfg, str):
+        try: c_cfg = json.loads(c_cfg)
+        except: c_cfg = {}
+    
+    security_critical = {"rdpEnabled", "sshEnabled", "firewallEnabled", "guestAccount", "autoLogin"}
+    for key in set(list(b_cfg.keys()) + list(c_cfg.keys())):
+        if b_cfg.get(key) != c_cfg.get(key):
+            sev = "high" if key in security_critical else "medium"
+            changes.append({"category": "config", "field": key, "old": b_cfg.get(key), "new": c_cfg.get(key), "severity": sev})
+    
+    # Open ports diff
+    b_ports = set()
+    c_ports = set()
+    b_port_list = baseline.get("openPorts") or []
+    c_port_list = current.get("openPorts") or []
+    if isinstance(b_port_list, str):
+        try: b_port_list = json.loads(b_port_list)
+        except: b_port_list = []
+    if isinstance(c_port_list, str):
+        try: c_port_list = json.loads(c_port_list)
+        except: c_port_list = []
+    for p in b_port_list:
+        port_key = f"{p.get('port','?')}/{p.get('protocol','tcp')}" if isinstance(p, dict) else str(p)
+        b_ports.add(port_key)
+    for p in c_port_list:
+        port_key = f"{p.get('port','?')}/{p.get('protocol','tcp')}" if isinstance(p, dict) else str(p)
+        c_ports.add(port_key)
+    
+    for port in c_ports - b_ports:
+        changes.append({"category": "ports", "change": "opened", "port": port, "severity": "high"})
+    for port in b_ports - c_ports:
+        changes.append({"category": "ports", "change": "closed", "port": port, "severity": "info"})
+    
+    return {"changes": changes, "totalChanges": len(changes)}
+
+
 
 
 @router.delete("/api/v1/detection-rules/{rule_id}")

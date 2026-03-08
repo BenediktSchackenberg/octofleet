@@ -1,16 +1,16 @@
 """Report helper functions extracted from main.py"""
-from typing import List
 from datetime import datetime
+
+import matplotlib
+
+matplotlib.use("Agg")
+from typing import List
+
+import matplotlib.pyplot as plt
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
-from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
-from reportlab.graphics.shapes import Drawing
-from reportlab.graphics.charts.piecharts import Pie
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
-import tempfile
+from reportlab.platypus import Table, TableStyle
 
 
 def style_excel_header(ws, row=1):

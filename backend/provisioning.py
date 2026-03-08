@@ -3,9 +3,9 @@ Octofleet Provisioning Module
 Generates Autounattend.xml for Zero-Touch Windows deployment
 """
 
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Optional
-import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 

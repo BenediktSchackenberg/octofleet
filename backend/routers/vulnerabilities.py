@@ -1,15 +1,18 @@
 """
 Octofleet API - Vulnerabilities Routes
 """
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Header, Request
-from dependencies import API_KEY, get_pool, get_db, verify_api_key
-from remediation import RemediationEngine
-import asyncpg
-from typing import Optional, Dict, List, Any
-from datetime import datetime, timedelta, timezone
+import logging
+
+logger = logging.getLogger(__name__)
 import os
-import time
-from vulnerability import VulnerabilityScanner, get_vulnerability_summary, get_node_vulnerabilities
+from datetime import datetime, timedelta
+from typing import Any, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Body, Depends
+
+from dependencies import get_pool, verify_api_key
+from remediation import RemediationEngine
+from vulnerability import VulnerabilityScanner, get_node_vulnerabilities, get_vulnerability_summary
 
 router = APIRouter(tags=["Vulnerabilities"])
 

@@ -1,5 +1,5 @@
 import re
-import json
+
 
 def evaluate_dynamic_rule(rule: dict, node_data: dict) -> bool:
     """

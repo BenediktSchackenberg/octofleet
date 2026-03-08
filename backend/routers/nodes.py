@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-import asyncpg
-from typing import Optional, List, Dict, Any
-from uuid import UUID
-import uuid
 import json
 import secrets
+import uuid
+from datetime import datetime
+from typing import Optional
+from uuid import UUID
+
+import asyncpg
 import jwt
-from datetime import datetime, timedelta
-from dependencies import get_db, verify_api_key, require_scope, not_found, API_KEY
+from fastapi import APIRouter, Depends, HTTPException, Request
+
 from auth import require_auth, require_permission
+from dependencies import API_KEY, get_db, not_found, verify_api_key
 
 # Use the JWT secret from auth module
 try:
@@ -354,7 +356,7 @@ async def register_pending_node(request: Request, db: asyncpg.Pool = Depends(get
             existing = await conn.fetchrow("SELECT id, status FROM pending_nodes WHERE hostname = $1 AND ip_address = $2", hostname, ip_address)
         
         if existing:
-            return {"status": existing['status'], "pendingId": str(existing['id']), "message": f"Node already registered"}
+            return {"status": existing['status'], "pendingId": str(existing['id']), "message": "Node already registered"}
         
         pending_id = await conn.fetchval("""
             INSERT INTO pending_nodes (hostname, os_name, os_version, ip_address, agent_version, machine_id)

@@ -3,11 +3,12 @@ Octofleet Provisioning API Router - VM Creation Extension
 Handles automatic VM creation on Hyper-V and KVM hypervisors
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
-import uuid
 import json
+import uuid
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 vm_router = APIRouter(prefix="/api/v1/provisioning/vm", tags=["provisioning-vm"])
 

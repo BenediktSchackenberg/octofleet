@@ -2,16 +2,16 @@
 Software Repository Module
 Handles file storage, upload, download, and caching for the Octofleet package repository.
 """
-import os
 import hashlib
+import json
+import os
+import uuid
+from typing import Optional
+
 import aiofiles
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
-from fastapi.responses import FileResponse, StreamingResponse
-from typing import Optional, List
-import uuid
-import json
-from datetime import datetime
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
 # Configuration
 REPO_BASE_PATH = os.environ.get("OCTOFLEET_REPO_PATH", os.path.expanduser("~/.openclaw/repo"))

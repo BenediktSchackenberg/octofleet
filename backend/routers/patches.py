@@ -1,14 +1,20 @@
 """
 Octofleet API - Patches Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from dependencies import get_pool, get_db, verify_api_key
-import asyncpg
-from typing import Optional, Dict, List, Any
-import uuid
 import json
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from dependencies import get_pool, verify_api_key
+
 router = APIRouter(tags=["Patches"])
+def _is_uuid(val: str) -> bool:
+    try:
+        from uuid import UUID as _UUID
+        _UUID(val)
+        return True
+    except (ValueError, AttributeError):
+        return False
 
 
 @router.get("/api/v1/patches/catalog", dependencies=[Depends(verify_api_key)])
@@ -278,7 +284,7 @@ async def create_patch_deployment(data: dict, request: Request):
         await conn.execute("""
             INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command_data, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
-        """, job_uuid, data.get("name", f"Patch Deployment"),
+        """, job_uuid, data.get("name", "Patch Deployment"),
             f"Patch deployment: {patch_names}",
             "group" if ring_id else "all",
             str(ring.get("node_group_id", "")) if ring_id and ring and ring.get("node_group_id") else None,

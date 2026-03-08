@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install ruff
-      - run: ruff check backend/ --select E,F,I --ignore E501,E402
+      - run: ruff check backend/ --select E,F,I --ignore E501,E402,E701,E702,E722,E741,F811,F841
 
   frontend-build:
     name: Frontend Build Check

@@ -3,13 +3,14 @@ Octofleet Provisioning API Router - ISO Management Extension
 Handles ISO scanning, mounting, and automatic image registration
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
-import subprocess
 import json
 import os
 import re
+import subprocess
+from typing import Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 iso_router = APIRouter(prefix="/api/v1/provisioning/iso", tags=["provisioning-iso"])
 

@@ -3,10 +3,12 @@ E33: Content Repository & Lifecycle Management — MVP
 """
 import json
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import UUID
-from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query
+
 import asyncpg
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from dependencies import get_db, verify_api_key
 
 router = APIRouter(prefix="/api/v1/content", tags=["Content Lifecycle"])
