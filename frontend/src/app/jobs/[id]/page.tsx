@@ -129,7 +129,33 @@ export default function JobDetailPage() {
         setError("Job nicht gefunden");
         return;
       }
-      setJob(data);
+      // Map snake_case API response to camelCase
+      const mapped = {
+        ...data,
+        commandType: data.commandType || data.command_type,
+        commandData: data.commandData || data.command_data,
+        targetId: data.targetId || data.target_id,
+        targetType: data.targetType || data.target_type,
+        targetName: data.targetName || data.target_name,
+        createdAt: data.createdAt || data.created_at,
+        updatedAt: data.updatedAt || data.updated_at,
+        scheduledAt: data.scheduledAt || data.scheduled_at,
+        expiresAt: data.expiresAt || data.expires_at,
+        timeoutSeconds: data.timeoutSeconds || data.timeout_seconds,
+        instances: (data.instances || []).map((inst: Record<string, unknown>) => ({
+          ...inst,
+          jobId: inst.jobId || inst.job_id,
+          nodeId: inst.nodeId || inst.node_id,
+          exitCode: inst.exitCode ?? inst.exit_code,
+          startedAt: inst.startedAt || inst.started_at,
+          completedAt: inst.completedAt || inst.completed_at,
+          queuedAt: inst.queuedAt || inst.queued_at,
+          maxAttempts: inst.maxAttempts || inst.max_attempts,
+          errorMessage: inst.errorMessage || inst.error_message,
+          durationMs: inst.durationMs || inst.duration_ms,
+        })),
+      };
+      setJob(mapped);
       setError(null);
     } catch (err) {
       setError("Verbindung zum Server fehlgeschlagen");
