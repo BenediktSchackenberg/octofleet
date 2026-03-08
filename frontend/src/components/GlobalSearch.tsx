@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getAuthHeader } from "@/lib/auth-context";
+import { apiClient } from "@/lib/api-client";
 import { Search, Circle, Monitor } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { API_URL } from '@/lib/api-config';
 
 interface SearchResult {
   node_id: string;
@@ -60,9 +59,8 @@ export function GlobalSearch({ onNodeSelect }: GlobalSearchProps) {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const data = await fetch(
-          `${API_URL}/api/v1/nodes/search?q=${encodeURIComponent(query)}`,
-          { headers: getAuthHeader() }
+        const data = await apiClient.get<{ nodes: SearchResult[] }>(
+          `/nodes/search?q=${encodeURIComponent(query)}`
         );
         if (data) {
           setResults(data.nodes || []);

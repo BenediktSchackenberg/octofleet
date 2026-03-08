@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, Monitor, Server, Laptop, Circle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { API_URL } from '@/lib/api-config';
-import { getAuthHeader } from "@/lib/auth-context";
+import { apiClient } from "@/lib/api-client";
 
 interface NodeData {
   node_id: string;
@@ -39,10 +38,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
 
   async function fetchTree() {
     try {
-      const apiUrl = API_URL;
-      const data = await fetch(`${apiUrl}/api/v1/nodes/tree`, {
-        headers: getAuthHeader()
-      });
+      const data = await apiClient.get<TreeData>("/nodes/tree");
       if (data) {
         setTree(data);
       }
