@@ -267,6 +267,7 @@ async def get_effective_policy(node_id: str):
                 resolved_id = str(uuid_row2)
         # Check direct node assignment — match both hostname and UUID
         candidates = [node_id, resolved_id]
+        logger.info(f"effective-policy: node_id={node_id}, resolved_id={resolved_id}, candidates={candidates}")
         row = await conn.fetchrow("""
             SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
             FROM monitoring_assignments a
