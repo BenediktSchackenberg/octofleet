@@ -1,12 +1,10 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
-import { getAuthHeader } from "@/lib/auth-context";
+import { getAuthHeader, useAuth } from "@/lib/auth-context";
 import { API_BASE } from "@/lib/api-config";
 
 import { useState } from "react";
 import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle, AlertCircle } from "lucide-react";
-import { getAuthHeader, useAuth } from "@/lib/auth-context";
-import { API_URL } from '@/lib/api-config';
 
 
 
@@ -70,7 +68,7 @@ export default function ReportsPage() {
     setError(null);
     setGenerating(report.id);
     try {
-      let url = `${API_URL}${report.endpoint}`;
+      let url = `${API_BASE}${report.endpoint}`;
       if (report.supportsDateRange) {
         url += `?from=${dateFrom}&to=${dateTo}`;
       }
@@ -299,14 +297,14 @@ export default function ReportsPage() {
                   Excel
                 </button>
                 <a
-                  href={`${API_URL}/api/v1/export/${exp.type}?format=csv`}
+                  href={`${API_BASE}/api/v1/export/${exp.type}?format=csv`}
                   target="_blank"
                   className="flex-1 text-center px-2 py-1.5 text-xs bg-secondary hover:bg-secondary/80 rounded"
                 >
                   CSV
                 </a>
                 <a
-                  href={`${API_URL}/api/v1/export/${exp.type}?format=json`}
+                  href={`${API_BASE}/api/v1/export/${exp.type}?format=json`}
                   target="_blank"
                   className="flex-1 text-center px-2 py-1.5 text-xs bg-secondary hover:bg-secondary/80 rounded"
                 >
