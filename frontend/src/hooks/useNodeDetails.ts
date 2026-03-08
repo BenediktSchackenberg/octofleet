@@ -256,15 +256,15 @@ export function useNodeDetails(nodeId: string) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
 
-  // Derived data
-  const hwData: any = hardware || {};
-  const sysData: any = system || {};
-  const secData: any = security || {};
-  const netData: any = network || {};
-  const browserData: any = browser || {};
-  const ramData: any = hwData.ram || hwData.data?.memory || {};
-  const gpuList: any[] = hwData.gpu || hwData.data?.gpus || [];
-  const nicsList: any = hwData.nics || hwData.data?.network || {};
+  // Derived data with proper types
+  const hwData: HardwareData = (hardware || {}) as HardwareData;
+  const sysData: SystemData = (system || {}) as SystemData;
+  const secData: SecurityData = (security || {}) as SecurityData;
+  const netData: NetworkData = (network || {}) as NetworkData;
+  const browserData: BrowserData = (browser || {}) as BrowserData;
+  const ramData = (hwData as Record<string, unknown>).ram || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.memory || {};
+  const gpuList: Array<Record<string, unknown>> = ((hwData as Record<string, unknown>).gpu || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.gpus || []) as Array<Record<string, unknown>>;
+  const nicsList = (hwData as Record<string, unknown>).nics || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.network || {};
   const totalUpdatesCount = hotfixes.hotfixes.length + hotfixes.updateHistory.length;
 
   return {

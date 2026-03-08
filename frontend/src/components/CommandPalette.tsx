@@ -122,8 +122,15 @@ export function CommandPalette() {
         setOpen(prev => !prev);
       }
     }
+    function handleCustomOpen() {
+      setOpen(prev => !prev);
+    }
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("openclaw:command-palette", handleCustomOpen);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("openclaw:command-palette", handleCustomOpen);
+    };
   }, []);
 
   // Search logic

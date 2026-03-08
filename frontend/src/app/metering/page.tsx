@@ -131,7 +131,10 @@ export default function SoftwareMeteringPage() {
                 ].map((kpi) => (
                   <div key={kpi.label} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <kpi.icon className={`h-4 w-4 text-${kpi.color}-400`} />
+                      <kpi.icon className={`h-4 w-4 ${({
+                        green: "text-green-400", blue: "text-blue-400", red: "text-red-400",
+                        zinc: "text-zinc-400", amber: "text-amber-400", emerald: "text-emerald-400",
+                      } as Record<string, string>)[kpi.color] || "text-zinc-400"}`} />
                       <span className="text-xs text-zinc-500">{kpi.label}</span>
                     </div>
                     <div className="text-2xl font-bold">{kpi.value}</div>

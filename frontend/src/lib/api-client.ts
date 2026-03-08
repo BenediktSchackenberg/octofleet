@@ -32,6 +32,18 @@ function snakeToCamel(obj: any): any {
   return obj;
 }
 
+// ─── 401 handler (configurable, keeps transport layer clean) ─────────
+
+let onUnauthorized: (() => void) | null = () => {
+  if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+    window.location.href = '/login?expired=true';
+  }
+};
+
+export function setOnUnauthorized(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 // ─── Core request (returns T | null for backward compat) ────────────
 
 async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T | null> {
@@ -62,10 +74,7 @@ async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Pr
         });
       }
 
-      // Centralized 401 handling
-      if (response.status === 401 && typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login?expired=true';
-      }
+      if (response.status === 401 && onUnauthorized) { onUnauthorized(); }
 
       return null;
     }
@@ -114,9 +123,7 @@ async function apiRequestRich<T>(endpoint: string, options: RequestOptions = {})
         toast.error('API Fehler', { description: errorMessage, duration: 5000 });
       }
 
-      if (response.status === 401 && typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login?expired=true';
-      }
+      if (response.status === 401 && onUnauthorized) { onUnauthorized(); }
 
       return { ok: false, data: null, error: errorMessage, status: response.status };
     }

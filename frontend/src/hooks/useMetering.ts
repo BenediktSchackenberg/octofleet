@@ -163,15 +163,15 @@ export function useMetering() {
 
   // ─── API helpers ─────────────────────────────────────────────────
 
-  const api = useCallback(async (path: string, opts?: RequestInit) => {
+  const api = useCallback(async <T = unknown>(path: string, opts?: { method?: string; body?: Record<string, unknown> }): Promise<T> => {
     const endpoint = `/metering${path}`;
     const method = (opts?.method || 'GET').toUpperCase();
     const reqOpts = { showErrorToast: false };
     let data: unknown;
     if (method === 'POST') {
-      data = await apiClient.post(endpoint, opts?.body ? JSON.parse(opts.body as string) : {}, reqOpts);
+      data = await apiClient.post(endpoint, opts?.body ?? {}, reqOpts);
     } else if (method === 'PUT') {
-      data = await apiClient.put(endpoint, opts?.body ? JSON.parse(opts.body as string) : {}, reqOpts);
+      data = await apiClient.put(endpoint, opts?.body ?? {}, reqOpts);
     } else if (method === 'DELETE') {
       data = await apiClient.delete(endpoint, reqOpts);
     } else {
@@ -180,52 +180,76 @@ export function useMetering() {
     if (data === null) {
       throw new Error(`API request failed: ${method} ${endpoint}`);
     }
-    return data;
+    return data as T;
   }, []);
 
   // ─── Loaders ─────────────────────────────────────────────────────
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
+      interface DashboardResponse {
+        topInstalled?: CatalogEntry[]; top_installed?: CatalogEntry[];
+        topUnused?: CatalogEntry[]; top_unused?: CatalogEntry[];
+        compliance?: ComplianceSummary; compliance_summary?: ComplianceSummary;
+        costByCategory?: Record<string, number> | { category: string; cost: number }[];
+        cost_by_category?: Record<string, number> | { category: string; cost: number }[];
+        recentChanges?: unknown[]; recent_changes?: unknown[];
+      }
       const [dash, comp] = await Promise.all([
-        api("/dashboard"),
-        api("/compliance"),
+        api<DashboardResponse>("/dashboard"),
+        api<ComplianceSummary>("/compliance"),
       ]);
       setDashboard({
-        top_installed: (dash as any).topInstalled || (dash as any).top_installed || [],
-        top_unused: (dash as any).topUnused || (dash as any).top_unused || [],
-        compliance_summary: (dash as any).compliance || (dash as any).compliance_summary || comp,
+        top_installed: dash.topInstalled || dash.top_installed || [],
+        top_unused: dash.topUnused || dash.top_unused || [],
+        compliance_summary: dash.compliance || dash.compliance_summary || comp,
         cost_by_category: (() => {
-          const raw = (dash as any).costByCategory || (dash as any).cost_by_category || {};
+          const raw = dash.costByCategory || dash.cost_by_category || {};
           if (Array.isArray(raw)) return raw;
           return Object.entries(raw).map(([category, cost]) => ({ category, cost: cost as number }));
         })(),
-        recent_changes: (dash as any).recentChanges || (dash as any).recent_changes || [],
+        recent_changes: dash.recentChanges || dash.recent_changes || [],
       });
-      setCompliance(comp as ComplianceSummary);
+      setCompliance(comp);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   }, [api]);
 
   const loadCatalog = useCallback(async () => {
-    try { const res: any = await api("/catalog"); setCatalog(res.catalog || res.items || (Array.isArray(res) ? res : [])); } catch {}
+    try {
+      const res = await api<{ catalog?: CatalogEntry[]; items?: CatalogEntry[] }>("/catalog");
+      setCatalog(res.catalog || res.items || (Array.isArray(res) ? res as unknown as CatalogEntry[] : []));
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   }, [api]);
 
   const loadLicenses = useCallback(async () => {
-    try { const res: any = await api("/licenses"); setLicenses(res.licenses || res.items || (Array.isArray(res) ? res : [])); } catch {}
+    try {
+      const res = await api<{ licenses?: License[]; items?: License[] }>("/licenses");
+      setLicenses(res.licenses || res.items || (Array.isArray(res) ? res as unknown as License[] : []));
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   }, [api]);
 
   const loadRules = useCallback(async () => {
-    try { const res: any = await api("/rules"); setRules(res.rules || res.items || (Array.isArray(res) ? res : [])); } catch {}
+    try {
+      const res = await api<{ rules?: NormRule[]; items?: NormRule[] }>("/rules");
+      setRules(res.rules || res.items || (Array.isArray(res) ? res as unknown as NormRule[] : []));
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   }, [api]);
 
   const loadReclaim = useCallback(async () => {
-    try { const res: any = await api("/usage/reclaim"); setReclaimCandidates(res.candidates || res.items || (Array.isArray(res) ? res : [])); } catch {}
+    try {
+      const res = await api<{ candidates?: ReclaimCandidate[]; items?: ReclaimCandidate[] }>("/usage/reclaim");
+      setReclaimCandidates(res.candidates || res.items || (Array.isArray(res) ? res as unknown as ReclaimCandidate[] : []));
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   }, [api]);
 
   const loadTrueUp = useCallback(async () => {
-    try { const res: any = await api("/reports/true-up"); setTrueUp(res.report || res.items || (Array.isArray(res) ? res : [])); } catch {}
+    try {
+      const res = await api<{ report?: TrueUpEntry[]; items?: TrueUpEntry[] }>("/reports/true-up");
+      setTrueUp(res.report || res.items || (Array.isArray(res) ? res as unknown as TrueUpEntry[] : []));
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   }, [api]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);

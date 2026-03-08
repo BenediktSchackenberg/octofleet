@@ -204,14 +204,22 @@ function NavDropdown({ group, isActive }: { group: NavGroup; isActive: boolean }
   const GroupIcon = group.icon;
 
   useEffect(() => {
+    if (!open) return;
     function handleClickOutside(event: MouseEvent) {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         setOpen(false);
       }
     }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
 
   const visibleItems = group.items.filter(item => {
     if (item.adminOnly && !isAdmin()) return false;
@@ -378,7 +386,7 @@ export function Navbar() {
           {/* Right side */}
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true}))}
+              onClick={() => window.dispatchEvent(new CustomEvent('openclaw:command-palette'))}
               className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-md bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all text-xs group"
             >
               <Search className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
