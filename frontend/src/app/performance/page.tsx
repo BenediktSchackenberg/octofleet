@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { 
   RefreshCw, Cpu, MemoryStick, HardDrive, Activity, Search, X, Star, StarOff,
   ChevronDown, ChevronRight, Clock, AlertTriangle, CheckCircle, XCircle, Eye, EyeOff,
@@ -195,6 +195,7 @@ function NodeDetailsDrawer({
               <StatusBadge status={status} />
             </div>
           </SheetTitle>
+          <SheetDescription className="sr-only">Node performance details</SheetDescription>
         </SheetHeader>
         
         <div className="mt-6 space-y-6">
@@ -242,7 +243,7 @@ function NodeDetailsDrawer({
           </div>
           
           {/* Trend Chart */}
-          {timeseries && timeseries.timeseries.length > 0 && (
+          {timeseries && timeseries.timeseries && timeseries.timeseries.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Trend (60m)</CardTitle>
