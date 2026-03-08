@@ -226,7 +226,14 @@ export default function HomePage() {
     if (results[0].status === "fulfilled" && results[0].value?.pending) c.approvals = results[0].value.pending.length;
     if (results[1].status === "fulfilled" && results[1].value) c.findings = results[1].value.total || results[1].value.findings?.length || 0;
     if (results[2].status === "fulfilled" && results[2].value?.jobs) c.failedJobs = results[2].value.jobs.length;
-    if (results[3].status === "fulfilled" && results[3].value?.nodes) c.offline = results[3].value.nodes.filter((n: any) => n.status !== "online").length;
+    if (results[3].status === "fulfilled" && results[3].value?.nodes) {
+      const TEN_MINUTES = 10 * 60 * 1000;
+      c.offline = results[3].value.nodes.filter((n: any) => {
+        if (n.status === "online") return false;
+        if (n.last_seen && (Date.now() - new Date(n.last_seen).getTime()) < TEN_MINUTES) return false;
+        return true;
+      }).length;
+    }
     setTaskCounts(c);
   }
 

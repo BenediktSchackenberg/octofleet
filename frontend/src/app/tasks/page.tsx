@@ -180,7 +180,12 @@ async function fetchTasks(): Promise<{ tasks: TaskItem[]; counts: Record<string,
   // Offline nodes
   const nodesRes = results[5].status === "fulfilled" ? results[5].value : null;
   if (nodesRes?.nodes) {
-    const offlineNodes = nodesRes.nodes.filter((n) => n.status !== "online");
+    const TEN_MINUTES = 10 * 60 * 1000;
+    const offlineNodes = nodesRes.nodes.filter((n) => {
+      if (n.status === "online") return false;
+      if (n.last_seen && (Date.now() - new Date(n.last_seen).getTime()) < TEN_MINUTES) return false;
+      return true;
+    });
     counts.offline = offlineNodes.length;
     for (const n of offlineNodes) {
       const lastSeen = n.last_seen ? new Date(n.last_seen).getTime() : 0;
