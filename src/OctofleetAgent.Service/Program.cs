@@ -82,6 +82,11 @@ try
     builder.Services.AddHostedService<ServiceReconciliationPoller>();
     builder.Services.AddHostedService<OctofleetAgent.Service.Security.FileAuditCollector>();
     builder.Services.AddHostedService<OctofleetAgent.Service.Security.PostureCollector>();
+    builder.Services.AddHostedService<OctofleetAgent.Service.Security.ProcessMonitorCollector>();
+    builder.Services.AddHostedService<OctofleetAgent.Service.Security.NetworkMonitorCollector>();
+    builder.Services.AddHostedService<OctofleetAgent.Service.Security.RegistryMonitorCollector>();
+    builder.Services.AddHostedService<OctofleetAgent.Service.Security.LogonEventCollector>();
+    builder.Services.AddHostedService<OctofleetAgent.Service.Security.ServiceChangeCollector>();
 
     var host = builder.Build();
 

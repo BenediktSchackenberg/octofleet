@@ -254,11 +254,11 @@ public class FileAuditCollector : BackgroundService
                 sensors = new Dictionary<string, bool>
                 {
                     ["file_audit"] = true,
-                    ["process_monitor"] = false, // Future
-                    ["network_monitor"] = false,
-                    ["registry_monitor"] = false,
-                    ["logon_events"] = false,
-                    ["service_changes"] = false
+                    ["process_monitor"] = true,
+                    ["network_monitor"] = true,
+                    ["registry_monitor"] = true,
+                    ["logon_events"] = true,
+                    ["service_changes"] = true
                 },
                 agent_version = typeof(FileAuditCollector).Assembly.GetName().Version?.ToString() ?? "unknown",
                 os_type = "Windows",
