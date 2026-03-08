@@ -28,8 +28,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// FALLBACK ONLY: Used when the backend /api/v1/auth/permissions endpoint is unreachable.
-// The authoritative source is the backend ROLE_PERMISSIONS in auth.py.
+// FALLBACK ONLY — authoritative source is GET /api/v1/auth/permissions
+// Used when the backend endpoint is unreachable.
 // Do NOT rely on this for access control decisions — always prefer resolvedPermissions from the API.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ["*"],
@@ -204,11 +204,12 @@ export function useAuth() {
   return context;
 }
 
-// Helper to get auth header for API calls
+/** @deprecated Use API_BASE from '@/lib/api-config' instead. */
 export function getApiBase(): string {
   return API_URL;
 }
 
+// Prefer apiClient for standard requests. Use getAuthHeader() only for SSE/file uploads.
 export function getAuthHeader(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (token) {
