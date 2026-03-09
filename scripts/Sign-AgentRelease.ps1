@@ -24,7 +24,7 @@
 
 param(
     [string]$Version = "latest",
-    [string]$CertHash = "7a9afaf3e49638746f2e5d9288e79c5f669f7d71",
+    [string]$CertHash = "5e70172fb4cb83e9fe884810c2d5393013052d7c",
     [string]$CertCSP = "Microsoft Base Smart Card Crypto Provider",
     [string]$KeyContainer = "AT_KEYEXCHANGE",
     [string]$GitHubToken = $env:GITHUB_TOKEN,
