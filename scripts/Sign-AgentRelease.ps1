@@ -115,7 +115,8 @@ $signed = 0
 $failed = 0
 foreach ($file in $files) {
     Write-Host "  Signing $($file.Name)..." -NoNewline
-    $result = & $signtool sign /sha1 $CertHash /csp $CertCSP /kc $KeyContainer /t $TimestampServer /fd sha256 /v $file.FullName 2>&1
+    $signArgs = @("sign", "/sha1", $CertHash, "/csp", $CertCSP, "/kc", $KeyContainer, "/t", $TimestampServer, "/fd", "sha256", "/v", $file.FullName)
+    $result = & $signtool @signArgs 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Host " OK" -ForegroundColor Green
         $signed++
