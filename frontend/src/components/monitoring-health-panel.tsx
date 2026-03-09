@@ -17,10 +17,14 @@ interface Capabilities {
 
 interface HealthEntry {
   ts: string;
-  queue_depth: number;
-  drop_count: number;
-  watcher_count: number;
-  cpu_overhead_estimate: string;
+  metadata: {
+    sensor?: string;
+    queue_depth?: number;
+    drop_count?: number;
+    watcher_count?: number;
+    cpu_overhead_estimate?: string;
+    tracked_connections?: number;
+  };
 }
 
 // Sensor display config: icon, label, description
@@ -107,7 +111,7 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
   const permissions = parsePermissions(caps?.permissions ?? null);
   const isOnline = caps?.last_seen && (Date.now() - new Date(caps.last_seen).getTime()) < 10 * 60 * 1000;
   const lastHealth = health[0];
-  const hasDrops = lastHealth && lastHealth.drop_count > 0;
+  const hasDrops = lastHealth && (lastHealth.metadata?.drop_count ?? 0) > 0;
   const activeSensors = Object.entries(sensors).filter(([, v]) => v).length;
   const totalSensors = Object.keys(sensors).length;
 
@@ -207,23 +211,23 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">Queue Depth</span>
-              <div className={`text-2xl font-bold mt-1 ${lastHealth.queue_depth > 1000 ? "text-red-400" : lastHealth.queue_depth > 100 ? "text-yellow-400" : "text-green-400"}`}>
-                {lastHealth.queue_depth.toLocaleString()}
+              <div className={`text-2xl font-bold mt-1 ${(lastHealth.metadata?.queue_depth ?? 0) > 1000 ? "text-red-400" : (lastHealth.metadata?.queue_depth ?? 0) > 100 ? "text-yellow-400" : "text-green-400"}`}>
+                {(lastHealth.metadata?.queue_depth ?? 0).toLocaleString()}
               </div>
             </div>
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">Dropped Events</span>
               <div className={`text-2xl font-bold mt-1 ${hasDrops ? "text-red-400" : "text-green-400"}`}>
-                {lastHealth.drop_count.toLocaleString()}
+                {(lastHealth.metadata?.drop_count ?? 0).toLocaleString()}
               </div>
             </div>
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">Active Watchers</span>
-              <div className="text-2xl font-bold mt-1 text-blue-400">{lastHealth.watcher_count}</div>
+              <div className="text-2xl font-bold mt-1 text-blue-400">{lastHealth.metadata?.watcher_count ?? "—"}</div>
             </div>
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">CPU Overhead</span>
-              <div className="text-2xl font-bold mt-1 text-green-400">{lastHealth.cpu_overhead_estimate}</div>
+              <div className="text-2xl font-bold mt-1 text-green-400">{lastHealth.metadata?.cpu_overhead_estimate ?? "—"}</div>
             </div>
           </div>
 
@@ -258,10 +262,10 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
                 {health.slice(0, 10).map((h, i) => (
                   <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                     <td className="p-2 text-xs text-zinc-400">{timeAgo(h.ts)}</td>
-                    <td className="p-2 text-right font-mono">{h.queue_depth}</td>
-                    <td className={`p-2 text-right font-mono ${h.drop_count > 0 ? "text-red-400" : ""}`}>{h.drop_count}</td>
-                    <td className="p-2 text-right font-mono">{h.watcher_count}</td>
-                    <td className="p-2 text-right">{h.cpu_overhead_estimate}</td>
+                    <td className="p-2 text-right font-mono">{h.metadata?.queue_depth ?? 0}</td>
+                    <td className={`p-2 text-right font-mono ${(h.metadata?.drop_count ?? 0) > 0 ? "text-red-400" : ""}`}>{h.metadata?.drop_count ?? 0}</td>
+                    <td className="p-2 text-right font-mono">{h.metadata?.watcher_count ?? "—"}</td>
+                    <td className="p-2 text-right">{h.metadata?.cpu_overhead_estimate ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
