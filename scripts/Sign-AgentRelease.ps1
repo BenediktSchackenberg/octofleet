@@ -25,8 +25,8 @@
 param(
     [string]$Version = "latest",
     [string]$CertHash = "5e70172fb4cb83e9fe884810c2d5393013052d7c",
-    [string]$CertCSP = "cryptoCertum3 CSP",
-    [string]$KeyContainer = "84C3A26A40CA52626A416AFAF9A8C8CF49F666BC",
+    [string]$CertCSP = "crypto3 CSP",
+    [string]$KeyContainer = "FE80D7029B114E54D5188D898FA361889B198194",
     [string]$GitHubToken = $env:GITHUB_TOKEN,
     [string]$TimestampServer = "http://time.certum.pl",
     [string]$Repo = "BenediktSchackenberg/octofleet"
