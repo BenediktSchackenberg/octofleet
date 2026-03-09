@@ -4178,6 +4178,25 @@ async def start_node_health_monitor():
     """Start the node health monitor on app startup."""
     asyncio.create_task(node_health_monitor_task())
 
+
+@app.on_event("startup")
+async def start_event_rollup_task():
+    """Run event aggregation/cleanup daily."""
+    async def _rollup_loop():
+        import logging
+        logger = logging.getLogger("event_rollup")
+        while True:
+            try:
+                await asyncio.sleep(3600)  # first run after 1 hour, then every 24h
+                from routers.monitoring_mgmt import _run_event_rollup
+                result = await _run_event_rollup()
+                logger.info(f"Event rollup completed: {result}")
+                await asyncio.sleep(82800)  # remaining 23h
+            except Exception as e:
+                logger.error(f"Event rollup error: {e}")
+                await asyncio.sleep(3600)  # retry in 1h on error
+    asyncio.create_task(_rollup_loop())
+
 # ============================================================================
 # E20: Remote Terminal
 # ============================================================================

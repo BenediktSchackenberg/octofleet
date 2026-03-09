@@ -320,21 +320,6 @@ async def ingest_events(req: Request):
     return {"inserted": inserted}
 
 
-@router.get("/api/v1/events/stats", dependencies=[Depends(verify_api_key)])
-async def get_event_stats():
-    async with get_pool().acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT event_type, COUNT(*) as count
-            FROM events_normalized
-            WHERE event_type NOT LIKE 'agent.%'
-            GROUP BY event_type ORDER BY count DESC
-        """)
-        file_count = await conn.fetchval("SELECT COUNT(*) FROM file_events")
-        stats = [{"event_type": r["event_type"], "count": r["count"]} for r in rows]
-        stats.append({"event_type": "file.all", "count": file_count})
-        return {"stats": stats}
-
-
 @router.get("/api/v1/events", dependencies=[Depends(verify_api_key)])
 async def query_events(
     node_id: str = None, user_id: str = None, event_type: str = None,
@@ -924,4 +909,183 @@ async def compare_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "currentId": str(current["id"]),
             "currentDate": str(current["created_at"]),
             "diff": diff
+        }
+
+
+# ─── Event Data Retention & Aggregation ────────────────────────────
+
+RETENTION_DAYS = 7  # Keep raw events for 7 days, then aggregate
+
+
+@router.post("/api/v1/events/rollup", dependencies=[Depends(verify_api_key)])
+async def trigger_event_rollup():
+    """Manually trigger event aggregation and cleanup"""
+    result = await _run_event_rollup()
+    return result
+
+
+async def _run_event_rollup():
+    """Aggregate events older than RETENTION_DAYS into hourly buckets, then delete raw data."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        cutoff = f"NOW() - INTERVAL '{RETENTION_DAYS} days'"
+
+        # 1) Aggregate normalized events into hourly buckets
+        agg_result = await conn.execute(f"""
+            INSERT INTO events_aggregated (hour, node_id, event_type, severity, event_count, unique_users, sample_payload)
+            SELECT
+                date_trunc('hour', ts) AS hour,
+                node_id,
+                event_type,
+                severity,
+                COUNT(*) AS event_count,
+                COUNT(DISTINCT user_id) AS unique_users,
+                (array_agg(payload ORDER BY ts DESC))[1] AS sample_payload
+            FROM events_normalized
+            WHERE ts < {cutoff}
+            GROUP BY date_trunc('hour', ts), node_id, event_type, severity
+            ON CONFLICT (hour, node_id, event_type, severity)
+            DO UPDATE SET
+                event_count = events_aggregated.event_count + EXCLUDED.event_count,
+                unique_users = GREATEST(events_aggregated.unique_users, EXCLUDED.unique_users),
+                sample_payload = COALESCE(EXCLUDED.sample_payload, events_aggregated.sample_payload)
+        """)
+
+        # 2) Delete aggregated raw events
+        del_events = await conn.execute(f"""
+            DELETE FROM events_normalized WHERE ts < {cutoff}
+        """)
+
+        # 3) Aggregate file events
+        await conn.execute(f"""
+            INSERT INTO file_events_aggregated (hour, node_id, op, event_count, unique_paths, unique_users, sample_path)
+            SELECT
+                date_trunc('hour', ts) AS hour,
+                node_id,
+                op,
+                COUNT(*) AS event_count,
+                COUNT(DISTINCT path) AS unique_paths,
+                COUNT(DISTINCT user_id) AS unique_users,
+                (array_agg(path ORDER BY ts DESC))[1] AS sample_path
+            FROM file_events
+            WHERE ts < {cutoff}
+            GROUP BY date_trunc('hour', ts), node_id, op
+            ON CONFLICT (hour, node_id, op)
+            DO UPDATE SET
+                event_count = file_events_aggregated.event_count + EXCLUDED.event_count,
+                unique_paths = GREATEST(file_events_aggregated.unique_paths, EXCLUDED.unique_paths),
+                unique_users = GREATEST(file_events_aggregated.unique_users, EXCLUDED.unique_users),
+                sample_path = COALESCE(EXCLUDED.sample_path, file_events_aggregated.sample_path)
+        """)
+
+        # 4) Delete aggregated raw file events
+        del_files = await conn.execute(f"""
+            DELETE FROM file_events WHERE ts < {cutoff}
+        """)
+
+        # Parse DELETE counts
+        events_deleted = int(del_events.split()[-1]) if del_events else 0
+        files_deleted = int(del_files.split()[-1]) if del_files else 0
+
+        logger.info(f"Event rollup: {events_deleted} events aggregated+deleted, {files_deleted} file events aggregated+deleted")
+
+        return {
+            "status": "ok",
+            "retention_days": RETENTION_DAYS,
+            "events_deleted": events_deleted,
+            "file_events_deleted": files_deleted,
+        }
+
+
+@router.get("/api/v1/events/aggregated", dependencies=[Depends(verify_api_key)])
+async def get_aggregated_events(
+    node_id: str = None, event_type: str = None, type_prefix: str = None,
+    since: str = None, until: str = None,
+    limit: int = 100, offset: int = 0
+):
+    """Query aggregated (historical) event data — hourly buckets"""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        conditions = []
+        params = []
+        idx = 1
+        if node_id:
+            conditions.append(f"node_id = ${idx}")
+            params.append(node_id); idx += 1
+        if event_type:
+            conditions.append(f"event_type = ${idx}")
+            params.append(event_type); idx += 1
+        if type_prefix:
+            conditions.append(f"event_type LIKE ${idx}")
+            params.append(type_prefix + "%"); idx += 1
+        if since:
+            conditions.append(f"hour >= ${idx}::timestamptz")
+            params.append(since); idx += 1
+        if until:
+            conditions.append(f"hour <= ${idx}::timestamptz")
+            params.append(until); idx += 1
+
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        params.extend([limit, offset])
+        rows = await conn.fetch(f"""
+            SELECT * FROM events_aggregated {where}
+            ORDER BY hour DESC LIMIT ${idx} OFFSET ${idx+1}
+        """, *params)
+        total = await conn.fetchval(f"SELECT count(*) FROM events_aggregated {where}", *params[:-2])
+        return {
+            "events": [dict(r) for r in rows],
+            "total": total
+        }
+
+
+@router.get("/api/v1/events/stats", dependencies=[Depends(verify_api_key)])
+async def get_event_stats_v2():
+    """Combined stats from both raw (recent) and aggregated (historical) data"""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        # Recent raw events
+        raw_rows = await conn.fetch("""
+            SELECT event_type, COUNT(*) as count
+            FROM events_normalized
+            WHERE event_type NOT LIKE 'agent.%'
+            GROUP BY event_type
+        """)
+
+        # Historical aggregated events
+        agg_rows = await conn.fetch("""
+            SELECT event_type, SUM(event_count)::bigint as count
+            FROM events_aggregated
+            GROUP BY event_type
+        """)
+
+        # Merge
+        totals = {}
+        for r in raw_rows:
+            totals[r["event_type"]] = totals.get(r["event_type"], 0) + r["count"]
+        for r in agg_rows:
+            totals[r["event_type"]] = totals.get(r["event_type"], 0) + r["count"]
+
+        stats = [{"event_type": k, "count": v} for k, v in sorted(totals.items(), key=lambda x: -x[1])]
+
+        # File events
+        raw_files = await conn.fetchval("SELECT COUNT(*) FROM file_events")
+        agg_files = await conn.fetchval("SELECT COALESCE(SUM(event_count), 0) FROM file_events_aggregated")
+        stats.append({"event_type": "file.all", "count": raw_files + agg_files})
+
+        # Retention info
+        oldest_raw = await conn.fetchval("SELECT MIN(ts) FROM events_normalized")
+        raw_count = await conn.fetchval("SELECT COUNT(*) FROM events_normalized")
+        agg_count = await conn.fetchval("SELECT COALESCE(SUM(event_count), 0) FROM events_aggregated")
+
+        return {
+            "stats": stats,
+            "retention": {
+                "retention_days": RETENTION_DAYS,
+                "raw_events": raw_count,
+                "aggregated_events": agg_count,
+                "oldest_raw_event": str(oldest_raw) if oldest_raw else None,
+            }
         }

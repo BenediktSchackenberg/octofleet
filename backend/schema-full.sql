@@ -2154,3 +2154,34 @@ CREATE TABLE IF NOT EXISTS software_usage (
 );
 CREATE INDEX IF NOT EXISTS idx_software_usage_node ON software_usage(node_id);
 CREATE INDEX IF NOT EXISTS idx_software_usage_catalog ON software_usage(catalog_id);
+
+-- Event Data Retention: Aggregation tables for events older than 7 days
+CREATE TABLE IF NOT EXISTS events_aggregated (
+    id              SERIAL PRIMARY KEY,
+    hour            TIMESTAMPTZ NOT NULL,
+    node_id         TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    severity        TEXT NOT NULL,
+    event_count     INTEGER NOT NULL DEFAULT 0,
+    unique_users    INTEGER NOT NULL DEFAULT 0,
+    sample_payload  JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(hour, node_id, event_type, severity)
+);
+CREATE INDEX IF NOT EXISTS idx_events_agg_hour ON events_aggregated(hour);
+CREATE INDEX IF NOT EXISTS idx_events_agg_node ON events_aggregated(node_id);
+CREATE INDEX IF NOT EXISTS idx_events_agg_type ON events_aggregated(event_type);
+
+CREATE TABLE IF NOT EXISTS file_events_aggregated (
+    id              SERIAL PRIMARY KEY,
+    hour            TIMESTAMPTZ NOT NULL,
+    node_id         TEXT NOT NULL,
+    op              TEXT NOT NULL,
+    event_count     INTEGER NOT NULL DEFAULT 0,
+    unique_paths    INTEGER NOT NULL DEFAULT 0,
+    unique_users    INTEGER NOT NULL DEFAULT 0,
+    sample_path     TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(hour, node_id, op)
+);
+CREATE INDEX IF NOT EXISTS idx_file_agg_hour ON file_events_aggregated(hour);
