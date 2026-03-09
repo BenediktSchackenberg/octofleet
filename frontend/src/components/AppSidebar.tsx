@@ -46,6 +46,7 @@ interface NavItem {
   permission?: string;
   adminOnly?: boolean;
   section?: string;
+  roles?: string[];
 }
 
 interface NavGroup {
@@ -53,6 +54,7 @@ interface NavGroup {
   labelKey: string;
   icon: LucideIcon;
   items: NavItem[];
+  roles?: string[];
 }
 
 const navGroups: NavGroup[] = [
@@ -60,6 +62,7 @@ const navGroups: NavGroup[] = [
     label: "Devices",
     labelKey: "nav.fleet",
     icon: Server,
+    roles: ["admin", "operator", "auditor", "viewer"],
     items: [
       { href: "/nodes", labelKey: "nav.nodes", icon: Server, permission: "nodes:read" },
       { href: "/groups", labelKey: "nav.groups", icon: FolderTree, permission: "groups:read" },
@@ -70,6 +73,7 @@ const navGroups: NavGroup[] = [
     label: "Software",
     labelKey: "nav.software",
     icon: Package,
+    roles: ["admin", "operator", "auditor", "viewer"],
     items: [
       { href: "/packages", labelKey: "nav.packages", icon: Package, permission: "packages:read" },
       { href: "/repo", labelKey: "nav.repo", icon: HardDrive, permission: "packages:read" },
@@ -83,6 +87,7 @@ const navGroups: NavGroup[] = [
     label: "Security",
     labelKey: "nav.security",
     icon: ShieldCheck,
+    roles: ["admin", "operator", "auditor"],
     items: [
       { href: "/security", labelKey: "nav.securityOverview", icon: ShieldCheck },
       { href: "/security/findings", labelKey: "nav.findings", icon: Bug },
@@ -104,19 +109,21 @@ const navGroups: NavGroup[] = [
     label: "Operations",
     labelKey: "nav.operations",
     icon: Activity,
+    roles: ["admin", "operator", "auditor"],
     items: [
-      { href: "/performance", labelKey: "nav.performance", icon: Activity, permission: "nodes:read" },
-      { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read" },
-      { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read" },
-      { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read" },
-      { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read" },
-      { href: "/query", labelKey: "nav.queryEngine", icon: Terminal, permission: "nodes:read" },
+      { href: "/performance", labelKey: "nav.performance", icon: Activity, permission: "nodes:read", roles: ["admin", "operator"] },
+      { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read", roles: ["admin", "operator"] },
+      { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read", roles: ["admin", "operator"] },
+      { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read", roles: ["admin", "operator", "auditor"] },
+      { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read", roles: ["admin", "operator"] },
+      { href: "/query", labelKey: "nav.queryEngine", icon: Terminal, permission: "nodes:read", roles: ["admin", "operator"] },
     ],
   },
   {
     label: "Provisioning",
     labelKey: "nav.infrastructure",
     icon: Network,
+    roles: ["admin"],
     items: [
       { href: "/provisioning", labelKey: "nav.provisioning", icon: Network, permission: "services:read" },
       { href: "/content", labelKey: "nav.contentLifecycle", icon: Layers, permission: "services:read" },
@@ -128,12 +135,13 @@ const navGroups: NavGroup[] = [
     label: "Administration",
     labelKey: "nav.admin",
     icon: Settings,
+    roles: ["admin", "auditor"],
     items: [
-      { href: "/users", labelKey: "nav.users", icon: Users, permission: "users:read", adminOnly: true },
-      { href: "/audit", labelKey: "nav.audit", icon: ScrollText, permission: "audit:read", adminOnly: true },
-      { href: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound, permission: "api-keys:read" },
-      { href: "/admin/agents", labelKey: "nav.agentMonitor", icon: Monitor, permission: "admin:read", adminOnly: true },
-      { href: "/settings", labelKey: "nav.settings", icon: Settings },
+      { href: "/users", labelKey: "nav.users", icon: Users, permission: "users:read", adminOnly: true, roles: ["admin"] },
+      { href: "/audit", labelKey: "nav.audit", icon: ScrollText, permission: "audit:read", adminOnly: true, roles: ["admin", "auditor"] },
+      { href: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound, permission: "api-keys:read", roles: ["admin"] },
+      { href: "/admin/agents", labelKey: "nav.agentMonitor", icon: Monitor, permission: "admin:read", adminOnly: true, roles: ["admin"] },
+      { href: "/settings", labelKey: "nav.settings", icon: Settings, roles: ["admin"] },
     ],
   },
 ];
@@ -148,7 +156,7 @@ const STORAGE_KEY = "octofleet-sidebar-collapsed";
 
 export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void }) {
   const pathname = usePathname();
-  const { hasPermission, isAdmin } = useAuth();
+  const { hasPermission, isAdmin, getRole } = useAuth();
   const { t } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -163,11 +171,13 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
     localStorage.setItem(STORAGE_KEY, String(next));
   };
 
-  // Filter items by permissions
+  // Filter items by permissions and roles
+  const userRole = getRole();
   const filterItems = (items: NavItem[]) =>
     items.filter((item) => {
       if (item.adminOnly && !isAdmin()) return false;
       if (item.permission && !hasPermission(item.permission)) return false;
+      if (item.roles && !item.roles.includes(userRole)) return false;
       return true;
     });
 
@@ -268,6 +278,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
 
         {/* Group items */}
         {navGroups.map((group) => {
+          if (group.roles && !group.roles.includes(userRole)) return null;
           const visible = filterItems(group.items);
           if (visible.length === 0) return null;
           const active = isGroupActive(group);

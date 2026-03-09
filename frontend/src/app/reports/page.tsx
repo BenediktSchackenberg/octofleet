@@ -5,6 +5,7 @@ import { API_BASE } from "@/lib/api-config";
 
 import { useState } from "react";
 import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle, AlertCircle } from "lucide-react";
+import { StandardPage } from "@/components/ui/StandardPage";
 
 
 
@@ -112,18 +113,11 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6">
-<div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="h-6 w-6" />
-            Report Generator
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Generate PDF reports for fleet overview, security audits, and inventory documentation
-          </p>
-        </div>
-      </div>
+    <StandardPage
+      title="Report Generator"
+      description="Generate PDF reports for fleet overview, security audits, and inventory documentation"
+      icon={<FileText className="h-6 w-6" />}
+    >
 
       {/* Error Banner */}
       {error && (
@@ -333,6 +327,6 @@ export default function ReportsPage() {
           </div>
         </div>
       )}
-    </div>
+    </StandardPage>
   );
 }

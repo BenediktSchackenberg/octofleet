@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Database, Package, ChevronRight } from "lucide-react";
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { StandardPage } from "@/components/ui/StandardPage";
 
 
 
@@ -92,23 +93,24 @@ export default function DeploymentsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-<PageHeader
-        title="🚀 Deployments"
-        description="Softwareverteilung an Nodes und Gruppen"
-        actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={fetchDeployments}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Aktualisieren
-            </Button>
-            <Button onClick={() => setShowCreate(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Neues Deployment
-            </Button>
-          </div>
-        }
-      />
+    <StandardPage
+      title="Deployments"
+      description="Softwareverteilung an Nodes und Gruppen"
+      icon={<Rocket className="h-6 w-6" />}
+      loading={loading}
+      actions={
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchDeployments}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Aktualisieren
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Neues Deployment
+          </Button>
+        </div>
+      }
+    >
 
       {/* E5-13: Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
@@ -308,6 +310,6 @@ export default function DeploymentsPage() {
         onOpenChange={setShowCreate}
         onCreated={fetchDeployments}
       />
-    </div>
+    </StandardPage>
   );
 }

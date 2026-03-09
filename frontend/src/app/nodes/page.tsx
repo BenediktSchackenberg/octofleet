@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
 import { StatusBadge, statusToVariant } from "@/components/ui/StatusBadge";
-import { Check, X, Clock, Monitor, LayoutGrid, List, Plus } from "lucide-react";
+import { Check, X, Clock, Monitor, LayoutGrid, List, Plus, Server } from "lucide-react";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
+import { StandardPage } from "@/components/ui/StandardPage";
 
 
 
@@ -238,64 +239,37 @@ export default function NodesPage() {
   const onlineCount = nodes.filter((n) => n.is_online).length;
   const issueCount = nodes.filter((n) => n.health_status && n.health_status !== 'healthy').length;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <div className="max-w-6xl mx-auto p-6">
-        {/* Breadcrumb */}
-{/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">🖥️ Nodes</h1>
-            <p className="text-zinc-400 text-sm">
-              {onlineCount} von {nodes.length} online
-              {pendingNodes.length > 0 && (
-                <span className="ml-2 text-amber-400">
-                  • {pendingNodes.length} wartend
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <OnboardingDialog trigger={
-              <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors text-sm font-medium">
-                <Plus className="h-4 w-4" /> Add Device
-              </button>
-            } />
-            <button
-              onClick={() => { setViewMode("list"); localStorage.setItem("octofleet-nodes-view", "list"); }}
-              className={`p-2 rounded-lg border transition-colors ${viewMode === "list" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
-              title="List view"
-            >
-              <List className="h-4 w-4" />
+    <StandardPage
+      title="Devices"
+      description={`${onlineCount} von ${nodes.length} online${pendingNodes.length > 0 ? ` • ${pendingNodes.length} wartend` : ""}`}
+      icon={<Server className="h-6 w-6" />}
+      loading={loading}
+      actions={
+        <div className="flex gap-2">
+          <OnboardingDialog trigger={
+            <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors text-sm font-medium">
+              <Plus className="h-4 w-4" /> Add Device
             </button>
-            <button
-              onClick={() => { setViewMode("grid"); localStorage.setItem("octofleet-nodes-view", "grid"); }}
-              className={`p-2 rounded-lg border transition-colors ${viewMode === "grid" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
-              title="Grid view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-          </div>
+          } />
+          <button
+            onClick={() => { setViewMode("list"); localStorage.setItem("octofleet-nodes-view", "list"); }}
+            className={`p-2 rounded-lg border transition-colors ${viewMode === "list" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
+            title="List view"
+          >
+            <List className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => { setViewMode("grid"); localStorage.setItem("octofleet-nodes-view", "grid"); }}
+            className={`p-2 rounded-lg border transition-colors ${viewMode === "grid" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
+            title="Grid view"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
         </div>
-
-        {/* Pending Nodes Section */}
-        <PendingNodesSection 
-          pendingNodes={pendingNodes}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          approving={approving}
-        />
-
-        {/* Search & Filters */}
-        <div className="mb-4 flex flex-wrap gap-4 items-center">
+      }
+      filters={
+        <div className="flex flex-wrap gap-4 items-center">
           <input
             type="text"
             placeholder="Suchen..."
@@ -303,7 +277,6 @@ export default function NodesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full md:w-80 px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
           />
-          
           {issueCount > 0 && (
             <button
               onClick={() => setShowOnlyIssues(!showOnlyIssues)}
@@ -317,6 +290,15 @@ export default function NodesPage() {
             </button>
           )}
         </div>
+      }
+    >
+        {/* Pending Nodes Section */}
+        <PendingNodesSection 
+          pendingNodes={pendingNodes}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          approving={approving}
+        />
 
         {/* Nodes View */}
         {viewMode === "grid" ? (
@@ -411,7 +393,6 @@ export default function NodesPage() {
           </table>
         </div>
         )}
-      </div>
-    </div>
+    </StandardPage>
   );
 }

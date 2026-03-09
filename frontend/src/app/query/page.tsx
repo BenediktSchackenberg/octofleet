@@ -43,6 +43,7 @@ import {
   OP_LABELS, CRON_PRESETS, cronToHuman, formatTime,
   type QueryResult, type DashboardWidget, type TabId,
 } from "@/hooks/useQueryEngine";
+import { StandardPage } from "@/components/ui/StandardPage";
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -185,25 +186,19 @@ export default function QueryEnginePage() {
   const categories = [...new Set(savedQueries.map(s => s.category).filter(Boolean))];
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      <div className="max-w-[1600px] mx-auto p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <Terminal className="h-8 w-8 text-cyan-400" />
-              Query Engine
-            </h1>
-            <p className="text-zinc-400 mt-1">Real-time fleet queries — like CMPivot, but cooler</p>
-          </div>
-          <div className="flex gap-2">
-            {result && (
-              <span className="text-xs text-zinc-500 self-center mr-4">
-                {result.rowCount} rows in {result.executionMs}ms
-              </span>
-            )}
-          </div>
-        </div>
+    <StandardPage
+      title="Query Engine"
+      description="Real-time fleet queries — like CMPivot, but cooler"
+      icon={<Terminal className="h-6 w-6 text-cyan-400" />}
+      actions={
+        result ? (
+          <span className="text-xs text-zinc-500">
+            {result.rowCount} rows in {result.executionMs}ms
+          </span>
+        ) : undefined
+      }
+    >
+      <div className="max-w-[1600px] mx-auto">
 
         {/* Tabs */}
         <div className="flex gap-1 mb-4 bg-zinc-900 rounded-lg p-1 w-fit">
@@ -1274,6 +1269,6 @@ export default function QueryEnginePage() {
           </div>
         </div>
       </div>
-    </main>
+    </StandardPage>
   );
 }

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Terminal, Zap, Rocket } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge as StatusBadgeNew, statusToVariant } from "@/components/ui/StatusBadge";
+import { StandardPage } from "@/components/ui/StandardPage";
 
 
 
@@ -493,21 +494,21 @@ export default function JobsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-900 p-6">
+    <StandardPage
+      title="Jobs"
+      description="Remote-Befehle an Geräte und Gruppen senden"
+      icon={<Zap className="h-6 w-6" />}
+      loading={loading}
+      actions={
+        <button
+          onClick={() => setShowCreate(true)}
+          className="rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-500"
+        >
+          + Neuer Job
+        </button>
+      }
+    >
       <div className="mx-auto max-w-6xl">
-        {/* Header */}
-        <PageHeader
-          title="🚀 Jobs"
-          description="Remote-Befehle an Geräte und Gruppen senden"
-          actions={
-            <button
-              onClick={() => setShowCreate(true)}
-              className="rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-500"
-            >
-              + Neuer Job
-            </button>
-          }
-        />
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
@@ -600,6 +601,6 @@ export default function JobsPage() {
           onRetry={retryInstance}
         />
       )}
-    </div>
+    </StandardPage>
   );
 }

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Bell, Plus, Trash2, TestTube, Check, X } from "lucide-react";
+import { StandardPage } from "@/components/ui/StandardPage";
 
 
 
@@ -143,12 +144,11 @@ export default function AlertsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
-<div className="flex items-center gap-3 mb-8">
-        <Bell className="h-8 w-8" />
-        <h1 className="text-3xl font-bold">Alerts</h1>
-      </div>
-
+    <StandardPage
+      title="Alerts"
+      icon={<Bell className="h-6 w-6" />}
+      loading={loading}
+    >
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Channels */}
         <Card>
@@ -341,6 +341,6 @@ export default function AlertsPage() {
           )}
         </CardContent>
       </Card>
-    </main>
+    </StandardPage>
   );
 }

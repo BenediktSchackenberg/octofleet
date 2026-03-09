@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { API_URL } from '@/lib/api-config';
 import { PageHeader } from "@/components/ui/PageHeader";
+import { StandardPage } from "@/components/ui/StandardPage";
+import { Package as PackageIcon } from "lucide-react";
 
 
 
@@ -229,82 +231,71 @@ export default function PackagesPage() {
   }, [selectedCategory, search]);
 
   return (
-    <div className="min-h-screen bg-zinc-900 p-6">
-      <div className="mx-auto max-w-7xl">
-        {/* Header */}
-        <PageHeader
-          title="📦 Pakete"
-          description="Software-Katalog für Deployment"
-          actions={
-            <div className="flex gap-3">
-              <Link
-                href="/"
-                className="rounded-lg bg-zinc-700 px-4 py-2 text-white hover:bg-zinc-600"
-              >
-                ← Dashboard
-              </Link>
-              <button
-                onClick={() => setShowCreate(true)}
-                className="rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-500"
-              >
-                + Neues Paket
-              </button>
-            </div>
-          }
+    <StandardPage
+      title="Packages"
+      description="Software-Katalog für Deployment"
+      icon={<PackageIcon className="h-6 w-6" />}
+      loading={loading}
+      actions={
+        <div className="flex gap-3">
+          <Link
+            href="/"
+            className="rounded-lg bg-zinc-700 px-4 py-2 text-white hover:bg-zinc-600"
+          >
+            ← Dashboard
+          </Link>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-500"
+          >
+            + Neues Paket
+          </button>
+        </div>
+      }
+      filters={
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="🔍 Pakete suchen..."
+          className="w-full rounded-lg bg-zinc-800 px-4 py-3 text-white placeholder-zinc-500"
         />
-
-        <div className="flex gap-6">
-          {/* Sidebar - Categories */}
-          <div className="w-56 shrink-0">
-            <div className="rounded-lg bg-zinc-800 p-4">
-              <h3 className="mb-3 text-sm font-medium text-zinc-400">KATEGORIEN</h3>
-              <ul className="space-y-1">
-                <li>
-                  <button
-                    onClick={() => setSelectedCategory(null)}
-                    className={`w-full rounded px-3 py-2 text-left text-sm ${
-                      !selectedCategory ? "bg-zinc-700 text-white" : "text-zinc-300 hover:bg-zinc-700/50"
-                    }`}
-                  >
-                    Alle ({packages.length})
-                  </button>
-                </li>
-                {categories.map((cat) => (
-                  <li key={cat.name}>
-                    <button
-                      onClick={() => setSelectedCategory(cat.name)}
-                      className={`w-full rounded px-3 py-2 text-left text-sm flex items-center justify-between ${
-                        selectedCategory === cat.name ? "bg-zinc-700 text-white" : "text-zinc-300 hover:bg-zinc-700/50"
-                      }`}
-                    >
-                      <span>
-                        {categoryIcons[cat.name.toLowerCase()] || "📦"} {cat.name}
-                      </span>
-                      <span className="text-zinc-500">{cat.count}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1">
-            {/* Search */}
-            <div className="mb-6">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="🔍 Pakete suchen..."
-                className="w-full rounded-lg bg-zinc-800 px-4 py-3 text-white placeholder-zinc-500"
-              />
-            </div>
-
+      }
+      sidebar={
+        <div className="rounded-lg bg-zinc-800 p-4">
+          <h3 className="mb-3 text-sm font-medium text-zinc-400">KATEGORIEN</h3>
+          <ul className="space-y-1">
+            <li>
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`w-full rounded px-3 py-2 text-left text-sm ${
+                  !selectedCategory ? "bg-zinc-700 text-white" : "text-zinc-300 hover:bg-zinc-700/50"
+                }`}
+              >
+                Alle ({packages.length})
+              </button>
+            </li>
+            {categories.map((cat) => (
+              <li key={cat.name}>
+                <button
+                  onClick={() => setSelectedCategory(cat.name)}
+                  className={`w-full rounded px-3 py-2 text-left text-sm flex items-center justify-between ${
+                    selectedCategory === cat.name ? "bg-zinc-700 text-white" : "text-zinc-300 hover:bg-zinc-700/50"
+                  }`}
+                >
+                  <span>
+                    {categoryIcons[cat.name.toLowerCase()] || "📦"} {cat.name}
+                  </span>
+                  <span className="text-zinc-500">{cat.count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      }
+    >
             {/* Package Grid */}
-            {loading ? (
-              <div className="text-center text-zinc-400 py-12">Lade Pakete...</div>
-            ) : packages.length === 0 ? (
+            {packages.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">📭</div>
                 <h2 className="text-xl font-semibold text-white mb-2">Keine Pakete gefunden</h2>
@@ -364,9 +355,6 @@ export default function PackagesPage() {
                 ))}
               </div>
             )}
-          </div>
-        </div>
-      </div>
 
       {showCreate && (
         <CreatePackageDialog
@@ -377,6 +365,6 @@ export default function PackagesPage() {
           }}
         />
       )}
-    </div>
+    </StandardPage>
   );
 }

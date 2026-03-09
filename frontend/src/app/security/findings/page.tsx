@@ -2,7 +2,8 @@
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { AlertTriangle, CheckCircle, XCircle, Eye } from "lucide-react";
+import { AlertTriangle, CheckCircle, XCircle, Eye, Bug } from "lucide-react";
+import { StandardPage } from "@/components/ui/StandardPage";
 
 interface Finding { id: string; type: string; title: string; description: string; severity: string; score: number; status: string; first_seen: string; last_seen: string; node_id: string; user_id: string; }
 
@@ -33,13 +34,13 @@ export default function FindingsPage() {
   const sevColors: Record<string, string> = { critical: "text-red-400 bg-red-500/20", high: "text-orange-400 bg-orange-500/20", medium: "text-yellow-400 bg-yellow-500/20", low: "text-blue-400 bg-blue-500/20", info: "text-zinc-400 bg-zinc-500/20" };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      <div className="max-w-[1920px] mx-auto p-6">
-<div className="flex items-center gap-3 mb-6">
-          <AlertTriangle className="h-8 w-8 text-orange-400" />
-          <div><h1 className="text-2xl font-bold">Findings & Alerts</h1><p className="text-zinc-400 text-sm">{total} findings — triage and manage security issues</p></div>
-        </div>
-        <div className="flex gap-3 mb-6">
+    <StandardPage
+      title="Findings"
+      description={`${total} findings — triage and manage security issues`}
+      icon={<Bug className="h-6 w-6" />}
+      loading={loading}
+      filters={
+        <div className="flex gap-3">
           <select value={filter.severity} onChange={e => setFilter({...filter, severity: e.target.value})} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm">
             <option value="">All Severities</option>
             {["critical","high","medium","low","info"].map(s => <option key={s} value={s}>{s}</option>)}
@@ -49,8 +50,9 @@ export default function FindingsPage() {
             {["open","acknowledged","resolved","false_positive"].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        {loading ? <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div></div> :
-        findings.length === 0 ? <div className="text-center py-20"><AlertTriangle className="h-16 w-16 text-zinc-700 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">No findings</h3><p className="text-zinc-400 text-sm">Your fleet is looking clean — no security issues detected.</p></div> :
+      }
+    >
+        {findings.length === 0 ? <div className="text-center py-20"><AlertTriangle className="h-16 w-16 text-zinc-700 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">No findings</h3><p className="text-zinc-400 text-sm">Your fleet is looking clean — no security issues detected.</p></div> :
         <div className="space-y-3">
           {findings.map(f => (
             <div key={f.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4">
@@ -69,7 +71,6 @@ export default function FindingsPage() {
             </div>
           ))}
         </div>}
-      </div>
-    </div>
+    </StandardPage>
   );
 }

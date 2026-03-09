@@ -24,6 +24,7 @@ interface AuthContextType {
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   isAdmin: () => boolean;
+  getRole: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -165,8 +166,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user?.is_superuser || user?.roles?.includes("admin") || false;
   }
 
+  function getRole(): string {
+    if (!user) return "viewer";
+    if (user.is_superuser || user.roles?.includes("admin")) return "admin";
+    // Return first known role, default to "viewer"
+    const knownRoles = ["operator", "auditor", "viewer"];
+    for (const r of user.roles || []) {
+      if (knownRoles.includes(r)) return r;
+    }
+    return "viewer";
+  }
+
     // Always wrap children in provider so useAuth() never crashes
-  const contextValue = { user, token, loading, login, logout, hasPermission, isAdmin };
+  const contextValue = { user, token, loading, login, logout, hasPermission, isAdmin, getRole };
 
   // Show nothing while checking auth (prevents flash)
   if (loading) {

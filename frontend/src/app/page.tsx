@@ -152,7 +152,7 @@ export default function HomePage() {
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [taskCounts, setTaskCounts] = useState<{ approvals: number; findings: number; failedJobs: number; offline: number } | null>(null);
-  const [eventStats, setEventStats] = useState<{ stats: Array<{ eventType: string; count: number }>; retention: any } | null>(null);
+  const [eventStats, setEventStats] = useState<{ stats: Array<{ event_type: string; count: number }>; retention: any } | null>(null);
 
   // Time-based greeting
   const greeting = useMemo(() => {
@@ -241,7 +241,7 @@ export default function HomePage() {
 
   async function fetchEventStats() {
     try {
-      const data = await apiClient.get<{ stats: Array<{ eventType: string; count: number }>; retention: any }>("/events/stats");
+      const data = await apiClient.get<{ stats: Array<{ event_type: string; count: number }>; retention: any }>("/events/stats");
       if (data) setEventStats(data);
     } catch (e) {
       console.error("Failed to fetch event stats:", e);
@@ -1016,7 +1016,7 @@ export default function HomePage() {
                       };
                       const grouped: Record<string, number> = {};
                       eventStats.stats.forEach((s) => {
-                        const key = Object.keys(prefixMap).find((p) => s.eventType.toLowerCase().startsWith(p)) || "other";
+                        const key = Object.keys(prefixMap).find((p) => (s.event_type || "").toLowerCase().startsWith(p)) || "other";
                         grouped[key] = (grouped[key] || 0) + s.count;
                       });
                       const total = Object.values(grouped).reduce((a, b) => a + b, 0);
