@@ -24,7 +24,9 @@
 
 param(
     [string]$Version = "latest",
-    [string]$CertName = "Open Source Developer Jan-Benedikt Schackenberg",
+    [string]$CertHash = "7a9afaf3e49638746f2e5d9288e79c5f669f7d71",
+    [string]$CertCSP = "Microsoft Base Smart Card Crypto Provider",
+    [string]$KeyContainer = "AT_KEYEXCHANGE",
     [string]$GitHubToken = $env:GITHUB_TOKEN,
     [string]$TimestampServer = "http://time.certum.pl",
     [string]$Repo = "BenediktSchackenberg/octofleet"
@@ -113,7 +115,7 @@ $signed = 0
 $failed = 0
 foreach ($file in $files) {
     Write-Host "  Signing $($file.Name)..." -NoNewline
-    $result = & $signtool sign /n $CertName /t $TimestampServer /fd sha256 /v $file.FullName 2>&1
+    $result = & $signtool sign /sha1 $CertHash /csp $CertCSP /kc $KeyContainer /t $TimestampServer /fd sha256 /v $file.FullName 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Host " OK" -ForegroundColor Green
         $signed++
