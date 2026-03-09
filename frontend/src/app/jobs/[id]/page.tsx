@@ -124,7 +124,7 @@ export default function JobDetailPage() {
 
   async function fetchJob() {
     try {
-      const data = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
+      const data = await apiClient.get<Record<string, any>>(`/jobs/${jobId}`, { showErrorToast: false });
       if (!data) {
         setError("Job nicht gefunden");
         return;
@@ -155,7 +155,7 @@ export default function JobDetailPage() {
           durationMs: inst.durationMs || inst.duration_ms,
         })),
       };
-      setJob(mapped);
+      setJob(mapped as unknown as JobDetail);
       setError(null);
     } catch (err) {
       setError("Verbindung zum Server fehlgeschlagen");

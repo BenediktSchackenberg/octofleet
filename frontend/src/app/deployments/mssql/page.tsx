@@ -130,23 +130,16 @@ export default function MssqlAssignmentsPage() {
     try {
       
       const [assignmentsRes, configsRes, groupsRes, editionsRes] = await Promise.all([
-        apiClient.get(`/mssql/assignments`, { showErrorToast: false }),
-        apiClient.get(`/mssql/configs`, { showErrorToast: false }),
-        apiClient.get(`/groups`, { showErrorToast: false }),
-        apiClient.get(`/mssql/editions`, { showErrorToast: false }),
+        apiClient.get<{ assignments: Assignment[] }>(`/mssql/assignments`, { showErrorToast: false }),
+        apiClient.get<{ configs: MssqlConfig[] }>(`/mssql/configs`, { showErrorToast: false }),
+        apiClient.get<{ groups: Group[] }>(`/groups`, { showErrorToast: false }),
+        apiClient.get<{ editions: Edition[] }>(`/mssql/editions`, { showErrorToast: false }),
       ]);
 
-      const [assignmentsData, configsData, groupsData, editionsData] = await Promise.all([
-        assignmentsRes,
-        configsRes,
-        groupsRes,
-        editionsRes,
-      ]);
-
-      setAssignments(assignmentsData.assignments || []);
-      setConfigs(configsData.configs || []);
-      setGroups(groupsData.groups || []);
-      setEditions(editionsData.editions || []);
+      setAssignments(assignmentsRes?.assignments || []);
+      setConfigs(configsRes?.configs || []);
+      setGroups(groupsRes?.groups || []);
+      setEditions(editionsRes?.editions || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -194,7 +187,7 @@ export default function MssqlAssignmentsPage() {
     setReconciling(assignmentId);
     
     try {
-      const data = await apiClient.post(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
+      const data = await apiClient.post<{ nodesProcessed: number }>(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
       
       if (data) {
         alert(`${data.nodesProcessed} Jobs erstellt!`);
@@ -220,7 +213,7 @@ export default function MssqlAssignmentsPage() {
   };
 
   const loadAssignmentDetail = async (assignmentId: string) => {
-    const res = await apiClient.get(`/mssql/assignments/${assignmentId}`, { showErrorToast: false });
+    const res = await apiClient.get<AssignmentDetail>(`/mssql/assignments/${assignmentId}`, { showErrorToast: false });
     if (res) {
       setSelectedAssignment(res);
     }

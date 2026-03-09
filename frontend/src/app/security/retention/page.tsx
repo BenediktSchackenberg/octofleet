@@ -13,8 +13,8 @@ export default function RetentionPage() {
   const { token } = useAuth();
 
   async function fetchRules() {
-    const data = await apiClient.get(`/retention`, { showErrorToast: false });
-    setRules(data.retention || []);
+    const data = await apiClient.get<{ retention: RetentionRule[] }>(`/retention`, { showErrorToast: false });
+    setRules(data?.retention || []);
     setLoading(false);
   }
   useEffect(() => { if (token) fetchRules(); }, [token]);

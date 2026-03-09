@@ -81,7 +81,7 @@ export default function SettingsPage() {
 
   async function fetchSettings() {
     try {
-      const data = await apiClient.get(`/settings/nvd_api_key`, { showErrorToast: false });
+      const data = await apiClient.get<{ value?: string }>(`/settings/nvd_api_key`, { showErrorToast: false });
       if (data) {
         if (data.value) {
           setNvdApiKey(data.value);
@@ -108,7 +108,7 @@ export default function SettingsPage() {
 
   async function fetchTokens() {
     try {
-      const data = await apiClient.get(`/enrollment-tokens`, { showErrorToast: false });
+      const data = await apiClient.get<{ tokens: EnrollmentToken[] }>(`/enrollment-tokens`, { showErrorToast: false });
       if (data) {
         setTokens(data.tokens || []);
       }
@@ -120,7 +120,7 @@ export default function SettingsPage() {
   async function createToken() {
     setCreating(true);
     try {
-      const data = await apiClient.post(`/enrollment-tokens`, {
+      const data = await apiClient.post<{ token: string; installCommand: string }>(`/enrollment-tokens`, {
           description,
           expiresHours,
           maxUses,

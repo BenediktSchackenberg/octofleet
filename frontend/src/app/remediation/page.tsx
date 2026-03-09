@@ -88,10 +88,10 @@ export default function RemediationPage() {
     try {
       const headers = { 'Authorization': `Bearer ${token}` };
       const [summaryRes, packagesRes, rulesRes, jobsRes] = await Promise.all([
-        apiClient.get(`/remediation/summary`, { showErrorToast: false }),
-        apiClient.get(`/remediation/packages`, { showErrorToast: false }),
-        apiClient.get(`/remediation/rules`, { showErrorToast: false }),
-        apiClient.get(`/remediation/jobs?limit=500`, { showErrorToast: false }),
+        apiClient.get<Summary>(`/remediation/summary`, { showErrorToast: false }),
+        apiClient.get<{ packages: RemediationPackage[] }>(`/remediation/packages`, { showErrorToast: false }),
+        apiClient.get<{ rules: RemediationRule[] }>(`/remediation/rules`, { showErrorToast: false }),
+        apiClient.get<{ jobs: RemediationJob[] }>(`/remediation/jobs?limit=500`, { showErrorToast: false }),
       ]);
       if (summaryRes) setSummary(summaryRes);
       if (packagesRes) { setPackages(packagesRes.packages || []); }
@@ -105,7 +105,7 @@ export default function RemediationPage() {
     const token = getToken();
     if (!token) return;
     try {
-      const res = await apiClient.get(`/remediation/summary`, { showErrorToast: false });
+      const res = await apiClient.get<Summary>(`/remediation/summary`, { showErrorToast: false });
       if (res) setSummary(res);
     } catch (e) {}
   };

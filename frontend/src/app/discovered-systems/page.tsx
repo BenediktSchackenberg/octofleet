@@ -29,11 +29,12 @@ export default function DiscoveredSystemsPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
       
-      const data = await fetch(`/api/v1/discovered-systems?${params}`, {
+      const res = await fetch(`/api/v1/discovered-systems?${params}`, {
         headers: { 'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '' }
       });
       
-      if (!data) throw new Error('Failed to fetch systems');
+      if (!res.ok) throw new Error('Failed to fetch systems');
+      const data: { systems?: DiscoveredSystem[] } = await res.json();
       setSystems(data.systems || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

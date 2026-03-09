@@ -50,8 +50,8 @@ export default function ServicesPage() {
   const fetchData = async () => {
     try {
       const [servicesData, classesData] = await Promise.all([
-        apiClient.get(`/services`, { showErrorToast: false }),
-        apiClient.get(`/service-classes`, { showErrorToast: false }),
+        apiClient.get<{ services: Service[] }>(`/services`, { showErrorToast: false }),
+        apiClient.get<{ serviceClasses: ServiceClass[] }>(`/service-classes`, { showErrorToast: false }),
       ]);
       
       setServices(servicesData?.services || []);

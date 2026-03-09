@@ -45,7 +45,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
 
   const fetchNodes = async () => {
     try {
-      const data = await apiClient.get(`/nodes`, { showErrorToast: false });
+      const data = await apiClient.get<{ nodes: Node[] }>(`/nodes`, { showErrorToast: false });
       if (data) {
         // Filter out nodes that are already members
         const available = (data.nodes || []).filter(
@@ -82,7 +82,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
         onMembersAdded?.();
         router.refresh();
       } else {
-        alert(`Fehler: ${data.detail || 'Unbekannter Fehler'}`);
+        alert(`Fehler: ${(data as any)?.detail || 'Unbekannter Fehler'}`);
       }
     } catch (err) {
       alert(`Netzwerkfehler: ${err}`);

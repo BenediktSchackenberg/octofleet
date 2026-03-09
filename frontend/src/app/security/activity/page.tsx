@@ -15,8 +15,8 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    apiClient.get(`/nodes`, { showErrorToast: false })
-      .then(d => setNodes(Array.isArray(d) ? d : d.nodes || [])).catch(() => {});
+    apiClient.get<{ nodes: any[] }>(`/nodes`, { showErrorToast: false })
+      .then(d => setNodes(Array.isArray(d) ? d : d?.nodes || [])).catch(() => {});
   }, []);
 
   const loadData = async () => {

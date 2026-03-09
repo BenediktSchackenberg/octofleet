@@ -56,7 +56,7 @@ export default function RepoPage() {
       if (typeFilter) params.append('file_type', typeFilter);
       if (categoryFilter) params.append('category', categoryFilter);
       
-      const data = await apiClient.get(`/repo/files?${params}`, { showErrorToast: false });
+      const data = await apiClient.get<{ files: RepoFile[] }>(`/repo/files?${params}`, { showErrorToast: false });
       if (data) {
         setFiles(data.files || []);
       }
@@ -67,7 +67,7 @@ export default function RepoPage() {
 
   const fetchStats = async () => {
     try {
-      const res = await apiClient.get(`/repo/stats`, { showErrorToast: false });
+      const res = await apiClient.get<RepoStats>(`/repo/stats`, { showErrorToast: false });
       if (res) {
         setStats(res);
       }

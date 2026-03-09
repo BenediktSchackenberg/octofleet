@@ -51,7 +51,7 @@ export default function QueryEnginePage() {
   const {
     schema, templates, expandedCat, setExpandedCat, expandedTable, setExpandedTable,
     selectedTable, setSelectedTable, selectedJoin, setSelectedJoin,
-    selectedColumns, setSelectedColumns, whereClauses,
+    selectedColumns, setSelectedColumns, whereClauses, setWhereClauses,
     orderBy, setOrderBy, orderDir, setOrderDir, limit, setLimit,
     groupBy, setGroupBy,
     result, loading, error, setError,

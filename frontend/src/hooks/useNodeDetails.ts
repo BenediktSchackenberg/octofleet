@@ -64,6 +64,11 @@ export interface HardwareData {
     bios?: { manufacturer?: string; version?: string; releaseDate?: string };
     network?: { name?: string; mac?: string; speed?: string }[];
   };
+  cpu?: any;
+  mainboard?: any;
+  bios?: any;
+  virtualization?: any;
+  disks?: any;
   ram?: unknown;
   gpu?: unknown[];
   nics?: unknown;
@@ -84,6 +89,13 @@ export interface HotfixData {
 }
 
 export interface SystemData {
+  osName?: string;
+  osVersion?: string;
+  uptimeFormatted?: string;
+  computerName?: string;
+  domain?: string;
+  workgroup?: string;
+  domainRole?: string;
   data?: {
     users?: { name?: string; enabled?: boolean; lastLogon?: string }[];
     services?: { name?: string; displayName?: string; status?: string; startType?: string }[];
@@ -93,6 +105,11 @@ export interface SystemData {
 }
 
 export interface SecurityData {
+  firewall?: any;
+  tpm?: any;
+  bitlocker?: any;
+  uac?: any;
+  localAdmins?: any;
   data?: {
     antivirus?: { name?: string; enabled?: boolean; upToDate?: boolean };
     firewall?: { enabled?: boolean; profiles?: Record<string, boolean> };
@@ -104,6 +121,7 @@ export interface SecurityData {
 }
 
 export interface NetworkData {
+  connections?: any[];
   data?: {
     adapters?: { name?: string; mac?: string; ipv4?: string[]; ipv6?: string[]; dhcpEnabled?: boolean }[];
     dns?: string[];
@@ -113,6 +131,8 @@ export interface NetworkData {
 }
 
 export interface BrowserData {
+  users?: any;
+  cookies?: any;
   data?: {
     browsers?: { name?: string; version?: string; isDefault?: boolean; profileCount?: number }[];
     extensions?: { browser?: string; name?: string; version?: string; enabled?: boolean }[];
@@ -258,9 +278,9 @@ export function useNodeDetails(nodeId: string) {
   const secData: SecurityData = (security || {}) as SecurityData;
   const netData: NetworkData = (network || {}) as NetworkData;
   const browserData: BrowserData = (browser || {}) as BrowserData;
-  const ramData = (hwData as Record<string, unknown>).ram || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.memory || {};
+  const ramData: { totalGB?: number; modules?: any[] } = ((hwData as Record<string, unknown>).ram || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.memory || {}) as { totalGB?: number; modules?: any[] };
   const gpuList: Array<Record<string, unknown>> = ((hwData as Record<string, unknown>).gpu || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.gpus || []) as Array<Record<string, unknown>>;
-  const nicsList = (hwData as Record<string, unknown>).nics || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.network || {};
+  const nicsList: { adapters?: any[]; configurations?: any } = ((hwData as Record<string, unknown>).nics || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.network || {}) as { adapters?: any[]; configurations?: any };
   const totalUpdatesCount = hotfixes.hotfixes.length + hotfixes.updateHistory.length;
 
   return {

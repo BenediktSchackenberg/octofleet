@@ -224,10 +224,10 @@ export default function NodeDetailPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Grafikkarte</CardDescription>
-                  <CardTitle className="text-lg truncate">{gpuList[0]?.name || '-'}</CardTitle>
+                  <CardTitle className="text-lg truncate">{String(gpuList[0]?.name || '-')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">{gpuList[0]?.videoMemoryGB || '-'} GB VRAM</p>
+                  <p className="text-sm text-muted-foreground">{String(gpuList[0]?.videoMemoryGB || '-')} GB VRAM</p>
                 </CardContent>
               </Card>
             </div>
@@ -569,7 +569,7 @@ export default function NodeDetailPage() {
             <Card>
               <CardHeader><CardTitle>Netzwerkadapter</CardTitle></CardHeader>
               <CardContent>
-                {nicsList.adapters?.length > 0 ? (
+                {(nicsList.adapters?.length ?? 0) > 0 ? (
                   <div className="space-y-4">
                     {nicsList.adapters?.map((nic: any, i: number) => {
                       const config = nicsList.configurations?.[nic.deviceId] || {};
@@ -599,7 +599,7 @@ export default function NodeDetailPage() {
               </CardContent>
             </Card>
 
-            {netData.connections?.length > 0 && (
+            {(netData.connections?.length ?? 0) > 0 && (
               <Card>
                 <CardHeader><CardTitle>Aktive Verbindungen ({netData.connections?.length})</CardTitle></CardHeader>
                 <CardContent>

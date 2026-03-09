@@ -10,8 +10,8 @@ export default function RulesPage() {
   const [form, setForm] = useState({ name: "", description: "", ruleType: "threshold", severity: "medium", enabled: true, cooldownSeconds: 300, conditions: "{}", actions: "[]" });
   const [evalResult, setEvalResult] = useState<any>(null);
 
-  const load = () => apiClient.get(`/security/rules`, { showErrorToast: false })
-    .then(d => setRules(d.rules || [])).catch(() => {});
+  const load = () => apiClient.get<{ rules: any[] }>(`/security/rules`, { showErrorToast: false })
+    .then(d => setRules(d?.rules || [])).catch(() => {});
 
   useEffect(() => { load(); }, []);
 

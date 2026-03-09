@@ -12,8 +12,8 @@ export default function EvidencePage() {
   const { token, user } = useAuth();
 
   async function fetchExports() {
-    const data = await apiClient.get(`/evidence/exports`, { showErrorToast: false });
-    setExports(data.exports || []);
+    const data = await apiClient.get<{ exports: Export[] }>(`/evidence/exports`, { showErrorToast: false });
+    setExports(data?.exports || []);
     setLoading(false);
   }
   useEffect(() => { if (token) fetchExports(); }, [token]);

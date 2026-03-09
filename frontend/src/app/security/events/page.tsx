@@ -125,10 +125,10 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
         {user?.username && <span>User: <span className="text-zinc-200">{user.username}</span></span>}
         {user?.domain && <span>Domain: <span className="text-zinc-200">{user.domain}</span></span>}
-        {payload.logon_type && <span>Type: <span className="text-zinc-200">{String(payload.logon_type)}</span></span>}
-        {payload.source_ip && <span>Source: <span className="text-zinc-200">{String(payload.source_ip)}</span></span>}
-        {payload.failure_reason && <span className="text-red-400">Reason: {String(payload.failure_reason)}</span>}
-        {meta?.brute_force && <span className="text-red-400 font-medium">⚠ Brute force detected</span>}
+        {!!payload.logon_type && <span>Type: <span className="text-zinc-200">{String(payload.logon_type)}</span></span>}
+        {!!payload.source_ip && <span>Source: <span className="text-zinc-200">{String(payload.source_ip)}</span></span>}
+        {!!payload.failure_reason && <span className="text-red-400">Reason: {String(payload.failure_reason)}</span>}
+        {!!meta?.brute_force && <span className="text-red-400 font-medium">⚠ Brute force detected</span>}
       </div>
     );
   }
@@ -136,11 +136,11 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
     const proc = payload.process as Record<string, unknown> | undefined;
     return (
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
-        {proc?.name && <span>Process: <span className="text-zinc-200">{String(proc.name)}</span></span>}
-        {proc?.pid && <span>PID: <span className="text-zinc-200">{String(proc.pid)}</span></span>}
-        {proc?.parent_pid && <span>Parent: <span className="text-zinc-200">{String(proc.parent_pid)}</span></span>}
-        {proc?.command_line && <span className="truncate max-w-xs">CMD: <span className="text-zinc-200 font-mono">{String(proc.command_line)}</span></span>}
-        {proc?.path && <span className="truncate max-w-xs">Path: <span className="text-zinc-200 font-mono">{String(proc.path)}</span></span>}
+        {!!proc?.name && <span>Process: <span className="text-zinc-200">{String(proc.name)}</span></span>}
+        {!!proc?.pid && <span>PID: <span className="text-zinc-200">{String(proc.pid)}</span></span>}
+        {!!proc?.parent_pid && <span>Parent: <span className="text-zinc-200">{String(proc.parent_pid)}</span></span>}
+        {!!proc?.command_line && <span className="truncate max-w-xs">CMD: <span className="text-zinc-200 font-mono">{String(proc.command_line)}</span></span>}
+        {!!proc?.path && <span className="truncate max-w-xs">Path: <span className="text-zinc-200 font-mono">{String(proc.path)}</span></span>}
       </div>
     );
   }
@@ -149,31 +149,31 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
     const proc = payload.process as Record<string, unknown> | undefined;
     return (
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
-        {net?.local_address && <span>Local: <span className="text-zinc-200">{String(net.local_address)}:{String(net.local_port)}</span></span>}
-        {net?.remote_address && <span>Remote: <span className="text-zinc-200">{String(net.remote_address)}:{String(net.remote_port)}</span></span>}
-        {net?.state && <span>State: <span className="text-zinc-200">{String(net.state)}</span></span>}
-        {proc?.name && <span>Process: <span className="text-zinc-200">{String(proc.name)}</span></span>}
+        {!!net?.local_address && <span>Local: <span className="text-zinc-200">{String(net.local_address)}:{String(net.local_port)}</span></span>}
+        {!!net?.remote_address && <span>Remote: <span className="text-zinc-200">{String(net.remote_address)}:{String(net.remote_port)}</span></span>}
+        {!!net?.state && <span>State: <span className="text-zinc-200">{String(net.state)}</span></span>}
+        {!!proc?.name && <span>Process: <span className="text-zinc-200">{String(proc.name)}</span></span>}
       </div>
     );
   }
   if (eventType.startsWith("registry")) {
     return (
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
-        {payload.hive && <span>Hive: <span className="text-zinc-200">{String(payload.hive)}</span></span>}
-        {payload.key_path && <span className="truncate max-w-md">Key: <span className="text-zinc-200 font-mono">{String(payload.key_path)}</span></span>}
-        {payload.value_name && <span>Value: <span className="text-zinc-200">{String(payload.value_name)}</span></span>}
+        {!!payload.hive && <span>Hive: <span className="text-zinc-200">{String(payload.hive)}</span></span>}
+        {!!payload.key_path && <span className="truncate max-w-md">Key: <span className="text-zinc-200 font-mono">{String(payload.key_path)}</span></span>}
+        {!!payload.value_name && <span>Value: <span className="text-zinc-200">{String(payload.value_name)}</span></span>}
       </div>
     );
   }
   if (eventType.startsWith("service")) {
     return (
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
-        {payload.service_name && <span>Service: <span className="text-zinc-200">{String(payload.service_name)}</span></span>}
-        {payload.display_name && <span>Display: <span className="text-zinc-200">{String(payload.display_name)}</span></span>}
-        {payload.state && <span>State: <span className="text-zinc-200">{String(payload.state)}</span></span>}
-        {payload.previous_state && <span>Previous: <span className="text-zinc-200">{String(payload.previous_state)}</span></span>}
-        {payload.start_type && <span>Start: <span className="text-zinc-200">{String(payload.start_type)}</span></span>}
-        {payload.suspicious && <span className="text-red-400 font-medium">⚠ Suspicious path</span>}
+        {!!payload.service_name && <span>Service: <span className="text-zinc-200">{String(payload.service_name)}</span></span>}
+        {!!payload.display_name && <span>Display: <span className="text-zinc-200">{String(payload.display_name)}</span></span>}
+        {!!payload.state && <span>State: <span className="text-zinc-200">{String(payload.state)}</span></span>}
+        {!!payload.previous_state && <span>Previous: <span className="text-zinc-200">{String(payload.previous_state)}</span></span>}
+        {!!payload.start_type && <span>Start: <span className="text-zinc-200">{String(payload.start_type)}</span></span>}
+        {!!payload.suspicious && <span className="text-red-400 font-medium">⚠ Suspicious path</span>}
       </div>
     );
   }

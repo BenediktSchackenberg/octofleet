@@ -14,8 +14,8 @@ export default function PoliciesPage() {
   const { token } = useAuth();
 
   async function fetchPolicies() {
-    const data = await apiClient.get(`/security/policies`, { showErrorToast: false });
-    setPolicies(data.policies || []);
+    const data = await apiClient.get<{ policies: Policy[] }>(`/security/policies`, { showErrorToast: false });
+    setPolicies(data?.policies || []);
     setLoading(false);
   }
   useEffect(() => { if (token) fetchPolicies(); }, [token]);

@@ -33,7 +33,7 @@ export function CreateGroupDialog() {
 
     setLoading(true);
     try {
-      const data = await apiClient.post(`/groups`, {
+      const data = await apiClient.post<{ detail?: string }>(`/groups`, {
           name: name.trim(),
           description: description.trim() || null,
           color: color,
@@ -47,7 +47,7 @@ export function CreateGroupDialog() {
         setColor("#3b82f6");
         router.refresh();
       } else {
-        alert(`Fehler: ${data.detail || 'Unbekannter Fehler'}`);
+        alert(`Fehler: ${(data as any)?.detail || 'Unbekannter Fehler'}`);
       }
     } catch (err) {
       alert(`Netzwerkfehler: ${err}`);

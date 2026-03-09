@@ -25,7 +25,7 @@ export default function DriftEvents() {
       const params = new URLSearchParams();
       if (filter.status) params.set("status", filter.status);
       if (filter.severity) params.set("severity", filter.severity);
-      const res = await apiClient.get(`/baselines/drift?${params}`, { showErrorToast: false });
+      const res = await apiClient.get<DriftEvent[]>(`/baselines/drift?${params}`, { showErrorToast: false });
       if (res) setEvents(res);
     } finally { setLoading(false); }
   };

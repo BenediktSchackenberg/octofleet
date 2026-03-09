@@ -31,9 +31,9 @@ export default function PosturePage() {
   const [tab, setTab] = useState<"overview" | "packages" | "services" | "config" | "ports">("overview");
 
   useEffect(() => {
-    apiClient.get(`/nodes`, { showErrorToast: false })
+    apiClient.get<{ nodes: any[] } | any[]>(`/nodes`, { showErrorToast: false })
       
-      .then(data => setNodes(Array.isArray(data) ? data : data.nodes || []))
+      .then((data: any) => setNodes(Array.isArray(data) ? data : data.nodes || []))
       .catch(() => {});
   }, []);
 
@@ -44,12 +44,12 @@ export default function PosturePage() {
     setComparison(null);
     try {
       const [snapData, compData] = await Promise.all([
-        apiClient.get(`/posture/snapshots/${nodeId}`, { showErrorToast: false }),
-        apiClient.get(`/posture/compare/${nodeId}`, { showErrorToast: false })
+        apiClient.get<{ snapshots: PostureSnapshot[] }>(`/posture/snapshots/${nodeId}`, { showErrorToast: false }),
+        apiClient.get<{ baselineId?: string; baselineDate?: string; currentId?: string; currentDate?: string; diff?: PostureDiff }>(`/posture/compare/${nodeId}`, { showErrorToast: false })
       ]);
       setSnapshots(snapData?.snapshots || []);
       setComparison(compData);
-      if (snapData?.snapshots?.length > 0) setSelectedSnapshot(snapData.snapshots[0]);
+      if (snapData?.snapshots?.length && snapData.snapshots.length > 0) setSelectedSnapshot(snapData.snapshots[0]);
     } catch { }
     setLoading(false);
   };

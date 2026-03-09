@@ -13,8 +13,8 @@ export default function AuditLogPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiClient.get(`/audit/ui-events`, { showErrorToast: false })
-      .then(d => setEvents(d.events || [])).catch(console.error).finally(() => setLoading(false));
+    apiClient.get<{ events: AuditEvent[] }>(`/audit/ui-events`, { showErrorToast: false })
+      .then(d => setEvents(d?.events || [])).catch(console.error).finally(() => setLoading(false));
   }, [token]);
 
   return (

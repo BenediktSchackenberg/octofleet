@@ -48,7 +48,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
 
   async function fetchAllTags() {
     try {
-      const data = await apiClient.get(`/tags`, { showErrorToast: false });
+      const data = await apiClient.get<{ tags: any[] }>(`/tags`, { showErrorToast: false });
       if (data) {
         setAllTags(data.tags || []);
       }
@@ -89,7 +89,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
     if (!newTagName.trim()) return;
     setCreating(true);
     try {
-      const data = await apiClient.post(`/tags`, {
+      const data = await apiClient.post<{ tag: { id: string } }>(`/tags`, {
           name: newTagName.trim(),
           color: newTagColor,
         }, { showErrorToast: false });

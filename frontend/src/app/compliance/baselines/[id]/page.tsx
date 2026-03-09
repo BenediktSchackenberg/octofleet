@@ -31,8 +31,8 @@ export default function BaselineDetail() {
   const fetchData = async () => {
     try {
       const [bRes, eRes] = await Promise.all([
-        apiClient.get(`/baselines/${id}`, { showErrorToast: false }),
-        apiClient.get(`/baselines/${id}/evaluations`, { showErrorToast: false }),
+        apiClient.get<BaselineDetail>(`/baselines/${id}`, { showErrorToast: false }),
+        apiClient.get<Evaluation[]>(`/baselines/${id}/evaluations`, { showErrorToast: false }),
       ]);
       if (bRes) setBaseline(bRes);
       if (eRes) setEvaluations(eRes);

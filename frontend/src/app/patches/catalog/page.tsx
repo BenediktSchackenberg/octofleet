@@ -26,7 +26,7 @@ export default function PatchCatalogPage() {
   useEffect(() => {
     if (!patchId) { setLoading(false); return; }
     const token = getToken();
-    apiClient.get(`/patches/catalog/${patchId}`, { showErrorToast: false })
+    apiClient.get<PatchDetail>(`/patches/catalog/${patchId}`, { showErrorToast: false })
       .then(d => { setPatch(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, [patchId]);

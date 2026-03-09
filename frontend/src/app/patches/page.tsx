@@ -72,17 +72,17 @@ export default function PatchesPage() {
     const headers = { 'Authorization': `Bearer ${token}` };
     try {
       const [compRes, catRes, ringRes, depRes, grpRes] = await Promise.all([
-        apiClient.get(`/patches/compliance`, { showErrorToast: false }),
-        apiClient.get(`/patches/catalog?limit=100${search ? `&search=${search}` : ''}${severityFilter ? `&severity=${severityFilter}` : ''}`, { showErrorToast: false }),
-        apiClient.get(`/patches/rings`, { showErrorToast: false }),
-        apiClient.get(`/patches/deployments?limit=50`, { showErrorToast: false }),
-        apiClient.get(`/groups`, { showErrorToast: false }),
+        apiClient.get<ComplianceData>(`/patches/compliance`, { showErrorToast: false }),
+        apiClient.get<{ items: PatchItem[] }>(`/patches/catalog?limit=100${search ? `&search=${search}` : ''}${severityFilter ? `&severity=${severityFilter}` : ''}`, { showErrorToast: false }),
+        apiClient.get<Ring[]>(`/patches/rings`, { showErrorToast: false }),
+        apiClient.get<Deployment[]>(`/patches/deployments?limit=50`, { showErrorToast: false }),
+        apiClient.get<{ groups: Array<{ id: string; name: string }> }>(`/groups`, { showErrorToast: false }),
       ]);
       if (compRes) setCompliance(compRes);
       if (catRes) { setPatches(catRes.items || []); }
-      if (ringRes) setRings(ringRes);
-      if (depRes) setDeployments(depRes);
-      if (grpRes) { setGroups(grpRes.groups || grpRes || []); }
+      if (ringRes) setRings(ringRes as Ring[]);
+      if (depRes) setDeployments(depRes as Deployment[]);
+      if (grpRes) { setGroups(grpRes.groups || (grpRes as any) || []); }
     } catch (e) { console.error(e); }
     setLoading(false);
   };

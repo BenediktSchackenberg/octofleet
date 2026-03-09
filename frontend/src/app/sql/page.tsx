@@ -141,10 +141,10 @@ export default function SqlPage() {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [configsData, assignmentsData, instancesData, groupsData] = await Promise.all([
-        apiClient.get(`/mssql/configs`, { showErrorToast: false }),
-        apiClient.get(`/mssql/assignments`, { showErrorToast: false }),
-        apiClient.get(`/mssql/instances`, { showErrorToast: false }),
-        apiClient.get(`/groups`, { showErrorToast: false })
+        apiClient.get<{ configs: any[] }>(`/mssql/configs`, { showErrorToast: false }),
+        apiClient.get<{ assignments: any[] }>(`/mssql/assignments`, { showErrorToast: false }),
+        apiClient.get<{ instances: any[] }>(`/mssql/instances`, { showErrorToast: false }),
+        apiClient.get<{ groups: any[] }>(`/groups`, { showErrorToast: false })
       ]);
 
       if (!configsData || !assignmentsData || !instancesData) {
@@ -154,7 +154,7 @@ export default function SqlPage() {
       setConfigs(configsData.configs || []);
       setAssignments(assignmentsData.assignments || []);
       setInstances(instancesData.instances || []);
-      setGroups(groupsData?.groups || groupsData || []);
+      setGroups(groupsData?.groups || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -271,7 +271,7 @@ export default function SqlPage() {
         throw new Error('Failed to trigger reconcile');
       }
 
-      alert(`Reconcile triggered! ${data.jobsCreated || 0} jobs created.`);
+      alert(`Reconcile triggered! ${(data as any).jobsCreated || 0} jobs created.`);
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error triggering reconcile');

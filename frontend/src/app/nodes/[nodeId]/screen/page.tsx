@@ -43,7 +43,7 @@ export default function ScreenViewerPage() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await apiClient.post(`/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {}, { showErrorToast: false });
+      const response = await apiClient.post<{ session_id: string }>(`/screen/start/${nodeId}?quality=${quality}&max_fps=${maxFps}`, {}, { showErrorToast: false });
       
       if (!response) {
         throw new Error('Failed to start session');

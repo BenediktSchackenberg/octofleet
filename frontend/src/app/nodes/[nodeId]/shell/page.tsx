@@ -39,7 +39,7 @@ export default function ShellPage() {
     
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(
+      const res = await fetch(
         `http://${window.location.hostname}:8080/api/v1/shell/start/${nodeId}?shell_type=${shellType}`,
         {
           method: 'POST',
@@ -50,11 +50,12 @@ export default function ShellPage() {
         }
       );
       
-      if (!response) {
+      if (!res) {
         throw new Error('Failed to start session');
       }
       
-      setSessionId(response.session_id);
+      const data = await res.json() as { session_id: string };
+      setSessionId(data.session_id);
       setStatus('pending');
       
       // Initialize terminal

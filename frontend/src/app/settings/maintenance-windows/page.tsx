@@ -164,8 +164,8 @@ export default function MaintenanceWindowsPage() {
 
   const fetchWindows = async () => {
     try {
-      const data = await apiClient.get(`/maintenance-windows`, { showErrorToast: false });
-      setWindows(data.windows || []);
+      const data = await apiClient.get<{ windows: MaintenanceWindow[] }>(`/maintenance-windows`, { showErrorToast: false });
+      setWindows(data?.windows || []);
     } catch (err) {
       console.error("Failed to fetch windows:", err);
     } finally {

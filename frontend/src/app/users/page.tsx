@@ -52,8 +52,8 @@ export default function UsersPage() {
   async function fetchData() {
     try {
       const [usersRes, rolesRes] = await Promise.all([
-        apiClient.get(`/users`, { showErrorToast: false }),
-        apiClient.get(`/roles`, { showErrorToast: false }),
+        apiClient.get<{ users: any[] }>(`/users`, { showErrorToast: false }),
+        apiClient.get<{ roles: any[] }>(`/roles`, { showErrorToast: false }),
       ]);
       
       if (usersRes) { setUsers(usersRes.users || []); }

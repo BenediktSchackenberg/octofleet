@@ -315,7 +315,7 @@ export default function ContentLifecyclePage() {
 
   // ─── API ─────────────────────────────────────────────────────────
 
-  const api = useCallback(async (path: string, opts?: RequestInit) => {
+  const api = useCallback(async (path: string, opts?: RequestInit): Promise<any> => {
     const res = await apiClient.get(`/content${path}`, { showErrorToast: false });
     if (!res) {
       throw new Error('API request failed');

@@ -44,8 +44,8 @@ export default function GroupsPage() {
   async function fetchData() {
     try {
       const [groupsRes, tagsRes] = await Promise.all([
-        apiClient.get(`/groups`, { showErrorToast: false }),
-        apiClient.get(`/tags`, { showErrorToast: false }),
+        apiClient.get<{ groups: Group[] }>(`/groups`, { showErrorToast: false }),
+        apiClient.get<{ tags: Tag[] }>(`/tags`, { showErrorToast: false }),
       ]);
       
       if (groupsRes) { setGroups(groupsRes.groups || []); }

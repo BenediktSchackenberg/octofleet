@@ -31,7 +31,7 @@ export function CreateTagDialog() {
 
     setLoading(true);
     try {
-      const data = await apiClient.post(`/tags`, {
+      const data = await apiClient.post<{ detail?: string }>(`/tags`, {
           name: name.trim(),
           color: color,
         }, { showErrorToast: false });
@@ -42,7 +42,7 @@ export function CreateTagDialog() {
         setColor("#22c55e");
         router.refresh();
       } else {
-        alert(`Fehler: ${data.detail || 'Unbekannter Fehler'}`);
+        alert(`Fehler: ${(data as any)?.detail || 'Unbekannter Fehler'}`);
       }
     } catch (err) {
       alert(`Netzwerkfehler: ${err}`);

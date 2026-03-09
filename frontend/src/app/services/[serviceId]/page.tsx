@@ -81,7 +81,7 @@ export default function ServiceDetailPage() {
 
   const fetchService = async () => {
     try {
-      const res = await apiClient.get(`/services/${serviceId}`, { showErrorToast: false });
+      const res = await apiClient.get<Service>(`/services/${serviceId}`, { showErrorToast: false });
       if (res) {
         setService(res);
       }
@@ -94,7 +94,7 @@ export default function ServiceDetailPage() {
 
   const fetchLogs = async () => {
     try {
-      const data = await apiClient.get(`/services/${serviceId}/logs?limit=20`, { showErrorToast: false });
+      const data = await apiClient.get<{ logs: any[] }>(`/services/${serviceId}/logs?limit=20`, { showErrorToast: false });
       if (data) {
         setLogs(data.logs || []);
       }
@@ -105,7 +105,7 @@ export default function ServiceDetailPage() {
 
   const fetchNodes = async () => {
     try {
-      const data = await apiClient.get(`/nodes`, { showErrorToast: false });
+      const data = await apiClient.get<{ nodes: any[] }>(`/nodes`, { showErrorToast: false });
       if (data) {
         setAllNodes(data.nodes || []);
       }
@@ -149,7 +149,7 @@ export default function ServiceDetailPage() {
     
     setReconciling(true);
     try {
-      const data = await apiClient.post(`/services/${serviceId}/reconcile`, {}, { showErrorToast: false });
+      const data = await apiClient.post<{ jobsCreated: number }>(`/services/${serviceId}/reconcile`, {}, { showErrorToast: false });
       
       if (data) {
         alert(`Reconciliation triggered! ${data.jobsCreated} job(s) created.`);

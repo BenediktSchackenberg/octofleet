@@ -59,11 +59,11 @@ interface ProvisioningTemplate {
 
 // API Functions
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await apiClient.get(`${endpoint}`, { showErrorToast: false });
+  const res = await apiClient.get<T>(`${endpoint}`, { showErrorToast: false });
   if (!res) {
     throw new Error('API request failed');
   }
-  return res;
+  return res as T;
 }
 
 function StatusBadge({ status }: { status: string }) {

@@ -76,9 +76,9 @@ export default function AlertsPage() {
     
     try {
       const [channelsRes, rulesRes, historyRes] = await Promise.all([
-        apiClient.get(`/alert-channels`, { showErrorToast: false }),
-        apiClient.get(`/alert-rules`, { showErrorToast: false }),
-        apiClient.get(`/alert-history?limit=20`, { showErrorToast: false }),
+        apiClient.get<AlertChannel[]>(`/alert-channels`, { showErrorToast: false }),
+        apiClient.get<AlertRule[]>(`/alert-rules`, { showErrorToast: false }),
+        apiClient.get<AlertHistoryEntry[]>(`/alert-history?limit=20`, { showErrorToast: false }),
       ]);
       
       if (channelsRes) setChannels(channelsRes);
@@ -138,8 +138,8 @@ export default function AlertsPage() {
 
   async function testChannel(id: string) {
     const token = localStorage.getItem('token');
-    const data = await apiClient.post(`/alert-channels/${id}/test`, {}, { showErrorToast: false });
-    alert(data.status === 'sent' ? '✅ Test sent!' : '❌ Test failed');
+    const data = await apiClient.post<{ status: string }>(`/alert-channels/${id}/test`, {}, { showErrorToast: false });
+    alert(data?.status === 'sent' ? '✅ Test sent!' : '❌ Test failed');
   }
 
   return (

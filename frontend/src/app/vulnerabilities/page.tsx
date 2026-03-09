@@ -93,10 +93,10 @@ export default function VulnerabilitiesPage() {
   const fetchData = async () => {
     try {
       const [summaryRes, nodesRes, softwareRes, scansRes] = await Promise.all([
-        apiClient.get(`/vulnerabilities/summary`, { showErrorToast: false }),
-        apiClient.get(`/vulnerabilities/by-node`, { showErrorToast: false }),
-        apiClient.get(`/vulnerabilities/by-software`, { showErrorToast: false }),
-        apiClient.get(`/vulnerabilities/scans?limit=5`, { showErrorToast: false }),
+        apiClient.get<VulnerabilitySummary>(`/vulnerabilities/summary`, { showErrorToast: false }),
+        apiClient.get<{ nodes: NodeVulnInfo[] }>(`/vulnerabilities/by-node`, { showErrorToast: false }),
+        apiClient.get<{ software: SoftwareVulnInfo[] }>(`/vulnerabilities/by-software`, { showErrorToast: false }),
+        apiClient.get<{ scans: any[] }>(`/vulnerabilities/scans?limit=5`, { showErrorToast: false }),
       ]);
 
       if (summaryRes) setSummary(summaryRes);

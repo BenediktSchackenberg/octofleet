@@ -25,7 +25,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await apiClient.post(`/auth/login`, { username, password }, { showErrorToast: false });
+      const data = await apiClient.post<{ access_token: string; user: any }>(`/auth/login`, { username, password }, { showErrorToast: false });
 
       if (!data) {
         throw new Error(t("auth.loginError"));

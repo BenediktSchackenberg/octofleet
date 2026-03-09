@@ -61,9 +61,9 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
   async function fetchData() {
     const [pvRes, groupRes, nodeRes] = await Promise.all([
-      apiClient.get(`/package-versions`, { showErrorToast: false }),
-      apiClient.get(`/groups`, { showErrorToast: false }),
-      apiClient.get(`/nodes`, { showErrorToast: false }),
+      apiClient.get<PackageVersion[]>(`/package-versions`, { showErrorToast: false }),
+      apiClient.get<Group[]>(`/groups`, { showErrorToast: false }),
+      apiClient.get<{ nodes: Node[] }>(`/nodes`, { showErrorToast: false }),
     ]);
     if (pvRes) setPackageVersions(pvRes);
     if (groupRes) setGroups(groupRes);
@@ -76,7 +76,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
     setLoading(true);
     try {
-      const data = await apiClient.post(`/deployments`, {
+      const data = await apiClient.post<{ id: string }>(`/deployments`, {
           name,
           description: description || null,
           packageVersionId,

@@ -33,7 +33,7 @@ export function OsDistributionChart({ showVersions = false }: { showVersions?: b
 
   async function fetchData() {
     try {
-      const json = await apiClient.get(`/nodes/os-distribution`, { showErrorToast: false });
+      const json = await apiClient.get<{ distribution: any[] }>(`/nodes/os-distribution`, { showErrorToast: false });
       if (json) {
         setData(json.distribution || []);
       }

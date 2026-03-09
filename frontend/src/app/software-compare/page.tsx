@@ -43,7 +43,7 @@ export default function SoftwareComparePage() {
 
   async function fetchTopSoftware() {
     try {
-      const json = await apiClient.get(`/software/compare`, { showErrorToast: false });
+      const json = await apiClient.get<{ topSoftware: TopSoftware[] }>(`/software/compare`, { showErrorToast: false });
       if (json) {
         setTopSoftware(json.topSoftware || []);
       }
@@ -58,7 +58,7 @@ export default function SoftwareComparePage() {
     setComparing(true);
     setSearchQuery(name);
     try {
-      const res = await apiClient.get(`/software/compare?software_name=${encodeURIComponent(name)}`, { showErrorToast: false });
+      const res = await apiClient.get<CompareResult>(`/software/compare?software_name=${encodeURIComponent(name)}`, { showErrorToast: false });
       if (res) {
         setCompareResult(res);
       }

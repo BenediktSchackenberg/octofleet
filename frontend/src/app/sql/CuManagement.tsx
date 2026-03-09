@@ -78,7 +78,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const data = await apiClient.post(`/mssql/sync-catalog`, {}, { showErrorToast: false });
+      const data = await apiClient.post<{ newCUs: any[]; existingCUs: any[] }>(`/mssql/sync-catalog`, {}, { showErrorToast: false });
       if (!data) throw new Error('Sync failed');
       setSyncResult({
         newCount: data.newCUs?.length || 0,
@@ -110,7 +110,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const fetchCompliance = async () => {
     try {
-      const data = await apiClient.get(`/mssql/cu-compliance`, { showErrorToast: false });
+      const data = await apiClient.get<ComplianceData>(`/mssql/cu-compliance`, { showErrorToast: false });
       if (!data) throw new Error('Failed to fetch compliance');
       setCompliance(data);
     } catch (err) {
@@ -120,7 +120,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
 
   const fetchInstances = async () => {
     try {
-      const data = await apiClient.get(`/mssql/instances`, { showErrorToast: false });
+      const data = await apiClient.get<{ instances: Array<{id: string; nodeId: string; hostname: string; instanceName: string; version: string}> }>(`/mssql/instances`, { showErrorToast: false });
       if (!data) return;
       setInstances(data.instances || []);
     } catch (err) {
@@ -132,7 +132,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     if (!selectedCu || selectedInstances.length === 0) return;
     
     try {
-      const data = await apiClient.post(`/mssql/deploy-cu`, {
+      const data = await apiClient.post<{ jobsCreated: number }>(`/mssql/deploy-cu`, {
           cuId: selectedCu.id,
           instanceIds: selectedInstances
         }, { showErrorToast: false });
@@ -199,7 +199,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
     if (!confirm('Create patch jobs for all outdated instances?')) return;
     
     try {
-      const data = await apiClient.post(`/mssql/patch-outdated`, {}, { showErrorToast: false });
+      const data = await apiClient.post<{ jobsCreated: number }>(`/mssql/patch-outdated`, {}, { showErrorToast: false });
       if (!data) throw new Error('Failed to create patch jobs');
       alert(`Created ${data.jobsCreated} patch jobs`);
       await fetchCompliance();

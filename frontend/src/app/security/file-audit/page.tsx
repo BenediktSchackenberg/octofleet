@@ -16,9 +16,9 @@ export default function FileAuditPage() {
   async function fetchEvents() {
     const params = new URLSearchParams();
     Object.entries(filter).forEach(([k, v]) => { if (v) params.set(k, v); });
-    const data = await apiClient.get(`/events/files?${params}`, { showErrorToast: false });
-    setEvents(data.events || []);
-    setTotal(data.total || 0);
+    const data = await apiClient.get<{ events: FileEvent[]; total: number }>(`/events/files?${params}`, { showErrorToast: false });
+    setEvents(data?.events || []);
+    setTotal(data?.total || 0);
     setLoading(false);
   }
   useEffect(() => { if (token) fetchEvents(); }, [token, filter]);

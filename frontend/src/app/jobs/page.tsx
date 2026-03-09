@@ -105,9 +105,9 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   useEffect(() => {
     // Fetch packages, nodes, and groups
     Promise.all([
-      apiClient.get(`/packages`, { showErrorToast: false }),
-      apiClient.get(`/nodes`, { showErrorToast: false }),
-      apiClient.get(`/groups`, { showErrorToast: false }),
+      apiClient.get<{ packages: any[] }>(`/packages`, { showErrorToast: false }),
+      apiClient.get<{ nodes: any[] }>(`/nodes`, { showErrorToast: false }),
+      apiClient.get<{ groups: any[] }>(`/groups`, { showErrorToast: false }),
     ]).then(async ([pkgRes, nodeRes, groupRes]) => {
       if (pkgRes) { setPackages(pkgRes.packages || pkgRes || []); }
       if (nodeRes) { setNodes(nodeRes.nodes || nodeRes || []); }
@@ -121,7 +121,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
       setLoadingVersions(true);
       setVersions([]);
       setSelectedVersionId("");
-      apiClient.get(`/packages/${selectedPackageId}`, { showErrorToast: false })
+      apiClient.get<{ versions: any[] }>(`/packages/${selectedPackageId}`, { showErrorToast: false })
         
         .then(data => {
           if (data?.versions) {
@@ -435,8 +435,8 @@ export default function JobsPage() {
 
   const fetchJobs = async () => {
     try {
-      const data = await apiClient.get(`/jobs`, { showErrorToast: false });
-      setJobs((data.jobs || []).map((j: any) => ({
+      const data = await apiClient.get<{ jobs: any[] }>(`/jobs`, { showErrorToast: false });
+      setJobs((data?.jobs || []).map((j: any) => ({
         id: j.job_id || j.id,
         name: j.name,
         commandType: j.command_type || j.commandType,
@@ -462,8 +462,8 @@ export default function JobsPage() {
 
   const fetchJobDetail = async (jobId: string) => {
     try {
-      const data = await apiClient.get(`/jobs/${jobId}`, { showErrorToast: false });
-      setSelectedJob(data);
+      const data = await apiClient.get<JobDetail>(`/jobs/${jobId}`, { showErrorToast: false });
+      setSelectedJob(data ?? null);
     } catch (err) {
       console.error("Failed to fetch job detail:", err);
     }

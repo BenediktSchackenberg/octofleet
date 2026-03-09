@@ -40,7 +40,7 @@ export default function ApiKeysPage() {
 
   async function fetchKeys() {
     try {
-      const res = await apiClient.get(`/api-keys`, { showErrorToast: false });
+      const res = await apiClient.get<{ keys: ApiKey[] }>(`/api-keys`, { showErrorToast: false });
       if (res) {
         setKeys(res.keys || []);
       }
@@ -53,7 +53,7 @@ export default function ApiKeysPage() {
 
   async function createKey() {
     try {
-      const res = await apiClient.post(`/api-keys`, {
+      const res = await apiClient.post<{ key: string }>(`/api-keys`, {
           name: newKeyName,
           expires_days: expiresDays ? Number(expiresDays) : null,
         }, { showErrorToast: false });

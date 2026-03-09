@@ -691,14 +691,14 @@ export default function LiveViewPage() {
                         try {
                           const token = localStorage.getItem('token');
                           // Start session
-                          const data = await apiClient.post(`/screen/start/${nodeId}`, { quality: screenQuality }, { showErrorToast: false });
+                          const data = await apiClient.post<{ sessionId: string }>(`/screen/start/${nodeId}`, { quality: screenQuality }, { showErrorToast: false });
                           
                           if (data) {
                             
                             // Poll for frames
                             screenIntervalRef.current = setInterval(async () => {
                               try {
-                                const frameRes = await apiClient.get(`/screen/frame/${data.sessionId}`, { showErrorToast: false });
+                                const frameRes = await apiClient.get<{ sessionId: string; blob: () => Promise<Blob> }>(`/screen/frame/${data.sessionId}`, { showErrorToast: false }) as any;
                                 if (frameRes) {
                                   const blob = await frameRes.blob();
                                   if (blob.size > 0) {
@@ -804,7 +804,8 @@ function PerformanceChart({ nodeId }: { nodeId: string }) {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (data) {
-        setHistoryData(data.data);
+        const json = await data.json() as { data: any };
+        setHistoryData(json.data);
       }
     } catch (err) {
       console.error('Failed to fetch history:', err);

@@ -49,7 +49,7 @@ export default function TerminalPage() {
     if (sessionId) {
       pollRef.current = setInterval(async () => {
         try {
-          const data = await apiClient.get(`/terminal/session/${sessionId}/output`, { showErrorToast: false });
+          const data = await apiClient.get<{ output: string[] }>(`/terminal/session/${sessionId}/output`, { showErrorToast: false });
           if (data) {
             if (data.output && data.output.length > 0) {
               setOutput(prev => [...prev, ...data.output]);
@@ -68,7 +68,7 @@ export default function TerminalPage() {
     setLoading(true);
     setOutput([`[Starting ${shell} session...]\n`]);
     try {
-      const data = await apiClient.post(`/terminal/start/${nodeId}`, { shell }, { showErrorToast: false });
+      const data = await apiClient.post<{ sessionId: string }>(`/terminal/start/${nodeId}`, { shell }, { showErrorToast: false });
       if (data) {
         setSessionId(data.sessionId);
         setOutput([`[Session started: ${shell}]\n`]);

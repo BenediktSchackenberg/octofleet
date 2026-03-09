@@ -46,9 +46,9 @@ export default function ComplianceDashboard() {
   const fetchData = async () => {
     try {
       const [bRes, sRes, tRes] = await Promise.all([
-        apiClient.get(`/baselines`, { showErrorToast: false }),
-        apiClient.get(`/baselines/drift/summary`, { showErrorToast: false }),
-        apiClient.get(`/baselines/compliance/trends`, { showErrorToast: false }),
+        apiClient.get<Baseline[]>(`/baselines`, { showErrorToast: false }),
+        apiClient.get<DriftSummary>(`/baselines/drift/summary`, { showErrorToast: false }),
+        apiClient.get<TrendPoint[]>(`/baselines/compliance/trends`, { showErrorToast: false }),
       ]);
       if (bRes) setBaselines(bRes);
       if (sRes) setSummary(sRes);

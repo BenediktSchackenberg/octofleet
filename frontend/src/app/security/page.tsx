@@ -27,7 +27,7 @@ export default function SecurityPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiClient.get(`/security/dashboard`, { showErrorToast: false })
+    apiClient.get<DashboardData>(`/security/dashboard`, { showErrorToast: false })
       
       .then(setData)
       .catch(console.error)

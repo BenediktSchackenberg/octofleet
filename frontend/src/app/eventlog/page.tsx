@@ -87,9 +87,9 @@ export default function EventlogPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const data = await apiClient.get(`/eventlog/summary?hours=${hours}`, { showErrorToast: false });
-      setSummary(data.summaryByNode || []);
-      setCriticalEvents(data.recentCritical || []);
+      const data = await apiClient.get<{ summaryByNode: EventlogSummary[]; recentCritical: CriticalEvent[] }>(`/eventlog/summary?hours=${hours}`, { showErrorToast: false });
+      setSummary(data?.summaryByNode || []);
+      setCriticalEvents(data?.recentCritical || []);
     } finally {
       setLoading(false);
     }

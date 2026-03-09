@@ -70,10 +70,10 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
     if (!nodeId) return;
 
     Promise.all([
-      apiClient.get(`/agents/${nodeId}/capabilities`, { showErrorToast: false })
+      apiClient.get<Capabilities>(`/agents/${nodeId}/capabilities`, { showErrorToast: false })
         .catch(() => null),
-      apiClient.get(`/agents/${nodeId}/health/history?limit=20`, { showErrorToast: false })
-        .then(r => r || { history: [] }).catch(() => ({ history: [] })),
+      apiClient.get<{ history: HealthEntry[] }>(`/agents/${nodeId}/health/history?limit=20`, { showErrorToast: false })
+        .then(r => r || { history: [] }).catch(() => ({ history: [] as HealthEntry[] })),
     ]).then(([capsData, healthData]) => {
       setCaps(capsData);
       setHealth(healthData?.history || []);

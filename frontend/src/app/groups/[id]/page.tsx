@@ -68,7 +68,7 @@ export default function GroupDetailPage() {
 
   async function fetchGroup() {
     try {
-      const data = await apiClient.get(`/groups/${groupId}`, { showErrorToast: false });
+      const data = await apiClient.get<GroupDetail>(`/groups/${groupId}`, { showErrorToast: false });
       if (!data) {
         router.push("/groups");
         return;
@@ -138,7 +138,7 @@ export default function GroupDetailPage() {
   async function handleEvaluate() {
     setEvaluating(true);
     try {
-      const data = await apiClient.post(`/groups/${groupId}/evaluate`, {}, { showErrorToast: false });
+      const data = await apiClient.post<{ added: number; removed: number }>(`/groups/${groupId}/evaluate`, {}, { showErrorToast: false });
       if (data) {
         await fetchGroup();
         alert(`Regel neu evaluiert: ${data.added} hinzugefügt, ${data.removed} entfernt`);

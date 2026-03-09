@@ -22,7 +22,7 @@ export default function VulnerabilitiesPage() {
   const [severityFilter, setSeverityFilter] = useState("all");
 
   useEffect(() => {
-    apiClient.get(`/security/vulnerabilities/fleet`, { showErrorToast: false })
+    apiClient.get<FleetVulnData>(`/security/vulnerabilities/fleet`, { showErrorToast: false })
       
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
@@ -30,8 +30,8 @@ export default function VulnerabilitiesPage() {
 
   const loadNodeVulns = async (nodeId: string) => {
     setSelectedNode(nodeId);
-    const d = await apiClient.get(`/vulnerabilities/node/${nodeId}`, { showErrorToast: false });
-    setNodeVulns(d.vulnerabilities || []);
+    const d = await apiClient.get<{ vulnerabilities: any[] }>(`/vulnerabilities/node/${nodeId}`, { showErrorToast: false });
+    setNodeVulns(d?.vulnerabilities || []);
   };
 
   const sevColor = (s: string) => {

@@ -73,7 +73,7 @@ function EditPackageDialog({ pkg, onClose, onUpdated }: { pkg: Package; onClose:
     setError("");
 
     try {
-      const data = await apiClient.put(`/packages/${pkg.id}`, {
+      const data = await apiClient.put<Record<string, any>>(`/packages/${pkg.id}`, {
           displayName,
           vendor: vendor || null,
           description: description || null,
@@ -82,7 +82,7 @@ function EditPackageDialog({ pkg, onClose, onUpdated }: { pkg: Package; onClose:
         }, { showErrorToast: false });
 
       if (!data) {
-        throw new Error(data.detail || "Failed to update package");
+        throw new Error((data as any)?.detail || "Failed to update package");
       }
 
       onUpdated();
@@ -200,7 +200,7 @@ function EditVersionDialog({ packageId, version, onClose, onUpdated }: { package
     setError("");
 
     try {
-      const data = await apiClient.put(`/packages/${packageId}/versions/${version.id}`, {
+      const data = await apiClient.put<Record<string, any>>(`/packages/${packageId}/versions/${version.id}`, {
           installCommand: installCommand || null,
           uninstallCommand: uninstallCommand || null,
           silentInstall,
@@ -210,7 +210,7 @@ function EditVersionDialog({ packageId, version, onClose, onUpdated }: { package
         }, { showErrorToast: false });
 
       if (!data) {
-        throw new Error(data.detail || "Failed to update version");
+        throw new Error((data as any)?.detail || "Failed to update version");
       }
 
       onUpdated();
@@ -329,7 +329,7 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
     setError("");
 
     try {
-      const data = await apiClient.post(`/packages/${packageId}/versions`, {
+      const data = await apiClient.post<Record<string, any>>(`/packages/${packageId}/versions`, {
           version,
           filename,
           downloadUrl: downloadUrl || null,
@@ -339,7 +339,7 @@ function AddVersionDialog({ packageId, onClose, onCreated }: { packageId: string
         }, { showErrorToast: false });
 
       if (!data) {
-        throw new Error(data.detail || "Failed to add version");
+        throw new Error((data as any)?.detail || "Failed to add version");
       }
 
       onCreated();
@@ -604,7 +604,7 @@ export default function PackageDetailPage() {
 
   const fetchPackage = async () => {
     try {
-      const data = await apiClient.get(`/packages/${packageId}`, { showErrorToast: false });
+      const data = await apiClient.get<Package>(`/packages/${packageId}`, { showErrorToast: false });
       if (data) {
         setPkg(data);
       }
@@ -617,7 +617,7 @@ export default function PackageDetailPage() {
 
   const fetchVersionRules = async (versionId: string) => {
     try {
-      const data = await apiClient.get(`/packages/${packageId}/versions/${versionId}`, { showErrorToast: false });
+      const data = await apiClient.get<{ detectionRules: DetectionRule[] }>(`/packages/${packageId}/versions/${versionId}`, { showErrorToast: false });
       if (data) {
         setVersionRules((prev) => ({ ...prev, [versionId]: data.detectionRules || [] }));
       }

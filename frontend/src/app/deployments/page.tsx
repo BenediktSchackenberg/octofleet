@@ -51,7 +51,7 @@ export default function DeploymentsPage() {
 
   async function fetchDeployments() {
     try {
-      const res = await apiClient.get(`/deployments`, { showErrorToast: false });
+      const res = await apiClient.get<Deployment[]>(`/deployments`, { showErrorToast: false });
       if (res) {
         setDeployments(res);
       }
