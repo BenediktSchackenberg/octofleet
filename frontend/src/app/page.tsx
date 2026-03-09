@@ -152,6 +152,7 @@ export default function HomePage() {
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [taskCounts, setTaskCounts] = useState<{ approvals: number; findings: number; failedJobs: number; offline: number } | null>(null);
+  const [eventStats, setEventStats] = useState<{ stats: Array<{ eventType: string; count: number }>; retention: any } | null>(null);
 
   // Time-based greeting
   const greeting = useMemo(() => {
@@ -176,6 +177,7 @@ export default function HomePage() {
     fetchSystemHealth();
     fetchRecentAlerts();
     fetchTaskCounts();
+    fetchEventStats();
   }, []);
 
   useEffect(() => {
@@ -235,6 +237,15 @@ export default function HomePage() {
       }).length;
     }
     setTaskCounts(c);
+  }
+
+  async function fetchEventStats() {
+    try {
+      const data = await apiClient.get<{ stats: Array<{ eventType: string; count: number }>; retention: any }>("/events/stats");
+      if (data) setEventStats(data);
+    } catch (e) {
+      console.error("Failed to fetch event stats:", e);
+    }
   }
 
   async function fetchMetrics() {
@@ -977,6 +988,71 @@ export default function HomePage() {
                       <div className="flex flex-col items-center justify-center py-4 text-muted-foreground/40">
                         <Package className="h-8 w-8 mb-1 opacity-20" />
                         <span className="text-[10px] font-bold uppercase">No CUs synced</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Security Events - 3 cols */}
+                <Card className="col-span-6 md:col-span-3 border-purple-500/10 bg-gradient-to-br from-card to-purple-500/5 shadow-md hover:shadow-purple-500/5 transition-all">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-purple-400">
+                        <Shield className="h-3.5 w-3.5" /> Security Events
+                      </CardDescription>
+                      <Link href="/security/events" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
+                        Details →
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {eventStats && eventStats.stats.length > 0 ? (() => {
+                      const prefixMap: Record<string, { label: string; color: string }> = {
+                        logon: { label: "Logon", color: "#a78bfa" },
+                        network: { label: "Network", color: "#60a5fa" },
+                        process: { label: "Process", color: "#34d399" },
+                        service: { label: "Service", color: "#fbbf24" },
+                        file: { label: "File", color: "#f87171" },
+                      };
+                      const grouped: Record<string, number> = {};
+                      eventStats.stats.forEach((s) => {
+                        const key = Object.keys(prefixMap).find((p) => s.eventType.toLowerCase().startsWith(p)) || "other";
+                        grouped[key] = (grouped[key] || 0) + s.count;
+                      });
+                      const total = Object.values(grouped).reduce((a, b) => a + b, 0);
+                      const entries = Object.entries(prefixMap).filter(([k]) => grouped[k]);
+                      return (
+                        <div>
+                          <div className="text-4xl font-black mb-0.5">{total.toLocaleString()}</div>
+                          <div className="text-[10px] uppercase font-bold text-muted-foreground mb-3">Last 7 days</div>
+                          {/* Proportion bar */}
+                          <div className="flex h-2 rounded-full overflow-hidden mb-3 bg-muted/30">
+                            {entries.map(([key, meta]) => (
+                              <div
+                                key={key}
+                                style={{ width: `${((grouped[key] || 0) / total) * 100}%`, backgroundColor: meta.color }}
+                                className="transition-all"
+                                title={`${meta.label}: ${grouped[key]?.toLocaleString()}`}
+                              />
+                            ))}
+                          </div>
+                          <div className="space-y-1">
+                            {entries.map(([key, meta]) => (
+                              <div key={key} className="flex items-center justify-between text-[11px]">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: meta.color }} />
+                                  <span className="font-medium text-muted-foreground">{meta.label}</span>
+                                </div>
+                                <span className="font-bold font-mono">{(grouped[key] || 0).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <div className="flex flex-col items-center justify-center py-4 text-muted-foreground/40">
+                        <Shield className="h-8 w-8 mb-1 opacity-20" />
+                        <span className="text-[10px] font-bold uppercase">No events</span>
                       </div>
                     )}
                   </CardContent>

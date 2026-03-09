@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   Activity, Monitor, Network, Key, Shield, Server, FileText, RefreshCw,
-  ArrowUpDown, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle
+  ArrowUpDown, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Clock
 } from "lucide-react";
 
 interface NormalizedEvent {
@@ -37,7 +37,24 @@ interface EventStats {
   count: number;
 }
 
-type TabKey = "all" | "logon" | "process" | "network" | "registry" | "service" | "file";
+interface AggregatedEvent {
+  hour: string;
+  node_id: string;
+  event_type: string;
+  severity: string;
+  event_count: number;
+  unique_users: number;
+  sample_payload: Record<string, unknown> | string;
+}
+
+interface RetentionInfo {
+  retention_days: number;
+  raw_events: number;
+  aggregated_events: number;
+  oldest_raw_event: string;
+}
+
+type TabKey = "all" | "logon" | "process" | "network" | "registry" | "service" | "file" | "history";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType; filter?: string; color: string }[] = [
   { key: "all", label: "All Events", icon: Activity, color: "purple" },
@@ -47,6 +64,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType; filter?: stri
   { key: "registry", label: "Registry Monitor", icon: Shield, filter: "registry", color: "orange" },
   { key: "service", label: "Service Changes", icon: Server, filter: "service", color: "red" },
   { key: "file", label: "File Audit", icon: FileText, filter: "file", color: "yellow" },
+  { key: "history", label: "History", icon: Clock, color: "pink" },
 ];
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -180,6 +198,8 @@ export default function SecurityEventsPage() {
   const [nodeFilter, setNodeFilter] = useState("");
   const [page, setPage] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [aggregatedEvents, setAggregatedEvents] = useState<AggregatedEvent[]>([]);
+  const [retention, setRetention] = useState<RetentionInfo | null>(null);
   const { token } = useAuth();
   const PAGE_SIZE = 50;
 
@@ -188,9 +208,13 @@ export default function SecurityEventsPage() {
     setLoading(true);
 
     // Fetch stats
-    const statsData = await apiClient.get<{ stats: EventStats[] }>("/events/stats", { showErrorToast: false });
+    const statsData = await apiClient.get<{ stats: EventStats[]; retention?: RetentionInfo }>("/events/stats", { showErrorToast: false });
 
-    if (tab === "file") {
+    if (tab === "history") {
+      const aggData = await apiClient.get<{ events: AggregatedEvent[]; total: number }>("/events/aggregated", { showErrorToast: false });
+      setAggregatedEvents(aggData?.events || []);
+      if (statsData?.retention) setRetention(statsData.retention);
+    } else if (tab === "file") {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
       if (nodeFilter) params.set("node_id", nodeFilter);
       if (search) params.set("path", search);
@@ -252,7 +276,7 @@ export default function SecurityEventsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
           {TABS.map(t => {
             const count = totalByTab(t.key);
             const Icon = t.icon;
@@ -297,6 +321,187 @@ export default function SecurityEventsPage() {
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+          </div>
+        ) : tab === "history" ? (
+          /* History Tab */
+          <div className="space-y-6">
+            {/* Retention Info Card */}
+            {retention && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="text-xs text-zinc-500 mb-1">Raw Events</div>
+                  <div className="text-xl font-bold">{retention.raw_events.toLocaleString()}</div>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="text-xs text-zinc-500 mb-1">Aggregated Events</div>
+                  <div className="text-xl font-bold">{retention.aggregated_events.toLocaleString()}</div>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="text-xs text-zinc-500 mb-1">Oldest Raw Event</div>
+                  <div className="text-xl font-bold">{retention.oldest_raw_event ? formatTime(retention.oldest_raw_event) : "—"}</div>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="text-xs text-zinc-500 mb-1">Retention Policy</div>
+                  <div className="text-xl font-bold">{retention.retention_days} days</div>
+                </div>
+              </div>
+            )}
+
+            {/* Trend Chart - SVG bar chart */}
+            {(() => {
+              // Aggregate by hour
+              const hourMap = new Map<string, number>();
+              aggregatedEvents.forEach(e => {
+                hourMap.set(e.hour, (hourMap.get(e.hour) || 0) + e.event_count);
+              });
+              const sorted = [...hourMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-48);
+              const maxCount = Math.max(...sorted.map(([, v]) => v), 1);
+              const chartW = 900;
+              const chartH = 200;
+              const barW = sorted.length > 0 ? Math.max((chartW - 40) / sorted.length - 2, 2) : 10;
+
+              return (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <h3 className="text-sm font-medium text-zinc-300 mb-3">Event Trend (Last 48 Hours)</h3>
+                  {sorted.length === 0 ? (
+                    <div className="text-zinc-500 text-sm py-8 text-center">No aggregated data available</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <svg viewBox={`0 0 ${chartW} ${chartH + 30}`} className="w-full max-w-4xl" preserveAspectRatio="xMidYMid meet">
+                        {/* Grid lines */}
+                        {[0, 0.25, 0.5, 0.75, 1].map(f => (
+                          <g key={f}>
+                            <line x1="40" y1={chartH - f * chartH} x2={chartW} y2={chartH - f * chartH} stroke="#27272a" strokeWidth="1" />
+                            <text x="36" y={chartH - f * chartH + 4} fill="#71717a" fontSize="10" textAnchor="end">
+                              {Math.round(maxCount * f)}
+                            </text>
+                          </g>
+                        ))}
+                        {/* Bars */}
+                        {sorted.map(([hour, count], i) => {
+                          const barH = (count / maxCount) * chartH;
+                          const x = 42 + i * (barW + 2);
+                          return (
+                            <g key={hour}>
+                              <rect x={x} y={chartH - barH} width={barW} height={barH} rx="1"
+                                fill="#ec4899" fillOpacity="0.6" />
+                              <rect x={x} y={chartH - barH} width={barW} height={Math.min(barH, 3)} rx="1"
+                                fill="#ec4899" fillOpacity="0.9" />
+                              {i % Math.max(1, Math.floor(sorted.length / 8)) === 0 && (
+                                <text x={x + barW / 2} y={chartH + 14} fill="#71717a" fontSize="8" textAnchor="middle">
+                                  {new Date(hour).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit" })}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Breakdown by Event Type */}
+            {(() => {
+              const typeMap = new Map<string, { count: number; users: number }>();
+              aggregatedEvents.forEach(e => {
+                const prev = typeMap.get(e.event_type) || { count: 0, users: 0 };
+                typeMap.set(e.event_type, { count: prev.count + e.event_count, users: prev.users + e.unique_users });
+              });
+              const rows = [...typeMap.entries()].sort((a, b) => b[1].count - a[1].count);
+              const totalCount = rows.reduce((s, [, v]) => s + v.count, 0);
+
+              return (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                  <div className="p-4 border-b border-zinc-800">
+                    <h3 className="text-sm font-medium text-zinc-300">Events by Type</h3>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-500 text-xs uppercase tracking-wider">
+                        <th className="text-left p-3">Event Type</th>
+                        <th className="text-right p-3">Count</th>
+                        <th className="text-right p-3">Unique Users</th>
+                        <th className="text-right p-3">% of Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(([type, val]) => (
+                        <tr key={type} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                          <td className="p-3 font-medium">{EVENT_TYPE_LABELS[type] || type}</td>
+                          <td className="p-3 text-right">{val.count.toLocaleString()}</td>
+                          <td className="p-3 text-right text-zinc-400">{val.users.toLocaleString()}</td>
+                          <td className="p-3 text-right text-zinc-400">{totalCount > 0 ? ((val.count / totalCount) * 100).toFixed(1) : 0}%</td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr><td colSpan={4} className="text-center py-8 text-zinc-500">No aggregated data</td></tr>
+                      )}
+                      {rows.length > 0 && (
+                        <tr className="bg-zinc-800/30 font-medium">
+                          <td className="p-3">Total</td>
+                          <td className="p-3 text-right">{totalCount.toLocaleString()}</td>
+                          <td className="p-3 text-right text-zinc-400">—</td>
+                          <td className="p-3 text-right text-zinc-400">100%</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {/* Node-wise Comparison */}
+            {(() => {
+              const nodeMap = new Map<string, { count: number; types: Set<string> }>();
+              aggregatedEvents.forEach(e => {
+                const prev = nodeMap.get(e.node_id) || { count: 0, types: new Set<string>() };
+                prev.count += e.event_count;
+                prev.types.add(e.event_type);
+                nodeMap.set(e.node_id, prev);
+              });
+              const rows = [...nodeMap.entries()].sort((a, b) => b[1].count - a[1].count);
+
+              return (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                  <div className="p-4 border-b border-zinc-800">
+                    <h3 className="text-sm font-medium text-zinc-300">Node Comparison</h3>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-500 text-xs uppercase tracking-wider">
+                        <th className="text-left p-3">Node</th>
+                        <th className="text-right p-3">Total Events</th>
+                        <th className="text-right p-3">Event Types</th>
+                        <th className="text-left p-3">Activity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(([nodeId, val]) => {
+                        const maxNode = rows[0]?.[1].count || 1;
+                        const pct = (val.count / maxNode) * 100;
+                        return (
+                          <tr key={nodeId} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                            <td className="p-3 font-medium">{nodeId}</td>
+                            <td className="p-3 text-right">{val.count.toLocaleString()}</td>
+                            <td className="p-3 text-right text-zinc-400">{val.types.size}</td>
+                            <td className="p-3">
+                              <div className="w-full bg-zinc-800 rounded-full h-2">
+                                <div className="bg-pink-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {rows.length === 0 && (
+                        <tr><td colSpan={4} className="text-center py-8 text-zinc-500">No node data</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         ) : tab === "file" ? (
           /* File Events Table */
@@ -380,6 +585,7 @@ export default function SecurityEventsPage() {
         )}
 
         {/* Pagination */}
+        {tab !== "history" && (
         <div className="flex items-center justify-between mt-4">
           <span className="text-xs text-zinc-500">
             Page {page + 1} • Showing {PAGE_SIZE} events per page
@@ -395,6 +601,7 @@ export default function SecurityEventsPage() {
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
