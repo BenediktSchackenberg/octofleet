@@ -2,7 +2,10 @@
 Octofleet API - Monitoring Routes
 """
 import json
+import logging
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -567,7 +570,6 @@ async def report_agent_capabilities(node_id: str, req: Request):
 
 @router.get("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
 async def get_agent_capabilities(node_id: str):
-    import json as _json
     async with get_pool().acquire() as conn:
         # Try by node_id directly, then resolve hostname→UUID
         row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", node_id)
@@ -660,7 +662,7 @@ async def ingest_normalized_events(req: Request):
             ts_raw = evt.get("timestamp")
             ts = None
             if ts_raw:
-                from datetime import datetime as _dt, timezone as _tz
+                from datetime import datetime as _dt
                 try:
                     ts = _dt.fromisoformat(ts_raw.replace("Z", "+00:00"))
                 except (ValueError, AttributeError):

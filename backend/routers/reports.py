@@ -12,24 +12,18 @@ from fastapi import APIRouter, Depends
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import cm, inch
 from reportlab.platypus import (
-    Image,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
-    Table,
-    TableStyle,
 )
 from starlette.responses import StreamingResponse
 
 from app.core.report_helpers import (
     auto_column_width,
     create_header_footer,
-    create_pie_chart,
     create_status_table,
     style_excel_header,
 )

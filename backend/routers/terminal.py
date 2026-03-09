@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
-from auth import decode_token, get_current_user, require_auth, require_permission
+from auth import decode_token, require_permission
 from dependencies import API_KEY, db_pool, require_scope, verify_api_key
 from screen_session import ScreenSessionState, screen_session_manager
 from shell_session import ShellSessionState, shell_session_manager

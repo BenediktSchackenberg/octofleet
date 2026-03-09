@@ -167,7 +167,7 @@ async def get_current_user(
             )
         # Check api_keys table in DB
         try:
-            from dependencies import get_pool, _permissions_for_scopes
+            from dependencies import _permissions_for_scopes, get_pool
             pool = get_pool()
             if pool:
                 key_hash = hash_api_key(api_key)
