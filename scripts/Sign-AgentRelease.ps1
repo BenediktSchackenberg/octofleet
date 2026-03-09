@@ -116,8 +116,8 @@ $failed = 0
 foreach ($file in $files) {
     Write-Host "  Signing $($file.Name)..." -NoNewline
     $signArgs = @("sign", "/sha1", $CertHash, "/csp", $CertCSP, "/kc", $KeyContainer, "/t", $TimestampServer, "/fd", "sha256", "/v", $file.FullName)
-    $result = & $signtool @signArgs 2>&1
-    if ($LASTEXITCODE -eq 0) {
+    $proc = Start-Process -FilePath $signtool -ArgumentList $signArgs -Wait -PassThru -NoNewWindow
+    if ($proc.ExitCode -eq 0) {
         Write-Host " OK" -ForegroundColor Green
         $signed++
     } else {
