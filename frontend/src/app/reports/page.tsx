@@ -6,6 +6,7 @@ import { API_BASE } from "@/lib/api-config";
 import { useState } from "react";
 import { FileText, Download, Calendar, Loader2, Shield, Server, Package, CheckCircle, AlertCircle } from "lucide-react";
 import { StandardPage } from "@/components/ui/StandardPage";
+import { FavoriteButton } from "@/components/FavoriteButton";
 
 
 
@@ -117,6 +118,7 @@ export default function ReportsPage() {
       title="Report Generator"
       description="Generate PDF reports for fleet overview, security audits, and inventory documentation"
       icon={<FileText className="h-6 w-6" />}
+      actions={<FavoriteButton type="page" id="reports" label="Reports" href="/reports" />}
     >
 
       {/* Error Banner */}

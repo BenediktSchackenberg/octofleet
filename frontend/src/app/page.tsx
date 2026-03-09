@@ -14,7 +14,9 @@ import { NodeTree } from "@/components/NodeTree";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search, Plus, Bug, Bell as BellIcon, Zap } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search, Plus, Bug, Bell as BellIcon, Zap, Star, Clock } from "lucide-react";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { useAuth } from "@/lib/auth-context";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
@@ -153,6 +155,8 @@ export default function HomePage() {
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [taskCounts, setTaskCounts] = useState<{ approvals: number; findings: number; failedJobs: number; offline: number } | null>(null);
   const [eventStats, setEventStats] = useState<{ stats: Array<{ event_type: string; count: number }>; retention: any } | null>(null);
+  const { favorites } = useFavorites();
+  const { recent } = useRecentlyOpened();
 
   // Time-based greeting
   const greeting = useMemo(() => {
@@ -739,6 +743,49 @@ export default function HomePage() {
                 </div>
               )}
 
+              {/* Favorites */}
+              <div className="mb-6">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Star className="h-3.5 w-3.5" /> Favorites
+                </h3>
+                {favorites.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {favorites.map((fav) => (
+                      <Link
+                        key={`${fav.type}-${fav.id}`}
+                        href={fav.href}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-yellow-500/20 bg-yellow-500/5 text-sm text-yellow-200 hover:bg-yellow-500/10 hover:border-yellow-500/40 transition-colors"
+                      >
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        {fav.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground/50">⭐ Star your favorite pages, nodes or reports for quick access</p>
+                )}
+              </div>
+
+              {/* Recently Opened */}
+              {recent.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" /> Recently Opened
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {recent.slice(0, 8).map((item, i) => (
+                      <Link
+                        key={i}
+                        href={item.href}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-800/50 text-sm text-zinc-300 hover:bg-zinc-700/50 hover:border-zinc-600 transition-colors"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Bento Grid */}
               <div className="grid grid-cols-12 gap-6">
                 
@@ -1015,11 +1062,11 @@ export default function HomePage() {
                         file: { label: "File", color: "#f87171" },
                       };
                       const grouped: Record<string, number> = {};
-                      eventStats.stats.forEach((s) => {
+                      (eventStats.stats || []).forEach((s) => {
                         const key = Object.keys(prefixMap).find((p) => (s.event_type || "").toLowerCase().startsWith(p)) || "other";
-                        grouped[key] = (grouped[key] || 0) + s.count;
+                        grouped[key] = (grouped[key] || 0) + (s.count || 0);
                       });
-                      const total = Object.values(grouped).reduce((a, b) => a + b, 0);
+                      const total = Object.values(grouped).reduce((a, b) => a + b, 0) || 0;
                       const entries = Object.entries(prefixMap).filter(([k]) => grouped[k]);
                       return (
                         <div>
@@ -1030,7 +1077,7 @@ export default function HomePage() {
                             {entries.map(([key, meta]) => (
                               <div
                                 key={key}
-                                style={{ width: `${((grouped[key] || 0) / total) * 100}%`, backgroundColor: meta.color }}
+                                style={{ width: `${total > 0 ? ((grouped[key] || 0) / total) * 100 : 0}%`, backgroundColor: meta.color }}
                                 className="transition-all"
                                 title={`${meta.label}: ${grouped[key]?.toLocaleString()}`}
                               />

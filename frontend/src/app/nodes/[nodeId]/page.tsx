@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useNodeDetails } from "@/hooks/useNodeDetails";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,10 @@ import Link from "next/link";
 import { Timeline } from "@/components/timeline";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
+import { FavoriteButton } from "@/components/FavoriteButton";
+import { apiClient } from "@/lib/api-client";
 
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
@@ -79,6 +81,131 @@ function formatDateTime(dateStr: string) {
   });
 }
 
+// Move to Group dropdown button
+function MoveToGroupButton({ nodeId, onMoved }: { nodeId: string; onMoved?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open && groups.length === 0) {
+      setLoading(true);
+      apiClient.get<any>("/api/v1/groups")
+        .then((data) => setGroups(Array.isArray(data) ? data : data?.groups || []))
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const moveToGroup = async (groupId: string) => {
+    try {
+      await apiClient.post(`/api/v1/groups/${groupId}/members`, { node_ids: [nodeId] });
+      setOpen(false);
+      onMoved?.();
+    } catch {}
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant="outline"
+        className="bg-indigo-500/10 border-indigo-500 text-indigo-500 hover:bg-indigo-500/20"
+        onClick={() => setOpen(!open)}
+      >
+        <FolderTree className="h-4 w-4 mr-1" /> Move to Group
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-md border bg-popover p-1 shadow-md">
+          {loading ? (
+            <p className="text-sm text-muted-foreground p-2">Lade...</p>
+          ) : groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground p-2">Keine Gruppen</p>
+          ) : (
+            groups.map((g: any) => (
+              <button
+                key={g.id}
+                className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent flex items-center gap-2"
+                onClick={() => moveToGroup(g.id)}
+              >
+                {g.icon && <span>{g.icon}</span>}
+                {g.color && <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: g.color }} />}
+                {g.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Quick Links card - cross-module deep links
+function QuickLinksBar({ nodeId }: { nodeId: string }) {
+  const [links, setLinks] = useState<{ label: string; count: number; href: string; icon: React.ReactNode }[]>([]);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      const results: typeof links = [];
+
+      const fetchers = [
+        apiClient.get<any>(`/api/v1/patches/compliance?node_id=${nodeId}`)
+          .then((d) => {
+            const count = d?.pending ?? d?.pendingCount ?? (Array.isArray(d) ? d.length : 0);
+            if (count > 0) results.push({ label: "Patches", count, href: `/patches?node=${nodeId}`, icon: <ShieldAlert className="h-4 w-4" /> });
+          }).catch(() => {}),
+        apiClient.get<any>("/api/v1/vulnerabilities/by-node")
+          .then((d) => {
+            const arr = Array.isArray(d) ? d : d?.nodes || [];
+            const entry = arr.find((n: any) => n.node_id === nodeId || n.nodeId === nodeId);
+            const count = entry?.count ?? entry?.vulnerabilities?.length ?? 0;
+            if (count > 0) results.push({ label: "Vulnerabilities", count, href: `/vulnerabilities?node=${nodeId}`, icon: <Bug className="h-4 w-4" /> });
+          }).catch(() => {}),
+        apiClient.get<any>(`/api/v1/jobs?target_id=${nodeId}&limit=5`)
+          .then((d) => {
+            const count = Array.isArray(d) ? d.length : d?.jobs?.length ?? d?.total ?? 0;
+            if (count > 0) results.push({ label: "Jobs", count, href: `/jobs?node=${nodeId}`, icon: <Briefcase className="h-4 w-4" /> });
+          }).catch(() => {}),
+        apiClient.get<any>("/api/v1/alerts/rules")
+          .then((d) => {
+            const arr = Array.isArray(d) ? d : d?.rules || [];
+            const count = arr.filter((r: any) => r.node_id === nodeId || r.nodeId === nodeId || r.target === nodeId).length;
+            if (count > 0) results.push({ label: "Alerts", count, href: `/alerts?node=${nodeId}`, icon: <Bell className="h-4 w-4" /> });
+          }).catch(() => {}),
+      ];
+
+      await Promise.allSettled(fetchers);
+      setLinks(results);
+    };
+    fetchAll();
+  }, [nodeId]);
+
+  if (links.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-3 mb-4">
+      {links.map((link) => (
+        <Link key={link.label} href={link.href}>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-accent transition-colors cursor-pointer">
+            {link.icon}
+            <span className="text-sm font-medium">{link.label}</span>
+            <Badge variant="secondary" className="ml-1">{link.count}</Badge>
+            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default function NodeDetailPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
@@ -123,6 +250,7 @@ export default function NodeDetailPage() {
           <div>
             <div className="flex items-center gap-4 mt-2">
               <h1 className="text-3xl font-bold">{node?.hostname || nodeId}</h1>
+              {node && <FavoriteButton type="node" id={nodeId} label={node.hostname || nodeId} href={`/nodes/${nodeId}`} />}
               {node && getStatusBadge(node.last_seen)}
             </div>
             {/* Groups and Tags */}
@@ -171,8 +299,22 @@ export default function NodeDetailPage() {
             >
               {refreshing ? "⏳ Lade..." : "📊 Inventory abrufen"}
             </Button>
+            <Link href={`/jobs?target=${nodeId}`}>
+              <Button variant="outline" className="bg-blue-500/10 border-blue-500 text-blue-500 hover:bg-blue-500/20">
+                <Zap className="h-4 w-4 mr-1" /> Start Job
+              </Button>
+            </Link>
+            <MoveToGroupButton nodeId={nodeId} onMoved={fetchNodeDetails} />
+            <Link href={`/reports?node=${nodeId}`}>
+              <Button variant="outline" className="bg-slate-500/10 border-slate-500 text-slate-400 hover:bg-slate-500/20">
+                <FileText className="h-4 w-4 mr-1" /> Generate Report
+              </Button>
+            </Link>
           </div>
         </div>
+
+        {/* Quick Links - Cross-Module Deep Links */}
+        <QuickLinksBar nodeId={nodeId} />
 
         {/* Main Tabs */}
         <Tabs defaultValue="overview" className="space-y-4">
@@ -487,7 +629,11 @@ export default function NodeDetailPage() {
                   <TableBody>
                     {software.slice(0, 100).map((sw: any, i: number) => (
                       <TableRow key={i}>
-                        <TableCell className="truncate max-w-[300px]">{sw.name}</TableCell>
+                        <TableCell className="truncate max-w-[300px]">
+                          {sw.id ? (
+                            <Link href={`/packages/${sw.id}`} className="text-blue-500 hover:underline">{sw.name}</Link>
+                          ) : sw.name}
+                        </TableCell>
                         <TableCell>{sw.version || '-'}</TableCell>
                         <TableCell className="truncate max-w-[200px]">{sw.publisher || '-'}</TableCell>
                         <TableCell>{sw.installDate || '-'}</TableCell>
@@ -756,6 +902,20 @@ export default function NodeDetailPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Deep Links to Security modules */}
+            <div className="flex flex-wrap gap-3 mt-2">
+              <Link href={`/security/findings?node=${nodeId}`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <ShieldAlert className="h-4 w-4" /> Alle Security Findings anzeigen <ExternalLink className="h-3 w-3" />
+                </Button>
+              </Link>
+              <Link href={`/vulnerabilities?node=${nodeId}`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Bug className="h-4 w-4" /> Alle Vulnerabilities anzeigen <ExternalLink className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
           </TabsContent>
 
           {/* Browser Tab */}
