@@ -263,11 +263,78 @@ export function CommandPalette() {
       action: () => router.push("/vulnerabilities?scan=true"),
       category: "Actions"
     },
+    {
+      id: "action-open-shell",
+      title: "Open Remote Shell",
+      subtitle: "Start a terminal session on a node",
+      icon: <Terminal className="h-4 w-4" />,
+      action: () => router.push("/nodes?action=shell"),
+      category: "Actions"
+    },
+    {
+      id: "action-create-baseline",
+      title: "Create Configuration Baseline",
+      subtitle: "Define a new compliance baseline template",
+      icon: <Shield className="h-4 w-4" />,
+      action: () => router.push("/compliance?new=true"),
+      category: "Actions"
+    },
+    {
+      id: "action-create-patch-ring",
+      title: "Create Patch Ring",
+      subtitle: "Set up a new patch deployment ring",
+      icon: <Shield className="h-4 w-4" />,
+      action: () => router.push("/patches?new-ring=true"),
+      category: "Actions"
+    },
+    {
+      id: "action-export-report",
+      title: "Export Compliance Report",
+      subtitle: "Generate PDF/CSV compliance report",
+      icon: <FileText className="h-4 w-4" />,
+      action: () => router.push("/reports?export=true"),
+      category: "Actions"
+    },
+    {
+      id: "action-trigger-remediation",
+      title: "Trigger Remediation",
+      subtitle: "Auto-fix known vulnerabilities across fleet",
+      icon: <Zap className="h-4 w-4" />,
+      action: () => router.push("/remediation?trigger=true"),
+      category: "Actions"
+    },
+    {
+      id: "action-approve-content",
+      title: "Review Pending Approvals",
+      subtitle: "Check content and deployment approvals",
+      icon: <FileText className="h-4 w-4" />,
+      action: () => router.push("/content?tab=approvals"),
+      category: "Actions"
+    },
   ], [router]);
 
-  // Knowledge commands (? prefix) - built from recent + favorites
+  // Knowledge commands (? prefix) - built from recent + favorites + pinned
   const knowledgeCommands: CommandItem[] = useMemo(() => {
     const items: CommandItem[] = [];
+
+    // Pinned quick-access items
+    const pinnedItems = [
+      { id: "pinned-critical-nodes", title: "Critical Nodes", subtitle: "Nodes with critical findings or offline", icon: <Monitor className="h-4 w-4" />, href: "/nodes?status=critical" },
+      { id: "pinned-failed-jobs", title: "Failed Jobs", subtitle: "Jobs that need attention", icon: <Zap className="h-4 w-4" />, href: "/jobs?status=failed" },
+      { id: "pinned-unpatched", title: "Unpatched Devices", subtitle: "Devices missing critical patches", icon: <Shield className="h-4 w-4" />, href: "/vulnerabilities?severity=critical" },
+      { id: "pinned-recent-alerts", title: "Recent Alerts", subtitle: "Alerts triggered in last 24h", icon: <Bell className="h-4 w-4" />, href: "/alerts?timeRange=24h" },
+    ];
+
+    pinnedItems.forEach(p => {
+      items.push({
+        id: p.id,
+        title: p.title,
+        subtitle: p.subtitle,
+        icon: p.icon,
+        action: () => router.push(p.href),
+        category: "Pinned"
+      });
+    });
 
     // Favorites
     favorites.forEach((fav) => {

@@ -18,6 +18,7 @@ import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monit
 import { useFavorites } from "@/hooks/useFavorites";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { useAuth } from "@/lib/auth-context";
+import { RoleDashboard, type DashboardRole } from "@/components/dashboard/RoleDashboard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
 
@@ -681,6 +682,7 @@ export default function HomePage() {
             loading ? (
               <DashboardSkeleton />
             ) : (
+            <RoleDashboard role={((): DashboardRole => { const r = user?.roles?.[0]; return r === "admin" || r === "operator" || r === "auditor" || r === "viewer" ? r : "admin"; })()}>
             <div>
               {/* Header */}
               <div className="flex items-center justify-between mb-8">
@@ -1176,6 +1178,7 @@ export default function HomePage() {
 
               </div>
             </div>
+            </RoleDashboard>
             )
           )}
         </main>

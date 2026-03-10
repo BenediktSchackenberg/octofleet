@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
+import { useNavBadges } from "@/hooks/useNavBadges";
 import {
   ChevronLeft,
   ChevronRight,
@@ -59,7 +60,7 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    label: "Devices",
+    label: "Fleet",
     labelKey: "nav.fleet",
     icon: Server,
     roles: ["admin", "operator", "auditor", "viewer"],
@@ -67,10 +68,11 @@ const navGroups: NavGroup[] = [
       { href: "/nodes", labelKey: "nav.nodes", icon: Server, permission: "nodes:read" },
       { href: "/groups", labelKey: "nav.groups", icon: FolderTree, permission: "groups:read" },
       { href: "/hardware", labelKey: "nav.hardware", icon: HardDrive, permission: "nodes:read" },
+      { href: "/discovered-systems", labelKey: "nav.discovered", icon: Monitor, permission: "nodes:read" },
     ],
   },
   {
-    label: "Software",
+    label: "Deploy",
     labelKey: "nav.software",
     icon: Package,
     roles: ["admin", "operator", "auditor", "viewer"],
@@ -84,7 +86,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Security",
+    label: "Secure",
     labelKey: "nav.security",
     icon: ShieldCheck,
     roles: ["admin", "operator", "auditor"],
@@ -106,21 +108,21 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Operations",
+    label: "Operate",
     labelKey: "nav.operations",
     icon: Activity,
     roles: ["admin", "operator", "auditor"],
     items: [
+      { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/performance", labelKey: "nav.performance", icon: Activity, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read", roles: ["admin", "operator"] },
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read", roles: ["admin", "operator"] },
       { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read", roles: ["admin", "operator", "auditor"] },
-      { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/query", labelKey: "nav.queryEngine", icon: Terminal, permission: "nodes:read", roles: ["admin", "operator"] },
     ],
   },
   {
-    label: "Provisioning",
+    label: "Provision",
     labelKey: "nav.infrastructure",
     icon: Network,
     roles: ["admin"],
@@ -132,7 +134,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Administration",
+    label: "Admin",
     labelKey: "nav.admin",
     icon: Settings,
     roles: ["admin", "auditor"],
@@ -158,6 +160,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
   const pathname = usePathname();
   const { hasPermission, isAdmin, getRole } = useAuth();
   const { t } = useI18n();
+  const badges = useNavBadges();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -197,6 +200,24 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
     );
 
   const activeSubItems = activeGroup ? filterItems(activeGroup.items) : [];
+
+  // Badge counts per group and per sub-item
+  const groupBadges: Record<string, { count: number; variant: "critical" | "warning" }> = {};
+  if (badges.findings > 0) groupBadges["Secure"] = { count: badges.findings, variant: "critical" };
+  const itemBadges: Record<string, { count: number; variant: "critical" | "warning" }> = {};
+  if (badges.failedJobs > 0) itemBadges["/jobs"] = { count: badges.failedJobs, variant: "warning" };
+  if (badges.alerts > 0) itemBadges["/alerts"] = { count: badges.alerts, variant: "warning" };
+  if (badges.findings > 0) itemBadges["/security/findings"] = { count: badges.findings, variant: "critical" };
+
+  const BadgePill = ({ count, variant }: { count: number; variant: "critical" | "warning" }) => (
+    <span
+      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-auto ${
+        variant === "critical" ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"
+      }`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 
   // For mobile: overlay + drawer
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
@@ -302,6 +323,9 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
             >
               <Icon className="h-5 w-5 shrink-0" />
               {!collapsed && <span className="text-sm font-medium truncate">{group.label}</span>}
+              {!collapsed && groupBadges[group.label] && (
+                <BadgePill count={groupBadges[group.label].count} variant={groupBadges[group.label].variant} />
+              )}
             </Link>
           );
         })}
@@ -337,6 +361,9 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
                 >
                   <ItemIcon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span className="text-sm truncate">{(() => { const v = t(item.labelKey); return v && !v.includes('.') ? v : item.labelKey.split('.').pop(); })()}</span>}
+                  {!collapsed && itemBadges[item.href] && (
+                    <BadgePill count={itemBadges[item.href].count} variant={itemBadges[item.href].variant} />
+                  )}
                 </Link>
               );
             })}
