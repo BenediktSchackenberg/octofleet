@@ -38,16 +38,16 @@ interface VulnSummary {
 
 async function fetchBadges(): Promise<NavBadges> {
   const [findings, unpatched, failedJobs, alerts] = await Promise.all([
-    safeCount("/api/v1/security/findings"),
+    safeCount("/security/findings"),
     (async () => {
       try {
-        const res = await apiClient.get<VulnSummary>("/api/v1/vulnerabilities/summary", { showErrorToast: false });
+        const res = await apiClient.get<VulnSummary>("/vulnerabilities/summary", { showErrorToast: false });
         if (!res) return 0;
         return res.unpatched ?? res.unpatchedCount ?? res.total ?? 0;
       } catch { return 0; }
     })(),
-    safeCount("/api/v1/jobs?status=failed"),
-    safeCount("/api/v1/alerts/rules"),
+    safeCount("/jobs?status=failed"),
+    safeCount("/alerts/rules"),
   ]);
   return { findings, unpatched, pendingApprovals: 0, failedJobs, alerts };
 }

@@ -2185,3 +2185,72 @@ CREATE TABLE IF NOT EXISTS file_events_aggregated (
     UNIQUE(hour, node_id, op)
 );
 CREATE INDEX IF NOT EXISTS idx_file_agg_hour ON file_events_aggregated(hour);
+
+-- MSSQL Backup History
+CREATE TABLE IF NOT EXISTS mssql_backup_history (
+  id SERIAL PRIMARY KEY,
+  node_id UUID REFERENCES nodes(id),
+  instance_name TEXT NOT NULL,
+  database_name TEXT NOT NULL,
+  backup_type TEXT NOT NULL,
+  backup_start TIMESTAMPTZ NOT NULL,
+  backup_finish TIMESTAMPTZ NOT NULL,
+  backup_size_bytes BIGINT DEFAULT 0,
+  compressed_size_bytes BIGINT DEFAULT 0,
+  media_set_id TEXT,
+  physical_device_name TEXT,
+  is_copy_only BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_mssql_backup_node ON mssql_backup_history(node_id);
+CREATE INDEX IF NOT EXISTS idx_mssql_backup_instance ON mssql_backup_history(instance_name, database_name);
+CREATE INDEX IF NOT EXISTS idx_mssql_backup_time ON mssql_backup_history(backup_finish DESC);
+
+-- Enterprise Reporting Suite (E35)
+CREATE TABLE IF NOT EXISTS report_catalog (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL,
+  query_template TEXT,
+  parameters JSONB DEFAULT '[]',
+  output_formats TEXT[] DEFAULT '{pdf,csv}',
+  is_builtin BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS report_schedules (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  report_id TEXT REFERENCES report_catalog(id),
+  name TEXT NOT NULL,
+  cron_expression TEXT NOT NULL,
+  parameters JSONB DEFAULT '{}',
+  output_format TEXT DEFAULT 'pdf',
+  delivery_method TEXT NOT NULL,
+  delivery_config JSONB DEFAULT '{}',
+  enabled BOOLEAN DEFAULT TRUE,
+  last_run_at TIMESTAMPTZ,
+  next_run_at TIMESTAMPTZ,
+  created_by TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS report_executions (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  report_id TEXT REFERENCES report_catalog(id),
+  schedule_id TEXT REFERENCES report_schedules(id),
+  status TEXT DEFAULT 'pending',
+  parameters JSONB DEFAULT '{}',
+  output_format TEXT DEFAULT 'pdf',
+  file_path TEXT,
+  file_size_bytes BIGINT,
+  error_message TEXT,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_report_executions_report ON report_executions(report_id);
+CREATE INDEX IF NOT EXISTS idx_report_executions_status ON report_executions(status);
+CREATE INDEX IF NOT EXISTS idx_report_schedules_report ON report_schedules(report_id);
