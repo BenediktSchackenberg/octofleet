@@ -799,6 +799,81 @@ export default function PatchExplorerPage() {
                 </div>
               )}
             </div>
+          )
+          ) : (
+          /* ─── By Update Tree ─── */
+          loadingUpdateTree ? (
+            <div className="flex items-center justify-center h-40 text-zinc-500"><Loader2 className="w-5 h-5 animate-spin" /></div>
+          ) : updateTreeData ? (
+            <div className="py-2">
+              {updateTreeData.updates.map(ug => {
+                const isExpanded = expandedUpdates.has(ug.key);
+                const groupCheck = getUpdateGroupCheckState(ug);
+                const sevDot = SEVERITY_DOT[ug.severity?.toLowerCase()] || SEVERITY_DOT.low;
+
+                return (
+                  <div key={ug.key}>
+                    <button
+                      onClick={() => { toggleUpdateExpanded(ug.key); setSelectedItem({ type: 'updateGroup', updateGroup: ug }); }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-zinc-900 transition-colors
+                        ${selectedItem.type === 'updateGroup' && selectedItem.updateGroup.key === ug.key ? 'bg-zinc-900' : ''}`}
+                    >
+                      {isExpanded ? <ChevronDown className="w-4 h-4 text-zinc-500" /> : <ChevronRight className="w-4 h-4 text-zinc-500" />}
+                      <TriCheckbox state={groupCheck} onChange={() => toggleUpdateGroupCheck(ug)} />
+                      <Circle className={`w-2.5 h-2.5 fill-current ${sevDot}`} />
+                      <span className="text-sm text-zinc-200 flex-1 truncate">{ug.title}</span>
+                      {ug.kbId && <span className="text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-zinc-500 shrink-0">{ug.kbId}</span>}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-medium shrink-0">{ug.nodeCount}</span>
+                    </button>
+
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          {ug.nodes.map(un => {
+                            const nodeKey = `${un.nodeId}:${ug.key}`;
+                            return (
+                              <button
+                                key={nodeKey}
+                                onClick={() => setSelectedItem({ type: 'updateNode', updateGroup: ug, updateNode: un })}
+                                className={`flex items-center gap-2 w-full pl-10 pr-3 py-1.5 text-left hover:bg-zinc-900/80 transition-colors
+                                  ${selectedItem.type === 'updateNode' && selectedItem.updateNode.nodeId === un.nodeId && selectedItem.updateGroup.key === ug.key ? 'bg-zinc-900/80' : ''}`}
+                              >
+                                <TriCheckbox
+                                  state={checkedUpdateItems.has(nodeKey) ? 'all' : 'none'}
+                                  onChange={() => toggleUpdateNodeCheck(un.nodeId, ug.key)}
+                                />
+                                <span className="text-sm text-zinc-300 font-mono truncate">{un.hostname}</span>
+                                <span className="text-[10px] text-zinc-500 truncate">{un.installedVersion} → {un.availableVersion}</span>
+                                {un.isOnline
+                                  ? <Wifi className="w-3 h-3 text-green-500 shrink-0 ml-auto" />
+                                  : <WifiOff className="w-3 h-3 text-red-500 shrink-0 ml-auto" />}
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+
+              {updateTreeData.summary && (
+                <div className="mt-4 mx-3 p-3 rounded-lg bg-zinc-900/50 border border-zinc-800">
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Summary</div>
+                  <div className="grid grid-cols-2 gap-1 text-xs text-zinc-400">
+                    <span>{updateTreeData.summary.totalUpdates} Updates</span>
+                    <span>{updateTreeData.summary.totalAffectedNodes} Nodes</span>
+                    <span className="text-red-400">{updateTreeData.summary.critical} Critical</span>
+                    <span className="text-amber-400">{updateTreeData.summary.important} Important</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null
           )}
         </div>
 
@@ -806,15 +881,70 @@ export default function PatchExplorerPage() {
         <div className="flex-1 overflow-y-auto bg-zinc-950">
           <AnimatePresence mode="wait">
             <motion.div
-              key={selectedItem.type === 'none' ? 'none' : selectedItem.type === 'group' ? selectedItem.osName : selectedItem.type === 'node' ? selectedItem.node.id : selectedItem.type === 'software' ? selectedItem.software.id : ''}
+              key={selectedItem.type === 'none' ? 'none' : selectedItem.type === 'group' ? selectedItem.osName : selectedItem.type === 'node' ? selectedItem.node.id : selectedItem.type === 'software' ? selectedItem.software.id : selectedItem.type === 'updateGroup' ? selectedItem.updateGroup.key : selectedItem.type === 'updateNode' ? `${selectedItem.updateNode.nodeId}-${selectedItem.updateGroup.key}` : ''}
               initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.15 }}
               className="p-6"
             >
+              {/* Deployment Status Banner */}
+              {activeDeploymentId && deployStatus && (
+                <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Rocket className="w-4 h-4 text-emerald-500" />
+                      <span className="text-sm font-medium text-zinc-200">{deployStatus.name}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                        deployStatus.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                        deployStatus.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                        deployStatus.status === 'running' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-zinc-700 text-zinc-400'
+                      }`}>{deployStatus.status}</span>
+                    </div>
+                    {deployStatus.progress.pending === 0 && (
+                      <button onClick={() => { setActiveDeploymentId(null); setDeployStatus(null); }} className="text-zinc-500 hover:text-zinc-300">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full bg-zinc-800 rounded-full h-2 mb-3">
+                    <div
+                      className="h-2 rounded-full bg-emerald-500 transition-all duration-500"
+                      style={{ width: `${deployStatus.progress.total > 0 ? ((deployStatus.progress.completed + deployStatus.progress.failed) / deployStatus.progress.total * 100) : 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-zinc-500 mb-2">
+                    {deployStatus.progress.completed}/{deployStatus.progress.total} completed
+                    {deployStatus.progress.failed > 0 && <span className="text-red-400 ml-2">{deployStatus.progress.failed} failed</span>}
+                  </div>
+                  <div className="space-y-1">
+                    {deployStatus.results.map(r => (
+                      <div key={r.nodeId} className="flex items-center gap-2 text-xs">
+                        {r.status === 'pending' ? <Circle className="w-3 h-3 text-zinc-500" /> :
+                         r.status === 'running' || r.status === 'installing' ? <Loader2 className="w-3 h-3 animate-spin text-blue-400" /> :
+                         r.status === 'installed' || r.status === 'completed' ? <Check className="w-3 h-3 text-green-400" /> :
+                         r.status === 'failed' ? <X className="w-3 h-3 text-red-400" /> :
+                         <Circle className="w-3 h-3 text-zinc-500" />}
+                        <span className="font-mono text-zinc-300">{r.hostname}</span>
+                        <span className={`ml-auto ${
+                          r.status === 'installed' || r.status === 'completed' ? 'text-green-400' :
+                          r.status === 'failed' ? 'text-red-400' :
+                          r.status === 'running' || r.status === 'installing' ? 'text-blue-400' :
+                          'text-zinc-500'
+                        }`}>{r.status}</span>
+                        {r.errorMessage && <span className="text-red-400 truncate max-w-[200px]" title={r.errorMessage}>{r.errorMessage}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {selectedItem.type === 'none' && <WelcomePanel stats={stats} />}
               {selectedItem.type === 'group' && <GroupDetail group={selectedItem.group} nodes={nodesCache[selectedItem.osName] || []} onSelectNode={(n) => setSelectedItem({ type: 'node', node: n })} />}
               {selectedItem.type === 'node' && <NodeDetail node={selectedItem.node} software={softwareCache[selectedItem.node.id] || []} deployingIds={deployingIds} onSelectSoftware={(sw) => setSelectedItem({ type: 'software', software: sw, node: selectedItem.node })} />}
               {selectedItem.type === 'software' && <SoftwareDetail software={selectedItem.software} node={selectedItem.node} onDeploy={(sw) => { setCheckedItems(new Set([sw.id])); setShowDeploy(true); }} />}
+              {selectedItem.type === 'updateGroup' && <UpdateGroupDetail updateGroup={selectedItem.updateGroup} onSelectNode={(un) => setSelectedItem({ type: 'updateNode', updateGroup: selectedItem.updateGroup, updateNode: un })} onDeployAll={() => { toggleUpdateGroupCheck(selectedItem.updateGroup); setDeployName(`Deploy ${selectedItem.updateGroup.title}`); setShowDeploy(true); }} />}
+              {selectedItem.type === 'updateNode' && <UpdateNodeDetail updateGroup={selectedItem.updateGroup} updateNode={selectedItem.updateNode} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -822,7 +952,7 @@ export default function PatchExplorerPage() {
 
       {/* ─── Floating Action Bar ─────────────────────────────────── */}
       <AnimatePresence>
-        {checkedItems.size > 0 && (
+        {(treeMode === 'node' ? checkedItems.size > 0 : checkedUpdateItems.size > 0) && (
           <motion.div
             initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
             transition={{ duration: 0.2 }}
@@ -1180,6 +1310,85 @@ function SoftwareDetail({ software: sw, node, onDeploy }: { software: SoftwareIt
       <div className="mt-6 text-xs text-zinc-600">
         <div className="uppercase tracking-wider font-medium mb-2">Other nodes with this software</div>
         <p className="text-zinc-500 italic">Cross-node analysis will be available in a future release.</p>
+      </div>
+    </div>
+  );
+}
+
+function UpdateGroupDetail({ updateGroup: ug, onSelectNode, onDeployAll }: { updateGroup: UpdateGroup; onSelectNode: (un: UpdateNode) => void; onDeployAll: () => void }) {
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-zinc-100 mb-2">{ug.title}</h2>
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <SeverityBadge severity={ug.severity} />
+          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded border border-zinc-600 text-zinc-400">{ug.category}</span>
+          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded border border-zinc-600 text-zinc-400">{ug.source}</span>
+          {ug.kbId && <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-zinc-800 text-zinc-300">{ug.kbId}</span>}
+          {ug.isRebootRequired && (
+            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">Reboot Required</span>
+          )}
+        </div>
+      </div>
+
+      <div className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">Affected Nodes ({ug.nodeCount})</div>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        {ug.nodes.map(un => (
+          <button key={un.nodeId} onClick={() => onSelectNode(un)}
+            className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-left hover:border-zinc-700 transition-colors"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-mono text-zinc-200 truncate">{un.hostname}</span>
+              {un.isOnline ? <Wifi className="w-3 h-3 text-green-500 ml-auto" /> : <WifiOff className="w-3 h-3 text-red-500 ml-auto" />}
+            </div>
+            <div className="text-xs text-zinc-500 truncate">{un.osName}</div>
+            <div className="text-xs text-zinc-400 font-mono mt-1">
+              {un.installedVersion} <ArrowRight className="w-3 h-3 inline text-emerald-500" /> {un.availableVersion}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <button onClick={onDeployAll}
+        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+      >
+        <Rocket className="w-4 h-4" /> Deploy to all {ug.nodeCount} nodes
+      </button>
+    </div>
+  );
+}
+
+function UpdateNodeDetail({ updateGroup: ug, updateNode: un }: { updateGroup: UpdateGroup; updateNode: UpdateNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center">
+          <OsIcon osName={un.osName} />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-100 font-mono">{un.hostname}</h2>
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
+            <span>{un.osName}</span>
+            <span className={`flex items-center gap-1 ${un.isOnline ? 'text-green-400' : 'text-red-400'}`}>
+              {un.isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {un.isOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4">
+        <div className="text-xs text-zinc-500 mb-1">Update</div>
+        <div className="text-sm text-zinc-200 mb-2">{ug.title}</div>
+        <div className="flex items-center gap-2 mb-2">
+          <SeverityBadge severity={ug.severity} />
+          {ug.kbId && <span className="text-[10px] font-mono text-zinc-400">{ug.kbId}</span>}
+        </div>
+        <div className="flex items-center gap-3 mt-3">
+          <span className="font-mono text-sm text-zinc-400 bg-zinc-800 px-2 py-1 rounded">{un.installedVersion}</span>
+          <ArrowRight className="w-4 h-4 text-emerald-500" />
+          <span className="font-mono text-sm text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">{un.availableVersion}</span>
+        </div>
       </div>
     </div>
   );
