@@ -467,6 +467,7 @@ export default function JobsPage() {
       setJobs((data?.jobs || []).map((j: any) => ({
         id: j.job_id || j.id,
         name: j.name,
+        status: j.status || "unknown",
         commandType: j.command_type || j.commandType,
         targetType: j.target_type || j.targetType,
         targetName: j.targetName || j.target_name || j.targetType || j.target_type,
