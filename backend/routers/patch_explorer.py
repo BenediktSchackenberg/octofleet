@@ -298,32 +298,188 @@ async def explorer_deploy(data: DeployRequest, request: Request):
                     VALUES ($1, $2, NULL, 'pending')
                 """, deployment_id, u.node_id)
 
-            # Create job
-            job_uuid = _uuid.uuid4()
-            update_summaries = [{"update_id": u.update_id, "kb_id": u.kb_id, "source": u.source, "node_id": u.node_id}
-                                for u in data.updates]
-            await conn.execute("""
-                INSERT INTO jobs (id, name, description, target_type, command_type, command_data, created_by)
-                VALUES ($1, $2, $3, 'all', 'patch_install', $4::jsonb, $5)
-            """, job_uuid, data.name,
-                f"Patch Explorer deployment with {len(data.updates)} updates",
-                json.dumps({"deployment_id": str(deployment_id), "updates": update_summaries,
-                            "reboot_policy": data.reboot_policy}),
-                username)
+            # Resolve KB IDs from node_available_updates table
+            update_ids = [u.update_id for u in data.updates]
+            kb_rows = await conn.fetch("""
+                SELECT DISTINCT kb_id FROM node_available_updates
+                WHERE id = ANY($1::text[]) AND kb_id IS NOT NULL AND kb_id != ''
+            """, update_ids)
+            kb_ids = [r["kb_id"] for r in kb_rows]
 
+            # Also use kb_ids directly from request as fallback
+            for u in data.updates:
+                if u.kb_id and u.kb_id not in kb_ids:
+                    kb_ids.append(u.kb_id)
+
+            # Create one job per node (agent expects kb_ids per job)
+            job_ids = []
             for nid in node_ids:
+                job_uuid = _uuid.uuid4()
+                node_updates = [u for u in data.updates if u.node_id == nid]
+                node_kb_ids = []
+                for u in node_updates:
+                    if u.kb_id:
+                        node_kb_ids.append(u.kb_id)
+                # Resolve from DB if not in request
+                if not node_kb_ids:
+                    nk_rows = await conn.fetch("""
+                        SELECT DISTINCT kb_id FROM node_available_updates
+                        WHERE id = ANY($1::text[]) AND kb_id IS NOT NULL AND kb_id != ''
+                    """, [u.update_id for u in node_updates])
+                    node_kb_ids = [r["kb_id"] for r in nk_rows]
+
+                await conn.execute("""
+                    INSERT INTO jobs (id, name, description, target_type, command_type, command_data, created_by)
+                    VALUES ($1, $2, $3, 'node', 'patch_install', $4::jsonb, $5)
+                """, job_uuid, data.name,
+                    f"Patch Explorer: {len(node_kb_ids)} updates",
+                    json.dumps({"kb_ids": node_kb_ids, "reboot_policy": data.reboot_policy,
+                                "deployment_id": str(deployment_id)}),
+                    username)
+
+                # Resolve node UUID for job_instances
                 await conn.execute("""
                     INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
                     VALUES (gen_random_uuid(), $1, $2::uuid, 'pending', NOW())
                 """, job_uuid, nid)
+                job_ids.append(str(job_uuid))
 
-            return {"deployment_id": str(deployment_id), "job_id": str(job_uuid),
+            return {"deployment_id": str(deployment_id), "job_ids": job_ids,
+                    "message": f"Deployment created with {len(data.updates)} updates on {len(node_ids)} nodes",
                     "updates_count": len(data.updates), "nodes_count": len(node_ids)}
 
 
 # ---------------------------------------------------------------------------
 # 7. POST /api/v1/patches/explorer/agent-updates  (no auth — agent endpoint)
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 8. GET /api/v1/patches/explorer/by-update
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/patches/explorer/by-update", dependencies=[Depends(verify_api_key)])
+async def explorer_by_update():
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT u.title, u.kb_id, u.severity, u.category, u.source, u.is_reboot_required,
+                   n.id AS node_id, n.hostname, n.os_name, n.is_online,
+                   u.installed_version, u.available_version
+            FROM node_available_updates u
+            JOIN nodes n ON n.id = u.node_id
+            ORDER BY
+              CASE u.severity WHEN 'critical' THEN 0 WHEN 'important' THEN 1 WHEN 'moderate' THEN 2 ELSE 3 END,
+              u.title, n.hostname
+        """)
+
+        from collections import OrderedDict
+        grouped: OrderedDict[tuple, dict] = OrderedDict()
+        node_ids_all = set()
+
+        for r in rows:
+            key = (r["title"], r["kb_id"])
+            if key not in grouped:
+                grouped[key] = {
+                    "key": r["kb_id"] or f"update-{len(grouped)}",
+                    "title": r["title"],
+                    "kb_id": r["kb_id"],
+                    "severity": r["severity"],
+                    "category": r["category"],
+                    "source": r["source"],
+                    "is_reboot_required": r["is_reboot_required"] or False,
+                    "nodes": [],
+                }
+            grouped[key]["nodes"].append({
+                "node_id": str(r["node_id"]),
+                "hostname": r["hostname"],
+                "os_name": r["os_name"],
+                "is_online": r["is_online"],
+                "installed_version": r["installed_version"],
+                "available_version": r["available_version"],
+            })
+            node_ids_all.add(str(r["node_id"]))
+
+        updates = []
+        severity_counts = {"critical": 0, "important": 0, "moderate": 0, "low": 0}
+        for g in grouped.values():
+            g["node_count"] = len(g["nodes"])
+            updates.append(g)
+            sev = (g["severity"] or "low").lower()
+            if sev in severity_counts:
+                severity_counts[sev] += 1
+            else:
+                severity_counts["low"] += 1
+
+        return {
+            "updates": updates,
+            "summary": {
+                "total_updates": len(updates),
+                "total_affected_nodes": len(node_ids_all),
+                **severity_counts,
+            },
+        }
+
+
+# ---------------------------------------------------------------------------
+# 9. GET /api/v1/patches/explorer/deployment-status/{deployment_id}
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/patches/explorer/deployment-status/{deployment_id}", dependencies=[Depends(verify_api_key)])
+async def explorer_deployment_status(deployment_id: str):
+    async with get_pool().acquire() as conn:
+        dep = await conn.fetchrow(
+            "SELECT id, name, created_at FROM patch_deployments WHERE id = $1::uuid", deployment_id)
+        if not dep:
+            return {"error": "Deployment not found"}
+
+        results = await conn.fetch("""
+            SELECT pdr.node_id, pdr.status, pdr.started_at, pdr.completed_at, pdr.error_message,
+                   n.hostname
+            FROM patch_deployment_results pdr
+            LEFT JOIN nodes n ON n.id::text = pdr.node_id
+            WHERE pdr.deployment_id = $1::uuid
+        """, deployment_id)
+
+        # Check associated job status
+        job = await conn.fetchrow("""
+            SELECT j.id, j.status FROM jobs j
+            WHERE j.command_data::jsonb->>'deployment_id' = $1
+            ORDER BY j.created_at DESC LIMIT 1
+        """, deployment_id)
+
+        total = len(results)
+        completed = sum(1 for r in results if r["status"] in ("installed", "completed"))
+        failed = sum(1 for r in results if r["status"] == "failed")
+        pending = total - completed - failed
+
+        overall = "completed" if pending == 0 and failed == 0 else "failed" if pending == 0 and failed > 0 else "running" if completed > 0 or failed > 0 else "pending"
+        if job and job["status"]:
+            js = job["status"].lower()
+            if js in ("completed", "failed"):
+                overall = js
+
+        return {
+            "deployment_id": deployment_id,
+            "name": dep["name"],
+            "status": overall,
+            "progress": {
+                "total": total,
+                "completed": completed,
+                "failed": failed,
+                "pending": pending,
+            },
+            "results": [
+                {
+                    "node_id": r["node_id"],
+                    "hostname": r["hostname"],
+                    "status": r["status"],
+                    "started_at": r["started_at"].isoformat() if r["started_at"] else None,
+                    "completed_at": r["completed_at"].isoformat() if r["completed_at"] else None,
+                    "error_message": r["error_message"],
+                }
+                for r in results
+            ],
+        }
+
 
 class AgentUpdate(BaseModel):
     kb_id: Optional[str] = None

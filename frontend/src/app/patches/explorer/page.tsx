@@ -77,13 +77,66 @@ interface StatsData {
   low: number;
 }
 
+interface UpdateNode {
+  nodeId: string;
+  hostname: string;
+  osName: string;
+  isOnline: boolean;
+  installedVersion: string;
+  availableVersion: string;
+}
+
+interface UpdateGroup {
+  key: string;
+  title: string;
+  kbId: string | null;
+  severity: string;
+  category: string;
+  source: string;
+  isRebootRequired: boolean;
+  nodeCount: number;
+  nodes: UpdateNode[];
+}
+
+interface UpdateTreeData {
+  updates: UpdateGroup[];
+  summary: {
+    totalUpdates: number;
+    totalAffectedNodes: number;
+    critical: number;
+    important: number;
+    moderate: number;
+    low: number;
+  };
+}
+
+interface DeploymentResult {
+  nodeId: string;
+  hostname: string;
+  status: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
+}
+
+interface DeploymentStatus {
+  deploymentId: string;
+  name: string;
+  status: string;
+  progress: { total: number; completed: number; failed: number; pending: number };
+  results: DeploymentResult[];
+}
+
 type SelectedItem =
   | { type: 'none' }
   | { type: 'group'; osName: string; group: OsGroup }
   | { type: 'node'; node: NodeItem }
-  | { type: 'software'; software: SoftwareItem; node: NodeItem };
+  | { type: 'software'; software: SoftwareItem; node: NodeItem }
+  | { type: 'updateGroup'; updateGroup: UpdateGroup }
+  | { type: 'updateNode'; updateGroup: UpdateGroup; updateNode: UpdateNode };
 
 type FilterMode = 'all' | 'updates' | 'critical';
+type TreeMode = 'node' | 'update';
 
 // ─── Status helpers ──────────────────────────────────────────────────
 
@@ -109,6 +162,13 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const PIE_COLORS = ['#06b6d4', '#22c55e', '#f59e0b', '#ef4444'];
+
+const SEVERITY_DOT: Record<string, string> = {
+  critical: 'text-red-500',
+  important: 'text-amber-500',
+  moderate: 'text-yellow-500',
+  low: 'text-blue-500',
+};
 
 function StatusDot({ status }: { status: string }) {
   return <Circle className={`w-2.5 h-2.5 fill-current ${STATUS_COLORS[status] || 'text-zinc-500'}`} />;
@@ -177,6 +237,13 @@ export default function PatchExplorerPage() {
   const [deploying, setDeploying] = useState(false);
   const [deployingIds, setDeployingIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [treeMode, setTreeMode] = useState<TreeMode>('node');
+  const [updateTreeData, setUpdateTreeData] = useState<UpdateTreeData | null>(null);
+  const [expandedUpdates, setExpandedUpdates] = useState<Set<string>>(new Set());
+  const [checkedUpdateItems, setCheckedUpdateItems] = useState<Set<string>>(new Set()); // "nodeId:key" format
+  const [loadingUpdateTree, setLoadingUpdateTree] = useState(false);
+  const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null);
+  const [deployStatus, setDeployStatus] = useState<DeploymentStatus | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -198,6 +265,32 @@ export default function PatchExplorerPage() {
   }, []);
 
   useEffect(() => { fetchTree(); fetchStats(); }, [fetchTree, fetchStats]);
+
+  const fetchUpdateTree = useCallback(async () => {
+    setLoadingUpdateTree(true);
+    const data = await apiClient.get<UpdateTreeData>('/patches/explorer/by-update', { camelCase: true });
+    if (data) setUpdateTreeData(data);
+    setLoadingUpdateTree(false);
+  }, []);
+
+  useEffect(() => {
+    if (treeMode === 'update' && !updateTreeData) fetchUpdateTree();
+  }, [treeMode, updateTreeData, fetchUpdateTree]);
+
+  // Deployment status polling
+  useEffect(() => {
+    if (!activeDeploymentId) return;
+    const interval = setInterval(async () => {
+      const status = await apiClient.get<DeploymentStatus>(`/patches/explorer/deployment-status/${activeDeploymentId}`, { camelCase: true });
+      if (status) {
+        setDeployStatus(status);
+        if (status.progress.pending === 0) {
+          clearInterval(interval);
+        }
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeDeploymentId]);
 
   const fetchNodes = useCallback(async (osName: string) => {
     if (nodesCache[osName]) return;
@@ -294,9 +387,67 @@ export default function PatchExplorerPage() {
     });
   }, []);
 
+  // ─── "By Update" check logic ─────────────────────────────────────
+
+  const getUpdateGroupCheckState = useCallback((ug: UpdateGroup): 'none' | 'some' | 'all' => {
+    const keys = ug.nodes.map(n => `${n.nodeId}:${ug.key}`);
+    if (keys.length === 0) return 'none';
+    const checked = keys.filter(k => checkedUpdateItems.has(k));
+    if (checked.length === 0) return 'none';
+    if (checked.length === keys.length) return 'all';
+    return 'some';
+  }, [checkedUpdateItems]);
+
+  const toggleUpdateGroupCheck = useCallback((ug: UpdateGroup) => {
+    setCheckedUpdateItems(prev => {
+      const next = new Set(prev);
+      const keys = ug.nodes.map(n => `${n.nodeId}:${ug.key}`);
+      const allChecked = keys.every(k => next.has(k));
+      if (allChecked) keys.forEach(k => next.delete(k));
+      else keys.forEach(k => next.add(k));
+      return next;
+    });
+  }, []);
+
+  const toggleUpdateNodeCheck = useCallback((nodeId: string, updateKey: string) => {
+    const k = `${nodeId}:${updateKey}`;
+    setCheckedUpdateItems(prev => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  }, []);
+
+  const toggleUpdateExpanded = useCallback((key: string) => {
+    setExpandedUpdates(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
   // ─── Derived: checked summary ────────────────────────────────────
 
   const checkedSummary = useMemo(() => {
+    if (treeMode === 'update') {
+      const nodeIds = new Set<string>();
+      let critical = 0, important = 0, moderate = 0, low = 0;
+      if (updateTreeData) {
+        for (const ug of updateTreeData.updates) {
+          for (const n of ug.nodes) {
+            if (checkedUpdateItems.has(`${n.nodeId}:${ug.key}`)) {
+              nodeIds.add(n.nodeId);
+              const sev = ug.severity?.toLowerCase();
+              if (sev === 'critical') critical++;
+              else if (sev === 'important') important++;
+              else if (sev === 'moderate') moderate++;
+              else low++;
+            }
+          }
+        }
+      }
+      return { count: checkedUpdateItems.size, nodeCount: nodeIds.size, critical, important, moderate, low };
+    }
     const nodeIds = new Set<string>();
     let critical = 0, important = 0, moderate = 0, low = 0;
     for (const [nodeId, swList] of Object.entries(softwareCache)) {
@@ -312,7 +463,7 @@ export default function PatchExplorerPage() {
       }
     }
     return { count: checkedItems.size, nodeCount: nodeIds.size, critical, important, moderate, low };
-  }, [checkedItems, softwareCache]);
+  }, [treeMode, checkedItems, checkedUpdateItems, softwareCache, updateTreeData]);
 
   // ─── Filter groups ────────────────────────────────────────────────
 
@@ -328,12 +479,24 @@ export default function PatchExplorerPage() {
   const handleDeploy = useCallback(async () => {
     setDeploying(true);
     const items: { node_id: string; update_id: string; kb_id?: string; source?: string }[] = [];
-    for (const [nodeId, swList] of Object.entries(softwareCache)) {
-      for (const sw of swList) {
-        if (checkedItems.has(sw.id)) items.push({ node_id: nodeId, update_id: sw.id, kb_id: sw.kbId || undefined, source: sw.source || 'windows_update' });
+
+    if (treeMode === 'update' && updateTreeData) {
+      for (const ug of updateTreeData.updates) {
+        for (const n of ug.nodes) {
+          if (checkedUpdateItems.has(`${n.nodeId}:${ug.key}`)) {
+            items.push({ node_id: n.nodeId, update_id: ug.key, kb_id: ug.kbId || undefined, source: ug.source || 'windows_update' });
+          }
+        }
+      }
+    } else {
+      for (const [nodeId, swList] of Object.entries(softwareCache)) {
+        for (const sw of swList) {
+          if (checkedItems.has(sw.id)) items.push({ node_id: nodeId, update_id: sw.id, kb_id: sw.kbId || undefined, source: sw.source || 'windows_update' });
+        }
       }
     }
-        const data = await apiClient.post<{ deploymentId: string; jobId: string; message: string }>(
+
+    const data = await apiClient.post<{ deploymentId: string; jobId: string; message: string }>(
       '/patches/explorer/deploy',
       { name: deployName || 'Patch Explorer Deployment', reboot_policy: rebootPolicy, updates: items }
     );
@@ -341,20 +504,24 @@ export default function PatchExplorerPage() {
     if (data) {
       toast.success(data.message || 'Deployment started');
       setShowDeploy(false);
-      setDeployingIds(new Set(checkedItems));
-      setCheckedItems(new Set());
-      // Poll for progress
+      setActiveDeploymentId(data.deploymentId);
+      if (treeMode === 'update') {
+        setCheckedUpdateItems(new Set());
+      } else {
+        setDeployingIds(new Set(checkedItems));
+        setCheckedItems(new Set());
+      }
+      // Poll for software refresh
       const nodeIdsToRefresh = new Set(items.map(i => i.node_id));
       const poll = setInterval(async () => {
         for (const nid of nodeIdsToRefresh) {
           const d = await apiClient.get<{ software: SoftwareItem[] }>(`/patches/explorer/node/${nid}/software`, { camelCase: true });
           if (d) setSoftwareCache(prev => ({ ...prev, [nid]: d.software }));
         }
-        // Stop polling after 60s
       }, 5000);
       setTimeout(() => { clearInterval(poll); setDeployingIds(new Set()); }, 60000);
     }
-  }, [checkedItems, softwareCache, deployName, rebootPolicy]);
+  }, [treeMode, checkedItems, checkedUpdateItems, updateTreeData, softwareCache, deployName, rebootPolicy]);
 
   // ─── Search result click ──────────────────────────────────────────
 
@@ -498,7 +665,19 @@ export default function PatchExplorerPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* ─── Tree Panel ──────────────────────────────────────── */}
         <div className="w-[400px] border-r border-zinc-800 overflow-y-auto bg-zinc-950">
-          {loading && groups.length === 0 ? (
+          {/* Tab switcher */}
+          <div className="flex border-b border-zinc-700 sticky top-0 bg-zinc-950 z-10">
+            <button onClick={() => setTreeMode('node')} className={`px-4 py-2 text-sm font-medium transition-colors ${treeMode === 'node' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-200'}`}>
+              By Node
+            </button>
+            <button onClick={() => setTreeMode('update')} className={`px-4 py-2 text-sm font-medium transition-colors ${treeMode === 'update' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-200'}`}>
+              By Update
+            </button>
+          </div>
+
+          {treeMode === 'node' ? (
+          /* ─── By Node Tree ─── */
+          loading && groups.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-zinc-500"><Loader2 className="w-5 h-5 animate-spin" /></div>
           ) : (
             <div className="py-2">
