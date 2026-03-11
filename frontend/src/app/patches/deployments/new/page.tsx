@@ -39,13 +39,20 @@ export default function NewDeploymentPage() {
   };
 
   const create = async () => {
+    if (creating) return; // prevent double-click
     setCreating(true);
-    const token = getToken();
-    const data = await apiClient.post<{ id: string }>(`/patches/deployments`, { name, patches: selectedPatches, ring_id: selectedRing || null, reboot_policy: rebootPolicy }, { showErrorToast: false });
-    if (data) {
-      router.push(`/patches/deployments/${data.id}`);
+    try {
+      const res = await apiClient.post<{ id: string }>(`/patches/deployments`, { name, patches: selectedPatches, ring_id: selectedRing || null, reboot_policy: rebootPolicy });
+      const id = res?.data?.id || (res as unknown as { id: string })?.id;
+      if (id) {
+        router.push(`/patches/deployments/${id}`);
+      } else {
+        // Fallback: go to deployments list
+        router.push(`/patches?tab=deployments`);
+      }
+    } catch {
+      setCreating(false);
     }
-    setCreating(false);
   };
 
   return (
