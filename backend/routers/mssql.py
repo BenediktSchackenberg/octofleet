@@ -1,8 +1,8 @@
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from html.parser import HTMLParser
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import asyncpg
 import httpx
@@ -295,3 +295,228 @@ def _parse_microsoft_updates_html(html: str):
     parser = SQLUpdateTableParser()
     parser.feed(html)
     return parser.cus
+
+
+# ============================================
+# Backup History & Ampel Report
+# ============================================
+
+@router.post("/backup-history")
+async def submit_backup_history(records: List[Dict[str, Any]], db: asyncpg.Pool = Depends(get_db)):
+    """Agent submits backup history records."""
+    inserted = 0
+    async with db.acquire() as conn:
+        for r in records:
+            await conn.execute("""
+                INSERT INTO mssql_backup_history
+                    (node_id, instance_name, database_name, backup_type,
+                     backup_start, backup_finish, backup_size_bytes, compressed_size_bytes,
+                     media_set_id, physical_device_name, is_copy_only)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+            """,
+                uuid.UUID(r["node_id"]) if r.get("node_id") else None,
+                r["instance_name"], r["database_name"], r["backup_type"],
+                r["backup_start"], r["backup_finish"],
+                r.get("backup_size_bytes", 0), r.get("compressed_size_bytes", 0),
+                r.get("media_set_id"), r.get("physical_device_name"),
+                r.get("is_copy_only", False),
+            )
+            inserted += 1
+    return {"status": "ok", "inserted": inserted}
+
+
+def _classify_ampel(last_full_age_h: Optional[float], last_log_age_min: Optional[float]) -> str:
+    """Classify backup status: green/yellow/red."""
+    if last_full_age_h is None:
+        return "red"
+    if last_full_age_h <= 24 and (last_log_age_min is not None and last_log_age_min <= 15):
+        return "green"
+    if last_full_age_h <= 48 and (last_log_age_min is not None and last_log_age_min <= 30):
+        return "yellow"
+    # Full only (no logs) - check full age
+    if last_log_age_min is None:
+        if last_full_age_h <= 24:
+            return "yellow"
+        return "red"
+    return "red"
+
+
+@router.get("/backup-ampel")
+async def get_backup_ampel(db: asyncpg.Pool = Depends(get_db)):
+    """Return full ampel report."""
+    now = datetime.now(timezone.utc)
+    async with db.acquire() as conn:
+        # Get all instances with their node info
+        instances = await conn.fetch("""
+            SELECT mi.node_id, mi.instance_name, mi.version, n.hostname
+            FROM mssql_instances mi
+            LEFT JOIN nodes n ON n.id = mi.node_id
+            ORDER BY n.hostname, mi.instance_name
+        """)
+
+        # Get latest backups per instance+database
+        backups = await conn.fetch("""
+            SELECT node_id, instance_name, database_name, backup_type,
+                   MAX(backup_finish) AS last_backup,
+                   COUNT(*) FILTER (WHERE backup_finish > NOW() - INTERVAL '24 hours') AS count_24h
+            FROM mssql_backup_history
+            GROUP BY node_id, instance_name, database_name, backup_type
+        """)
+
+        # Volume in last 24h
+        vol_row = await conn.fetchrow("""
+            SELECT COALESCE(SUM(backup_size_bytes), 0) AS total_bytes
+            FROM mssql_backup_history
+            WHERE backup_finish > NOW() - INTERVAL '24 hours'
+        """)
+
+    # Build lookup: (node_id, instance_name, db_name, type) -> {last_backup, count_24h}
+    backup_map: Dict[tuple, Dict] = {}
+    for b in backups:
+        key = (str(b["node_id"]), b["instance_name"], b["database_name"], b["backup_type"])
+        backup_map[key] = {"last_backup": b["last_backup"], "count_24h": b["count_24h"]}
+
+    # Get unique databases per instance
+    db_set: Dict[tuple, set] = {}
+    for b in backups:
+        inst_key = (str(b["node_id"]), b["instance_name"])
+        if inst_key not in db_set:
+            db_set[inst_key] = set()
+        db_set[inst_key].add(b["database_name"])
+
+    summary = {"green": 0, "yellow": 0, "red": 0, "totalDatabases": 0, "backedUpDatabases": 0, "volumeGb24h": 0.0}
+    summary["volumeGb24h"] = round((vol_row["total_bytes"] or 0) / (1024**3), 2)
+
+    result_instances = []
+    for inst in instances:
+        inst_key = (str(inst["node_id"]), inst["instance_name"])
+        dbs = db_set.get(inst_key, set())
+        db_results = []
+        inst_statuses = []
+
+        for db_name in sorted(dbs):
+            full_key = (str(inst["node_id"]), inst["instance_name"], db_name, "full")
+            log_key = (str(inst["node_id"]), inst["instance_name"], db_name, "log")
+            full_info = backup_map.get(full_key)
+            log_info = backup_map.get(log_key)
+
+            last_full = full_info["last_backup"] if full_info else None
+            last_log = log_info["last_backup"] if log_info else None
+            log_count = log_info["count_24h"] if log_info else 0
+
+            full_age_h = (now - last_full).total_seconds() / 3600 if last_full else None
+            log_age_min = (now - last_log).total_seconds() / 60 if last_log else None
+
+            # RPO = time since last log (or last full if no logs)
+            if last_log:
+                rpo_seconds = (now - last_log).total_seconds()
+            elif last_full:
+                rpo_seconds = (now - last_full).total_seconds()
+            else:
+                rpo_seconds = None
+
+            status = _classify_ampel(full_age_h, log_age_min)
+            inst_statuses.append(status)
+            summary[status] += 1
+            summary["totalDatabases"] += 1
+            if last_full:
+                summary["backedUpDatabases"] += 1
+
+            db_results.append({
+                "name": db_name,
+                "lastFull": last_full.isoformat() if last_full else None,
+                "lastLog": last_log.isoformat() if last_log else None,
+                "rpoSeconds": rpo_seconds,
+                "status": status,
+                "logCount24h": log_count,
+            })
+
+        # If instance has no backups at all, count it as 1 red
+        if not dbs:
+            summary["red"] += 1
+            summary["totalDatabases"] += 1
+
+        # Worst status for instance
+        if "red" in inst_statuses or not dbs:
+            worst = "red"
+        elif "yellow" in inst_statuses:
+            worst = "yellow"
+        else:
+            worst = "green"
+
+        result_instances.append({
+            "nodeId": str(inst["node_id"]),
+            "hostname": inst["hostname"],
+            "instanceName": inst["instance_name"],
+            "version": inst["version"],
+            "status": worst,
+            "databases": db_results,
+        })
+
+    return {"summary": summary, "instances": result_instances}
+
+
+@router.get("/backup-ampel/distributions")
+async def get_backup_ampel_distributions(db: asyncpg.Pool = Depends(get_db)):
+    """Return histogram data for charts."""
+    async with db.acquire() as conn:
+        # RPO distribution - hours since last backup (log or full) per database
+        rpo_rows = await conn.fetch("""
+            WITH latest AS (
+                SELECT node_id, instance_name, database_name,
+                       MAX(backup_finish) AS last_backup
+                FROM mssql_backup_history
+                GROUP BY node_id, instance_name, database_name
+            )
+            SELECT EXTRACT(EPOCH FROM NOW() - last_backup) / 3600.0 AS rpo_hours
+            FROM latest
+        """)
+
+        # Full backup age distribution
+        full_age_rows = await conn.fetch("""
+            WITH latest_full AS (
+                SELECT node_id, instance_name, database_name,
+                       MAX(backup_finish) AS last_full
+                FROM mssql_backup_history
+                WHERE backup_type = 'full'
+                GROUP BY node_id, instance_name, database_name
+            )
+            SELECT EXTRACT(EPOCH FROM NOW() - last_full) / 3600.0 AS age_hours
+            FROM latest_full
+        """)
+
+    # Build histograms with buckets
+    def build_histogram(values, buckets):
+        result = [{"label": b["label"], "min": b["min"], "max": b["max"], "count": 0} for b in buckets]
+        for v in values:
+            val = float(v[list(v.keys())[0]])
+            for r in result:
+                if r["min"] <= val < r["max"]:
+                    r["count"] += 1
+                    break
+            else:
+                result[-1]["count"] += 1  # overflow into last bucket
+        return result
+
+    rpo_buckets = [
+        {"label": "<15min", "min": 0, "max": 0.25},
+        {"label": "15-30min", "min": 0.25, "max": 0.5},
+        {"label": "30-60min", "min": 0.5, "max": 1},
+        {"label": "1-6h", "min": 1, "max": 6},
+        {"label": "6-24h", "min": 6, "max": 24},
+        {"label": ">24h", "min": 24, "max": 999999},
+    ]
+
+    full_age_buckets = [
+        {"label": "<6h", "min": 0, "max": 6},
+        {"label": "6-12h", "min": 6, "max": 12},
+        {"label": "12-24h", "min": 12, "max": 24},
+        {"label": "24-48h", "min": 24, "max": 48},
+        {"label": "48-72h", "min": 48, "max": 72},
+        {"label": ">72h", "min": 72, "max": 999999},
+    ]
+
+    return {
+        "rpoDistribution": build_histogram(rpo_rows, rpo_buckets),
+        "fullAgeDistribution": build_histogram(full_age_rows, full_age_buckets),
+    }
