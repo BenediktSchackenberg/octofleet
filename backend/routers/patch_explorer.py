@@ -330,12 +330,13 @@ async def explorer_deploy(data: DeployRequest, request: Request):
 
                 await conn.execute("""
                     INSERT INTO jobs (id, name, description, target_type, command_type, command_data, created_by)
-                    VALUES ($1, $2, $3, 'node', 'patch_install', $4::jsonb, $5)
+                    VALUES ($1, $2, $3, 'device', 'patch_install', $4::jsonb, $5)
                 """, job_uuid, data.name,
-                    f"Patch Explorer: {len(node_kb_ids)} updates",
+                    f"Patch Explorer: {len(node_kb_ids)} updates for {nid}",
                     json.dumps({"kb_ids": node_kb_ids, "reboot_policy": data.reboot_policy,
                                 "deployment_id": str(deployment_id)}),
                     username)
+
 
                 # Resolve node UUID for job_instances
                 await conn.execute("""
