@@ -115,7 +115,7 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function OsIcon({ osName }: { osName: string }) {
-  const isWindows = osName.toLowerCase().includes('win');
+  const isWindows = (osName || '').toLowerCase().includes('win');
   return isWindows
     ? <Monitor className="w-4 h-4 text-blue-400" />
     : <Terminal className="w-4 h-4 text-green-400" />;
@@ -184,7 +184,7 @@ export default function PatchExplorerPage() {
 
   const fetchTree = useCallback(async () => {
     setLoading(true);
-    const data = await apiClient.get<{ groups: OsGroup[]; summary: TreeSummary }>('/patches/explorer/tree');
+    const data = await apiClient.get<{ groups: OsGroup[]; summary: TreeSummary }>('/patches/explorer/tree', { camelCase: true });
     if (data) {
       setGroups(data.groups);
       setSummary(data.summary);
@@ -202,7 +202,7 @@ export default function PatchExplorerPage() {
   const fetchNodes = useCallback(async (osName: string) => {
     if (nodesCache[osName]) return;
     setLoadingNodes(prev => new Set(prev).add(osName));
-    const data = await apiClient.get<{ nodes: NodeItem[] }>(`/patches/explorer/nodes?os=${encodeURIComponent(osName)}`);
+    const data = await apiClient.get<{ nodes: NodeItem[] }>(`/patches/explorer/nodes?os=${encodeURIComponent(osName)}`, { camelCase: true });
     if (data) setNodesCache(prev => ({ ...prev, [osName]: data.nodes }));
     setLoadingNodes(prev => { const s = new Set(prev); s.delete(osName); return s; });
   }, [nodesCache]);
@@ -210,7 +210,7 @@ export default function PatchExplorerPage() {
   const fetchSoftware = useCallback(async (nodeId: string) => {
     if (softwareCache[nodeId]) return;
     setLoadingSoftware(prev => new Set(prev).add(nodeId));
-    const data = await apiClient.get<{ software: SoftwareItem[] }>(`/patches/explorer/node/${nodeId}/software`);
+    const data = await apiClient.get<{ software: SoftwareItem[] }>(`/patches/explorer/node/${nodeId}/software`, { camelCase: true });
     if (data) setSoftwareCache(prev => ({ ...prev, [nodeId]: data.software }));
     setLoadingSoftware(prev => { const s = new Set(prev); s.delete(nodeId); return s; });
   }, [softwareCache]);
@@ -221,7 +221,7 @@ export default function PatchExplorerPage() {
     if (!searchQuery.trim()) { setSearchResults([]); setShowSearch(false); return; }
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(async () => {
-      const data = await apiClient.get<{ results: SearchResult[] }>(`/patches/explorer/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await apiClient.get<{ results: SearchResult[] }>(`/patches/explorer/search?q=${encodeURIComponent(searchQuery)}`, { camelCase: true });
       if (data) { setSearchResults(data.results); setShowSearch(true); }
     }, 300);
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
@@ -347,7 +347,7 @@ export default function PatchExplorerPage() {
       const nodeIdsToRefresh = new Set(items.map(i => i.nodeId));
       const poll = setInterval(async () => {
         for (const nid of nodeIdsToRefresh) {
-          const d = await apiClient.get<{ software: SoftwareItem[] }>(`/patches/explorer/node/${nid}/software`);
+          const d = await apiClient.get<{ software: SoftwareItem[] }>(`/patches/explorer/node/${nid}/software`, { camelCase: true });
           if (d) setSoftwareCache(prev => ({ ...prev, [nid]: d.software }));
         }
         // Stop polling after 60s
