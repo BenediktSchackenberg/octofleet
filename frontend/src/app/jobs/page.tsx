@@ -354,7 +354,33 @@ function JobDetailPanel({ job, onClose, onRetry }: { job: JobDetail; onClose: ()
     <div className="fixed inset-y-0 right-0 z-40 w-full max-w-xl overflow-y-auto bg-zinc-800 p-6 shadow-xl">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white">{job.name}</h2>
-        <button onClick={onClose} className="text-zinc-400 hover:text-white text-2xl">×</button>
+        <div className="flex items-center gap-2">
+          {(job.status === "pending" || job.status === "queued" || job.status === "running") && (
+            <button
+              onClick={async () => {
+                if (!confirm("Job abbrechen?")) return;
+                await apiClient.delete(`/jobs/${job.id}`);
+                onClose();
+              }}
+              className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-medium"
+            >
+              ✋ Abbrechen
+            </button>
+          )}
+          {(job.status === "completed" || job.status === "failed" || job.status === "cancelled") && (
+            <button
+              onClick={async () => {
+                if (!confirm("Job endgültig löschen?")) return;
+                await apiClient.delete(`/jobs/${job.id}`);
+                onClose();
+              }}
+              className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm font-medium"
+            >
+              🗑️ Löschen
+            </button>
+          )}
+          <button onClick={onClose} className="text-zinc-400 hover:text-white text-2xl">×</button>
+        </div>
       </div>
 
       <div className="space-y-4 mb-6">

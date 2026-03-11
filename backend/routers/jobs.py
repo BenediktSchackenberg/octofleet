@@ -3,7 +3,7 @@ import uuid
 from typing import Any, Dict, List
 
 import asyncpg
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from dependencies import get_db, not_found, verify_api_key
@@ -88,10 +88,21 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         return {"id": str(job_uuid), "status": "created", "instances": len(node_ids)}
 
 @router.delete("/jobs/{job_id}")
-async def cancel_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
+async def cancel_or_delete_job(job_id: str, action: str = "cancel", db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
-        await conn.execute("UPDATE job_instances SET status = 'cancelled' WHERE job_id = $1 AND status IN ('pending', 'queued')", job_id)
-        return {"status": "cancelled"}
+        job = await conn.fetchrow("SELECT status FROM jobs WHERE id = $1", job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job["status"] in ("completed", "failed", "cancelled"):
+            # Finished job — delete entirely
+            await conn.execute("DELETE FROM job_instances WHERE job_id = $1", job_id)
+            await conn.execute("DELETE FROM jobs WHERE id = $1", job_id)
+            return {"status": "deleted"}
+        else:
+            # Running/pending — cancel
+            await conn.execute("UPDATE job_instances SET status = 'cancelled' WHERE job_id = $1 AND status IN ('pending', 'queued')", job_id)
+            await conn.execute("UPDATE jobs SET status = 'cancelled' WHERE id = $1", job_id)
+            return {"status": "cancelled"}
 
 # --- Agent Endpoints ---
 
