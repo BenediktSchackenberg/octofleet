@@ -327,15 +327,15 @@ export default function PatchExplorerPage() {
 
   const handleDeploy = useCallback(async () => {
     setDeploying(true);
-    const items: { nodeId: string; softwareId: string }[] = [];
+    const items: { node_id: string; update_id: string; kb_id?: string; source?: string }[] = [];
     for (const [nodeId, swList] of Object.entries(softwareCache)) {
       for (const sw of swList) {
-        if (checkedItems.has(sw.id)) items.push({ nodeId, softwareId: sw.id });
+        if (checkedItems.has(sw.id)) items.push({ node_id: nodeId, update_id: sw.id, kb_id: sw.kbId || undefined, source: sw.source || 'windows_update' });
       }
     }
-    const data = await apiClient.post<{ deploymentId: string; jobId: string; message: string }>(
+        const data = await apiClient.post<{ deploymentId: string; jobId: string; message: string }>(
       '/patches/explorer/deploy',
-      { name: deployName || 'Patch Explorer Deployment', rebootPolicy, items }
+      { name: deployName || 'Patch Explorer Deployment', reboot_policy: rebootPolicy, updates: items }
     );
     setDeploying(false);
     if (data) {
