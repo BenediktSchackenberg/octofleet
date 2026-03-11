@@ -43,7 +43,7 @@ export default function NewDeploymentPage() {
     setCreating(true);
     try {
       const res = await apiClient.post<{ id: string }>(`/patches/deployments`, { name, patches: selectedPatches, ring_id: selectedRing || null, reboot_policy: rebootPolicy });
-      const id = res?.data?.id || (res as unknown as { id: string })?.id;
+      const id = (res as any)?.data?.id || (res as any)?.id;
       if (id) {
         router.push(`/patches/deployments/${id}`);
       } else {
