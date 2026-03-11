@@ -752,3 +752,262 @@ async def generate_inventory_report_pdf(
     )
 
 
+
+# ============================================================
+# E35 - Enterprise Reporting Suite Endpoints
+# ============================================================
+
+import json
+import os
+import traceback
+from pydantic import BaseModel
+from typing import List, Optional as Opt
+from fastapi import Query, Path
+from fastapi.responses import FileResponse
+
+
+class ExecuteReportRequest(BaseModel):
+    reportId: str
+    parameters: dict = {}
+    outputFormat: str = "csv"
+
+
+class CreateScheduleRequest(BaseModel):
+    reportId: str
+    name: str
+    cronExpression: str
+    parameters: dict = {}
+    outputFormat: str = "pdf"
+    deliveryMethod: str = "download"
+    deliveryConfig: dict = {}
+    enabled: bool = True
+
+
+class UpdateScheduleRequest(BaseModel):
+    name: Opt[str] = None
+    cronExpression: Opt[str] = None
+    parameters: Opt[dict] = None
+    outputFormat: Opt[str] = None
+    deliveryMethod: Opt[str] = None
+    deliveryConfig: Opt[dict] = None
+    enabled: Opt[bool] = None
+
+
+REPORT_DIR = "/tmp/octofleet-reports"
+
+
+# --- Report Catalog ---
+
+@router.get("/api/v1/reports/catalog", dependencies=[Depends(verify_api_key)])
+async def list_report_catalog(category: Opt[str] = None, db: asyncpg.Pool = Depends(get_db)):
+    if category:
+        rows = await db.fetch("SELECT * FROM report_catalog WHERE category = $1 ORDER BY name", category)
+    else:
+        rows = await db.fetch("SELECT * FROM report_catalog ORDER BY category, name")
+    return [dict(r) for r in rows]
+
+
+@router.get("/api/v1/reports/catalog/{slug}", dependencies=[Depends(verify_api_key)])
+async def get_report_catalog(slug: str, db: asyncpg.Pool = Depends(get_db)):
+    row = await db.fetchrow("SELECT * FROM report_catalog WHERE slug = $1", slug)
+    if not row:
+        return {"error": "Report not found"}, 404
+    return dict(row)
+
+
+# --- Report Execution ---
+
+@router.post("/api/v1/reports/execute", dependencies=[Depends(verify_api_key)])
+async def execute_report(req: ExecuteReportRequest, db: asyncpg.Pool = Depends(get_db)):
+    # Look up report
+    report = await db.fetchrow("SELECT * FROM report_catalog WHERE id = $1", req.reportId)
+    if not report:
+        # Try by slug
+        report = await db.fetchrow("SELECT * FROM report_catalog WHERE slug = $1", req.reportId)
+    if not report:
+        return {"error": "Report not found"}
+
+    fmt = req.outputFormat if req.outputFormat in ("csv", "pdf") else "csv"
+
+    # Create execution record
+    exec_id = await db.fetchval(
+        """INSERT INTO report_executions (report_id, status, parameters, output_format, started_at)
+           VALUES ($1, 'running', $2, $3, NOW()) RETURNING id""",
+        report["id"], json.dumps(req.parameters), fmt
+    )
+
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    file_path = os.path.join(REPORT_DIR, f"{exec_id}.{fmt}")
+
+    try:
+        # Execute query
+        query = report["query_template"]
+        rows = await db.fetch(query)
+
+        if fmt == "csv":
+            import csv as csv_mod
+            columns = list(rows[0].keys()) if rows else []
+            with open(file_path, "w", newline="") as f:
+                writer = csv_mod.writer(f)
+                writer.writerow(columns)
+                for r in rows:
+                    writer.writerow([r[c] for c in columns])
+        else:
+            # PDF generation
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = create_pdf_styles()
+            story = []
+            story.append(Paragraph(report["name"], styles["ReportTitle"]))
+            story.append(Paragraph(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}", styles["Normal"]))
+            story.append(Spacer(1, 20))
+
+            if rows:
+                columns = list(rows[0].keys())
+                table_data = [columns] + [[str(r[c]) for c in columns] for r in rows[:500]]
+                t = create_status_table(table_data)
+                story.append(t)
+            else:
+                story.append(Paragraph("No data available.", styles["Normal"]))
+
+            doc.build(story, onFirstPage=lambda c, d: create_header_footer(c, d, report["name"]),
+                      onLaterPages=lambda c, d: create_header_footer(c, d, report["name"]))
+            with open(file_path, "wb") as f:
+                f.write(buffer.getvalue())
+
+        file_size = os.path.getsize(file_path)
+        await db.execute(
+            """UPDATE report_executions SET status='completed', file_path=$1, file_size_bytes=$2, completed_at=NOW()
+               WHERE id=$3""",
+            file_path, file_size, exec_id
+        )
+        return {"id": exec_id, "status": "completed", "filePath": file_path, "fileSizeBytes": file_size}
+
+    except Exception as e:
+        await db.execute(
+            "UPDATE report_executions SET status='failed', error_message=$1, completed_at=NOW() WHERE id=$2",
+            str(e), exec_id
+        )
+        return {"id": exec_id, "status": "failed", "error": str(e)}
+
+
+@router.get("/api/v1/reports/executions", dependencies=[Depends(verify_api_key)])
+async def list_executions(
+    reportId: Opt[str] = None, status: Opt[str] = None,
+    limit: int = 50, offset: int = 0,
+    db: asyncpg.Pool = Depends(get_db)
+):
+    conditions = []
+    args = []
+    idx = 1
+    if reportId:
+        conditions.append(f"report_id = ${idx}")
+        args.append(reportId)
+        idx += 1
+    if status:
+        conditions.append(f"status = ${idx}")
+        args.append(status)
+        idx += 1
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    rows = await db.fetch(
+        f"SELECT * FROM report_executions {where} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx+1}",
+        *args, limit, offset
+    )
+    return [dict(r) for r in rows]
+
+
+@router.get("/api/v1/reports/executions/{execution_id}", dependencies=[Depends(verify_api_key)])
+async def get_execution(execution_id: str, db: asyncpg.Pool = Depends(get_db)):
+    row = await db.fetchrow("SELECT * FROM report_executions WHERE id = $1", execution_id)
+    if not row:
+        return {"error": "Execution not found"}
+    result = dict(row)
+    if result.get("file_path") and result["status"] == "completed":
+        result["downloadUrl"] = f"/api/v1/reports/executions/{execution_id}/download"
+    return result
+
+
+@router.get("/api/v1/reports/executions/{execution_id}/download", dependencies=[Depends(verify_api_key)])
+async def download_execution(execution_id: str, db: asyncpg.Pool = Depends(get_db)):
+    row = await db.fetchrow("SELECT file_path, output_format FROM report_executions WHERE id = $1 AND status = 'completed'", execution_id)
+    if not row or not row["file_path"] or not os.path.exists(row["file_path"]):
+        return {"error": "File not found"}
+    media = "text/csv" if row["output_format"] == "csv" else "application/pdf"
+    return FileResponse(row["file_path"], media_type=media, filename=os.path.basename(row["file_path"]))
+
+
+# --- Schedules ---
+
+@router.get("/api/v1/reports/schedules", dependencies=[Depends(verify_api_key)])
+async def list_schedules(db: asyncpg.Pool = Depends(get_db)):
+    rows = await db.fetch(
+        """SELECT s.*, rc.name as report_name, rc.slug as report_slug
+           FROM report_schedules s JOIN report_catalog rc ON s.report_id = rc.id ORDER BY s.created_at DESC"""
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/api/v1/reports/schedules", dependencies=[Depends(verify_api_key)])
+async def create_schedule(req: CreateScheduleRequest, db: asyncpg.Pool = Depends(get_db)):
+    # Verify report exists
+    report = await db.fetchrow("SELECT id FROM report_catalog WHERE id = $1 OR slug = $1", req.reportId)
+    if not report:
+        return {"error": "Report not found"}
+    row = await db.fetchrow(
+        """INSERT INTO report_schedules (report_id, name, cron_expression, parameters, output_format, delivery_method, delivery_config, enabled)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *""",
+        report["id"], req.name, req.cronExpression, json.dumps(req.parameters),
+        req.outputFormat, req.deliveryMethod, json.dumps(req.deliveryConfig), req.enabled
+    )
+    return dict(row)
+
+
+@router.put("/api/v1/reports/schedules/{schedule_id}", dependencies=[Depends(verify_api_key)])
+async def update_schedule(schedule_id: str, req: UpdateScheduleRequest, db: asyncpg.Pool = Depends(get_db)):
+    existing = await db.fetchrow("SELECT * FROM report_schedules WHERE id = $1", schedule_id)
+    if not existing:
+        return {"error": "Schedule not found"}
+
+    updates = {}
+    if req.name is not None: updates["name"] = req.name
+    if req.cronExpression is not None: updates["cron_expression"] = req.cronExpression
+    if req.parameters is not None: updates["parameters"] = json.dumps(req.parameters)
+    if req.outputFormat is not None: updates["output_format"] = req.outputFormat
+    if req.deliveryMethod is not None: updates["delivery_method"] = req.deliveryMethod
+    if req.deliveryConfig is not None: updates["delivery_config"] = json.dumps(req.deliveryConfig)
+    if req.enabled is not None: updates["enabled"] = req.enabled
+
+    if updates:
+        set_parts = [f"{k} = ${i+2}" for i, k in enumerate(updates.keys())]
+        await db.execute(
+            f"UPDATE report_schedules SET {', '.join(set_parts)} WHERE id = $1",
+            schedule_id, *updates.values()
+        )
+    row = await db.fetchrow("SELECT * FROM report_schedules WHERE id = $1", schedule_id)
+    return dict(row)
+
+
+@router.delete("/api/v1/reports/schedules/{schedule_id}", dependencies=[Depends(verify_api_key)])
+async def delete_schedule(schedule_id: str, db: asyncpg.Pool = Depends(get_db)):
+    result = await db.execute("DELETE FROM report_schedules WHERE id = $1", schedule_id)
+    return {"deleted": "DELETE 1" in result}
+
+
+# --- Stats ---
+
+@router.get("/api/v1/reports/stats", dependencies=[Depends(verify_api_key)])
+async def report_stats(db: asyncpg.Pool = Depends(get_db)):
+    stats = await db.fetchrow("""
+        SELECT
+            (SELECT COUNT(*) FROM report_catalog) as total_reports,
+            (SELECT COUNT(*) FROM report_schedules) as total_schedules,
+            (SELECT COUNT(*) FROM report_executions WHERE created_at > NOW() - INTERVAL '7 days') as executions_this_week,
+            (SELECT ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - started_at)))::numeric, 2)
+             FROM report_executions WHERE status = 'completed') as avg_duration_sec
+    """)
+    return {
+        "totalReports": stats["total_reports"],
+        "totalSchedules": stats["total_schedules"],
+        "executionsThisWeek": stats["executions_this_week"],
+        "avgDurationSec": float(stats["avg_duration_sec"]) if stats["avg_duration_sec"] else 0
+    }
