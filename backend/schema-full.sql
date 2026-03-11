@@ -2254,3 +2254,21 @@ CREATE TABLE IF NOT EXISTS report_executions (
 CREATE INDEX IF NOT EXISTS idx_report_executions_report ON report_executions(report_id);
 CREATE INDEX IF NOT EXISTS idx_report_executions_status ON report_executions(status);
 CREATE INDEX IF NOT EXISTS idx_report_schedules_report ON report_schedules(report_id);
+
+-- E42: Node Available Updates (Patch Explorer)
+CREATE TABLE IF NOT EXISTS node_available_updates (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  node_id UUID REFERENCES nodes(id),
+  kb_id TEXT,
+  title TEXT NOT NULL,
+  software_name TEXT,
+  installed_version TEXT,
+  available_version TEXT,
+  severity TEXT DEFAULT 'unknown',
+  category TEXT DEFAULT 'update',
+  source TEXT DEFAULT 'windows_update',
+  is_reboot_required BOOLEAN DEFAULT FALSE,
+  discovered_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(node_id, kb_id, software_name)
+);
+CREATE INDEX IF NOT EXISTS idx_node_updates_node ON node_available_updates(node_id);
