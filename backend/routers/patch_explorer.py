@@ -533,3 +533,33 @@ async def agent_submit_updates(data: AgentUpdatesPayload):
             inserted += 1
 
         return {"status": "ok", "node_id": str(node_id), "updates_received": inserted}
+
+
+# 8. POST /api/v1/patches/explorer/scan — Trigger on-demand patch scan on nodes
+# ---------------------------------------------------------------------------
+
+@router.post("/api/v1/patches/explorer/scan", dependencies=[Depends(verify_api_key)])
+async def trigger_patch_scan(data: dict, request: Request):
+    """Create patch_scan jobs for specified nodes."""
+    user = getattr(request.state, "user", None)
+    username = user.get("username", "system") if user else "system"
+    node_ids = data.get("node_ids", [])
+
+    if not node_ids:
+        return {"error": "No node_ids specified"}, 400
+
+    async with get_pool().acquire() as conn:
+        job_ids = []
+        for nid in node_ids:
+            job_uuid = _uuid.uuid4()
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, command_type, command_data, created_by)
+                VALUES ($1, $2, $3, 'device', 'patch_scan', '{}'::jsonb, $4)
+            """, job_uuid, f"Patch Scan", f"On-demand patch scan", username)
+            await conn.execute("""
+                INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
+                VALUES (gen_random_uuid(), $1, $2::uuid, 'pending', NOW())
+            """, job_uuid, nid)
+            job_ids.append(str(job_uuid))
+
+        return {"message": f"Scan triggered on {len(node_ids)} nodes", "job_ids": job_ids}

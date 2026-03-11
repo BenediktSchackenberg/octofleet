@@ -363,6 +363,9 @@ public class JobPoller : BackgroundService
 
             case "patch_install":
                 return await ExecutePatchInstallAsync(payload, ct);
+
+            case "patch_scan":
+                return await ExecutePatchScanAsync(ct);
                 
             default:
                 // Default to script/command execution
@@ -903,6 +906,25 @@ if ($svc) {{
     /// <summary>
     /// Execute a patch_install job via WUA COM API.
     /// </summary>
+    /// <summary>
+    /// Trigger an on-demand Windows Update scan and submit results to backend.
+    /// </summary>
+    private async Task<CommandResult> ExecutePatchScanAsync(CancellationToken ct)
+    {
+        try
+        {
+            _logger.LogInformation("On-demand patch scan triggered via job");
+            var scanner = new PatchScanner(_logger, _config);
+            await scanner.RunOnDemandScanAsync(ct);
+            return new CommandResult { ExitCode = 0, Output = "Patch scan completed and results submitted." };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "On-demand patch scan failed");
+            return new CommandResult { ExitCode = 1, Output = $"Patch scan failed: {ex.Message}" };
+        }
+    }
+
     private async Task<CommandResult> ExecutePatchInstallAsync(JsonElement payload, CancellationToken ct)
     {
         var kbIds = new List<string>();

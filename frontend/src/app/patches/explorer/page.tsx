@@ -636,6 +636,25 @@ export default function PatchExplorerPage() {
             <button onClick={() => { fetchTree(); fetchStats(); }} className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
+
+            <button
+              onClick={async () => {
+                // Trigger patch scan on all online nodes
+                const treeData = await apiClient.get<{ groups: { osName: string }[] }>('/patches/explorer/tree', { camelCase: true });
+                if (!treeData) return;
+                const allNodeIds: string[] = [];
+                for (const g of treeData.groups) {
+                  const nd = await apiClient.get<{ nodes: { id: string; isOnline: boolean }[] }>(`/patches/explorer/nodes?os=${encodeURIComponent(g.osName)}`, { camelCase: true });
+                  if (nd) allNodeIds.push(...nd.nodes.filter(n => n.isOnline).map(n => n.id));
+                }
+                if (allNodeIds.length === 0) return;
+                const res = await apiClient.post('/patches/explorer/scan', { node_ids: allNodeIds });
+                if (res) toast.success(`Patch scan triggered on ${allNodeIds.length} nodes`);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition-colors"
+            >
+              <Search className="w-3.5 h-3.5" /> Scan Now
+            </button>
           </div>
         </div>
 
