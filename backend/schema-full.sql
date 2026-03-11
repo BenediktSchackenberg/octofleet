@@ -2009,7 +2009,7 @@ CREATE TABLE IF NOT EXISTS patch_deployment_results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     deployment_id UUID NOT NULL REFERENCES patch_deployments(id) ON DELETE CASCADE,
     node_id TEXT NOT NULL,
-    patch_id UUID NOT NULL REFERENCES patch_catalog(id),
+    patch_id UUID REFERENCES patch_catalog(id),
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending','downloading','installing','installed','failed','excluded')),
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
