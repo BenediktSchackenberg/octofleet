@@ -2185,3 +2185,23 @@ CREATE TABLE IF NOT EXISTS file_events_aggregated (
     UNIQUE(hour, node_id, op)
 );
 CREATE INDEX IF NOT EXISTS idx_file_agg_hour ON file_events_aggregated(hour);
+
+-- MSSQL Backup History
+CREATE TABLE IF NOT EXISTS mssql_backup_history (
+  id SERIAL PRIMARY KEY,
+  node_id UUID REFERENCES nodes(id),
+  instance_name TEXT NOT NULL,
+  database_name TEXT NOT NULL,
+  backup_type TEXT NOT NULL,
+  backup_start TIMESTAMPTZ NOT NULL,
+  backup_finish TIMESTAMPTZ NOT NULL,
+  backup_size_bytes BIGINT DEFAULT 0,
+  compressed_size_bytes BIGINT DEFAULT 0,
+  media_set_id TEXT,
+  physical_device_name TEXT,
+  is_copy_only BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_mssql_backup_node ON mssql_backup_history(node_id);
+CREATE INDEX IF NOT EXISTS idx_mssql_backup_instance ON mssql_backup_history(instance_name, database_name);
+CREATE INDEX IF NOT EXISTS idx_mssql_backup_time ON mssql_backup_history(backup_finish DESC);
