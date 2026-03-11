@@ -916,12 +916,12 @@ if ($svc) {{
             _logger.LogInformation("On-demand patch scan triggered via job");
             var scanner = new PatchScanner(_logger, _config);
             await scanner.RunOnDemandScanAsync(ct);
-            return new CommandResult { ExitCode = 0, Output = "Patch scan completed and results submitted." };
+            return new CommandResult { ExitCode = 0, Stdout = "Patch scan completed and results submitted." };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "On-demand patch scan failed");
-            return new CommandResult { ExitCode = 1, Output = $"Patch scan failed: {ex.Message}" };
+            return new CommandResult { ExitCode = 1, Stdout = $"Patch scan failed: {ex.Message}" };
         }
     }
 
