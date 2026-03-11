@@ -25,6 +25,7 @@ interface Job {
   commandType: string;
   targetType: string;
   targetName?: string;
+  status: string;
   createdAt: string;
   summary: JobSummary;
 }
