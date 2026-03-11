@@ -134,7 +134,8 @@ async def explorer_node_software(node_id: str):
                 u.source,
                 u.is_reboot_required,
                 (SELECT COUNT(*) FROM node_vulnerabilities nv
-                 WHERE nv.node_id = sc.node_id::text AND LOWER(nv.software_name) = LOWER(sc.name)) AS cve_count
+                 JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+                 WHERE nv.node_id = sc.node_id::text AND LOWER(v.software_name) = LOWER(sc.name)) AS cve_count
             FROM software_current sc
             LEFT JOIN node_available_updates u
                 ON u.node_id = sc.node_id AND LOWER(u.software_name) = LOWER(sc.name)
