@@ -344,7 +344,7 @@ export default function PatchExplorerPage() {
       setDeployingIds(new Set(checkedItems));
       setCheckedItems(new Set());
       // Poll for progress
-      const nodeIdsToRefresh = new Set(items.map(i => i.nodeId));
+      const nodeIdsToRefresh = new Set(items.map(i => i.node_id));
       const poll = setInterval(async () => {
         for (const nid of nodeIdsToRefresh) {
           const d = await apiClient.get<{ software: SoftwareItem[] }>(`/patches/explorer/node/${nid}/software`, { camelCase: true });
