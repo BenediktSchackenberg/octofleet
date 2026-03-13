@@ -91,7 +91,7 @@ function MoveToGroupButton({ nodeId, onMoved }: { nodeId: string; onMoved?: () =
   useEffect(() => {
     if (open && groups.length === 0) {
       setLoading(true);
-      apiClient.get<any>("/api/v1/groups")
+      apiClient.get<any>("/groups")
         .then((data) => setGroups(Array.isArray(data) ? data : data?.groups || []))
         .catch(() => {})
         .finally(() => setLoading(false));
@@ -108,7 +108,7 @@ function MoveToGroupButton({ nodeId, onMoved }: { nodeId: string; onMoved?: () =
 
   const moveToGroup = async (groupId: string) => {
     try {
-      await apiClient.post(`/api/v1/groups/${groupId}/members`, { node_ids: [nodeId] });
+      await apiClient.post(`/groups/${groupId}/members`, { node_ids: [nodeId] });
       setOpen(false);
       onMoved?.();
     } catch {}
@@ -157,24 +157,24 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
       const results: typeof links = [];
 
       const fetchers = [
-        apiClient.get<any>(`/api/v1/patches/compliance?node_id=${nodeId}`)
+        apiClient.get<any>(`/patches/compliance?node_id=${nodeId}`)
           .then((d) => {
             const count = d?.pending ?? d?.pendingCount ?? (Array.isArray(d) ? d.length : 0);
             if (count > 0) results.push({ label: "Patches", count, href: `/patches?node=${nodeId}`, icon: <ShieldAlert className="h-4 w-4" /> });
           }).catch(() => {}),
-        apiClient.get<any>("/api/v1/vulnerabilities/by-node")
+        apiClient.get<any>("/vulnerabilities/by-node")
           .then((d) => {
             const arr = Array.isArray(d) ? d : d?.nodes || [];
             const entry = arr.find((n: any) => n.node_id === nodeId || n.nodeId === nodeId);
             const count = entry?.count ?? entry?.vulnerabilities?.length ?? 0;
             if (count > 0) results.push({ label: "Vulnerabilities", count, href: `/vulnerabilities?node=${nodeId}`, icon: <Bug className="h-4 w-4" /> });
           }).catch(() => {}),
-        apiClient.get<any>(`/api/v1/jobs?target_id=${nodeId}&limit=5`)
+        apiClient.get<any>(`/jobs?target_id=${nodeId}&limit=5`)
           .then((d) => {
             const count = Array.isArray(d) ? d.length : d?.jobs?.length ?? d?.total ?? 0;
             if (count > 0) results.push({ label: "Jobs", count, href: `/jobs?node=${nodeId}`, icon: <Briefcase className="h-4 w-4" /> });
           }).catch(() => {}),
-        apiClient.get<any>("/api/v1/alerts/rules")
+        apiClient.get<any>("/alerts/rules")
           .then((d) => {
             const arr = Array.isArray(d) ? d : d?.rules || [];
             const count = arr.filter((r: any) => r.node_id === nodeId || r.nodeId === nodeId || r.target === nodeId).length;

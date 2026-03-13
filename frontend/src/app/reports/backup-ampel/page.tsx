@@ -107,8 +107,8 @@ export default function BackupAmpelPage() {
   const fetchData = async () => {
     setLoading(true);
     const [r, d] = await Promise.all([
-      apiClient.get<AmpelReport>("/api/v1/mssql/backup-ampel", { camelCase: true }),
-      apiClient.get<Distributions>("/api/v1/mssql/backup-ampel/distributions", { camelCase: true }),
+      apiClient.get<AmpelReport>("/mssql/backup-ampel", { camelCase: true }),
+      apiClient.get<Distributions>("/mssql/backup-ampel/distributions", { camelCase: true }),
     ]);
     if (r) setReport(r);
     if (d) setDistributions(d);
