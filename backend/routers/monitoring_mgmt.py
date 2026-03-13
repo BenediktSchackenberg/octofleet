@@ -588,9 +588,9 @@ async def list_agent_capabilities():
     """List all agents with their capabilities and health status."""
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
-            SELECT ac.*, n.hostname, n.os
+            SELECT ac.*, n.hostname, n.os_name
             FROM agent_capabilities ac
-            LEFT JOIN nodes n ON n.id = ac.node_id OR n.hostname = ac.node_id
+            LEFT JOIN nodes n ON n.id::text = ac.node_id OR n.hostname = ac.node_id
             ORDER BY ac.last_seen DESC
         """)
         return {"agents": [_parse_json_fields(dict(r)) for r in rows]}
