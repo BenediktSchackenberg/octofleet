@@ -12,7 +12,7 @@ namespace OctofleetAgent.Service;
 /// </summary>
 public class PatchScanner : BackgroundService
 {
-    private readonly ILogger<PatchScanner> _logger;
+    private readonly ILogger _logger;
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
 
@@ -34,6 +34,42 @@ public class PatchScanner : BackgroundService
         _logger = logger;
         _config = config;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+    }
+
+    // Constructor for on-demand scan from JobPoller (accepts any ILogger)
+    public PatchScanner(ILogger logger, ServiceConfig config)
+    {
+        _logger = logger;
+        _config = config;
+        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+    }
+
+    /// <summary>
+    /// Run a single scan + report cycle on demand (called from JobPoller for patch_scan jobs).
+    /// </summary>
+    public async Task RunOnDemandScanAsync(CancellationToken ct)
+    {
+        var config = ServiceConfig.Load();
+        var baseUrl = config.InventoryApiUrl?.TrimEnd('/');
+        var nodeId = Environment.MachineName.ToUpperInvariant();
+
+        if (string.IsNullOrEmpty(baseUrl))
+            throw new InvalidOperationException("InventoryApiUrl not configured");
+
+        _logger.LogInformation("On-demand patch scan starting for {NodeId}...", nodeId);
+        var patches = await ScanForUpdatesAsync(ct);
+
+        if (patches.Count > 0)
+        {
+            _logger.LogInformation("Found {Count} pending updates, reporting to API", patches.Count);
+            await ReportScanResultsAsync(baseUrl, nodeId, patches, ct);
+        }
+        else
+        {
+            _logger.LogInformation("No pending updates found");
+            // Report empty scan to clear old entries
+            await ReportScanResultsAsync(baseUrl, nodeId, new List<PendingPatch>(), ct);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

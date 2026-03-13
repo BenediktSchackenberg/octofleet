@@ -384,7 +384,7 @@ CREATE TABLE public.jobs (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     timeout_seconds integer DEFAULT 300,
-    CONSTRAINT jobs_command_type_check CHECK ((command_type = ANY (ARRAY['run'::text, 'script'::text, 'inventory'::text, 'install_package'::text, 'uninstall_package'::text, 'update_package'::text, 'restart-agent'::text, 'patch_install'::text]))),
+    CONSTRAINT jobs_command_type_check CHECK ((command_type = ANY (ARRAY['run'::text, 'script'::text, 'inventory'::text, 'install_package'::text, 'uninstall_package'::text, 'update_package'::text, 'restart-agent'::text, 'patch_install'::text, 'patch_scan'::text]))),
     CONSTRAINT jobs_target_type_check CHECK ((target_type = ANY (ARRAY['device'::text, 'group'::text, 'tag'::text, 'all'::text])))
 );
 CREATE VIEW public.job_summary AS
@@ -2009,7 +2009,7 @@ CREATE TABLE IF NOT EXISTS patch_deployment_results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     deployment_id UUID NOT NULL REFERENCES patch_deployments(id) ON DELETE CASCADE,
     node_id TEXT NOT NULL,
-    patch_id UUID NOT NULL REFERENCES patch_catalog(id),
+    patch_id UUID REFERENCES patch_catalog(id),
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending','downloading','installing','installed','failed','excluded')),
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
@@ -2205,3 +2205,73 @@ CREATE TABLE IF NOT EXISTS mssql_backup_history (
 CREATE INDEX IF NOT EXISTS idx_mssql_backup_node ON mssql_backup_history(node_id);
 CREATE INDEX IF NOT EXISTS idx_mssql_backup_instance ON mssql_backup_history(instance_name, database_name);
 CREATE INDEX IF NOT EXISTS idx_mssql_backup_time ON mssql_backup_history(backup_finish DESC);
+<<<<<<< HEAD
+=======
+
+-- Enterprise Reporting Suite (E35)
+CREATE TABLE IF NOT EXISTS report_catalog (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL,
+  query_template TEXT,
+  parameters JSONB DEFAULT '[]',
+  output_formats TEXT[] DEFAULT '{pdf,csv}',
+  is_builtin BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS report_schedules (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  report_id TEXT REFERENCES report_catalog(id),
+  name TEXT NOT NULL,
+  cron_expression TEXT NOT NULL,
+  parameters JSONB DEFAULT '{}',
+  output_format TEXT DEFAULT 'pdf',
+  delivery_method TEXT NOT NULL,
+  delivery_config JSONB DEFAULT '{}',
+  enabled BOOLEAN DEFAULT TRUE,
+  last_run_at TIMESTAMPTZ,
+  next_run_at TIMESTAMPTZ,
+  created_by TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS report_executions (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  report_id TEXT REFERENCES report_catalog(id),
+  schedule_id TEXT REFERENCES report_schedules(id),
+  status TEXT DEFAULT 'pending',
+  parameters JSONB DEFAULT '{}',
+  output_format TEXT DEFAULT 'pdf',
+  file_path TEXT,
+  file_size_bytes BIGINT,
+  error_message TEXT,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_report_executions_report ON report_executions(report_id);
+CREATE INDEX IF NOT EXISTS idx_report_executions_status ON report_executions(status);
+CREATE INDEX IF NOT EXISTS idx_report_schedules_report ON report_schedules(report_id);
+
+-- E42: Node Available Updates (Patch Explorer)
+CREATE TABLE IF NOT EXISTS node_available_updates (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  node_id UUID REFERENCES nodes(id),
+  kb_id TEXT,
+  title TEXT NOT NULL,
+  software_name TEXT,
+  installed_version TEXT,
+  available_version TEXT,
+  severity TEXT DEFAULT 'unknown',
+  category TEXT DEFAULT 'update',
+  source TEXT DEFAULT 'windows_update',
+  is_reboot_required BOOLEAN DEFAULT FALSE,
+  discovered_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(node_id, kb_id, software_name)
+);
+CREATE INDEX IF NOT EXISTS idx_node_updates_node ON node_available_updates(node_id);
+>>>>>>> develop-e42

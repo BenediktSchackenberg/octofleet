@@ -94,6 +94,17 @@ async def import_patches(data: dict):
                 await conn.execute("""
                     INSERT INTO patch_catalog_nodes (patch_id, node_id, status) VALUES ($1,$2,'detected')
                 """, patch_id, node_id)
+
+        # Also sync to node_available_updates for Patch Explorer
+        # Clear old entries for this node, then re-insert from scan
+        node_uuid = node_id
+        await conn.execute("DELETE FROM node_available_updates WHERE node_id = $1::uuid", node_uuid)
+        for p in patches:
+            await conn.execute("""
+                INSERT INTO node_available_updates (node_id, kb_id, title, severity, category, source, is_reboot_required)
+                VALUES ($1::uuid, $2, $3, $4, $5, 'windows_update', false)
+            """, node_uuid, p.get("kb_id"), p.get("title", ""),
+                p.get("severity", "moderate"), p.get("category", "security"))
     return {"imported": imported, "total": len(patches)}
 
 

@@ -37,6 +37,7 @@ import {
   BarChart3,
   Layers,
   X,
+  TreePine,
   type LucideIcon,
 } from "lucide-react";
 
@@ -114,6 +115,7 @@ const navGroups: NavGroup[] = [
     roles: ["admin", "operator", "auditor"],
     items: [
       { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read", roles: ["admin", "operator"] },
+      { href: "/patches/explorer", labelKey: "nav.patchExplorer", icon: TreePine, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/performance", labelKey: "nav.performance", icon: Activity, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read", roles: ["admin", "operator"] },
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read", roles: ["admin", "operator"] },

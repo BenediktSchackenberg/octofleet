@@ -148,10 +148,10 @@ export default function ReportsPage() {
 
   const fetchAll = useCallback(async () => {
     const [catalogRes, execRes, schedRes, statsRes] = await Promise.all([
-      apiClient.get<{ reports: Report[] }>("/api/v1/reports/catalog"),
-      apiClient.get<{ executions: Execution[] }>("/api/v1/reports/executions"),
-      apiClient.get<{ schedules: Schedule[] }>("/api/v1/reports/schedules"),
-      apiClient.get<Stats>("/api/v1/reports/stats", { showErrorToast: false }),
+      apiClient.get<{ reports: Report[] }>("/reports/catalog"),
+      apiClient.get<{ executions: Execution[] }>("/reports/executions"),
+      apiClient.get<{ schedules: Schedule[] }>("/reports/schedules"),
+      apiClient.get<Stats>("/reports/stats", { showErrorToast: false }),
     ]);
     if (catalogRes?.reports) setReports(catalogRes.reports);
     if (execRes?.executions) setExecutions(execRes.executions);
@@ -161,7 +161,7 @@ export default function ReportsPage() {
   }, []);
 
   const fetchExecutions = useCallback(async () => {
-    const res = await apiClient.get<{ executions: Execution[] }>("/api/v1/reports/executions", { showErrorToast: false });
+    const res = await apiClient.get<{ executions: Execution[] }>("/reports/executions", { showErrorToast: false });
     if (res?.executions) setExecutions(res.executions);
   }, []);
 
@@ -188,7 +188,7 @@ export default function ReportsPage() {
   const executeReport = async () => {
     if (!generateReport) return;
     setGenerating(true);
-    const res = await apiClient.post<{ executionId: string; status: string }>("/api/v1/reports/execute", {
+    const res = await apiClient.post<{ executionId: string; status: string }>("/reports/execute", {
       reportId: generateReport.id,
       parameters: Object.keys(generateParams).length > 0 ? generateParams : undefined,
       outputFormat: generateFormat,
@@ -224,12 +224,12 @@ export default function ReportsPage() {
     };
     if (scheduleForm.delivery === "email") body.delivery_config = { email: scheduleForm.config };
     if (scheduleForm.delivery === "webhook") body.delivery_config = { url: scheduleForm.config };
-    const res = await apiClient.post("/api/v1/reports/schedules", body);
+    const res = await apiClient.post("/reports/schedules", body);
     setScheduling(false);
     if (res) {
       setScheduleReport(null);
       setTab("schedules");
-      const schedRes = await apiClient.get<{ schedules: Schedule[] }>("/api/v1/reports/schedules");
+      const schedRes = await apiClient.get<{ schedules: Schedule[] }>("/reports/schedules");
       if (schedRes?.schedules) setSchedules(schedRes.schedules);
     }
   };

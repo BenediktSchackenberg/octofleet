@@ -91,7 +91,7 @@ function MoveToGroupButton({ nodeId, onMoved }: { nodeId: string; onMoved?: () =
   useEffect(() => {
     if (open && groups.length === 0) {
       setLoading(true);
-      apiClient.get<any>("/api/v1/groups")
+      apiClient.get<any>("/groups")
         .then((data) => setGroups(Array.isArray(data) ? data : data?.groups || []))
         .catch(() => {})
         .finally(() => setLoading(false));
@@ -108,7 +108,7 @@ function MoveToGroupButton({ nodeId, onMoved }: { nodeId: string; onMoved?: () =
 
   const moveToGroup = async (groupId: string) => {
     try {
-      await apiClient.post(`/api/v1/groups/${groupId}/members`, { node_ids: [nodeId] });
+      await apiClient.post(`/groups/${groupId}/members`, { node_ids: [nodeId] });
       setOpen(false);
       onMoved?.();
     } catch {}

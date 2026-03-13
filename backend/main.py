@@ -60,6 +60,7 @@ from routers.dashboard import router as dashboard_router
 from routers.deployments import router as deployments_router
 from routers.groups import router as groups_router
 from routers.hardware import router as hardware_router
+from routers.patch_explorer import router as patch_explorer_router
 from routers.inventory import router as inventory_router
 from routers.jobs import agent_router as jobs_agent_router
 from routers.jobs import router as jobs_router
@@ -268,6 +269,7 @@ app.include_router(terminal_router)
 app.include_router(packages_mgmt_router)
 app.include_router(vulnerabilities_router)
 app.include_router(hardware_router)
+app.include_router(patch_explorer_router)
 
 
 # === API Endpoints ===
