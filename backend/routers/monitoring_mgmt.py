@@ -22,10 +22,10 @@ def _compute_posture_diff(baseline: dict, current: dict) -> dict:
     c_os = current.get("osInfo") or {}
     if isinstance(b_os, str):
         try: b_os = json.loads(b_os)
-        except: b_os = {}
+        except Exception: b_os = {}
     if isinstance(c_os, str):
         try: c_os = json.loads(c_os)
-        except: c_os = {}
+        except Exception: c_os = {}
     for key in set(list(b_os.keys()) + list(c_os.keys())):
         if b_os.get(key) != c_os.get(key):
             changes.append({"category": "os", "field": key, "old": b_os.get(key), "new": c_os.get(key), "severity": "medium"})
@@ -37,10 +37,10 @@ def _compute_posture_diff(baseline: dict, current: dict) -> dict:
     c_pkg_list = current.get("installedPackages") or []
     if isinstance(b_pkg_list, str):
         try: b_pkg_list = json.loads(b_pkg_list)
-        except: b_pkg_list = []
+        except Exception: b_pkg_list = []
     if isinstance(c_pkg_list, str):
         try: c_pkg_list = json.loads(c_pkg_list)
-        except: c_pkg_list = []
+        except Exception: c_pkg_list = []
     for p in b_pkg_list:
         name = p.get("name", p) if isinstance(p, dict) else str(p)
         b_pkgs.add(name)
@@ -60,10 +60,10 @@ def _compute_posture_diff(baseline: dict, current: dict) -> dict:
     c_svc_list = current.get("runningServices") or []
     if isinstance(b_svc_list, str):
         try: b_svc_list = json.loads(b_svc_list)
-        except: b_svc_list = []
+        except Exception: b_svc_list = []
     if isinstance(c_svc_list, str):
         try: c_svc_list = json.loads(c_svc_list)
-        except: c_svc_list = []
+        except Exception: c_svc_list = []
     for s in b_svc_list:
         name = s.get("name", s) if isinstance(s, dict) else str(s)
         b_svcs.add(name)

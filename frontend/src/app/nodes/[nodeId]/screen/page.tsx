@@ -68,7 +68,6 @@ export default function ScreenViewerPage() {
     wsRef.current = ws;
     
     ws.onopen = () => {
-      console.log('WebSocket connected');
     };
     
     ws.onmessage = (event) => {
@@ -83,7 +82,6 @@ export default function ScreenViewerPage() {
     };
     
     ws.onclose = () => {
-      console.log('WebSocket closed');
       if (status === 'streaming') {
         setStatus('closed');
       }

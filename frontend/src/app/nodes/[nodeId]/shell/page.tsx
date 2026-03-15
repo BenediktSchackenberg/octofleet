@@ -156,7 +156,6 @@ export default function ShellPage() {
     wsRef.current = ws;
     
     ws.onopen = () => {
-      console.log('Shell WebSocket connected');
       // Send auth token as first message instead of in URL query string
       ws.send(JSON.stringify({ type: 'auth', token }));
     };
@@ -173,7 +172,6 @@ export default function ShellPage() {
     };
     
     ws.onclose = () => {
-      console.log('WebSocket closed');
       if (status === 'active') {
         setStatus('closed');
       }

@@ -60,7 +60,7 @@ class Settings:
         if secret_file.exists():
             try:
                 return secret_file.read_text().strip()
-            except:
+            except Exception:
                 pass
             
         # Fallback: generate and save

@@ -136,7 +136,6 @@ export default function LiveViewPage() {
     
     es.addEventListener('connected', (e) => {
       const data = JSON.parse(e.data);
-      console.log('Live session started:', data.sessionId);
     });
     
     es.addEventListener('metrics', (e) => {

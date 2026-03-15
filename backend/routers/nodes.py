@@ -387,7 +387,7 @@ async def approve_pending_node(pending_id: str, request: Request, db: asyncpg.Po
             try:
                 payload = jwt.decode(auth_header[7:], JWT_SECRET, algorithms=["HS256"])
                 approver = payload.get("sub", "admin")
-            except: pass
+            except Exception: pass
         
         await conn.execute("UPDATE pending_nodes SET status = 'approved', approved_at = NOW(), approved_by = $2, generated_api_key = $3 WHERE id = $1", uuid.UUID(pending_id), approver, node_api_key)
         return {"status": "approved", "nodeId": pending_id, "hostname": row['hostname']}
@@ -402,7 +402,7 @@ async def reject_pending_node(pending_id: str, request: Request, db: asyncpg.Poo
             try:
                 payload = jwt.decode(auth_header[7:], JWT_SECRET, algorithms=["HS256"])
                 rejecter = payload.get("sub", "admin")
-            except: pass
+            except Exception: pass
         
         result = await conn.execute("UPDATE pending_nodes SET status = 'rejected', rejected_at = NOW(), rejected_by = $2 WHERE id = $1 AND status = 'pending'", uuid.UUID(pending_id), rejecter)
         if result == "UPDATE 0": raise HTTPException(status_code=404, detail="Pending node not found")

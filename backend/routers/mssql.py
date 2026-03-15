@@ -350,7 +350,7 @@ async def get_backup_ampel(db: asyncpg.Pool = Depends(get_db)):
         instances = await conn.fetch("""
             SELECT mi.node_id, mi.instance_name, mi.version, n.hostname
             FROM mssql_instances mi
-            LEFT JOIN nodes n ON n.id = mi.node_id
+            LEFT JOIN nodes n ON n.id::text = mi.node_id
             ORDER BY n.hostname, mi.instance_name
         """)
 
