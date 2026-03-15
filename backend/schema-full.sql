@@ -2205,8 +2205,6 @@ CREATE TABLE IF NOT EXISTS mssql_backup_history (
 CREATE INDEX IF NOT EXISTS idx_mssql_backup_node ON mssql_backup_history(node_id);
 CREATE INDEX IF NOT EXISTS idx_mssql_backup_instance ON mssql_backup_history(instance_name, database_name);
 CREATE INDEX IF NOT EXISTS idx_mssql_backup_time ON mssql_backup_history(backup_finish DESC);
-<<<<<<< HEAD
-=======
 
 -- Enterprise Reporting Suite (E35)
 CREATE TABLE IF NOT EXISTS report_catalog (
@@ -2274,4 +2272,3 @@ CREATE TABLE IF NOT EXISTS node_available_updates (
   UNIQUE(node_id, kb_id, software_name)
 );
 CREATE INDEX IF NOT EXISTS idx_node_updates_node ON node_available_updates(node_id);
->>>>>>> develop-e42
