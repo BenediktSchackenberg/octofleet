@@ -47,7 +47,7 @@ async function fetchBadges(): Promise<NavBadges> {
       } catch { return 0; }
     })(),
     safeCount("/jobs?status=failed"),
-    safeCount("/alerts/rules"),
+    safeCount("/alert-rules"),
   ]);
   return { findings, unpatched, pendingApprovals: 0, failedJobs, alerts };
 }

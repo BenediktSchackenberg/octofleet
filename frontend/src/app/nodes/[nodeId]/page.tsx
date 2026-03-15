@@ -174,7 +174,7 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
             const count = Array.isArray(d) ? d.length : d?.jobs?.length ?? d?.total ?? 0;
             if (count > 0) results.push({ label: "Jobs", count, href: `/jobs?node=${nodeId}`, icon: <Briefcase className="h-4 w-4" /> });
           }).catch(() => {}),
-        apiClient.get<any>("/alerts/rules")
+        apiClient.get<any>("/alert-rules")
           .then((d) => {
             const arr = Array.isArray(d) ? d : d?.rules || [];
             const count = arr.filter((r: any) => r.node_id === nodeId || r.nodeId === nodeId || r.target === nodeId).length;

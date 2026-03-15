@@ -37,7 +37,7 @@ const steps: Step[] = [
   { key: "groups", label: "Create device groups", href: "/groups", check: () => hasItems("/api/v1/groups") },
   { key: "patches", label: "Set up patch rings", href: "/patches", check: () => hasItems("/api/v1/patch-rings") },
   { key: "security", label: "Enable security monitoring", href: "/security/profiles", check: () => hasItems("/api/v1/security/profiles") },
-  { key: "alerts", label: "Configure alerting", href: "/alerts", check: () => hasItems("/api/v1/alerts/rules") },
+  { key: "alerts", label: "Configure alerting", href: "/alerts", check: () => hasItems("/api/v1/alert-rules") },
 ];
 
 export function FirstRunChecklist() {

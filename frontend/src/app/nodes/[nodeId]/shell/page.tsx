@@ -3,9 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-
-// Dynamic import for xterm to avoid SSR issues
-import dynamic from 'next/dynamic';
+import { API_URL } from '@/lib/api-config';
 
 interface ShellMessage {
   type: 'info' | 'output' | 'error' | 'closed' | 'exit' | 'ping' | 'pong';
@@ -38,9 +36,9 @@ export default function ShellPage() {
     setError(null);
     
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       const res = await fetch(
-        `http://${window.location.hostname}:8080/api/v1/shell/start/${nodeId}?shell_type=${shellType}`,
+        `${API_URL}/api/v1/shell/start/${nodeId}?shell_type=${shellType}`,
         {
           method: 'POST',
           headers: {
@@ -78,12 +76,11 @@ export default function ShellPage() {
     const { Terminal } = await import('@xterm/xterm');
     const { FitAddon } = await import('@xterm/addon-fit');
     
-    // Load xterm CSS via link element (dynamic import doesn't work in Next.js)
+    // Load xterm CSS from local package
+    // Import handled via: import '@xterm/xterm/css/xterm.css' in a global stylesheet,
+    // or ensure the CSS is bundled. The @xterm/xterm package is already installed locally.
     if (!document.querySelector('link[href*="xterm"]')) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css';
-      document.head.appendChild(link);
+      // TODO: replace with static CSS import from @xterm/xterm package
     }
     
     const term = new Terminal({
@@ -153,13 +150,15 @@ export default function ShellPage() {
   // Connect WebSocket
   const connectWebSocket = (sid: string, token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:8080/api/v1/shell/ws/${sid}?token=${token}`;
+    const wsUrl = `${protocol}//${window.location.hostname}:8080/api/v1/shell/ws/${sid}`;
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     
     ws.onopen = () => {
       console.log('Shell WebSocket connected');
+      // Send auth token as first message instead of in URL query string
+      ws.send(JSON.stringify({ type: 'auth', token }));
     };
     
     ws.onmessage = (event) => {
@@ -226,8 +225,8 @@ export default function ShellPage() {
   const stopSession = async () => {
     if (sessionId) {
       try {
-        const token = localStorage.getItem('auth_token');
-        await fetch(`http://${window.location.hostname}:8080/api/v1/shell/stop/${sessionId}`, {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_URL}/api/v1/shell/stop/${sessionId}`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         });

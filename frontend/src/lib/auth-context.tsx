@@ -137,31 +137,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }
 
+  // Permissions that are safe to allow even when backend is unreachable.
+  // These are UI-navigation-only permissions — actual access control is enforced server-side.
+  const SAFE_FALLBACK_PERMISSIONS = new Set(["nodes:read", "groups:read"]);
+
   function hasPermission(permission: string): boolean {
     if (!user) return false;
     if (user.is_superuser) return true;
     
-    // Use backend-resolved permissions if available, else fall back to local matrix
-    const userPermissions = new Set<string>();
+    // Use backend-resolved permissions if available
     if (resolvedPermissions) {
-      resolvedPermissions.forEach(p => userPermissions.add(p));
-    } else {
-      for (const role of user.roles || []) {
-        const perms = ROLE_PERMISSIONS[role] || [];
-        perms.forEach(p => userPermissions.add(p));
-      }
+      const userPermissions = new Set(resolvedPermissions);
+      if (userPermissions.has("*")) return true;
+      if (userPermissions.has(permission)) return true;
+      const resource = permission.split(":")[0];
+      if (userPermissions.has(`${resource}:*`)) return true;
+      return false;
     }
     
-    if (userPermissions.has("*")) return true;
-    if (userPermissions.has(permission)) return true;
-    
-    // Check wildcard (e.g., "nodes:*" covers "nodes:read")
-    const resource = permission.split(":")[0];
-    if (userPermissions.has(`${resource}:*`)) return true;
-    
-    return false;
+    // SECURITY: Backend unreachable — deny all permissions except safe navigation defaults.
+    // Do NOT fall back to ROLE_PERMISSIONS from localStorage, as user.roles can be tampered with.
+    // The backend is the only authoritative source for permission checks.
+    return SAFE_FALLBACK_PERMISSIONS.has(permission);
   }
 
+  // NOTE: isAdmin() reads from localStorage user object which can be tampered with.
+  // This should ONLY be used for UI display purposes (e.g., showing/hiding admin menu items).
+  // Actual access control MUST be enforced by the backend on every request.
   function isAdmin(): boolean {
     return user?.is_superuser || user?.roles?.includes("admin") || false;
   }
