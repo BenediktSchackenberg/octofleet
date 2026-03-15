@@ -759,11 +759,10 @@ async def generate_inventory_report_pdf(
 
 import json
 import os
-import traceback
-from pydantic import BaseModel
-from typing import List, Optional as Opt
-from fastapi import Query, Path
+from typing import Optional as Opt
+
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 
 class ExecuteReportRequest(BaseModel):

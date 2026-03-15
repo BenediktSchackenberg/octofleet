@@ -60,7 +60,6 @@ from routers.dashboard import router as dashboard_router
 from routers.deployments import router as deployments_router
 from routers.groups import router as groups_router
 from routers.hardware import router as hardware_router
-from routers.patch_explorer import router as patch_explorer_router
 from routers.inventory import router as inventory_router
 from routers.jobs import agent_router as jobs_agent_router
 from routers.jobs import router as jobs_router
@@ -70,6 +69,7 @@ from routers.mssql import router as mssql_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
+from routers.patch_explorer import router as patch_explorer_router
 from routers.patches import router as patches_router
 from routers.provisioning import pxe_router
 
