@@ -6702,3 +6702,38 @@ CIS_TEMPLATES = {
 
 # --- Evaluation & Drift ---
 
+
+
+# ─── Stub endpoints for frontend compatibility ───────────────────────────────
+
+@app.get("/api/v1/package-categories", dependencies=[Depends(verify_api_key)])
+async def get_package_categories():
+    """Package categories (stub)."""
+    return {"categories": []}
+
+@app.get("/api/v1/settings/nvd_api_key", dependencies=[Depends(verify_api_key)])
+async def get_nvd_api_key():
+    """NVD API key setting (stub)."""
+    return {"value": ""}
+
+@app.put("/api/v1/settings/nvd_api_key", dependencies=[Depends(verify_api_key)])
+async def set_nvd_api_key(body: dict):
+    """NVD API key setting (stub)."""
+    return {"status": "ok"}
+
+@app.get("/api/v1/enrollment-tokens", dependencies=[Depends(verify_api_key)])
+async def get_enrollment_tokens():
+    """Enrollment tokens (stub)."""
+    return {"tokens": []}
+
+@app.post("/api/v1/enrollment-tokens", dependencies=[Depends(verify_api_key)])
+async def create_enrollment_token(body: dict):
+    """Create enrollment token (stub)."""
+    import secrets
+    token = secrets.token_hex(24)
+    return {"token": token, "installCommand": f"irm https://your-server/install.ps1 | iex -Token {token}"}
+
+@app.delete("/api/v1/enrollment-tokens/{token_id}", dependencies=[Depends(verify_api_key)])
+async def delete_enrollment_token(token_id: str):
+    """Delete enrollment token (stub)."""
+    return {"status": "deleted"}
