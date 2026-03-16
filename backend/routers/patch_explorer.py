@@ -2,14 +2,16 @@
 E42 – Patch Explorer API
 Browse nodes by OS, view available updates per node, search, deploy.
 """
+import asyncio
 import json
 import uuid as _uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
+from starlette.responses import StreamingResponse
 
-from dependencies import get_pool, verify_api_key
+from dependencies import get_pool, verify_api_key, verify_api_key_or_query
 
 router = APIRouter(tags=["Patch Explorer"])
 
@@ -563,3 +565,220 @@ async def trigger_patch_scan(data: dict, request: Request):
             job_ids.append(str(job_uuid))
 
         return {"message": f"Scan triggered on {len(node_ids)} nodes", "job_ids": job_ids}
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: SSE deploy-stream
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/patches/explorer/deploy-stream/{deployment_id}", dependencies=[Depends(verify_api_key_or_query)])
+async def deploy_stream(deployment_id: str):
+    """Server-Sent Events endpoint for live deployment progress."""
+
+    async def event_generator():
+        prev_snapshot = None
+        while True:
+            try:
+                async with get_pool().acquire() as conn:
+                    dep = await conn.fetchrow(
+                        "SELECT id, name FROM patch_deployments WHERE id = $1::uuid", deployment_id)
+                    if not dep:
+                        yield f"data: {json.dumps({'error': 'Deployment not found'}, default=str)}\n\n"
+                        return
+
+                    results = await conn.fetch("""
+                        SELECT pdr.node_id, pdr.status, pdr.started_at, pdr.completed_at,
+                               pdr.error_message, n.hostname
+                        FROM patch_deployment_results pdr
+                        LEFT JOIN nodes n ON n.id::text = pdr.node_id
+                        WHERE pdr.deployment_id = $1::uuid
+                    """, deployment_id)
+
+                    # Also check job_instances for more granular status
+                    jobs = await conn.fetch("""
+                        SELECT ji.node_id::text AS node_id, ji.status AS job_status
+                        FROM job_instances ji
+                        JOIN jobs j ON j.id = ji.job_id
+                        WHERE j.command_data::jsonb->>'deployment_id' = $1
+                    """, deployment_id)
+                    job_status_map = {r["node_id"]: r["job_status"] for r in jobs}
+
+                    total = len(results)
+                    completed = 0
+                    failed = 0
+                    node_results = []
+                    for r in results:
+                        nid = r["node_id"]
+                        status = r["status"]
+                        # Merge job_instance status for more detail
+                        js = job_status_map.get(nid)
+                        if js and status == "pending":
+                            if js in ("running", "installing"):
+                                status = js
+                            elif js in ("completed", "installed"):
+                                status = "completed"
+                            elif js == "failed":
+                                status = "failed"
+
+                        if status in ("installed", "completed"):
+                            completed += 1
+                        elif status == "failed":
+                            failed += 1
+
+                        node_results.append({
+                            "node_id": nid,
+                            "hostname": r["hostname"],
+                            "status": status,
+                            "started_at": r["started_at"],
+                            "completed_at": r["completed_at"],
+                            "error_message": r["error_message"],
+                        })
+
+                    pending = total - completed - failed
+                    overall = "completed" if pending == 0 and failed == 0 and total > 0 else \
+                              "failed" if pending == 0 and failed > 0 else \
+                              "running" if completed > 0 or failed > 0 else "pending"
+
+                    snapshot = {
+                        "deployment_id": deployment_id,
+                        "name": dep["name"],
+                        "status": overall,
+                        "progress": {"total": total, "completed": completed, "failed": failed, "pending": pending},
+                        "results": node_results,
+                    }
+
+                    snapshot_json = json.dumps(snapshot, default=str)
+                    if snapshot_json != prev_snapshot:
+                        yield f"data: {snapshot_json}\n\n"
+                        prev_snapshot = snapshot_json
+
+                    if pending == 0:
+                        yield f"event: done\ndata: {snapshot_json}\n\n"
+                        return
+
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)}, default=str)}\n\n"
+                return
+
+            await asyncio.sleep(2)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Verify deployment
+# ---------------------------------------------------------------------------
+
+@router.post("/api/v1/patches/explorer/verify/{deployment_id}", dependencies=[Depends(verify_api_key)])
+async def verify_deployment(deployment_id: str, request: Request):
+    """Trigger patch_scan on all deployed nodes, compare pre/post updates."""
+    user = getattr(request.state, "user", None)
+    username = user.get("username", "system") if user else "system"
+
+    async with get_pool().acquire() as conn:
+        dep = await conn.fetchrow(
+            "SELECT id, name FROM patch_deployments WHERE id = $1::uuid", deployment_id)
+        if not dep:
+            return {"error": "Deployment not found"}
+
+        # Get nodes from deployment results
+        results = await conn.fetch("""
+            SELECT DISTINCT pdr.node_id FROM patch_deployment_results pdr
+            WHERE pdr.deployment_id = $1::uuid
+        """, deployment_id)
+        node_ids = [r["node_id"] for r in results]
+
+        if not node_ids:
+            return {"error": "No nodes in deployment"}
+
+        # Snapshot current updates before scan
+        pre_updates = {}
+        for nid in node_ids:
+            rows = await conn.fetch(
+                "SELECT kb_id, title FROM node_available_updates WHERE node_id = $1::uuid", nid)
+            pre_updates[nid] = {(r["kb_id"], r["title"]) for r in rows}
+
+        # Trigger patch_scan jobs
+        job_ids = []
+        for nid in node_ids:
+            job_uuid = _uuid.uuid4()
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, command_type, command_data, created_by)
+                VALUES ($1, $2, $3, 'device', 'patch_scan', $4::jsonb, $5)
+            """, job_uuid, "Verification Scan",
+                f"Post-deployment verification for {deployment_id}",
+                json.dumps({"deployment_id": deployment_id, "verification": True}),
+                username)
+            await conn.execute("""
+                INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
+                VALUES (gen_random_uuid(), $1, $2::uuid, 'pending', NOW())
+            """, job_uuid, nid)
+            job_ids.append(str(job_uuid))
+
+        return {
+            "deployment_id": deployment_id,
+            "message": f"Verification scan triggered on {len(node_ids)} nodes",
+            "job_ids": job_ids,
+            "node_count": len(node_ids),
+            "pre_update_counts": {nid: len(updates) for nid, updates in pre_updates.items()},
+        }
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Deployment history
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/patches/explorer/deployment-history", dependencies=[Depends(verify_api_key)])
+async def deployment_history(limit: int = Query(50, le=200), offset: int = Query(0)):
+    """List past deployments with status and results."""
+    async with get_pool().acquire() as conn:
+        deps = await conn.fetch("""
+            SELECT pd.id, pd.name, pd.reboot_policy, pd.created_by, pd.created_at,
+                   COUNT(pdr.node_id) AS node_count,
+                   COUNT(pdr.node_id) FILTER (WHERE pdr.status IN ('installed', 'completed')) AS completed_count,
+                   COUNT(pdr.node_id) FILTER (WHERE pdr.status = 'failed') AS failed_count,
+                   COUNT(pdr.node_id) FILTER (WHERE pdr.status = 'pending') AS pending_count
+            FROM patch_deployments pd
+            LEFT JOIN patch_deployment_results pdr ON pdr.deployment_id = pd.id
+            GROUP BY pd.id
+            ORDER BY pd.created_at DESC
+            LIMIT $1 OFFSET $2
+        """, limit, offset)
+
+        total = await conn.fetchval("SELECT COUNT(*) FROM patch_deployments")
+
+        deployments = []
+        for d in deps:
+            node_count = d["node_count"]
+            completed = d["completed_count"]
+            failed = d["failed_count"]
+            pending = d["pending_count"]
+
+            if node_count == 0:
+                status = "empty"
+            elif pending == 0 and failed == 0:
+                status = "completed"
+            elif pending == 0 and failed > 0 and completed == 0:
+                status = "failed"
+            elif pending == 0 and failed > 0:
+                status = "partial"
+            elif completed > 0 or failed > 0:
+                status = "running"
+            else:
+                status = "pending"
+
+            deployments.append({
+                "id": str(d["id"]),
+                "name": d["name"],
+                "reboot_policy": d["reboot_policy"],
+                "created_by": d["created_by"],
+                "created_at": d["created_at"].isoformat() if d["created_at"] else None,
+                "status": status,
+                "node_count": node_count,
+                "completed_count": completed,
+                "failed_count": failed,
+                "pending_count": pending,
+            })
+
+        return {"deployments": deployments, "total": total}

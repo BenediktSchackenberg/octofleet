@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronDown, Search, Filter, RefreshCw, Monitor, Terminal,
   Package, Shield, Rocket, Check, Minus, X, Loader2, ArrowRight,
-  TreePine, Circle, Server, Bug, Clock, Wifi, WifiOff,
+  TreePine, Circle, Server, Bug, Clock, Wifi, WifiOff, History,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -127,6 +127,19 @@ interface DeploymentStatus {
   results: DeploymentResult[];
 }
 
+interface DeploymentHistoryItem {
+  id: string;
+  name: string;
+  rebootPolicy: string;
+  createdBy: string;
+  createdAt: string;
+  status: string;
+  nodeCount: number;
+  completedCount: number;
+  failedCount: number;
+  pendingCount: number;
+}
+
 type SelectedItem =
   | { type: 'none' }
   | { type: 'group'; osName: string; group: OsGroup }
@@ -136,7 +149,7 @@ type SelectedItem =
   | { type: 'updateNode'; updateGroup: UpdateGroup; updateNode: UpdateNode };
 
 type FilterMode = 'all' | 'updates' | 'critical';
-type TreeMode = 'node' | 'update';
+type TreeMode = 'node' | 'update' | 'history';
 
 // ─── Status helpers ──────────────────────────────────────────────────
 
@@ -244,6 +257,10 @@ export default function PatchExplorerPage() {
   const [loadingUpdateTree, setLoadingUpdateTree] = useState(false);
   const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null);
   const [deployStatus, setDeployStatus] = useState<DeploymentStatus | null>(null);
+  const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [selectedDeploymentDetail, setSelectedDeploymentDetail] = useState<DeploymentStatus | null>(null);
+  const [nodeProgressMap, setNodeProgressMap] = useState<Record<string, string>>({}); // nodeId -> status for tree indicators
   const searchRef = useRef<HTMLDivElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -277,20 +294,73 @@ export default function PatchExplorerPage() {
     if (treeMode === 'update' && !updateTreeData) fetchUpdateTree();
   }, [treeMode, updateTreeData, fetchUpdateTree]);
 
-  // Deployment status polling
+  const fetchHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    const data = await apiClient.get<{ deployments: DeploymentHistoryItem[] }>('/patches/explorer/deployment-history', { camelCase: true });
+    if (data) setDeploymentHistory(data.deployments);
+    setLoadingHistory(false);
+  }, []);
+
+  useEffect(() => {
+    if (treeMode === 'history') fetchHistory();
+  }, [treeMode, fetchHistory]);
+
+  // SSE-based deployment status tracking (Phase 4)
   useEffect(() => {
     if (!activeDeploymentId) return;
-    const interval = setInterval(async () => {
-      const status = await apiClient.get<DeploymentStatus>(`/patches/explorer/deployment-status/${activeDeploymentId}`, { camelCase: true });
-      if (status) {
-        setDeployStatus(status);
-        if (status.progress.pending === 0) {
-          clearInterval(interval);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+    const apiUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8080` : '';
+    const url = `${apiUrl}/api/v1/patches/explorer/deploy-stream/${activeDeploymentId}?token=${encodeURIComponent(token)}`;
+    const es = new EventSource(url);
+
+    es.onmessage = (event) => {
+      try {
+        const status: DeploymentStatus = JSON.parse(event.data);
+        if ('error' in status) {
+          es.close();
+          return;
         }
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [activeDeploymentId]);
+        setDeployStatus(status);
+        // Update node progress map for tree indicators
+        const map: Record<string, string> = {};
+        for (const r of status.results) {
+          map[r.nodeId] = r.status;
+        }
+        setNodeProgressMap(map);
+      } catch { /* ignore parse errors */ }
+    };
+
+    es.addEventListener('done', (event) => {
+      try {
+        const status: DeploymentStatus = JSON.parse((event as MessageEvent).data);
+        setDeployStatus(status);
+        // Auto-refresh after deployment completes
+        const completedCount = status.progress.completed;
+        const failedCount = status.progress.failed;
+        toast.success(`Deployment complete: ${completedCount} installed, ${failedCount} failed`);
+        // Clear software cache for affected nodes and re-fetch tree
+        const affectedNodeIds = status.results.map(r => r.nodeId);
+        setSoftwareCache(prev => {
+          const next = { ...prev };
+          for (const nid of affectedNodeIds) delete next[nid];
+          return next;
+        });
+        fetchTree();
+        fetchStats();
+        if (treeMode === 'update') fetchUpdateTree();
+        // Clear node progress map after brief delay
+        setTimeout(() => setNodeProgressMap({}), 3000);
+      } catch { /* ignore */ }
+      es.close();
+    });
+
+    es.onerror = () => {
+      // Fallback: on error, try regular polling once then close
+      es.close();
+    };
+
+    return () => es.close();
+  }, [activeDeploymentId, fetchTree, fetchStats, fetchUpdateTree, treeMode]);
 
   const fetchNodes = useCallback(async (osName: string) => {
     if (nodesCache[osName]) return;
@@ -692,6 +762,9 @@ export default function PatchExplorerPage() {
             <button onClick={() => setTreeMode('update')} className={`px-4 py-2 text-sm font-medium transition-colors ${treeMode === 'update' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-200'}`}>
               By Update
             </button>
+            <button onClick={() => setTreeMode('history')} className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 ${treeMode === 'history' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-200'}`}>
+              <History className="w-3.5 h-3.5" /> History
+            </button>
           </div>
 
           {treeMode === 'node' ? (
@@ -747,7 +820,13 @@ export default function PatchExplorerPage() {
                                 >
                                   {isNodeExpanded ? <ChevronDown className="w-3.5 h-3.5 text-zinc-600" /> : <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />}
                                   <TriCheckbox state={nodeCheck} onChange={() => toggleChecked(nodeIds)} disabled={nodeIds.length === 0} />
-                                  <StatusDot status={node.status} />
+                                  {nodeProgressMap[node.id] === 'running' || nodeProgressMap[node.id] === 'installing'
+                                    ? <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-400" />
+                                    : nodeProgressMap[node.id] === 'completed' || nodeProgressMap[node.id] === 'installed'
+                                    ? <Check className="w-2.5 h-2.5 text-green-400" />
+                                    : nodeProgressMap[node.id] === 'failed'
+                                    ? <X className="w-2.5 h-2.5 text-red-400" />
+                                    : <StatusDot status={node.status} />}
                                   <span className="text-sm text-zinc-300 flex-1 truncate font-mono">{node.hostname}</span>
                                   {node.updateCount > 0 && (
                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">{node.updateCount} updates</span>
@@ -894,6 +973,55 @@ export default function PatchExplorerPage() {
             </div>
           ) : null
           )}
+
+          {/* ─── History Tab ─── */}
+          {treeMode === 'history' && (
+            loadingHistory ? (
+              <div className="flex items-center justify-center h-40 text-zinc-500"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : (
+              <div className="py-2">
+                {deploymentHistory.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40 text-zinc-500 text-sm">
+                    <History className="w-8 h-8 mb-2 opacity-30" />
+                    No deployments yet
+                  </div>
+                ) : deploymentHistory.map(dep => (
+                  <button
+                    key={dep.id}
+                    onClick={async () => {
+                      const detail = await apiClient.get<DeploymentStatus>(`/patches/explorer/deployment-status/${dep.id}`, { camelCase: true });
+                      if (detail) setSelectedDeploymentDetail(detail);
+                    }}
+                    className={`flex items-center gap-2 w-full px-3 py-2.5 text-left hover:bg-zinc-900 transition-colors border-b border-zinc-800/50
+                      ${selectedDeploymentDetail?.deploymentId === dep.id ? 'bg-zinc-900' : ''}`}
+                  >
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      dep.status === 'completed' ? 'bg-green-500' :
+                      dep.status === 'failed' ? 'bg-red-500' :
+                      dep.status === 'running' ? 'bg-blue-500 animate-pulse' :
+                      dep.status === 'partial' ? 'bg-amber-500' :
+                      'bg-zinc-500'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-zinc-200 truncate">{dep.name}</div>
+                      <div className="text-[10px] text-zinc-500 flex items-center gap-2">
+                        <span>{new Date(dep.createdAt).toLocaleDateString()}</span>
+                        <span>{dep.nodeCount} nodes</span>
+                        {dep.failedCount > 0 && <span className="text-red-400">{dep.failedCount} failed</span>}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${
+                      dep.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                      dep.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                      dep.status === 'running' ? 'bg-blue-500/20 text-blue-400' :
+                      dep.status === 'partial' ? 'bg-amber-500/20 text-amber-400' :
+                      'bg-zinc-700 text-zinc-400'
+                    }`}>{dep.status}</span>
+                  </button>
+                ))}
+              </div>
+            )
+          )}
         </div>
 
         {/* ─── Detail Panel ────────────────────────────────────── */}
@@ -958,7 +1086,17 @@ export default function PatchExplorerPage() {
                 </div>
               )}
 
-              {selectedItem.type === 'none' && <WelcomePanel stats={stats} />}
+              {selectedItem.type === 'none' && !selectedDeploymentDetail && <WelcomePanel stats={stats} />}
+              {selectedDeploymentDetail && (
+                <DeploymentDetailPanel
+                  detail={selectedDeploymentDetail}
+                  onClose={() => setSelectedDeploymentDetail(null)}
+                  onVerify={async () => {
+                    const res = await apiClient.post<{ message: string }>(`/patches/explorer/verify/${selectedDeploymentDetail.deploymentId}`, {});
+                    if (res) toast.success(res.message || 'Verification scan triggered');
+                  }}
+                />
+              )}
               {selectedItem.type === 'group' && <GroupDetail group={selectedItem.group} nodes={nodesCache[selectedItem.osName] || []} onSelectNode={(n) => setSelectedItem({ type: 'node', node: n })} />}
               {selectedItem.type === 'node' && <NodeDetail node={selectedItem.node} software={softwareCache[selectedItem.node.id] || []} deployingIds={deployingIds} onSelectSoftware={(sw) => setSelectedItem({ type: 'software', software: sw, node: selectedItem.node })} />}
               {selectedItem.type === 'software' && <SoftwareDetail software={selectedItem.software} node={selectedItem.node} onDeploy={(sw) => { setCheckedItems(new Set([sw.id])); setShowDeploy(true); }} />}
@@ -1409,6 +1547,77 @@ function UpdateNodeDetail({ updateGroup: ug, updateNode: un }: { updateGroup: Up
           <span className="font-mono text-sm text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">{un.availableVersion}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DeploymentDetailPanel({ detail, onClose, onVerify }: { detail: DeploymentStatus; onClose: () => void; onVerify: () => void }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Rocket className="w-5 h-5 text-emerald-500" />
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-100">{detail.name}</h2>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+              detail.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+              detail.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+              detail.status === 'running' ? 'bg-blue-500/20 text-blue-400' :
+              'bg-zinc-700 text-zinc-400'
+            }`}>{detail.status}</span>
+          </div>
+        </div>
+        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300"><X className="w-4 h-4" /></button>
+      </div>
+
+      {/* Progress */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
+          <span>Progress</span>
+          <span>{detail.progress.completed + detail.progress.failed}/{detail.progress.total}</span>
+        </div>
+        <div className="w-full bg-zinc-800 rounded-full h-2 mb-3">
+          <div className="h-2 rounded-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${detail.progress.total > 0 ? ((detail.progress.completed + detail.progress.failed) / detail.progress.total * 100) : 0}%` }}
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="text-center"><span className="text-green-400 font-medium">{detail.progress.completed}</span><br /><span className="text-zinc-500">Completed</span></div>
+          <div className="text-center"><span className="text-red-400 font-medium">{detail.progress.failed}</span><br /><span className="text-zinc-500">Failed</span></div>
+          <div className="text-center"><span className="text-zinc-300 font-medium">{detail.progress.pending}</span><br /><span className="text-zinc-500">Pending</span></div>
+        </div>
+      </div>
+
+      {/* Per-node results */}
+      <div className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">Node Results</div>
+      <div className="space-y-1 mb-6">
+        {detail.results.map(r => (
+          <div key={r.nodeId} className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2">
+            {r.status === 'pending' ? <Circle className="w-3 h-3 text-zinc-500" /> :
+             r.status === 'running' || r.status === 'installing' ? <Loader2 className="w-3 h-3 animate-spin text-blue-400" /> :
+             r.status === 'installed' || r.status === 'completed' ? <Check className="w-3 h-3 text-green-400" /> :
+             r.status === 'failed' ? <X className="w-3 h-3 text-red-400" /> :
+             <Circle className="w-3 h-3 text-zinc-500" />}
+            <span className="font-mono text-sm text-zinc-300 flex-1">{r.hostname || r.nodeId}</span>
+            <span className={`text-xs ${
+              r.status === 'installed' || r.status === 'completed' ? 'text-green-400' :
+              r.status === 'failed' ? 'text-red-400' :
+              r.status === 'running' || r.status === 'installing' ? 'text-blue-400' :
+              'text-zinc-500'
+            }`}>{r.status}</span>
+            {r.errorMessage && <span className="text-red-400 text-[10px] truncate max-w-[200px]" title={r.errorMessage}>{r.errorMessage}</span>}
+          </div>
+        ))}
+      </div>
+
+      {/* Verify button */}
+      {detail.progress.pending === 0 && (
+        <button onClick={onVerify}
+          className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          <Search className="w-4 h-4" /> Verify Deployment
+        </button>
+      )}
     </div>
   );
 }
