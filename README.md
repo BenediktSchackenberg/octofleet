@@ -84,12 +84,16 @@
 </td>
 <td width="50%">
 
-### 🩹 Patch & Update Orchestration — NEW in v0.6.0!
+### 🩹 Patch & Update Management
 - **Patch catalog** — centralized KB/update registry
 - **Patch rings** — Canary → Pilot → Broad rollout strategy
 - **Deployment wizard** — create, schedule, pause, resume, cancel
 - **Compliance tracking** — per-node and fleet-wide
 - **Agent-side scanner** — `PatchScanner.cs` discovers missing Windows updates
+- **🆕 Patch Explorer** — file-explorer style tree view (OS → Nodes → Software → Updates)
+- **Live deployment progress** — real-time SSE streaming with per-node status indicators
+- **Deployment verification** — post-deploy scan to confirm updates were applied
+- **Deployment history** — full audit trail of all patch deployments
 
 </td>
 </tr>
@@ -344,6 +348,7 @@ curl http://localhost:8080/openapi.json
 | `/api/v1/services` | 10 | Service orchestration |
 | `/api/v1/deployments` | 8 | Software deployment |
 | `/api/v1/patches` | 20 | Patch catalog, rings, deployments, compliance |
+| `/api/v1/patches/explorer` | 10 | Patch Explorer tree, deploy, SSE stream, verify, history |
 | `/api/v1/baselines` | ~25 | Config baselines, rules, evaluations, drift, templates, remediation |
 | `/api/v1/content` | 22 | Content repos, items, snapshots, environments, promotion |
 | `/api/v1/query` | 4 | Query engine (execute, schema, templates, live) |
@@ -420,6 +425,7 @@ See the [Enterprise Roadmap](docs/ROADMAP-ENTERPRISE.md) and [public roadmap](..
 - E33 Content Repository & Lifecycle Management
 - E34 Real-time Query Engine
 - E38 Software Metering & License Tracking
+- E42 Patch Explorer — Tree-based fleet update management with live progress & verification
 
 ### 🔜 Upcoming
 - macOS Agent
