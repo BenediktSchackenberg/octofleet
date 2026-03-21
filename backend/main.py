@@ -86,6 +86,7 @@ from routers.security import router as security_router
 from routers.services_mgmt import router as services_mgmt_router
 from routers.software_metering import router as software_metering_router
 from routers.terminal import router as terminal_router
+from routers.rbac import router as rbac_router
 from routers.vulnerabilities import router as vulnerabilities_router
 
 matplotlib.use('Agg')  # Non-interactive backend
@@ -268,6 +269,7 @@ app.include_router(monitoring_mgmt_router)
 app.include_router(terminal_router)
 app.include_router(packages_mgmt_router)
 app.include_router(vulnerabilities_router)
+app.include_router(rbac_router)
 app.include_router(hardware_router)
 app.include_router(patch_explorer_router)
 

@@ -330,3 +330,45 @@ def get_username_from_auth(auth: Any) -> str:
 def get_pool():
     """Get the current database pool (non-async, for direct use)"""
     return db_pool
+
+
+# ============== Audit Logging ==============
+
+async def log_audit(conn, user_id, action: str, resource_type: str, resource_id: str = None, details: dict = None, ip: str = None):
+    """Write a row into audit_log."""
+    import json as _json
+    await conn.execute(
+        """INSERT INTO audit_log (user_id, action, resource_type, resource_id, details, ip_address)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6)""",
+        user_id, action, resource_type, resource_id,
+        _json.dumps(details) if details else None, ip
+    )
+
+
+# ============== Scoped Permission Check ==============
+
+def require_scoped_permission(permission: str, group_id_param: str = "group_id"):
+    """Check if user has permission globally OR for the specific group."""
+    from auth import require_auth, CurrentUser
+    async def checker(request: Request, user: CurrentUser = Depends(require_auth), db: asyncpg.Pool = Depends(get_db)):
+        # Superusers / wildcard bypass
+        if user.is_superuser or "*" in (user.permissions or []):
+            return user
+        # Check if user has the permission globally (already in JWT)
+        if permission in (user.permissions or []):
+            return user
+        # Check scoped permissions via DB
+        group_id = request.path_params.get(group_id_param) or request.query_params.get(group_id_param)
+        if group_id:
+            async with db.acquire() as conn:
+                row = await conn.fetchval(
+                    """SELECT 1 FROM role_scopes rs
+                       JOIN roles r ON r.id = rs.role_id
+                       WHERE rs.user_id = $1 AND rs.group_id = $2
+                         AND $3 = ANY(r.permissions)""",
+                    UUID(user.id), UUID(group_id), permission
+                )
+                if row:
+                    return user
+        raise HTTPException(status_code=403, detail=f"Permission denied: {permission}")
+    return checker

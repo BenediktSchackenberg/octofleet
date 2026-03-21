@@ -41,13 +41,14 @@ async def login(request: LoginRequest, db: asyncpg.Pool = Depends(get_db)):
             raise HTTPException(status_code=403, detail="Account disabled")
         
         roles = await conn.fetch(
-            """SELECT r.name FROM roles r 
+            """SELECT r.name, r.permissions FROM roles r 
                JOIN user_roles ur ON r.id = ur.role_id 
                WHERE ur.user_id = $1""",
             user["id"]
         )
         role_names = [r["name"] for r in roles]
-        permissions = get_permissions_for_roles(role_names)
+        db_permissions = {r["name"]: list(r["permissions"]) for r in roles if r["permissions"]}
+        permissions = get_permissions_for_roles(role_names, db_permissions)
         if user["is_superuser"]:
             permissions = ["*"]
         
@@ -171,11 +172,12 @@ async def get_my_permissions(user: CurrentUser = Depends(require_auth), db: asyn
 
     async with db.acquire() as conn:
         roles = await conn.fetch(
-            """SELECT r.name FROM roles r
+            """SELECT r.name, r.permissions FROM roles r
                JOIN user_roles ur ON r.id = ur.role_id
                WHERE ur.user_id = $1""",
             UUID(user.id)
         )
         role_names = [r["name"] for r in roles]
-        permissions = get_permissions_for_roles(role_names)
+        db_permissions = {r["name"]: list(r["permissions"]) for r in roles if r["permissions"]}
+        permissions = get_permissions_for_roles(role_names, db_permissions)
         return {"permissions": permissions, "roles": role_names}

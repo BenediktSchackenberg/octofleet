@@ -264,11 +264,18 @@ ROLE_PERMISSIONS = {
     ]
 }
 
-def get_permissions_for_roles(roles: List[str]) -> List[str]:
-    """Combine permissions from multiple roles."""
+def get_permissions_for_roles(roles: List[str], db_permissions: dict = None) -> List[str]:
+    """Combine permissions from multiple roles.
+    
+    If db_permissions is provided (dict mapping role_name -> list of perms),
+    use those. Fall back to ROLE_PERMISSIONS for roles not in db_permissions.
+    """
     permissions = set()
     for role in roles:
-        perms = ROLE_PERMISSIONS.get(role, [])
+        if db_permissions and role in db_permissions:
+            perms = db_permissions[role]
+        else:
+            perms = ROLE_PERMISSIONS.get(role, [])
         if "*" in perms:
             return ["*"]
         permissions.update(perms)
