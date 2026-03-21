@@ -205,8 +205,8 @@ function UsersTab({ users, roles, refresh }: { users: User[]; roles: Role[]; ref
   const filtered = users
     .filter(u => !search || u.username.toLowerCase().includes(search.toLowerCase()) || (u.displayName || "").toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
-      const av = (a as Record<string, unknown>)[sortField] ?? "";
-      const bv = (b as Record<string, unknown>)[sortField] ?? "";
+      const av = (a as unknown as Record<string, unknown>)[sortField] ?? "";
+      const bv = (b as unknown as Record<string, unknown>)[sortField] ?? "";
       const cmp = String(av).localeCompare(String(bv));
       return sortDir === "asc" ? cmp : -cmp;
     });
