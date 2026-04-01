@@ -3,10 +3,12 @@ import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
+import { OnboardingDialog } from "@/components/onboarding-dialog";
 
 
 
@@ -23,17 +25,13 @@ interface EnrollmentToken {
   status: "active" | "expired" | "exhausted" | "revoked";
 }
 
-interface SystemInfo {
-  gatewayUrl: string;
-  apiUrl: string;
-  version: string;
-}
-
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
   const [tokens, setTokens] = useState<EnrollmentToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showOnboardingDialog, setShowOnboardingDialog] = useState(false);
   const [newToken, setNewToken] = useState<{token: string; installCommand: string} | null>(null);
 
   // Theme State
@@ -78,6 +76,12 @@ export default function SettingsPage() {
     fetchTokens();
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "onboarding") {
+      setShowOnboardingDialog(true);
+    }
+  }, [searchParams]);
 
   async function fetchSettings() {
     try {
@@ -166,7 +170,20 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-4xl mx-auto p-6">
-<PageHeader title="⚙️ Einstellungen" />
+<PageHeader
+          title="⚙️ Einstellungen"
+          actions={
+            <OnboardingDialog
+              open={showOnboardingDialog}
+              onOpenChange={setShowOnboardingDialog}
+              trigger={
+                <button className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium">
+                  Gerät hinzufügen
+                </button>
+              }
+            />
+          }
+        />
 
         {/* Quick Links */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Trash2, ArrowLeft, Download, Package } from "lucide-react";
 
 
@@ -146,6 +147,12 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
               <Link href="/deployments"><ArrowLeft className="h-5 w-5" /></Link>
             </Button>
             <h1 className="text-3xl font-bold">{deployment.name}</h1>
+            <FavoriteButton
+              type="deployment"
+              id={deployment.id}
+              label={deployment.name}
+              href={`/deployments/${deployment.id}`}
+            />
             <Badge className={statusColors[deployment.status]}>{deployment.status}</Badge>
           </div>
           {deployment.description && (

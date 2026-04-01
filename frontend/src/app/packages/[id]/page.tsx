@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
+import { FavoriteButton } from "@/components/FavoriteButton";
 
 
 
@@ -680,7 +681,15 @@ export default function PackageDetailPage() {
           <div className="flex-1">
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-white">{pkg.displayName}</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-3xl font-bold text-white">{pkg.displayName}</h1>
+                  <FavoriteButton
+                    type="package"
+                    id={pkg.id}
+                    label={pkg.displayName}
+                    href={`/packages/${pkg.id}`}
+                  />
+                </div>
                 {pkg.vendor && <p className="text-zinc-400 mt-1">{pkg.vendor}</p>}
               </div>
               <button

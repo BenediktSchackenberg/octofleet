@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Download, Copy, Check, Terminal, FileJson, Monitor, ChevronRight } from "lucide-react";
+import { Download, Copy, Check, Terminal, FileJson, Monitor } from "lucide-react";
 
 interface OnboardingData {
   command: string;
@@ -13,18 +12,26 @@ interface OnboardingData {
   apiKey: string;
 }
 
-export function OnboardingDialog({ trigger }: { trigger?: React.ReactNode }) {
+interface OnboardingDialogProps {
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function OnboardingDialog({ trigger, open, onOpenChange }: OnboardingDialogProps) {
   const [data, setData] = useState<OnboardingData | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"auto" | "manual">("auto");
+  const dialogOpen = open ?? internalOpen;
+  const setDialogOpen = onOpenChange ?? setInternalOpen;
 
   useEffect(() => {
-    if (!open) return;
+    if (!dialogOpen) return;
     apiClient.get<OnboardingData>("/onboarding/install-command", { showErrorToast: false })
       .then(d => { if (d) setData(d); })
       .catch(() => {});
-  }, [open]);
+  }, [dialogOpen]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -53,10 +60,12 @@ export function OnboardingDialog({ trigger }: { trigger?: React.ReactNode }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || <Button><Monitor className="h-4 w-4 mr-2" /> Add Device</Button>}
-      </DialogTrigger>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {trigger && (
+        <DialogTrigger asChild>
+          {trigger}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
