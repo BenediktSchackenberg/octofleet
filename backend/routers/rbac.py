@@ -2,16 +2,14 @@
 E36 Phase 1 — RBAC management endpoints:
   - Role CRUD (enhanced), scoped role assignments, audit log
 """
-import json
-from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from auth import CurrentUser, require_auth, require_permission, ROLE_PERMISSIONS
+from auth import CurrentUser, require_permission
 from dependencies import get_db, log_audit, verify_api_key
 
 router = APIRouter(
