@@ -80,13 +80,13 @@ from routers.provisioning_domain import generate_autounattend
 from routers.provisioning_iso import iso_router as provisioning_iso_router
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.query_engine import router as query_router
+from routers.rbac import router as rbac_router
 from routers.remediation import router as remediation_router
 from routers.reports import router as reports_router
 from routers.security import router as security_router
 from routers.services_mgmt import router as services_mgmt_router
 from routers.software_metering import router as software_metering_router
 from routers.terminal import router as terminal_router
-from routers.rbac import router as rbac_router
 from routers.vulnerabilities import router as vulnerabilities_router
 
 matplotlib.use('Agg')  # Non-interactive backend

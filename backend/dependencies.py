@@ -2,6 +2,7 @@
 Shared dependencies for Octofleet API routers
 """
 from typing import Any, Optional
+from uuid import UUID
 
 import asyncpg
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -349,7 +350,7 @@ async def log_audit(conn, user_id, action: str, resource_type: str, resource_id:
 
 def require_scoped_permission(permission: str, group_id_param: str = "group_id"):
     """Check if user has permission globally OR for the specific group."""
-    from auth import require_auth, CurrentUser
+    from auth import CurrentUser, require_auth
     async def checker(request: Request, user: CurrentUser = Depends(require_auth), db: asyncpg.Pool = Depends(get_db)):
         # Superusers / wildcard bypass
         if user.is_superuser or "*" in (user.permissions or []):
