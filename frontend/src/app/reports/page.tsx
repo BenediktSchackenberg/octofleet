@@ -196,6 +196,29 @@ export default function ReportsPage() {
     setRunParams({});
   };
 
+  const downloadFile = async (execId: string, fmt: string, name: string) => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const apiKey = typeof window !== "undefined" ? localStorage.getItem("apiKey") : null;
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (apiKey) headers["X-API-Key"] = apiKey;
+      const res = await fetch(`${API_BASE}/reports/executions/${execId}/download`, { headers });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name.replace(/\s+/g, "-").toLowerCase()}.${fmt}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error("Download fehlgeschlagen");
+    }
+  };
+
   const executeReport = async () => {
     if (!runDialog) return;
     setRunning(true);
@@ -216,7 +239,7 @@ export default function ReportsPage() {
       if (!exec) continue;
       if (exec.status === "completed") {
         toast.success("Report fertig — Download startet");
-        window.open(`${API_BASE}/reports/executions/${exec.id}/download`, "_blank");
+        await downloadFile(exec.id, runFormat, runDialog.name);
         break;
       }
       if (exec.status === "failed") {
@@ -409,7 +432,7 @@ export default function ReportsPage() {
                 <Select value={historyReport} onValueChange={setHistoryReport}><SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All Reports</SelectItem>{reports.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent></Select>
                 <Button variant="outline" onClick={() => toast.info("Bulk delete kommt als nächster Schritt")}>Bulk delete old</Button>
               </div>
-              <Card><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Report</TableHead><TableHead>Status</TableHead><TableHead>Format</TableHead><TableHead>Size</TableHead><TableHead>Generated</TableHead><TableHead /></TableRow></TableHeader><TableBody>{paged.map((e) => <TableRow key={e.id}><TableCell>{e.reportName || e.reportId}</TableCell><TableCell><Badge>{e.status}</Badge></TableCell><TableCell>{e.outputFormat}</TableCell><TableCell>{fmtBytes(e.fileSizeBytes)}</TableCell><TableCell>{fmtDate(e.createdAt)}</TableCell><TableCell>{e.status === "completed" ? <Button size="sm" variant="outline" onClick={() => window.open(`${API_BASE}/reports/executions/${e.id}/download`, "_blank")}><Download className="h-4 w-4" /></Button> : null}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+              <Card><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Report</TableHead><TableHead>Status</TableHead><TableHead>Format</TableHead><TableHead>Size</TableHead><TableHead>Generated</TableHead><TableHead /></TableRow></TableHeader><TableBody>{paged.map((e) => <TableRow key={e.id}><TableCell>{e.reportName || e.reportId}</TableCell><TableCell><Badge>{e.status}</Badge></TableCell><TableCell>{e.outputFormat}</TableCell><TableCell>{fmtBytes(e.fileSizeBytes)}</TableCell><TableCell>{fmtDate(e.createdAt)}</TableCell><TableCell>{e.status === "completed" ? <Button size="sm" variant="outline" onClick={() => downloadFile(e.id, e.outputFormat || "pdf", e.reportName || "report")}><Download className="h-4 w-4" /></Button> : null}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
               <div className="flex justify-end gap-2"><Button variant="outline" disabled={historyPage <= 1} onClick={() => setHistoryPage((p) => p - 1)}>Prev</Button><Button variant="outline" disabled={historyPage * 20 >= historyFiltered.length} onClick={() => setHistoryPage((p) => p + 1)}>Next</Button></div>
             </div>
           )}
