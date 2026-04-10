@@ -761,7 +761,8 @@ import json
 import os
 import smtplib
 from email.message import EmailMessage
-from typing import Any, Optional as Opt
+from typing import Any
+from typing import Optional as Opt
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
