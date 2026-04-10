@@ -152,6 +152,12 @@ export default function ReportsPage() {
   const [historyStatus, setHistoryStatus] = useState("all");
   const [historyReport, setHistoryReport] = useState("all");
 
+  const parseReport = (r: any): Report => ({
+    ...r,
+    parameters: typeof r.parameters === "string" ? (() => { try { return JSON.parse(r.parameters); } catch { return []; } })() : (r.parameters || []),
+    outputFormats: typeof r.outputFormats === "string" ? (() => { try { return JSON.parse(r.outputFormats); } catch { return ["pdf", "csv"]; } })() : (r.outputFormats || ["pdf", "csv"]),
+  });
+
   const loadAll = useCallback(async () => {
     const [dash, catalog, execs, sched] = await Promise.all([
       apiClient.get<DashboardData>("/reports/executive-dashboard", { camelCase: true }),
@@ -160,7 +166,7 @@ export default function ReportsPage() {
       apiClient.get<Schedule[]>("/reports/schedules", { camelCase: true }),
     ]);
     if (dash) setDashboard(dash);
-    if (catalog) setReports(catalog);
+    if (catalog) setReports(catalog.map(parseReport));
     if (execs) setExecutions(execs);
     if (sched) setSchedules(sched);
     setLoading(false);
