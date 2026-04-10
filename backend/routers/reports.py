@@ -913,7 +913,13 @@ async def _render_report_file(db: asyncpg.Pool, report: dict, exec_id: str, fmt:
     os.makedirs(REPORT_DIR, exist_ok=True)
     file_path = os.path.join(REPORT_DIR, f"{exec_id}.{fmt}")
     query = report["query_template"]
-    rows = await db.fetch(query) if query else []
+    if query:
+        try:
+            rows = await db.fetch(query)
+        except Exception as e:
+            rows = [{"warning": f"Report query fallback: {e}"}]
+    else:
+        rows = []
 
     if fmt == "csv":
         import csv as csv_mod
