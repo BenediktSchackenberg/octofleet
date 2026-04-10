@@ -1,707 +1,447 @@
 "use client";
 
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+import {
+  BarChart3,
+  Calendar,
+  Clock,
+  Download,
+  FileText,
+  Mail,
+  Play,
+  RefreshCw,
+  Server,
+  Shield,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import {
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Cell,
+} from "recharts";
+
 import { apiClient } from "@/lib/api-client";
 import { API_BASE } from "@/lib/api-config";
-import { useState, useEffect, useCallback } from "react";
-import {
-  FileText, Download, Calendar, Loader2, Shield, Server, Package,
-  BarChart3, Zap, ShieldCheck, Play, Clock, Trash2, Plus, ChevronDown,
-} from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-// ─── Types ───────────────────────────────────────────────────────────
-
-interface ReportParameter {
-  name: string;
-  label: string;
-  type: "select" | "date" | "text" | "number";
-  options?: { label: string; value: string }[];
-  default?: string;
-  required?: boolean;
-}
+type TabKey = "dashboard" | "catalog" | "schedules" | "history";
 
 interface Report {
   id: string;
-  name: string;
   slug: string;
+  name: string;
   description: string;
   category: string;
-  parameters: ReportParameter[];
-  output_formats: string[];
+  outputFormats: string[];
+  parameters: Array<{ name: string; label?: string; type?: string; default?: string }>;
 }
 
 interface Execution {
   id: string;
-  report_id: string;
-  report_name?: string;
-  status: "running" | "completed" | "failed" | "pending";
-  output_format: string;
-  file_size_bytes: number | null;
-  started_at: string;
-  completed_at: string | null;
+  reportId: string;
+  reportName?: string;
+  status: string;
+  outputFormat: string;
+  fileSizeBytes: number | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
 }
 
 interface Schedule {
   id: string;
-  report_id: string;
-  report_name?: string;
-  name: string;
-  cron_expression: string;
-  delivery_method: string;
+  reportId: string;
+  reportName?: string;
+  cronExpression: string;
+  deliveryMethod: string;
+  outputFormat: string;
   enabled: boolean;
-  last_run_at: string | null;
-  next_run_at: string | null;
-  output_format?: string;
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  deliveryConfig?: Record<string, string>;
 }
 
-interface Stats {
-  totalReports: number;
-  totalSchedules: number;
-  executionsThisWeek: number;
-  avgDuration: number;
+interface Delivery {
+  id: string;
+  deliveredAt: string;
+  deliveryStatus: string;
+  errorMessage?: string | null;
+  executionStatus?: string;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────
+interface DashboardData {
+  kpis: {
+    totalNodes: number;
+    onlineNodes: number;
+    criticalVulns: number;
+    openFindings: number;
+    activeAlerts: number;
+    patchCompliancePct: number;
+  };
+  trend7d: Array<{ date: string; online: number; alerts: number }>;
+  topVulnerabilities: Array<{ cve: string; severity: string; affectedNodes: number }>;
+  patchStatus: { upToDate: number; updatesAvailable: number; criticalUpdates: number };
+  recentJobs: Array<{ name: string; status: string; nodeCount: number; createdAt: string }>;
+}
 
-const CATEGORIES = ["All", "Fleet", "Security", "Compliance", "Software", "Operations", "Executive"] as const;
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  Fleet: <Server className="h-5 w-5" />,
-  Security: <Shield className="h-5 w-5" />,
-  Compliance: <ShieldCheck className="h-5 w-5" />,
-  Software: <Package className="h-5 w-5" />,
-  Operations: <Zap className="h-5 w-5" />,
-  Executive: <BarChart3 className="h-5 w-5" />,
-};
-
-const CRON_PRESETS = [
-  { label: "Daily 8am", value: "0 8 * * *" },
-  { label: "Weekly Monday", value: "0 8 * * 1" },
-  { label: "Monthly 1st", value: "0 8 1 * *" },
-  { label: "Every 6h", value: "0 */6 * * *" },
+const TABS: Array<{ id: TabKey; label: string; icon: React.ReactNode }> = [
+  { id: "dashboard", label: "Executive Dashboard", icon: <TrendingUp className="h-4 w-4" /> },
+  { id: "catalog", label: "Report Catalog", icon: <FileText className="h-4 w-4" /> },
+  { id: "schedules", label: "Scheduled Reports", icon: <Calendar className="h-4 w-4" /> },
+  { id: "history", label: "History", icon: <Clock className="h-4 w-4" /> },
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────
+const CATEGORIES = ["All", "Fleet", "Security", "Compliance", "Operations", "Executive"];
 
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+const PIE_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
-function formatDuration(start: string, end: string | null): string {
-  if (!end) return "—";
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function formatDate(d: string | null): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleString("en-US", {
-    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case "completed": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-    case "running": case "pending": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-    case "failed": return "bg-red-500/20 text-red-400 border-red-500/30";
-    default: return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30";
-  }
-}
-
-// ─── Page Component ──────────────────────────────────────────────────
+const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : "—");
+const fmtBytes = (b?: number | null) => (!b ? "—" : b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`);
+const cronHint = (cron: string) => {
+  if (cron === "0 8 * * *") return "Täglich um 08:00";
+  if (cron === "0 8 * * 1") return "Wöchentlich montags";
+  if (cron === "0 8 1 * *") return "Monatlich am 1.";
+  return "Custom";
+};
 
 export default function ReportsPage() {
-  const [tab, setTab] = useState("catalog");
-  const [category, setCategory] = useState("All");
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [tab, setTab] = useState<TabKey>("dashboard");
+  const [loading, setLoading] = useState(true);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [deliveries, setDeliveries] = useState<Record<string, Delivery[]>>({});
 
-  // Dialog state
-  const [generateReport, setGenerateReport] = useState<Report | null>(null);
-  const [generateParams, setGenerateParams] = useState<Record<string, string>>({});
-  const [generateFormat, setGenerateFormat] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [search, setSearch] = useState("");
 
-  const [scheduleReport, setScheduleReport] = useState<Report | null>(null);
+  const [runDialog, setRunDialog] = useState<Report | null>(null);
+  const [runFormat, setRunFormat] = useState("csv");
+  const [runParams, setRunParams] = useState<Record<string, string>>({});
+  const [running, setRunning] = useState(false);
+
+  const [scheduleDialog, setScheduleDialog] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({
-    name: "", cron: "", delivery: "download", config: "", format: "",
+    reportId: "",
+    name: "",
+    cron: "0 8 * * *",
+    outputFormat: "pdf",
+    deliveryMethod: "email",
+    email: "",
+    enabled: true,
   });
-  const [scheduling, setScheduling] = useState(false);
 
-  // ─── Data fetching ─────────────────────────────────────────────────
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyStatus, setHistoryStatus] = useState("all");
+  const [historyReport, setHistoryReport] = useState("all");
 
-  const fetchAll = useCallback(async () => {
-    const [catalogRes, execRes, schedRes, statsRes] = await Promise.all([
-      apiClient.get<{ reports: Report[] }>("/reports/catalog"),
-      apiClient.get<{ executions: Execution[] }>("/reports/executions"),
-      apiClient.get<{ schedules: Schedule[] }>("/reports/schedules"),
-      apiClient.get<Stats>("/reports/stats", { showErrorToast: false }),
+  const loadAll = useCallback(async () => {
+    const [dash, catalog, execs, sched] = await Promise.all([
+      apiClient.get<DashboardData>("/reports/executive-dashboard", { camelCase: true }),
+      apiClient.get<Report[]>("/reports/catalog", { camelCase: true }),
+      apiClient.get<Execution[]>("/reports/executions", { camelCase: true }),
+      apiClient.get<Schedule[]>("/reports/schedules", { camelCase: true }),
     ]);
-    if (catalogRes?.reports) setReports(catalogRes.reports);
-    if (execRes?.executions) setExecutions(execRes.executions);
-    if (schedRes?.schedules) setSchedules(schedRes.schedules);
-    if (statsRes) setStats(statsRes);
+    if (dash) setDashboard(dash);
+    if (catalog) setReports(catalog);
+    if (execs) setExecutions(execs);
+    if (sched) setSchedules(sched);
     setLoading(false);
   }, []);
 
-  const fetchExecutions = useCallback(async () => {
-    const res = await apiClient.get<{ executions: Execution[] }>("/reports/executions", { showErrorToast: false });
-    if (res?.executions) setExecutions(res.executions);
+  useEffect(() => {
+    const run = async () => {
+      await loadAll();
+    };
+    void run();
+  }, [loadAll]);
+
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      const dash = await apiClient.get<DashboardData>("/reports/executive-dashboard", { camelCase: true, showErrorToast: false });
+      if (dash) setDashboard(dash);
+    }, 60_000);
+    return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const filteredReports = useMemo(() => {
+    return reports.filter((r) => {
+      const catOk = selectedCategory === "All" || r.category === selectedCategory;
+      const s = search.toLowerCase();
+      const searchOk = !s || r.name.toLowerCase().includes(s) || r.description?.toLowerCase().includes(s);
+      return catOk && searchOk;
+    });
+  }, [reports, selectedCategory, search]);
 
-  // Poll executions while any are running
-  useEffect(() => {
-    const hasRunning = executions.some((e) => e.status === "running" || e.status === "pending");
-    if (!hasRunning) return;
-    const interval = setInterval(fetchExecutions, 3000);
-    return () => clearInterval(interval);
-  }, [executions, fetchExecutions]);
-
-  // ─── Actions ───────────────────────────────────────────────────────
-
-  const openGenerate = (report: Report) => {
-    setGenerateReport(report);
-    const defaults: Record<string, string> = {};
-    report.parameters?.forEach((p) => { if (p.default) defaults[p.name] = p.default; });
-    setGenerateParams(defaults);
-    setGenerateFormat(report.output_formats?.[0] || "pdf");
+  const openRun = (r: Report) => {
+    setRunDialog(r);
+    setRunFormat(r.outputFormats?.includes("pdf") ? "pdf" : "csv");
+    setRunParams({});
   };
 
   const executeReport = async () => {
-    if (!generateReport) return;
-    setGenerating(true);
-    const res = await apiClient.post<{ executionId: string; status: string }>("/reports/execute", {
-      reportId: generateReport.id,
-      parameters: Object.keys(generateParams).length > 0 ? generateParams : undefined,
-      outputFormat: generateFormat,
+    if (!runDialog) return;
+    setRunning(true);
+    const created = await apiClient.post<{ id: string; status: string }>("/reports/execute", {
+      slug: runDialog.slug,
+      output_format: runFormat,
+      parameters: runParams,
     });
-    setGenerating(false);
-    if (res) {
-      setGenerateReport(null);
-      setTab("history");
-      fetchExecutions();
+    if (!created) {
+      setRunning(false);
+      return;
     }
-  };
 
-  const openSchedule = (report?: Report) => {
-    setScheduleReport(report || null);
-    setScheduleForm({
-      name: "",
-      cron: "0 8 * * *",
-      delivery: "download",
-      config: "",
-      format: report?.output_formats?.[0] || "pdf",
-    });
+    toast.info("Report wird generiert...");
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const exec = await apiClient.get<Execution>(`/reports/executions/${created.id}`, { camelCase: true, showErrorToast: false });
+      if (!exec) continue;
+      if (exec.status === "completed") {
+        toast.success("Report fertig — Download startet");
+        window.open(`${API_BASE}/reports/executions/${exec.id}/download`, "_blank");
+        break;
+      }
+      if (exec.status === "failed") {
+        toast.error("Report fehlgeschlagen");
+        break;
+      }
+    }
+
+    setRunDialog(null);
+    setRunning(false);
+    const execs = await apiClient.get<Execution[]>("/reports/executions", { camelCase: true, showErrorToast: false });
+    if (execs) setExecutions(execs);
   };
 
   const createSchedule = async () => {
-    if (!scheduleReport) return;
-    setScheduling(true);
-    const body: Record<string, unknown> = {
-      report_id: scheduleReport.id,
-      name: scheduleForm.name || `${scheduleReport.name} Schedule`,
+    const body = {
+      report_id: scheduleForm.reportId,
+      name: scheduleForm.name || "Scheduled Report",
       cron_expression: scheduleForm.cron,
-      delivery_method: scheduleForm.delivery,
-      output_format: scheduleForm.format,
+      output_format: scheduleForm.outputFormat,
+      delivery_method: scheduleForm.deliveryMethod,
+      delivery_config: scheduleForm.deliveryMethod === "email" ? { email: scheduleForm.email } : {},
+      enabled: scheduleForm.enabled,
+      parameters: {},
     };
-    if (scheduleForm.delivery === "email") body.delivery_config = { email: scheduleForm.config };
-    if (scheduleForm.delivery === "webhook") body.delivery_config = { url: scheduleForm.config };
     const res = await apiClient.post("/reports/schedules", body);
-    setScheduling(false);
     if (res) {
-      setScheduleReport(null);
-      setTab("schedules");
-      const schedRes = await apiClient.get<{ schedules: Schedule[] }>("/reports/schedules");
-      if (schedRes?.schedules) setSchedules(schedRes.schedules);
+      toast.success("Schedule erstellt");
+      setScheduleDialog(false);
+      const sched = await apiClient.get<Schedule[]>("/reports/schedules", { camelCase: true });
+      if (sched) setSchedules(sched);
     }
   };
 
-  const deleteSchedule = async (id: string) => {
-    await apiClient.delete(`/api/v1/reports/schedules/${id}`);
-    setSchedules((prev) => prev.filter((s) => s.id !== id));
+  const runNow = async (id: string) => {
+    const ok = await apiClient.post(`/reports/schedules/${id}/run-now`, {});
+    if (ok) toast.success("Run now gestartet");
   };
 
-  const downloadExecution = (id: string) => {
-    window.open(`${API_BASE}/api/v1/reports/executions/${id}/download`);
+  const toggleSchedule = async (s: Schedule) => {
+    const updated = await apiClient.put<Schedule>(`/reports/schedules/${s.id}`, { enabled: !s.enabled }, { camelCase: true });
+    if (updated) {
+      setSchedules((prev) => prev.map((x) => (x.id === s.id ? updated : x)));
+      toast.success(`Schedule ${updated.enabled ? "aktiviert" : "deaktiviert"}`);
+    }
   };
 
-  // ─── Filtered reports ──────────────────────────────────────────────
+  const loadDeliveries = async (id: string) => {
+    const rows = await apiClient.get<Delivery[]>(`/reports/schedules/${id}/deliveries`, { camelCase: true, showErrorToast: false });
+    if (rows) setDeliveries((prev) => ({ ...prev, [id]: rows }));
+  };
 
-  const filtered = category === "All" ? reports : reports.filter((r) => r.category === category);
+  const historyFiltered = useMemo(() => {
+    const out = executions.filter((e) => {
+      if (historyStatus !== "all" && e.status !== historyStatus) return false;
+      if (historyReport !== "all" && e.reportId !== historyReport) return false;
+      return true;
+    });
+    return out;
+  }, [executions, historyReport, historyStatus]);
 
-  // Report name lookup
-  const reportName = (id: string) => reports.find((r) => r.id === id)?.name || id;
-
-  // ─── Render ────────────────────────────────────────────────────────
+  const paged = historyFiltered.slice((historyPage - 1) * 20, historyPage * 20);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
-      </div>
-    );
+    return <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-32 rounded-xl bg-zinc-900 animate-pulse" />)}</div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-          <FileText className="h-6 w-6" /> Reports
-        </h1>
-        <p className="text-zinc-400 mt-1">Enterprise Reporting Suite</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-6 w-6" /> Enterprise Reporting Suite</h1>
+          <p className="text-zinc-400">E35 Dashboard, Catalog, Schedules & History</p>
+        </div>
+        <Button variant="outline" onClick={loadAll}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
       </div>
 
-      {/* Stats Row */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: "Total Reports", value: stats.totalReports, icon: <FileText className="h-4 w-4" /> },
-            { label: "Scheduled", value: stats.totalSchedules, icon: <Calendar className="h-4 w-4" /> },
-            { label: "Executions This Week", value: stats.executionsThisWeek, icon: <Play className="h-4 w-4" /> },
-            { label: "Avg Duration", value: `${stats.avgDuration}s`, icon: <Clock className="h-4 w-4" /> },
-          ].map((s) => (
-            <Card key={s.label} className="bg-zinc-900 border-zinc-800">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="text-zinc-400">{s.icon}</div>
-                <div>
-                  <div className="text-xl font-bold text-zinc-100">{s.value}</div>
-                  <div className="text-xs text-zinc-400">{s.label}</div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((t) => (
+          <Button key={t.id} variant={tab === t.id ? "default" : "outline"} onClick={() => setTab(t.id)}>
+            {t.icon}<span className="ml-2">{t.label}</span>
+          </Button>
+        ))}
+      </div>
 
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="bg-zinc-800 border-zinc-700">
-          <TabsTrigger value="catalog">Catalog</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="schedules">Schedules</TabsTrigger>
-        </TabsList>
+      <AnimatePresence mode="wait">
+        <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+          {tab === "dashboard" && dashboard && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {[{ l: "Total Nodes", v: dashboard.kpis.totalNodes, i: <Server className="h-4 w-4" /> }, { l: "Online", v: dashboard.kpis.onlineNodes, i: <Zap className="h-4 w-4" /> }, { l: "Critical Vulns", v: dashboard.kpis.criticalVulns, i: <Shield className="h-4 w-4" /> }, { l: "Open Findings", v: dashboard.kpis.openFindings, i: <FileText className="h-4 w-4" /> }, { l: "Patch Compliance", v: `${dashboard.kpis.patchCompliancePct}%`, i: <TrendingUp className="h-4 w-4" /> }].map((k) => (
+                  <Card key={k.l}><CardContent className="p-4"><div className="text-zinc-400">{k.i}</div><div className="text-xl font-bold">{k.v}</div><div className="text-xs text-zinc-400">{k.l}</div></CardContent></Card>
+                ))}
+              </div>
 
-        {/* ─── Catalog Tab ──────────────────────────────────────────── */}
-        <TabsContent value="catalog" className="space-y-4">
-          {/* Category filter pills */}
-          <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map((cat) => (
-              <Button
-                key={cat}
-                variant={category === cat ? "default" : "outline"}
-                size="sm"
-                onClick={() => setCategory(cat)}
-                className={category === cat
-                  ? "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
-                  : "border-zinc-700 text-zinc-400 hover:text-zinc-100"
-                }
-              >
-                {cat !== "All" && <span className="mr-1">{CATEGORY_ICONS[cat]}</span>}
-                {cat}
-              </Button>
-            ))}
-          </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Card><CardHeader><CardTitle>7-Day Trend</CardTitle></CardHeader><CardContent className="h-72"><ResponsiveContainer width="100%" height="100%"><LineChart data={dashboard.trend7d}><XAxis dataKey="date" /><YAxis /><Tooltip /><Line dataKey="online" stroke="#22c55e" strokeWidth={2} /><Line dataKey="alerts" stroke="#ef4444" strokeWidth={2} /></LineChart></ResponsiveContainer></CardContent></Card>
+                <Card><CardHeader><CardTitle>Patch Status</CardTitle></CardHeader><CardContent className="h-72"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: "Up to date", value: dashboard.patchStatus.upToDate }, { name: "Updates", value: dashboard.patchStatus.updatesAvailable }, { name: "Critical", value: dashboard.patchStatus.criticalUpdates }]} dataKey="value" nameKey="name" innerRadius={60} outerRadius={95}>
+                  {[0, 1, 2].map((i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
+                </Pie><Tooltip /></PieChart></ResponsiveContainer></CardContent></Card>
+              </div>
 
-          {/* Report cards grid */}
-          {filtered.length === 0 ? (
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardContent className="p-8 text-center text-zinc-400">
-                No reports available in this category.
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((report) => (
-                <Card key={report.id} className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-colors">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2 text-zinc-300">
-                        {CATEGORY_ICONS[report.category] || <FileText className="h-5 w-5" />}
-                        <CardTitle className="text-base text-zinc-100">{report.name}</CardTitle>
-                      </div>
-                    </div>
-                    <CardDescription className="text-zinc-400 text-sm mt-1">
-                      {report.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center justify-between">
-                      <div className="flex gap-1">
-                        {report.output_formats?.map((fmt) => (
-                          <Badge key={fmt} variant="outline" className="text-xs border-zinc-700 text-zinc-400">
-                            {fmt.toUpperCase()}
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="border-zinc-700 text-zinc-300 hover:text-zinc-100"
-                          onClick={() => openSchedule(report)}>
-                          <Calendar className="h-3.5 w-3.5 mr-1" /> Schedule
-                        </Button>
-                        <Button size="sm" onClick={() => openGenerate(report)}>
-                          <Play className="h-3.5 w-3.5 mr-1" /> Generate
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Card><CardHeader><CardTitle>Top Vulnerabilities</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>CVE</TableHead><TableHead>Severity</TableHead><TableHead>Affected</TableHead></TableRow></TableHeader><TableBody>{dashboard.topVulnerabilities.map((v) => <TableRow key={v.cve}><TableCell>{v.cve}</TableCell><TableCell><Badge>{v.severity}</Badge></TableCell><TableCell>{v.affectedNodes}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+                <Card><CardHeader><CardTitle>Recent Jobs</CardTitle></CardHeader><CardContent><div className="space-y-2">{dashboard.recentJobs.map((j, i) => <div key={`${j.name}-${i}`} className="p-2 rounded border border-zinc-800"><div className="font-medium">{j.name}</div><div className="text-xs text-zinc-400">{j.status} • Nodes: {j.nodeCount} • {fmtDate(j.createdAt)}</div></div>)}</div></CardContent></Card>
+              </div>
             </div>
           )}
-        </TabsContent>
 
-        {/* ─── History Tab ──────────────────────────────────────────── */}
-        <TabsContent value="history">
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-0">
-              {executions.length === 0 ? (
-                <div className="p-8 text-center text-zinc-400">
-                  No report executions yet. Generate a report from the Catalog tab.
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-zinc-800 hover:bg-transparent">
-                      <TableHead className="text-zinc-400">Report</TableHead>
-                      <TableHead className="text-zinc-400">Format</TableHead>
-                      <TableHead className="text-zinc-400">Status</TableHead>
-                      <TableHead className="text-zinc-400">Size</TableHead>
-                      <TableHead className="text-zinc-400">Started</TableHead>
-                      <TableHead className="text-zinc-400">Duration</TableHead>
-                      <TableHead className="text-zinc-400 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {executions.map((exec) => (
-                      <TableRow key={exec.id} className="border-zinc-800">
-                        <TableCell className="text-zinc-200">{exec.report_name || reportName(exec.report_id)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-zinc-700 text-zinc-400">
-                            {exec.output_format?.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`${statusColor(exec.status)} border`}>
-                            {exec.status === "running" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                            {exec.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-zinc-400">{formatBytes(exec.file_size_bytes)}</TableCell>
-                        <TableCell className="text-zinc-400">{formatDate(exec.started_at)}</TableCell>
-                        <TableCell className="text-zinc-400">{formatDuration(exec.started_at, exec.completed_at)}</TableCell>
-                        <TableCell className="text-right">
-                          {exec.status === "completed" && (
-                            <Button size="sm" variant="ghost" className="text-zinc-400 hover:text-zinc-100"
-                              onClick={() => downloadExecution(exec.id)}>
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+          {tab === "catalog" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map((c) => <Button key={c} variant={selectedCategory === c ? "default" : "outline"} onClick={() => setSelectedCategory(c)}>{c}</Button>)}
+                <Input className="max-w-sm" placeholder="Search report..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredReports.map((r) => (
+                  <Card key={r.id}>
+                    <CardHeader>
+                      <CardTitle className="text-base">{r.name}</CardTitle>
+                      <CardDescription>{r.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <Badge>{r.category}</Badge>
+                        <div className="flex gap-1">{r.outputFormats?.map((f) => <Badge key={f} variant="outline">{f.toUpperCase()}</Badge>)}</div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button className="flex-1" onClick={() => openRun(r)}><Play className="h-4 w-4 mr-2" />Generate</Button>
+                        <Button variant="outline" className="flex-1" onClick={() => { setScheduleDialog(true); setScheduleForm((x) => ({ ...x, reportId: r.id, outputFormat: r.outputFormats?.[0] || "pdf", name: `${r.name} Schedule` })); }}><Calendar className="h-4 w-4 mr-2" />Schedule</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
-        {/* ─── Schedules Tab ────────────────────────────────────────── */}
-        <TabsContent value="schedules" className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={() => openSchedule(reports[0])} disabled={reports.length === 0}>
-              <Plus className="h-4 w-4 mr-1" /> New Schedule
-            </Button>
-          </div>
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-0">
-              {schedules.length === 0 ? (
-                <div className="p-8 text-center text-zinc-400">
-                  No schedules configured yet. Create one from the Catalog or use the button above.
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-zinc-800 hover:bg-transparent">
-                      <TableHead className="text-zinc-400">Name</TableHead>
-                      <TableHead className="text-zinc-400">Report</TableHead>
-                      <TableHead className="text-zinc-400">Cron</TableHead>
-                      <TableHead className="text-zinc-400">Delivery</TableHead>
-                      <TableHead className="text-zinc-400">Enabled</TableHead>
-                      <TableHead className="text-zinc-400">Last Run</TableHead>
-                      <TableHead className="text-zinc-400">Next Run</TableHead>
-                      <TableHead className="text-zinc-400 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {schedules.map((sched) => (
-                      <TableRow key={sched.id} className="border-zinc-800">
-                        <TableCell className="text-zinc-200 font-medium">{sched.name}</TableCell>
-                        <TableCell className="text-zinc-300">{sched.report_name || reportName(sched.report_id)}</TableCell>
-                        <TableCell>
-                          <code className="text-xs bg-zinc-800 px-2 py-0.5 rounded text-zinc-300">{sched.cron_expression}</code>
-                        </TableCell>
-                        <TableCell className="text-zinc-400 capitalize">{sched.delivery_method}</TableCell>
-                        <TableCell>
-                          <Badge className={sched.enabled
-                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                            : "bg-zinc-500/20 text-zinc-400 border border-zinc-500/30"
-                          }>
-                            {sched.enabled ? "Active" : "Disabled"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-zinc-400">{formatDate(sched.last_run_at)}</TableCell>
-                        <TableCell className="text-zinc-400">{formatDate(sched.next_run_at)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300"
-                            onClick={() => deleteSchedule(sched.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* ─── Generate Report Dialog ───────────────────────────────────── */}
-      <Dialog open={!!generateReport} onOpenChange={(open) => !open && setGenerateReport(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{generateReport?.name}</DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              Configure parameters and generate this report.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {generateReport?.parameters?.map((param) => (
-              <div key={param.name} className="space-y-1.5">
-                <Label className="text-zinc-300">{param.label}</Label>
-                {param.type === "select" && param.options ? (
-                  <Select
-                    value={generateParams[param.name] || ""}
-                    onValueChange={(v) => setGenerateParams((p) => ({ ...p, [param.name]: v }))}
-                  >
-                    <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200">
-                      <SelectValue placeholder={`Select ${param.label}`} />
-                    </SelectTrigger>
-                    <SelectContent className="bg-zinc-800 border-zinc-700">
-                      {param.options.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          {tab === "schedules" && (
+            <div className="space-y-4">
+              <div className="flex justify-end"><Button onClick={() => setScheduleDialog(true)}><Calendar className="h-4 w-4 mr-2" />New Schedule</Button></div>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Report</TableHead><TableHead>Cron</TableHead><TableHead>Delivery</TableHead><TableHead>Last</TableHead><TableHead>Next</TableHead><TableHead>Enabled</TableHead><TableHead /></TableRow></TableHeader>
+                    <TableBody>
+                      {schedules.map((s) => (
+                        <Fragment key={s.id}>
+                          <TableRow>
+                            <TableCell>{s.reportName || s.reportId}</TableCell>
+                            <TableCell><code>{s.cronExpression}</code><div className="text-xs text-zinc-400">{cronHint(s.cronExpression)}</div></TableCell>
+                            <TableCell className="capitalize flex items-center gap-1">{s.deliveryMethod === "email" && <Mail className="h-3 w-3" />}{s.deliveryMethod}</TableCell>
+                            <TableCell>{fmtDate(s.lastRunAt)}</TableCell>
+                            <TableCell>{fmtDate(s.nextRunAt)}</TableCell>
+                            <TableCell><input type="checkbox" checked={s.enabled} onChange={() => toggleSchedule(s)} /></TableCell>
+                            <TableCell className="space-x-2">
+                              <Button size="sm" variant="outline" onClick={() => runNow(s.id)}>Run now</Button>
+                              <Button size="sm" variant="ghost" onClick={() => loadDeliveries(s.id)}>History</Button>
+                            </TableCell>
+                          </TableRow>
+                          {deliveries[s.id]?.length ? (
+                            <TableRow key={`${s.id}-deliveries`}>
+                              <TableCell colSpan={7}>
+                                <div className="space-y-1 text-sm">
+                                  {deliveries[s.id].slice(0, 10).map((d) => (
+                                    <div key={d.id} className="flex justify-between border-b border-zinc-800 py-1">
+                                      <span>{fmtDate(d.deliveredAt)}</span>
+                                      <span>{d.deliveryStatus}</span>
+                                      <span className="text-zinc-400">{d.executionStatus}</span>
+                                      <span className="text-red-400">{d.errorMessage || ""}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ) : null}
+                        </Fragment>
                       ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    type={param.type === "date" ? "date" : param.type === "number" ? "number" : "text"}
-                    value={generateParams[param.name] || ""}
-                    onChange={(e) => setGenerateParams((p) => ({ ...p, [param.name]: e.target.value }))}
-                    className="bg-zinc-800 border-zinc-700 text-zinc-200"
-                    placeholder={param.label}
-                  />
-                )}
-              </div>
-            ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-            {/* Output format */}
-            {generateReport && generateReport.output_formats?.length > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-zinc-300">Output Format</Label>
-                <div className="flex gap-3">
-                  {generateReport.output_formats.map((fmt) => (
-                    <label key={fmt} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="outputFormat"
-                        value={fmt}
-                        checked={generateFormat === fmt}
-                        onChange={() => setGenerateFormat(fmt)}
-                        className="accent-zinc-100"
-                      />
-                      <span className="text-zinc-300 text-sm">{fmt.toUpperCase()}</span>
-                    </label>
-                  ))}
-                </div>
+          {tab === "history" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Select value={historyStatus} onValueChange={setHistoryStatus}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All Status</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="running">Running</SelectItem><SelectItem value="failed">Failed</SelectItem></SelectContent></Select>
+                <Select value={historyReport} onValueChange={setHistoryReport}><SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All Reports</SelectItem>{reports.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent></Select>
+                <Button variant="outline" onClick={() => toast.info("Bulk delete kommt als nächster Schritt")}>Bulk delete old</Button>
               </div>
-            )}
+              <Card><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Report</TableHead><TableHead>Status</TableHead><TableHead>Format</TableHead><TableHead>Size</TableHead><TableHead>Generated</TableHead><TableHead /></TableRow></TableHeader><TableBody>{paged.map((e) => <TableRow key={e.id}><TableCell>{e.reportName || e.reportId}</TableCell><TableCell><Badge>{e.status}</Badge></TableCell><TableCell>{e.outputFormat}</TableCell><TableCell>{fmtBytes(e.fileSizeBytes)}</TableCell><TableCell>{fmtDate(e.createdAt)}</TableCell><TableCell>{e.status === "completed" ? <Button size="sm" variant="outline" onClick={() => window.open(`${API_BASE}/reports/executions/${e.id}/download`, "_blank")}><Download className="h-4 w-4" /></Button> : null}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+              <div className="flex justify-end gap-2"><Button variant="outline" disabled={historyPage <= 1} onClick={() => setHistoryPage((p) => p - 1)}>Prev</Button><Button variant="outline" disabled={historyPage * 20 >= historyFiltered.length} onClick={() => setHistoryPage((p) => p + 1)}>Next</Button></div>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      <Dialog open={!!runDialog} onOpenChange={(v) => !v && setRunDialog(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Run Report</DialogTitle><DialogDescription>{runDialog?.name}</DialogDescription></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Output format</Label><Select value={runFormat} onValueChange={setRunFormat}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pdf">PDF</SelectItem><SelectItem value="csv">CSV</SelectItem></SelectContent></Select></div>
+            {runDialog?.parameters?.map((p) => (
+              <div key={p.name}><Label>{p.label || p.name}</Label><Input value={runParams[p.name] || ""} onChange={(e) => setRunParams((prev) => ({ ...prev, [p.name]: e.target.value }))} /></div>
+            ))}
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="border-zinc-700 text-zinc-300" onClick={() => setGenerateReport(null)}>
-              Cancel
-            </Button>
-            <Button onClick={executeReport} disabled={generating}>
-              {generating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-              Generate
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setRunDialog(null)}>Cancel</Button><Button onClick={executeReport} disabled={running}><Play className="h-4 w-4 mr-2" />Generate</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ─── Schedule Dialog ──────────────────────────────────────────── */}
-      <Dialog open={!!scheduleReport} onOpenChange={(open) => !open && setScheduleReport(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Schedule Report</DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              {scheduleReport ? `Schedule "${scheduleReport.name}" for automated generation.` : "Configure a report schedule."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {/* Report selector if needed */}
-            {reports.length > 1 && (
-              <div className="space-y-1.5">
-                <Label className="text-zinc-300">Report</Label>
-                <Select
-                  value={scheduleReport?.id || ""}
-                  onValueChange={(v) => {
-                    const r = reports.find((r) => r.id === v);
-                    if (r) setScheduleReport(r);
-                  }}
-                >
-                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-800 border-zinc-700">
-                    {reports.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label className="text-zinc-300">Schedule Name</Label>
-              <Input
-                value={scheduleForm.name}
-                onChange={(e) => setScheduleForm((f) => ({ ...f, name: e.target.value }))}
-                className="bg-zinc-800 border-zinc-700 text-zinc-200"
-                placeholder="e.g. Weekly Fleet Report"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-zinc-300">Cron Expression</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={scheduleForm.cron}
-                  onChange={(e) => setScheduleForm((f) => ({ ...f, cron: e.target.value }))}
-                  className="bg-zinc-800 border-zinc-700 text-zinc-200 flex-1"
-                  placeholder="0 8 * * *"
-                />
-                <Select
-                  value=""
-                  onValueChange={(v) => setScheduleForm((f) => ({ ...f, cron: v }))}
-                >
-                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200 w-[140px]">
-                    <SelectValue placeholder="Presets" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-800 border-zinc-700">
-                    {CRON_PRESETS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-zinc-300">Delivery Method</Label>
-              <Select
-                value={scheduleForm.delivery}
-                onValueChange={(v) => setScheduleForm((f) => ({ ...f, delivery: v, config: "" }))}
-              >
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  <SelectItem value="download">Download Only</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="webhook">Webhook</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {scheduleForm.delivery === "email" && (
-              <div className="space-y-1.5">
-                <Label className="text-zinc-300">Email Address</Label>
-                <Input
-                  type="email"
-                  value={scheduleForm.config}
-                  onChange={(e) => setScheduleForm((f) => ({ ...f, config: e.target.value }))}
-                  className="bg-zinc-800 border-zinc-700 text-zinc-200"
-                  placeholder="admin@example.com"
-                />
-              </div>
-            )}
-
-            {scheduleForm.delivery === "webhook" && (
-              <div className="space-y-1.5">
-                <Label className="text-zinc-300">Webhook URL</Label>
-                <Input
-                  type="url"
-                  value={scheduleForm.config}
-                  onChange={(e) => setScheduleForm((f) => ({ ...f, config: e.target.value }))}
-                  className="bg-zinc-800 border-zinc-700 text-zinc-200"
-                  placeholder="https://hooks.example.com/..."
-                />
-              </div>
-            )}
-
-            {/* Output format */}
-            {scheduleReport && scheduleReport.output_formats?.length > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-zinc-300">Output Format</Label>
-                <div className="flex gap-3">
-                  {scheduleReport.output_formats.map((fmt) => (
-                    <label key={fmt} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="scheduleFormat"
-                        value={fmt}
-                        checked={scheduleForm.format === fmt}
-                        onChange={() => setScheduleForm((f) => ({ ...f, format: fmt }))}
-                        className="accent-zinc-100"
-                      />
-                      <span className="text-zinc-300 text-sm">{fmt.toUpperCase()}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
+      <Dialog open={scheduleDialog} onOpenChange={setScheduleDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>New Schedule</DialogTitle><DialogDescription>Create recurring report delivery</DialogDescription></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Report</Label><Select value={scheduleForm.reportId} onValueChange={(v) => setScheduleForm((s) => ({ ...s, reportId: v }))}><SelectTrigger><SelectValue placeholder="Select report" /></SelectTrigger><SelectContent>{reports.map((r) => <SelectItem value={r.id} key={r.id}>{r.name}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>Name</Label><Input value={scheduleForm.name} onChange={(e) => setScheduleForm((s) => ({ ...s, name: e.target.value }))} /></div>
+            <div><Label>Cron Expression</Label><Input value={scheduleForm.cron} onChange={(e) => setScheduleForm((s) => ({ ...s, cron: e.target.value }))} /></div>
+            <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => setScheduleForm((s) => ({ ...s, cron: "0 8 * * *" }))}>Daily</Button><Button type="button" variant="outline" onClick={() => setScheduleForm((s) => ({ ...s, cron: "0 8 * * 1" }))}>Weekly</Button><Button type="button" variant="outline" onClick={() => setScheduleForm((s) => ({ ...s, cron: "0 8 1 * *" }))}>Monthly</Button></div>
+            <div><Label>Output</Label><Select value={scheduleForm.outputFormat} onValueChange={(v) => setScheduleForm((s) => ({ ...s, outputFormat: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pdf">PDF</SelectItem><SelectItem value="csv">CSV</SelectItem></SelectContent></Select></div>
+            <div><Label>Delivery</Label><Select value={scheduleForm.deliveryMethod} onValueChange={(v) => setScheduleForm((s) => ({ ...s, deliveryMethod: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="download">Download</SelectItem></SelectContent></Select></div>
+            {scheduleForm.deliveryMethod === "email" && <div><Label>Email</Label><Input type="email" value={scheduleForm.email} onChange={(e) => setScheduleForm((s) => ({ ...s, email: e.target.value }))} /></div>}
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="border-zinc-700 text-zinc-300" onClick={() => setScheduleReport(null)}>
-              Cancel
-            </Button>
-            <Button onClick={createSchedule} disabled={scheduling}>
-              {scheduling ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calendar className="h-4 w-4 mr-1" />}
-              Create Schedule
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setScheduleDialog(false)}>Cancel</Button><Button onClick={createSchedule}>Create</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
