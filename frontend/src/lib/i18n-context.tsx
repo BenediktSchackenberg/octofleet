@@ -3,8 +3,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import de from "@/locales/de.json";
 import en from "@/locales/en.json";
+import es from "@/locales/es.json";
 
-type Locale = "de" | "en";
+type Locale = "de" | "en" | "es";
 type Translations = typeof de;
 
 interface I18nContextType {
@@ -13,7 +14,7 @@ interface I18nContextType {
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
-const translations: Record<Locale, Translations> = { de, en };
+const translations: Record<Locale, Translations> = { de, en, es };
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
@@ -32,7 +33,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     } else {
       // Auto-detect from browser
       const browserLang = navigator.language.split("-")[0];
-      if (browserLang === "de" || browserLang === "en") {
+      if (browserLang === "de" || browserLang === "en" || browserLang === "es") {
         setLocaleState(browserLang as Locale);
       }
     }
@@ -86,4 +87,5 @@ export function useI18n() {
 export const LANGUAGES: Record<Locale, string> = {
   de: "Deutsch",
   en: "English",
+  es: "Español",
 };
