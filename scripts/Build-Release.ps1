@@ -2,11 +2,16 @@
 # Builds and packages the Octofleet Windows Agent for release
 param(
     [Parameter(Mandatory=$true)]
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
     
     [switch]$CreateRelease,
     
-    [string]$OutputPath = ".\release"
+    [string]$OutputPath = ".\release",
+
+    [string]$SigningThumbprint,
+
+    [string]$TimestampServer = "http://time.certum.pl"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,20 +19,17 @@ $ErrorActionPreference = "Stop"
 # Find solution/project
 $projectPath = "$PSScriptRoot\..\src\OctofleetAgent.Service\OctofleetAgent.Service.csproj"
 if (-not (Test-Path $projectPath)) {
-    Write-Error "Project not found: $projectPath"
-    exit 1
+    throw "Project not found: $projectPath"
 }
 
 Write-Host "Building Octofleet Windows Agent v$Version..." -ForegroundColor Cyan
 
-# Clean output
-if (Test-Path $OutputPath) {
-    Remove-Item $OutputPath -Recurse -Force
-}
+# Use a new staging directory for every build. dotnet publish does not remove
+# unrelated files, so never package the repository's old publish directory.
 New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 
 # Build paths
-$publishPath = "$OutputPath\publish"
+$publishPath = Join-Path $OutputPath ("publish-" + [guid]::NewGuid().ToString('N'))
 $zipPath = "$OutputPath\OctofleetAgent-v$Version.zip"
 
 # Publish Service (self-contained, single file)
@@ -44,8 +46,7 @@ dotnet publish $projectPath `
     -o $publishPath
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Service build failed!"
-    exit 1
+    throw "Service build failed; refusing to package an incomplete release"
 }
 
 # Publish Screen Helper (self-contained, single file)
@@ -64,7 +65,7 @@ if (Test-Path $helperProjectPath) {
         -o $publishPath
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Screen Helper build failed - continuing without it"
+        throw "Screen Helper build failed; refusing to package an incomplete release"
     } else {
         Write-Host "Screen Helper included in release" -ForegroundColor Green
     }
@@ -73,9 +74,33 @@ if (Test-Path $helperProjectPath) {
 }
 
 # Copy installer script
-$installerSrc = "$PSScriptRoot\Install-OctofleetAgent.ps1"
-if (Test-Path $installerSrc) {
-    Copy-Item $installerSrc -Destination $publishPath
+$installerSrc = "$PSScriptRoot\..\Install-OctofleetAgent.ps1"
+Copy-Item -LiteralPath $installerSrc -Destination $publishPath
+
+# Fail before creating an archive if a legacy or unexpected agent is present.
+& "$PSScriptRoot\Test-AgentPackage.ps1" -Path $publishPath `
+    -RequireScreenHelper:(Test-Path $helperProjectPath)
+
+# Sign before packaging so the checksum covers the signed executables.
+if ($SigningThumbprint) {
+    $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if (-not $signtool) {
+        $signtool = Get-Item "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    }
+    if (-not $signtool) { throw 'signtool.exe not found; install the Windows SDK before signing' }
+
+    $executables = @(Get-ChildItem -LiteralPath $publishPath -Filter '*.exe' -File)
+    & $signtool sign /sha1 $SigningThumbprint /fd SHA256 /tr $TimestampServer /td SHA256 @($executables.FullName)
+    if ($LASTEXITCODE -ne 0) { throw 'Code signing failed; refusing to package an unsigned release' }
+    foreach ($executable in $executables) {
+        & $signtool verify /pa $executable.FullName
+        if ($LASTEXITCODE -ne 0) { throw "Signature verification failed: $($executable.Name)" }
+        $signature = Get-AuthenticodeSignature -LiteralPath $executable.FullName
+        if ($signature.SignerCertificate.Thumbprint -ne $SigningThumbprint -or -not $signature.TimeStamperCertificate) {
+            throw "Unexpected signer or missing timestamp: $($executable.Name)"
+        }
+    }
 }
 
 # Create ZIP
@@ -108,18 +133,18 @@ if ($CreateRelease) {
     $releaseNotes = @"
 ## Octofleet Windows Agent v$Version
 
-See [CHANGELOG.md](https://github.com/BenediktSchackenberg/octofleet-windows-agent/blob/main/CHANGELOG.md) for details.
+See [CHANGELOG.md](https://github.com/BenediktSchackenberg/octofleet/blob/main/CHANGELOG.md) for details.
 
 ### Installation
 ``````powershell
-irm https://github.com/BenediktSchackenberg/octofleet-windows-agent/releases/download/v$Version/Install-OctofleetAgent.ps1 | iex
+irm https://github.com/BenediktSchackenberg/octofleet/releases/download/v$Version/Install-OctofleetAgent.ps1 | iex
 ``````
 
 ### SHA256
 ``$hash``
 "@
     
-    gh release create "v$Version" $zipPath `
+    gh release create "v$Version" $zipPath "$OutputPath\OctofleetAgent-v$Version.sha256" $installerSrc `
         --title "v$Version" `
         --notes $releaseNotes
     

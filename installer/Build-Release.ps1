@@ -26,8 +26,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$serviceProject = Join-Path $repoRoot "src\OctofleetAgent.Service\OctofleetAgent.Service.csproj"
-$publishDir = Join-Path $repoRoot "publish"
+$releaseDir = Join-Path $repoRoot "release"
 $outputZip = Join-Path $repoRoot "OctofleetAgent.Service.zip"
 
 Write-Host "============================================" -ForegroundColor Cyan
@@ -36,22 +35,10 @@ Write-Host "  Version: $Version" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Step 1: Clean
-Write-Host "[1/4] Cleaning previous build..." -ForegroundColor Green
-if (Test-Path $publishDir) { Remove-Item -Path $publishDir -Recurse -Force }
-if (Test-Path $outputZip) { Remove-Item -Path $outputZip -Force }
-
-# Step 2: Build
-Write-Host "[2/4] Building Release..." -ForegroundColor Green
-dotnet publish $serviceProject -c Release -o $publishDir --self-contained false
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Build failed!" -ForegroundColor Red
-    exit 1
-}
-
-# Step 3: Create ZIP
-Write-Host "[3/4] Creating ZIP package..." -ForegroundColor Green
-Compress-Archive -Path "$publishDir\*" -DestinationPath $outputZip -Force
+# Use the same isolated, validated packaging path as CI.
+Write-Host "[1/4] Building and validating Release..." -ForegroundColor Green
+& (Join-Path $repoRoot "scripts\Build-Release.ps1") -Version $Version -OutputPath $releaseDir
+Copy-Item -LiteralPath (Join-Path $releaseDir "OctofleetAgent-v$Version.zip") -Destination $outputZip -Force
 $zipSize = (Get-Item $outputZip).Length / 1MB
 Write-Host "  Created: $outputZip ($([math]::Round($zipSize, 2)) MB)" -ForegroundColor Gray
 

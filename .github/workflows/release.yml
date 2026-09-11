@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (e.g., 0.4.18)'
+        description: 'Version number (e.g., 0.7.1)'
         required: true
 
 permissions:
@@ -16,111 +16,58 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      
+
       - name: Get version
         id: version
         shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          if ("${{ github.event.inputs.version }}") {
-            $version = "${{ github.event.inputs.version }}"
-          } else {
-            $version = "${{ github.ref_name }}".TrimStart('v')
-          }
-          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Building version: $version"
-      
-      - name: Build Agent Service
+          $version = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } else { $env:GITHUB_REF_NAME.TrimStart('v') }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
+          "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Test and package agent
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          $projectPath = "src\OctofleetAgent.Service\OctofleetAgent.Service.csproj"
-          
-          dotnet publish $projectPath `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:Version=$version `
-            -p:AssemblyVersion="$version.0" `
-            -p:FileVersion="$version.0" `
-            -o ./publish
-      
-      - name: Build Screen Helper
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          $helperPath = "src\OctofleetScreenHelper\OctofleetScreenHelper.csproj"
-          
-          if (Test-Path $helperPath) {
-            Write-Host "Building Screen Helper..."
-            dotnet publish $helperPath `
-              -c Release `
-              -r win-x64 `
-              --self-contained true `
-              -p:PublishSingleFile=true `
-              -p:IncludeNativeLibrariesForSelfExtract=true `
-              -p:Version=$version `
-              -p:AssemblyVersion="$version.0" `
-              -p:FileVersion="$version.0" `
-              -o ./publish
-            Write-Host "Screen Helper built successfully"
-          } else {
-            Write-Host "Screen Helper project not found - skipping"
-          }
-      
-      - name: Copy Installer Script
-        shell: pwsh
-        run: |
-          if (Test-Path "scripts\Install-OctofleetAgent.ps1") {
-            Copy-Item "scripts\Install-OctofleetAgent.ps1" -Destination ./publish/
-          }
-      
-      - name: Create ZIP
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          Compress-Archive -Path "./publish/*" -DestinationPath "./OctofleetAgent-v$version.zip"
-          $hash = (Get-FileHash "./OctofleetAgent-v$version.zip" -Algorithm SHA256).Hash
-          echo "SHA256=$hash" >> $env:GITHUB_OUTPUT
-          $hash | Out-File "./OctofleetAgent-v$version.sha256" -NoNewline
-          Write-Host "SHA256: $hash"
-        id: zip
-      
+          ./tests/windows/Release-Package.Tests.ps1
+          dotnet run --project tests/OctofleetAgent.Inventory.Tests -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Browser inventory regression tests failed' }
+          ./scripts/Build-Release.ps1 -Version $env:RELEASE_VERSION -OutputPath ./release
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
-            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./Install-OctofleetAgent.ps1
           body: |
             ## Octofleet Windows Agent v${{ steps.version.outputs.VERSION }}
-            
+
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-            
+
             ### Quick Install
             ```powershell
             irm https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/Install-OctofleetAgent.ps1 | iex
             ```
-            
-            ### SHA256
-            `${{ steps.zip.outputs.SHA256 }}`
-      
+
+            The SHA256 checksum is included in the attached `.sha256` file.
+
       - name: Upload Artifact (manual trigger)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: OctofleetAgent-v${{ steps.version.outputs.VERSION }}
           path: |
-            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
-            ./OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./Install-OctofleetAgent.ps1

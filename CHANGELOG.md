@@ -5,6 +5,13 @@ All notable changes to Octofleet will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-09-11
+
+### Fixed
+- Browser inventory no longer creates or deletes VSS snapshots or uses external lock-bypass tools. Locked cookie databases are reported as unavailable; readable empty databases return zero cookies ([#128](https://github.com/BenediktSchackenberg/octofleet/issues/128)).
+- Windows agent releases use fresh staging directories and reject legacy OpenClaw artifacts and unexpected executables. Removed checked-in legacy binaries, unified release builders, and included the installer from its actual repository path.
+- Local release builds can sign and verify executables before creating the ZIP and checksum. Removed the duplicate release-created workflow so manual releases are not rebuilt or overwritten by Actions.
+
 ## [0.5.2] - 2026-02-20
 
 ### Added

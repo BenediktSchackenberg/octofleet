@@ -6,14 +6,41 @@ on:
       - 'src/**'
       - 'Install-OctofleetAgent.ps1'
       - 'tests/pester/**'
+      - 'tests/windows/Release-Package.Tests.ps1'
+      - 'tests/OctofleetAgent.Inventory.Tests/**'
+      - 'scripts/Build-Release.ps1'
+      - 'scripts/Test-AgentPackage.ps1'
+      - 'installer/Build-Release.ps1'
+      - '.github/workflows/*release.yml'
       - '.github/workflows/windows-tests.yml'
   pull_request:
     paths:
       - 'src/**'
       - 'Install-OctofleetAgent.ps1'
+      - 'tests/OctofleetAgent.Inventory.Tests/**'
+      - 'tests/windows/Release-Package.Tests.ps1'
+      - 'scripts/Build-Release.ps1'
+      - 'scripts/Test-AgentPackage.ps1'
+      - 'installer/Build-Release.ps1'
+      - '.github/workflows/*release.yml'
+      - '.github/workflows/windows-tests.yml'
   workflow_dispatch:
 
 jobs:
+  inventory-and-packaging:
+    name: Browser inventory and release regression tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Test browser inventory with synthetic databases
+        run: dotnet run --project tests/OctofleetAgent.Inventory.Tests -c Release
+      - name: Test isolated release packaging
+        shell: pwsh
+        run: ./tests/windows/Release-Package.Tests.ps1
+
   pester-tests:
     name: Pester Tests
     runs-on: windows-latest

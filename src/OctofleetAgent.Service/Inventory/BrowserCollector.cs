@@ -1,6 +1,5 @@
 using System.Data.SQLite;
 using System.Text.Json;
-using System.Diagnostics;
 
 namespace OctofleetAgent.Service.Inventory;
 
@@ -291,18 +290,13 @@ public static class BrowserCollector
     {
         // Method 1: Direct copy (works if browser is closed)
         var result = TryGetChromiumCookies(dbPath);
-        if (result.Cookies != null && result.Count > 0)
+        if (result.Cookies != null && result.Count >= 0)
             return result;
 
-        // Method 2: Try using Volume Shadow Copy (VSS) for locked files
-        // This requires admin rights which we have as SYSTEM
-        var vssResult = TryGetCookiesViaVSS(dbPath, browserName);
-        if (vssResult.Cookies != null && vssResult.Count > 0)
-            return vssResult;
-
-        // Method 3: Try reading with SQLite WAL mode workaround
+        // Method 2: Copy the SQLite WAL sidecars using ordinary file access.
+        // Inventory must not create/delete volume snapshots or bypass file locks.
         var walResult = TryGetCookiesWithWAL(dbPath);
-        if (walResult.Cookies != null && walResult.Count > 0)
+        if (walResult.Cookies != null && walResult.Count >= 0)
             return walResult;
 
         return new CookieCollectionResult 
@@ -408,80 +402,6 @@ public static class BrowserCollector
         catch (Exception ex)
         {
             return new CookieCollectionResult { Count = -1, Error = ex.Message };
-        }
-    }
-
-    private static CookieCollectionResult TryGetCookiesViaVSS(string dbPath, string browserName)
-    {
-        string? tempDb = null;
-        try
-        {
-            // Use VssHelper to copy locked file via VSS or esentutl
-            tempDb = VssHelper.CopySqliteDatabaseAsync(dbPath).GetAwaiter().GetResult();
-            
-            if (tempDb == null || !File.Exists(tempDb))
-                return new CookieCollectionResult { Count = -1, Error = "VSS copy failed" };
-
-            var cookies = new List<CookieInfo>();
-            
-            using var conn = new SQLiteConnection($"Data Source={tempDb};Read Only=True;");
-            conn.Open();
-            
-            using var cmd = new SQLiteCommand(@"
-                SELECT 
-                    host_key, name, path, expires_utc, is_secure, 
-                    is_httponly, samesite, is_persistent
-                FROM cookies
-                ORDER BY host_key, name
-                LIMIT 10000
-            ", conn);
-
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                var domain = reader.GetString(0);
-                var expiresUtc = reader.GetInt64(3);
-                DateTime? expires = null;
-                bool isExpired = false;
-                bool isSession = reader.GetInt32(7) == 0;
-
-                if (expiresUtc > 0 && !isSession)
-                {
-                    try
-                    {
-                        expires = new DateTime(1601, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddTicks(expiresUtc * 10);
-                        isExpired = expires < DateTime.UtcNow;
-                    }
-                    catch { }
-                }
-
-                var (isCritical, category) = CheckCriticalDomain(domain);
-
-                cookies.Add(new CookieInfo
-                {
-                    Domain = domain,
-                    Name = reader.GetString(1),
-                    Path = reader.GetString(2),
-                    ExpiresUtc = expires,
-                    IsSecure = reader.GetInt32(4) == 1,
-                    IsHttpOnly = reader.GetInt32(5) == 1,
-                    SameSite = reader.GetInt32(6) switch { 0 => "None", 1 => "Lax", 2 => "Strict", _ => null },
-                    IsSession = isSession,
-                    IsExpired = isExpired,
-                    IsCritical = isCritical,
-                    CriticalCategory = category
-                });
-            }
-
-            return new CookieCollectionResult { Cookies = cookies, Count = cookies.Count };
-        }
-        catch (Exception ex)
-        {
-            return new CookieCollectionResult { Count = -1, Error = $"VSS failed: {ex.Message}" };
-        }
-        finally
-        {
-            VssHelper.CleanupTempDatabase(tempDb);
         }
     }
 

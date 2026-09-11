@@ -49,6 +49,8 @@ tests/e2e/test-results/
 # Build artifacts
 dist/
 build/
+/publish/
+/release/
 *.zip
 provisioning/drivers/virtio-win.iso
 backend/.jwt_secret
