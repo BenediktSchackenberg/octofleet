@@ -1,4 +1,8 @@
 @echo off
+REM Load the export from Settings > Provisioning.
+if exist "%~dp0octofleet-config.cmd" call "%~dp0octofleet-config.cmd"
+if exist "X:\Windows\System32\octofleet-config.cmd" call "X:\Windows\System32\octofleet-config.cmd"
+if not defined SMB_INSTALL_SHARE (echo Missing SMB_INSTALL_SHARE in octofleet-config.cmd. & exit /b 1)
 echo.
 echo ============================================
 echo   Octofleet Zero-Touch Windows Deployment
@@ -14,7 +18,7 @@ ping -n 5 127.0.0.1 > nul
 
 REM Map network share with install files
 echo Mapping installation source...
-net use Z: \\192.168.0.5\install /user:guest ""
+net use Z: "%SMB_INSTALL_SHARE%" /user:guest ""
 
 REM Copy Autounattend.xml
 echo Copying answer file...

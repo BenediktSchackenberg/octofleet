@@ -8,7 +8,9 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+
+from provisioning_config import ProvisioningConfig, load_config
 
 vm_router = APIRouter(prefix="/api/v1/provisioning/vm", tags=["provisioning-vm"])
 
@@ -47,7 +49,7 @@ class VMCreateRequest(BaseModel):
     static_ip: Optional[str] = None
     subnet_mask: str = "255.255.255.0"
     gateway: Optional[str] = None
-    dns_servers: List[str] = ["192.168.0.8"]
+    dns_servers: Optional[List[str]] = None
     
     # Domain Join
     domain_name: Optional[str] = None
@@ -187,6 +189,16 @@ MAC=$(virsh domiflist "$VM_NAME" | grep -oE '([0-9A-Fa-f]{{2}}:){{5}}[0-9A-Fa-f]
 echo '{{"success": true, "vmName": "'"$VM_NAME"'", "macAddress": "'"$MAC"'", "status": "Started"}}'
 '''
 
+def vm_storage_path(request: VMCreateRequest, config: ProvisioningConfig, is_windows: bool) -> str:
+    field = "hyperv_storage_path" if is_windows else "kvm_storage_path"
+    if request.storage_path is None:
+        return getattr(config, field)
+    try:
+        return getattr(ProvisioningConfig(**{field: request.storage_path}), field)
+    except ValidationError as exc:
+        raise HTTPException(422, "Invalid VM storage path for the selected hypervisor") from exc
+
+
 async def create_vm_on_hypervisor(
     request: VMCreateRequest,
     conn,
@@ -205,8 +217,10 @@ async def create_vm_on_hypervisor(
     if not hypervisor:
         raise HTTPException(status_code=404, detail=f"Hypervisor node not found: {request.hypervisor_node_id}")
     
+    config = await load_config(conn)
     # Determine platform type based on OS
     is_windows = hypervisor['os_name'] and 'Windows' in hypervisor['os_name']
+    storage_path = vm_storage_path(request, config, bool(is_windows))
     
     if is_windows:
         # Generate Hyper-V script
@@ -219,7 +233,7 @@ async def create_vm_on_hypervisor(
             generation=request.generation,
             vswitch=request.network.vswitch,
             vlan=request.network.vlan or 0,
-            storage_path=request.storage_path or "D:\\Hyper-V\\Virtual Hard Disks",
+            storage_path=storage_path,
             disks_json=disks_json
         )
         
@@ -233,7 +247,7 @@ async def create_vm_on_hypervisor(
         disk_commands = []
         disk_paths = []
         for disk in request.disks:
-            path = f"/var/lib/libvirt/images/{request.hostname}-{disk.purpose}.qcow2"
+            path = f"{storage_path}/{request.hostname}-{disk.purpose}.qcow2"
             disk_commands.append(f'qemu-img create -f qcow2 "{path}" {disk.size_gb}G')
             disk_paths.append(path)
         
@@ -241,7 +255,7 @@ async def create_vm_on_hypervisor(
             hostname=request.hostname,
             cpu=request.cpu,
             memory_mb=memory_mb,
-            storage_pool=request.storage_path or "default",
+            storage_pool="default",
             network=request.network.vswitch,
             disk_commands="\n".join(disk_commands),
             disk_paths=",".join([f'path={p},format=qcow2' for p in disk_paths])
@@ -312,8 +326,10 @@ async def create_vm_and_provision(
     if not hypervisor:
         raise HTTPException(status_code=404, detail=f"Hypervisor node not found: {request.hypervisor_node_id}")
     
+    config = await load_config(conn)
     # Determine platform type based on OS
     is_windows = hypervisor['os_name'] and 'Windows' in hypervisor['os_name']
+    storage_path = vm_storage_path(request, config, bool(is_windows))
     
     if is_windows:
         # Generate Hyper-V script
@@ -326,7 +342,7 @@ async def create_vm_and_provision(
             generation=request.generation,
             vswitch=request.network.vswitch,
             vlan=request.network.vlan or 0,
-            storage_path=request.storage_path or "D:\\\\Hyper-V\\\\Virtual Hard Disks",
+            storage_path=storage_path,
             disks_json=disks_json
         )
         
@@ -340,7 +356,7 @@ async def create_vm_and_provision(
         disk_commands = []
         disk_paths = []
         for disk in request.disks:
-            path = f"/var/lib/libvirt/images/{request.hostname}-{disk.purpose}.qcow2"
+            path = f"{storage_path}/{request.hostname}-{disk.purpose}.qcow2"
             disk_commands.append(f'qemu-img create -f qcow2 "{path}" {disk.size_gb}G')
             disk_paths.append(path)
         
@@ -348,7 +364,7 @@ async def create_vm_and_provision(
             hostname=request.hostname,
             cpu=request.cpu,
             memory_mb=memory_mb,
-            storage_pool=request.storage_path or "default",
+            storage_pool="default",
             network=request.network.vswitch,
             disk_commands="\n".join(disk_commands),
             disk_paths=",".join([f'path={p},format=qcow2' for p in disk_paths])
@@ -386,7 +402,7 @@ async def create_vm_and_provision(
             "static_ip": request.static_ip,
             "subnet_mask": request.subnet_mask,
             "gateway": request.gateway,
-            "dns_servers": request.dns_servers,
+            "dns_servers": request.dns_servers if request.dns_servers is not None else config.dns_servers,
             "domain_name": request.domain_name,
             "domain_ou": request.domain_ou,
             "install_agent": request.install_agent,

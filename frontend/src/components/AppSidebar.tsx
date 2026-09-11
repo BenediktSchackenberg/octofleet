@@ -146,6 +146,7 @@ const navGroups: NavGroup[] = [
       { href: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound, permission: "api-keys:read", roles: ["admin"] },
       { href: "/admin/agents", labelKey: "nav.agentMonitor", icon: Monitor, permission: "admin:read", adminOnly: true, roles: ["admin"] },
       { href: "/settings", labelKey: "nav.settings", icon: Settings, roles: ["admin"] },
+      { href: "/settings/provisioning", labelKey: "nav.provisioning", icon: Network, roles: ["admin"] },
     ],
   },
 ];

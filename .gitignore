@@ -31,6 +31,7 @@ Thumbs.db
 desktop.ini
 
 # Secrets
+provisioning/pxe.env
 backend/.jwt_secret
 *.env
 .env.*

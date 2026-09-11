@@ -3,10 +3,10 @@
 echo Loading Ubuntu 24.04 via NFS...
 echo
 
-set kernel-url http://192.168.0.5:9080/ubuntu-live/24.04/casper/vmlinuz
-set initrd-url http://192.168.0.5:9080/ubuntu-live/24.04/casper/initrd
+set kernel-url ${PXE_SERVER_URL}/ubuntu-live/24.04/casper/vmlinuz
+set initrd-url ${PXE_SERVER_URL}/ubuntu-live/24.04/casper/initrd
 
-kernel ${kernel-url} boot=casper netboot=nfs nfsroot=192.168.0.5:/mnt/ubuntu-24.04 ip=dhcp || goto failed
+kernel ${kernel-url} boot=casper netboot=nfs nfsroot=${NFS_HOST}:${NFS_PATH_2404} ip=dhcp || goto failed
 initrd ${initrd-url} || goto failed
 boot || goto failed
 

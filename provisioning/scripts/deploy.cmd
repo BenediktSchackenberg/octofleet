@@ -1,4 +1,7 @@
 @echo off
+REM Load the export from Settings > Provisioning.
+if exist "%~dp0octofleet-config.cmd" call "%~dp0octofleet-config.cmd"
+if exist "X:\Windows\System32\octofleet-config.cmd" call "X:\Windows\System32\octofleet-config.cmd"
 cls
 echo.
 echo  ===============================================
@@ -7,23 +10,22 @@ echo       Host: TEST-VM-01
 echo  ===============================================
 echo.
 
-set SMBSERVER=192.168.0.5
-set SMBSHARE=images
+if not defined SMB_IMAGES_SHARE (echo Missing SMB_IMAGES_SHARE in octofleet-config.cmd. & exit /b 1)
 
 echo  [1/6] Netzwerk initialisieren...
 wpeinit
-ping -n 5 %SMBSERVER% >nul 2>&1
+ping -n 5 127.0.0.1 >nul 2>&1
 
 echo  [2/6] SMB Share mounten...
-net use Z: \\%SMBSERVER%\%SMBSHARE% /user:guest ""
+net use Z: "%SMB_IMAGES_SHARE%" /user:guest ""
 if errorlevel 1 (
     echo        Retry ohne Credentials...
-    net use Z: \\%SMBSERVER%\%SMBSHARE%
+    net use Z: "%SMB_IMAGES_SHARE%"
 )
 
 if not exist Z:\win2025\install.wim (
     echo  FEHLER: install.wim nicht gefunden!
-    echo  Pruefe: \\%SMBSERVER%\%SMBSHARE%\win2025\install.wim
+    echo  Pruefe: %SMB_IMAGES_SHARE%\win2025\install.wim
     pause
     exit /b 1
 )

@@ -1,55 +1,16 @@
 # PXE Zero-Touch Provisioning Setup Guide
 
-## Quick Start (Automated)
+## Quick start
 
-Run the setup script on your provisioning server — it handles everything:
-
-```bash
-# One-liner (downloads and runs)
-curl -sSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/provisioning/setup-pxe.sh | sudo bash
-
-# Or clone first
-git clone https://github.com/BenediktSchackenberg/octofleet.git
-cd octofleet
-sudo ./provisioning/setup-pxe.sh
-```
-
-### What the script does automatically:
-
-1. ✅ Installs all dependencies (NFS, Docker, etc.)
-2. ✅ Mounts your ISO storage (NAS/NFS)
-3. ✅ Finds and extracts Ubuntu ISOs for PXE boot
-4. ✅ Configures NFS exports with correct options (`insecure` flag!)
-5. ✅ Creates the PXE Docker container with TFTP + HTTP
-6. ✅ Generates iPXE boot menu with auto-discovery
-7. ✅ Registers OS images and templates in the Octofleet API
-8. ✅ Creates a systemd service for auto-start on boot
-
-### Environment variables (skip the prompts):
+Configure **Settings → Provisioning**, prepare storage and bootloaders, then export `pxe.env` into the `provisioning/` directory of a checkout on your Linux PXE host:
 
 ```bash
-export OCTOFLEET_API_URL=http://192.168.0.49:8080
-export OCTOFLEET_API_KEY=your-api-key
-export NFS_ISO_SOURCE=192.168.0.24:/mnt/user/isos
-export PXE_INTERFACE=br0
-sudo -E ./provisioning/setup-pxe.sh
+./provisioning/setup-pxe.sh
 ```
 
-### The only manual step: DHCP config
+See [Provisioning configuration](PROVISIONING-CONFIGURATION.md) for required paths, environment compatibility, container mounts, NFS and WinPE migration. The setup script uses this export and the maintained Compose stack. ISO imports and image registration are managed in **Provisioning → Administration**.
 
-You still need to tell your DHCP server (router) where to find the PXE server. On your router, set:
-
-| Setting | Value |
-|---------|-------|
-| Next Server / TFTP Server | Your PXE server IP |
-| BIOS Boot File | `undionly.kpxe` |
-| UEFI Boot File | `ipxe-x86_64.efi` |
-
-**pfSense**: Services → DHCP → Network Booting  
-**OPNsense**: Services → DHCPv4 → [Interface] → Network Booting  
-**ISC DHCP**: See config below
-
----
+Point the existing DHCP server at the PXE host and select `undionly.kpxe` (BIOS) or `ipxe.efi` (UEFI). ProxyDHCP is optional and must be configured explicitly in the menu. The examples below illustrate a network layout; replace their example addresses with your configuration.
 
 ## Architecture Overview
 

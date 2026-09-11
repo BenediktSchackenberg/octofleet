@@ -1,5 +1,11 @@
 # Octofleet PXE Zero-Touch Deployment
 
+## Konfiguration
+
+Adressen und Speicherpfade werden unter **Einstellungen → Provisioning** verwaltet. Exportiere `pxe.env` in dieses Verzeichnis und starte den vorbereiteten Linux-PXE-Host mit `./setup-pxe.sh`. Die vollständige Anleitung einschließlich bestehender WinPE-Images steht unter [Provisioning-Konfiguration](../docs/PROVISIONING-CONFIGURATION.md).
+
+Die folgenden älteren Beispiele zeigen eine beispielhafte Netzwerkkonfiguration. Verwende für den Betrieb die Einstellungen aus dem Menü und die daraus erzeugten Dateien.
+
 ## Übersicht
 
 Vollautomatische Windows-Installation über Netzwerk ohne manuelle Eingriffe.

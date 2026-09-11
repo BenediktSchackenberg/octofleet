@@ -1,3 +1,7 @@
+from urllib.parse import urlsplit
+
+from provisioning_config import ProvisioningConfig, environment_values
+
 # Linux boot script generator for Ubuntu PXE with NFS
 # Updated 2026-02-23: Multiple iPXE syntax variants + GRUB fallback
 
@@ -9,8 +13,8 @@ UBUNTU_NFS_BOOT_TEMPLATE_V2 = """#!ipxe
 # Syntax V2: kernel URL ARGS
 
 set pxe-server {pxe_server}
-set nfs-server 192.168.0.5
-set nfs-path /mnt/ubuntu-{version}
+set nfs-server {nfs_server}
+set nfs-path {nfs_path}
 
 echo =============================================
 echo    Octofleet Linux Deployment  
@@ -42,8 +46,8 @@ UBUNTU_NFS_BOOT_TEMPLATE_V3 = """#!ipxe
 # Syntax V3: kernel + imgargs + initrd
 
 set pxe-server {pxe_server}
-set nfs-server 192.168.0.5
-set nfs-path /mnt/ubuntu-{version}
+set nfs-server {nfs_server}
+set nfs-path {nfs_path}
 
 echo =============================================
 echo    Octofleet Linux Deployment  
@@ -78,8 +82,8 @@ UBUNTU_NFS_BOOT_TEMPLATE_V4 = """#!ipxe
 # Syntax V4: initrd first (named), then kernel with all args
 
 set pxe-server {pxe_server}
-set nfs-server 192.168.0.5
-set nfs-path /mnt/ubuntu-{version}
+set nfs-server {nfs_server}
+set nfs-path {nfs_path}
 
 echo =============================================
 echo    Octofleet Linux Deployment  
@@ -109,17 +113,17 @@ shell
 UBUNTU_GRUB_ENTRY_TEMPLATE = """
 menuentry "Octofleet - {hostname} (Ubuntu {version})" {{
     echo "Loading kernel for {hostname}..."
-    linux (http,{pxe_server_ip}:9080)/ubuntu-live/{version}/casper/vmlinuz \\
+    linux {grub_server}/ubuntu-live/{version}/casper/vmlinuz \\
         boot=casper \\
         netboot=nfs \\
-        nfsroot={nfs_server}:/mnt/ubuntu-{version},tcp,vers=3 \\
+        nfsroot={nfs_server}:{nfs_path},tcp,vers=3 \\
         ip=dhcp \\
         autoinstall \\
-        ds=nocloud-net;s=http://{pxe_server_ip}:9080/autoinstall/{mac_safe}/ \\
+        ds=nocloud-net;s={pxe_server}/autoinstall/{mac_safe}/ \\
         ---
     
     echo "Loading initrd..."
-    initrd (http,{pxe_server_ip}:9080)/ubuntu-live/{version}/casper/initrd
+    initrd {grub_server}/ubuntu-live/{version}/casper/initrd
     
     echo "Booting {hostname}..."
 }}
@@ -135,8 +139,9 @@ def generate_linux_boot_script(
     version: str,
     hostname: str,
     mac: str,
-    pxe_server: str = "http://192.168.0.5:9080",
-    variant: str = "v2"
+    pxe_server: str = "",
+    variant: str = "v2",
+    config: ProvisioningConfig | None = None
 ) -> str:
     """Generate iPXE boot script for Ubuntu NFS boot.
     
@@ -147,6 +152,11 @@ def generate_linux_boot_script(
         pxe_server: PXE server URL
         variant: Which iPXE syntax to use (v2, v3, v4)
     """
+    config = config or ProvisioningConfig(**environment_values())
+    config.require("nfs_server")
+    pxe_server = pxe_server or config.pxe_server_url
+    if not pxe_server:
+        config.require("pxe_server_url")
     mac_safe = mac.lower().replace(":", "-").replace(".", "-")
     
     templates = {
@@ -161,7 +171,9 @@ def generate_linux_boot_script(
         version=version,
         hostname=hostname,
         mac_safe=mac_safe,
-        pxe_server=pxe_server
+        pxe_server=pxe_server,
+        nfs_server=config.nfs_host,
+        nfs_path=config.nfs_path(version),
     )
 
 
@@ -169,16 +181,23 @@ def generate_grub_entry(
     version: str,
     hostname: str,
     mac: str,
-    pxe_server_ip: str = "192.168.0.5",
-    nfs_server: str = "192.168.0.5"
+    pxe_server: str = "",
+    config: ProvisioningConfig | None = None
 ) -> str:
     """Generate GRUB menu entry for Ubuntu NFS boot."""
+    config = config or ProvisioningConfig(**environment_values())
+    config.require("nfs_server")
+    pxe_server = pxe_server or config.pxe_server_url
+    if not pxe_server:
+        config.require("pxe_server_url")
     mac_safe = mac.lower().replace(":", "-").replace(".", "-")
     
     return UBUNTU_GRUB_ENTRY_TEMPLATE.format(
         version=version,
         hostname=hostname,
         mac_safe=mac_safe,
-        pxe_server_ip=pxe_server_ip,
-        nfs_server=nfs_server
+        pxe_server=pxe_server,
+        grub_server=f"({urlsplit(pxe_server).scheme},{urlsplit(pxe_server).netloc}){urlsplit(pxe_server).path}",
+        nfs_server=config.nfs_host,
+        nfs_path=config.nfs_path(version)
     )

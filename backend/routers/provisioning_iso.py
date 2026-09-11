@@ -10,18 +10,15 @@ import subprocess
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+
+from provisioning_config import load_config
 from pydantic import BaseModel, Field
 
 iso_router = APIRouter(prefix="/api/v1/provisioning/iso", tags=["provisioning-iso"])
 
-# Path to the iso-manager script
-ISO_MANAGER_SCRIPT = "/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/scripts/iso-manager.sh"
-
-# Default ISO directory
-DEFAULT_ISO_PATH = "/mnt/isos"
-
-# Mount point base directory
-MOUNT_BASE = "/mnt"
+async def current_config():
+    from dependencies import db_pool
+    return await load_config(db_pool)
 
 # ============================================
 # Models
@@ -69,11 +66,12 @@ class AutoRegisterRequest(BaseModel):
 # Helper Functions
 # ============================================
 
-def run_iso_manager(command: List[str]) -> dict:
+async def run_iso_manager(command: List[str]) -> dict:
     """Run iso-manager.sh and return JSON result"""
     try:
         # For commands that need root, we use sudo
-        full_cmd = ["sudo", ISO_MANAGER_SCRIPT] + command
+        config = await current_config()
+        full_cmd = ["sudo", config.iso_manager_script] + command
         result = subprocess.run(full_cmd, capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
             return {"error": result.stderr or f"Command failed with code {result.returncode}"}
@@ -134,8 +132,10 @@ def get_current_mounts() -> Dict[str, str]:
 # ============================================
 
 @iso_router.get("/scan", response_model=ISOScanResponse)
-async def scan_isos(path: str = DEFAULT_ISO_PATH):
+async def scan_isos(path: Optional[str] = None):
     """Scan a directory for ISO files"""
+    config = await current_config()
+    path = path or config.iso_path
     if not os.path.isdir(path):
         raise HTTPException(
             status_code=400,
@@ -176,6 +176,7 @@ async def scan_isos(path: str = DEFAULT_ISO_PATH):
 @iso_router.post("/mount", response_model=ISOMountResponse)
 async def mount_iso(request: ISOMountRequest):
     """Mount an ISO file to a loop device"""
+    config = await current_config()
     if not os.path.isfile(request.iso_path):
         raise HTTPException(status_code=400, detail=f"ISO not found: {request.iso_path}")
     
@@ -186,17 +187,17 @@ async def mount_iso(request: ISOMountRequest):
         # Auto-generate from filename
         basename = os.path.basename(request.iso_path).lower()
         if 'windows' in basename:
-            mount_target = "/mnt/winiso"
+            mount_target = f"{config.mount_base}/winiso"
         elif 'ubuntu' in basename:
             version = re.search(r'(\d+\.\d+)', basename)
             ver = version.group(1) if version else "latest"
-            mount_target = f"/mnt/ubuntu-{ver}"
+            mount_target = f"{config.mount_base}/ubuntu-{ver}"
         elif 'virtio' in basename:
-            mount_target = "/mnt/virtio"
+            mount_target = f"{config.mount_base}/virtio"
         else:
-            mount_target = f"/mnt/iso-{os.path.basename(request.iso_path)[:20]}"
+            mount_target = f"{config.mount_base}/iso-{os.path.basename(request.iso_path)[:20]}"
     
-    result = run_iso_manager(["mount", request.iso_path, mount_target])
+    result = await run_iso_manager(["mount", request.iso_path, mount_target])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -212,7 +213,7 @@ async def mount_iso(request: ISOMountRequest):
 @iso_router.post("/unmount")
 async def unmount_iso(target: str):
     """Unmount an ISO"""
-    result = run_iso_manager(["unmount", target])
+    result = await run_iso_manager(["unmount", target])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -223,7 +224,7 @@ async def unmount_iso(target: str):
 @iso_router.get("/mounts")
 async def list_mounts():
     """List current ISO mounts"""
-    result = run_iso_manager(["list"])
+    result = await run_iso_manager(["list"])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -237,7 +238,7 @@ async def get_wim_info(wim_path: str):
     if not os.path.isfile(wim_path):
         raise HTTPException(status_code=400, detail=f"WIM not found: {wim_path}")
     
-    result = run_iso_manager(["wim-info", wim_path])
+    result = await run_iso_manager(["wim-info", wim_path])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -254,7 +255,7 @@ async def extract_linux_kernel(iso_mount: str, target_dir: str):
     if not os.path.isdir(iso_mount):
         raise HTTPException(status_code=400, detail=f"Mount point not found: {iso_mount}")
     
-    result = run_iso_manager(["extract-kernel", iso_mount, target_dir])
+    result = await run_iso_manager(["extract-kernel", iso_mount, target_dir])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -270,6 +271,7 @@ async def auto_setup_iso(iso_path: str):
     For Linux: extracts kernel and creates single DB entry.
     """
     from dependencies import db_pool
+    config = await load_config(db_pool)
     
     if not os.path.isfile(iso_path):
         raise HTTPException(status_code=400, detail=f"ISO not found: {iso_path}")
@@ -279,21 +281,21 @@ async def auto_setup_iso(iso_path: str):
     
     if os_type == 'drivers':
         # Just mount virtio drivers
-        mount_result = run_iso_manager(["mount", iso_path, "/mnt/virtio"])
-        return {"status": "mounted", "type": "drivers", "mount": "/mnt/virtio"}
+        mount_result = await run_iso_manager(["mount", iso_path, f"{config.mount_base}/virtio"])
+        return {"status": "mounted", "type": "drivers", "mount": f"{config.mount_base}/virtio"}
     
     if os_type and os_type.startswith('windows'):
         # Mount and read WIM info
-        mount_result = run_iso_manager(["mount", iso_path, "/mnt/winiso"])
+        mount_result = await run_iso_manager(["mount", iso_path, f"{config.mount_base}/winiso"])
         if "error" in mount_result:
             raise HTTPException(status_code=500, detail=mount_result["error"])
         
-        wim_path = "/mnt/winiso/sources/install.wim"
+        wim_path = f"{config.mount_base}/winiso/sources/install.wim"
         if not os.path.exists(wim_path):
             return {"status": "error", "message": "install.wim not found in ISO"}
         
         # Get WIM info for editions
-        wim_info = run_iso_manager(["wim-info", wim_path])
+        wim_info = await run_iso_manager(["wim-info", wim_path])
         editions = wim_info.get("images", [])
         
         # Detect Windows version from filename
@@ -301,7 +303,7 @@ async def auto_setup_iso(iso_path: str):
         win_version = version_match.group(1) if version_match else "2025"
         
         # Copy WIM to provisioning folder (this can take a while for 7GB files)
-        target_dir = f"/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/images/win{win_version}"
+        target_dir = f"{config.images_path}/win{win_version}"
         target_wim = f"{target_dir}/install.wim"
         os.makedirs(target_dir, exist_ok=True)
         
@@ -362,7 +364,7 @@ async def auto_setup_iso(iso_path: str):
         return {
             "status": "complete",
             "type": "windows",
-            "mount": "/mnt/winiso",
+            "mount": f"{config.mount_base}/winiso",
             "wim_path": target_wim,
             "wim_copied": wim_copied,
             "editions": editions,
@@ -373,15 +375,15 @@ async def auto_setup_iso(iso_path: str):
         # Mount and extract kernel
         version = re.search(r'(\d+\.\d+)', filename)
         ver = version.group(1) if version else "latest"
-        mount_target = f"/mnt/ubuntu-{ver}"
+        mount_target = f"{config.mount_base}/ubuntu-{ver}"
         
-        mount_result = run_iso_manager(["mount", iso_path, mount_target])
+        mount_result = await run_iso_manager(["mount", iso_path, mount_target])
         if "error" in mount_result:
             raise HTTPException(status_code=500, detail=mount_result["error"])
         
         # Extract kernel
-        target_dir = f"/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/images/ubuntu/{ver}"
-        extract_result = run_iso_manager(["extract-kernel", mount_target, target_dir])
+        target_dir = f"{config.images_path}/ubuntu/{ver}"
+        extract_result = await run_iso_manager(["extract-kernel", mount_target, target_dir])
         
         if extract_result.get("status") == "extracted":
             # Register in DB
@@ -434,7 +436,7 @@ class NFSMount(BaseModel):
 @iso_router.get("/nfs/list")
 async def list_nfs_mounts():
     """List current NFS mounts with disk usage"""
-    result = run_iso_manager(["nfs-list"])
+    result = await run_iso_manager(["nfs-list"])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -446,14 +448,14 @@ async def list_nfs_mounts():
 async def mount_nfs_share(request: NFSMountRequest):
     """Mount an NFS share"""
     # Mount the share
-    result = run_iso_manager(["nfs-mount", request.server_path, request.mount_target])
+    result = await run_iso_manager(["nfs-mount", request.server_path, request.mount_target])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
     
     # Optionally add to fstab
     if request.add_to_fstab and result.get("status") == "mounted":
-        fstab_result = run_iso_manager(["nfs-add-fstab", request.server_path, request.mount_target])
+        fstab_result = await run_iso_manager(["nfs-add-fstab", request.server_path, request.mount_target])
         result["fstab"] = fstab_result
     
     return result
@@ -462,7 +464,7 @@ async def mount_nfs_share(request: NFSMountRequest):
 @iso_router.post("/nfs/unmount")
 async def unmount_nfs_share(target: str, remove_from_fstab: bool = False):
     """Unmount an NFS share"""
-    result = run_iso_manager(["nfs-unmount", target])
+    result = await run_iso_manager(["nfs-unmount", target])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -479,7 +481,7 @@ async def unmount_nfs_share(target: str, remove_from_fstab: bool = False):
 @iso_router.post("/nfs/fstab/add")
 async def add_nfs_to_fstab(server_path: str, mount_target: str):
     """Add NFS mount to /etc/fstab for boot persistence"""
-    result = run_iso_manager(["nfs-add-fstab", server_path, mount_target])
+    result = await run_iso_manager(["nfs-add-fstab", server_path, mount_target])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -490,7 +492,7 @@ async def add_nfs_to_fstab(server_path: str, mount_target: str):
 @iso_router.delete("/nfs/fstab/remove")
 async def remove_nfs_from_fstab(server_path: str):
     """Remove NFS mount from /etc/fstab"""
-    result = run_iso_manager(["nfs-remove-fstab", server_path])
+    result = await run_iso_manager(["nfs-remove-fstab", server_path])
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])

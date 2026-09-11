@@ -4,7 +4,18 @@
 # ============================================================
 
 SCRIPT_DIR="$(dirname "$0")"
-ANSWERS_DIR="$SCRIPT_DIR/answers"
+CONFIG_FILE="${PXE_CONFIG_FILE:-$SCRIPT_DIR/pxe.env}"
+if [ -f "$CONFIG_FILE" ]; then
+    # Only source the administrator's export from Settings > Provisioning.
+    source "$CONFIG_FILE"
+fi
+ANSWERS_DIR="${PROVISIONING_ANSWERS_PATH:-$SCRIPT_DIR/answers}"
+BOOT_DIR="${PROVISIONING_BOOT_PATH:-$SCRIPT_DIR/boot}"
+PXE_SERVER_URL="${PXE_SERVER_URL:-${PXE_SERVER:-}}"
+if [ -z "$PXE_SERVER_URL" ] && [ -n "${PXE_SERVER_IP:-}" ]; then
+    PXE_SERVER_URL="http://${PXE_SERVER_IP}:${PXE_HTTP_PORT:-9080}"
+fi
+: "${PXE_SERVER_URL:?Export pxe.env from Settings > Provisioning first}"
 
 usage() {
     echo "Usage: $0 <MAC> <HOSTNAME> [OPTIONS]"
@@ -29,7 +40,6 @@ WIM_INDEX="1"
 LANGUAGE="de-DE"
 TIMEZONE="W. Europe Standard Time"
 ADMIN_PASS="Octofleet123!"
-PXE_SERVER="${PXE_SERVER_IP:-192.168.0.5}"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -58,9 +68,9 @@ done
 
 # Normalize MAC
 MAC=$(echo "$MAC" | tr '[:upper:]' '[:lower:]' | tr ':' '-')
-MAC_FILE="$ANSWERS_DIR/$MAC.ipxe"
+MAC_FILE="$BOOT_DIR/$MAC.ipxe"
 
-mkdir -p "$ANSWERS_DIR"
+mkdir -p "$ANSWERS_DIR" "$BOOT_DIR"
 
 # Base64 encode password (für Autounattend)
 ADMIN_PASS_B64=$(echo -n "${ADMIN_PASS}AdministratorPassword" | iconv -t UTF-16LE | base64 -w0)
@@ -82,7 +92,7 @@ echo    🐙 Installing: $HOSTNAME
 echo ===============================================
 echo
 
-set pxe-server http://${PXE_SERVER}:9080
+set pxe-server ${PXE_SERVER_URL}
 
 echo Loading WinPE...
 kernel \${pxe-server}/winpe/wimboot
@@ -203,7 +213,7 @@ cat > "$ANSWER_FILE" << 'XMLEOF'
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <CommandLine>powershell.exe -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'http://PXE_SERVER_PLACEHOLDER:9080/scripts/Install-OctofleetAgent.ps1' -OutFile 'C:\Windows\Temp\Install-OctofleetAgent.ps1'; C:\Windows\Temp\Install-OctofleetAgent.ps1"</CommandLine>
+          <CommandLine>powershell.exe -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'PXE_SERVER_PLACEHOLDER/scripts/Install-OctofleetAgent.ps1' -OutFile 'C:\Windows\Temp\Install-OctofleetAgent.ps1'; C:\Windows\Temp\Install-OctofleetAgent.ps1"</CommandLine>
           <Description>Install Octofleet Agent</Description>
         </SynchronousCommand>
       </FirstLogonCommands>
@@ -218,7 +228,7 @@ sed -i "s/LANGUAGE_PLACEHOLDER/$LANGUAGE/g" "$ANSWER_FILE"
 sed -i "s/TIMEZONE_PLACEHOLDER/$TIMEZONE/g" "$ANSWER_FILE"
 sed -i "s/WIM_INDEX_PLACEHOLDER/$WIM_INDEX/g" "$ANSWER_FILE"
 sed -i "s/ADMIN_PASS_PLACEHOLDER/$ADMIN_PASS_B64/g" "$ANSWER_FILE"
-sed -i "s/PXE_SERVER_PLACEHOLDER/$PXE_SERVER/g" "$ANSWER_FILE"
+sed -i "s|PXE_SERVER_PLACEHOLDER|$PXE_SERVER_URL|g" "$ANSWER_FILE"
 
 echo "✅ Autounattend.xml: $ANSWER_FILE"
 

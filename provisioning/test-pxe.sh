@@ -4,7 +4,14 @@
 
 set -e
 
-PXE_SERVER="http://192.168.0.5:9080"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${PXE_CONFIG_FILE:-$SCRIPT_DIR/pxe.env}"
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+: "${PXE_SERVER_URL:?Export pxe.env from Settings > Provisioning first}"
+: "${NFS_SERVER:?Configure the NFS server first}"
+PXE_SERVER="$PXE_SERVER_URL"
 
 echo "=== Octofleet PXE Boot Test ==="
 echo
@@ -53,9 +60,9 @@ done
 
 echo
 echo "Checking NFS server..."
-if showmount -e 192.168.0.5 2>/dev/null | grep -q ubuntu; then
+if showmount -e "$NFS_SERVER" 2>/dev/null | grep -q ubuntu; then
     echo "  ✓ NFS exports available:"
-    showmount -e 192.168.0.5 2>/dev/null | grep ubuntu | sed 's/^/    /'
+    showmount -e "$NFS_SERVER" 2>/dev/null | grep ubuntu | sed 's/^/    /'
 else
     echo "  ✗ NFS exports not found!"
 fi
