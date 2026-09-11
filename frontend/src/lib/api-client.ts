@@ -148,6 +148,7 @@ async function apiRequestRich<T>(endpoint: string, options: RequestOptions = {})
 // ─── Public API (backward compatible) ───────────────────────────────
 
 export const apiClient = {
+  request: apiRequestRich,
   get: <T>(endpoint: string, options?: RequestOptions) =>
     apiRequest<T>(endpoint, { ...options, method: 'GET' }),
 

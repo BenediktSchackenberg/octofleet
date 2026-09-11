@@ -5,6 +5,23 @@ All notable changes to Octofleet will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-11
+
+### Added
+- Settings → Provisioning: centrally persisted PXE/API/NFS addresses, DNS defaults, storage directories, Hyper-V/KVM paths, SMB shares and PXE service options.
+- Validated PXE and WinPE configuration exports with previews, plus configurable iPXE/GRUB templates and Docker mounts.
+- Spanish translations for all 221 existing i18n keys and language selection ([#127](https://github.com/BenediktSchackenberg/octofleet/pull/127)).
+
+### Fixed
+- Provisioning forms now send the requested HTTP method when saving instead of issuing GET requests.
+- Boot generation, ISO imports and VM creation use the configured infrastructure instead of site-specific addresses and user paths. Invalid configuration does not advance a boot task.
+- Removed the hardcoded domain login from the bundled Windows post-install script; domain and DNS settings come from task answer files.
+
+### Upgrade
+- Configure Settings → Provisioning before starting new deployments. Export `pxe.env` to the PXE host and recreate its container; existing custom WinPE images need the exported `octofleet-config.cmd`. Storage is not moved automatically.
+- The PXE setup launcher now uses the maintained Compose stack. Prepare ISO/NFS mounts and bootloaders separately; import images through Provisioning → Administration.
+- See [the provisioning configuration guide](docs/PROVISIONING-CONFIGURATION.md). This is the configuration foundation for #107; the Smart Proxy epic remains open.
+
 ## [0.7.1] - 2026-09-11
 
 ### Fixed

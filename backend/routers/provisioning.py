@@ -4,7 +4,6 @@ E19: PXE Zero-Touch Provisioning
 """
 
 import json
-import os
 import re
 import uuid
 from datetime import datetime
@@ -12,6 +11,8 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, validator
+
+from provisioning_config import load_config
 
 router = APIRouter(prefix="/api/v1/provisioning", tags=["provisioning"])
 
@@ -83,7 +84,7 @@ class ProvisioningTaskCreate(BaseModel):
     image_name: str = Field(..., description="Image name from provisioning_images")
     use_dhcp: bool = True
     static_ip: Optional[str] = None
-    dns_servers: List[str] = ["192.168.0.8"]
+    dns_servers: Optional[List[str]] = None
     domain_name: Optional[str] = None
     domain_user: Optional[str] = None
     domain_password: Optional[str] = None
@@ -352,6 +353,9 @@ async def list_tasks(
 async def create_task(task: ProvisioningTaskCreate, conn = Depends(get_db)):
     """Create a new provisioning task"""
     
+    config = await load_config(conn)
+    dns_servers = task.dns_servers if task.dns_servers is not None else config.dns_servers
+
     # Get image ID
     image = await conn.fetchrow(
         "SELECT id FROM provisioning_images WHERE name = $1",
@@ -389,7 +393,7 @@ async def create_task(task: ProvisioningTaskCreate, conn = Depends(get_db)):
             install_octofleet_agent, enable_rdp
         ) VALUES ($1, $2, $3, $4::platform_type, $5, $6, $7::inet[], $8, $9, $10, $11)
     """, task_id, task.mac_address, hostname, task.platform, image['id'],
-         task.use_dhcp, task.dns_servers, task.domain_name, task.domain_user,
+         task.use_dhcp, dns_servers, task.domain_name, task.domain_user,
          task.install_octofleet_agent, task.enable_rdp)
     
     # Log event
@@ -513,6 +517,17 @@ async def get_pxe_script(mac: str, conn = Depends(get_db)):
             media_type="text/plain"
         )
     
+    config = await load_config(conn)
+    config.require('pxe_server_url')
+    if task.get('os_type') == 'linux':
+        config.require('nfs_server')
+        version = task.get('os_version') or '24.04'
+        nfs_path = config.nfs_path(version)
+    else:
+        for placeholder, field in [('${API_SERVER}', 'api_server_url'), ('${NFS_SERVER}', 'nfs_server')]:
+            if placeholder in task['ipxe_template']:
+                config.require(field)
+
     # Update status to booting
     await conn.execute("""
         UPDATE provisioning_tasks SET 
@@ -522,13 +537,12 @@ async def get_pxe_script(mac: str, conn = Depends(get_db)):
         WHERE mac_address = $1
     """, mac)
     
-    pxe_server = os.environ.get('PXE_SERVER', 'http://192.168.0.5:9080')
+    pxe_server = config.pxe_server_url
     mac_safe = mac.lower().replace(':', '-')
     os_type = task.get('os_type', 'windows')
     
     # Check if Linux - generate different boot script
     if os_type == 'linux':
-        version = task.get('os_version', '24.04')
         hostname = task.get('hostname', 'ubuntu-server')
         
         # Log event
@@ -543,7 +557,7 @@ async def get_pxe_script(mac: str, conn = Depends(get_db)):
         script = f"""#!ipxe
 # Octofleet Ubuntu {version} Deployment via NFS
 set pxe-server {pxe_server}
-set nfs-server 192.168.0.5
+set nfs-server {config.nfs_host}
 set live-url ${{pxe-server}}/ubuntu-live/{version}
 
 echo =============================================
@@ -561,10 +575,10 @@ initrd ${{live-url}}/casper/initrd || goto failed
 
 echo
 echo Starting Ubuntu Live with NFS root...
-echo NFS: ${{nfs-server}}:/mnt/ubuntu-{version}
+echo NFS: ${{nfs-server}}:{nfs_path}
 echo
 
-imgargs vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${{nfs-server}}:/mnt/ubuntu-{version},tcp,vers=3 ip=dhcp autoinstall "ds=nocloud-net;s=${{pxe-server}}/autoinstall/{mac_safe}/" ---
+imgargs vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${{nfs-server}}:{nfs_path},tcp,vers=3 ip=dhcp autoinstall "ds=nocloud-net;s=${{pxe-server}}/autoinstall/{mac_safe}/" ---
 
 boot
 
@@ -584,6 +598,8 @@ shell
     # Generate iPXE script from template
     script = task['ipxe_template']
     script = script.replace('${PXE_SERVER}', pxe_server)
+    script = script.replace('${API_SERVER}', config.api_server_url)
+    script = script.replace('${NFS_SERVER}', config.nfs_host)
     script = script.replace('${MAC}', mac_safe)
     script = script.replace('${IMAGE_PATH}', task['wim_path'])
     script = script.replace('${IMAGE_INDEX}', str(task['wim_index']))

@@ -1,7 +1,7 @@
 #!ipxe
 
-set pxe-server http://192.168.0.5:9080
-set api-server http://192.168.0.5:8080
+set pxe-server ${PXE_SERVER_URL}
+set api-server ${API_SERVER}
 set menu-timeout 15000
 
 echo
@@ -27,7 +27,7 @@ imgfree register ||
 
 :check_config
 echo  Checking for provisioning task...
-chain ${pxe-server}/boot/${mac:hexhyp}.ipxe && goto boot_done ||
+chain ${pxe-server}/api/v1/pxe/${mac:hexhyp} && goto boot_done ||
 
 :menu
 menu Octofleet PXE Boot
@@ -41,10 +41,10 @@ choose --timeout ${menu-timeout} --default local target && goto ${target} || got
 
 :ubuntu
 echo Loading Ubuntu 24.04 via NFS...
-set nfs-server 192.168.0.5
-kernel nfs://${nfs-server}/mnt/ubuntu-24.04/casper/vmlinuz
-initrd nfs://${nfs-server}/mnt/ubuntu-24.04/casper/initrd
-imgargs vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${nfs-server}:/mnt/ubuntu-24.04 ip=dhcp ---
+set nfs-server ${NFS_HOST}
+kernel nfs://${nfs-server}${NFS_PATH_2404}/casper/vmlinuz
+initrd nfs://${nfs-server}${NFS_PATH_2404}/casper/initrd
+imgargs vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${nfs-server}:${NFS_PATH_2404} ip=dhcp ---
 boot || goto menu
 
 :winpe

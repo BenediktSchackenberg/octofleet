@@ -34,9 +34,11 @@ def generate_autounattend(
     enable_rdp: bool = True,
     disable_firewall: bool = False,
     # PXE Server
-    pxe_server: str = "http://192.168.0.5:9080",
+    pxe_server: str = "",
 ) -> str:
     """Generate Autounattend.xml for Windows Server 2025"""
+    if not pxe_server:
+        raise ValueError("A configured PXE server URL is required")
     
     # XML Namespace
     ns = "urn:schemas-microsoft-com:unattend"
@@ -184,12 +186,14 @@ def generate_autounattend(
         addr.set("wcm:keyValue", "1")
         addr.text = f"{ip_address}/{_subnet_to_cidr(subnet_mask)}"
         
+        if not gateway:
+            raise ValueError("A gateway is required for static IP configuration")
         routes = ET.SubElement(interface, "Routes")
         route = ET.SubElement(routes, "Route")
         route.set("wcm:action", "add")
         route.set("wcm:keyValue", "1")
         ET.SubElement(route, "Identifier").text = "0"
-        ET.SubElement(route, "NextHopAddress").text = gateway or "192.168.0.1"
+        ET.SubElement(route, "NextHopAddress").text = gateway
         ET.SubElement(route, "Prefix").text = "0.0.0.0/0"
         
         # DNS
@@ -364,9 +368,11 @@ def _subnet_to_cidr(subnet: str) -> int:
 def generate_ipxe_script(
     mac_address: str,
     hostname: str,
-    pxe_server: str = "http://192.168.0.5:9080",
+    pxe_server: str = "",
 ) -> str:
     """Generate MAC-specific iPXE boot script"""
+    if not pxe_server:
+        raise ValueError("A configured PXE server URL is required")
     mac_hyp = mac_address.replace(":", "-").lower()
     
     return f"""#!ipxe
@@ -404,6 +410,7 @@ boot
 if __name__ == "__main__":
     xml = generate_autounattend(
         hostname="TEST-VM-01",
+        pxe_server="http://pxe.example.test:9080",
         admin_password="P@ssw0rd123!",
         use_dhcp=True,
         install_octofleet_agent=True,

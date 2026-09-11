@@ -4,7 +4,12 @@
 
 set -e
 
-TFTPBOOT="/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/tftpboot"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${PXE_CONFIG_FILE:-$SCRIPT_DIR/pxe.env}"
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+TFTPBOOT="${TFTP_ROOT:-$SCRIPT_DIR/tftpboot}"
 GRUB_DIR="${TFTPBOOT}/grub"
 
 mkdir -p "${GRUB_DIR}"

@@ -78,6 +78,8 @@ from routers.provisioning import pxe_router
 from routers.provisioning import router as provisioning_router
 from routers.provisioning_domain import generate_autounattend
 from routers.provisioning_iso import iso_router as provisioning_iso_router
+from routers.provisioning_settings import router as provisioning_settings_router
+from provisioning_config import SETTINGS_KEY, load_config, safe_url
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.query_engine import router as query_router
 from routers.rbac import router as rbac_router
@@ -254,6 +256,7 @@ app.include_router(alerting_router)
 app.include_router(security_router)
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(provisioning_settings_router)
 app.include_router(provisioning_router)
 app.include_router(query_router, tags=["Query Engine"])
 app.include_router(provisioning_vm_router)
@@ -3195,7 +3198,7 @@ logger = logging.getLogger(__name__)
 async def get_settings():
     """Get all system settings (values masked for secrets)."""
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch("SELECT key, value, updated_at FROM system_settings")
+        rows = await conn.fetch("SELECT key, value, updated_at FROM system_settings WHERE key <> 'provisioning'")
         settings = {}
         for row in rows:
             key = row["key"]
@@ -3210,6 +3213,8 @@ async def get_settings():
 @app.get("/api/v1/settings/{key}")
 async def get_setting(key: str):
     """Get a specific setting."""
+    if key == SETTINGS_KEY:
+        raise HTTPException(400, "Use /api/v1/provisioning/config")
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT value, updated_at FROM system_settings WHERE key = $1", key)
         if not row:
@@ -3219,6 +3224,8 @@ async def get_setting(key: str):
 @app.put("/api/v1/settings/{key}")
 async def update_setting(key: str, value: str = Body(..., embed=True)):
     """Update or create a setting."""
+    if key == SETTINGS_KEY:
+        raise HTTPException(400, "Use /api/v1/provisioning/config")
     async with db_pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO system_settings (key, value, updated_at, updated_by)
@@ -3238,6 +3245,8 @@ async def update_setting(key: str, value: str = Body(..., embed=True)):
 @app.delete("/api/v1/settings/{key}")
 async def delete_setting(key: str):
     """Delete a setting."""
+    if key == SETTINGS_KEY:
+        raise HTTPException(400, "Use /api/v1/provisioning/config")
     async with db_pool.acquire() as conn:
         result = await conn.execute("DELETE FROM system_settings WHERE key = $1", key)
         if result == "DELETE 0":
@@ -4446,9 +4455,7 @@ def create_status_table(data: List[List], col_widths: List[float] = None) -> Tab
 
 from provisioning import generate_autounattend, generate_ipxe_script
 
-# Provisioning Config
-PROVISIONING_ANSWERS_PATH = os.getenv("PROVISIONING_ANSWERS_PATH", "/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/answers")
-PXE_SERVER_URL = os.getenv("PXE_SERVER_URL", "http://192.168.0.5:9080")
+# Provisioning settings are loaded for each request from the shared configuration.
 
 
 class ProvisioningTaskCreate(BaseModel):
@@ -4510,6 +4517,11 @@ async def create_provisioning_task(
     
     The target machine will automatically install Windows on next PXE boot.
     """
+    config = await load_config(db)
+    config.require("pxe_server_url")
+    if not task.use_dhcp and not task.gateway:
+        raise HTTPException(422, "A gateway is required for static IP configuration")
+
     # Normalize MAC address
     mac_normalized = task.mac_address.lower().replace("-", ":")
     mac_hyp = mac_normalized.replace(":", "-")
@@ -4530,7 +4542,7 @@ async def create_provisioning_task(
         ip_address=task.ip_address,
         subnet_mask=task.subnet_mask,
         gateway=task.gateway,
-        dns_servers=task.dns_servers,
+        dns_servers=task.dns_servers if task.dns_servers is not None else config.dns_servers,
         join_domain=task.join_domain,
         domain_name=task.domain_name,
         domain_ou=task.domain_ou,
@@ -4542,22 +4554,23 @@ async def create_provisioning_task(
         install_octofleet_agent=task.install_octofleet_agent,
         enable_rdp=task.enable_rdp,
         disable_firewall=task.disable_firewall,
-        pxe_server=PXE_SERVER_URL,
+        pxe_server=config.pxe_server_url,
     )
     
     # Generate iPXE boot script
     ipxe_script = generate_ipxe_script(
         mac_address=mac_normalized,
         hostname=task.hostname,
-        pxe_server=PXE_SERVER_URL,
+        pxe_server=config.pxe_server_url,
     )
     
     # Ensure answers directory exists
-    os.makedirs(PROVISIONING_ANSWERS_PATH, exist_ok=True)
+    os.makedirs(config.answers_path, exist_ok=True)
+    os.makedirs(config.boot_path, exist_ok=True)
     
     # Write files
-    xml_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.xml")
-    ipxe_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.ipxe")
+    xml_path = os.path.join(config.answers_path, f"{mac_hyp}.xml")
+    ipxe_path = os.path.join(config.boot_path, f"{mac_hyp}.ipxe")
     
     with open(xml_path, "w") as f:
         f.write(autounattend_xml)
@@ -4589,8 +4602,8 @@ async def create_provisioning_task(
         hostname=row["hostname"],
         mac_address=row["mac_address"],
         status=row["status"],
-        ipxe_url=f"{PXE_SERVER_URL}/boot/{mac_hyp}.ipxe",
-        autounattend_url=f"{PXE_SERVER_URL}/answers/{mac_hyp}.xml",
+        ipxe_url=f"{config.pxe_server_url}/boot/{mac_hyp}.ipxe",
+        autounattend_url=f"{config.pxe_server_url}/answers/{mac_hyp}.xml",
         created_at=row["created_at"],
     )
 
@@ -4637,6 +4650,7 @@ async def cancel_provisioning_task(
     api_key: str = Depends(verify_api_key)
 ):
     """Cancel a provisioning task and remove boot files"""
+    config = await load_config(db)
     row = await db.fetchrow("SELECT mac_address, status FROM provisioning_tasks WHERE id = $1", task_id)
     if not row:
         raise not_found("Provisioning task not found")
@@ -4647,8 +4661,8 @@ async def cancel_provisioning_task(
     mac_hyp = row["mac_address"].replace(":", "-")
     
     # Remove boot files
-    xml_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.xml")
-    ipxe_path = os.path.join(PROVISIONING_ANSWERS_PATH, f"{mac_hyp}.ipxe")
+    xml_path = os.path.join(config.answers_path, f"{mac_hyp}.xml")
+    ipxe_path = os.path.join(config.boot_path, f"{mac_hyp}.ipxe")
     
     for path in [xml_path, ipxe_path]:
         if os.path.exists(path):
@@ -4666,7 +4680,7 @@ async def cancel_provisioning_task(
 @app.get("/api/v1/provisioning/images", tags=["Provisioning"])
 async def list_available_images(api_key: str = Depends(verify_api_key)):
     """List available OS images for provisioning"""
-    images_path = os.getenv("PROVISIONING_IMAGES_PATH", "/home/benedikt/.openclaw/workspace/octofleet-work/provisioning/images")
+    images_path = (await load_config(db_pool)).images_path
     
     images = []
     
@@ -4737,8 +4751,10 @@ async def get_pxe_script(mac: str, db: asyncpg.Pool = Depends(get_db)):
         WHERE t.mac_address = $1 AND t.status = 'pending'
     """, mac)
     
-    pxe_server = os.environ.get("PXE_SERVER", "http://192.168.0.5:9080")
-    api_server = os.environ.get("API_SERVER", "http://192.168.0.5:8080")
+    config = await load_config(db_pool)
+    config.require("pxe_server_url", "api_server_url")
+    pxe_server = config.pxe_server_url
+    api_server = config.api_server_url
     
     if not task:
         # No task - return fallback/info screen
@@ -4800,8 +4816,10 @@ exit
 @app.get("/api/v1/pxe", tags=["PXE"])
 async def get_default_pxe():
     """Default iPXE script - chainload to MAC-specific script"""
-    pxe_server = os.environ.get("PXE_SERVER", "http://192.168.0.5:9080")
-    api_server = os.environ.get("API_SERVER", "http://192.168.0.5:8080")
+    config = await load_config(db_pool)
+    config.require("pxe_server_url", "api_server_url")
+    pxe_server = config.pxe_server_url
+    api_server = config.api_server_url
     
     from fastapi.responses import PlainTextResponse
     script = f"""#!ipxe
@@ -5232,7 +5250,7 @@ if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
-API_URL="${API_URL:-http://192.168.0.5:8080}"
+API_URL="${API_URL:?Configure API_URL in the agent config file}"
 API_KEY="${API_KEY:?API_KEY must be set}"
 NODE_ID="${NODE_ID:-$(hostname)}"
 POLL_INTERVAL="${POLL_INTERVAL:-30}"
@@ -5354,11 +5372,21 @@ async def get_linux_agent():
 @app.get("/api/v1/provisioning/autoinstall/{hostname}", tags=["Provisioning"])
 async def get_autoinstall_config(
     hostname: str,
-    api_url: str = "http://192.168.0.5:8080",
+    api_url: Optional[str] = None,
     api_key: str = "",
     task_id: Optional[str] = None
 ):
     """Generate Ubuntu autoinstall config with Octofleet agent pre-installed"""
+    infrastructure = await load_config(db_pool)
+    if api_url is None:
+        infrastructure.require("api_server_url")
+        api_url = infrastructure.api_server_url
+    try:
+        api_url = safe_url(api_url)
+        if not api_url:
+            raise ValueError("API URL is required")
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     
     template = """#cloud-config
 autoinstall:

@@ -225,13 +225,16 @@ def generate_autounattend(
     domain_password: Optional[str] = None,
     djoin_blob: Optional[str] = None,
     install_agent: bool = True,
-    agent_api_url: str = "http://192.168.0.5:8080",
+    agent_api_url: str = "",
     custom_scripts: list = None
 ) -> str:
     """
     Generate a complete Autounattend.xml for Windows deployment
     """
     
+    if not agent_api_url:
+        raise ValueError("A configured agent API URL is required")
+
     # Encode admin password for XML
     admin_password_encoded = base64.b64encode(
         (admin_password + "AdministratorPassword").encode('utf-16-le')
@@ -277,7 +280,7 @@ def generate_autounattend(
     first_logon_commands += f'''
         <SynchronousCommand wcm:action="add">
           <Order>{command_order}</Order>
-          <CommandLine>powershell.exe -ExecutionPolicy Bypass -Command "Invoke-RestMethod -Method POST -Uri '{agent_api_url}/api/v1/provisioning/pxe/callback' -ContentType 'application/json' -Body (ConvertTo-Json @{{hostname='%COMPUTERNAME%';step='oobe_complete';message='First logon completed'}})"</CommandLine>
+          <CommandLine>powershell.exe -ExecutionPolicy Bypass -Command "Invoke-RestMethod -Method POST -Uri '{agent_api_url}/api/v1/pxe/callback' -ContentType 'application/json' -Body (ConvertTo-Json @{{hostname='%COMPUTERNAME%';step='oobe_complete';message='First logon completed'}})"</CommandLine>
           <Description>Notify Octofleet of completion</Description>
         </SynchronousCommand>'''
     

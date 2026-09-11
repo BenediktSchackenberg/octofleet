@@ -1,43 +1,45 @@
-version: '3.8'
-
+# Export pxe.env from Settings > Provisioning, then run in this directory:
+# docker compose --env-file pxe.env up -d --build --force-recreate
 services:
   pxe:
     build: .
     container_name: octofleet-pxe
     restart: unless-stopped
-    network_mode: host  # Nötig für DHCP/TFTP Broadcast
+    network_mode: host
     cap_add:
       - NET_ADMIN
     volumes:
-      # Config
-      - ./dnsmasq.conf:/etc/dnsmasq.d/octofleet.conf:ro
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./hosts.pxe:/etc/hosts.pxe:rw
-      
-      # Boot files (rw for generated boot.ipxe)
-      - ./tftpboot:/tftpboot:rw
-      
-      # Ubuntu Live ISOs for NFS boot
-      - /mnt/ubuntu-24.04:/mnt/ubuntu-24.04:ro
-      - /mnt/ubuntu-22.04:/mnt/ubuntu-22.04:ro
-      
-      # Images & Drivers (große Dateien)
-      - ./images:/srv/images:ro
-      - ./drivers:/srv/drivers:ro
-      - ./answers:/srv/answers:ro
-      - ./boot:/srv/boot:ro
-      
-      # Scripts
-      - ./scripts:/srv/scripts:ro
-      
-      # Windows Install files
-      - /srv/wininstall:/srv/wininstall:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf.template:ro
+      - ./boot.ipxe:/etc/octofleet/boot.ipxe.template:ro
+      - ${TFTP_ROOT:-./tftpboot}:${TFTP_ROOT:-/tftpboot}:rw
+      - ${PROVISIONING_IMAGES_PATH:-./images}:${PROVISIONING_IMAGES_PATH:-/srv/images}:ro
+      - ${PROVISIONING_DRIVERS_PATH:-./drivers}:${PROVISIONING_DRIVERS_PATH:-/srv/drivers}:ro
+      - ${PROVISIONING_ANSWERS_PATH:-./answers}:${PROVISIONING_ANSWERS_PATH:-/srv/answers}:ro
+      - ${PROVISIONING_BOOT_PATH:-./boot}:${PROVISIONING_BOOT_PATH:-/srv/boot}:ro
+      - ${PROVISIONING_SCRIPTS_PATH:-./scripts}:${PROVISIONING_SCRIPTS_PATH:-/srv/scripts}:ro
+      - ${PROVISIONING_WINDOWS_INSTALL_PATH:-/srv/wininstall}:${PROVISIONING_WINDOWS_INSTALL_PATH:-/srv/wininstall}:ro
+      # Linux ISO mounts must exist before starting/recreating this container.
+      - ${PROVISIONING_MOUNT_BASE:-/mnt}:${PROVISIONING_MOUNT_BASE:-/mnt}:ro
     environment:
-      - PXE_SERVER_IP=${PXE_SERVER_IP:-192.168.0.5}
-      - PXE_INTERFACE=${PXE_INTERFACE:-}  # e.g. br0, eth0 — empty = all interfaces
-      - OCTOFLEET_API=${OCTOFLEET_API:-http://localhost:8080}
+      PXE_SERVER_URL: ${PXE_SERVER_URL:-}
+      PXE_SERVER_IP: ${PXE_SERVER_IP:-}
+      API_SERVER: ${API_SERVER:-}
+      OCTOFLEET_API: ${OCTOFLEET_API:-}
+      NFS_SERVER: ${NFS_SERVER:-}
+      NFS_EXPORT_PATH: ${NFS_EXPORT_PATH:-}
+      PXE_HTTP_PORT: ${PXE_HTTP_PORT:-9080}
+      PXE_INTERFACE: ${PXE_INTERFACE:-}
+      PXE_PROXY_DHCP_SUBNET: ${PXE_PROXY_DHCP_SUBNET:-}
+      TFTP_ROOT: ${TFTP_ROOT:-/tftpboot}
+      PROVISIONING_IMAGES_PATH: ${PROVISIONING_IMAGES_PATH:-/srv/images}
+      PROVISIONING_DRIVERS_PATH: ${PROVISIONING_DRIVERS_PATH:-/srv/drivers}
+      PROVISIONING_ANSWERS_PATH: ${PROVISIONING_ANSWERS_PATH:-/srv/answers}
+      PROVISIONING_BOOT_PATH: ${PROVISIONING_BOOT_PATH:-/srv/boot}
+      PROVISIONING_SCRIPTS_PATH: ${PROVISIONING_SCRIPTS_PATH:-/srv/scripts}
+      PROVISIONING_WINDOWS_INSTALL_PATH: ${PROVISIONING_WINDOWS_INSTALL_PATH:-/srv/wininstall}
+      PROVISIONING_MOUNT_BASE: ${PROVISIONING_MOUNT_BASE:-/mnt}
     healthcheck:
-      test: ["CMD", "pgrep", "dnsmasq"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$$PXE_HTTP_PORT/health && pgrep dnsmasq"]
       interval: 30s
       timeout: 10s
       retries: 3

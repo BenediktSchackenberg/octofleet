@@ -52,6 +52,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/audit": "Audit",
   "/api-keys": "API Keys",
   "/settings": "Settings",
+  "/settings/provisioning": "Provisioning settings",
   "/admin/agents": "Agent Monitor",
 };
 

@@ -187,6 +187,11 @@ export default function SettingsPage() {
 
         {/* Quick Links */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <Link href="/settings/provisioning" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Rocket className="h-6 w-6 mb-2 text-cyan-400" />
+            <h3 className="font-medium">Provisioning</h3>
+            <p className="text-xs text-zinc-500">Bootserver, Netzwerk & Speicherpfade</p>
+          </Link>
           <Link href="/users" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
             <Users className="h-6 w-6 mb-2 text-blue-400" />
             <h3 className="font-medium">Users</h3>

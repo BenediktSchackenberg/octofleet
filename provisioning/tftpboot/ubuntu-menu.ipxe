@@ -23,22 +23,22 @@ choose target && goto ${target} ||
 :v2
 echo
 echo === Testing V2: Args inline with kernel ===
-chain http://192.168.0.5:9080/ubuntu-nfs-v2.ipxe || goto failed
+chain ${PXE_SERVER_URL}/ubuntu-nfs-v2.ipxe || goto failed
 
 :v3
 echo
 echo === Testing V3: kernel + imgargs + initrd ===
-chain http://192.168.0.5:9080/ubuntu-nfs-v3.ipxe || goto failed
+chain ${PXE_SERVER_URL}/ubuntu-nfs-v3.ipxe || goto failed
 
 :v4
 echo
 echo === Testing V4: initrd first, then kernel with args ===
-chain http://192.168.0.5:9080/ubuntu-nfs-v4.ipxe || goto failed
+chain ${PXE_SERVER_URL}/ubuntu-nfs-v4.ipxe || goto failed
 
 :grub
 echo
 echo Chainloading to GRUB...
-chain tftp://192.168.0.5/grub/grubnetx64.efi || goto failed
+chain ${PXE_SERVER_URL}/grub/grubnetx64.efi || goto failed
 
 :shell
 shell

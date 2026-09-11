@@ -89,15 +89,9 @@ LIVE_DATA_INTERVAL=5     # Live metrics interval in seconds
 
 ## PXE Provisioning
 
-The PXE provisioning system runs as a separate Docker Compose stack in the `provisioning/` directory.
+Use **Settings → Provisioning** to configure PXE/API/NFS addresses, DNS defaults, ISO and boot storage, VM storage, SMB shares and PXE service options. Values are persisted centrally and used by new tasks and generated boot scripts.
 
-| Variable | Description |
-|----------|-------------|
-| DHCP range | Configured in dnsmasq — see `provisioning/` configs |
-| TFTP root | iPXE binary location |
-| HTTP server | Serves boot images (WIM, kernel, initrd) |
-
-For full PXE setup, see [PXE-PROVISIONING.md](PXE-PROVISIONING.md).
+The PXE server remains a separate Compose stack. Export its configuration from the menu and recreate the container to apply service and mount changes. See [Provisioning configuration](PROVISIONING-CONFIGURATION.md) for the exact workflow and supported environment variables.
 
 ---
 

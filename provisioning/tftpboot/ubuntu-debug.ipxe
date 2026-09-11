@@ -1,9 +1,9 @@
 #!ipxe
 # DEBUG VERSION - drops to shell before NFS mount
 
-set nfs-server 192.168.0.5
-set nfs-path /mnt/ubuntu-24.04
-set pxe-server http://192.168.0.5:9080
+set nfs-server ${NFS_HOST}
+set nfs-path ${NFS_PATH_2404}
+set pxe-server ${PXE_SERVER_URL}
 
 echo
 echo === DEBUG BOOT - will drop to initramfs shell ===

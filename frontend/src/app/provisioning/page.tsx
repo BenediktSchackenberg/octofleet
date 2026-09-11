@@ -59,7 +59,8 @@ interface ProvisioningTemplate {
 
 // API Functions
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await apiClient.get<T>(`${endpoint}`, { showErrorToast: false });
+  const result = await apiClient.request<T>(endpoint, { ...options, showErrorToast: false, headers: { "Content-Type": "application/json", ...options?.headers } });
+  const res = result.data;
   if (!res) {
     throw new Error('API request failed');
   }
@@ -221,7 +222,6 @@ function NewJobModal({
             use_dhcp: networkMode === "dhcp",
             static_ip: networkMode === "static" ? staticIp : null,
             gateway: networkMode === "static" ? gateway : null,
-            dns_servers: ["192.168.0.8"],
             domain_name: domainJoin ? domainName : null,
             install_agent: installAgent,
           }),

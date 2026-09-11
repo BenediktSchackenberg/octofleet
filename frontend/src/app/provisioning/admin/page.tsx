@@ -58,7 +58,8 @@ interface ISOInfo {
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await apiClient.get<T>(`${endpoint}`, { showErrorToast: false });
+  const result = await apiClient.request<T>(endpoint, { ...options, showErrorToast: false, headers: { "Content-Type": "application/json", ...options?.headers } });
+  const res = result.data;
   if (!res) {
     throw new Error('API request failed');
   }
@@ -274,7 +275,8 @@ export default function ProvisioningAdminPage() {
   const [images, setImages] = useState<ProvisioningImage[]>([]);
   const [templates, setTemplates] = useState<ProvisioningTemplate[]>([]);
   const [isos, setIsos] = useState<ISOInfo[]>([]);
-  const [isoPath, setIsoPath] = useState("/mnt/isos");
+  const [isoPath, setIsoPath] = useState("");
+  const [mountBase, setMountBase] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isoLoading, setIsoLoading] = useState(false);
   const [editingImage, setEditingImage] = useState<ProvisioningImage | null | "new">(null);
@@ -284,7 +286,7 @@ export default function ProvisioningAdminPage() {
   const [nfsMounts, setNfsMounts] = useState<{server: string; target: string; type: string; total?: string; used?: string; available?: string; percent?: string}[]>([]);
   const [nfsLoading, setNfsLoading] = useState(false);
   const [showNfsModal, setShowNfsModal] = useState(false);
-  const [newNfs, setNewNfs] = useState({ server_path: "", mount_target: "/mnt/", add_to_fstab: true });
+  const [newNfs, setNewNfs] = useState({ server_path: "", mount_target: "", add_to_fstab: true });
 
   const loadData = async () => {
     setIsLoading(true);
@@ -306,9 +308,10 @@ export default function ProvisioningAdminPage() {
     setIsoLoading(true);
     try {
       const data = await fetchApi<{ iso_path: string; isos: ISOInfo[] }>(
-        `/provisioning/iso/scan?path=${encodeURIComponent(isoPath)}`
+        `/provisioning/iso/scan${isoPath ? `?path=${encodeURIComponent(isoPath)}` : ""}`
       );
       setIsos(data.isos);
+      setIsoPath(data.iso_path);
     } catch (err) {
       console.error(err);
       alert("Failed to scan ISOs");
@@ -358,7 +361,7 @@ export default function ProvisioningAdminPage() {
         body: JSON.stringify(newNfs),
       });
       setShowNfsModal(false);
-      setNewNfs({ server_path: "", mount_target: "/mnt/", add_to_fstab: true });
+      setNewNfs({ server_path: "", mount_target: mountBase, add_to_fstab: true });
       await loadNfsMounts();
     } catch (err) {
       alert(`Mount failed: ${err}`);
@@ -378,6 +381,12 @@ export default function ProvisioningAdminPage() {
   };
 
   useEffect(() => {
+    apiClient.get<{ mount_base: string }>("/provisioning/config").then(config => {
+      if (config) {
+        setMountBase(config.mount_base);
+        setNewNfs(current => ({ ...current, mount_target: config.mount_base }));
+      }
+    });
     loadData();
     scanIsos();
     loadNfsMounts();

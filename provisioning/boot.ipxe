@@ -4,11 +4,11 @@
 # ============================================================
 
 # Variablen
-set pxe-server http://${next-server}:8888
+set pxe-server ${PXE_SERVER_URL}
 set menu-timeout 10000
 
 # Header
-console --picture http://${next-server}:8888/octofleet-logo.png --left 32 --right 32 --top 32 || 
+console --picture ${PXE_SERVER_URL}/octofleet-logo.png --left 32 --right 32 --top 32 ||
 echo
 echo ===============================================
 echo    🐙 Octofleet PXE Boot
@@ -21,7 +21,7 @@ echo
 # Versuche MAC-spezifisches Boot-Script zu laden
 :check_config
 echo Checking for provisioning task...
-chain ${pxe-server}/boot/${mac:hexhyp}.ipxe && goto boot_done ||
+chain ${pxe-server}/api/v1/pxe/${mac:hexhyp} && goto boot_done ||
 
 # Kein Task gefunden - zeige Menü
 :menu
