@@ -1365,32 +1365,6 @@ run_service() {
     done
 }
 
-# ============================================================================
-# Main
-# ============================================================================
-
-case "${1:-service}" in
-    push)
-        push_inventory
-        ;;
-    poll)
-        poll_jobs
-        ;;
-    collect)
-        collect_full_inventory | jq .
-        ;;
-    service|run)
-        run_service
-        ;;
-    version)
-        echo "Octofleet Linux Agent v$VERSION"
-        ;;
-    *)
-        echo "Usage: $0 {push|poll|collect|service|version}"
-        exit 1
-        ;;
-esac
-
 # ============================================================
 # E21 Story #88: Linux File Audit Collector (inotifywait)
 # ============================================================
@@ -1529,3 +1503,29 @@ stop_file_audit() {
         log "INFO" "File audit stopped"
     fi
 }
+
+# ============================================================================
+# Main
+# ============================================================================
+
+case "${1:-service}" in
+    push)
+        push_inventory
+        ;;
+    poll)
+        poll_jobs
+        ;;
+    collect)
+        collect_full_inventory | jq .
+        ;;
+    service|run)
+        run_service
+        ;;
+    version)
+        echo "Octofleet Linux Agent v$VERSION"
+        ;;
+    *)
+        echo "Usage: $0 {push|poll|collect|service|version}"
+        exit 1
+        ;;
+esac
