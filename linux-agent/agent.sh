@@ -656,7 +656,7 @@ collect_live_metrics() {
         local total_diff=$((total2 - total1))
         
         if [[ $total_diff -gt 0 ]]; then
-            cpu_percent=$(echo "scale=1; 100 * (1 - $idle_diff / $total_diff)" | bc 2>/dev/null || echo 0)
+            cpu_percent=$(awk -v i="$idle_diff" -v t="$total_diff" 'BEGIN {printf "%.1f", 100 * (t - i) / t}')
         fi
     fi
     
@@ -665,7 +665,7 @@ collect_live_metrics() {
     local mem_available=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}')
     local mem_percent=0
     if [[ -n "$mem_total" ]] && [[ "$mem_total" -gt 0 ]]; then
-        mem_percent=$(echo "scale=1; 100 * (1 - $mem_available / $mem_total)" | bc 2>/dev/null || echo 0)
+        mem_percent=$(awk -v a="$mem_available" -v t="$mem_total" 'BEGIN {printf "%.1f", 100 * (t - a) / t}')
     fi
     
     # Disk (root filesystem)
