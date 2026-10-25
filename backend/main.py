@@ -69,6 +69,7 @@ from routers.mssql import router as mssql_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
+from routers.agent_releases import router as agent_releases_router
 from routers.patch_explorer import router as patch_explorer_router
 from routers.patches import router as patches_router
 from routers.provisioning import pxe_router
@@ -228,7 +229,7 @@ async def agent_activity_middleware(request: Request, call_next):
     return response
 
 # Global exception handler to ensure CORS headers on 500 errors
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse
 
 
 @app.exception_handler(Exception)
@@ -239,6 +240,9 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal Server Error"},
     )
+
+# Windows agent installer served by /api/v1/onboarding/install-script
+INSTALL_SCRIPT_PATH = os.getenv("INSTALL_SCRIPT_PATH", "/app/static/Install-OctofleetAgent.ps1")
 
 # Include routers
 app.include_router(nodes_router)
@@ -271,6 +275,7 @@ app.include_router(reports_router)
 app.include_router(monitoring_mgmt_router)
 app.include_router(terminal_router)
 app.include_router(packages_mgmt_router)
+app.include_router(agent_releases_router)
 app.include_router(vulnerabilities_router)
 app.include_router(rbac_router)
 app.include_router(hardware_router)
@@ -762,7 +767,7 @@ async def get_install_command(request: Request):
     ps_command = (
         f'$env:OCTOFLEET_API_URL="{api_url}"; '
         f'$env:OCTOFLEET_API_KEY="{api_key}"; '
-        f'irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1 | iex'
+        f'irm {api_url}/api/v1/onboarding/install-script | iex'
     )
     
     return {"command": ps_command, "apiUrl": api_url, "apiKey": api_key}
@@ -812,6 +817,12 @@ async def update_onboarding_config(data: Dict[str, Any], db: asyncpg.Pool = Depe
         """, data.get("onboardingGroupId"), data.get("autoAssignNewNodes", True))
         
         return {"status": "updated"}
+
+
+@app.get("/api/v1/onboarding/install-script")
+async def get_install_script():
+    """Serve the Windows agent installer from this server (contains no secrets)."""
+    return FileResponse(INSTALL_SCRIPT_PATH, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/v1/jobs", dependencies=[Depends(verify_api_key)])

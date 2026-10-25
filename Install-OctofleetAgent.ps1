@@ -83,6 +83,22 @@ function Test-Administrator {
 }
 
 function Get-LatestRelease {
+    # Prefer the release published on the Octofleet server (same format as GitHub's API)
+    if ($env:OCTOFLEET_API_URL) {
+        $serverUrl = "$($env:OCTOFLEET_API_URL.TrimEnd('/'))/api/v1/agent/releases/latest"
+        try {
+            Write-Status "Checking Octofleet server for an agent release..."
+            $release = Invoke-RestMethod -Uri $serverUrl -TimeoutSec 15 -Headers @{ "User-Agent" = "Octofleet-Installer" }
+            if ($release.assets | Where-Object { $_.name -like "*.zip" }) {
+                Write-Status "Found release $($release.tag_name) on Octofleet server"
+                return $release
+            }
+        }
+        catch {
+            Write-Status "No agent release on Octofleet server, falling back to GitHub" "Warning"
+        }
+    }
+
     Write-Status "Fetching latest release from GitHub..."
     $apiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases"
     
