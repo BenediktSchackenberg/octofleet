@@ -11,6 +11,7 @@ services:
     volumes:
       - ./backend/schema-full.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./backend/ci-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./backend/schema/e33-content-lifecycle.sql:/docker-entrypoint-initdb.d/03-content-lifecycle.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U octofleet -d inventory"]
       interval: 5s
