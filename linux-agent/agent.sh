@@ -154,8 +154,19 @@ collect_hardware() {
              .speedMHz = ((.speedStr | capture("(?<n>[0-9]+)") // {n: "0"}).n | tonumber) |
              del(.sizeStr, .speedStr)]' 2>/dev/null || echo '[]')
     fi
-    local ram=$(jq -n --argjson total_kb "${mem_total_kb:-0}" --argjson avail_kb "${mem_available_kb:-0}" --argjson modules "$modules" \
-        '{totalGB: ($total_kb / 1048576 * 10 | round / 10), totalBytes: ($total_kb * 1024),
+    # Installed memory, as the Windows agent reports it (sum of modules): lsmem's
+    # online memory, else the dmidecode modules. MemTotal is smaller (kernel,
+    # firmware and crashkernel reservations) and is reported as usableGB.
+    local installed_bytes=$(lsmem -b --summary=only 2>/dev/null | awk -F: '/Total online memory/ {gsub(/[^0-9]/, "", $2); print $2}')
+    [[ "$installed_bytes" =~ ^[0-9]+$ ]] || installed_bytes=0
+    local ram=$(jq -n --argjson total_kb "${mem_total_kb:-0}" --argjson avail_kb "${mem_available_kb:-0}" \
+        --argjson installed "$installed_bytes" --argjson modules "$modules" \
+        '($modules | map(.capacityGB) | add // 0) as $module_gb |
+         (if $installed > 0 then $installed / 1073741824
+          elif $module_gb > 0 then $module_gb
+          else $total_kb / 1048576 end) as $total_gb |
+         {totalGB: ($total_gb * 10 | round / 10), totalBytes: ($total_gb * 1073741824 | round),
+          usableGB: ($total_kb / 1048576 * 10 | round / 10), usableBytes: ($total_kb * 1024),
           availableBytes: ($avail_kb * 1024), modules: $modules, moduleCount: ($modules | length)}')
 
     # Disks: physical disks (lsblk) and mounted volumes (df)
