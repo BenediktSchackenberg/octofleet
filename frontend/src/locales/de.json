@@ -132,6 +132,15 @@
     "events": "Ereignisse",
     "noNodes": "Keine Nodes gefunden",
     "deleteConfirm": "Node wirklich löschen?",
+    "updates": {
+      "packageUpdates": "Paket-Updates ({count})",
+      "summary": "Paketmanager: {manager} · Sicherheitsupdates: {security}",
+      "package": "Paket",
+      "newVersion": "Neue Version",
+      "source": "Quelle",
+      "securityBadge": "Sicherheit",
+      "none": "Keine Updates verfügbar"
+    },
     "removal": {
       "button": "Node entfernen…",
       "title": "{hostname} entfernen",

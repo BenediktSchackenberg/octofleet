@@ -215,7 +215,7 @@ export default function NodeDetailPage() {
   const { hasPermission } = useAuth();
   const { t } = useI18n();
   
-  const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
+  const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
 
   if (loading) {
     return (
@@ -665,6 +665,42 @@ export default function NodeDetailPage() {
 
           {/* Updates Tab */}
           <TabsContent value="updates" className="space-y-4">
+            {linuxUpdates ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("nodes.updates.packageUpdates", { count: totalUpdatesCount })}</CardTitle>
+                <CardDescription>
+                  {t("nodes.updates.summary", { manager: linuxUpdates.packageManager ?? "", security: linuxUpdates.securityUpdates || 0 })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(linuxUpdates.updates?.length || 0) > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t("nodes.updates.package")}</TableHead>
+                        <TableHead>{t("nodes.updates.newVersion")}</TableHead>
+                        <TableHead>{t("nodes.updates.source")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {linuxUpdates.updates?.map((pkg, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono">
+                            {pkg.name} {pkg.security && <Badge variant="destructive" className="ml-2">{t("nodes.updates.securityBadge")}</Badge>}
+                          </TableCell>
+                          <TableCell className="font-mono">{pkg.newVersion}</TableCell>
+                          <TableCell className="text-muted-foreground">{pkg.repository || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-muted-foreground">{t("nodes.updates.none")}</p>
+                )}
+              </CardContent>
+            </Card>
+            ) : (
             <Card>
               <CardHeader><CardTitle>Windows Updates ({totalUpdatesCount})</CardTitle></CardHeader>
               <CardContent>
@@ -723,6 +759,7 @@ export default function NodeDetailPage() {
                 )}
               </CardContent>
             </Card>
+            )}
           </TabsContent>
 
           {/* Network Tab */}

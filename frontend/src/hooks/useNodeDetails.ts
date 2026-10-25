@@ -171,7 +171,7 @@ export interface LinuxData {
     totalUpdates?: number;
     securityUpdates?: number;
     lastCheckTime?: string;
-    updates?: { name: string; newVersion: string; security: boolean }[];
+    updates?: { name: string; newVersion: string; repository?: string; security: boolean }[];
   };
   diskHealth?: {
     smartctlAvailable?: boolean;
@@ -282,7 +282,10 @@ export function useNodeDetails(nodeId: string) {
   const ramData: { totalGB?: number; modules?: any[] } = ((hwData as Record<string, unknown>).ram || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.memory || {}) as { totalGB?: number; modules?: any[] };
   const gpuList: Array<Record<string, unknown>> = ((hwData as Record<string, unknown>).gpu || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.gpus || []) as Array<Record<string, unknown>>;
   const nicsList: { adapters?: any[]; configurations?: any } = ((hwData as Record<string, unknown>).nics || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.network || {}) as { adapters?: any[]; configurations?: any };
-  const totalUpdatesCount = hotfixes.hotfixes.length + hotfixes.updateHistory.length;
+  const linuxUpdates = linuxData?.updates?.packageManager ? linuxData.updates : null;
+  const totalUpdatesCount = linuxUpdates
+    ? linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0
+    : hotfixes.hotfixes.length + hotfixes.updateHistory.length;
 
   return {
     loading, node, history, hardware, software, hotfixes, system, security,
@@ -290,7 +293,7 @@ export function useNodeDetails(nodeId: string) {
     linuxData,
     // Derived
     hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList,
-    totalUpdatesCount,
+    linuxUpdates, totalUpdatesCount,
     // Actions
     refreshInventory, fetchNodeDetails,
   };
