@@ -82,7 +82,7 @@ collect_hardware() {
     local cpu_threads=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1)
     
     local mem_total_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
-    local mem_total_gb=$(echo "scale=2; $mem_total_kb / 1024 / 1024" | bc 2>/dev/null || echo 0)
+    local mem_total_gb=$(echo "scale=2; $mem_total_kb / 1024 / 1024" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
     local mem_available_kb=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
     
     # Disk info
@@ -727,8 +727,8 @@ collect_live_network() {
         [[ $first -eq 0 ]] && interfaces+=","
         first=0
         
-        local rx_mb=$(echo "scale=1; $rx_bytes / 1048576" | bc 2>/dev/null || echo 0)
-        local tx_mb=$(echo "scale=1; $tx_bytes / 1048576" | bc 2>/dev/null || echo 0)
+        local rx_mb=$(echo "scale=1; $rx_bytes / 1048576" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
+        local tx_mb=$(echo "scale=1; $tx_bytes / 1048576" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
         
         interfaces+="{\"name\":\"$name\",\"linkUp\":$link_up,\"speedMbps\":$speed,\"rxBytesPerSec\":$rx_rate,\"txBytesPerSec\":$tx_rate,\"rxTotalMb\":$rx_mb,\"txTotalMb\":$tx_mb}"
     done
