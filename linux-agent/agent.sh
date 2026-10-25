@@ -177,6 +177,13 @@ collect_system() {
         "id": "$os_id",
         "kernel": "$kernel"
     },
+    "os": {
+        "name": "$os_name",
+        "version": "$os_version",
+        "build": "$kernel",
+        "computerName": "$hostname",
+        "agentVersion": "$VERSION"
+    },
     "uptime": {
         "seconds": $uptime_seconds,
         "bootTime": "$boot_time"
