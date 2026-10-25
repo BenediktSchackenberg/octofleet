@@ -640,24 +640,21 @@ collect_updates() {
         package_manager="apt"
         
         # Get upgradable packages (force English output, skip header line)
+        # Line format: "name/suite[,suite...] new-version arch [upgradable from: old-version]"
         updates=$(LANG=C apt list --upgradable 2>/dev/null | grep -v "^Listing" | \
-            awk -F'/' '
+            awk '
                 BEGIN { first = 1 }
-                {
-                    name = $1
-                    split($2, ver, " ")
-                    new_ver = ver[1]
-                    printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"security\": false}",
-                        (first ? "" : ","), name, new_ver
+                $1 ~ /\// {
+                    split($1, pkg, "/")
+                    security = (pkg[2] ~ /-security/) ? "true" : "false"
+                    printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"repository\": \"%s\", \"security\": %s}",
+                        (first ? "" : ","), pkg[1], $2, pkg[2], security
                     first = 0
                 }
             ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
         
         total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
-        
-        # Check for security updates via apt
-        security_updates=$(apt list --upgradable 2>/dev/null | grep -c -- "-security" 2>/dev/null || true)
-        [[ -z "$security_updates" ]] && security_updates=0
+        security_updates=$(echo "$updates" | jq '[.[] | select(.security)] | length' 2>/dev/null || echo 0)
         
     elif command -v dnf &>/dev/null; then
         package_manager="dnf"
