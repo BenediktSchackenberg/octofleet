@@ -344,6 +344,27 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     if sys_data.get("os") or sys_data.get("services"):
         await submit_system({"hostname": hostname, "nodeId": data.get("nodeId", hostname), **sys_data}, db)
         results["submitted"].append("system")
+    linux_keys = ("performance", "services", "updates", "diskHealth")
+    if any(isinstance(data.get(k), dict) for k in linux_keys):
+        await submit_linux_data(hostname, data.get("nodeId", hostname), data, db)
+        results["submitted"].append("linux")
     try: await update_node_health(db, data.get("nodeId", hostname))
     except: pass
     return {"status": "ok", **results}
+
+
+async def submit_linux_data(hostname: str, node_id_str: str, data: Dict[str, Any], db: asyncpg.Pool):
+    """Store the Linux agent's performance/services/updates/diskHealth for the Linux tab"""
+    uuid = await upsert_node(db, node_id_str, hostname)
+
+    def as_json(key: str):
+        value = data.get(key)
+        return json.dumps(value) if isinstance(value, dict) else None
+
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                performance = $2, services = $3, updates = $4, disk_health = $5, updated_at = NOW()
+        """, str(uuid), as_json("performance"), as_json("services"), as_json("updates"), as_json("diskHealth"))
