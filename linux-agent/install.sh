@@ -1,407 +1,146 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Octofleet Linux Agent Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/.../install.sh | sudo bash
+#
+# Installs linux-agent/agent.sh as a systemd service.
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash -s -- \
+#     --api-url http://YOUR_SERVER:8080 --api-key YOUR_API_KEY [--node-id NAME] [--ref main]
+#
+#   API_URL / API_KEY / NODE_ID environment variables are accepted as well
+#   (use "sudo -E" or "sudo API_URL=... API_KEY=... bash install.sh").
+#
+# When run from a repository checkout, the local agent.sh and
+# octofleet-agent.service are installed; otherwise they are downloaded
+# from GitHub at --ref (default: main).
 
-set -e
+set -euo pipefail
 
 INSTALL_DIR="/opt/octofleet-agent"
 SERVICE_NAME="octofleet-agent"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+REPO_RAW="https://raw.githubusercontent.com/BenediktSchackenberg/octofleet"
+
 API_URL="${API_URL:-}"
 API_KEY="${API_KEY:-}"
+NODE_ID="${NODE_ID:-}"
+REF="${OCTOFLEET_REF:-main}"
+
+usage() {
+    cat <<USAGE
+Usage: install.sh --api-url URL --api-key KEY [--node-id NAME] [--ref GIT_REF]
+
+  --api-url   Octofleet API, e.g. http://your-server:8080 (without /api/v1)
+  --api-key   Octofleet API key
+  --node-id   Node identifier (default: hostname)
+  --ref       Git ref to download agent files from (default: main)
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --api-url) API_URL="${2:-}"; shift 2 ;;
+        --api-key) API_KEY="${2:-}"; shift 2 ;;
+        --node-id) NODE_ID="${2:-}"; shift 2 ;;
+        --ref)     REF="${2:-}"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "❌ Unknown option: $1" >&2; usage >&2; exit 1 ;;
+    esac
+done
 
 echo "═══════════════════════════════════════════════════════════"
 echo "   Octofleet Linux Agent Installer"
 echo "═══════════════════════════════════════════════════════════"
 
-# Check root
-if [ "$EUID" -ne 0 ]; then
-    echo "❌ Please run as root (sudo)"
+if [[ "$EUID" -ne 0 ]]; then
+    echo "❌ Please run as root (sudo)" >&2
     exit 1
 fi
 
-# Validate required parameters
-if [ -z "$API_URL" ]; then
-    echo "❌ API_URL is required."
-    echo ""
-    echo "Usage:"
-    echo "  API_URL=http://your-server:8080 API_KEY=your-key sudo -E bash install.sh"
-    echo ""
-    echo "See docs/AGENT-SETUP.md for details."
+if [[ -z "$API_URL" || -z "$API_KEY" ]]; then
+    echo "❌ --api-url and --api-key are required." >&2
+    echo "" >&2
+    usage >&2
     exit 1
 fi
 
-if [ -z "$API_KEY" ]; then
-    echo "❌ API_KEY is required."
-    echo ""
-    echo "Usage:"
-    echo "  API_URL=http://your-server:8080 API_KEY=your-key sudo -E bash install.sh"
-    echo ""
-    echo "See docs/AGENT-SETUP.md for details."
-    exit 1
+# agent.sh appends /api/v1 itself
+API_URL="${API_URL%/}"
+API_URL="${API_URL%/api/v1}"
+
+# Dependencies used by agent.sh
+missing=()
+for cmd in curl jq bc; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "📦 Installing dependencies: ${missing[*]}"
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq && apt-get install -y -qq "${missing[@]}"
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y -q "${missing[@]}"
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y -q "${missing[@]}"
+    elif command -v pacman >/dev/null 2>&1; then
+        pacman -Sy --noconfirm "${missing[@]}"
+    else
+        echo "❌ Please install: ${missing[*]}" >&2
+        exit 1
+    fi
 fi
 
-# Install dependencies
-echo "📦 Installing dependencies..."
-apt-get update -qq
-apt-get install -y -qq python3 python3-pip python3-venv curl jq
+# Source of agent files: local checkout or GitHub
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 
-# Create install directory
-echo "📁 Creating $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Create virtual environment
-echo "🐍 Setting up Python environment..."
-python3 -m venv venv
-source venv/bin/activate
-pip install --quiet requests psutil netifaces
+if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/agent.sh" && -f "$SCRIPT_DIR/octofleet-agent.service" ]]; then
+    echo "📁 Using agent files from $SCRIPT_DIR"
+    cp "$SCRIPT_DIR/agent.sh" "$SCRIPT_DIR/octofleet-agent.service" "$TMP_DIR/"
+else
+    echo "⬇️  Downloading agent files ($REF)..."
+    curl -fsSL "$REPO_RAW/$REF/linux-agent/agent.sh" -o "$TMP_DIR/agent.sh"
+    curl -fsSL "$REPO_RAW/$REF/linux-agent/octofleet-agent.service" -o "$TMP_DIR/octofleet-agent.service"
+fi
+bash -n "$TMP_DIR/agent.sh"
 
-# Create agent script
-echo "📝 Installing agent..."
-cat > agent.py << 'AGENT_EOF'
-#!/usr/bin/env python3
-"""Octofleet Linux Agent - Inventory & Monitoring"""
+echo "📝 Installing agent to $INSTALL_DIR..."
+install -d -m 700 "$INSTALL_DIR"
+install -m 755 "$TMP_DIR/agent.sh" "$INSTALL_DIR/agent.sh"
 
-import os
-import sys
-import time
-import json
-import socket
-import platform
-import subprocess
-import logging
-from datetime import datetime
-from pathlib import Path
-
-import requests
-import psutil
-
-# Configuration
-API_URL = os.environ.get("OCTOFLEET_API_URL", "")
-API_KEY = os.environ.get("OCTOFLEET_API_KEY", "")
-POLL_INTERVAL = int(os.environ.get("OCTOFLEET_POLL_INTERVAL", "30"))
-HOSTNAME = socket.gethostname()
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('/var/log/octofleet-agent.log')
-    ]
+# config.env contains the API key: readable by root only
+(
+    umask 077
+    {
+        printf 'API_URL="%s"\n' "$API_URL"
+        printf 'API_KEY="%s"\n' "$API_KEY"
+        printf 'NODE_ID="%s"\n' "${NODE_ID:-$(hostname)}"
+        printf 'PUSH_INTERVAL=1800\n'
+        printf 'JOB_POLL_INTERVAL=60\n'
+        printf 'LIVE_DATA_INTERVAL=5\n'
+    } > "$INSTALL_DIR/config.env"
 )
-log = logging.getLogger(__name__)
+chmod 600 "$INSTALL_DIR/config.env"
 
-def get_headers():
-    return {"X-API-Key": API_KEY, "Content-Type": "application/json"}
-
-def get_system_info():
-    """Collect system inventory"""
-    uname = platform.uname()
-    
-    # CPU info
-    cpu_info = {
-        "name": platform.processor() or "Unknown",
-        "cores": psutil.cpu_count(logical=False),
-        "threads": psutil.cpu_count(logical=True),
-        "frequency_mhz": psutil.cpu_freq().max if psutil.cpu_freq() else 0
-    }
-    
-    # Memory info
-    mem = psutil.virtual_memory()
-    memory_info = {
-        "total_gb": round(mem.total / (1024**3), 2),
-        "available_gb": round(mem.available / (1024**3), 2)
-    }
-    
-    # Disk info
-    disks = []
-    for part in psutil.disk_partitions():
-        try:
-            usage = psutil.disk_usage(part.mountpoint)
-            disks.append({
-                "device": part.device,
-                "mountpoint": part.mountpoint,
-                "fstype": part.fstype,
-                "total_gb": round(usage.total / (1024**3), 2),
-                "used_gb": round(usage.used / (1024**3), 2),
-                "free_gb": round(usage.free / (1024**3), 2),
-                "percent": usage.percent
-            })
-        except:
-            pass
-    
-    # Network interfaces
-    networks = []
-    for iface, addrs in psutil.net_if_addrs().items():
-        for addr in addrs:
-            if addr.family == socket.AF_INET:
-                networks.append({
-                    "interface": iface,
-                    "ip": addr.address,
-                    "netmask": addr.netmask
-                })
-    
-    # OS info
-    os_info = {
-        "name": f"{uname.system} {uname.release}",
-        "version": uname.version,
-        "architecture": uname.machine,
-        "hostname": HOSTNAME
-    }
-    
-    # Get distro info
-    try:
-        with open("/etc/os-release") as f:
-            for line in f:
-                if line.startswith("PRETTY_NAME="):
-                    os_info["distribution"] = line.split("=")[1].strip().strip('"')
-                    break
-    except:
-        pass
-    
-    return {
-        "hostname": HOSTNAME,
-        "os": os_info,
-        "cpu": cpu_info,
-        "memory": memory_info,
-        "disks": disks,
-        "networks": networks,
-        "collected_at": datetime.utcnow().isoformat()
-    }
-
-def get_metrics():
-    """Get current system metrics"""
-    cpu_percent = psutil.cpu_percent(interval=1)
-    mem = psutil.virtual_memory()
-    
-    # Get primary disk usage
-    disk_percent = 0
-    try:
-        disk_percent = psutil.disk_usage('/').percent
-    except:
-        pass
-    
-    # Network I/O
-    net = psutil.net_io_counters()
-    
-    return {
-        "cpu": cpu_percent,
-        "memory": mem.percent,
-        "disk": disk_percent,
-        "netIn": round(net.bytes_recv / (1024**2), 2),
-        "netOut": round(net.bytes_sent / (1024**2), 2)
-    }
-
-def get_installed_packages():
-    """Get list of installed packages"""
-    packages = []
-    
-    # Try dpkg (Debian/Ubuntu)
-    try:
-        result = subprocess.run(
-            ["dpkg-query", "-W", "-f", "${Package}|${Version}|${Status}\n"],
-            capture_output=True, text=True, timeout=30
-        )
-        for line in result.stdout.strip().split('\n'):
-            parts = line.split('|')
-            if len(parts) >= 2 and 'installed' in parts[-1]:
-                packages.append({
-                    "name": parts[0],
-                    "version": parts[1],
-                    "source": "dpkg"
-                })
-    except:
-        pass
-    
-    # Try rpm (RHEL/CentOS)
-    if not packages:
-        try:
-            result = subprocess.run(
-                ["rpm", "-qa", "--qf", "%{NAME}|%{VERSION}\n"],
-                capture_output=True, text=True, timeout=30
-            )
-            for line in result.stdout.strip().split('\n'):
-                parts = line.split('|')
-                if len(parts) >= 2:
-                    packages.append({
-                        "name": parts[0],
-                        "version": parts[1],
-                        "source": "rpm"
-                    })
-        except:
-            pass
-    
-    return packages
-
-def get_processes():
-    """Get top processes by CPU"""
-    procs = []
-    for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info']):
-        try:
-            info = proc.info
-            procs.append({
-                "pid": info['pid'],
-                "name": info['name'],
-                "user": info['username'],
-                "cpu": info['cpu_percent'],
-                "memoryMb": round(info['memory_info'].rss / (1024**2), 1) if info['memory_info'] else 0
-            })
-        except:
-            pass
-    
-    return sorted(procs, key=lambda x: x['cpu'], reverse=True)[:20]
-
-def send_full_inventory():
-    """Send full inventory to backend (this also registers the node)"""
-    log.info(f"📦 Sending full inventory for {HOSTNAME}...")
-    
-    system_info = get_system_info()
-    packages = get_installed_packages()
-    
-    # Build payload matching Windows Agent format
-    payload = {
-        "hostname": HOSTNAME,
-        "nodeId": HOSTNAME,
-        "hardware": {
-            "cpu": system_info["cpu"],
-            "ram": system_info["memory"],
-            "disks": system_info["disks"],
-            "network": system_info["networks"]
-        },
-        "software": {
-            "count": len(packages),
-            "software": packages
-        },
-        "system": {
-            "os": {
-                "name": system_info["os"].get("distribution", system_info["os"]["name"]),
-                "version": system_info["os"]["version"],
-                "architecture": system_info["os"]["architecture"]
-            },
-            "hostname": HOSTNAME,
-            "agentVersion": "0.4.26-linux"
-        }
-    }
-    
-    try:
-        resp = requests.post(f"{API_URL}/inventory/full", json=payload, headers=get_headers(), timeout=30)
-        if resp.status_code == 200:
-            log.info(f"✅ Full inventory sent: {len(packages)} packages")
-            return True
-        else:
-            log.warning(f"Inventory response: {resp.status_code} - {resp.text[:200]}")
-            return False
-    except Exception as e:
-        log.error(f"❌ Inventory failed: {e}")
-        return False
-
-def send_metrics():
-    """Send metrics to backend"""
-    metrics = get_metrics()
-    
-    payload = {
-        "hostname": HOSTNAME,
-        "nodeId": HOSTNAME,
-        "cpu_percent": metrics["cpu"],
-        "ram_percent": metrics["memory"],
-        "disk_percent": metrics["disk"],
-        "network_in_mb": metrics["netIn"],
-        "network_out_mb": metrics["netOut"]
-    }
-    
-    try:
-        resp = requests.post(f"{API_URL}/nodes/{HOSTNAME}/metrics", json=payload, headers=get_headers(), timeout=10)
-        if resp.status_code == 200:
-            log.debug(f"💓 Metrics sent: CPU={metrics['cpu']:.1f}%, RAM={metrics['memory']:.1f}%")
-            return True
-    except Exception as e:
-        log.error(f"Metrics failed: {e}")
-    return False
-
-def main():
-    log.info("═" * 50)
-    log.info(f"Octofleet Linux Agent v0.4.26")
-    log.info(f"Hostname: {HOSTNAME}")
-    log.info(f"API: {API_URL}")
-    log.info("═" * 50)
-    
-    # Send initial full inventory (this registers the node)
-    send_full_inventory()
-    
-    last_inventory = time.time()
-    
-    # Main loop
-    while True:
-        try:
-            # Send metrics every interval
-            send_metrics()
-            
-            # Send full inventory every 5 minutes
-            if time.time() - last_inventory > 300:
-                send_full_inventory()
-                last_inventory = time.time()
-            
-            time.sleep(POLL_INTERVAL)
-            
-        except KeyboardInterrupt:
-            log.info("Shutting down...")
-            break
-        except Exception as e:
-            log.error(f"Error: {e}")
-            time.sleep(10)
-
-if __name__ == "__main__":
-    main()
-AGENT_EOF
-
-chmod +x agent.py
-
-# Create config file
-cat > config.env << EOF
-OCTOFLEET_API_URL=$API_URL
-OCTOFLEET_API_KEY=$API_KEY
-OCTOFLEET_POLL_INTERVAL=30
-EOF
-
-# Create systemd service
-echo "⚙️ Creating systemd service..."
-cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
-[Unit]
-Description=Octofleet Linux Agent
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=$INSTALL_DIR
-EnvironmentFile=$INSTALL_DIR/config.env
-ExecStart=$INSTALL_DIR/venv/bin/python3 $INSTALL_DIR/agent.py
-Restart=always
-RestartSec=10
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Enable and start service
-echo "🚀 Starting service..."
+echo "⚙️  Installing systemd service..."
+install -m 644 "$TMP_DIR/octofleet-agent.service" "$SERVICE_FILE"
 systemctl daemon-reload
-systemctl enable $SERVICE_NAME
-systemctl start $SERVICE_NAME
+systemctl enable "$SERVICE_NAME" >/dev/null
+systemctl restart "$SERVICE_NAME"
 
-# Show status
 sleep 2
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo "   ✅ Octofleet Linux Agent Installed!"
+echo "   ✅ Octofleet Linux Agent installed ($("$INSTALL_DIR/agent.sh" version 2>/dev/null | tail -1))"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
-echo "Service Status:"
-systemctl status $SERVICE_NAME --no-pager | head -10
+systemctl --no-pager status "$SERVICE_NAME" | head -5 || true
 echo ""
 echo "Commands:"
 echo "  sudo systemctl status $SERVICE_NAME"
 echo "  sudo journalctl -u $SERVICE_NAME -f"
 echo "  sudo tail -f /var/log/octofleet-agent.log"
-echo ""
