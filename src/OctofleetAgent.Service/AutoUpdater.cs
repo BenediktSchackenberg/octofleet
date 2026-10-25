@@ -57,7 +57,7 @@ public class AutoUpdater : BackgroundService
         // Wait a bit before first check (let agent fully start)
         await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
         
-        _logger.LogInformation("AutoUpdater started. Current version: {Version}, checking GitHub every {Hours}h",
+        _logger.LogInformation("AutoUpdater started. Current version: {Version}, checking Octofleet server/GitHub every {Hours}h",
             _currentVersion, _checkInterval.TotalHours);
         
         while (!stoppingToken.IsCancellationRequested)
@@ -77,14 +77,56 @@ public class AutoUpdater : BackgroundService
     
     private async Task CheckForUpdate(CancellationToken ct)
     {
-        _logger.LogDebug("Checking for updates at GitHub: {Url}", GitHubApiUrl);
+        // Ask the Octofleet server first: if it publishes a release, that release
+        // is authoritative and GitHub is not consulted.
+        var config = ServiceConfig.Load();
+        if (config.UpdateFromServer && !string.IsNullOrWhiteSpace(config.InventoryApiUrl))
+        {
+            var serverUrl = $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/agent/releases/latest";
+            if (await TryUpdateFrom(serverUrl, "Octofleet server", ct))
+                return;
+            
+            if (!config.UpdateFallbackToGitHub)
+            {
+                _logger.LogDebug("No agent release on the Octofleet server and GitHub fallback is disabled");
+                return;
+            }
+        }
         
-        var response = await _httpClient.GetAsync(GitHubApiUrl, ct);
+        await TryUpdateFrom(GitHubApiUrl, "GitHub", ct);
+    }
+    
+    /// <summary>
+    /// Checks one release source (GitHub releases API format) and installs a newer version.
+    /// Returns true if the source offered a valid release, whether or not an update was needed.
+    /// </summary>
+    private async Task<bool> TryUpdateFrom(string releaseUrl, string source, CancellationToken ct)
+    {
+        _logger.LogDebug("Checking for updates at {Source}: {Url}", source, releaseUrl);
+        
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.GetAsync(releaseUrl, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning("Update check at {Source} failed: {Message}", source, ex.Message);
+            return false;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Update check at {Source} timed out", source);
+            return false;
+        }
         
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("GitHub API check failed: {Status}", response.StatusCode);
-            return;
+            if ((int)response.StatusCode == 404)
+                _logger.LogDebug("No release available at {Source}", source);
+            else
+                _logger.LogWarning("Update check at {Source} failed: {Status}", source, response.StatusCode);
+            return false;
         }
         
         var json = await response.Content.ReadAsStringAsync(ct);
@@ -116,18 +158,18 @@ public class AutoUpdater : BackgroundService
         
         if (downloadUrl == null)
         {
-            _logger.LogWarning("No ZIP asset found in release {Tag}", tagName);
-            return;
+            _logger.LogWarning("No ZIP asset found in release {Tag} from {Source}", tagName, source);
+            return false;
         }
         
         if (!IsNewerVersion(latestVersion, _currentVersion))
         {
-            _logger.LogDebug("Already on latest version {Version}", _currentVersion);
-            return;
+            _logger.LogDebug("Already on latest version {Version} ({Source})", _currentVersion, source);
+            return true;
         }
         
-        _logger.LogInformation("New version available: {Latest} (current: {Current})",
-            latestVersion, _currentVersion);
+        _logger.LogInformation("New version available from {Source}: {Latest} (current: {Current})",
+            source, latestVersion, _currentVersion);
         
         ConsoleUI.Log("INF", $"🔄 Updating to v{latestVersion}...");
         
@@ -146,6 +188,7 @@ public class AutoUpdater : BackgroundService
         }
         
         await DownloadAndInstall(latestVersion, downloadUrl, sha256, ct);
+        return true;
     }
     
     private bool IsNewerVersion(string latest, string current)
