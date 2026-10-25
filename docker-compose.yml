@@ -46,6 +46,7 @@ services:
       - ${ISO_PATH:-/mnt/isos}:/mnt/isos:ro
       - ./Install-OctofleetAgent.ps1:/app/static/Install-OctofleetAgent.ps1:ro
       - ./agent-releases:/app/agent-releases:ro
+      - ./linux-agent:/app/static/linux-agent:ro
     ports:
       - "8080:8080"
     depends_on:

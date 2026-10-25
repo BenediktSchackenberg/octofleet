@@ -9,7 +9,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
-VERSION="0.5.0-linux"
+VERSION="0.5.1-linux"
 
 # Load config
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -24,6 +24,8 @@ PUSH_INTERVAL="${PUSH_INTERVAL:-1800}"
 JOB_POLL_INTERVAL="${JOB_POLL_INTERVAL:-60}"
 LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
+AUTO_UPDATE="${AUTO_UPDATE:-true}"
+UPDATE_CHECK_INTERVAL="${UPDATE_CHECK_INTERVAL:-21600}"  # 6 hours
 
 # Network stats cache for rate calculation
 declare -A LAST_RX_BYTES
@@ -1447,6 +1449,7 @@ run_service() {
     info "Node ID: $NODE_ID"
     info "API URL: $API_URL"
     info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"
+    info "Auto-update: ${AUTO_UPDATE} (every ${UPDATE_CHECK_INTERVAL}s from the Octofleet server)"
     
     # Detect screen capture tool
     detect_screen_capture_tool
@@ -1458,6 +1461,8 @@ run_service() {
     local last_poll=0
     local last_live=0
     local last_screen=0
+    # First update check two minutes after start, then every UPDATE_CHECK_INTERVAL
+    local last_self_update=$(( $(date +%s) - UPDATE_CHECK_INTERVAL + 120 ))
     
     # Start file audit collector
     start_file_audit &
@@ -1496,8 +1501,59 @@ run_service() {
         # Poll terminal commands (every iteration for responsiveness)
         poll_terminal_commands 2>/dev/null || true
         
+        # Self-update
+        if (( now - last_self_update >= UPDATE_CHECK_INTERVAL )); then
+            check_for_update || true
+            last_self_update=$now
+        fi
+        
         sleep 1
     done
+}
+
+# ============================================================================
+# Self-update from the Octofleet server
+# ============================================================================
+
+# Checks the server for a newer agent.sh, verifies it and replaces this script.
+# Exits after a successful update; systemd (Restart=always) starts the new version.
+# Returns 0 when already up to date, 1 when the check failed or an update was rejected.
+check_for_update() {
+    [[ "$AUTO_UPDATE" == "true" ]] || return 0
+
+    local release latest sha url
+    release=$(curl -sf --max-time 15 "${API_URL}/api/v1/agent/releases/linux/latest" 2>/dev/null) || return 1
+    latest=$(jq -r '.version // empty' <<< "$release" 2>/dev/null)
+    sha=$(jq -r '.sha256 // empty' <<< "$release" 2>/dev/null)
+    url=$(jq -r '.download_url // empty' <<< "$release" 2>/dev/null)
+    [[ -n "$latest" && -n "$sha" && -n "$url" ]] || return 1
+
+    # Only move forward: the server's version must sort after ours
+    [[ "$latest" != "$VERSION" ]] || return 0
+    [[ "$(printf '%s\n%s\n' "$VERSION" "$latest" | sort -V | tail -1)" == "$latest" ]] || return 0
+
+    info "Update available: v$VERSION -> v$latest"
+    local self="${SCRIPT_DIR}/agent.sh"
+    local tmp="${SCRIPT_DIR}/agent.sh.new"
+    if ! curl -sf --max-time 120 -o "$tmp" "$url"; then
+        warn "Update download failed, keeping v$VERSION"
+        rm -f "$tmp"; return 1
+    fi
+    local actual
+    actual=$(sha256sum "$tmp" | cut -d' ' -f1)
+    if [[ "${actual,,}" != "${sha,,}" ]]; then
+        warn "Update rejected: SHA256 mismatch (expected $sha, got $actual)"
+        rm -f "$tmp"; return 1
+    fi
+    if ! bash -n "$tmp" 2>/dev/null || ! grep -q "^VERSION=\"$latest\"" "$tmp"; then
+        warn "Update rejected: downloaded agent.sh is invalid or has the wrong version"
+        rm -f "$tmp"; return 1
+    fi
+
+    chmod 755 "$tmp"
+    mv -f "$tmp" "$self"
+    info "Updated to v$latest, restarting"
+    exit 0
 }
 
 # ============================================================
@@ -1659,8 +1715,16 @@ case "${1:-service}" in
     version)
         echo "Octofleet Linux Agent v$VERSION"
         ;;
+    update)
+        if AUTO_UPDATE=true check_for_update; then
+            echo "Octofleet Linux Agent v$VERSION is up to date"
+        else
+            echo "Update check failed or update rejected, staying on v$VERSION" >&2
+            exit 1
+        fi
+        ;;
     *)
-        echo "Usage: $0 {push|poll|collect|service|version}"
+        echo "Usage: $0 {push|poll|collect|service|version|update}"
         exit 1
         ;;
 esac

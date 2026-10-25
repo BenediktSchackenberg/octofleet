@@ -7,7 +7,7 @@ Lightweight bash-based agent for Linux systems. Collects inventory and pushes to
 - **Inventory Collection**: Hardware, software, network, security info
 - **Job Polling**: Execute scheduled jobs from the backend
 - **Live Data**: Real-time CPU, memory, disk, network metrics
-- **Auto-Update**: Self-update from GitHub releases
+- **Auto-Update**: Self-update from the Octofleet server (every 6 hours)
 - **Systemd Integration**: Runs as a systemd service
 
 ## Quick Install
@@ -37,6 +37,23 @@ NODE_ID="linux-server-01"
 PUSH_INTERVAL=1800  # 30 minutes
 JOB_POLL_INTERVAL=60  # 1 minute
 LIVE_DATA_INTERVAL=5  # 5 seconds (for live view)
+AUTO_UPDATE=true  # update agent.sh from the Octofleet server
+UPDATE_CHECK_INTERVAL=21600  # 6 hours
+```
+
+## Updates
+
+The agent checks `API_URL/api/v1/agent/releases/linux/latest` two minutes after
+start and then every `UPDATE_CHECK_INTERVAL` seconds. The server offers the
+`linux-agent/agent.sh` of its own checkout; when its `VERSION` is newer, the
+agent downloads it, verifies the SHA256 and `bash -n`, replaces itself and exits
+so systemd starts the new version. No internet access is needed.
+
+To roll out a new agent version, update the server checkout (bump `VERSION` in
+`agent.sh`). To update one machine right away:
+
+```bash
+sudo /opt/octofleet-agent/agent.sh update && sudo systemctl restart octofleet-agent
 ```
 
 ## Collected Data
@@ -64,8 +81,8 @@ journalctl -u octofleet-agent -f
 # Manual job poll
 /opt/octofleet-agent/agent.sh poll
 
-# Start live data streaming (for UI)
-/opt/octofleet-agent/agent.sh live
+# Check for and install an update from the server
+/opt/octofleet-agent/agent.sh update
 ```
 
 ## Migration from OpenClaw Agent

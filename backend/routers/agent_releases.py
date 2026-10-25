@@ -1,11 +1,17 @@
-"""Windows agent releases served by this Octofleet server.
+"""Agent releases served by this Octofleet server.
 
-Agents and the installer ask this server for updates before falling back to
-GitHub. Releases are the ZIP/SHA256 pairs produced by scripts/Build-Release.ps1
-(or scripts/publish-local-agent-release.sh), placed in AGENT_RELEASES_DIR.
-The response of /latest mirrors GitHub's releases API, so the same parsing code
-works for both sources. Release files contain no secrets.
+Agents and the installers ask this server for updates before falling back to
+GitHub. Release files contain no secrets.
+
+Windows: ZIP/SHA256 pairs produced by scripts/Build-Release.ps1 (or
+scripts/publish-local-agent-release.sh), placed in AGENT_RELEASES_DIR. The
+response of /latest mirrors GitHub's releases API, so the same parsing code
+works for both sources.
+
+Linux: agent.sh and octofleet-agent.service from the server's linux-agent/
+directory (LINUX_AGENT_DIR); the version is the VERSION="..." line of agent.sh.
 """
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -18,6 +24,10 @@ router = APIRouter(prefix="/api/v1/agent/releases", tags=["agent-releases"])
 AGENT_RELEASES_DIR = Path(os.getenv("AGENT_RELEASES_DIR", "/app/agent-releases"))
 RELEASE_ZIP = re.compile(r"^OctofleetAgent-v(\d+)\.(\d+)\.(\d+)\.zip$")
 RELEASE_FILE = re.compile(r"^OctofleetAgent-v\d+\.\d+\.\d+\.(zip|sha256)$")
+
+LINUX_AGENT_DIR = Path(os.getenv("LINUX_AGENT_DIR", "/app/static/linux-agent"))
+LINUX_AGENT_FILES = ("agent.sh", "octofleet-agent.service")
+LINUX_VERSION = re.compile(r'^VERSION="([^"]+)"', re.MULTILINE)
 
 
 def _releases() -> list[tuple[tuple[int, int, int], Path]]:
@@ -76,3 +86,32 @@ async def download_agent_release(filename: str):
         raise HTTPException(status_code=404, detail="Release file not found")
     media_type = "text/plain; charset=utf-8" if filename.endswith(".sha256") else "application/zip"
     return FileResponse(path, media_type=media_type, filename=filename)
+
+
+@router.get("/linux/latest")
+async def get_latest_linux_agent(request: Request):
+    """Linux agent (agent.sh) offered by this server, with version and SHA256."""
+    agent = LINUX_AGENT_DIR / "agent.sh"
+    if not agent.is_file():
+        raise HTTPException(status_code=404, detail="No Linux agent available on this server")
+    content = agent.read_bytes()
+    match = LINUX_VERSION.search(content.decode("utf-8", errors="replace"))
+    if not match:
+        raise HTTPException(status_code=404, detail="Linux agent has no VERSION line")
+    base = f"{_base_url(request)}/api/v1/agent/releases/linux"
+    return {
+        "version": match.group(1),
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "download_url": f"{base}/agent.sh",
+        "service_url": f"{base}/octofleet-agent.service",
+        "source": "octofleet-server",
+    }
+
+
+@router.get("/linux/{filename}")
+async def download_linux_agent_file(filename: str):
+    """Download agent.sh or its systemd unit."""
+    path = LINUX_AGENT_DIR / filename
+    if filename not in LINUX_AGENT_FILES or not path.is_file():
+        raise HTTPException(status_code=404, detail="Linux agent file not found")
+    return FileResponse(path, media_type="text/plain; charset=utf-8", filename=filename)
