@@ -110,6 +110,8 @@ bash -n "$TMP_DIR/agent.sh"
 
 echo "📝 Installing agent to $INSTALL_DIR..."
 install -d -m 700 "$INSTALL_DIR"
+# Remove the embedded Python agent installed by earlier versions of this script
+rm -rf "$INSTALL_DIR/venv" "$INSTALL_DIR/agent.py"
 install -m 755 "$TMP_DIR/agent.sh" "$INSTALL_DIR/agent.sh"
 
 # config.env contains the API key: readable by root only
