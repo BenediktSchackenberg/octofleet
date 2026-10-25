@@ -261,16 +261,17 @@ function Install-OctofleetAgent {
     $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $extractDir
     Write-Status "Set DOTNET_BUNDLE_EXTRACT_BASE_DIR to $extractDir" "Success"
     
-    # Install service
+    # Install service (the agent exe has no "install"/"start" commands; register it like AutoUpdater.cs does)
     $exePath = Join-Path $InstallPath $ServiceExe
     if (-not $service) {
         Write-Status "Installing Windows Service..."
-        & $exePath install
+        New-Service -Name $ServiceName -BinaryPathName "`"$exePath`"" -DisplayName "Octofleet Agent" -Description "Octofleet endpoint management agent" -StartupType Automatic | Out-Null
+        sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
     }
     
     # Start service
     Write-Status "Starting service..."
-    & $exePath start
+    Start-Service -Name $ServiceName
     Start-Sleep -Seconds 2
     
     # Verify
