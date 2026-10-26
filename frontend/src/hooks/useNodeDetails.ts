@@ -255,7 +255,7 @@ export function useNodeDetails(nodeId: string) {
 
       // Fetch Linux-specific data
       const linuxRes = await apiClient.richGet<any>(`/inventory/linux/${nodeId}`);
-      if (linuxRes.ok && linuxRes.data) { const d = linuxRes.data.data || linuxRes.data; setLinuxData(d || null); }
+      if (linuxRes.ok && linuxRes.data) { const d = 'data' in linuxRes.data ? linuxRes.data.data : linuxRes.data; setLinuxData(d || null); }
 
       // Fetch eventlog separately
       const eventsRes = await apiClient.richGet<{ events?: EventlogEntry[] }>(`/nodes/${nodeId}/eventlog?limit=100`);

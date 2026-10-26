@@ -344,6 +344,33 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     if sys_data.get("os") or sys_data.get("services"):
         await submit_system({"hostname": hostname, "nodeId": data.get("nodeId", hostname), **sys_data}, db)
         results["submitted"].append("system")
+    linux_keys = ("performance", "services", "updates", "diskHealth")
+    if any(isinstance(data.get(k), dict) for k in linux_keys):
+        await submit_linux_data(hostname, data.get("nodeId", hostname), data, db)
+        results["submitted"].append("linux")
     try: await update_node_health(db, data.get("nodeId", hostname))
     except: pass
     return {"status": "ok", **results}
+
+
+async def submit_linux_data(hostname: str, node_id_str: str, data: Dict[str, Any], db: asyncpg.Pool):
+    """Store the Linux agent's performance/services/updates/diskHealth for the Linux tab"""
+    uuid = await upsert_node(db, node_id_str, hostname)
+
+    def as_json(key: str):
+        value = data.get(key)
+        return json.dumps(value) if isinstance(value, dict) else None
+
+    # /inventory/full accepts partial payloads: a key that is absent (NULL here) keeps the
+    # previously stored value instead of erasing it
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                performance = COALESCE(EXCLUDED.performance, linux_data_current.performance),
+                services = COALESCE(EXCLUDED.services, linux_data_current.services),
+                updates = COALESCE(EXCLUDED.updates, linux_data_current.updates),
+                disk_health = COALESCE(EXCLUDED.disk_health, linux_data_current.disk_health),
+                updated_at = NOW()
+        """, str(uuid), as_json("performance"), as_json("services"), as_json("updates"), as_json("diskHealth"))
