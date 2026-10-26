@@ -51,6 +51,7 @@ from auth import (
     require_auth,
     require_permission,
 )
+from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.alerting import router as alerting_router
 from routers.auth import router as auth_router
 from routers.auth import users_router
@@ -79,7 +80,6 @@ from routers.provisioning import router as provisioning_router
 from routers.provisioning_domain import generate_autounattend
 from routers.provisioning_iso import iso_router as provisioning_iso_router
 from routers.provisioning_settings import router as provisioning_settings_router
-from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.query_engine import router as query_router
 from routers.rbac import router as rbac_router
