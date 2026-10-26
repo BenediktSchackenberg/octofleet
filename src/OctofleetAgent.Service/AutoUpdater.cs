@@ -328,6 +328,19 @@ try {{
         Log ""No existing installation found, proceeding with fresh install""
     }}
 
+    # Use the service that runs the agent executable: older installs registered it as
+    # 'Octofleet Agent', new installs as OctofleetNodeAgent
+    $agentExe = Join-Path $targetPath 'OctofleetAgent.Service.exe'
+    foreach ($s in Get-CimInstance Win32_Service -ErrorAction SilentlyContinue) {{
+        $path = ""$($s.PathName)"".Trim()
+        if ($path.StartsWith('""')) {{
+            $end = $path.IndexOf('""', 1)
+            if ($end -gt 0) {{ $path = $path.Substring(1, $end - 1) }}
+        }}
+        if ($path -ieq $agentExe) {{ $serviceName = $s.Name; break }}
+    }}
+    Log ""Service: $serviceName""
+
     # Stop service
     Log 'Stopping service...'
     $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
