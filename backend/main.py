@@ -63,6 +63,7 @@ from routers.groups import router as groups_router
 from routers.hardware import router as hardware_router
 from routers.inventory import router as inventory_router
 from routers.jobs import agent_router as jobs_agent_router
+from routers.jobs import job_result_succeeded
 from routers.jobs import router as jobs_router
 from routers.metrics import router as metrics_router
 from routers.monitoring_mgmt import router as monitoring_mgmt_router
@@ -1101,7 +1102,7 @@ async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
 @app.post("/api/v1/jobs/instances/{instance_id}/result", dependencies=[Depends(verify_api_key)])
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Submit job execution result"""
-    success = data.get("success", False)
+    success = job_result_succeeded(data)
     exit_code = data.get("exitCode", -1)
     stdout = data.get("stdout", "")
     stderr = data.get("stderr", "")

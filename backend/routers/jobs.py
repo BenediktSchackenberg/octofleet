@@ -28,6 +28,13 @@ class SmartInstallRequest(BaseModel):
     targets: List[str]
     timeout_seconds: int = 600
 
+def job_result_succeeded(data: Dict[str, Any]) -> bool:
+    """Whether an agent reported success: the Windows agent sends `success`,
+    the Linux agent `status` ("success"/"failed")."""
+    if "success" in data:
+        return bool(data["success"])
+    return data.get("status") == "success"
+
 # --- Job Management ---
 
 @router.get("/jobs")
@@ -112,7 +119,7 @@ async def cancel_or_delete_job(job_id: str, action: str = "cancel", db: asyncpg.
 @agent_router.post("/jobs/instances/{instance_id}/result")
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
-        success = data.get("success", False)
+        success = job_result_succeeded(data)
         status = "success" if success else "failed"
         await conn.execute("""
             UPDATE job_instances SET status = $1, completed_at = NOW(), exit_code = $2, stdout = $3, stderr = $4
