@@ -41,6 +41,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import node_removal
 from auth import (
     APIKeyCreate,
     CurrentUser,
@@ -119,6 +120,10 @@ async def lifespan(app: FastAPI):
     # Startup
     db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
     set_db_pool(db_pool)  # Set in dependencies for shared access
+
+    # Node removal (#160): schema for existing installs and the background task
+    await node_removal.ensure_schema_on(db_pool)
+    removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Auto-provision default admin user if table is empty
     try:
@@ -139,6 +144,7 @@ async def lifespan(app: FastAPI):
     print("✅ Database pool created")
     yield
     # Shutdown
+    removal_task.cancel()
     if db_pool:
         await db_pool.close()
         print("Database pool closed")

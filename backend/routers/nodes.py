@@ -8,7 +8,9 @@ from uuid import UUID
 import asyncpg
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
+import node_removal
 from auth import require_auth, require_permission
 from dependencies import API_KEY, get_db, not_found, verify_api_key
 
@@ -54,7 +56,7 @@ async def list_nodes(
         if unassigned:
             rows = await conn.fetch("""
                 SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version,
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
                        h.cpu->>'name' as cpu_name,
                        (h.ram->>'totalGb')::numeric as total_memory_gb
                 FROM nodes n
@@ -67,7 +69,7 @@ async def list_nodes(
         elif group_id:
             rows = await conn.fetch("""
                 SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version,
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
                        h.cpu->>'name' as cpu_name,
                        (h.ram->>'totalGb')::numeric as total_memory_gb
                 FROM nodes n
@@ -79,7 +81,7 @@ async def list_nodes(
         else:
             rows = await conn.fetch("""
                 SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version,
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
                        h.cpu->>'name' as cpu_name,
                        (h.ram->>'totalGb')::numeric as total_memory_gb
                 FROM nodes n
@@ -256,7 +258,9 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("""
             SELECT id, node_id, hostname, os_name, os_version, os_build, 
-                   first_seen, last_seen, is_online, agent_version, created_at, updated_at
+                   first_seen, last_seen, is_online, agent_version, created_at, updated_at,
+                   removal_state, removal_requested_at, removal_requested_by, removal_delete_after,
+                   uninstalled_at
             FROM nodes WHERE node_id = $1 OR id::text = $1
         """, node_id)
         
@@ -264,7 +268,9 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             raise not_found("Node", node_id)
         
         node_uuid = node['id']
-        result = dict(node)
+        result = {k: v for k, v in dict(node).items()
+                  if not k.startswith("removal_") and k != "uninstalled_at"}
+        result.update(node_removal.removal_info(node))
         
         # Get hardware summary
         hw = await conn.fetchrow("""
@@ -302,6 +308,53 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         result['tags'] = [dict(t) for t in tags]
         
         return result
+
+class UninstallRequest(BaseModel):
+    deleteAfterUninstall: bool = False
+
+
+@router.post("/{node_id}/uninstall")
+async def request_node_uninstall(node_id: str, data: UninstallRequest,
+                                 user=Depends(require_permission("nodes:delete")),
+                                 db: asyncpg.Pool = Depends(get_db)):
+    """Uninstall the agent; with deleteAfterUninstall the node is deleted once the agent confirms (#160)."""
+    async with db.acquire() as conn:
+        node = await node_removal.find_node(conn, node_id)
+        if not node:
+            raise not_found("Node", node_id)
+        try:
+            return await node_removal.request_uninstall(conn, node, data.deleteAfterUninstall, user)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/{node_id}/uninstall")
+async def cancel_node_uninstall(node_id: str, user=Depends(require_permission("nodes:delete")),
+                                db: asyncpg.Pool = Depends(get_db)):
+    """Withdraw an uninstall request the agent has not carried out yet."""
+    async with db.acquire() as conn:
+        node = await node_removal.find_node(conn, node_id)
+        if not node:
+            raise not_found("Node", node_id)
+        try:
+            return await node_removal.cancel_uninstall(conn, node, user)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/{node_id}")
+async def delete_node(node_id: str, force: bool = False, user=Depends(require_permission("nodes:delete")),
+                      db: asyncpg.Pool = Depends(get_db)):
+    """Delete the node and all of its data. Requires an uninstalled agent, or force after the waiting period."""
+    async with db.acquire() as conn:
+        node = await node_removal.find_node(conn, node_id)
+        if not node:
+            raise not_found("Node", node_id)
+        blocker = node_removal.deletion_blocker(node, force)
+        if blocker:
+            raise HTTPException(status_code=409, detail=blocker)
+        return await node_removal.delete_node(conn, node, user, forced=node["removal_state"] != node_removal.UNINSTALLED)
+
 
 @router.get("/{node_id}/history")
 async def get_node_history(node_id: str, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
