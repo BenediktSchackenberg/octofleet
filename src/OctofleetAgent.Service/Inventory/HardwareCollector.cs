@@ -613,12 +613,12 @@ public static class HardwareCollector
                 var model = result.Model?.ToLowerInvariant() ?? "";
                 var manufacturer = result.Manufacturer?.ToLowerInvariant() ?? "";
                 
-                if (model.Contains("virtual") || manufacturer.Contains("vmware"))
+                if (model.Contains("vmware") || manufacturer.Contains("vmware"))
                 {
                     result.IsVirtual = true;
                     result.Hypervisor = "VMware";
                 }
-                else if (model.Contains("virtual machine") || manufacturer.Contains("microsoft corporation") && model.Contains("virtual"))
+                else if (manufacturer.Contains("microsoft") && model.Contains("virtual"))
                 {
                     result.IsVirtual = true;
                     result.Hypervisor = "Hyper-V";
