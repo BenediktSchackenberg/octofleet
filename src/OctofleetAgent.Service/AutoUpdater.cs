@@ -162,6 +162,13 @@ public class AutoUpdater : BackgroundService
             return false;
         }
         
+        if (sha256Url == null)
+        {
+            _logger.LogWarning("Release {Tag} from {Source} has no SHA256 file; ignoring the incomplete release",
+                tagName, source);
+            return false;
+        }
+        
         if (!IsNewerVersion(latestVersion, _currentVersion))
         {
             _logger.LogDebug("Already on latest version {Version} ({Source})", _currentVersion, source);
@@ -173,18 +180,24 @@ public class AutoUpdater : BackgroundService
         
         ConsoleUI.Log("INF", $"🔄 Updating to v{latestVersion}...");
         
-        // Optionally fetch SHA256
-        string? sha256 = null;
-        if (sha256Url != null)
+        // The SHA256 is required: without it the update is not installed
+        string sha256;
+        try
         {
-            try
-            {
-                sha256 = (await _httpClient.GetStringAsync(sha256Url, ct)).Trim();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not fetch SHA256, skipping verification");
-            }
+            sha256 = (await _httpClient.GetStringAsync(sha256Url, ct)).Trim().Split(' ')[0];
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            _logger.LogError(ex, "Could not fetch SHA256 for {Tag} from {Source}; update postponed", tagName, source);
+            ConsoleUI.Log("ERR", "Update postponed: SHA256 not available");
+            return true;
+        }
+        
+        if (string.IsNullOrEmpty(sha256))
+        {
+            _logger.LogError("Empty SHA256 for {Tag} from {Source}; update postponed", tagName, source);
+            ConsoleUI.Log("ERR", "Update postponed: SHA256 not available");
+            return true;
         }
         
         await DownloadAndInstall(latestVersion, downloadUrl, sha256, ct);
@@ -212,7 +225,7 @@ public class AutoUpdater : BackgroundService
         }
     }
     
-    private async Task DownloadAndInstall(string version, string downloadUrl, string? expectedSha256, CancellationToken ct)
+    private async Task DownloadAndInstall(string version, string downloadUrl, string expectedSha256, CancellationToken ct)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "OctofleetUpdate");
         var zipPath = Path.Combine(tempDir, $"OctofleetAgent-v{version}.zip");
@@ -239,18 +252,15 @@ public class AutoUpdater : BackgroundService
             _logger.LogInformation("Download complete: {Size} bytes", new FileInfo(zipPath).Length);
             
             // Verify SHA256
-            if (!string.IsNullOrEmpty(expectedSha256))
+            var actualSha256 = ComputeSha256(zipPath);
+            if (!actualSha256.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
             {
-                var actualSha256 = ComputeSha256(zipPath);
-                if (!actualSha256.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogError("SHA256 mismatch! Expected: {Expected}, Got: {Actual}",
-                        expectedSha256, actualSha256);
-                    ConsoleUI.Log("ERR", "Update failed: SHA256 mismatch");
-                    return;
-                }
-                _logger.LogInformation("SHA256 verified");
+                _logger.LogError("SHA256 mismatch! Expected: {Expected}, Got: {Actual}",
+                    expectedSha256, actualSha256);
+                ConsoleUI.Log("ERR", "Update failed: SHA256 mismatch");
+                return;
             }
+            _logger.LogInformation("SHA256 verified");
             
             // Extract ZIP
             _logger.LogInformation("Extracting update...");

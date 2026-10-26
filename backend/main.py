@@ -80,7 +80,7 @@ from routers.provisioning import router as provisioning_router
 from routers.provisioning_domain import generate_autounattend
 from routers.provisioning_iso import iso_router as provisioning_iso_router
 from routers.provisioning_settings import router as provisioning_settings_router
-from provisioning_config import SETTINGS_KEY, load_config, safe_url
+from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.query_engine import router as query_router
 from routers.rbac import router as rbac_router
@@ -737,10 +737,7 @@ async def list_smart_install_packages():
 @app.get("/api/v1/onboarding/agent-config")
 async def download_agent_config(request: Request):
     """Generate a ready-to-use service-config.json for new agents."""
-    # Derive server URL from request
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8080"))
-    scheme = request.headers.get("x-forwarded-proto", "http")
-    api_url = f"{scheme}://{host}"
+    api_url = await server_url(db_pool, request)
 
     config = {
         "InventoryApiUrl": api_url,
@@ -758,9 +755,7 @@ async def download_agent_config(request: Request):
 @app.get("/api/v1/onboarding/install-command")
 async def get_install_command(request: Request):
     """Generate a one-liner PowerShell install command with pre-filled config."""
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8080"))
-    scheme = request.headers.get("x-forwarded-proto", "http")
-    api_url = f"{scheme}://{host}"
+    api_url = await server_url(db_pool, request)
     api_key = os.getenv("API_KEY", "")
 
     # One-liner that downloads installer and passes config
