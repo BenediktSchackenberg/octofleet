@@ -1274,6 +1274,31 @@ EOF
         "${API_URL}/api/v1/services/${service_id}/nodes/${NODE_ID}/status" >/dev/null 2>&1 || warn "Failed to report service status"
 }
 
+# Removes the agent from this machine (#160) - the same steps as linux-agent/uninstall.sh.
+# Runs as a transient systemd unit: outside this service's sandbox (which cannot write
+# /etc/systemd/system) and not ended when the service stops. The delay lets this job report
+# its result first.
+schedule_uninstall() {
+    local delay="${1:-10}"
+    [[ "$delay" =~ ^[0-9]+$ ]] && (( delay >= 5 && delay <= 300 )) || delay=10
+    if [[ -z "$SCRIPT_DIR" || "$SCRIPT_DIR" == "/" || ! -f "$SCRIPT_DIR/agent.sh" ]]; then
+        echo "Refusing to uninstall: unexpected agent directory '$SCRIPT_DIR'"
+        return 1
+    fi
+    local unit="octofleet-agent.service"
+    local steps
+    steps=$(printf 'sleep %d; systemctl disable --now %s; rm -f %q; systemctl daemon-reload; rm -rf %q; rm -f %q' \
+        "$delay" "$unit" "/etc/systemd/system/$unit" "$SCRIPT_DIR" "$LOG_FILE")
+    if command -v systemd-run &>/dev/null && systemd-run --quiet --collect \
+            --unit "octofleet-agent-uninstall-$(date +%s)" /bin/bash -c "$steps"; then
+        echo "Agent uninstall started; the agent will be removed in ${delay} seconds."
+        return 0
+    fi
+    # Without systemd (e.g. a container): nothing outlives a service stop, so run directly
+    setsid nohup /bin/bash -c "$steps" >/dev/null 2>&1 &
+    echo "Agent uninstall started without systemd-run; the agent will be removed in ${delay} seconds."
+}
+
 execute_job() {
     local job="$1"
     local instance_id=$(echo "$job" | jq -r '.instanceId // .instance_id')
@@ -1305,6 +1330,10 @@ execute_job() {
             ;;
         service_reconcile)
             output=$(reconcile_service "$command_payload") || exit_code=$?
+            ;;
+        uninstall-agent)
+            local delay=$(echo "$command_payload" | jq -r '.delaySeconds // 10' 2>/dev/null)
+            output=$(schedule_uninstall "$delay" 2>&1) || exit_code=$?
             ;;
         *)
             warn "Unknown command type: $command_type"

@@ -358,6 +358,9 @@ public class JobPoller : BackgroundService
             case "restart-agent":
                 return await ExecuteRestartAgentAsync(ct);
             
+            case "uninstall-agent":
+                return await ExecuteUninstallAgentAsync(payload, ct);
+            
             case "service_reconcile":
                 return await ExecuteServiceReconcileAsync(payload, timeoutSeconds, ct);
 
@@ -649,6 +652,57 @@ if ($svc) {{
                 ExitCode = -1,
                 Stderr = $"Failed to initiate restart: {ex.Message}"
             };
+        }
+    }
+
+    /// <summary>
+    /// Removes the agent from this machine (#160): starts the embedded Uninstall-OctofleetAgent.ps1
+    /// detached with a delay, so this job can still report its result before the service stops.
+    /// </summary>
+    private async Task<CommandResult> ExecuteUninstallAgentAsync(JsonElement payload, CancellationToken ct)
+    {
+        var delaySeconds = 10;
+        if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("delaySeconds", out var delayProp)
+            && delayProp.TryGetInt32(out var requested) && requested is >= 5 and <= 300)
+        {
+            delaySeconds = requested;
+        }
+
+        _logger.LogWarning("Agent uninstall requested - removing the agent in {Delay} seconds", delaySeconds);
+        try
+        {
+            await using var resource = typeof(JobPoller).Assembly.GetManifestResourceStream("Uninstall-OctofleetAgent.ps1")
+                ?? throw new InvalidOperationException("Uninstall script is missing from the agent build");
+            var tempDir = Path.GetTempPath();
+            var scriptPath = Path.Combine(tempDir, $"octofleet-uninstall-{Guid.NewGuid():N}.ps1");
+            await using (var file = File.Create(scriptPath))
+            {
+                await resource.CopyToAsync(file, ct);
+            }
+
+            var installPath = Path.GetDirectoryName(Environment.ProcessPath) ?? @"C:\Program Files\Octofleet";
+            var logFile = Path.Combine(tempDir, "octofleet-uninstall.log");
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\" " +
+                            $"-InstallPath \"{installPath}\" -DelaySeconds {delaySeconds} -LogFile \"{logFile}\"",
+                UseShellExecute = true,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            Process.Start(psi);
+
+            return new CommandResult
+            {
+                ExitCode = 0,
+                Stdout = $"Agent uninstall started; the agent will be removed in {delaySeconds} seconds (log: {logFile})."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start the agent uninstall");
+            return new CommandResult { ExitCode = -1, Stderr = $"Failed to start the agent uninstall: {ex.Message}" };
         }
     }
 
