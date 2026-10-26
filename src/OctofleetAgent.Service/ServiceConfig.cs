@@ -36,6 +36,10 @@ public class ServiceConfig
     public bool PreferRepo { get; set; } = true;  // Check local repo before external URLs
     public bool FallbackToSource { get; set; } = true;  // Use source URL if not in repo
 
+    // Agent updates
+    public bool UpdateFromServer { get; set; } = true;  // Check InventoryApiUrl for agent releases first
+    public bool UpdateFallbackToGitHub { get; set; } = true;  // Use GitHub if the server has no release
+
     private static readonly JsonSerializerOptions LoadOptions = new()
     {
         PropertyNameCaseInsensitive = true
