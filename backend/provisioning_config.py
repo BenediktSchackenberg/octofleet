@@ -6,7 +6,7 @@ import os
 import re
 from urllib.parse import unquote, urlsplit
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 SETTINGS_KEY = "provisioning"
@@ -185,6 +185,27 @@ async def load_config(conn) -> ProvisioningConfig:
     stored = json.loads(row["value"]) if row and row["value"] else {}
     # Persisted menu settings take precedence, including deliberately empty values.
     return ProvisioningConfig.model_validate({**environment_values(), **stored})
+
+
+async def server_url(conn, request: Request) -> str:
+    """URL that agents and install commands use to reach this server.
+
+    The configured API server URL (Settings > Provisioning, or API_SERVER /
+    OCTOFLEET_API_URL) wins. Without it, the request's Host header is used, but
+    only as a plain host[:port]; X-Forwarded-* headers are not trusted, because
+    the result ends up in commands and download URLs that agents and admins run.
+    """
+    config = await load_config(conn)
+    if config.api_server_url:
+        return config.api_server_url
+    host = request.headers.get("host", "")
+    try:
+        url = safe_url(f"{request.url.scheme}://{host}") if host and "/" not in host else ""
+    except ValueError:
+        url = ""
+    if not url:
+        raise HTTPException(400, "Invalid Host header - set the API server URL in Settings > Provisioning")
+    return url
 
 
 def export_environment(config: ProvisioningConfig) -> str:
