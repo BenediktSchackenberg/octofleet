@@ -5,6 +5,22 @@ All notable changes to Octofleet will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Fresh Docker installs now create the Content Lifecycle tables, so `/api/v1/content/*` no longer fails with 500 ([#142](https://github.com/BenediktSchackenberg/octofleet/pull/142)).
+- The dashboard's "Scan Vulnerabilities" button calls the existing scan endpoint instead of returning 404 ([#141](https://github.com/BenediktSchackenberg/octofleet/pull/141)).
+- The Windows agent reports Hyper-V VMs as Hyper-V instead of VMware ([#145](https://github.com/BenediktSchackenberg/octofleet/pull/145)); takes effect with the next agent release.
+
+### Upgrade
+- Existing installations: Docker runs the database init scripts only on an empty volume, so create the Content Lifecycle tables once after updating the checkout. Run from the repository root; the script only uses `CREATE TABLE IF NOT EXISTS` and inserts with `ON CONFLICT DO NOTHING`, so it is safe to run again:
+
+  ```bash
+  docker exec -i octofleet-inventory-db psql -U octofleet -d inventory -v ON_ERROR_STOP=1 -1 < backend/schema/e33-content-lifecycle.sql
+  ```
+
+  Adjust the container name if you changed it in `docker-compose.yml`.
+
 ## [0.8.0] - 2026-09-11
 
 ### Added
