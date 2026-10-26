@@ -90,9 +90,10 @@ async def download_agent_release(filename: str):
 
 @router.get("/linux/latest")
 async def get_latest_linux_agent(request: Request):
-    """Linux agent (agent.sh) offered by this server, with version and SHA256."""
+    """Linux agent offered by this server: version and SHA256 of agent.sh and its systemd unit."""
     agent = LINUX_AGENT_DIR / "agent.sh"
-    if not agent.is_file():
+    service = LINUX_AGENT_DIR / "octofleet-agent.service"
+    if not agent.is_file() or not service.is_file():
         raise HTTPException(status_code=404, detail="No Linux agent available on this server")
     content = agent.read_bytes()
     match = LINUX_VERSION.search(content.decode("utf-8", errors="replace"))
@@ -102,6 +103,7 @@ async def get_latest_linux_agent(request: Request):
     return {
         "version": match.group(1),
         "sha256": hashlib.sha256(content).hexdigest(),
+        "service_sha256": hashlib.sha256(service.read_bytes()).hexdigest(),
         "download_url": f"{base}/agent.sh",
         "service_url": f"{base}/octofleet-agent.service",
         "source": "octofleet-server",

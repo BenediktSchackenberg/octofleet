@@ -49,6 +49,11 @@ start and then every `UPDATE_CHECK_INTERVAL` seconds. The server offers the
 agent downloads it, verifies the SHA256 and `bash -n`, replaces itself and exits
 so systemd starts the new version. No internet access is needed.
 
+`install.sh` also installs from the Octofleet server when it offers a Linux
+agent: it verifies the SHA256 of both `agent.sh` and `octofleet-agent.service`
+and stops if a download or a checksum fails. Only when the server has no Linux
+agent does it fall back to GitHub.
+
 To roll out a new agent version, update the server checkout (bump `VERSION` in
 `agent.sh`). To update one machine right away:
 
