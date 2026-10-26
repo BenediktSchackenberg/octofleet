@@ -7,6 +7,15 @@ set -u
 # Note: pipefail intentionally NOT set — it causes || fallbacks to
 # duplicate output when grep/awk pipes have no matches (exit 1).
 
+# JSON numbers need "." as decimal separator, but awk (mawk) and printf follow
+# LC_NUMERIC (e.g. "2,9" with de_DE). Force the C numeric locale; LC_ALL would
+# override it, so its value moves to LANG and the other categories stay as they are.
+if [[ -n "${LC_ALL:-}" ]]; then
+    export LANG="$LC_ALL"
+    unset LC_ALL
+fi
+export LC_NUMERIC=C
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
 VERSION="0.5.0-linux"
