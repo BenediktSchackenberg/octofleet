@@ -5,6 +5,17 @@ All notable changes to Octofleet will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-10-26
+
+### Fixed
+- Correct Python import ordering so the backend passes the CI Ruff command.
+- Keep the Windows agent and screen helper product versions consistent with the requested release version, including local builds.
+- Normalize PXE configuration and boot-template line endings in Docker builds from Windows checkouts.
+
+### Release
+- Built locally from the current main line, including its Windows installation, Linux inventory, onboarding and dependency fixes. The unmerged server-based agent update PRs #151 and #152 are not included.
+- Windows packages can be signed and timestamped locally; server images can be built and distributed without GitHub Actions. See [manual release instructions](docs/MANUAL-RELEASE.md).
+
 ## [0.8.0] - 2026-09-11
 
 ### Added

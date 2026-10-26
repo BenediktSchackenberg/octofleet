@@ -20,6 +20,10 @@ COPY boot.ipxe /etc/octofleet/boot.ipxe.template
 COPY tftpboot/*.ipxe /etc/octofleet/tftp-templates/
 COPY tftpboot/grub/*.cfg /etc/octofleet/tftp-templates/grub/
 
+# Windows checkouts must produce the same boot scripts as Linux checkouts.
+RUN find /etc/octofleet -type f -exec sed -i 's/\r$//' {} \; \
+    && sed -i 's/\r$//' /etc/nginx/nginx.conf.template
+
 # Startup script
 COPY entrypoint.sh /entrypoint.sh
 RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
