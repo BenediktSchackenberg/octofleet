@@ -16,6 +16,8 @@ import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug,
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
+import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
@@ -209,6 +211,7 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
 export default function NodeDetailPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
+  const { hasPermission } = useAuth();
   
   const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
 
@@ -310,8 +313,15 @@ export default function NodeDetailPage() {
                 <FileText className="h-4 w-4 mr-1" /> Generate Report
               </Button>
             </Link>
+            {node && hasPermission("nodes:delete") && !node.removalState && (
+              <RemoveNodeButton nodeId={nodeId} hostname={node.hostname || nodeId} removal={node} onChanged={fetchNodeDetails} />
+            )}
           </div>
         </div>
+
+        {node && (
+          <NodeRemovalBanner nodeId={nodeId} hostname={node.hostname || nodeId} removal={node} onChanged={fetchNodeDetails} />
+        )}
 
         {/* Quick Links - Cross-Module Deep Links */}
         <QuickLinksBar nodeId={nodeId} />
