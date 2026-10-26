@@ -167,7 +167,7 @@ collect_hardware() {
           usableGB: ($total_kb / 1048576 * 10 | round / 10), usableBytes: ($total_kb * 1024),
           availableBytes: ($avail_kb * 1024), modules: $modules, moduleCount: ($modules | length)}')
 
-    # Disks: physical disks (lsblk) and mounted volumes (df)
+    # Disks: physical disks (lsblk) and mounted volumes (findmnt)
     local physical=$(lsblk -J -b -d -o NAME,MODEL,VENDOR,SIZE,TYPE,TRAN,ROTA,SERIAL 2>/dev/null | jq -c '
         [.blockdevices[]? | select(.type == "disk") |
          {deviceId: ("/dev/" + .name),
@@ -182,14 +182,20 @@ collect_hardware() {
           mediaType: (if .rota then "HDD" else "SSD" end),
           isSsd: (.rota | not),
           serialNumber: .serial}]' 2>/dev/null || echo '[]')
-    local volumes=$(df -B1 --output=source,fstype,size,avail,target \
-            -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs -x ramfs 2>/dev/null | tail -n +2 | \
-        awk '{printf "%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, $4, $5}' | jq -R -s -c '
-        [split("\n")[] | select(length > 0) | split("\t") | select((.[2] | tonumber) > 0) |
-         {volumeName: .[0], fileSystem: .[1], driveLetter: .[4],
-          sizeGB: ((.[2] | tonumber) / 1073741824 * 10 | round / 10),
-          freeGB: ((.[3] | tonumber) / 1073741824 * 10 | round / 10),
-          usedPercent: ((1 - (.[3] | tonumber) / (.[2] | tonumber)) * 1000 | round / 10)}]' 2>/dev/null || echo '[]')
+    # findmnt's JSON keeps sources and mount points with spaces intact (df output would need
+    # whitespace splitting). Like df, skip pseudo filesystems (size 0), bind mounts of
+    # directories (FSROOT is not the filesystem root; a btrfs subvolume's root is its subvol=)
+    # and further mounts of the same filesystem root.
+    local volumes=$(findmnt -J -l -b --nofsroot -o SOURCE,FSTYPE,SIZE,AVAIL,TARGET,FSROOT,OPTIONS \
+            -t notmpfs,nodevtmpfs,nosquashfs,nooverlay,noefivarfs,noramfs 2>/dev/null | jq -c '
+        [.filesystems[]? | select(((.size // 0) | tonumber) > 0) |
+         select(.fsroot == "/" or .fsroot == ([(.options // "") | match("(?:^|,)subvol=([^,]+)").captures[0].string] | first))] |
+        reduce .[] as $v ([]; if any(.[]; .source == $v.source and .fsroot == $v.fsroot) then . else . + [$v] end) |
+        [.[] | (.size | tonumber) as $size | ((.avail // 0) | tonumber) as $avail |
+         {volumeName: .source, fileSystem: .fstype, driveLetter: .target,
+          sizeGB: ($size / 1073741824 * 10 | round / 10),
+          freeGB: ($avail / 1073741824 * 10 | round / 10),
+          usedPercent: ((1 - $avail / $size) * 1000 | round / 10)}]' 2>/dev/null || echo '[]')
 
     # GPU: PCI display controllers, falling back to DRM devices (e.g. hyperv_drm, virtio_gpu)
     local gpus='[]'
