@@ -7,6 +7,15 @@ set -u
 # Note: pipefail intentionally NOT set — it causes || fallbacks to
 # duplicate output when grep/awk pipes have no matches (exit 1).
 
+# JSON numbers need "." as decimal separator, but awk (mawk) and printf follow
+# LC_NUMERIC (e.g. "2,9" with de_DE). Force the C numeric locale; LC_ALL would
+# override it, so its value moves to LANG and the other categories stay as they are.
+if [[ -n "${LC_ALL:-}" ]]; then
+    export LANG="$LC_ALL"
+    unset LC_ALL
+fi
+export LC_NUMERIC=C
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
 VERSION="0.5.0-linux"
@@ -82,7 +91,7 @@ collect_hardware() {
     local cpu_threads=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1)
     
     local mem_total_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
-    local mem_total_gb=$(echo "scale=2; $mem_total_kb / 1024 / 1024" | bc 2>/dev/null || echo 0)
+    local mem_total_gb=$(echo "scale=2; $mem_total_kb / 1024 / 1024" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
     local mem_available_kb=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
     
     # Disk info
@@ -176,6 +185,13 @@ collect_system() {
         "version": "$os_version",
         "id": "$os_id",
         "kernel": "$kernel"
+    },
+    "os": {
+        "name": "$os_name",
+        "version": "$os_version",
+        "build": "$kernel",
+        "computerName": "$hostname",
+        "agentVersion": "$VERSION"
     },
     "uptime": {
         "seconds": $uptime_seconds,
@@ -656,7 +672,7 @@ collect_live_metrics() {
         local total_diff=$((total2 - total1))
         
         if [[ $total_diff -gt 0 ]]; then
-            cpu_percent=$(echo "scale=1; 100 * (1 - $idle_diff / $total_diff)" | bc 2>/dev/null || echo 0)
+            cpu_percent=$(awk -v i="$idle_diff" -v t="$total_diff" 'BEGIN {printf "%.1f", 100 * (t - i) / t}')
         fi
     fi
     
@@ -665,7 +681,7 @@ collect_live_metrics() {
     local mem_available=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}')
     local mem_percent=0
     if [[ -n "$mem_total" ]] && [[ "$mem_total" -gt 0 ]]; then
-        mem_percent=$(echo "scale=1; 100 * (1 - $mem_available / $mem_total)" | bc 2>/dev/null || echo 0)
+        mem_percent=$(awk -v a="$mem_available" -v t="$mem_total" 'BEGIN {printf "%.1f", 100 * (t - a) / t}')
     fi
     
     # Disk (root filesystem)
@@ -727,8 +743,8 @@ collect_live_network() {
         [[ $first -eq 0 ]] && interfaces+=","
         first=0
         
-        local rx_mb=$(echo "scale=1; $rx_bytes / 1048576" | bc 2>/dev/null || echo 0)
-        local tx_mb=$(echo "scale=1; $tx_bytes / 1048576" | bc 2>/dev/null || echo 0)
+        local rx_mb=$(echo "scale=1; $rx_bytes / 1048576" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
+        local tx_mb=$(echo "scale=1; $tx_bytes / 1048576" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
         
         interfaces+="{\"name\":\"$name\",\"linkUp\":$link_up,\"speedMbps\":$speed,\"rxBytesPerSec\":$rx_rate,\"txBytesPerSec\":$tx_rate,\"rxTotalMb\":$rx_mb,\"txTotalMb\":$tx_mb}"
     done
@@ -1358,32 +1374,6 @@ run_service() {
     done
 }
 
-# ============================================================================
-# Main
-# ============================================================================
-
-case "${1:-service}" in
-    push)
-        push_inventory
-        ;;
-    poll)
-        poll_jobs
-        ;;
-    collect)
-        collect_full_inventory | jq .
-        ;;
-    service|run)
-        run_service
-        ;;
-    version)
-        echo "Octofleet Linux Agent v$VERSION"
-        ;;
-    *)
-        echo "Usage: $0 {push|poll|collect|service|version}"
-        exit 1
-        ;;
-esac
-
 # ============================================================
 # E21 Story #88: Linux File Audit Collector (inotifywait)
 # ============================================================
@@ -1522,3 +1512,29 @@ stop_file_audit() {
         log "INFO" "File audit stopped"
     fi
 }
+
+# ============================================================================
+# Main
+# ============================================================================
+
+case "${1:-service}" in
+    push)
+        push_inventory
+        ;;
+    poll)
+        poll_jobs
+        ;;
+    collect)
+        collect_full_inventory | jq .
+        ;;
+    service|run)
+        run_service
+        ;;
+    version)
+        echo "Octofleet Linux Agent v$VERSION"
+        ;;
+    *)
+        echo "Usage: $0 {push|poll|collect|service|version}"
+        exit 1
+        ;;
+esac
