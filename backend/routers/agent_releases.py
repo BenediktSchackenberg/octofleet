@@ -20,14 +20,21 @@ RELEASE_ZIP = re.compile(r"^OctofleetAgent-v(\d+)\.(\d+)\.(\d+)\.zip$")
 RELEASE_FILE = re.compile(r"^OctofleetAgent-v\d+\.\d+\.\d+\.(zip|sha256)$")
 
 
+def _sha256_path(zip_path: Path) -> Path:
+    return zip_path.with_suffix(".sha256")
+
+
 def _releases() -> list[tuple[tuple[int, int, int], Path]]:
-    """All release ZIPs in AGENT_RELEASES_DIR, newest first."""
+    """Complete releases in AGENT_RELEASES_DIR (ZIP plus matching .sha256), newest first.
+
+    A ZIP without its checksum file is an incomplete publish and is not offered.
+    """
     if not AGENT_RELEASES_DIR.is_dir():
         return []
     found = []
     for path in AGENT_RELEASES_DIR.iterdir():
         match = RELEASE_ZIP.match(path.name)
-        if match and path.is_file():
+        if match and path.is_file() and _sha256_path(path).is_file():
             found.append((tuple(int(part) for part in match.groups()), path))
     return sorted(found, reverse=True)
 
@@ -54,10 +61,7 @@ async def get_latest_agent_release(request: Request):
         raise HTTPException(status_code=404, detail="No agent release available on this server")
     version_parts, zip_path = releases[0]
     version = ".".join(str(part) for part in version_parts)
-    assets = [_asset(request, zip_path)]
-    sha_path = zip_path.with_name(f"OctofleetAgent-v{version}.sha256")
-    if sha_path.is_file():
-        assets.append(_asset(request, sha_path))
+    assets = [_asset(request, zip_path), _asset(request, _sha256_path(zip_path))]
     return {
         "tag_name": f"v{version}",
         "name": f"v{version}",

@@ -12,8 +12,9 @@ OctofleetAgent-v0.7.2.zip
 OctofleetAgent-v0.7.2.sha256
 ```
 
-The newest version in this folder is offered to agents. To build one from the
-current checkout:
+The newest complete version in this folder is offered to agents; a ZIP without
+its `.sha256` file is ignored. The installer and the auto-updater refuse to
+install a release that has no checksum. To build one from the current checkout:
 
 ```bash
 sudo scripts/publish-local-agent-release.sh 0.7.2
