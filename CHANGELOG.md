@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Correct Python import ordering so the backend passes the CI Ruff command.
 - Keep the Windows agent and screen helper product versions consistent with the requested release version, including local builds.
+- Normalize PXE configuration and boot-template line endings in Docker builds from Windows checkouts.
 
 ### Release
 - Built locally from the current main line, including its Windows installation, Linux inventory, onboarding and dependency fixes. The unmerged server-based agent update PRs #151 and #152 are not included.
