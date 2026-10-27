@@ -160,6 +160,44 @@
       "removed": "{hostname} was removed.",
       "requested": "Removal of {hostname} requested. The node disappears from the list once the agent has uninstalled itself.",
       "cancel": "Cancel"
+    },
+    "devices": "Devices",
+    "addDevice": "Add Device",
+    "onlineSummary": "{online} of {total} online",
+    "pendingSummary": "{count} waiting"
+  },
+  "onboarding": {
+    "title": "Add New Device",
+    "description": "Install the Octofleet agent on a Windows or Linux machine to start managing it.",
+    "automatic": "Automatic install",
+    "manual": "Manual setup",
+    "copy": "Copy",
+    "copied": "Copied",
+    "loading": "Loading…",
+    "showKey": "Show API key",
+    "hideKey": "Hide API key",
+    "runCommand": "Paste and run this command:",
+    "done": "Done – the agent installs, configures itself and starts reporting.",
+    "appearsSoon": "The device appears in the node list within about 30 seconds.",
+    "whatThisDoes": "What this does:",
+    "windows": {
+      "step1": "Open PowerShell as Administrator on the target machine.",
+      "whatText": "Loads the installer from this Octofleet server. The installer downloads the latest agent release from GitHub, verifies its checksum, installs it as a Windows service and configures it with your server URL and API key."
+    },
+    "linux": {
+      "step1": "Open a shell with sudo rights on the target machine.",
+      "requirements": "systemd-based distribution; missing tools (curl, jq) are installed with the system package manager.",
+      "whatText": "Downloads the installer and the agent from GitHub, installs the agent as the systemd service octofleet-agent and configures it with your server URL and API key. The node ID is the machine's hostname."
+    },
+    "manualSteps": {
+      "step1": "Download the configuration file",
+      "download": "Download service-config.json",
+      "step2": "Place it on the target machine at:",
+      "step3": "Install the agent (if not already installed):",
+      "step3Before": "Download the latest release from",
+      "step3After": "and run the installer.",
+      "step4": "Restart the agent service:",
+      "preview": "Config preview:"
     }
   },
   "groups": {
