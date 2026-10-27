@@ -8,6 +8,7 @@ on:
       - 'tests/pester/**'
       - 'tests/windows/Release-Package.Tests.ps1'
       - 'tests/OctofleetAgent.Inventory.Tests/**'
+      - 'tests/OctofleetAgent.Update.Tests/**'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
       - 'installer/Build-Release.ps1'
@@ -18,6 +19,7 @@ on:
       - 'src/**'
       - 'Install-OctofleetAgent.ps1'
       - 'tests/OctofleetAgent.Inventory.Tests/**'
+      - 'tests/OctofleetAgent.Update.Tests/**'
       - 'tests/windows/Release-Package.Tests.ps1'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
@@ -37,6 +39,8 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Test browser inventory with synthetic databases
         run: dotnet run --project tests/OctofleetAgent.Inventory.Tests -c Release
+      - name: Test agent update source lookup and GitHub fallback
+        run: dotnet run --project tests/OctofleetAgent.Update.Tests -c Release
       - name: Test isolated release packaging
         shell: pwsh
         run: ./tests/windows/Release-Package.Tests.ps1

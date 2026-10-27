@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Plain net8.0: the release lookup has no Windows dependencies, so this runs anywhere. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Compile only the release lookup: never start the service or touch the installation. -->
+    <Compile Include="../../src/OctofleetAgent.Service/ReleaseFinder.cs" Link="ReleaseFinder.cs" />
+  </ItemGroup>
+</Project>
