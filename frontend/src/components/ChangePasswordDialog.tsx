@@ -18,6 +18,16 @@ export function ChangePasswordDialog() {
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Typed passwords must not survive closing the dialog (Escape, outside click, ✕ or success).
+  function changeOpen(value: boolean) {
+    if (!value) {
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+    }
+    setOpen(value);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (next !== confirm) {
@@ -40,10 +50,7 @@ export function ChangePasswordDialog() {
         toast.error(result.error || t("account.passwordError"));
         return;
       }
-      setCurrent("");
-      setNext("");
-      setConfirm("");
-      setOpen(false);
+      changeOpen(false);
       toast.success(t("account.passwordChanged"));
       logout(); // The server revoked this and every other access token.
     } finally {
@@ -52,7 +59,7 @@ export function ChangePasswordDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         <button type="button" className="p-1.5 text-zinc-400 hover:text-white transition-colors"
           title={t("account.changePassword")} aria-label={t("account.changePassword")}>
