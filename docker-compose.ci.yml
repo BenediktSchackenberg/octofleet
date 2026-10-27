@@ -29,6 +29,7 @@ services:
       ADMIN_PASSWORD: ci-test-admin-password-2026
       API_KEY: ci-test-api-key
       INVENTORY_API_KEY: ci-test-api-key
+      NODE_REMOVAL_PROCESS_INTERVAL: "2"
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     ports:
       - "8080:8080"

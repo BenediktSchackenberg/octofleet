@@ -105,6 +105,10 @@ curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main
   --api-key YOUR_API_KEY
 ```
 
+## Uninstall
+
+Use **Remove node…** in the Octofleet console, or run `sudo ./uninstall.sh` on the machine and then delete the node in the console. Both stop and disable the service and remove the unit, `/opt/octofleet-agent` and the log.
+
 ## Requirements
 
 - bash 4.0+

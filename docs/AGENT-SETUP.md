@@ -260,6 +260,31 @@ sudo journalctl -u octofleet-agent -f
 
 ---
 
+## Removing an Agent
+
+Use **Remove node…** on the node's page in the console (requires the `nodes:delete` permission):
+
+- **Uninstall agent** – the agent removes itself; the node stays in the console, marked as uninstalled, with its history.
+- **Uninstall agent and delete node** – the node and all of its data are deleted once the agent has confirmed the uninstall.
+
+If the agent never confirms (machine offline or gone), the node can be deleted anyway after a waiting period (`NODE_REMOVAL_FORCE_DELETE_HOURS`, default 24). A node whose agent reports again (machine reinstalled) becomes active again.
+
+For machines the console cannot reach, run the uninstall script on the machine and then delete the node in the console:
+
+```powershell
+# Windows, as Administrator
+.\scripts\Uninstall-OctofleetAgent.ps1
+```
+
+```bash
+# Linux, as root
+sudo ./linux-agent/uninstall.sh
+```
+
+Both remove the service, the program and data directories and the logs; on Windows also the screen helper task and the `DOTNET_BUNDLE_EXTRACT_BASE_DIR` machine variable.
+
+---
+
 ## Auto-Updates
 
 The Windows agent includes an **AutoUpdater** that checks GitHub Releases periodically. When a new version is available:

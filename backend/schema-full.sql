@@ -384,7 +384,7 @@ CREATE TABLE public.jobs (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     timeout_seconds integer DEFAULT 300,
-    CONSTRAINT jobs_command_type_check CHECK ((command_type = ANY (ARRAY['run'::text, 'script'::text, 'inventory'::text, 'install_package'::text, 'uninstall_package'::text, 'update_package'::text, 'restart-agent'::text, 'patch_install'::text, 'patch_scan'::text]))),
+    CONSTRAINT jobs_command_type_check CHECK ((command_type = ANY (ARRAY['run'::text, 'script'::text, 'inventory'::text, 'install_package'::text, 'uninstall_package'::text, 'update_package'::text, 'restart-agent'::text, 'patch_install'::text, 'patch_scan'::text, 'uninstall-agent'::text]))),
     CONSTRAINT jobs_target_type_check CHECK ((target_type = ANY (ARRAY['device'::text, 'group'::text, 'tag'::text, 'all'::text])))
 );
 CREATE VIEW public.job_summary AS
@@ -456,7 +456,15 @@ CREATE TABLE public.nodes (
     tags jsonb DEFAULT '[]'::jsonb,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    agent_version text
+    agent_version text,
+    removal_state text,
+    removal_requested_at timestamp with time zone,
+    removal_requested_by text,
+    removal_delete_after boolean DEFAULT false NOT NULL,
+    removal_job_id uuid,
+    removal_token_hash text,
+    removal_confirmed_at timestamp with time zone,
+    uninstalled_at timestamp with time zone
 );
 CREATE TABLE public.notification_channels (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

@@ -4,6 +4,7 @@ from uuid import UUID
 import asyncpg
 
 from app.core.rules import evaluate_dynamic_rule
+from node_removal import reactivate_if_reinstalled
 
 
 async def update_dynamic_device_groupships(db: asyncpg.Pool, node_uuid: UUID, node_data: dict):
@@ -112,6 +113,8 @@ async def upsert_node(db: asyncpg.Pool, node_id: str, hostname: str,
         """, node_id, hostname, os_name, os_version, os_build)
         
         node_uuid = row['id']
+        if not is_new:
+            await reactivate_if_reinstalled(conn, node_uuid, hostname)
         
         # Auto-onboard new nodes
         if is_new:

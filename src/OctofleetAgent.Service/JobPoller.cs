@@ -196,7 +196,7 @@ public class JobPoller : BackgroundService
 
             // Execute main command
             stdout.AppendLine("=== MAIN COMMAND ===");
-            var commandResult = await ExecuteCommandAsync(job.CommandType, job.CommandPayload, job.TimeoutSeconds, ct);
+            var commandResult = await ExecuteCommandAsync(baseUrl, job.CommandType, job.CommandPayload, job.TimeoutSeconds, ct);
             
             result.ExitCode = commandResult.ExitCode;
             stdout.AppendLine(commandResult.Stdout);
@@ -329,7 +329,7 @@ public class JobPoller : BackgroundService
         }
     }
 
-    private async Task<CommandResult> ExecuteCommandAsync(string commandType, string commandPayload, int timeoutSeconds, CancellationToken ct)
+    private async Task<CommandResult> ExecuteCommandAsync(string baseUrl, string commandType, string commandPayload, int timeoutSeconds, CancellationToken ct)
     {
         var result = new CommandResult();
         
@@ -357,6 +357,9 @@ public class JobPoller : BackgroundService
             
             case "restart-agent":
                 return await ExecuteRestartAgentAsync(ct);
+            
+            case "uninstall-agent":
+                return await ExecuteUninstallAgentAsync(baseUrl, payload, ct);
             
             case "service_reconcile":
                 return await ExecuteServiceReconcileAsync(payload, timeoutSeconds, ct);
@@ -649,6 +652,74 @@ if ($svc) {{
                 ExitCode = -1,
                 Stderr = $"Failed to initiate restart: {ex.Message}"
             };
+        }
+    }
+
+    /// <summary>
+    /// Removes the agent from this machine (#160): starts the embedded Uninstall-OctofleetAgent.ps1
+    /// detached with a delay, so this job can still report its result before the service stops.
+    /// </summary>
+    private async Task<CommandResult> ExecuteUninstallAgentAsync(string baseUrl, JsonElement payload, CancellationToken ct)
+    {
+        var delaySeconds = 10;
+        if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("delaySeconds", out var delayProp)
+            && delayProp.TryGetInt32(out var requested) && requested is >= 5 and <= 300)
+        {
+            delaySeconds = requested;
+        }
+
+        _logger.LogWarning("Agent uninstall requested - removing the agent in {Delay} seconds", delaySeconds);
+        try
+        {
+            if (payload.ValueKind != JsonValueKind.Object ||
+                !payload.TryGetProperty("confirmationNodeId", out var nodeProp) ||
+                !Guid.TryParse(nodeProp.GetString(), out var nodeUuid) ||
+                !payload.TryGetProperty("confirmationToken", out var tokenProp) ||
+                string.IsNullOrWhiteSpace(tokenProp.GetString()))
+            {
+                throw new InvalidOperationException("Uninstall confirmation data is missing");
+            }
+            var confirmationToken = tokenProp.GetString()!;
+            await using var resource = typeof(JobPoller).Assembly.GetManifestResourceStream("Uninstall-OctofleetAgent.ps1")
+                ?? throw new InvalidOperationException("Uninstall script is missing from the agent build");
+            var tempDir = Path.GetTempPath();
+            var scriptPath = Path.Combine(tempDir, $"octofleet-uninstall-{Guid.NewGuid():N}.ps1");
+            await using (var file = File.Create(scriptPath))
+            {
+                await resource.CopyToAsync(file, ct);
+            }
+
+            var installPath = Path.GetDirectoryName(Environment.ProcessPath) ?? @"C:\Program Files\Octofleet";
+            var logFile = Path.Combine(tempDir, "octofleet-uninstall.log");
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            foreach (var arg in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-NonInteractive",
+                                       "-File", scriptPath, "-InstallPath", installPath,
+                                       "-DelaySeconds", delaySeconds.ToString(), "-LogFile", logFile })
+            {
+                psi.ArgumentList.Add(arg);
+            }
+            psi.Environment["OCTOFLEET_REMOVAL_URL"] = $"{baseUrl}/api/v1/nodes/{nodeUuid:D}/uninstall/complete";
+            psi.Environment["OCTOFLEET_REMOVAL_TOKEN"] = confirmationToken;
+            psi.Environment["OCTOFLEET_REMOVAL_API_KEY"] = ServiceConfig.Load().InventoryApiKey
+                ?? throw new InvalidOperationException("Agent API key is missing");
+            _ = Process.Start(psi) ?? throw new InvalidOperationException("Could not start uninstall process");
+
+            return new CommandResult
+            {
+                ExitCode = 0,
+                Stdout = $"Agent uninstall started; the agent will be removed in {delaySeconds} seconds (log: {logFile})."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start the agent uninstall");
+            return new CommandResult { ExitCode = -1, Stderr = $"Failed to start the agent uninstall: {ex.Message}" };
         }
     }
 

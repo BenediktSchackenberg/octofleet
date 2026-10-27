@@ -1276,6 +1276,51 @@ EOF
         "${API_URL}/api/v1/services/${service_id}/nodes/${NODE_ID}/status" >/dev/null 2>&1 || warn "Failed to report service status"
 }
 
+# Removes the agent from this machine (#160) - the same steps as linux-agent/uninstall.sh.
+# Runs as a transient systemd unit: outside this service's sandbox (which cannot write
+# /etc/systemd/system) and not ended when the service stops. The delay lets this job report
+# its result first.
+schedule_uninstall() {
+    local delay="${1:-10}"
+    local node_uuid="${2:-}"
+    local confirmation_token="${3:-}"
+    [[ "$delay" =~ ^[0-9]+$ ]] && (( delay >= 5 && delay <= 300 )) || delay=10
+    [[ "$node_uuid" =~ ^[0-9a-fA-F-]{36}$ && -n "$confirmation_token" ]] || {
+        echo "Refusing to uninstall: confirmation data is missing"
+        return 1
+    }
+    if [[ -z "$SCRIPT_DIR" || "$SCRIPT_DIR" == "/" || ! -f "$SCRIPT_DIR/agent.sh" ]]; then
+        echo "Refusing to uninstall: unexpected agent directory '$SCRIPT_DIR'"
+        return 1
+    fi
+    local unit="octofleet-agent.service"
+    local script payload url
+    script=$(mktemp /var/log/octofleet-uninstall.XXXXXXXX) || return 1
+    chmod 600 "$script"
+    payload=$(jq -cn --arg token "$confirmation_token" '{confirmationToken: $token}')
+    url="${API_URL}/api/v1/nodes/${node_uuid}/uninstall/complete"
+    {
+        printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'trap '\''rm -f -- "$0"'\'' EXIT'
+        printf 'sleep %q\n' "$delay"
+        printf 'systemctl disable --now %q || true\n' "$unit"
+        printf 'rm -f -- %q\n' "/etc/systemd/system/$unit"
+        printf '%s\n' 'systemctl daemon-reload'
+        printf 'rm -rf -- %q\n' "$SCRIPT_DIR"
+        printf 'rm -f -- %q\n' "$LOG_FILE"
+        printf 'test ! -e %q\n' "$SCRIPT_DIR"
+        printf 'curl -fsS --max-time 15 -X POST -H %q -H %q --data-binary %q %q >/dev/null\n' \
+            'Content-Type: application/json' "X-API-Key: $API_KEY" "$payload" "$url"
+    } > "$script"
+    if command -v systemd-run &>/dev/null && systemd-run --quiet --collect \
+            --unit "octofleet-agent-uninstall-$(date +%s)" /bin/bash "$script"; then
+        echo "Agent uninstall started; the agent will be removed in ${delay} seconds."
+        return 0
+    fi
+    # Without systemd (e.g. a container): nothing outlives a service stop, so run directly
+    setsid nohup /bin/bash "$script" >/dev/null 2>&1 &
+    echo "Agent uninstall started without systemd-run; the agent will be removed in ${delay} seconds."
+}
+
 execute_job() {
     local job="$1"
     local instance_id=$(echo "$job" | jq -r '.instanceId // .instance_id')
@@ -1307,6 +1352,12 @@ execute_job() {
             ;;
         service_reconcile)
             output=$(reconcile_service "$command_payload") || exit_code=$?
+            ;;
+        uninstall-agent)
+            local delay=$(echo "$command_payload" | jq -r '.delaySeconds // 10' 2>/dev/null)
+            local confirmation_node_id=$(echo "$command_payload" | jq -r '.confirmationNodeId // empty' 2>/dev/null)
+            local confirmation_token=$(echo "$command_payload" | jq -r '.confirmationToken // empty' 2>/dev/null)
+            output=$(schedule_uninstall "$delay" "$confirmation_node_id" "$confirmation_token" 2>&1) || exit_code=$?
             ;;
         *)
             warn "Unknown command type: $command_type"

@@ -32,7 +32,7 @@ class ScopeCreate(BaseModel):
 # ─── All available permissions ────────────────────────────────────────
 
 ALL_PERMISSIONS = sorted({
-    "nodes:read", "nodes:write", "nodes:assign",
+    "nodes:read", "nodes:write", "nodes:assign", "nodes:delete",
     "groups:read", "groups:write",
     "jobs:read", "jobs:create", "jobs:execute", "jobs:cancel",
     "packages:read", "packages:write", "packages:deploy",

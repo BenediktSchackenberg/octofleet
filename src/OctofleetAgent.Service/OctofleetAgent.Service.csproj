@@ -53,4 +53,9 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Run by the uninstall-agent job; the same script is used by hand (#160) -->
+    <EmbeddedResource Include="..\..\scripts\Uninstall-OctofleetAgent.ps1" LogicalName="Uninstall-OctofleetAgent.ps1" />
+  </ItemGroup>
+
 </Project>
