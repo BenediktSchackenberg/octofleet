@@ -1,5 +1,6 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
+import { NodeVulnerabilityPreview } from "@/components/node-vulnerabilities";
 
 import { useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
@@ -415,10 +416,7 @@ export default function VulnerabilitiesPage() {
                               <span>Max CVSS: <strong className={risk.color}>{node.max_cvss.toFixed(1)}</strong></span>
                             </div>
                           </div>
-                          <a href={`/nodes/${node.hostname}`}
-                            className="text-sm text-blue-400 hover:underline flex items-center gap-1">
-                            Node-Details öffnen <ExternalLink className="h-3 w-3" />
-                          </a>
+                          <NodeVulnerabilityPreview nodeId={node.id} hostname={node.hostname} />
                         </div>
                       )}
                     </div>

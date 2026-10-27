@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useNodeDetails } from "@/hooks/useNodeDetails";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
+import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
 
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
@@ -165,12 +166,10 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
             const count = d?.pending ?? d?.pendingCount ?? (Array.isArray(d) ? d.length : 0);
             if (count > 0) results.push({ label: "Patches", count, href: `/patches?node=${nodeId}`, icon: <ShieldAlert className="h-4 w-4" /> });
           }).catch(() => {}),
-        apiClient.get<any>("/vulnerabilities/by-node")
+        apiClient.get<{ count?: number }>(`/vulnerabilities/node/${encodeURIComponent(nodeId)}?limit=1`, { showErrorToast: false })
           .then((d) => {
-            const arr = Array.isArray(d) ? d : d?.nodes || [];
-            const entry = arr.find((n: any) => n.node_id === nodeId || n.nodeId === nodeId);
-            const count = entry?.count ?? entry?.vulnerabilities?.length ?? 0;
-            if (count > 0) results.push({ label: "Vulnerabilities", count, href: `/vulnerabilities?node=${nodeId}`, icon: <Bug className="h-4 w-4" /> });
+            const count = d?.count ?? 0;
+            if (count > 0) results.push({ label: "Vulnerabilities", count, href: nodeVulnerabilitiesHref(nodeId), icon: <Bug className="h-4 w-4" /> });
           }).catch(() => {}),
         apiClient.get<any>(`/jobs?target_id=${nodeId}&limit=5`)
           .then((d) => {
@@ -216,6 +215,14 @@ export default function NodeDetailPage() {
   const { t } = useI18n();
   
   const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
+  // The active tab can be set with ?tab=… (e.g. links to a node's vulnerabilities)
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
+  const vulnerabilityCount = useNodeVulnerabilityCount(nodeId);
 
   if (loading) {
     return (
@@ -332,7 +339,7 @@ export default function NodeDetailPage() {
         <QuickLinksBar nodeId={nodeId} />
 
         {/* Main Tabs */}
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="overview">Übersicht</TabsTrigger>
             <TabsTrigger value="performance">📊 Performance</TabsTrigger>
@@ -341,6 +348,7 @@ export default function NodeDetailPage() {
             <TabsTrigger value="updates">Updates ({totalUpdatesCount})</TabsTrigger>
             <TabsTrigger value="network">Netzwerk</TabsTrigger>
             <TabsTrigger value="security">Sicherheit</TabsTrigger>
+            <TabsTrigger value="vulnerabilities">{t("nodes.vulnerabilities.tab", { count: vulnerabilityCount ?? "…" })}</TabsTrigger>
             <TabsTrigger value="browser">Browser</TabsTrigger>
             <TabsTrigger value="events">Events ({events.length})</TabsTrigger>
             <TabsTrigger value="history">Timeline</TabsTrigger>
@@ -962,15 +970,17 @@ export default function NodeDetailPage() {
                   <ShieldAlert className="h-4 w-4" /> Alle Security Findings anzeigen <ExternalLink className="h-3 w-3" />
                 </Button>
               </Link>
-              <Link href={`/vulnerabilities?node=${nodeId}`}>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Bug className="h-4 w-4" /> Alle Vulnerabilities anzeigen <ExternalLink className="h-3 w-3" />
-                </Button>
-              </Link>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setActiveTab("vulnerabilities")}>
+                <Bug className="h-4 w-4" /> {t("nodes.vulnerabilities.showInTab")}
+              </Button>
             </div>
           </TabsContent>
 
           {/* Browser Tab */}
+          <TabsContent value="vulnerabilities">
+            <NodeVulnerabilities nodeId={nodeId} />
+          </TabsContent>
+
           <TabsContent value="browser" className="space-y-4">
             {/* Security Warnings */}
             {criticalCookies && criticalCookies.warnings?.length > 0 && (

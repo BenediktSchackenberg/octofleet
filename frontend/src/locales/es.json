@@ -145,6 +145,32 @@
       "securityBadge": "Seguridad",
       "none": "No hay actualizaciones disponibles"
     },
+    "vulnerabilities": {
+      "tab": "Vulnerabilidades ({count})",
+      "title": "Vulnerabilidades conocidas ({count})",
+      "description": "CVE asignados al software instalado en el último análisis de vulnerabilidades, las más graves primero.",
+      "loading": "Cargando vulnerabilidades…",
+      "error": "No se pudieron cargar las vulnerabilidades.",
+      "none": "No hay vulnerabilidades conocidas para el software instalado.",
+      "noMatch": "Ninguna vulnerabilidad coincide con el filtro.",
+      "all": "Todas ({count})",
+      "search": "Buscar CVE o software",
+      "cve": "CVE",
+      "severityColumn": "Gravedad",
+      "software": "Software",
+      "published": "Publicada",
+      "showMore": "Mostrar {count} más (quedan {remaining})",
+      "mostSevere": "Vulnerabilidades más graves",
+      "showAll": "Mostrar las {count}",
+      "showInTab": "Mostrar vulnerabilidades",
+      "severity": {
+        "critical": "Crítica",
+        "high": "Alta",
+        "medium": "Media",
+        "low": "Baja",
+        "unknown": "Desconocida"
+      }
+    },
     "removal": {
       "button": "Eliminar nodo…",
       "title": "Eliminar {hostname}",
