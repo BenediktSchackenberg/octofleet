@@ -56,4 +56,20 @@ test.describe('Change password dialog', () => {
     await expect(page.getByText('Das aktuelle Passwort ist falsch')).toBeVisible();
     await page.evaluate(() => localStorage.removeItem('locale'));
   });
+
+  test('checks the password length in the UI language, not the browser language', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => localStorage.setItem('locale', 'de'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: dialogButton }).click();
+
+    const dialog = page.getByRole('dialog');
+    const fields = dialog.locator('input[type="password"]');
+    await fields.nth(0).fill('not-the-current-password');
+    await fields.nth(1).fill('short');
+    await fields.nth(2).fill('short');
+    await dialog.locator('button[type="submit"]').click();
+    await expect(page.getByText('Mindestens 12 Zeichen verwenden')).toBeVisible();
+    await page.evaluate(() => localStorage.removeItem('locale'));
+  });
 });
