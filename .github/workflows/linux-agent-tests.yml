@@ -1,0 +1,27 @@
+name: Linux Agent Tests
+
+on:
+  push:
+    paths:
+      - 'linux-agent/**'
+      - 'tests/linux-agent/**'
+      - '.github/workflows/linux-agent-tests.yml'
+  pull_request:
+    paths:
+      - 'linux-agent/**'
+      - 'tests/linux-agent/**'
+      - '.github/workflows/linux-agent-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  self-update:
+    name: Shell syntax and self-update tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax
+        run: |
+          bash -n linux-agent/agent.sh
+          bash -n linux-agent/install.sh
+      - name: Test check_for_update (success and failure paths)
+        run: bash tests/linux-agent/self-update.test.sh
