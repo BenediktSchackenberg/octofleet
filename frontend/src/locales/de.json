@@ -30,6 +30,18 @@
     "warning": "Warnung",
     "info": "Info"
   },
+  "account": {
+    "changePassword": "Passwort ändern",
+    "passwordHint": "Mindestens 12 Zeichen. Danach werden alle Sitzungen beendet.",
+    "currentPassword": "Aktuelles Passwort",
+    "newPassword": "Neues Passwort",
+    "confirmPassword": "Neues Passwort bestätigen",
+    "savePassword": "Passwort speichern",
+    "passwordMismatch": "Die Passwörter stimmen nicht überein",
+    "passwordLength": "Mindestens 12 Zeichen verwenden",
+    "passwordError": "Passwort konnte nicht geändert werden",
+    "passwordChanged": "Passwort geändert. Bitte erneut anmelden."
+  },
   "nav": {
     "accessAudit": "Zugriffs-Audit",
     "admin": "Admin",
