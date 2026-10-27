@@ -65,9 +65,14 @@ export function RemoveNodeButton({ nodeId, hostname, onChanged }: Props) {
         body: JSON.stringify({ deleteAfterUninstall: deleteAfter }),
         headers: { "Content-Type": "application/json" },
       });
-      if (!res.ok) return; // apiClient shows the error
       setOpen(false);
       setConfirm("");
+      if (!res.ok) {
+        // apiClient shows the error; the node may have changed meanwhile (e.g. another
+        // admin's request), so show its current state instead of the old one.
+        onChanged();
+        return;
+      }
       if (deleteAfter) {
         // The node page goes away with the node; the list shows the progress.
         toast.success(t("nodes.removal.requested", { hostname }));
@@ -155,8 +160,10 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
   const cancel = async () => {
     setBusy(true);
     try {
-      const res = await apiClient.request(`/nodes/${nodeId}/uninstall`, { method: "DELETE" });
-      if (res.ok) onChanged(); // otherwise apiClient shows the error
+      await apiClient.request(`/nodes/${nodeId}/uninstall`, { method: "DELETE" });
+      // Reload on success and on errors (apiClient shows them): a rejected request
+      // usually means the state changed, e.g. the agent already picked up the job.
+      onChanged();
     } finally {
       setBusy(false);
     }
@@ -166,8 +173,13 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
     setBusy(true);
     try {
       const res = await apiClient.request(`/nodes/${nodeId}${removal.canDelete ? "" : "?force=true"}`, { method: "DELETE" });
-      if (!res.ok) return; // apiClient shows the error
       setDeleteOpen(false);
+      if (!res.ok) {
+        // apiClient shows the error. The node is not in the state this banner shows
+        // (e.g. the agent was reinstalled and reactivated it): reload it.
+        onChanged();
+        return;
+      }
       toast.success(t("nodes.removal.removed", { hostname }));
       router.push("/nodes");
     } finally {
@@ -240,8 +252,8 @@ export function NodeRemovalStatus({ nodeId, state, onChanged }: { nodeId: string
     e.stopPropagation(); // the grid card itself opens the node
     setBusy(true);
     try {
-      const res = await apiClient.request(`/nodes/${nodeId}/uninstall`, { method: "DELETE" });
-      if (res.ok) onChanged(); // otherwise apiClient shows the error
+      await apiClient.request(`/nodes/${nodeId}/uninstall`, { method: "DELETE" });
+      onChanged(); // also after an error (apiClient shows it): the list shows the current state
     } finally {
       setBusy(false);
     }

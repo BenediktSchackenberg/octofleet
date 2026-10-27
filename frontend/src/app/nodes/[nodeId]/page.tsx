@@ -17,6 +17,7 @@ import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n-context";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 
 // Copy to clipboard component
@@ -212,6 +213,7 @@ export default function NodeDetailPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
   const { hasPermission } = useAuth();
+  const { t } = useI18n();
   
   const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
 
@@ -254,7 +256,10 @@ export default function NodeDetailPage() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
               <h1 className="text-3xl font-bold min-w-0 wrap-break-word">{node?.hostname || nodeId}</h1>
               {node && <FavoriteButton type="node" id={nodeId} label={node.hostname || nodeId} href={`/nodes/${nodeId}`} />}
-              {node && getStatusBadge(node.last_seen)}
+              {node && (node.removalState === "uninstalled"
+                // The last report is recent right after an uninstall, but the agent is gone
+                ? <Badge variant="secondary">{t("nodes.removal.badgeUninstalled")}</Badge>
+                : getStatusBadge(node.last_seen))}
             </div>
             {/* Groups and Tags */}
             {node && (node.groups?.length > 0 || node.tags?.length > 0) && (
