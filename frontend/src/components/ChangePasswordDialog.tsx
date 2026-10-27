@@ -30,7 +30,7 @@ export function ChangePasswordDialog() {
     }
     setSaving(true);
     try {
-      const result = await apiClient.request<{ status: string }>("/api/v1/auth/me/password", {
+      const result = await apiClient.request<{ status: string }>("/auth/me/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_password: current, new_password: next }),
