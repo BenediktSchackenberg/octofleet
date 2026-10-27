@@ -1319,6 +1319,7 @@ execute_job() {
     # Report result
     local result=$(cat << EOF
 {
+    "success": $([ $exit_code -eq 0 ] && echo 'true' || echo 'false'),
     "status": "$([ $exit_code -eq 0 ] && echo 'success' || echo 'failed')",
     "exitCode": $exit_code,
     "stdout": $(echo "$output" | jq -Rs '.'),
