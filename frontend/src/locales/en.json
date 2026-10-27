@@ -182,12 +182,12 @@
     "whatThisDoes": "What this does:",
     "windows": {
       "step1": "Open PowerShell as Administrator on the target machine.",
-      "whatText": "Loads the installer from this Octofleet server. The installer downloads the latest agent release from GitHub, verifies its checksum, installs it as a Windows service and configures it with your server URL and API key."
+      "whatText": "Loads the installer from this Octofleet server. The installer takes the latest agent release from this server (GitHub only if the server has none), verifies its SHA256 checksum, installs it as a Windows service and configures it with your server URL and API key."
     },
     "linux": {
       "step1": "Open a shell with sudo rights on the target machine.",
       "requirements": "systemd-based distribution; missing tools (curl, jq) are installed with the system package manager.",
-      "whatText": "Downloads the installer and the agent from GitHub, installs the agent as the systemd service octofleet-agent and configures it with your server URL and API key. The node ID is the machine's hostname."
+      "whatText": "Loads the installer from this Octofleet server. The installer takes the agent and its systemd unit from this server and verifies their SHA256 checksums (GitHub only if the server has no Linux agent), installs the agent as the systemd service octofleet-agent and configures it with your server URL and API key. The node ID is the machine's hostname."
     },
     "manualSteps": {
       "step1": "Download the configuration file",

@@ -19,7 +19,6 @@ interface OnboardingDialogProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-const LINUX_INSTALLER_URL = "https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh";
 const WINDOWS_CONFIG_PATH = "C:\\ProgramData\\Octofleet\\service-config.json";
 const WINDOWS_RESTART_COMMAND = "Restart-Service OctofleetNodeAgent";
 const KEY_MASK = "••••••••••••";
@@ -29,8 +28,10 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+/** install.sh from this server, which then takes agent.sh and the unit from the server as well. */
 function linuxCommand(apiUrl: string, apiKey: string): string {
-  return `curl -fsSL ${LINUX_INSTALLER_URL} | sudo bash -s -- --api-url ${shellQuote(apiUrl)} --api-key ${shellQuote(apiKey)}`;
+  const installer = `${apiUrl}/api/v1/agent/releases/linux/install.sh`;
+  return `curl -fsSL ${shellQuote(installer)} | sudo bash -s -- --api-url ${shellQuote(apiUrl)} --api-key ${shellQuote(apiKey)}`;
 }
 
 function Step({ n, title, children }: { n: number; title: string; children?: ReactNode }) {

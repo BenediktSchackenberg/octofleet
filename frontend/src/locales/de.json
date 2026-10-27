@@ -182,12 +182,12 @@
     "whatThisDoes": "Was passiert dabei:",
     "windows": {
       "step1": "PowerShell auf dem Zielrechner als Administrator öffnen.",
-      "whatText": "Lädt den Installer von diesem Octofleet-Server. Der Installer lädt das neueste Agent-Release von GitHub, prüft die Prüfsumme, installiert den Agent als Windows-Dienst und konfiguriert ihn mit Server-URL und API-Schlüssel."
+      "whatText": "Lädt den Installer von diesem Octofleet-Server. Der Installer nimmt das neueste Agent-Release von diesem Server (GitHub nur, wenn der Server keines hat), prüft die SHA256-Prüfsumme, installiert den Agent als Windows-Dienst und konfiguriert ihn mit Server-URL und API-Schlüssel."
     },
     "linux": {
       "step1": "Auf dem Zielrechner eine Shell mit sudo-Rechten öffnen.",
       "requirements": "Distribution mit systemd; fehlende Werkzeuge (curl, jq) werden über den Paketmanager installiert.",
-      "whatText": "Lädt Installer und Agent von GitHub, installiert den Agent als systemd-Dienst octofleet-agent und konfiguriert ihn mit Server-URL und API-Schlüssel. Als Node-ID dient der Hostname des Rechners."
+      "whatText": "Lädt den Installer von diesem Octofleet-Server. Der Installer nimmt Agent und systemd-Unit von diesem Server und prüft ihre SHA256-Prüfsummen (GitHub nur, wenn der Server keinen Linux-Agent hat), installiert den Agent als systemd-Dienst octofleet-agent und konfiguriert ihn mit Server-URL und API-Schlüssel. Als Node-ID dient der Hostname des Rechners."
     },
     "manualSteps": {
       "step1": "Konfigurationsdatei herunterladen",
