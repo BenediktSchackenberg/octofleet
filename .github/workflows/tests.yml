@@ -84,7 +84,7 @@ jobs:
           API_URL: http://localhost:8080
           BASE_URL: http://localhost:3000
           TEST_API_KEY: ci-test-api-key
-          TEST_PASSWORD: admin
+          TEST_PASSWORD: ci-test-admin-password-2026
 
       - name: Upload test reports
         uses: actions/upload-artifact@v4

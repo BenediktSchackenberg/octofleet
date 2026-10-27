@@ -30,6 +30,18 @@
     "warning": "Warning",
     "info": "Info"
   },
+  "account": {
+    "changePassword": "Change password",
+    "passwordHint": "Use at least 12 characters. Changing it signs out all sessions.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "savePassword": "Save password",
+    "passwordMismatch": "Passwords do not match",
+    "passwordLength": "Use at least 12 characters",
+    "passwordError": "Could not change password",
+    "passwordChanged": "Password changed. Sign in again."
+  },
   "nav": {
     "accessAudit": "Access Audit",
     "admin": "Admin",
