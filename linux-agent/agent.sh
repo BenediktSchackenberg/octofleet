@@ -1544,7 +1544,10 @@ run_service() {
 
 # Checks the server for a newer agent.sh, verifies it and replaces this script.
 # Exits after a successful update; systemd (Restart=always) starts the new version.
-# Returns 0 when already up to date, 1 when the check failed or an update was rejected.
+# With MANUAL_UPDATE=true ("agent.sh update") the running service is restarted
+# instead, since it would otherwise keep running the old version.
+# Returns 0 when already up to date, 1 when the check failed or an update was
+# rejected or could not be installed; the old agent.sh is then left in place.
 check_for_update() {
     [[ "$AUTO_UPDATE" == "true" ]] || return 0
 
@@ -1577,8 +1580,28 @@ check_for_update() {
         rm -f "$tmp"; return 1
     fi
 
-    chmod 755 "$tmp"
-    mv -f "$tmp" "$self"
+    # set -e is not active and this function runs in an if/|| context: check
+    # each step, so a failed replacement never reports success or exits.
+    if ! chmod 755 "$tmp"; then
+        warn "Update to v$latest failed: cannot make the new agent.sh executable, keeping v$VERSION"
+        rm -f "$tmp"; return 1
+    fi
+    if ! mv -f "$tmp" "$self"; then
+        warn "Update to v$latest failed: cannot replace $self, keeping v$VERSION"
+        rm -f "$tmp"; return 1
+    fi
+
+    if [[ "${MANUAL_UPDATE:-false}" == "true" ]]; then
+        info "Updated to v$latest"
+        if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet octofleet-agent; then
+            if systemctl restart octofleet-agent; then
+                info "Service octofleet-agent restarted with v$latest"
+            else
+                warn "Updated to v$latest, but restarting octofleet-agent failed; restart it to use the new version"
+            fi
+        fi
+        exit 0
+    fi
     info "Updated to v$latest, restarting"
     exit 0
 }
@@ -1743,7 +1766,7 @@ case "${1:-service}" in
         echo "Octofleet Linux Agent v$VERSION"
         ;;
     update)
-        if AUTO_UPDATE=true check_for_update; then
+        if AUTO_UPDATE=true MANUAL_UPDATE=true check_for_update; then
             echo "Octofleet Linux Agent v$VERSION is up to date"
         else
             echo "Update check failed or update rejected, staying on v$VERSION" >&2
