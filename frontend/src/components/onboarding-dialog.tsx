@@ -28,10 +28,13 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-/** install.sh from this server, which then takes agent.sh and the unit from the server as well. */
+/**
+ * install.sh from this server, which then takes agent.sh and the unit from the server as well.
+ * Downloaded first and then run: with `curl ... | sudo bash` a failed download still ends with success.
+ */
 function linuxCommand(apiUrl: string, apiKey: string): string {
   const installer = `${apiUrl}/api/v1/agent/releases/linux/install.sh`;
-  return `curl -fsSL ${shellQuote(installer)} | sudo bash -s -- --api-url ${shellQuote(apiUrl)} --api-key ${shellQuote(apiKey)}`;
+  return `f=$(mktemp) && curl -fsSL ${shellQuote(installer)} -o "$f" && sudo bash "$f" --api-url ${shellQuote(apiUrl)} --api-key ${shellQuote(apiKey)}`;
 }
 
 function Step({ n, title, children }: { n: number; title: string; children?: ReactNode }) {
