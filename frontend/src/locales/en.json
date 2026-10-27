@@ -172,6 +172,7 @@
     "automatic": "Automatic install",
     "manual": "Manual setup",
     "copy": "Copy",
+    "copyFailed": "Could not copy – select the command and copy it by hand (show the API key first).",
     "copied": "Copied",
     "loading": "Loading…",
     "showKey": "Show API key",

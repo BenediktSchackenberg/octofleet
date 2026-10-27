@@ -172,6 +172,7 @@
     "automatic": "Instalación automática",
     "manual": "Configuración manual",
     "copy": "Copiar",
+    "copyFailed": "No se pudo copiar: seleccione el comando y cópielo a mano (antes muestre la clave de API).",
     "copied": "Copiado",
     "loading": "Cargando…",
     "showKey": "Mostrar clave API",

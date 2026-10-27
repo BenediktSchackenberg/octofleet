@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, type ReactNode } from "react";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/lib/i18n-context";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -116,8 +118,11 @@ export function OnboardingDialog({ trigger, open, onOpenChange }: OnboardingDial
       .catch(() => {});
   }, [dialogOpen]);
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, label: string) => {
+    if (!(await copyText(text))) {
+      toast.error(t("onboarding.copyFailed"));
+      return;
+    }
     setCopied(label);
     setTimeout(() => setCopied(null), 2000);
   };

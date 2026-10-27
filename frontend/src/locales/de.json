@@ -172,6 +172,7 @@
     "automatic": "Automatische Installation",
     "manual": "Manuelle Einrichtung",
     "copy": "Kopieren",
+    "copyFailed": "Kopieren nicht möglich – den Befehl markieren und von Hand kopieren (vorher den API-Schlüssel anzeigen).",
     "copied": "Kopiert",
     "loading": "Wird geladen…",
     "showKey": "API-Schlüssel anzeigen",
