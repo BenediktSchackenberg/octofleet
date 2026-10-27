@@ -1,5 +1,5 @@
 export const PERMISSION_CATEGORIES: Record<string, { label: string; permissions: string[] }> = {
-  nodes: { label: "Nodes", permissions: ["nodes:read", "nodes:write", "nodes:assign"] },
+  nodes: { label: "Nodes", permissions: ["nodes:read", "nodes:write", "nodes:assign", "nodes:delete"] },
   groups: { label: "Groups", permissions: ["groups:read", "groups:write"] },
   jobs: { label: "Jobs", permissions: ["jobs:read", "jobs:create", "jobs:execute", "jobs:cancel"] },
   packages: { label: "Packages", permissions: ["packages:read", "packages:write", "packages:deploy"] },

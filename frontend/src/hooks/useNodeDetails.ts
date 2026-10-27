@@ -1,11 +1,12 @@
 "use client";
 
+import type { NodeRemovalInfo } from "@/components/node-removal";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface NodeDetails {
+export interface NodeDetails extends NodeRemovalInfo {
   id: string;
   node_id: string;
   hostname: string;

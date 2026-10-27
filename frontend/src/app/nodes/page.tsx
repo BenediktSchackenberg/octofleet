@@ -9,6 +9,7 @@ import { StatusBadge, statusToVariant } from "@/components/ui/StatusBadge";
 import { Check, X, Clock, Monitor, LayoutGrid, List, Plus, Server } from "lucide-react";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { StandardPage } from "@/components/ui/StandardPage";
+import { NodeRemovalStatus } from "@/components/node-removal";
 
 
 
@@ -25,6 +26,7 @@ interface Node {
   total_memory_gb: number | null;
   health_status?: 'healthy' | 'warning' | 'critical';
   alert_count?: number;
+  removal_state?: 'uninstall_pending' | 'uninstall_failed' | 'uninstalled' | null;
 }
 
 interface PendingNode {
@@ -166,6 +168,14 @@ export default function NodesPage() {
     fetchNodes();
     fetchPendingNodes();
   }, []);
+
+  // Follow open removal requests until the agent answers (#160)
+  const removalPending = nodes.some((n) => n.removal_state === "uninstall_pending");
+  useEffect(() => {
+    if (!removalPending) return;
+    const timer = setInterval(fetchNodes, 10000);
+    return () => clearInterval(timer);
+  }, [removalPending]);
 
   async function fetchNodes() {
     try {
@@ -329,6 +339,7 @@ export default function NodesPage() {
                   {node.health_status && node.health_status !== "healthy" && (
                     <HealthBadge status={node.health_status} count={node.alert_count} />
                   )}
+                  <NodeRemovalStatus nodeId={node.node_id} state={node.removal_state} onChanged={fetchNodes} />
                 </div>
               );
             })}
@@ -369,6 +380,7 @@ export default function NodesPage() {
                       {node.hostname}
                     </Link>
                     <HealthBadge status={node.health_status} count={node.alert_count} />
+                    <NodeRemovalStatus nodeId={node.node_id} state={node.removal_state} onChanged={fetchNodes} />
                   </td>
                   <td className="p-4 hidden md:table-cell text-sm text-zinc-400">
                     {node.os_name}
