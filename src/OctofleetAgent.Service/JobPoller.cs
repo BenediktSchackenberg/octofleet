@@ -587,17 +587,29 @@ public class JobPoller : BackgroundService
     {
         _logger.LogInformation("Agent restart requested - spawning restart script...");
         
-        const string serviceName = "OctofleetNodeAgent";
+        // The service that runs this executable: older installs registered it as
+        // "Octofleet Agent", new installs as OctofleetNodeAgent
+        var exePath = (Environment.ProcessPath ?? "").Replace("'", "''");
         
         // Create a PowerShell script that will restart the service
         // The script runs in the background and waits for the service to stop before restarting
         var restartScript = $@"
 Start-Sleep -Seconds 2
-$svc = Get-Service -Name '{serviceName}' -ErrorAction SilentlyContinue
+$exe = '{exePath}'
+$name = 'OctofleetNodeAgent'
+foreach ($s in Get-CimInstance Win32_Service -ErrorAction SilentlyContinue) {{
+    $path = ""$($s.PathName)"".Trim()
+    if ($path.StartsWith('""')) {{
+        $end = $path.IndexOf('""', 1)
+        if ($end -gt 0) {{ $path = $path.Substring(1, $end - 1) }}
+    }}
+    if ($path -ieq $exe) {{ $name = $s.Name; break }}
+}}
+$svc = Get-Service -Name $name -ErrorAction SilentlyContinue
 if ($svc) {{
-    Stop-Service -Name '{serviceName}' -Force -ErrorAction SilentlyContinue
+    Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
-    Start-Service -Name '{serviceName}' -ErrorAction SilentlyContinue
+    Start-Service -Name $name -ErrorAction SilentlyContinue
 }}
 ";
         

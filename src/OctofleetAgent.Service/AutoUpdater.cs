@@ -13,7 +13,8 @@ using Microsoft.Extensions.Logging;
 namespace OctofleetAgent.Service;
 
 /// <summary>
-/// Auto-update service that checks GitHub Releases for new versions and self-updates.
+/// Auto-update service: checks the Octofleet server (then GitHub, if allowed) for new
+/// versions and self-updates.
 /// </summary>
 public class AutoUpdater : BackgroundService
 {
@@ -77,131 +78,55 @@ public class AutoUpdater : BackgroundService
     
     private async Task CheckForUpdate(CancellationToken ct)
     {
-        // Ask the Octofleet server first: if it publishes a release, that release
-        // is authoritative and GitHub is not consulted.
+        // Ask the Octofleet server first: if it offers a complete release, that release
+        // is authoritative and GitHub is not consulted. Any other answer (unreachable,
+        // error status, an HTML page, an incomplete release) moves on to GitHub when the
+        // fallback is enabled.
         var config = ServiceConfig.Load();
-        if (config.UpdateFromServer && !string.IsNullOrWhiteSpace(config.InventoryApiUrl))
+        var sources = ReleaseFinder.Sources(config.UpdateFromServer, config.InventoryApiUrl,
+            config.UpdateFallbackToGitHub, GitHubApiUrl);
+        
+        var release = await ReleaseFinder.FindAsync(_httpClient, sources,
+            message => _logger.LogWarning("{Message}", message), ct);
+        if (release == null)
         {
-            var serverUrl = $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/agent/releases/latest";
-            if (await TryUpdateFrom(serverUrl, "Octofleet server", ct))
-                return;
-            
-            if (!config.UpdateFallbackToGitHub)
-            {
-                _logger.LogDebug("No agent release on the Octofleet server and GitHub fallback is disabled");
-                return;
-            }
+            _logger.LogDebug("No usable agent release found");
+            return;
         }
         
-        await TryUpdateFrom(GitHubApiUrl, "GitHub", ct);
-    }
-    
-    /// <summary>
-    /// Checks one release source (GitHub releases API format) and installs a newer version.
-    /// Returns true if the source offered a valid release, whether or not an update was needed.
-    /// </summary>
-    private async Task<bool> TryUpdateFrom(string releaseUrl, string source, CancellationToken ct)
-    {
-        _logger.LogDebug("Checking for updates at {Source}: {Url}", source, releaseUrl);
-        
-        HttpResponseMessage response;
-        try
+        if (!IsNewerVersion(release.Version, _currentVersion))
         {
-            response = await _httpClient.GetAsync(releaseUrl, ct);
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogWarning("Update check at {Source} failed: {Message}", source, ex.Message);
-            return false;
-        }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-        {
-            _logger.LogWarning("Update check at {Source} timed out", source);
-            return false;
-        }
-        
-        if (!response.IsSuccessStatusCode)
-        {
-            if ((int)response.StatusCode == 404)
-                _logger.LogDebug("No release available at {Source}", source);
-            else
-                _logger.LogWarning("Update check at {Source} failed: {Status}", source, response.StatusCode);
-            return false;
-        }
-        
-        var json = await response.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        
-        // Get version from tag_name (e.g., "v0.4.48" -> "0.4.48")
-        var tagName = root.GetProperty("tag_name").GetString()!;
-        var latestVersion = tagName.TrimStart('v');
-        
-        // Find the ZIP asset
-        string? downloadUrl = null;
-        string? sha256Url = null;
-        
-        foreach (var asset in root.GetProperty("assets").EnumerateArray())
-        {
-            var name = asset.GetProperty("name").GetString()!;
-            var url = asset.GetProperty("browser_download_url").GetString()!;
-            
-            if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            {
-                downloadUrl = url;
-            }
-            else if (name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase))
-            {
-                sha256Url = url;
-            }
-        }
-        
-        if (downloadUrl == null)
-        {
-            _logger.LogWarning("No ZIP asset found in release {Tag} from {Source}", tagName, source);
-            return false;
-        }
-        
-        if (sha256Url == null)
-        {
-            _logger.LogWarning("Release {Tag} from {Source} has no SHA256 file; ignoring the incomplete release",
-                tagName, source);
-            return false;
-        }
-        
-        if (!IsNewerVersion(latestVersion, _currentVersion))
-        {
-            _logger.LogDebug("Already on latest version {Version} ({Source})", _currentVersion, source);
-            return true;
+            _logger.LogDebug("Already on latest version {Version} ({Source})", _currentVersion, release.Source);
+            return;
         }
         
         _logger.LogInformation("New version available from {Source}: {Latest} (current: {Current})",
-            source, latestVersion, _currentVersion);
+            release.Source, release.Version, _currentVersion);
         
-        ConsoleUI.Log("INF", $"🔄 Updating to v{latestVersion}...");
+        ConsoleUI.Log("INF", $"🔄 Updating to v{release.Version}...");
         
-        // The SHA256 is required: without it the update is not installed
+        // The SHA256 is required: without it the update is not installed. The release is
+        // chosen at this point, so failures postpone the update instead of trying GitHub.
         string sha256;
         try
         {
-            sha256 = (await _httpClient.GetStringAsync(sha256Url, ct)).Trim().Split(' ')[0];
+            sha256 = (await _httpClient.GetStringAsync(release.Sha256Url, ct)).Trim().Split(' ')[0];
         }
         catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
-            _logger.LogError(ex, "Could not fetch SHA256 for {Tag} from {Source}; update postponed", tagName, source);
+            _logger.LogError(ex, "Could not fetch SHA256 for {Tag} from {Source}; update postponed", release.Tag, release.Source);
             ConsoleUI.Log("ERR", "Update postponed: SHA256 not available");
-            return true;
+            return;
         }
         
         if (string.IsNullOrEmpty(sha256))
         {
-            _logger.LogError("Empty SHA256 for {Tag} from {Source}; update postponed", tagName, source);
+            _logger.LogError("Empty SHA256 for {Tag} from {Source}; update postponed", release.Tag, release.Source);
             ConsoleUI.Log("ERR", "Update postponed: SHA256 not available");
-            return true;
+            return;
         }
         
-        await DownloadAndInstall(latestVersion, downloadUrl, sha256, ct);
-        return true;
+        await DownloadAndInstall(release.Version, release.ZipUrl, sha256, ct);
     }
     
     private bool IsNewerVersion(string latest, string current)
@@ -380,6 +305,19 @@ try {{
     }} else {{
         Log ""No existing installation found, proceeding with fresh install""
     }}
+
+    # Use the service that runs the agent executable: older installs registered it as
+    # 'Octofleet Agent', new installs as OctofleetNodeAgent
+    $agentExe = Join-Path $targetPath 'OctofleetAgent.Service.exe'
+    foreach ($s in Get-CimInstance Win32_Service -ErrorAction SilentlyContinue) {{
+        $path = ""$($s.PathName)"".Trim()
+        if ($path.StartsWith('""')) {{
+            $end = $path.IndexOf('""', 1)
+            if ($end -gt 0) {{ $path = $path.Substring(1, $end - 1) }}
+        }}
+        if ($path -ieq $agentExe) {{ $serviceName = $s.Name; break }}
+    }}
+    Log ""Service: $serviceName""
 
     # Stop service
     Log 'Stopping service...'

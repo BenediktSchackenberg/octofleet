@@ -3,7 +3,13 @@
 from fastapi import APIRouter, Depends
 
 from auth import require_permission
-from provisioning_config import SETTINGS_KEY, ProvisioningConfig, export_environment, export_winpe, load_config
+from provisioning_config import (
+    SETTINGS_KEY,
+    ProvisioningConfig,
+    export_environment,
+    export_winpe,
+    load_config,
+)
 from routers.provisioning import get_db
 
 router = APIRouter(prefix="/api/v1/provisioning/config", tags=["provisioning-settings"])

@@ -134,13 +134,15 @@ install -d -m 700 "$INSTALL_DIR"
 rm -rf "$INSTALL_DIR/venv" "$INSTALL_DIR/agent.py"
 install -m 755 "$TMP_DIR/agent.sh" "$INSTALL_DIR/agent.sh"
 
-# config.env contains the API key: readable by root only
+# config.env contains the API key: readable by root only. agent.sh sources it and the
+# unit reads it as EnvironmentFile; %q quotes each value so that both read it back
+# exactly, even with $, `, quotes or spaces.
 (
     umask 077
     {
-        printf 'API_URL="%s"\n' "$API_URL"
-        printf 'API_KEY="%s"\n' "$API_KEY"
-        printf 'NODE_ID="%s"\n' "${NODE_ID:-$(hostname)}"
+        printf 'API_URL=%q\n' "$API_URL"
+        printf 'API_KEY=%q\n' "$API_KEY"
+        printf 'NODE_ID=%q\n' "${NODE_ID:-$(hostname)}"
         printf 'PUSH_INTERVAL=1800\n'
         printf 'JOB_POLL_INTERVAL=60\n'
         printf 'LIVE_DATA_INTERVAL=5\n'

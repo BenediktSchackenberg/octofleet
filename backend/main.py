@@ -51,6 +51,8 @@ from auth import (
     require_auth,
     require_permission,
 )
+from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
+from routers.agent_releases import router as agent_releases_router
 from routers.alerting import router as alerting_router
 from routers.auth import router as auth_router
 from routers.auth import users_router
@@ -69,7 +71,6 @@ from routers.mssql import router as mssql_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
-from routers.agent_releases import router as agent_releases_router
 from routers.patch_explorer import router as patch_explorer_router
 from routers.patches import router as patches_router
 from routers.provisioning import pxe_router
@@ -80,7 +81,6 @@ from routers.provisioning import router as provisioning_router
 from routers.provisioning_domain import generate_autounattend
 from routers.provisioning_iso import iso_router as provisioning_iso_router
 from routers.provisioning_settings import router as provisioning_settings_router
-from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.query_engine import router as query_router
 from routers.rbac import router as rbac_router

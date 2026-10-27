@@ -62,7 +62,7 @@ $ProgressPreference = "SilentlyContinue"  # Faster downloads
 # Constants
 $RepoOwner = "BenediktSchackenberg"
 $RepoName = "octofleet"
-$ServiceName = "Octofleet Agent"
+$ServiceName = "OctofleetNodeAgent"   # display name: "Octofleet Agent"
 $ServiceExe = "OctofleetAgent.Service.exe"
 
 function Write-Status {
@@ -119,6 +119,21 @@ function Get-LatestRelease {
     catch {
         throw "Failed to fetch release info: $_"
     }
+}
+
+function Get-AgentService {
+    # The service that runs the agent executable, whatever its name: older installs
+    # registered it as "Octofleet Agent", new installs use $ServiceName
+    $exePath = Join-Path $InstallPath $ServiceExe
+    foreach ($svc in Get-CimInstance Win32_Service -ErrorAction SilentlyContinue) {
+        $path = "$($svc.PathName)".Trim()
+        if ($path.StartsWith('"')) {
+            $end = $path.IndexOf('"', 1)
+            if ($end -gt 0) { $path = $path.Substring(1, $end - 1) }
+        }
+        if ($path -ieq $exePath) { return Get-Service -Name $svc.Name }
+    }
+    return Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 }
 
 function Get-InstalledVersion {
@@ -208,10 +223,10 @@ function Install-OctofleetAgent {
     Write-Status "Checksum verified" "Success"
     
     # Stop existing service
-    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $service = Get-AgentService
     if ($service) {
         Write-Status "Stopping existing service..."
-        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+        Stop-Service -Name $service.Name -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
     }
     
@@ -279,20 +294,22 @@ function Install-OctofleetAgent {
     $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $extractDir
     Write-Status "Set DOTNET_BUNDLE_EXTRACT_BASE_DIR to $extractDir" "Success"
     
-    # Install service
+    # Install service (the agent exe has no "install"/"start" commands; register it like AutoUpdater.cs does)
     $exePath = Join-Path $InstallPath $ServiceExe
     if (-not $service) {
         Write-Status "Installing Windows Service..."
-        & $exePath install
+        New-Service -Name $ServiceName -BinaryPathName "`"$exePath`"" -DisplayName "Octofleet Agent" -Description "Octofleet endpoint management agent" -StartupType Automatic | Out-Null
+        sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+        $service = Get-Service -Name $ServiceName
     }
     
     # Start service
     Write-Status "Starting service..."
-    & $exePath start
+    Start-Service -Name $service.Name
     Start-Sleep -Seconds 2
     
     # Verify
-    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $service = Get-Service -Name $service.Name -ErrorAction SilentlyContinue
     if ($service -and $service.Status -eq "Running") {
         Write-Status "Octofleet Agent v$versionClean installed successfully!" "Success"
         Write-Host ""
