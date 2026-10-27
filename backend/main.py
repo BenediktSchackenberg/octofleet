@@ -167,6 +167,20 @@ async def lifespan(app: FastAPI):
                 else:
                     print(f"One-time admin password: {admin_password}")
 
+        # Standard roles for a new installation (they used to come from ci-seed.sql, which
+        # production no longer loads). Only into an empty table, so roles an admin deleted
+        # stay deleted. Empty permissions as before: the built-in ROLE_PERMISSIONS apply.
+        if await conn.fetchval("SELECT COUNT(*) FROM roles") == 0:
+            await conn.execute("""
+                INSERT INTO roles (name, description) VALUES
+                  ('admin', 'Full system administrator'),
+                  ('viewer', 'Read-only access'),
+                  ('operator', 'Can run jobs and view inventory'),
+                  ('deployer', 'Can manage packages and deployments')
+                ON CONFLICT (name) DO NOTHING
+            """)
+            print("Standard roles created")
+
     print("✅ Database pool created")
     yield
     # Shutdown
