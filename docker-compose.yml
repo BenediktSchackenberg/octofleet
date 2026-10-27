@@ -5,9 +5,7 @@
 #   docker compose up -d
 #   Open http://localhost:3000
 #
-# Default credentials:
-#   Username: admin
-#   Password: admin (change immediately!)
+# First start creates an admin account. Set ADMIN_PASSWORD or read the one-time password from the backend log.
 
 services:
   # PostgreSQL with TimescaleDB for inventory storage
@@ -21,7 +19,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/schema-full.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./backend/ci-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
       - ./backend/schema/e33-content-lifecycle.sql:/docker-entrypoint-initdb.d/03-content-lifecycle.sql:ro
     ports:
       - "127.0.0.1:5432:5432"
@@ -41,6 +38,7 @@ services:
     environment:
       DATABASE_URL: postgresql://octofleet:${DB_PASSWORD:?DB_PASSWORD must be set}@db:5432/inventory
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       API_KEY: ${API_KEY:?API_KEY must be set}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
