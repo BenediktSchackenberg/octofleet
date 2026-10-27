@@ -7,6 +7,15 @@ set -u
 # Note: pipefail intentionally NOT set — it causes || fallbacks to
 # duplicate output when grep/awk pipes have no matches (exit 1).
 
+# JSON numbers need "." as decimal separator, but awk (mawk) and printf follow
+# LC_NUMERIC (e.g. "2,9" with de_DE). Force the C numeric locale; LC_ALL would
+# override it, so its value moves to LANG and the other categories stay as they are.
+if [[ -n "${LC_ALL:-}" ]]; then
+    export LANG="$LC_ALL"
+    unset LC_ALL
+fi
+export LC_NUMERIC=C
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
 VERSION="0.5.0-linux"
@@ -76,46 +85,198 @@ error() { log "ERROR" "$@"; }
 # Hardware Collection
 # ============================================================================
 
-collect_hardware() {
-    local cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo "Unknown")
-    local cpu_cores=$(nproc 2>/dev/null || echo 1)
-    local cpu_threads=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1)
-    
-    local mem_total_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
-    local mem_total_gb=$(echo "scale=2; $mem_total_kb / 1024 / 1024" | bc 2>/dev/null || echo 0)
-    local mem_available_kb=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
-    
-    # Disk info
-    local disks=$(lsblk -Jbo NAME,SIZE,TYPE,MOUNTPOINT 2>/dev/null | jq -c '.blockdevices // []' || echo '[]')
-    
-    # Motherboard
-    local mb_manufacturer=$(cat /sys/class/dmi/id/board_vendor 2>/dev/null || echo "Unknown")
-    local mb_product=$(cat /sys/class/dmi/id/board_name 2>/dev/null || echo "Unknown")
-    local bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || echo "Unknown")
-    
-    cat << EOF
-{
-    "cpu": {
-        "name": "$cpu_model",
-        "cores": $cpu_cores,
-        "threads": $cpu_threads,
-        "architecture": "$(uname -m)"
-    },
-    "ram": {
-        "totalBytes": $((mem_total_kb * 1024)),
-        "totalGB": $mem_total_gb,
-        "availableBytes": $((mem_available_kb * 1024))
-    },
-    "disks": $disks,
-    "motherboard": {
-        "manufacturer": "$mb_manufacturer",
-        "product": "$mb_product"
-    },
-    "bios": {
-        "version": "$bios_version"
-    }
+# Size string from lscpu ("1 MiB (1 instance)", "512 KiB") -> KB
+_size_to_kb() {
+    awk '{v=$1; u=$2; k=0
+          if (u ~ /^K/) k=v; else if (u ~ /^M/) k=v*1024; else if (u ~ /^G/) k=v*1048576
+          printf "%d", k}' <<< "${1:-0}"
 }
-EOF
+
+_lscpu_field() {
+    jq -r --arg f "$1" '.lscpu[]? | select(.field == $f) | .data' <<< "$LSCPU_JSON" 2>/dev/null | head -1
+}
+
+_dmi() {
+    local v
+    v=$(cat "/sys/class/dmi/id/$1" 2>/dev/null) || v=""
+    printf '%s' "$v" | sed 's/[[:space:]]*$//'
+}
+
+collect_hardware() {
+    # Hardware inventory in the same structure the Windows agent reports,
+    # so the web UI can render it (cpu, ram.modules, disks.physical/volumes,
+    # gpu, mainboard, bios, virtualization).
+
+    # CPU
+    LSCPU_JSON=$(lscpu -J 2>/dev/null || echo '{"lscpu":[]}')
+    local cpu_model=$(_lscpu_field "Model name:")
+    [[ -z "$cpu_model" ]] && cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs)
+    local cpu_vendor=$(_lscpu_field "Vendor ID:")
+    local sockets=$(_lscpu_field "Socket(s):")
+    local cores_per_socket=$(_lscpu_field "Core(s) per socket:")
+    [[ "$sockets" =~ ^[0-9]+$ ]] || sockets=1
+    [[ "$cores_per_socket" =~ ^[0-9]+$ ]] || cores_per_socket=$(nproc --all 2>/dev/null || echo 1)
+    local cpu_cores=$((sockets * cores_per_socket))
+    local cpu_threads=$(nproc --all 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1)
+    local cpu_mhz=$(_lscpu_field "CPU max MHz:")
+    [[ -z "$cpu_mhz" ]] && cpu_mhz=$(awk -F: '/^cpu MHz/ {print $2; exit}' /proc/cpuinfo 2>/dev/null)
+    cpu_mhz=$(awk '{printf "%d", $1}' <<< "${cpu_mhz:-0}")
+    local l2_kb=$(_size_to_kb "$(_lscpu_field "L2 cache:")")
+    local l3_kb=$(_size_to_kb "$(_lscpu_field "L3 cache:")")
+    local socket_designation=""
+    command -v dmidecode &>/dev/null && socket_designation=$(dmidecode -t 4 2>/dev/null | awk -F': ' '/^\tSocket Designation:/ {print $2; exit}')
+
+    local cpu=$(jq -n \
+        --arg name "${cpu_model:-Unknown}" --arg manufacturer "$cpu_vendor" --arg arch "$(uname -m)" \
+        --arg socket "$socket_designation" \
+        --argjson cores "$cpu_cores" --argjson threads "$cpu_threads" --argjson mhz "$cpu_mhz" \
+        --argjson l2 "$l2_kb" --argjson l3 "$l3_kb" \
+        '{name: $name, manufacturer: $manufacturer, architecture: $arch, cores: $cores,
+          logicalProcessors: $threads, threads: $threads, maxClockSpeedMHz: $mhz,
+          l2CacheKB: $l2, l3CacheKB: $l3, socketDesignation: $socket}')
+
+    # RAM (modules via dmidecode, requires root)
+    local mem_total_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+    local mem_available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null)
+    local modules='[]'
+    if command -v dmidecode &>/dev/null; then
+        modules=$(dmidecode -t 17 2>/dev/null | awk -F': ' '
+            function flush() { if (inrec && size != "" && size !~ /No Module|Not Installed|Unknown/) print size "\t" loc "\t" bank "\t" type "\t" speed "\t" mfr "\t" part "\t" serial "\t" ff }
+            /^Memory Device/ { flush(); inrec=1; size=loc=bank=type=speed=mfr=part=serial=ff=""; next }
+            inrec && /^\tSize:/           { size=$2 }
+            inrec && /^\tLocator:/        { loc=$2 }
+            inrec && /^\tBank Locator:/   { bank=$2 }
+            inrec && /^\tType:/           { type=$2 }
+            inrec && /^\tSpeed:/          { speed=$2 }
+            inrec && /^\tManufacturer:/   { mfr=$2 }
+            inrec && /^\tPart Number:/    { part=$2 }
+            inrec && /^\tSerial Number:/  { serial=$2 }
+            inrec && /^\tForm Factor:/    { ff=$2 }
+            END { flush() }' | jq -R -s -c '
+            [split("\n")[] | select(length > 0) | split("\t") |
+             {sizeStr: .[0], deviceLocator: .[1], bankLabel: .[2], memoryType: .[3], speedStr: .[4],
+              manufacturer: .[5], partNumber: .[6], serialNumber: .[7], formFactor: .[8]} |
+             .capacityGB = ((.sizeStr | capture("(?<n>[0-9.]+) *(?<u>[KMGT]?B)") // {n: "0", u: "MB"}) as $s |
+                            ($s.n | tonumber) * ({"KB": (1/1048576), "MB": (1/1024), "GB": 1, "TB": 1024}[$s.u] // 0) * 100 | round / 100) |
+             .speedMHz = ((.speedStr | capture("(?<n>[0-9]+)") // {n: "0"}).n | tonumber) |
+             del(.sizeStr, .speedStr)]' 2>/dev/null || echo '[]')
+    fi
+    # Installed memory, as the Windows agent reports it (sum of modules): lsmem's
+    # online memory, else the dmidecode modules. MemTotal is smaller (kernel,
+    # firmware and crashkernel reservations) and is reported as usableGB.
+    local installed_bytes=$(lsmem -b --summary=only 2>/dev/null | awk -F: '/Total online memory/ {gsub(/[^0-9]/, "", $2); print $2}')
+    [[ "$installed_bytes" =~ ^[0-9]+$ ]] || installed_bytes=0
+    local ram=$(jq -n --argjson total_kb "${mem_total_kb:-0}" --argjson avail_kb "${mem_available_kb:-0}" \
+        --argjson installed "$installed_bytes" --argjson modules "$modules" \
+        '($modules | map(.capacityGB) | add // 0) as $module_gb |
+         (if $installed > 0 then $installed / 1073741824
+          elif $module_gb > 0 then $module_gb
+          else $total_kb / 1048576 end) as $total_gb |
+         {totalGB: ($total_gb * 10 | round / 10), totalBytes: ($total_gb * 1073741824 | round),
+          usableGB: ($total_kb / 1048576 * 10 | round / 10), usableBytes: ($total_kb * 1024),
+          availableBytes: ($avail_kb * 1024), modules: $modules, moduleCount: ($modules | length)}')
+
+    # Disks: physical disks (lsblk) and mounted volumes (findmnt)
+    local physical=$(lsblk -J -b -d -o NAME,MODEL,VENDOR,SIZE,TYPE,TRAN,ROTA,SERIAL 2>/dev/null | jq -c '
+        [.blockdevices[]? | select(.type == "disk") |
+         {deviceId: ("/dev/" + .name),
+          model: ((.model // .name) | gsub("^\\s+|\\s+$"; "")),
+          manufacturer: ((.vendor // "") | gsub("^\\s+|\\s+$"; "")),
+          sizeGB: (.size / 1073741824 * 10 | round / 10),
+          interfaceType: (if .tran then (.tran | ascii_upcase)
+                          elif (.name | startswith("nvme")) then "NVME"
+                          elif (.name | test("^(sd|hd)")) then "SCSI"
+                          elif (.name | startswith("vd")) then "VIRTIO"
+                          else "Unknown" end),
+          mediaType: (if .rota then "HDD" else "SSD" end),
+          isSsd: (.rota | not),
+          serialNumber: .serial}]' 2>/dev/null || echo '[]')
+    # findmnt's JSON keeps sources and mount points with spaces intact (df output would need
+    # whitespace splitting). Like df, skip pseudo filesystems (size 0), bind mounts of
+    # directories (FSROOT is not the filesystem root; a btrfs subvolume's root is its subvol=)
+    # and further mounts of the same filesystem root.
+    local volumes=$(findmnt -J -l -b --nofsroot -o SOURCE,FSTYPE,SIZE,AVAIL,TARGET,FSROOT,OPTIONS \
+            -t notmpfs,nodevtmpfs,nosquashfs,nooverlay,noefivarfs,noramfs 2>/dev/null | jq -c '
+        [.filesystems[]? | select(((.size // 0) | tonumber) > 0) |
+         select(.fsroot == "/" or .fsroot == ([(.options // "") | match("(?:^|,)subvol=([^,]+)").captures[0].string] | first))] |
+        reduce .[] as $v ([]; if any(.[]; .source == $v.source and .fsroot == $v.fsroot) then . else . + [$v] end) |
+        [.[] | (.size | tonumber) as $size | ((.avail // 0) | tonumber) as $avail |
+         {volumeName: .source, fileSystem: .fstype, driveLetter: .target,
+          sizeGB: ($size / 1073741824 * 10 | round / 10),
+          freeGB: ($avail / 1073741824 * 10 | round / 10),
+          usedPercent: ((1 - $avail / $size) * 1000 | round / 10)}]' 2>/dev/null || echo '[]')
+
+    # GPU: PCI display controllers, falling back to DRM devices (e.g. hyperv_drm, virtio_gpu)
+    local gpus='[]'
+    if command -v lspci &>/dev/null; then
+        gpus=$(lspci -mm 2>/dev/null | awk -F'"' '$2 ~ /VGA compatible controller|3D controller|Display controller/ {print $6 "\t" $4}' | \
+            jq -R -s -c '[split("\n")[] | select(length > 0) | split("\t") | {name: .[0], manufacturer: .[1]}]' 2>/dev/null || echo '[]')
+    fi
+    local card driver resolution version
+    local drm='[]'
+    for card in /sys/class/drm/card[0-9]*; do
+        [[ -e "$card/device/driver" && "$card" != *-* ]] || continue
+        driver=$(basename "$(readlink -f "$card/device/driver")")
+        resolution=$(cat "$card"-*/modes 2>/dev/null | head -1)
+        version=$(modinfo -F version "$driver" 2>/dev/null)
+        drm=$(jq -c --arg d "$driver" --arg r "$resolution" --arg v "${version:-$(uname -r)}" \
+            '. + [{name: $d, driverVersion: $v, currentResolution: $r}]' <<< "$drm")
+    done
+    if [[ "$(jq 'length' <<< "$gpus")" -eq 0 ]]; then
+        gpus="$drm"
+    else
+        # Add driver/resolution of the first DRM device to the first PCI GPU
+        gpus=$(jq -c --argjson drm "$drm" 'if ($drm | length) > 0 then .[0] += ($drm[0] | {driverVersion, currentResolution}) else . end' <<< "$gpus")
+    fi
+
+    # Mainboard / BIOS / virtualization
+    local bios_date=$(_dmi bios_date)
+    [[ "$bios_date" =~ ^([0-9]{2})/([0-9]{2})/([0-9]{4})$ ]] && bios_date="${BASH_REMATCH[3]}-${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+    local is_uefi=false
+    [[ -d /sys/firmware/efi ]] && is_uefi=true
+    local secure_boot="Unknown"
+    if command -v mokutil &>/dev/null; then
+        case "$(mokutil --sb-state 2>/dev/null)" in
+            *enabled*)  secure_boot="Enabled" ;;
+            *disabled*) secure_boot="Disabled" ;;
+        esac
+    fi
+    [[ "$is_uefi" == "false" ]] && secure_boot="Not supported"
+    local smbios=""
+    command -v dmidecode &>/dev/null && smbios=$(dmidecode 2>/dev/null | awk '/^SMBIOS .* present/ {print $2; exit}')
+    local virt=$(systemd-detect-virt 2>/dev/null || echo none)
+    local hypervisor
+    case "$virt" in
+        microsoft) hypervisor="Hyper-V" ;;
+        kvm)       hypervisor="KVM" ;;
+        qemu)      hypervisor="QEMU" ;;
+        vmware)    hypervisor="VMware" ;;
+        oracle)    hypervisor="VirtualBox" ;;
+        xen)       hypervisor="Xen" ;;
+        amazon)    hypervisor="AWS Nitro" ;;
+        none|"")   hypervisor="" ;;
+        *)         hypervisor="$virt" ;;
+    esac
+
+    jq -n \
+        --argjson cpu "$cpu" --argjson ram "$ram" \
+        --argjson physical "$physical" --argjson volumes "$volumes" --argjson gpu "$gpus" \
+        --arg mb_vendor "$(_dmi board_vendor)" --arg mb_product "$(_dmi board_name)" \
+        --arg mb_version "$(_dmi board_version)" --arg mb_serial "$(_dmi board_serial)" \
+        --arg bios_vendor "$(_dmi bios_vendor)" --arg bios_version "$(_dmi bios_version)" \
+        --arg bios_date "$bios_date" --arg uuid "$(_dmi product_uuid | tr '[:lower:]' '[:upper:]')" \
+        --arg serial "$(_dmi product_serial)" --arg smbios "$smbios" --arg secure_boot "$secure_boot" \
+        --argjson is_uefi "$is_uefi" \
+        --arg hypervisor "$hypervisor" --arg sys_vendor "$(_dmi sys_vendor)" --arg sys_product "$(_dmi product_name)" \
+        '{cpu: $cpu, ram: $ram,
+          disks: {physical: $physical, volumes: $volumes},
+          gpu: $gpu,
+          mainboard: {manufacturer: $mb_vendor, product: $mb_product, version: $mb_version, serialNumber: $mb_serial},
+          bios: {name: $bios_version, manufacturer: $bios_vendor, version: $bios_version, releaseDate: $bios_date,
+                 uuid: $uuid, serialNumber: $serial, smbiosVersion: $smbios, isUefi: $is_uefi,
+                 secureBootState: $secure_boot},
+          virtualization: {isVirtual: ($hypervisor != ""), hypervisor: $hypervisor,
+                           manufacturer: $sys_vendor, model: $sys_product}}'
 }
 
 # ============================================================================
@@ -176,6 +337,13 @@ collect_system() {
         "version": "$os_version",
         "id": "$os_id",
         "kernel": "$kernel"
+    },
+    "os": {
+        "name": "$os_name",
+        "version": "$os_version",
+        "build": "$kernel",
+        "computerName": "$hostname",
+        "agentVersion": "$VERSION"
     },
     "uptime": {
         "seconds": $uptime_seconds,
@@ -656,7 +824,7 @@ collect_live_metrics() {
         local total_diff=$((total2 - total1))
         
         if [[ $total_diff -gt 0 ]]; then
-            cpu_percent=$(echo "scale=1; 100 * (1 - $idle_diff / $total_diff)" | bc 2>/dev/null || echo 0)
+            cpu_percent=$(awk -v i="$idle_diff" -v t="$total_diff" 'BEGIN {printf "%.1f", 100 * (t - i) / t}')
         fi
     fi
     
@@ -665,7 +833,7 @@ collect_live_metrics() {
     local mem_available=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}')
     local mem_percent=0
     if [[ -n "$mem_total" ]] && [[ "$mem_total" -gt 0 ]]; then
-        mem_percent=$(echo "scale=1; 100 * (1 - $mem_available / $mem_total)" | bc 2>/dev/null || echo 0)
+        mem_percent=$(awk -v a="$mem_available" -v t="$mem_total" 'BEGIN {printf "%.1f", 100 * (t - a) / t}')
     fi
     
     # Disk (root filesystem)
@@ -727,8 +895,8 @@ collect_live_network() {
         [[ $first -eq 0 ]] && interfaces+=","
         first=0
         
-        local rx_mb=$(echo "scale=1; $rx_bytes / 1048576" | bc 2>/dev/null || echo 0)
-        local tx_mb=$(echo "scale=1; $tx_bytes / 1048576" | bc 2>/dev/null || echo 0)
+        local rx_mb=$(echo "scale=1; $rx_bytes / 1048576" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
+        local tx_mb=$(echo "scale=1; $tx_bytes / 1048576" | bc 2>/dev/null | sed 's/^\(-\{0,1\}\)\./\10./' || echo 0)
         
         interfaces+="{\"name\":\"$name\",\"linkUp\":$link_up,\"speedMbps\":$speed,\"rxBytesPerSec\":$rx_rate,\"txBytesPerSec\":$tx_rate,\"rxTotalMb\":$rx_mb,\"txTotalMb\":$tx_mb}"
     done
@@ -1151,6 +1319,7 @@ execute_job() {
     # Report result
     local result=$(cat << EOF
 {
+    "success": $([ $exit_code -eq 0 ] && echo 'true' || echo 'false'),
     "status": "$([ $exit_code -eq 0 ] && echo 'success' || echo 'failed')",
     "exitCode": $exit_code,
     "stdout": $(echo "$output" | jq -Rs '.'),
@@ -1358,32 +1527,6 @@ run_service() {
     done
 }
 
-# ============================================================================
-# Main
-# ============================================================================
-
-case "${1:-service}" in
-    push)
-        push_inventory
-        ;;
-    poll)
-        poll_jobs
-        ;;
-    collect)
-        collect_full_inventory | jq .
-        ;;
-    service|run)
-        run_service
-        ;;
-    version)
-        echo "Octofleet Linux Agent v$VERSION"
-        ;;
-    *)
-        echo "Usage: $0 {push|poll|collect|service|version}"
-        exit 1
-        ;;
-esac
-
 # ============================================================
 # E21 Story #88: Linux File Audit Collector (inotifywait)
 # ============================================================
@@ -1522,3 +1665,29 @@ stop_file_audit() {
         log "INFO" "File audit stopped"
     fi
 }
+
+# ============================================================================
+# Main
+# ============================================================================
+
+case "${1:-service}" in
+    push)
+        push_inventory
+        ;;
+    poll)
+        poll_jobs
+        ;;
+    collect)
+        collect_full_inventory | jq .
+        ;;
+    service|run)
+        run_service
+        ;;
+    version)
+        echo "Octofleet Linux Agent v$VERSION"
+        ;;
+    *)
+        echo "Usage: $0 {push|poll|collect|service|version}"
+        exit 1
+        ;;
+esac

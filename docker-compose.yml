@@ -45,6 +45,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
       - ${ISO_PATH:-/mnt/isos}:/mnt/isos:ro
+      - ./Install-OctofleetAgent.ps1:/app/static/Install-OctofleetAgent.ps1:ro
     ports:
       - "8080:8080"
     depends_on:

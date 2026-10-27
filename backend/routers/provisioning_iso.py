@@ -10,9 +10,9 @@ import subprocess
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from provisioning_config import load_config
-from pydantic import BaseModel, Field
 
 iso_router = APIRouter(prefix="/api/v1/provisioning/iso", tags=["provisioning-iso"])
 

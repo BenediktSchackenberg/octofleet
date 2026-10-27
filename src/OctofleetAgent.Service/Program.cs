@@ -59,7 +59,7 @@ try
     // Add Windows Service support
     builder.Services.AddWindowsService(options =>
     {
-        options.ServiceName = "Octofleet Agent";
+        options.ServiceName = "OctofleetNodeAgent";
     });
 
     // Add configuration

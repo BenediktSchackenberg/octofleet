@@ -51,6 +51,7 @@ from auth import (
     require_auth,
     require_permission,
 )
+from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.alerting import router as alerting_router
 from routers.auth import router as auth_router
 from routers.auth import users_router
@@ -62,6 +63,7 @@ from routers.groups import router as groups_router
 from routers.hardware import router as hardware_router
 from routers.inventory import router as inventory_router
 from routers.jobs import agent_router as jobs_agent_router
+from routers.jobs import job_result_succeeded
 from routers.jobs import router as jobs_router
 from routers.metrics import router as metrics_router
 from routers.monitoring_mgmt import router as monitoring_mgmt_router
@@ -79,7 +81,6 @@ from routers.provisioning import router as provisioning_router
 from routers.provisioning_domain import generate_autounattend
 from routers.provisioning_iso import iso_router as provisioning_iso_router
 from routers.provisioning_settings import router as provisioning_settings_router
-from provisioning_config import SETTINGS_KEY, load_config, safe_url
 from routers.provisioning_vm import vm_router as provisioning_vm_router
 from routers.query_engine import router as query_router
 from routers.rbac import router as rbac_router
@@ -228,7 +229,7 @@ async def agent_activity_middleware(request: Request, call_next):
     return response
 
 # Global exception handler to ensure CORS headers on 500 errors
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse
 
 
 @app.exception_handler(Exception)
@@ -239,6 +240,9 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal Server Error"},
     )
+
+# Windows agent installer served by /api/v1/onboarding/install-script
+INSTALL_SCRIPT_PATH = os.getenv("INSTALL_SCRIPT_PATH", "/app/static/Install-OctofleetAgent.ps1")
 
 # Include routers
 app.include_router(nodes_router)
@@ -732,10 +736,7 @@ async def list_smart_install_packages():
 @app.get("/api/v1/onboarding/agent-config")
 async def download_agent_config(request: Request):
     """Generate a ready-to-use service-config.json for new agents."""
-    # Derive server URL from request
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8080"))
-    scheme = request.headers.get("x-forwarded-proto", "http")
-    api_url = f"{scheme}://{host}"
+    api_url = await server_url(db_pool, request)
 
     config = {
         "InventoryApiUrl": api_url,
@@ -753,16 +754,14 @@ async def download_agent_config(request: Request):
 @app.get("/api/v1/onboarding/install-command")
 async def get_install_command(request: Request):
     """Generate a one-liner PowerShell install command with pre-filled config."""
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8080"))
-    scheme = request.headers.get("x-forwarded-proto", "http")
-    api_url = f"{scheme}://{host}"
+    api_url = await server_url(db_pool, request)
     api_key = os.getenv("API_KEY", "")
 
     # One-liner that downloads installer and passes config
     ps_command = (
         f'$env:OCTOFLEET_API_URL="{api_url}"; '
         f'$env:OCTOFLEET_API_KEY="{api_key}"; '
-        f'irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/Install-OctofleetAgent.ps1 | iex'
+        f'irm {api_url}/api/v1/onboarding/install-script | iex'
     )
     
     return {"command": ps_command, "apiUrl": api_url, "apiKey": api_key}
@@ -812,6 +811,12 @@ async def update_onboarding_config(data: Dict[str, Any], db: asyncpg.Pool = Depe
         """, data.get("onboardingGroupId"), data.get("autoAssignNewNodes", True))
         
         return {"status": "updated"}
+
+
+@app.get("/api/v1/onboarding/install-script")
+async def get_install_script():
+    """Serve the Windows agent installer from this server (contains no secrets)."""
+    return FileResponse(INSTALL_SCRIPT_PATH, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/v1/jobs", dependencies=[Depends(verify_api_key)])
@@ -1097,7 +1102,7 @@ async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
 @app.post("/api/v1/jobs/instances/{instance_id}/result", dependencies=[Depends(verify_api_key)])
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Submit job execution result"""
-    success = data.get("success", False)
+    success = job_result_succeeded(data)
     exit_code = data.get("exitCode", -1)
     stdout = data.get("stdout", "")
     stderr = data.get("stderr", "")

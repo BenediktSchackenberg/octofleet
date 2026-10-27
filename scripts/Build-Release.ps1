@@ -43,6 +43,7 @@ dotnet publish $projectPath `
     -p:Version=$Version `
     -p:AssemblyVersion=$Version.0 `
     -p:FileVersion=$Version.0 `
+    -p:InformationalVersion=$Version `
     -o $publishPath
 
 if ($LASTEXITCODE -ne 0) {
@@ -62,6 +63,7 @@ if (Test-Path $helperProjectPath) {
         -p:Version=$Version `
         -p:AssemblyVersion=$Version.0 `
         -p:FileVersion=$Version.0 `
+        -p:InformationalVersion=$Version `
         -o $publishPath
 
     if ($LASTEXITCODE -ne 0) {

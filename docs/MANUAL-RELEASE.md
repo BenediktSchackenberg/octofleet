@@ -33,3 +33,24 @@ screen helper as CI without installing or starting either program.
 The tag-push workflow remains available for future CI builds. The redundant
 release-created workflow has been removed, so manual publication does not
 start a second build that could overwrite the locally signed assets.
+
+## Build the server images locally
+
+Use the same clean source commit as the Windows package. For example, for 0.8.1:
+
+```powershell
+docker build --platform linux/amd64 -t octofleet-backend:0.8.1 ./backend
+docker build --platform linux/amd64 -t octofleet-frontend:0.8.1 ./frontend
+docker build --platform linux/amd64 -t octofleet-pxe:0.8.1 ./provisioning
+docker save --output ./release/v0.8.1/images.tar octofleet-backend:0.8.1 octofleet-frontend:0.8.1 octofleet-pxe:0.8.1
+```
+
+Check the exit code after each command before continuing. Validate the production
+frontend build, backend imports and deployment configuration locally. Keep the
+source commit, image IDs, executable signing results and artifact SHA256 sums
+with the release. A local release must not be described as CI-verified when
+GitHub Actions did not run.
+
+Create a release draft through the GitHub API or CLI, targeting the exact source
+commit. Attach the local artifacts, verify them, then publish the draft. No
+workflow dispatch or successful Actions run is required for these local builds.
