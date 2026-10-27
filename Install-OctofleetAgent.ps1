@@ -83,6 +83,22 @@ function Test-Administrator {
 }
 
 function Get-LatestRelease {
+    # Prefer the release published on the Octofleet server (same format as GitHub's API)
+    if ($env:OCTOFLEET_API_URL) {
+        $serverUrl = "$($env:OCTOFLEET_API_URL.TrimEnd('/'))/api/v1/agent/releases/latest"
+        try {
+            Write-Status "Checking Octofleet server for an agent release..."
+            $release = Invoke-RestMethod -Uri $serverUrl -TimeoutSec 15 -Headers @{ "User-Agent" = "Octofleet-Installer" }
+            if ($release.assets | Where-Object { $_.name -like "*.zip" }) {
+                Write-Status "Found release $($release.tag_name) on Octofleet server"
+                return $release
+            }
+        }
+        catch {
+            Write-Status "No agent release on Octofleet server, falling back to GitHub" "Warning"
+        }
+    }
+
     Write-Status "Fetching latest release from GitHub..."
     $apiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases"
     
@@ -191,18 +207,20 @@ function Install-OctofleetAgent {
     }
     Write-Status "Downloaded successfully" "Success"
     
-    # Verify hash if available
+    # Verify hash (required: a release without its .sha256 file is incomplete)
     $hashAsset = $release.assets | Where-Object { $_.name -like "*.sha256" } | Select-Object -First 1
-    if ($hashAsset) {
-        Write-Status "Verifying checksum..."
-        $expectedHash = (Invoke-RestMethod -Uri $hashAsset.browser_download_url).Split(" ")[0]
-        $actualHash = (Get-FileHash -Path $tempZip -Algorithm SHA256).Hash
-        if ($expectedHash -ne $actualHash) {
-            Remove-Item $tempZip -Force
-            throw "Checksum verification failed!"
-        }
-        Write-Status "Checksum verified" "Success"
+    if (-not $hashAsset) {
+        Remove-Item $tempZip -Force
+        throw "Release $($release.tag_name) has no SHA256 checksum file - not installing an unverified package"
     }
+    Write-Status "Verifying checksum..."
+    $expectedHash = "$(Invoke-RestMethod -Uri $hashAsset.browser_download_url)".Trim().Split(" ")[0]
+    $actualHash = (Get-FileHash -Path $tempZip -Algorithm SHA256).Hash
+    if (-not $expectedHash -or $expectedHash -ne $actualHash) {
+        Remove-Item $tempZip -Force
+        throw "Checksum verification failed!"
+    }
+    Write-Status "Checksum verified" "Success"
     
     # Stop existing service
     $service = Get-AgentService
@@ -309,3 +327,4 @@ function Install-OctofleetAgent {
 
 # Run installer
 Install-OctofleetAgent
+

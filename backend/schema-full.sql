@@ -757,6 +757,7 @@ CREATE TABLE public.users (
     username character varying(100) NOT NULL,
     email character varying(255),
     password_hash character varying(255) NOT NULL,
+    session_version integer DEFAULT 0 NOT NULL,
     display_name character varying(255),
     is_active boolean DEFAULT true,
     is_superuser boolean DEFAULT false,

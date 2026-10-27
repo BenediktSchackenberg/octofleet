@@ -30,6 +30,18 @@
     "warning": "Advertencia",
     "info": "Información"
   },
+  "account": {
+    "changePassword": "Cambiar contraseña",
+    "passwordHint": "Use al menos 12 caracteres. Se cerrarán todas las sesiones.",
+    "currentPassword": "Contraseña actual",
+    "newPassword": "Nueva contraseña",
+    "confirmPassword": "Confirmar nueva contraseña",
+    "savePassword": "Guardar contraseña",
+    "passwordMismatch": "Las contraseñas no coinciden",
+    "passwordLength": "Use al menos 12 caracteres",
+    "passwordError": "No se pudo cambiar la contraseña",
+    "passwordChanged": "Contraseña cambiada. Inicie sesión de nuevo."
+  },
   "nav": {
     "accessAudit": "Auditoría de acceso",
     "admin": "Administración",

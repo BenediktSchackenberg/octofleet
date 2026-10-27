@@ -21,7 +21,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   isAdmin: () => boolean;
   getRole: () => string;
@@ -129,7 +129,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function logout() {
+  async function logout() {
+    const activeToken = token;
+    if (activeToken) {
+      try {
+        await fetch(`${API_URL}/api/v1/auth/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${activeToken}` },
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch {
+        // Clear the local session even if the backend is unavailable.
+      }
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken(null);

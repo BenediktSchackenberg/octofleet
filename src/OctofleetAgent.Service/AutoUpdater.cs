@@ -57,7 +57,7 @@ public class AutoUpdater : BackgroundService
         // Wait a bit before first check (let agent fully start)
         await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
         
-        _logger.LogInformation("AutoUpdater started. Current version: {Version}, checking GitHub every {Hours}h",
+        _logger.LogInformation("AutoUpdater started. Current version: {Version}, checking Octofleet server/GitHub every {Hours}h",
             _currentVersion, _checkInterval.TotalHours);
         
         while (!stoppingToken.IsCancellationRequested)
@@ -77,14 +77,56 @@ public class AutoUpdater : BackgroundService
     
     private async Task CheckForUpdate(CancellationToken ct)
     {
-        _logger.LogDebug("Checking for updates at GitHub: {Url}", GitHubApiUrl);
+        // Ask the Octofleet server first: if it publishes a release, that release
+        // is authoritative and GitHub is not consulted.
+        var config = ServiceConfig.Load();
+        if (config.UpdateFromServer && !string.IsNullOrWhiteSpace(config.InventoryApiUrl))
+        {
+            var serverUrl = $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/agent/releases/latest";
+            if (await TryUpdateFrom(serverUrl, "Octofleet server", ct))
+                return;
+            
+            if (!config.UpdateFallbackToGitHub)
+            {
+                _logger.LogDebug("No agent release on the Octofleet server and GitHub fallback is disabled");
+                return;
+            }
+        }
         
-        var response = await _httpClient.GetAsync(GitHubApiUrl, ct);
+        await TryUpdateFrom(GitHubApiUrl, "GitHub", ct);
+    }
+    
+    /// <summary>
+    /// Checks one release source (GitHub releases API format) and installs a newer version.
+    /// Returns true if the source offered a valid release, whether or not an update was needed.
+    /// </summary>
+    private async Task<bool> TryUpdateFrom(string releaseUrl, string source, CancellationToken ct)
+    {
+        _logger.LogDebug("Checking for updates at {Source}: {Url}", source, releaseUrl);
+        
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.GetAsync(releaseUrl, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning("Update check at {Source} failed: {Message}", source, ex.Message);
+            return false;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Update check at {Source} timed out", source);
+            return false;
+        }
         
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("GitHub API check failed: {Status}", response.StatusCode);
-            return;
+            if ((int)response.StatusCode == 404)
+                _logger.LogDebug("No release available at {Source}", source);
+            else
+                _logger.LogWarning("Update check at {Source} failed: {Status}", source, response.StatusCode);
+            return false;
         }
         
         var json = await response.Content.ReadAsStringAsync(ct);
@@ -116,36 +158,50 @@ public class AutoUpdater : BackgroundService
         
         if (downloadUrl == null)
         {
-            _logger.LogWarning("No ZIP asset found in release {Tag}", tagName);
-            return;
+            _logger.LogWarning("No ZIP asset found in release {Tag} from {Source}", tagName, source);
+            return false;
+        }
+        
+        if (sha256Url == null)
+        {
+            _logger.LogWarning("Release {Tag} from {Source} has no SHA256 file; ignoring the incomplete release",
+                tagName, source);
+            return false;
         }
         
         if (!IsNewerVersion(latestVersion, _currentVersion))
         {
-            _logger.LogDebug("Already on latest version {Version}", _currentVersion);
-            return;
+            _logger.LogDebug("Already on latest version {Version} ({Source})", _currentVersion, source);
+            return true;
         }
         
-        _logger.LogInformation("New version available: {Latest} (current: {Current})",
-            latestVersion, _currentVersion);
+        _logger.LogInformation("New version available from {Source}: {Latest} (current: {Current})",
+            source, latestVersion, _currentVersion);
         
         ConsoleUI.Log("INF", $"🔄 Updating to v{latestVersion}...");
         
-        // Optionally fetch SHA256
-        string? sha256 = null;
-        if (sha256Url != null)
+        // The SHA256 is required: without it the update is not installed
+        string sha256;
+        try
         {
-            try
-            {
-                sha256 = (await _httpClient.GetStringAsync(sha256Url, ct)).Trim();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not fetch SHA256, skipping verification");
-            }
+            sha256 = (await _httpClient.GetStringAsync(sha256Url, ct)).Trim().Split(' ')[0];
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            _logger.LogError(ex, "Could not fetch SHA256 for {Tag} from {Source}; update postponed", tagName, source);
+            ConsoleUI.Log("ERR", "Update postponed: SHA256 not available");
+            return true;
+        }
+        
+        if (string.IsNullOrEmpty(sha256))
+        {
+            _logger.LogError("Empty SHA256 for {Tag} from {Source}; update postponed", tagName, source);
+            ConsoleUI.Log("ERR", "Update postponed: SHA256 not available");
+            return true;
         }
         
         await DownloadAndInstall(latestVersion, downloadUrl, sha256, ct);
+        return true;
     }
     
     private bool IsNewerVersion(string latest, string current)
@@ -169,7 +225,7 @@ public class AutoUpdater : BackgroundService
         }
     }
     
-    private async Task DownloadAndInstall(string version, string downloadUrl, string? expectedSha256, CancellationToken ct)
+    private async Task DownloadAndInstall(string version, string downloadUrl, string expectedSha256, CancellationToken ct)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "OctofleetUpdate");
         var zipPath = Path.Combine(tempDir, $"OctofleetAgent-v{version}.zip");
@@ -196,18 +252,15 @@ public class AutoUpdater : BackgroundService
             _logger.LogInformation("Download complete: {Size} bytes", new FileInfo(zipPath).Length);
             
             // Verify SHA256
-            if (!string.IsNullOrEmpty(expectedSha256))
+            var actualSha256 = ComputeSha256(zipPath);
+            if (!actualSha256.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
             {
-                var actualSha256 = ComputeSha256(zipPath);
-                if (!actualSha256.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogError("SHA256 mismatch! Expected: {Expected}, Got: {Actual}",
-                        expectedSha256, actualSha256);
-                    ConsoleUI.Log("ERR", "Update failed: SHA256 mismatch");
-                    return;
-                }
-                _logger.LogInformation("SHA256 verified");
+                _logger.LogError("SHA256 mismatch! Expected: {Expected}, Got: {Actual}",
+                    expectedSha256, actualSha256);
+                ConsoleUI.Log("ERR", "Update failed: SHA256 mismatch");
+                return;
             }
+            _logger.LogInformation("SHA256 verified");
             
             // Extract ZIP
             _logger.LogInformation("Extracting update...");
@@ -547,3 +600,4 @@ try {{
         return scriptPath;
     }
 }
+

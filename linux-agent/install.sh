@@ -10,9 +10,9 @@
 #   API_URL / API_KEY / NODE_ID environment variables are accepted as well
 #   (use "sudo -E" or "sudo API_URL=... API_KEY=... bash install.sh").
 #
-# When run from a repository checkout, the local agent.sh and
-# octofleet-agent.service are installed; otherwise they are downloaded
-# from GitHub at --ref (default: main).
+# Agent files are taken from, in this order: the local repository checkout
+# (when run from one), the Octofleet server given with --api-url, or GitHub
+# at --ref (default: main).
 
 set -euo pipefail
 
@@ -101,8 +101,28 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/agent.sh" && -f "$SCRIPT_DIR/octofleet-agent.service" ]]; then
     echo "📁 Using agent files from $SCRIPT_DIR"
     cp "$SCRIPT_DIR/agent.sh" "$SCRIPT_DIR/octofleet-agent.service" "$TMP_DIR/"
+elif release=$(curl -fsS --max-time 15 "$API_URL/api/v1/agent/releases/linux/latest" 2>/dev/null); then
+    # The server offers an agent: from here on, any failure stops the install
+    # instead of silently switching to GitHub.
+    server_files="$API_URL/api/v1/agent/releases/linux"
+    for file in agent.sh octofleet-agent.service; do
+        if ! curl -fsS --max-time 120 "$server_files/$file" -o "$TMP_DIR/$file"; then
+            echo "❌ Download of $file from the Octofleet server failed" >&2
+            exit 1
+        fi
+    done
+    for check in "agent.sh:sha256" "octofleet-agent.service:service_sha256"; do
+        file="${check%%:*}"
+        expected=$(jq -r --arg key "${check#*:}" '.[$key] // empty' <<< "$release")
+        actual=$(sha256sum "$TMP_DIR/$file" | cut -d' ' -f1)
+        if [[ -z "$expected" || "$actual" != "$expected" ]]; then
+            echo "❌ SHA256 check of $file from the Octofleet server failed (expected: ${expected:-none}, got: $actual)" >&2
+            exit 1
+        fi
+    done
+    echo "⬇️  Using agent v$(jq -r '.version' <<< "$release") from the Octofleet server"
 else
-    echo "⬇️  Downloading agent files ($REF)..."
+    echo "⬇️  Downloading agent files from GitHub ($REF)..."
     curl -fsSL "$REPO_RAW/$REF/linux-agent/agent.sh" -o "$TMP_DIR/agent.sh"
     curl -fsSL "$REPO_RAW/$REF/linux-agent/octofleet-agent.service" -o "$TMP_DIR/octofleet-agent.service"
 fi
@@ -148,3 +168,4 @@ echo "Commands:"
 echo "  sudo systemctl status $SERVICE_NAME"
 echo "  sudo journalctl -u $SERVICE_NAME -f"
 echo "  sudo tail -f /var/log/octofleet-agent.log"
+

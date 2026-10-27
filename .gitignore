@@ -55,3 +55,7 @@ build/
 *.zip
 provisioning/drivers/virtio-win.iso
 backend/.jwt_secret
+
+# Agent releases served by the backend (scripts/publish-local-agent-release.sh)
+agent-releases/*
+!agent-releases/README.md

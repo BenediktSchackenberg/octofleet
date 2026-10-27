@@ -10,11 +10,14 @@ async function main() {
   const BASE = 'http://192.168.0.5:3000';
   const docsDir = '../../docs';
   
-  // Login with correct password
+  const password = process.env.TEST_PASSWORD;
+  if (!password) throw new Error('Set TEST_PASSWORD before taking screenshots');
+
+  // Login with configured password
   console.log('🔐 Logging in...');
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
   await page.fill('input[id="username"]', 'admin');
-  await page.fill('input[id="password"]', 'admin');
+  await page.fill('input[id="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForTimeout(3000);
   

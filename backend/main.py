@@ -64,6 +64,7 @@ from routers.groups import router as groups_router
 from routers.hardware import router as hardware_router
 from routers.inventory import router as inventory_router
 from routers.jobs import agent_router as jobs_agent_router
+from routers.jobs import job_result_succeeded
 from routers.jobs import router as jobs_router
 from routers.metrics import router as metrics_router
 from routers.monitoring_mgmt import router as monitoring_mgmt_router
@@ -71,6 +72,7 @@ from routers.mssql import router as mssql_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
+from routers.agent_releases import router as agent_releases_router
 from routers.patch_explorer import router as patch_explorer_router
 from routers.patches import router as patches_router
 from routers.provisioning import pxe_router
@@ -125,22 +127,46 @@ async def lifespan(app: FastAPI):
     await node_removal.ensure_schema_on(db_pool)
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
-    # Auto-provision default admin user if table is empty
-    try:
-        async with db_pool.acquire() as conn:
-            user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
-            if user_count == 0:
-                print("⚠️ No users found in database. Provisioning default admin user...")
-                # Hash for 'admin' with cost 12
-                admin_hash = "$2b$12$rYyY2JO.Uh/NBVp7kXBlY.p9Iv.S0GeIZbgttoYjjyS.hQQQJkkJK"
-                await conn.execute("""
+    # Existing databases need the session version used to revoke old access tokens.
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0"
+        )
+        seed_hash = "$2b$12$rYyY2JO.Uh/NBVp7kXBlY.p9Iv.S0GeIZbgttoYjjyS.hQQQJkkJK"
+        seed_user = await conn.fetchval(
+            "SELECT id FROM users WHERE username = 'admin' AND password_hash = $1", seed_hash
+        )
+        no_users = await conn.fetchval("SELECT COUNT(*) FROM users") == 0
+        if no_users or seed_user:
+            import secrets
+            configured = os.environ.get("ADMIN_PASSWORD")
+            admin_password = configured or secrets.token_urlsafe(24)
+            if (len(admin_password) < 12 or len(admin_password.encode("utf-8")) > 72
+                    or admin_password.lower() == "admin"):
+                raise RuntimeError("ADMIN_PASSWORD must be 12 to 72 bytes and not 'admin'")
+            new_hash = hash_password(admin_password)
+            if seed_user:
+                changed = await conn.fetchval(
+                    """UPDATE users SET password_hash = $2, session_version = session_version + 1,
+                       updated_at = NOW() WHERE id = $1 AND password_hash = $3 RETURNING id""",
+                    seed_user, new_hash, seed_hash
+                )
+                if changed:
+                    print("Shared default admin password replaced")
+            else:
+                changed = await conn.fetchval("""
                     INSERT INTO users (username, password_hash, display_name, is_superuser, is_active)
                     VALUES ('admin', $1, 'System Administrator', true, true)
-                """, admin_hash)
-                print("✅ Default admin user created (admin / admin)")
-    except Exception as e:
-        print(f"❌ Failed to check/provision admin user: {e}")
-        
+                    ON CONFLICT (username) DO NOTHING RETURNING id
+                """, new_hash)
+                if changed:
+                    print("Initial admin account created")
+            if changed:
+                if configured:
+                    print("Use ADMIN_PASSWORD to sign in")
+                else:
+                    print(f"One-time admin password: {admin_password}")
+
     print("✅ Database pool created")
     yield
     # Shutdown
@@ -280,6 +306,7 @@ app.include_router(reports_router)
 app.include_router(monitoring_mgmt_router)
 app.include_router(terminal_router)
 app.include_router(packages_mgmt_router)
+app.include_router(agent_releases_router)
 app.include_router(vulnerabilities_router)
 app.include_router(rbac_router)
 app.include_router(hardware_router)
@@ -1107,7 +1134,7 @@ async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
 @app.post("/api/v1/jobs/instances/{instance_id}/result", dependencies=[Depends(verify_api_key)])
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Submit job execution result"""
-    success = data.get("success", False)
+    success = job_result_succeeded(data)
     exit_code = data.get("exitCode", -1)
     stdout = data.get("stdout", "")
     stderr = data.get("stderr", "")
@@ -6765,3 +6792,4 @@ async def create_enrollment_token(body: dict):
 @app.delete("/api/v1/enrollment-tokens/{token_id}", dependencies=[Depends(verify_api_key)])
 async def delete_enrollment_token(token_id: str):
     return {"status": "deleted"}
+

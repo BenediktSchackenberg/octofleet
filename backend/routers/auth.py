@@ -3,6 +3,7 @@ from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from auth import (
     CurrentUser,
@@ -30,7 +31,7 @@ async def login(request: LoginRequest, db: asyncpg.Pool = Depends(get_db)):
     """Login with username/password, get JWT token"""
     async with db.acquire() as conn:
         user = await conn.fetchrow(
-            "SELECT id, username, password_hash, is_active, is_superuser, email, display_name, created_at, last_login FROM users WHERE username = $1",
+            "SELECT id, username, password_hash, is_active, is_superuser, email, display_name, created_at, last_login, session_version FROM users WHERE username = $1",
             request.username
         )
         
@@ -53,7 +54,7 @@ async def login(request: LoginRequest, db: asyncpg.Pool = Depends(get_db)):
             permissions = ["*"]
         
         await conn.execute("UPDATE users SET last_login = NOW() WHERE id = $1", user["id"])
-        token = create_access_token(str(user["id"]), user["username"], permissions)
+        token = create_access_token(str(user["id"]), user["username"], permissions, user["session_version"])
         
         return TokenResponse(
             access_token=token,
@@ -89,6 +90,56 @@ async def get_current_user_info(user: CurrentUser = Depends(require_auth), db: a
             is_superuser=db_user["is_superuser"], created_at=db_user["created_at"],
             last_login=db_user["last_login"], roles=[r["name"] for r in roles]
         )
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/me/password")
+async def change_own_password(data: ChangePasswordRequest, user: CurrentUser = Depends(require_auth),
+                              db: asyncpg.Pool = Depends(get_db)):
+    """Change a local account password and revoke its existing access tokens."""
+    if user.id == "system":
+        raise HTTPException(status_code=403, detail="API keys have no account password")
+    if len(data.new_password) < 12 or len(data.new_password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=400, detail="Password must be 12 to 72 bytes long")
+    async with db.acquire() as conn:
+        async with conn.transaction():
+            account = await conn.fetchrow(
+                "SELECT username, password_hash FROM users WHERE id = $1 FOR UPDATE", UUID(user.id)
+            )
+            if not account or not verify_password(data.current_password, account["password_hash"]):
+                raise HTTPException(status_code=403, detail="Current password is incorrect")
+            if data.new_password.lower() == account["username"].lower() or verify_password(
+                data.new_password, account["password_hash"]
+            ):
+                raise HTTPException(status_code=400, detail="Choose a different password")
+            await conn.execute(
+                """UPDATE users SET password_hash = $2, session_version = session_version + 1,
+                   updated_at = NOW() WHERE id = $1""",
+                UUID(user.id), hash_password(data.new_password)
+            )
+            await conn.execute(
+                """INSERT INTO audit_log (user_id, action, resource_type, resource_id, details)
+                   VALUES ($1, 'user.password_changed', 'user', $2, '{}'::jsonb)""",
+                UUID(user.id), user.id
+            )
+    return {"status": "password_changed"}
+
+
+@router.post("/logout")
+async def end_sessions(user: CurrentUser = Depends(require_auth), db: asyncpg.Pool = Depends(get_db)):
+    """Revoke all access tokens for the current local account."""
+    if user.id == "system":
+        raise HTTPException(status_code=403, detail="API keys cannot log out")
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET session_version = session_version + 1 WHERE id = $1",
+            UUID(user.id)
+        )
+    return {"status": "logged_out"}
+
 
 # User management endpoints (using /api/v1/users prefix)
 users_router = APIRouter(
