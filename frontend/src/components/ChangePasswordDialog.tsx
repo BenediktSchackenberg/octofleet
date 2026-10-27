@@ -30,6 +30,10 @@ export function ChangePasswordDialog() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!current) {
+      toast.error(t("account.currentPasswordRequired"));
+      return;
+    }
     if (next !== confirm) {
       toast.error(t("account.passwordMismatch"));
       return;
@@ -81,7 +85,7 @@ export function ChangePasswordDialog() {
           <DialogTitle>{t("account.changePassword")}</DialogTitle>
           <DialogDescription>{t("account.passwordHint")}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
+        <form onSubmit={submit} noValidate className="space-y-3">
           <label className="block text-sm">
             {t("account.currentPassword")}
             <input type="password" autoComplete="current-password" required value={current}

@@ -41,6 +41,7 @@
     "passwordLength": "Mindestens 12 Zeichen verwenden",
     "passwordError": "Passwort konnte nicht geändert werden",
     "passwordChanged": "Passwort geändert. Bitte erneut anmelden.",
+    "currentPasswordRequired": "Bitte das aktuelle Passwort eingeben",
     "currentPasswordWrong": "Das aktuelle Passwort ist falsch",
     "passwordNotDifferent": "Das neue Passwort muss sich vom Benutzernamen und vom aktuellen Passwort unterscheiden",
     "passwordTooLong": "Das Passwort ist zu lang (höchstens 72 Byte; Umlaute zählen doppelt)"
