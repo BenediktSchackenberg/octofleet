@@ -3,6 +3,7 @@
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { BreadcrumbTrail } from "@/components/Breadcrumb";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import { ThemeToggle } from "./ThemeToggle";
 import { ExportDropdown } from "./ExportButtons";
 import { LanguageSelector } from "./LanguageSelector";
@@ -50,6 +51,7 @@ export function GlobalBar({ onHamburgerClick }: { onHamburgerClick?: () => void 
             <User className="h-3.5 w-3.5 inline mr-1" />
             {user.username}
           </span>
+          {user.username !== "system" && <ChangePasswordDialog />}
           <button
             onClick={logout}
             className="p-1.5 text-zinc-400 hover:text-white transition-colors"
