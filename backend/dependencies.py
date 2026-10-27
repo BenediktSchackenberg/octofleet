@@ -157,6 +157,28 @@ def _permissions_for_scopes(scopes: list) -> list:
     return list(permissions)
 
 
+async def _active_access_token(token: str) -> Optional[dict]:
+    """Decode a JWT and reject tokens revoked by a password change or logout."""
+    import jwt
+
+    from auth import JWT_SECRET
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        user_id = UUID(payload["sub"])
+    except (jwt.InvalidTokenError, KeyError, ValueError, TypeError):
+        return None
+    if payload.get("type") != "access" or db_pool is None:
+        return None
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT session_version, is_active FROM users WHERE id = $1", user_id
+        )
+    if not row or not row["is_active"] or row["session_version"] != payload.get("session_version", 0):
+        return None
+    return payload
+
+
 async def verify_api_key(
     request: Request = None,
     x_api_key: str = Header(None),
@@ -165,18 +187,9 @@ async def verify_api_key(
     """Verify API key or JWT token from header"""
     # Check JWT Bearer token first
     if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:]
-        try:
-            import jwt
-
-            from auth import JWT_SECRET
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            if payload.get("type") != "access":
-                pass  # Fall through, don't accept refresh tokens
-            else:
-                return payload
-        except Exception:
-            pass  # Fall through to API key check
+        payload = await _active_access_token(authorization[7:])
+        if payload:
+            return payload
     
     # Check X-API-Key against centralized key
     if x_api_key and x_api_key == API_KEY:
@@ -229,25 +242,14 @@ async def verify_api_key_or_query(
     if token:
         if token == API_KEY:
             return token
-        try:
-            import jwt
-
-            from auth import JWT_SECRET
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        payload = await _active_access_token(token)
+        if payload:
             return payload
-        except Exception:
-            pass
     
     if authorization and authorization.startswith("Bearer "):
-        auth_token = authorization[7:]
-        try:
-            import jwt
-
-            from auth import JWT_SECRET
-            payload = jwt.decode(auth_token, JWT_SECRET, algorithms=["HS256"])
+        payload = await _active_access_token(authorization[7:])
+        if payload:
             return payload
-        except Exception:
-            pass
     
     if x_api_key == API_KEY:
         return x_api_key
