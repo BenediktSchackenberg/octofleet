@@ -40,4 +40,20 @@ test.describe('Change password dialog', () => {
       await expect(fields.nth(i)).toHaveValue('');
     }
   });
+
+  test('shows the answer of the server in the UI language', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => localStorage.setItem('locale', 'de'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: dialogButton }).click();
+
+    const dialog = page.getByRole('dialog');
+    const fields = dialog.locator('input[type="password"]');
+    await fields.nth(0).fill('not-the-current-password');
+    await fields.nth(1).fill('e2e-new-password-2026');
+    await fields.nth(2).fill('e2e-new-password-2026');
+    await dialog.locator('button[type="submit"]').click();
+    await expect(page.getByText('Das aktuelle Passwort ist falsch')).toBeVisible();
+    await page.evaluate(() => localStorage.removeItem('locale'));
+  });
 });
