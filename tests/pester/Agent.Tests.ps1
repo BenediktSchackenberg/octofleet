@@ -3,7 +3,7 @@
 
 BeforeAll {
     $script:InstallPath = "C:\Program Files\Octofleet"
-    $script:ServiceName = "Octofleet Agent"
+    $script:ServiceName = "OctofleetNodeAgent"
     $script:ConfigFile = "service-config.json"
     $script:RepoOwner = "BenediktSchackenberg"
     $script:RepoName = "octofleet"

@@ -732,7 +732,7 @@ export default function HomePage() {
                   </Link>
                   <button
                     onClick={async () => {
-                      const res = await apiClient.post("/security/scan", {});
+                      const res = await apiClient.post("/vulnerabilities/scan", {});
                       if (res) toast.success("Vulnerability scan started");
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
