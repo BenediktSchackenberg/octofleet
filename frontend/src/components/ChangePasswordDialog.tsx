@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export function ChangePasswordDialog() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState("");
@@ -38,6 +38,16 @@ export function ChangePasswordDialog() {
       toast.error(t("account.passwordLength"));
       return;
     }
+    // The server's limits (bcrypt takes at most 72 bytes) and rules, checked here so the
+    // user gets a translated message instead of the server's English one.
+    if (new TextEncoder().encode(next).length > 72) {
+      toast.error(t("account.passwordTooLong"));
+      return;
+    }
+    if (next === current || next.toLowerCase() === user?.username.toLowerCase()) {
+      toast.error(t("account.passwordNotDifferent"));
+      return;
+    }
     setSaving(true);
     try {
       const result = await apiClient.request<{ status: string }>("/auth/me/password", {
@@ -47,7 +57,7 @@ export function ChangePasswordDialog() {
         showErrorToast: false,
       });
       if (!result.ok) {
-        toast.error(result.error || t("account.passwordError"));
+        toast.error(t(result.status === 403 ? "account.currentPasswordWrong" : "account.passwordError"));
         return;
       }
       changeOpen(false);
