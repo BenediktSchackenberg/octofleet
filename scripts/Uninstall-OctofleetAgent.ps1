@@ -81,4 +81,34 @@ if ([Environment]::GetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR", "Mac
     Write-Log "Removed machine variable DOTNET_BUNDLE_EXTRACT_BASE_DIR"
 }
 
-Write-Log "Octofleet agent removed"
+# Completion signal: only now, with the service gone, may the server mark the node as
+# uninstalled (and delete it if requested). URL, node id and one-time token come from the
+# agent's uninstall job through the environment; a manual run has none and skips this.
+$serviceLeft = @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue |
+    Where-Object { $_.PathName -and $_.PathName.Trim('"').StartsWith($exePath, [StringComparison]::OrdinalIgnoreCase) })
+$processLeft = @(Get-Process -Name "OctofleetAgent.Service" -ErrorAction SilentlyContinue)
+$warnings = @(@($InstallPath, $DataPath) | Where-Object { Test-Path $_ } | ForEach-Object { "could not remove $_" })
+$success = ($serviceLeft.Count -eq 0) -and ($processLeft.Count -eq 0)
+$reason = if ($serviceLeft.Count -gt 0) { "agent service still present" } elseif ($processLeft.Count -gt 0) { "agent process still running" } else { $null }
+
+$completeUrl = $env:OCTOFLEET_COMPLETE_URL
+if ($completeUrl -and $env:OCTOFLEET_COMPLETE_TOKEN -and $env:OCTOFLEET_NODE_ID) {
+    $body = @{
+        nodeId  = $env:OCTOFLEET_NODE_ID
+        token   = $env:OCTOFLEET_COMPLETE_TOKEN
+        success = $success
+        details = @{ warnings = $warnings; reason = $reason; os = "windows" }
+    } | ConvertTo-Json -Depth 4
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            Invoke-RestMethod -Method Post -Uri $completeUrl -Body $body -ContentType "application/json" -TimeoutSec 15 | Out-Null
+            Write-Log "Completion reported to the Octofleet server (success: $success)"
+            break
+        } catch {
+            Write-Log "WARNING: could not report completion (attempt $attempt): $($_.Exception.Message)"
+            if ($attempt -lt 5) { Start-Sleep -Seconds 10 }
+        }
+    }
+}
+
+if ($success) { Write-Log "Octofleet agent removed" } else { Write-Log "ERROR: $reason" }

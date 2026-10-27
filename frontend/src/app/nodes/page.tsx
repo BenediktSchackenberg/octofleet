@@ -26,7 +26,8 @@ interface Node {
   total_memory_gb: number | null;
   health_status?: 'healthy' | 'warning' | 'critical';
   alert_count?: number;
-  removal_state?: 'uninstall_pending' | 'uninstall_failed' | 'uninstalled' | null;
+  removal_state?: 'uninstall_pending' | 'uninstall_running' | 'uninstall_failed' | 'uninstalled' | null;
+  removal_delete_after?: boolean;
 }
 
 interface PendingNode {
@@ -170,7 +171,8 @@ export default function NodesPage() {
   }, []);
 
   // Follow open removal requests until the agent answers (#160)
-  const removalPending = nodes.some((n) => n.removal_state === "uninstall_pending");
+  const removalPending = nodes.some((n) => n.removal_state === "uninstall_pending" || n.removal_state === "uninstall_running"
+    || (n.removal_state === "uninstalled" && n.removal_delete_after));
   useEffect(() => {
     if (!removalPending) return;
     const timer = setInterval(fetchNodes, 10000);

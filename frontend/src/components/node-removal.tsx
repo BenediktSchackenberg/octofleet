@@ -21,7 +21,8 @@ import { useI18n } from "@/lib/i18n-context";
 
 /** Removal fields of GET /api/v1/nodes/{id} (#160). */
 export interface NodeRemovalInfo {
-  removalState?: "uninstall_pending" | "uninstall_failed" | "uninstalled" | null;
+  removalState?: "uninstall_pending" | "uninstall_running" | "uninstall_failed" | "uninstalled" | null;
+  removalError?: string | null;
   removalRequestedAt?: string | null;
   removalRequestedBy?: string | null;
   removalDeleteAfter?: boolean;
@@ -133,10 +134,12 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
   const [busy, setBusy] = useState(false);
   const state = removal.removalState;
 
-  // While the agent has not answered, follow the request: refresh the page when
-  // the state changes and leave it once the background task deleted the node.
+  // While the removal is under way, follow it: refresh the page when the state changes
+  // and leave it once the background task deleted the node.
+  const inProgress = state === "uninstall_pending" || state === "uninstall_running"
+    || (state === "uninstalled" && !!removal.removalDeleteAfter);
   useEffect(() => {
-    if (state !== "uninstall_pending") return;
+    if (!inProgress) return;
     const timer = setInterval(async () => {
       const res = await apiClient.richGet<NodeRemovalInfo>(`/nodes/${nodeId}`, { showErrorToast: false });
       if (res.status === 404) {
@@ -149,7 +152,7 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
       }
     }, 10000);
     return () => clearInterval(timer);
-  }, [state, nodeId, hostname, onChanged, router, t]);
+  }, [inProgress, state, nodeId, hostname, onChanged, router, t]);
 
   if (!state) return null;
 
@@ -192,7 +195,9 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
       ? t("nodes.removal.stateUninstalled", { time: fmt(removal.uninstalledAt) })
       : state === "uninstall_failed"
         ? t("nodes.removal.stateFailed")
-        : t(removal.removalDeleteAfter ? "nodes.removal.statePendingDelete" : "nodes.removal.statePending", {
+        : state === "uninstall_running"
+          ? t(removal.removalDeleteAfter ? "nodes.removal.stateRunningDelete" : "nodes.removal.stateRunning")
+          : t(removal.removalDeleteAfter ? "nodes.removal.statePendingDelete" : "nodes.removal.statePending", {
             time: fmt(removal.removalRequestedAt),
             user: removal.removalRequestedBy || "-",
           });
@@ -203,6 +208,9 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
         <AlertTriangle className={`h-5 w-5 mt-0.5 shrink-0 ${state === "uninstalled" ? "text-zinc-400" : "text-amber-500"}`} />
         <div className="space-y-1 min-w-0">
           <p className="font-medium">{message}</p>
+          {state === "uninstall_failed" && removal.removalError && (
+            <p className="text-sm text-muted-foreground">{t("nodes.removal.reason", { reason: removal.removalError })}</p>
+          )}
           {state !== "uninstalled" && removal.forceDeleteAfter && (
             <p className="text-sm text-muted-foreground">
               {forceAllowed ? t("nodes.removal.forceAllowed") : t("nodes.removal.forceFrom", { time: fmt(removal.forceDeleteAfter) })}
@@ -211,7 +219,7 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {state !== "uninstalled" && (
+        {(state === "uninstall_pending" || state === "uninstall_failed") && (
           <Button variant="outline" disabled={busy} onClick={cancel}>{t("nodes.removal.cancelRequest")}</Button>
         )}
         {canDeleteNow && (
@@ -262,12 +270,13 @@ export function NodeRemovalStatus({ nodeId, state, onChanged }: { nodeId: string
   const style =
     state === "uninstalled" ? "bg-zinc-500/20 text-zinc-300" : state === "uninstall_failed" ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400";
   const label =
-    state === "uninstalled" ? "nodes.removal.badgeUninstalled" : state === "uninstall_failed" ? "nodes.removal.badgeFailed" : "nodes.removal.badgePending";
+    state === "uninstalled" ? "nodes.removal.badgeUninstalled" : state === "uninstall_failed" ? "nodes.removal.badgeFailed"
+      : state === "uninstall_running" ? "nodes.removal.badgeRunning" : "nodes.removal.badgePending";
 
   return (
     <span className="mt-2 flex flex-wrap items-center gap-2">
       <span className={`inline-block rounded px-2 py-0.5 text-xs ${style}`}>{t(label)}</span>
-      {state !== "uninstalled" && hasPermission("nodes:delete") && (
+      {(state === "uninstall_pending" || state === "uninstall_failed") && hasPermission("nodes:delete") && (
         <button type="button" disabled={busy} onClick={cancel} className="text-xs text-zinc-400 underline hover:text-zinc-200 disabled:opacity-50">
           {t("nodes.removal.cancel")}
         </button>

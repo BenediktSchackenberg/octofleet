@@ -462,7 +462,10 @@ CREATE TABLE public.nodes (
     removal_requested_by text,
     removal_delete_after boolean DEFAULT false NOT NULL,
     removal_job_id uuid,
-    uninstalled_at timestamp with time zone
+    uninstalled_at timestamp with time zone,
+    removal_token_hash text,
+    removal_running_at timestamp with time zone,
+    removal_error text
 );
 CREATE TABLE public.notification_channels (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

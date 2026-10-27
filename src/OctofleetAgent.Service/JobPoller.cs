@@ -668,6 +668,15 @@ if ($svc) {{
             delaySeconds = requested;
         }
 
+        // Completion signal: the removal script reports to the server once the service is gone
+        string? Text(string name) =>
+            payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String
+                ? p.GetString() : null;
+        var completionToken = Text("completionToken");
+        var completionPath = Text("completionPath");
+        var nodeId = Text("nodeId");
+        var apiUrl = ServiceConfig.Load().InventoryApiUrl?.TrimEnd('/');
+
         _logger.LogWarning("Agent uninstall requested - removing the agent in {Delay} seconds", delaySeconds);
         try
         {
@@ -687,10 +696,17 @@ if ($svc) {{
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\" " +
                             $"-InstallPath \"{installPath}\" -DelaySeconds {delaySeconds} -LogFile \"{logFile}\"",
-                UseShellExecute = true,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
+            // Passed by environment, not on the command line (visible in process listings)
+            if (!string.IsNullOrEmpty(completionToken) && !string.IsNullOrEmpty(completionPath)
+                && !string.IsNullOrEmpty(nodeId) && !string.IsNullOrEmpty(apiUrl))
+            {
+                psi.Environment["OCTOFLEET_COMPLETE_URL"] = apiUrl + completionPath;
+                psi.Environment["OCTOFLEET_COMPLETE_TOKEN"] = completionToken;
+                psi.Environment["OCTOFLEET_NODE_ID"] = nodeId;
+            }
             Process.Start(psi);
 
             return new CommandResult

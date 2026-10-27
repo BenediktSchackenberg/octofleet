@@ -69,6 +69,7 @@ from routers.jobs import router as jobs_router
 from routers.metrics import router as metrics_router
 from routers.monitoring_mgmt import router as monitoring_mgmt_router
 from routers.mssql import router as mssql_router
+from routers.nodes import agent_router as nodes_agent_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
@@ -278,6 +279,7 @@ INSTALL_SCRIPT_PATH = os.getenv("INSTALL_SCRIPT_PATH", "/app/static/Install-Octo
 # Include routers
 app.include_router(nodes_router)
 app.include_router(pending_router)
+app.include_router(nodes_agent_router)
 app.include_router(inventory_router)
 app.include_router(dashboard_router)
 app.include_router(groups_router)

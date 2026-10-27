@@ -157,6 +157,10 @@
       "badgePending": "Uninstall pending",
       "badgeFailed": "Uninstall failed",
       "badgeUninstalled": "Uninstalled",
+      "stateRunning": "The agent is removing itself – waiting for its confirmation.",
+      "stateRunningDelete": "The agent is removing itself – the node is deleted once the agent confirms.",
+      "badgeRunning": "Uninstalling",
+      "reason": "Reason: {reason}",
       "removed": "{hostname} was removed.",
       "requested": "Removal of {hostname} requested. The node disappears from the list once the agent has uninstalled itself.",
       "cancel": "Cancel"

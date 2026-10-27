@@ -56,7 +56,7 @@ async def list_nodes(
         if unassigned:
             rows = await conn.fetch("""
                 SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state, n.removal_delete_after,
                        h.cpu->>'name' as cpu_name,
                        (h.ram->>'totalGb')::numeric as total_memory_gb
                 FROM nodes n
@@ -69,7 +69,7 @@ async def list_nodes(
         elif group_id:
             rows = await conn.fetch("""
                 SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state, n.removal_delete_after,
                        h.cpu->>'name' as cpu_name,
                        (h.ram->>'totalGb')::numeric as total_memory_gb
                 FROM nodes n
@@ -81,7 +81,7 @@ async def list_nodes(
         else:
             rows = await conn.fetch("""
                 SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
+                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state, n.removal_delete_after,
                        h.cpu->>'name' as cpu_name,
                        (h.ram->>'totalGb')::numeric as total_memory_gb
                 FROM nodes n
@@ -260,7 +260,7 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             SELECT id, node_id, hostname, os_name, os_version, os_build, 
                    first_seen, last_seen, is_online, agent_version, created_at, updated_at,
                    removal_state, removal_requested_at, removal_requested_by, removal_delete_after,
-                   uninstalled_at
+                   uninstalled_at, removal_error
             FROM nodes WHERE node_id = $1 OR id::text = $1
         """, node_id)
         
@@ -311,6 +311,26 @@ async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 
 class UninstallRequest(BaseModel):
     deleteAfterUninstall: bool = False
+
+
+class UninstallComplete(BaseModel):
+    nodeId: str
+    token: str
+    success: bool
+    details: Optional[dict] = None
+
+
+# Completion signal of the agent's removal script. The agent and its API key are already
+# gone at that point; the one-time token from the uninstall job authenticates the call.
+agent_router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
+
+
+@agent_router.post("/uninstall-complete")
+async def uninstall_complete(data: UninstallComplete, db: asyncpg.Pool = Depends(get_db)):
+    async with db.acquire() as conn:
+        if not await node_removal.complete_uninstall(conn, data.nodeId, data.token, data.success, data.details):
+            raise HTTPException(status_code=403, detail="Invalid or expired completion token")
+    return {"status": "recorded"}
 
 
 @router.post("/{node_id}/uninstall")

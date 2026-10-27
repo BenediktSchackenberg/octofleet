@@ -157,6 +157,10 @@
       "badgePending": "Desinstalación pendiente",
       "badgeFailed": "Desinstalación fallida",
       "badgeUninstalled": "Desinstalado",
+      "stateRunning": "El agente se está desinstalando – esperando su confirmación.",
+      "stateRunningDelete": "El agente se está desinstalando – el nodo se elimina en cuanto el agente lo confirme.",
+      "badgeRunning": "Desinstalando",
+      "reason": "Motivo: {reason}",
       "removed": "{hostname} se ha eliminado.",
       "requested": "Se ha solicitado eliminar {hostname}. El nodo desaparece de la lista en cuanto el agente se haya desinstalado.",
       "cancel": "Cancelar"

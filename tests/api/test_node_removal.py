@@ -1,4 +1,5 @@
-"""Node removal (#160): uninstall the agent, optionally delete the node."""
+"""Node removal (#160): uninstall the agent, confirmed by its removal script, optionally delete the node."""
+import json
 import os
 import time
 import uuid
@@ -25,8 +26,8 @@ def _node(hostname: str):
     return requests.get(f"{API_URL}/api/v1/nodes/{hostname}", headers=HEADERS, timeout=10)
 
 
-def _agent_reports_job_result(hostname: str, success: bool) -> None:
-    """Fetch the pending uninstall job like an agent and report its result."""
+def _agent_reports_job_result(hostname: str, success: bool) -> dict:
+    """Fetch the pending uninstall job like an agent and report its result; returns the job payload."""
     r = requests.get(f"{API_URL}/api/v1/jobs/pending/{hostname}", headers=HEADERS, timeout=10)
     assert r.status_code == 200, r.text
     body = r.json()
@@ -35,6 +36,29 @@ def _agent_reports_job_result(hostname: str, success: bool) -> None:
     r = requests.post(f"{API_URL}/api/v1/jobs/instances/{job['instanceId']}/result", headers=HEADERS, timeout=10,
                       json={"success": success, "exitCode": 0 if success else 1, "stdout": "uninstall started"})
     assert r.status_code == 200, r.text
+    payload = job.get("commandPayload") or {}
+    return json.loads(payload) if isinstance(payload, str) else payload
+
+
+def _signal(node_id: str, token: str, success: bool = True, details: dict = None):
+    """Completion signal of the removal script (no API key: the one-time token authenticates it)."""
+    return requests.post(f"{API_URL}/api/v1/agent/uninstall-complete", timeout=10,
+                         json={"nodeId": node_id, "token": token, "success": success, "details": details or {}})
+
+
+def _state(hostname: str):
+    r = _node(hostname)
+    return r.json()["removalState"] if r.status_code == 200 else None
+
+
+def _started(hostname: str, delete_after: bool) -> dict:
+    """Request the removal, let the agent report the job and wait for uninstall_running."""
+    requests.post(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS,
+                  json={"deleteAfterUninstall": delete_after}, timeout=10).raise_for_status()
+    payload = _agent_reports_job_result(hostname, success=True)
+    assert payload.get("completionToken") and payload.get("nodeId") == hostname, payload
+    _wait_for(lambda: _state(hostname) == "uninstall_running", "the removal to be running")
+    return payload
 
 
 def _wait_for(predicate, what: str):
@@ -91,23 +115,41 @@ def test_request_and_cancel_uninstall(hostname):
     assert _node(hostname).json()["removalState"] is None
 
 
-def test_uninstall_then_delete_and_reinstall(hostname):
-    requests.post(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS,
-                  json={"deleteAfterUninstall": False}, timeout=10).raise_for_status()
-    _agent_reports_job_result(hostname, success=True)
-    _wait_for(lambda: _node(hostname).json()["removalState"] == "uninstalled", "the node to be marked uninstalled")
+def test_job_result_alone_does_not_uninstall(hostname):
+    _started(hostname, delete_after=True)
+    time.sleep(6)  # several runs of the background task (2 s in CI)
+    assert _node(hostname).status_code == 200
     node = _node(hostname).json()
-    assert node["canDelete"] is True and node["uninstalledAt"]
+    assert node["removalState"] == "uninstall_running" and node["canDelete"] is False
+    # running removals cannot be cancelled: the agent already has the job
+    assert requests.delete(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS,
+                           timeout=10).status_code == 409
+
+
+def test_completion_token_is_checked(hostname):
+    payload = _started(hostname, delete_after=False)
+    token = payload["completionToken"]
+    assert _signal(hostname, "wrong-token").status_code == 403
+    assert _signal("does-not-exist-160", token).status_code == 403
+    assert _state(hostname) == "uninstall_running"
+    assert _signal(hostname, token).status_code == 200
+    assert _state(hostname) == "uninstalled"
+    assert _signal(hostname, token).status_code == 403  # one-time
+
+
+def test_uninstall_then_delete_and_reinstall(hostname):
+    payload = _started(hostname, delete_after=False)
+    assert _signal(hostname, payload["completionToken"]).status_code == 200
+    node = _node(hostname).json()
+    assert node["removalState"] == "uninstalled" and node["canDelete"] is True and node["uninstalledAt"]
 
     # the machine is set up again: the agent reports and the node is active again
     _register(hostname)
-    assert _node(hostname).json()["removalState"] is None
+    assert _state(hostname) is None
 
     # uninstall again, then delete explicitly
-    requests.post(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS,
-                  json={"deleteAfterUninstall": False}, timeout=10).raise_for_status()
-    _agent_reports_job_result(hostname, success=True)
-    _wait_for(lambda: _node(hostname).json()["removalState"] == "uninstalled", "the second uninstall")
+    payload = _started(hostname, delete_after=False)
+    assert _signal(hostname, payload["completionToken"]).status_code == 200
     r = requests.delete(f"{API_URL}/api/v1/nodes/{hostname}", headers=HEADERS, timeout=10)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "deleted"
@@ -115,18 +157,44 @@ def test_uninstall_then_delete_and_reinstall(hostname):
 
 
 def test_uninstall_and_delete(hostname):
-    requests.post(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS,
-                  json={"deleteAfterUninstall": True}, timeout=10).raise_for_status()
-    _agent_reports_job_result(hostname, success=True)
+    payload = _started(hostname, delete_after=True)
+    assert _signal(hostname, payload["completionToken"], details={"warnings": []}).status_code == 200
     _wait_for(lambda: _node(hostname).status_code == 404, "the node to be deleted")
 
 
-def test_failed_uninstall_can_be_cancelled(hostname):
+def test_report_after_signal_blocks_delete(hostname):
+    payload = _started(hostname, delete_after=True)
+    assert _signal(hostname, payload["completionToken"]).status_code == 200
+    _register(hostname)  # the agent is still running and reports
+    _wait_for(lambda: _state(hostname) == "uninstall_failed", "the delete to be refused")
+    node = _node(hostname).json()
+    assert "still reported" in node["removalError"]
+
+
+def test_failure_signal_and_cancel(hostname):
+    payload = _started(hostname, delete_after=True)
+    assert _signal(hostname, payload["completionToken"], success=False,
+                   details={"reason": "agent service still present"}).status_code == 200
+    node = _node(hostname).json()
+    assert node["removalState"] == "uninstall_failed" and node["removalError"] == "agent service still present"
+    r = requests.delete(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    assert _state(hostname) is None
+
+
+def test_failed_job_can_be_cancelled(hostname):
     requests.post(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS,
                   json={"deleteAfterUninstall": True}, timeout=10).raise_for_status()
     _agent_reports_job_result(hostname, success=False)
-    _wait_for(lambda: _node(hostname).json()["removalState"] == "uninstall_failed", "the failed state")
-    assert _node(hostname).status_code == 200  # not deleted
+    _wait_for(lambda: _state(hostname) == "uninstall_failed", "the failed state")
+    assert "could not start" in _node(hostname).json()["removalError"]
     r = requests.delete(f"{API_URL}/api/v1/nodes/{hostname}/uninstall", headers=HEADERS, timeout=10)
     assert r.status_code == 200, r.text
-    assert _node(hostname).json()["removalState"] is None
+    assert _state(hostname) is None
+
+
+def test_missing_signal_times_out(hostname):
+    _started(hostname, delete_after=True)  # CI: NODE_REMOVAL_COMPLETE_TIMEOUT_MINUTES = 0.2
+    _wait_for(lambda: _state(hostname) == "uninstall_failed", "the timeout")
+    assert "No completion signal" in _node(hostname).json()["removalError"]
+    assert _node(hostname).status_code == 200  # not deleted

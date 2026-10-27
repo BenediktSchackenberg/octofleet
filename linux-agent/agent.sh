@@ -1281,7 +1281,7 @@ EOF
 # /etc/systemd/system) and not ended when the service stops. The delay lets this job report
 # its result first.
 schedule_uninstall() {
-    local delay="${1:-10}"
+    local delay="${1:-10}" token="${2:-}" node="${3:-}" path="${4:-}"
     [[ "$delay" =~ ^[0-9]+$ ]] && (( delay >= 5 && delay <= 300 )) || delay=10
     if [[ -z "$SCRIPT_DIR" || "$SCRIPT_DIR" == "/" || ! -f "$SCRIPT_DIR/agent.sh" ]]; then
         echo "Refusing to uninstall: unexpected agent directory '$SCRIPT_DIR'"
@@ -1291,13 +1291,32 @@ schedule_uninstall() {
     local steps
     steps=$(printf 'sleep %d; systemctl disable --now %s; rm -f %q; systemctl daemon-reload; rm -rf %q; rm -f %q' \
         "$delay" "$unit" "/etc/systemd/system/$unit" "$SCRIPT_DIR" "$LOG_FILE")
+    # Completion signal: once the service is gone, tell the server (URL, node id and one-time
+    # token come from the uninstall job and are passed through the environment). The process
+    # check only matches command lines that start with "bash <agent.sh>" (how the unit runs
+    # the agent): this script and its subshells contain the path too, but start with "bash -c".
+    local complete_url=""
+    [[ -n "$token" && -n "$node" && -n "$path" ]] && complete_url="${API_URL%/}${path}"
+    if [[ -n "$complete_url" ]]; then
+        steps+=$(printf '; ok=true; reason=; warnings=[]; '\
+'if systemctl cat %s >/dev/null 2>&1; then ok=false; reason="agent service still present"; '\
+'elif pgrep -f %q >/dev/null; then ok=false; reason="agent process still running"; fi; '\
+'[ -e %q ] && warnings=$(jq -cn --arg d %q '"'"'[("could not remove " + $d)]'"'"'); '\
+'body=$(jq -cn --arg n "$OCTOFLEET_NODE_ID" --arg t "$OCTOFLEET_COMPLETE_TOKEN" --argjson s "$ok" --arg r "$reason" --argjson w "$warnings" '\
+"'"'{nodeId:$n, token:$t, success:$s, details:{reason:(if $r == \"\" then null else $r end), warnings:$w, os:\"linux\"}}'"'"'); '\
+'for i in 1 2 3 4 5; do curl -fsS --max-time 15 -H "Content-Type: application/json" -d "$body" "$OCTOFLEET_COMPLETE_URL" >/dev/null && break; sleep 10; done' \
+            "$unit" "^[^ ]*bash ${SCRIPT_DIR}/agent"'\.sh( |$)' "$SCRIPT_DIR" "$SCRIPT_DIR")
+    fi
     if command -v systemd-run &>/dev/null && systemd-run --quiet --collect \
-            --unit "octofleet-agent-uninstall-$(date +%s)" /bin/bash -c "$steps"; then
+            --unit "octofleet-agent-uninstall-$(date +%s)" \
+            --setenv=OCTOFLEET_COMPLETE_URL="$complete_url" --setenv=OCTOFLEET_COMPLETE_TOKEN="$token" \
+            --setenv=OCTOFLEET_NODE_ID="$node" /bin/bash -c "$steps"; then
         echo "Agent uninstall started; the agent will be removed in ${delay} seconds."
         return 0
     fi
     # Without systemd (e.g. a container): nothing outlives a service stop, so run directly
-    setsid nohup /bin/bash -c "$steps" >/dev/null 2>&1 &
+    OCTOFLEET_COMPLETE_URL="$complete_url" OCTOFLEET_COMPLETE_TOKEN="$token" OCTOFLEET_NODE_ID="$node" \
+        setsid nohup /bin/bash -c "$steps" >/dev/null 2>&1 &
     echo "Agent uninstall started without systemd-run; the agent will be removed in ${delay} seconds."
 }
 
@@ -1334,8 +1353,12 @@ execute_job() {
             output=$(reconcile_service "$command_payload") || exit_code=$?
             ;;
         uninstall-agent)
-            local delay=$(echo "$command_payload" | jq -r '.delaySeconds // 10' 2>/dev/null)
-            output=$(schedule_uninstall "$delay" 2>&1) || exit_code=$?
+            local delay token node path
+            delay=$(echo "$command_payload" | jq -r '.delaySeconds // 10' 2>/dev/null)
+            token=$(echo "$command_payload" | jq -r '.completionToken // empty' 2>/dev/null)
+            node=$(echo "$command_payload" | jq -r '.nodeId // empty' 2>/dev/null)
+            path=$(echo "$command_payload" | jq -r '.completionPath // empty' 2>/dev/null)
+            output=$(schedule_uninstall "$delay" "$token" "$node" "$path" 2>&1) || exit_code=$?
             ;;
         *)
             warn "Unknown command type: $command_type"
