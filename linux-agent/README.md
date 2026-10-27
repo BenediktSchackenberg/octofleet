@@ -12,6 +12,19 @@ Lightweight bash-based agent for Linux systems. Collects inventory and pushes to
 
 ## Quick Install
 
+From your Octofleet server (the installer, the agent and its systemd unit come
+from the server; agent and unit are checked against the server's SHA256 sums):
+
+```bash
+curl -fsSL http://YOUR_SERVER:8080/api/v1/agent/releases/linux/install.sh | sudo bash -s -- \
+  --api-url http://YOUR_SERVER:8080 \
+  --api-key YOUR_API_KEY \
+  --node-id $(hostname)
+```
+
+If the server does not provide the Linux agent, the installer falls back to
+GitHub; it can also be started from GitHub directly:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash -s -- \
   --api-url http://YOUR_SERVER:8080 \
@@ -47,13 +60,16 @@ The agent checks `API_URL/api/v1/agent/releases/linux/latest` two minutes after
 start and then every `UPDATE_CHECK_INTERVAL` seconds. The server offers the
 `linux-agent/agent.sh` of its own checkout; when its `VERSION` is newer, the
 agent downloads it, verifies the SHA256 and `bash -n`, replaces itself and exits
-so systemd starts the new version. No internet access is needed.
+so systemd starts the new version. If the new file cannot be put in place, the
+old version keeps running and the check is repeated later. No internet access is
+needed.
 
 To roll out a new agent version, update the server checkout (bump `VERSION` in
-`agent.sh`). To update one machine right away:
+`agent.sh`). To update one machine right away (restarts the running service with
+the new version):
 
 ```bash
-sudo /opt/octofleet-agent/agent.sh update && sudo systemctl restart octofleet-agent
+sudo /opt/octofleet-agent/agent.sh update
 ```
 
 ## Collected Data

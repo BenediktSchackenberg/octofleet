@@ -8,8 +8,9 @@ scripts/publish-local-agent-release.sh), placed in AGENT_RELEASES_DIR. The
 response of /latest mirrors GitHub's releases API, so the same parsing code
 works for both sources.
 
-Linux: agent.sh and octofleet-agent.service from the server's linux-agent/
-directory (LINUX_AGENT_DIR); the version is the VERSION="..." line of agent.sh.
+Linux: agent.sh, octofleet-agent.service and install.sh from the server's
+linux-agent/ directory (LINUX_AGENT_DIR); the version is the VERSION="..." line
+of agent.sh.
 """
 import hashlib
 import os
@@ -26,7 +27,7 @@ RELEASE_ZIP = re.compile(r"^OctofleetAgent-v(\d+)\.(\d+)\.(\d+)\.zip$")
 RELEASE_FILE = re.compile(r"^OctofleetAgent-v\d+\.\d+\.\d+\.(zip|sha256)$")
 
 LINUX_AGENT_DIR = Path(os.getenv("LINUX_AGENT_DIR", "/app/static/linux-agent"))
-LINUX_AGENT_FILES = ("agent.sh", "octofleet-agent.service")
+LINUX_AGENT_FILES = ("agent.sh", "octofleet-agent.service", "install.sh")
 LINUX_VERSION = re.compile(r'^VERSION="([^"]+)"', re.MULTILINE)
 
 
@@ -110,7 +111,7 @@ async def get_latest_linux_agent(request: Request):
 
 @router.get("/linux/{filename}")
 async def download_linux_agent_file(filename: str):
-    """Download agent.sh or its systemd unit."""
+    """Download agent.sh, its systemd unit or install.sh (which then installs from this server)."""
     path = LINUX_AGENT_DIR / filename
     if filename not in LINUX_AGENT_FILES or not path.is_file():
         raise HTTPException(status_code=404, detail="Linux agent file not found")
