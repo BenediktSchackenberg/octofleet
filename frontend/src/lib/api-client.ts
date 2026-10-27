@@ -44,6 +44,27 @@ export function setOnUnauthorized(handler: (() => void) | null) {
   onUnauthorized = handler;
 }
 
+// ─── Error message ──────────────────────────────────────────────────
+
+/**
+ * Turns an error body into text. `detail` is a string for plain HTTPExceptions,
+ * an object ({ error, message, details }) for the API's structured errors and a
+ * list for validation errors; rendering an object in a toast crashes the page.
+ */
+function errorMessageFrom(errorData: unknown, response: Response): string {
+  const body = (errorData ?? {}) as { detail?: unknown; message?: unknown };
+  const detail = body.detail ?? body.message;
+  if (typeof detail === 'string' && detail) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((d) => (typeof d?.msg === 'string' ? d.msg : '')).filter(Boolean);
+    if (messages.length) return messages.join('; ');
+  } else if (detail && typeof detail === 'object') {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return message;
+  }
+  return `Fehler ${response.status}: ${response.statusText}`;
+}
+
 // ─── Core request (returns T | null for backward compat) ────────────
 
 async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T | null> {
@@ -64,8 +85,7 @@ async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Pr
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const errorMessage =
-        errorData.detail || errorData.message || `Fehler ${response.status}: ${response.statusText}`;
+      const errorMessage = errorMessageFrom(errorData, response);
 
       if (showErrorToast) {
         toast.error('API Fehler', {
@@ -116,8 +136,7 @@ async function apiRequestRich<T>(endpoint: string, options: RequestOptions = {})
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const errorMessage =
-        errorData.detail || errorData.message || `Fehler ${response.status}: ${response.statusText}`;
+      const errorMessage = errorMessageFrom(errorData, response);
 
       if (showErrorToast) {
         toast.error('API Fehler', { description: errorMessage, duration: 5000 });
