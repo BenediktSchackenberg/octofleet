@@ -122,22 +122,46 @@ async def lifespan(app: FastAPI):
     db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
     set_db_pool(db_pool)  # Set in dependencies for shared access
     
-    # Auto-provision default admin user if table is empty
-    try:
-        async with db_pool.acquire() as conn:
-            user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
-            if user_count == 0:
-                print("⚠️ No users found in database. Provisioning default admin user...")
-                # Hash for 'admin' with cost 12
-                admin_hash = "$2b$12$rYyY2JO.Uh/NBVp7kXBlY.p9Iv.S0GeIZbgttoYjjyS.hQQQJkkJK"
-                await conn.execute("""
+    # Existing databases need the session version used to revoke old access tokens.
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0"
+        )
+        seed_hash = "$2b$12$rYyY2JO.Uh/NBVp7kXBlY.p9Iv.S0GeIZbgttoYjjyS.hQQQJkkJK"
+        seed_user = await conn.fetchval(
+            "SELECT id FROM users WHERE username = 'admin' AND password_hash = $1", seed_hash
+        )
+        no_users = await conn.fetchval("SELECT COUNT(*) FROM users") == 0
+        if no_users or seed_user:
+            import secrets
+            configured = os.environ.get("ADMIN_PASSWORD")
+            admin_password = configured or secrets.token_urlsafe(24)
+            if (len(admin_password) < 12 or len(admin_password.encode("utf-8")) > 72
+                    or admin_password.lower() == "admin"):
+                raise RuntimeError("ADMIN_PASSWORD must be 12 to 72 bytes and not 'admin'")
+            new_hash = hash_password(admin_password)
+            if seed_user:
+                changed = await conn.fetchval(
+                    """UPDATE users SET password_hash = $2, session_version = session_version + 1,
+                       updated_at = NOW() WHERE id = $1 AND password_hash = $3 RETURNING id""",
+                    seed_user, new_hash, seed_hash
+                )
+                if changed:
+                    print("Shared default admin password replaced")
+            else:
+                changed = await conn.fetchval("""
                     INSERT INTO users (username, password_hash, display_name, is_superuser, is_active)
                     VALUES ('admin', $1, 'System Administrator', true, true)
-                """, admin_hash)
-                print("✅ Default admin user created (admin / admin)")
-    except Exception as e:
-        print(f"❌ Failed to check/provision admin user: {e}")
-        
+                    ON CONFLICT (username) DO NOTHING RETURNING id
+                """, new_hash)
+                if changed:
+                    print("Initial admin account created")
+            if changed:
+                if configured:
+                    print("Use ADMIN_PASSWORD to sign in")
+                else:
+                    print(f"One-time admin password: {admin_password}")
+
     print("✅ Database pool created")
     yield
     # Shutdown
