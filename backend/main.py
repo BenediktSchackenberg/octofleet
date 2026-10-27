@@ -71,6 +71,7 @@ from routers.mssql import router as mssql_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
+from routers.agent_releases import router as agent_releases_router
 from routers.patch_explorer import router as patch_explorer_router
 from routers.patches import router as patches_router
 from routers.provisioning import pxe_router
@@ -275,6 +276,7 @@ app.include_router(reports_router)
 app.include_router(monitoring_mgmt_router)
 app.include_router(terminal_router)
 app.include_router(packages_mgmt_router)
+app.include_router(agent_releases_router)
 app.include_router(vulnerabilities_router)
 app.include_router(rbac_router)
 app.include_router(hardware_router)
@@ -6760,3 +6762,4 @@ async def create_enrollment_token(body: dict):
 @app.delete("/api/v1/enrollment-tokens/{token_id}", dependencies=[Depends(verify_api_key)])
 async def delete_enrollment_token(token_id: str):
     return {"status": "deleted"}
+
