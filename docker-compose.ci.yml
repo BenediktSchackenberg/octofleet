@@ -26,6 +26,7 @@ services:
     environment:
       DATABASE_URL: postgresql://octofleet:ci-test-password@db:5432/inventory
       JWT_SECRET: ci-test-jwt-secret-not-for-production
+      ADMIN_PASSWORD: ci-test-admin-password-2026
       API_KEY: ci-test-api-key
       INVENTORY_API_KEY: ci-test-api-key
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
