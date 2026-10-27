@@ -4,6 +4,7 @@ RBAC Authentication & Authorization Module
 import hashlib
 from datetime import datetime, timedelta
 from typing import List, Optional
+from uuid import UUID
 
 import bcrypt
 import jwt
@@ -96,12 +97,13 @@ def hash_api_key(key: str) -> str:
 
 # ============== JWT ==============
 
-def create_access_token(user_id: str, username: str, permissions: List[str]) -> str:
+def create_access_token(user_id: str, username: str, permissions: List[str], session_version: int = 0) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": user_id,
         "username": username,
         "permissions": permissions,
+        "session_version": session_version,
         "exp": expire,
         "type": "access"
     }
@@ -194,8 +196,22 @@ async def get_current_user(
         payload = decode_token(credentials.credentials)
         if payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")
+        try:
+            user_id = UUID(payload["sub"])
+        except (KeyError, ValueError, TypeError):
+            raise HTTPException(status_code=401, detail="Invalid token subject")
+        from dependencies import get_pool
+        pool = get_pool()
+        if pool is None:
+            raise HTTPException(status_code=503, detail="Database unavailable")
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT session_version, is_active FROM users WHERE id = $1", user_id
+            )
+        if not row or not row["is_active"] or row["session_version"] != payload.get("session_version", 0):
+            raise HTTPException(status_code=401, detail="Session expired")
         return CurrentUser(
-            id=payload["sub"],
+            id=str(user_id),
             username=payload["username"],
             permissions=payload.get("permissions", []),
             is_superuser="*" in payload.get("permissions", [])
