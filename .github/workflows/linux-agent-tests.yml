@@ -25,3 +25,5 @@ jobs:
           bash -n linux-agent/install.sh
       - name: Test check_for_update (success and failure paths)
         run: bash tests/linux-agent/self-update.test.sh
+      - name: Test collect_updates with apt (version, suite, security flag)
+        run: bash tests/linux-agent/apt-updates.test.sh
