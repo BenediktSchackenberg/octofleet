@@ -107,8 +107,8 @@ irm https://raw.githubusercontent.com/BenediktSchackenberg/octofleet-windows-age
 ### Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | \
-  sudo bash -s -- --api-url http://YOUR-SERVER:8080 --api-key YOUR-API-KEY
+f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o "$f" && \
+  sudo bash "$f" --api-url http://YOUR-SERVER:8080 --api-key YOUR-API-KEY
 ```
 
 ## Next Steps

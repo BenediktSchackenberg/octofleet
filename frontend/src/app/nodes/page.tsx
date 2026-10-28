@@ -10,6 +10,7 @@ import { Check, X, Clock, Monitor, LayoutGrid, List, Plus, Server } from "lucide
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { StandardPage } from "@/components/ui/StandardPage";
 import { NodeRemovalStatus } from "@/components/node-removal";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -152,6 +153,7 @@ function PendingNodesSection({
 }
 
 export default function NodesPage() {
+  const { t } = useI18n();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [pendingNodes, setPendingNodes] = useState<PendingNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,15 +253,15 @@ export default function NodesPage() {
 
   return (
     <StandardPage
-      title="Devices"
-      description={`${onlineCount} von ${nodes.length} online${pendingNodes.length > 0 ? ` • ${pendingNodes.length} wartend` : ""}`}
+      title={t("nodes.devices")}
+      description={`${t("nodes.onlineSummary", { online: onlineCount, total: nodes.length })}${pendingNodes.length > 0 ? ` • ${t("nodes.pendingSummary", { count: pendingNodes.length })}` : ""}`}
       icon={<Server className="h-6 w-6" />}
       loading={loading}
       actions={
         <div className="flex gap-2">
           <OnboardingDialog trigger={
             <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors text-sm font-medium">
-              <Plus className="h-4 w-4" /> Add Device
+              <Plus className="h-4 w-4" /> {t("nodes.addDevice")}
             </button>
           } />
           <button
