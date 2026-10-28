@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Key, Users, Shield, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
+import { Key, Users, Shield, Lock, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 
@@ -187,6 +187,11 @@ export default function SettingsPage() {
 
         {/* Quick Links */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <Link href="/settings/security" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Lock className="h-6 w-6 mb-2 text-purple-400" />
+            <h3 className="font-medium">Security</h3>
+            <p className="text-xs text-zinc-500">Password policy</p>
+          </Link>
           <Link href="/settings/provisioning" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
             <Rocket className="h-6 w-6 mb-2 text-cyan-400" />
             <h3 className="font-medium">Provisioning</h3>

@@ -44,6 +44,7 @@ class UserResponse(BaseModel):
     created_at: datetime
     last_login: Optional[datetime]
     roles: List[str] = []
+    must_change_password: bool = False
 
 class LoginRequest(BaseModel):
     username: str
@@ -206,8 +207,15 @@ async def get_current_user(
             raise HTTPException(status_code=503, detail="Database unavailable")
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT session_version, is_active FROM users WHERE id = $1", user_id
+                "SELECT session_version, is_active, must_change_password, password_changed_at FROM users WHERE id = $1", user_id
             )
+            if row and row["is_active"]:
+                from password_policy import load_policy, password_expired
+                forced = row["must_change_password"] or password_expired(row["password_changed_at"], await load_policy(conn))
+                if forced and request.url.path not in (
+                    "/api/v1/auth/me", "/api/v1/auth/me/password", "/api/v1/auth/logout"
+                ):
+                    raise HTTPException(status_code=403, detail="Password change required")
         if not row or not row["is_active"] or row["session_version"] != payload.get("session_version", 0):
             raise HTTPException(status_code=401, detail="Session expired")
         return CurrentUser(

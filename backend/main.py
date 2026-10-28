@@ -42,6 +42,7 @@ from reportlab.platypus import (
 )
 
 import node_removal
+import password_policy
 from auth import (
     APIKeyCreate,
     CurrentUser,
@@ -56,6 +57,7 @@ from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.alerting import router as alerting_router
 from routers.auth import router as auth_router
 from routers.auth import users_router
+from routers.password_policy import router as password_policy_router
 from routers.baselines import router as baselines_router
 from routers.content_lifecycle import router as content_lifecycle_router
 from routers.dashboard import router as dashboard_router
@@ -125,6 +127,7 @@ async def lifespan(app: FastAPI):
 
     # Node removal (#160): schema for existing installs and the background task
     await node_removal.ensure_schema_on(db_pool)
+    await password_policy.ensure_schema(db_pool)
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
@@ -148,17 +151,18 @@ async def lifespan(app: FastAPI):
             if seed_user:
                 changed = await conn.fetchval(
                     """UPDATE users SET password_hash = $2, session_version = session_version + 1,
+                       must_change_password = $4, password_changed_at = NOW(),
                        updated_at = NOW() WHERE id = $1 AND password_hash = $3 RETURNING id""",
-                    seed_user, new_hash, seed_hash
+                    seed_user, new_hash, seed_hash, not bool(configured)
                 )
                 if changed:
                     print("Shared default admin password replaced")
             else:
                 changed = await conn.fetchval("""
-                    INSERT INTO users (username, password_hash, display_name, is_superuser, is_active)
-                    VALUES ('admin', $1, 'System Administrator', true, true)
+                    INSERT INTO users (username, password_hash, display_name, is_superuser, is_active, must_change_password)
+                    VALUES ('admin', $1, 'System Administrator', true, true, $2)
                     ON CONFLICT (username) DO NOTHING RETURNING id
-                """, new_hash)
+                """, new_hash, not bool(configured))
                 if changed:
                     print("Initial admin account created")
             if changed:
@@ -305,6 +309,7 @@ app.include_router(alerting_router)
 app.include_router(security_router)
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(password_policy_router)
 app.include_router(provisioning_settings_router)
 app.include_router(provisioning_router)
 app.include_router(query_router, tags=["Query Engine"])
@@ -2652,6 +2657,7 @@ async def setup_admin(data: UserCreate):
         count = await conn.fetchval("SELECT COUNT(*) FROM users")
         if count > 0:
             raise HTTPException(status_code=400, detail="Setup already completed")
+        await password_policy.validate_password(conn, data.password, data.username)
         
         # Create admin user
         user = await conn.fetchrow(
@@ -3249,7 +3255,7 @@ logger = logging.getLogger(__name__)
 async def get_settings():
     """Get all system settings (values masked for secrets)."""
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch("SELECT key, value, updated_at FROM system_settings WHERE key <> 'provisioning'")
+        rows = await conn.fetch("SELECT key, value, updated_at FROM system_settings WHERE key NOT IN ('provisioning', 'password_policy')")
         settings = {}
         for row in rows:
             key = row["key"]
@@ -3264,8 +3270,8 @@ async def get_settings():
 @app.get("/api/v1/settings/{key}")
 async def get_setting(key: str):
     """Get a specific setting."""
-    if key == SETTINGS_KEY:
-        raise HTTPException(400, "Use /api/v1/provisioning/config")
+    if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
+        raise HTTPException(400, "Use the dedicated settings endpoint")
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT value, updated_at FROM system_settings WHERE key = $1", key)
         if not row:
@@ -3275,8 +3281,8 @@ async def get_setting(key: str):
 @app.put("/api/v1/settings/{key}")
 async def update_setting(key: str, value: str = Body(..., embed=True)):
     """Update or create a setting."""
-    if key == SETTINGS_KEY:
-        raise HTTPException(400, "Use /api/v1/provisioning/config")
+    if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
+        raise HTTPException(400, "Use the dedicated settings endpoint")
     async with db_pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO system_settings (key, value, updated_at, updated_by)
@@ -3296,8 +3302,8 @@ async def update_setting(key: str, value: str = Body(..., embed=True)):
 @app.delete("/api/v1/settings/{key}")
 async def delete_setting(key: str):
     """Delete a setting."""
-    if key == SETTINGS_KEY:
-        raise HTTPException(400, "Use /api/v1/provisioning/config")
+    if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
+        raise HTTPException(400, "Use the dedicated settings endpoint")
     async with db_pool.acquire() as conn:
         result = await conn.execute("DELETE FROM system_settings WHERE key = $1", key)
         if result == "DELETE 0":

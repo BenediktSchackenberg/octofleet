@@ -14,6 +14,7 @@ interface User {
   is_active: boolean;
   is_superuser: boolean;
   roles: string[];
+  must_change_password?: boolean;
 }
 
 interface AuthContextType {
@@ -101,12 +102,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [token]);
 
+  // Refresh the server's password-change requirement after a page reload or policy change.
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_URL}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : null)
+      .then(account => {
+        if (account) {
+          setUser(account);
+          localStorage.setItem("user", JSON.stringify(account));
+        }
+      }).catch(() => {});
+  }, [token]);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!loading && !token && pathname !== "/login") {
       router.push("/login");
     }
   }, [loading, token, pathname, router]);
+
+  useEffect(() => {
+    if (!loading && token && user?.must_change_password && pathname !== "/change-password") {
+      router.replace("/change-password");
+    }
+  }, [loading, token, user?.must_change_password, pathname, router]);
 
   async function login(username: string, password: string): Promise<boolean> {
     try {
@@ -212,6 +232,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Block other pages if not authenticated
   if (!token) {
+    return <AuthContext.Provider value={contextValue}>{null}</AuthContext.Provider>;
+  }
+
+  if (user?.must_change_password && pathname !== "/change-password") {
     return <AuthContext.Provider value={contextValue}>{null}</AuthContext.Provider>;
   }
 
