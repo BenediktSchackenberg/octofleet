@@ -100,13 +100,18 @@ async def get_latest_linux_agent(request: Request):
     if not match:
         raise HTTPException(status_code=404, detail="Linux agent has no VERSION line")
     base = f"{_base_url(request)}/api/v1/agent/releases/linux"
-    return {
+    release = {
         "version": match.group(1),
         "sha256": hashlib.sha256(content).hexdigest(),
         "download_url": f"{base}/agent.sh",
         "service_url": f"{base}/octofleet-agent.service",
         "source": "octofleet-server",
     }
+    # install.sh verifies the systemd unit as well and stops without this checksum
+    service = LINUX_AGENT_DIR / "octofleet-agent.service"
+    if service.is_file():
+        release["service_sha256"] = hashlib.sha256(service.read_bytes()).hexdigest()
+    return release
 
 
 @router.get("/linux/{filename}")
