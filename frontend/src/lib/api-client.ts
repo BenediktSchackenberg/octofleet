@@ -40,6 +40,15 @@ let onUnauthorized: (() => void) | null = () => {
   }
 };
 
+function handlePasswordChangeRequired(response: Response, message: string) {
+  if (response.status !== 403 || message !== "Password change required" || typeof window === "undefined") return;
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    localStorage.setItem("user", JSON.stringify({ ...user, must_change_password: true }));
+  } catch { /* The server still enforces the requirement. */ }
+  if (window.location.pathname !== "/change-password") window.location.assign("/change-password");
+}
+
 export function setOnUnauthorized(handler: (() => void) | null) {
   onUnauthorized = handler;
 }
@@ -86,6 +95,7 @@ async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Pr
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorMessageFrom(errorData, response);
+      handlePasswordChangeRequired(response, errorMessage);
 
       if (showErrorToast) {
         toast.error('API Fehler', {
@@ -137,6 +147,7 @@ async function apiRequestRich<T>(endpoint: string, options: RequestOptions = {})
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorMessageFrom(errorData, response);
+      handlePasswordChangeRequired(response, errorMessage);
 
       if (showErrorToast) {
         toast.error('API Fehler', { description: errorMessage, duration: 5000 });

@@ -362,6 +362,25 @@ function UserDetailPanel({ user, roles, refresh, assignRole, removeRole }: {
   removeRole: (uid: string, role: string) => void;
 }) {
   const [scopes, setScopes] = useState<ScopeEntry[]>([]);
+  const [resetPassword, setResetPassword] = useState("");
+  const [mustChangePassword, setMustChangePassword] = useState(true);
+  const [resetting, setResetting] = useState(false);
+
+  async function resetAccountPassword() {
+    setResetting(true);
+    try {
+      const result = await apiClient.request<{ status: string }>(`/users/${user.id}/password`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: resetPassword, must_change_password: mustChangePassword }),
+        showErrorToast: false,
+      });
+      if (result.ok) {
+        setResetPassword("");
+        toast.success("Password reset. Existing sessions were revoked.");
+        refresh();
+      } else toast.error(result.error || "Could not reset password");
+    } finally { setResetting(false); }
+  }
 
   useEffect(() => {
     apiClient.get<{ scopes: ScopeEntry[] }>(`/users/${user.id}/scopes`, { camelCase: true, showErrorToast: false })
@@ -382,6 +401,18 @@ function UserDetailPanel({ user, roles, refresh, assignRole, removeRole }: {
           <div><span className="text-muted-foreground">Status</span><p>{user.isActive ? "Active" : "Disabled"}</p></div>
           <div><span className="text-muted-foreground">Created</span><p>{formatDate(user.createdAt)}</p></div>
           <div><span className="text-muted-foreground">Last Login</span><p>{formatDate(user.lastLogin)}</p></div>
+        </div>
+
+        <div className="space-y-3 border-t border-zinc-800 pt-4">
+          <h3 className="text-sm font-medium">Reset password</h3>
+          <p className="text-xs text-muted-foreground">This revokes all existing sessions for this user. Share the temporary password through a secure channel.</p>
+          <Input type="password" autoComplete="new-password" placeholder="New password" value={resetPassword}
+            onChange={e => setResetPassword(e.target.value)} />
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={mustChangePassword} onCheckedChange={value => setMustChangePassword(value === true)} />
+            Require change at next sign-in
+          </label>
+          <Button onClick={resetAccountPassword} disabled={resetting || resetPassword.length < 12}>Reset password</Button>
         </div>
 
         {/* Global Roles */}

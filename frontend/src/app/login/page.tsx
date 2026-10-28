@@ -39,7 +39,7 @@ export default function LoginPage() {
       // Force reload to reinitialize AuthContext with the new token
       // router.push doesn't work because AuthContext still has token=null in state
       // and will redirect back to /login before the state updates
-      window.location.replace("/");
+      window.location.replace(data.user.must_change_password ? "/change-password" : "/");
     } catch (err: any) {
       setError(err.message || t("auth.loginError"));
       setLoading(false);
