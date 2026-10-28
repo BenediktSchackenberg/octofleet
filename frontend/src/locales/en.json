@@ -136,6 +136,15 @@
     "events": "Events",
     "noNodes": "No nodes found",
     "deleteConfirm": "Are you sure you want to delete this node?",
+    "updates": {
+      "packageUpdates": "Package updates ({count})",
+      "summary": "Package manager: {manager} · security updates: {security}",
+      "package": "Package",
+      "newVersion": "New version",
+      "source": "Source",
+      "securityBadge": "Security",
+      "none": "No updates available"
+    },
     "removal": {
       "button": "Remove node…",
       "title": "Remove {hostname}",

@@ -136,6 +136,15 @@
     "events": "Eventos",
     "noNodes": "No se encontraron nodos",
     "deleteConfirm": "¿Seguro que deseas eliminar este nodo?",
+    "updates": {
+      "packageUpdates": "Actualizaciones de paquetes ({count})",
+      "summary": "Gestor de paquetes: {manager} · actualizaciones de seguridad: {security}",
+      "package": "Paquete",
+      "newVersion": "Nueva versión",
+      "source": "Origen",
+      "securityBadge": "Seguridad",
+      "none": "No hay actualizaciones disponibles"
+    },
     "removal": {
       "button": "Eliminar nodo…",
       "title": "Eliminar {hostname}",
