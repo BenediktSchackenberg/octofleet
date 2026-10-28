@@ -40,7 +40,11 @@
     "passwordMismatch": "Las contraseñas no coinciden",
     "passwordLength": "Use al menos 12 caracteres",
     "passwordError": "No se pudo cambiar la contraseña",
-    "passwordChanged": "Contraseña cambiada. Inicie sesión de nuevo."
+    "passwordChanged": "Contraseña cambiada. Inicie sesión de nuevo.",
+    "currentPasswordRequired": "Introduzca la contraseña actual",
+    "currentPasswordWrong": "La contraseña actual es incorrecta",
+    "passwordNotDifferent": "La nueva contraseña debe ser distinta del nombre de usuario y de la contraseña actual",
+    "passwordTooLong": "La contraseña es demasiado larga (como máximo 72 bytes; las letras con tilde cuentan doble)"
   },
   "nav": {
     "accessAudit": "Auditoría de acceso",
