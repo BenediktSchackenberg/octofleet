@@ -173,6 +173,45 @@
       "removed": "{hostname} se ha eliminado.",
       "requested": "Se ha solicitado eliminar {hostname}. El nodo desaparece de la lista en cuanto el agente se haya desinstalado.",
       "cancel": "Cancelar"
+    },
+    "devices": "Dispositivos",
+    "addDevice": "Añadir dispositivo",
+    "onlineSummary": "{online} de {total} en línea",
+    "pendingSummary": "{count} pendientes"
+  },
+  "onboarding": {
+    "title": "Añadir dispositivo",
+    "description": "Instala el agente de Octofleet en un equipo Windows o Linux para empezar a gestionarlo.",
+    "automatic": "Instalación automática",
+    "manual": "Configuración manual",
+    "copy": "Copiar",
+    "copyFailed": "No se pudo copiar: seleccione el comando y cópielo a mano (antes muestre la clave de API).",
+    "copied": "Copiado",
+    "loading": "Cargando…",
+    "showKey": "Mostrar clave API",
+    "hideKey": "Ocultar clave API",
+    "runCommand": "Pega y ejecuta este comando:",
+    "done": "Listo: el agente se instala, se configura y empieza a enviar datos.",
+    "appearsSoon": "El dispositivo aparece en la lista de nodos en unos 30 segundos.",
+    "whatThisDoes": "Qué hace:",
+    "windows": {
+      "step1": "Abre PowerShell como administrador en el equipo de destino.",
+      "whatText": "Carga el instalador desde este servidor de Octofleet. El instalador toma la última versión del agente de este servidor (GitHub solo si el servidor no tiene ninguna), comprueba su suma SHA256, lo instala como servicio de Windows y lo configura con la URL del servidor y la clave API."
+    },
+    "linux": {
+      "step1": "Abre una shell con permisos de sudo en el equipo de destino.",
+      "requirements": "Distribución con systemd; las herramientas que falten (curl, jq) se instalan con el gestor de paquetes.",
+      "whatText": "Carga el instalador desde este servidor de Octofleet. El instalador toma el agente y su unidad systemd de este servidor y comprueba sus sumas SHA256 (GitHub solo si el servidor no tiene agente de Linux), instala el agente como servicio systemd octofleet-agent y lo configura con la URL del servidor y la clave API. El ID del nodo es el nombre de host del equipo."
+    },
+    "manualSteps": {
+      "step1": "Descarga el archivo de configuración",
+      "download": "Descargar service-config.json",
+      "step2": "Colócalo en el equipo de destino en:",
+      "step3": "Instala el agente (si aún no está instalado):",
+      "step3Before": "Descarga la última versión desde",
+      "step3After": "y ejecuta el instalador.",
+      "step4": "Reinicia el servicio del agente:",
+      "preview": "Vista previa de la configuración:"
     }
   },
   "groups": {

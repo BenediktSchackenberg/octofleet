@@ -4,8 +4,12 @@
 # Installs linux-agent/agent.sh as a systemd service.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh | sudo bash -s -- \
+#   f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o "$f" && sudo bash "$f" \
 #     --api-url http://YOUR_SERVER:8080 --api-key YOUR_API_KEY [--node-id NAME] [--ref main]
+#
+#   Download first, then run: with "curl ... | sudo bash" a failed download
+#   still ends with success. The script body is a function called on the last
+#   line, so a partly downloaded script does nothing.
 #
 #   API_URL / API_KEY / NODE_ID environment variables are accepted as well
 #   (use "sudo -E" or "sudo API_URL=... API_KEY=... bash install.sh").
@@ -37,6 +41,7 @@ Usage: install.sh --api-url URL --api-key KEY [--node-id NAME] [--ref GIT_REF]
 USAGE
 }
 
+main() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --api-url) API_URL="${2:-}"; shift 2 ;;
@@ -168,4 +173,6 @@ echo "Commands:"
 echo "  sudo systemctl status $SERVICE_NAME"
 echo "  sudo journalctl -u $SERVICE_NAME -f"
 echo "  sudo tail -f /var/log/octofleet-agent.log"
+}
 
+main "$@"
