@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
@@ -82,10 +82,16 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
 
 
 @router.get("/api/v1/vulnerabilities/node/{node_id}")
-async def node_vulnerabilities(node_id: str):
-    """Get all vulnerabilities affecting a specific node."""
-    vulns = await get_node_vulnerabilities(get_pool(), node_id)
-    return {"vulnerabilities": vulns, "count": len(vulns)}
+async def node_vulnerabilities(node_id: str, limit: Optional[int] = Query(None, ge=1, le=1000)):
+    """Vulnerabilities affecting one node (id or hostname), most severe first.
+
+    count is the total for the node; with limit only the first entries are returned
+    (e.g. a preview of the most severe ones).
+    """
+    result = await get_node_vulnerabilities(get_pool(), node_id, limit)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return result
 
 
 @router.get("/api/v1/vulnerabilities")

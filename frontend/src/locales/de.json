@@ -145,6 +145,32 @@
       "securityBadge": "Sicherheit",
       "none": "Keine Updates verfügbar"
     },
+    "vulnerabilities": {
+      "tab": "Schwachstellen ({count})",
+      "title": "Bekannte Schwachstellen ({count})",
+      "description": "CVEs, die der letzte Schwachstellen-Scan der installierten Software zugeordnet hat, die schwersten zuerst.",
+      "loading": "Schwachstellen werden geladen…",
+      "error": "Die Schwachstellen konnten nicht geladen werden.",
+      "none": "Für dieses Gerät sind keine CVEs gespeichert. Nicht geprüfte Software ist nicht enthalten.",
+      "noMatch": "Keine Schwachstellen passen zum Filter.",
+      "all": "Alle ({count})",
+      "search": "CVE oder Software suchen",
+      "cve": "CVE",
+      "severityColumn": "Schweregrad",
+      "software": "Software",
+      "published": "Veröffentlicht",
+      "showMore": "{count} weitere anzeigen (noch {remaining})",
+      "mostSevere": "Schwerste Schwachstellen",
+      "showAll": "Alle {count} anzeigen",
+      "showInTab": "Schwachstellen anzeigen",
+      "severity": {
+        "critical": "Kritisch",
+        "high": "Hoch",
+        "medium": "Mittel",
+        "low": "Niedrig",
+        "unknown": "Unbekannt"
+      }
+    },
     "removal": {
       "button": "Node entfernen…",
       "title": "{hostname} entfernen",
