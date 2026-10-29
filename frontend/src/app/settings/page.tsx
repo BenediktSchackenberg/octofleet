@@ -227,6 +227,11 @@ export default function SettingsPage() {
             <h3 className="font-medium">Vulnerabilities</h3>
             <p className="text-xs text-zinc-500">CVE Tracking & NVD Scan</p>
           </Link>
+          <Link href="/settings/vulnerability-mappings" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
+            <Shield className="h-6 w-6 mb-2 text-amber-400" />
+            <h3 className="font-medium">Vulnerability matching</h3>
+            <p className="text-xs text-zinc-500">Check status and CPE mappings</p>
+          </Link>
           <Link href="/deployments" className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 hover:border-zinc-600 transition-colors">
             <Rocket className="h-6 w-6 mb-2 text-orange-400" />
             <h3 className="font-medium">Rollout Strategies</h3>

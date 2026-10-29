@@ -827,7 +827,31 @@ CREATE TABLE public.vulnerabilities (
     published_date timestamp with time zone,
     reference_urls jsonb DEFAULT '[]'::jsonb,
     discovered_at timestamp with time zone DEFAULT now(),
-    last_checked timestamp with time zone DEFAULT now()
+    last_checked timestamp with time zone DEFAULT now(),
+    match_source text DEFAULT 'legacy_keyword'::text NOT NULL
+);
+CREATE VIEW public.verified_vulnerabilities AS
+ SELECT * FROM public.vulnerabilities WHERE match_source = 'nvd_cpe';
+CREATE TABLE public.software_cpe_mappings (
+    name text NOT NULL,
+    publisher text DEFAULT ''::text NOT NULL,
+    cpe_vendor text,
+    cpe_product text,
+    status text DEFAULT 'unmatched'::text NOT NULL,
+    source text DEFAULT 'auto'::text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by text,
+    PRIMARY KEY (name, publisher)
+);
+CREATE TABLE public.software_vulnerability_checks (
+    name text NOT NULL,
+    version text NOT NULL,
+    publisher text DEFAULT ''::text NOT NULL,
+    status text NOT NULL,
+    reason text,
+    cpe_name text,
+    checked_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (name, version, publisher)
 );
 CREATE VIEW public.v_remediable_vulnerabilities AS
  SELECT v.id AS vulnerability_id,
@@ -845,7 +869,7 @@ CREATE VIEW public.v_remediable_vulnerabilities AS
             WHEN (rp.id IS NOT NULL) THEN true
             ELSE false
         END AS has_fix_available
-   FROM (public.vulnerabilities v
+   FROM (public.verified_vulnerabilities v
      LEFT JOIN public.remediation_packages rp ON (((v.software_name ~~* (('%'::text || rp.target_software) || '%'::text)) AND (rp.enabled = true))))
   WHERE (v.severity = ANY (ARRAY['CRITICAL'::text, 'HIGH'::text]))
   ORDER BY v.cvss_score DESC NULLS LAST;

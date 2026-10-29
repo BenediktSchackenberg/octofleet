@@ -43,6 +43,7 @@ from reportlab.platypus import (
 
 import node_removal
 import password_policy
+import vulnerability
 from auth import (
     APIKeyCreate,
     CurrentUser,
@@ -128,6 +129,7 @@ async def lifespan(app: FastAPI):
     # Node removal (#160): schema for existing installs and the background task
     await node_removal.ensure_schema_on(db_pool)
     await password_policy.ensure_schema(db_pool)
+    await vulnerability.ensure_schema(db_pool)
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
@@ -3382,7 +3384,7 @@ class RemediationEngine:
             vulns = await conn.fetch(f"""
                 SELECT v.id, v.software_name, v.software_version, v.cve_id, v.severity, v.cvss_score,
                        nv.node_id
-                FROM vulnerabilities v
+                FROM verified_vulnerabilities v
                 JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id
                 {where}
                 ORDER BY v.cvss_score DESC NULLS LAST
@@ -3448,7 +3450,7 @@ async def get_remediation_summary(pool):
         failed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'failed'") or 0
         running = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'running'") or 0
         fixable = await conn.fetchval("""
-            SELECT COUNT(DISTINCT v.id) FROM vulnerabilities v
+            SELECT COUNT(DISTINCT v.id) FROM verified_vulnerabilities v
             JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id
             WHERE UPPER(v.severity) IN ('CRITICAL', 'HIGH')
         """) or 0
@@ -5755,7 +5757,7 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
         by_severity = await conn.fetch("""
             SELECT v.severity, COUNT(*) as count 
             FROM node_vulnerabilities nv
-            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            JOIN verified_vulnerabilities v ON v.id = nv.vulnerability_id
             GROUP BY v.severity ORDER BY 
                 CASE v.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END
         """)
@@ -5767,7 +5769,7 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
                    COUNT(*) FILTER (WHERE v.severity = 'critical') as critical,
                    COUNT(*) FILTER (WHERE v.severity = 'high') as high
             FROM node_vulnerabilities nv
-            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            JOIN verified_vulnerabilities v ON v.id = nv.vulnerability_id
             GROUP BY nv.node_id ORDER BY critical DESC, high DESC, total DESC
         """)
         
@@ -5778,7 +5780,7 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
                    MAX(v.cvss_score) as cvss_score,
                    MAX(v.description) as description
             FROM node_vulnerabilities nv
-            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            JOIN verified_vulnerabilities v ON v.id = nv.vulnerability_id
             WHERE v.cve_id IS NOT NULL
             GROUP BY v.cve_id, v.severity, v.software_name
             ORDER BY 
@@ -5793,7 +5795,7 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
                    COUNT(DISTINCT nv.node_id) as affected_nodes,
                    MAX(v.severity) as max_severity
             FROM node_vulnerabilities nv
-            JOIN vulnerabilities v ON v.id = nv.vulnerability_id
+            JOIN verified_vulnerabilities v ON v.id = nv.vulnerability_id
             GROUP BY v.software_name
             ORDER BY vuln_count DESC LIMIT 30
         """)

@@ -278,7 +278,7 @@ async def one_click_fix(
     # Get the vulnerability
     async with get_pool().acquire() as conn:
         vuln = await conn.fetchrow(
-            "SELECT * FROM vulnerabilities WHERE id = $1", vulnerability_id
+            "SELECT * FROM verified_vulnerabilities WHERE id = $1", vulnerability_id
         )
         if not vuln:
             raise HTTPException(status_code=404, detail="Vulnerability not found")
@@ -439,7 +439,7 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
                         await conn.execute("""
                             UPDATE node_vulnerabilities nv
                             SET status = 'fixed', fixed_at = NOW(), fixed_by = 'remediation'
-                            FROM vulnerabilities v
+                            FROM verified_vulnerabilities v
                             WHERE nv.vulnerability_id = v.id
                               AND nv.node_id = $1
                               AND v.software_name = $2

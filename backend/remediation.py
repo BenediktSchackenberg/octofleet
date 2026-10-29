@@ -554,7 +554,7 @@ class RemediationEngine:
                     v.cvss_score,
                     v.severity,
                     sc.node_id
-                FROM vulnerabilities v
+                FROM verified_vulnerabilities v
                 JOIN software_current sc ON (
                     sc.name ILIKE '%' || v.software_name || '%'
                     OR v.software_name ILIKE '%' || sc.name || '%'
@@ -732,7 +732,7 @@ async def get_remediation_summary(db_pool) -> dict:
         # Vulnerabilities with available fixes
         fixable = await conn.fetchval("""
             SELECT COUNT(DISTINCT v.id)
-            FROM vulnerabilities v
+            FROM verified_vulnerabilities v
             JOIN remediation_packages rp ON (
                 v.software_name ILIKE '%' || rp.target_software || '%'
                 AND rp.enabled = true

@@ -5,16 +5,79 @@ import logging
 
 logger = logging.getLogger(__name__)
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
+from auth import CurrentUser, require_permission
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
 from vulnerability import VulnerabilityScanner, get_node_vulnerabilities, get_vulnerability_summary
 
 router = APIRouter(tags=["Vulnerabilities"])
+
+
+class CpeMappingUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=500)
+    publisher: str = Field(default="", max_length=255)
+    cpe_vendor: str | None = None
+    cpe_product: str | None = None
+    skip: bool = False
+
+
+@router.get("/api/v1/vulnerabilities/checks")
+async def software_check_status(status: str | None = Query(None, pattern="^(checked|not_checked)$"),
+                                limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0),
+                                _: CurrentUser = Depends(require_permission("settings:write"))):
+    """Show installed software that was checked or deliberately left unverified."""
+    async with get_pool().acquire() as conn:
+        inventory = """WITH inventory AS (
+            SELECT DISTINCT name, version, COALESCE(publisher, '') AS publisher
+            FROM software_current WHERE version IS NOT NULL AND version != ''
+        )"""
+        base = """FROM inventory i
+            LEFT JOIN software_vulnerability_checks c ON c.name = i.name AND c.version = i.version AND c.publisher = i.publisher
+            LEFT JOIN software_cpe_mappings m ON m.name = i.name AND m.publisher = i.publisher
+            WHERE ($1::text IS NULL OR COALESCE(c.status, 'not_checked') = $1)"""
+        total = await conn.fetchval(f"{inventory} SELECT COUNT(*) {base}", status)
+        rows = await conn.fetch(f"""{inventory} SELECT i.name, i.version, i.publisher,
+            COALESCE(c.status, 'not_checked') AS status,
+            COALESCE(c.reason, 'Never checked') AS reason,
+            c.cpe_name, c.checked_at, m.cpe_vendor, m.cpe_product, m.source
+            {base} ORDER BY i.name, i.version LIMIT $2 OFFSET $3""", status, limit, offset)
+    return {"items": [dict(row) for row in rows], "total": total, "limit": limit, "offset": offset}
+
+
+@router.put("/api/v1/vulnerabilities/cpe-mappings")
+async def set_cpe_mapping(data: CpeMappingUpdate,
+                          user: CurrentUser = Depends(require_permission("settings:write"))):
+    """Set a reviewed application CPE vendor/product or skip the software."""
+    if not data.skip and not all(re.fullmatch(r"[a-z0-9][a-z0-9._-]*", part or "")
+                             for part in (data.cpe_vendor, data.cpe_product)):
+        raise HTTPException(status_code=400, detail="CPE vendor and product must be lowercase CPE components")
+    async with get_pool().acquire() as conn:
+        async with conn.transaction():
+            exists = await conn.fetchval("""SELECT 1 FROM software_current
+                WHERE name = $1 AND COALESCE(publisher, '') = $2 LIMIT 1""", data.name, data.publisher)
+            if not exists:
+                raise HTTPException(status_code=404, detail="Software not found")
+            await conn.execute("""INSERT INTO software_cpe_mappings
+                (name, publisher, cpe_vendor, cpe_product, status, source, updated_at, updated_by)
+                VALUES ($1, $2, $3, $4, $5, 'manual', NOW(), $6)
+                ON CONFLICT (name, publisher) DO UPDATE SET
+                    cpe_vendor = EXCLUDED.cpe_vendor, cpe_product = EXCLUDED.cpe_product,
+                    status = EXCLUDED.status, source = 'manual', updated_at = NOW(), updated_by = EXCLUDED.updated_by""",
+                data.name, data.publisher, None if data.skip else data.cpe_vendor,
+                None if data.skip else data.cpe_product, "skipped" if data.skip else "matched", user.username)
+            await conn.execute("""UPDATE vulnerabilities SET match_source = 'stale'
+                WHERE software_name = $1 AND match_source = 'nvd_cpe'""", data.name)
+            await conn.execute("""UPDATE software_vulnerability_checks SET status = 'not_checked',
+                reason = 'CPE mapping changed; rescan required', cpe_name = NULL
+                WHERE name = $1 AND publisher = $2""", data.name, data.publisher)
+    return {"status": "saved", "rescan_required": True}
 
 
 @router.get("/api/v1/vulnerabilities/summary")
@@ -38,7 +101,7 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
                 COUNT(DISTINCT s.name) as affected_software_count
             FROM nodes n
             JOIN software_current s ON s.node_id = n.id
-            JOIN vulnerabilities v ON s.name = v.software_name AND s.version = v.software_version
+            JOIN verified_vulnerabilities v ON s.name = v.software_name AND s.version = v.software_version
             LEFT JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id AND nv.node_id = n.id::text
             WHERE nv.status IS NULL OR nv.status != 'fixed'
             GROUP BY n.id, n.hostname, n.os_name, n.last_seen
@@ -64,7 +127,7 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
                 COUNT(DISTINCT CASE WHEN v.severity='CRITICAL' THEN v.id END) as critical,
                 COUNT(DISTINCT CASE WHEN v.severity='HIGH' THEN v.id END) as high,
                 array_agg(DISTINCT n.hostname) as affected_nodes
-            FROM vulnerabilities v
+            FROM verified_vulnerabilities v
             JOIN software_current s ON s.name = v.software_name AND s.version = v.software_version
             JOIN nodes n ON n.id = s.node_id
             LEFT JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id AND nv.node_id = n.id::text
@@ -103,11 +166,12 @@ async def list_vulnerabilities(
     """List all discovered vulnerabilities with optional filtering."""
     async with get_pool().acquire() as conn:
         query = """
-            SELECT 
-                v.*,
-                COUNT(DISTINCT s.node_id) as affected_nodes
-            FROM vulnerabilities v
-            LEFT JOIN software_current s ON s.name = v.software_name AND s.version = v.software_version
+            SELECT v.*, COALESCE(installs.affected_nodes, 0) AS affected_nodes
+            FROM verified_vulnerabilities v
+            LEFT JOIN (
+                SELECT name, version, COUNT(DISTINCT node_id) AS affected_nodes
+                FROM software_current GROUP BY name, version
+            ) installs ON installs.name = v.software_name AND installs.version = v.software_version
         """
         params = []
         
@@ -116,7 +180,6 @@ async def list_vulnerabilities(
             params.append(severity.upper())
         
         query += """
-            GROUP BY v.id
             ORDER BY v.cvss_score DESC NULLS LAST, v.discovered_at DESC
             LIMIT $%d OFFSET $%d
         """ % (len(params) + 1, len(params) + 2)
@@ -125,7 +188,7 @@ async def list_vulnerabilities(
         rows = await conn.fetch(query, *params)
         
         # Get total count
-        count_query = "SELECT COUNT(*) FROM vulnerabilities"
+        count_query = "SELECT COUNT(*) FROM verified_vulnerabilities"
         if severity:
             count_query += " WHERE severity = $1"
             total = await conn.fetchval(count_query, severity.upper()) if severity else await conn.fetchval(count_query)
@@ -141,7 +204,8 @@ async def list_vulnerabilities(
 
 
 @router.post("/api/v1/vulnerabilities/scan")
-async def trigger_vulnerability_scan(background_tasks: BackgroundTasks):
+async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
+                                     _: CurrentUser = Depends(require_permission("settings:write"))):
     """Trigger a full vulnerability scan of all software inventory."""
     nvd_api_key = os.environ.get("NVD_API_KEY")
     scanner = VulnerabilityScanner(get_pool(), nvd_api_key)
