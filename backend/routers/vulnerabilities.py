@@ -36,7 +36,8 @@ async def software_check_status(status: str | None = Query(None, pattern="^(chec
     async with get_pool().acquire() as conn:
         inventory = """WITH inventory AS (
             SELECT s.name, s.version, COALESCE(s.publisher, '') AS publisher,
-                BOOL_OR(COALESCE(n.os_name, '') ~* '(linux|ubuntu|debian|red hat|rhel|fedora|centos|suse|alpine)') AS is_linux
+                BOOL_OR(COALESCE(n.os_name, '') ~* '(linux|ubuntu|debian|red hat|rhel|fedora|centos|suse|alpine)') AS is_linux,
+                BOOL_AND(COALESCE(n.os_name, '') ~* 'windows') AS is_windows
             FROM software_current s JOIN nodes n ON n.id = s.node_id
             WHERE s.version IS NOT NULL AND s.version != ''
             GROUP BY s.name, s.version, COALESCE(s.publisher, '')
@@ -46,7 +47,7 @@ async def software_check_status(status: str | None = Query(None, pattern="^(chec
             LEFT JOIN software_cpe_mappings m ON m.name = i.name AND m.publisher = i.publisher
             WHERE ($1::text IS NULL OR COALESCE(c.status, 'not_checked') = $1)"""
         total = await conn.fetchval(f"{inventory} SELECT COUNT(*) {base}", status)
-        rows = await conn.fetch(f"""{inventory} SELECT i.name, i.version, i.publisher, i.is_linux,
+        rows = await conn.fetch(f"""{inventory} SELECT i.name, i.version, i.publisher, i.is_linux, i.is_windows,
             COALESCE(c.status, 'not_checked') AS status,
             COALESCE(c.reason, 'Never checked') AS reason,
             c.cpe_name, c.checked_at, m.cpe_vendor, m.cpe_product, m.source

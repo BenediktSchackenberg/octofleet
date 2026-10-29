@@ -837,6 +837,10 @@ CREATE VIEW public.verified_vulnerabilities AS
  SELECT * FROM public.vulnerabilities v
  WHERE (v.match_source = 'nvd_cpe' AND EXISTS (
      SELECT 1 FROM public.software_current s WHERE s.name = v.software_name AND s.version = v.software_version
+ ) AND NOT EXISTS (
+     SELECT 1 FROM public.software_current s JOIN public.nodes n ON n.id = s.node_id
+     WHERE s.name = v.software_name AND s.version = v.software_version
+       AND COALESCE(n.os_name, '') !~* 'windows'
  )) OR (v.match_source = 'osv_distro' AND v.match_scope IS NOT NULL
      AND EXISTS (SELECT 1 FROM public.software_current s JOIN public.nodes n ON n.id = s.node_id
          WHERE s.name = v.software_name AND s.version = v.software_version
