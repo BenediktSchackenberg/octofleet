@@ -555,11 +555,8 @@ class RemediationEngine:
                     v.severity,
                     sc.node_id
                 FROM verified_vulnerabilities v
-                JOIN software_current sc ON (
-                    sc.name ILIKE '%' || v.software_name || '%'
-                    OR v.software_name ILIKE '%' || sc.name || '%'
-                )
-                WHERE v.severity IS NOT NULL
+                JOIN software_current sc ON sc.name = v.software_name AND sc.version = v.software_version
+                WHERE v.severity IS NOT NULL AND v.match_source = 'nvd_cpe'
             """
             params = []
             idx = 1
@@ -737,7 +734,7 @@ async def get_remediation_summary(db_pool) -> dict:
                 v.software_name ILIKE '%' || rp.target_software || '%'
                 AND rp.enabled = true
             )
-            WHERE v.severity IN ('CRITICAL', 'HIGH')
+            WHERE v.severity IN ('CRITICAL', 'HIGH') AND v.match_source = 'nvd_cpe'
         """)
         
         return {

@@ -291,8 +291,11 @@ collect_software() {
     # Detect package manager and collect packages
     if command -v dpkg &>/dev/null; then
         # Debian/Ubuntu - use jq to build proper JSON
-        packages=$(dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' 2>/dev/null | \
-            jq -R -s 'split("\n") | map(select(. != "") | split("\t") | {name: .[0], version: .[1], architecture: .[2]})' 2>/dev/null || echo '[]')
+        packages=$(dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' 2>/dev/null | \
+            jq -R -s 'split("\n") | map(select(. != "") | split("\t") |
+                {name: .[0], version: .[1], architecture: .[2],
+                 sourcePackage: (if .[3] == "" then .[0] else .[3] end),
+                 sourceVersion: (if .[4] == "" then .[1] else .[4] end)})' 2>/dev/null || echo '[]')
     elif command -v rpm &>/dev/null; then
         # RHEL/Fedora/CentOS
         packages=$(rpm -qa --queryformat '%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}\n' 2>/dev/null | \
@@ -303,8 +306,15 @@ collect_software() {
             jq -R -s 'split("\n") | map(select(. != "") | split(" ") | {name: .[0], version: .[1]})' 2>/dev/null || echo '[]')
     elif command -v apk &>/dev/null; then
         # Alpine
-        packages=$(apk list --installed 2>/dev/null | \
-            jq -R -s 'split("\n") | map(select(. != "") | split(" ")[0] | split("-") | {name: .[0], version: .[1]})' 2>/dev/null || echo '[]')
+        packages=$(apk --installed query --format json --fields name,version,origin '*' 2>/dev/null | \
+            jq '[.[] | {name: .name, version: .version,
+                sourcePackage: (.origin // .name), sourceVersion: .version}]' 2>/dev/null || echo '[]')
+        if [ "$packages" = "[]" ]; then
+            packages=$(apk list --installed 2>/dev/null | \
+                jq -R -s 'split("\n") | map(select(. != "") | split(" ")[0] |
+                    capture("^(?<name>.+)-(?<version>[0-9][^-]*-r[0-9]+)$") |
+                    {name: .name, version: .version})' 2>/dev/null || echo '[]')
+        fi
     fi
     
     local count=$(echo "$packages" | jq 'length' 2>/dev/null || echo 0)

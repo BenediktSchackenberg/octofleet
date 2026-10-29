@@ -686,6 +686,8 @@ CREATE TABLE public.software_current (
     name character varying(500) NOT NULL,
     version character varying(100),
     publisher character varying(255),
+    source_package text,
+    source_version text,
     install_date date,
     install_path text,
     size_mb integer,
@@ -828,10 +830,26 @@ CREATE TABLE public.vulnerabilities (
     reference_urls jsonb DEFAULT '[]'::jsonb,
     discovered_at timestamp with time zone DEFAULT now(),
     last_checked timestamp with time zone DEFAULT now(),
-    match_source text DEFAULT 'legacy_keyword'::text NOT NULL
+    match_source text DEFAULT 'legacy_keyword'::text NOT NULL,
+    match_scope text
 );
 CREATE VIEW public.verified_vulnerabilities AS
- SELECT * FROM public.vulnerabilities WHERE match_source = 'nvd_cpe';
+ SELECT * FROM public.vulnerabilities v
+ WHERE (v.match_source = 'nvd_cpe' AND EXISTS (
+     SELECT 1 FROM public.software_current s WHERE s.name = v.software_name AND s.version = v.software_version
+ ) AND NOT EXISTS (
+     SELECT 1 FROM public.software_current s JOIN public.nodes n ON n.id = s.node_id
+     WHERE s.name = v.software_name AND s.version = v.software_version
+       AND COALESCE(n.os_name, '') !~* 'windows'
+ )) OR (v.match_source = 'osv_distro' AND v.match_scope IS NOT NULL
+     AND EXISTS (SELECT 1 FROM public.software_current s JOIN public.nodes n ON n.id = s.node_id
+         WHERE s.name = v.software_name AND s.version = v.software_version
+           AND CONCAT_WS('|', COALESCE(n.os_name, ''), COALESCE(n.os_version, ''),
+               COALESCE(s.source_package, ''), COALESCE(s.source_version, '')) = v.match_scope)
+     AND NOT EXISTS (SELECT 1 FROM public.software_current s JOIN public.nodes n ON n.id = s.node_id
+         WHERE s.name = v.software_name AND s.version = v.software_version
+           AND CONCAT_WS('|', COALESCE(n.os_name, ''), COALESCE(n.os_version, ''),
+               COALESCE(s.source_package, ''), COALESCE(s.source_version, '')) <> v.match_scope));
 CREATE TABLE public.software_cpe_mappings (
     name text NOT NULL,
     publisher text DEFAULT ''::text NOT NULL,
@@ -871,7 +889,7 @@ CREATE VIEW public.v_remediable_vulnerabilities AS
         END AS has_fix_available
    FROM (public.verified_vulnerabilities v
      LEFT JOIN public.remediation_packages rp ON (((v.software_name ~~* (('%'::text || rp.target_software) || '%'::text)) AND (rp.enabled = true))))
-  WHERE (v.severity = ANY (ARRAY['CRITICAL'::text, 'HIGH'::text]))
+  WHERE (v.severity = ANY (ARRAY['CRITICAL'::text, 'HIGH'::text])) AND v.match_source = 'nvd_cpe'
   ORDER BY v.cvss_score DESC NULLS LAST;
 CREATE VIEW public.v_software_stats AS
  SELECT name,
@@ -1126,6 +1144,7 @@ CREATE INDEX idx_sessions_user ON public.sessions USING btree (user_id);
 CREATE INDEX idx_snapshots_node ON public.node_snapshots USING btree (node_id, "time" DESC);
 CREATE INDEX idx_software_changes_node ON public.software_changes USING btree (node_id, "time" DESC);
 CREATE INDEX idx_software_name ON public.software_current USING btree (name);
+CREATE INDEX idx_software_name_version ON public.software_current USING btree (name, version);
 CREATE INDEX idx_software_node ON public.software_current USING btree (node_id);
 CREATE INDEX idx_software_publisher ON public.software_current USING btree (publisher);
 CREATE INDEX idx_update_history_node_date ON public.update_history USING btree (node_id, installed_on DESC);

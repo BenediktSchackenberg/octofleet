@@ -268,9 +268,9 @@ async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
         await conn.execute("DELETE FROM software_current WHERE node_id = $1", uuid)
         for prog in programs:
             await conn.execute("""
-                INSERT INTO software_current (node_id, name, version, publisher, install_date, install_path, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, None, prog.get("installLocation"))
+                INSERT INTO software_current (node_id, name, version, publisher, source_package, source_version, install_date, install_path, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, (prog.get("sourcePackage") or None), (prog.get("sourceVersion") or None), None, prog.get("installLocation"))
     return {"status": "ok", "node_id": str(uuid), "type": "software", "count": len(programs)}
 
 @router.post("/hotfixes")
