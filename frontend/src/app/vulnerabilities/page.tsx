@@ -2,7 +2,7 @@
 import { apiClient } from "@/lib/api-client";
 import { NodeVulnerabilityPreview } from "@/components/node-vulnerabilities";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,6 +78,7 @@ interface ScanHistory {
   critical_count: number;
   high_count: number;
   status: string;
+  error_message: string | null;
 }
 
 export default function VulnerabilitiesPage() {
@@ -574,7 +575,8 @@ export default function VulnerabilitiesPage() {
                   </thead>
                   <tbody>
                     {scans.map((scan) => (
-                      <tr key={scan.id} className="border-b hover:bg-muted/50">
+                      <Fragment key={scan.id}>
+                      <tr className="border-b hover:bg-muted/50">
                         <td className="py-2 px-3">{new Date(scan.started_at).toLocaleString("de-DE")}</td>
                         <td className="py-2 px-3">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -590,6 +592,12 @@ export default function VulnerabilitiesPage() {
                         <td className="py-2 px-3 text-right text-red-400 font-bold">{scan.critical_count}</td>
                         <td className="py-2 px-3 text-right text-orange-500 font-bold">{scan.high_count}</td>
                       </tr>
+                      {scan.status === "failed" && scan.error_message && (
+                        <tr className="border-b">
+                          <td colSpan={6} className="px-3 pb-3 text-sm text-red-400">{scan.error_message}</td>
+                        </tr>
+                      )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

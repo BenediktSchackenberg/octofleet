@@ -283,7 +283,7 @@ async def export_vulnerabilities_excel(db: asyncpg.Pool = Depends(get_db)):
                     WHERE s.name ILIKE v.software_name 
                     AND s.version = v.software_version
                     LIMIT 5) as node_list
-            FROM vulnerabilities v
+            FROM verified_vulnerabilities v
             ORDER BY v.cvss_score DESC NULLS LAST, v.software_name
         """)
     
@@ -519,7 +519,7 @@ async def generate_security_report_pdf(db: asyncpg.Pool = Depends(get_db)):
                v.software_name, v.software_version,
                (SELECT COUNT(DISTINCT s.node_id) FROM software_current s 
                 WHERE s.name = v.software_name AND s.version = v.software_version) as affected_nodes
-        FROM vulnerabilities v
+        FROM verified_vulnerabilities v
         ORDER BY v.cvss_score DESC NULLS LAST
         LIMIT 50
     """)
@@ -527,7 +527,7 @@ async def generate_security_report_pdf(db: asyncpg.Pool = Depends(get_db)):
     # Severity distribution
     severity_stats = await db.fetch("""
         SELECT severity, COUNT(*) as count
-        FROM vulnerabilities
+        FROM verified_vulnerabilities
         GROUP BY severity
         ORDER BY CASE severity 
             WHEN 'critical' THEN 1 
@@ -544,7 +544,7 @@ async def generate_security_report_pdf(db: asyncpg.Pool = Depends(get_db)):
                SUM(CASE WHEN v.severity = 'critical' THEN 1 ELSE 0 END) as critical_count
         FROM nodes n
         JOIN software_current s ON s.node_id = n.id
-        JOIN vulnerabilities v ON v.software_name = s.name AND v.software_version = s.version
+        JOIN verified_vulnerabilities v ON v.software_name = s.name AND v.software_version = s.version
         GROUP BY n.id, n.hostname
         HAVING COUNT(DISTINCT v.id) > 0
         ORDER BY critical_count DESC, vuln_count DESC
@@ -1347,7 +1347,7 @@ async def executive_dashboard(db: asyncpg.Pool = Depends(get_db)):
             SELECT
                 SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) AS critical_vulns,
                 SUM(CASE WHEN severity IN ('critical','high','medium','low') THEN 1 ELSE 0 END) AS open_findings
-            FROM vulnerabilities
+            FROM verified_vulnerabilities
         ),
         patch AS (
             SELECT
@@ -1391,7 +1391,7 @@ async def executive_dashboard(db: asyncpg.Pool = Depends(get_db)):
         SELECT v.cve_id AS cve,
                v.severity,
                COUNT(DISTINCT s.node_id) AS affected_nodes
-        FROM vulnerabilities v
+        FROM verified_vulnerabilities v
         LEFT JOIN software_current s
           ON s.name ILIKE v.software_name AND s.version = v.software_version
         GROUP BY v.cve_id, v.severity

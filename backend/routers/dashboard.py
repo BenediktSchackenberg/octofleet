@@ -42,7 +42,7 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
                 COUNT(*) FILTER (WHERE severity = 'HIGH') as high,
                 COUNT(*) FILTER (WHERE severity = 'MEDIUM') as medium,
                 COUNT(*) FILTER (WHERE severity = 'LOW') as low
-            FROM vulnerabilities
+            FROM verified_vulnerabilities
         """)
         
         # Get job stats (last 24h)
