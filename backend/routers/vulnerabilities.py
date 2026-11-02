@@ -231,6 +231,8 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
                         vulnerabilities_found = $2,
                         critical_count = $3,
                         high_count = $4,
+                        not_checked_packages = $6,
+                        error_packages = $7,
                         status = 'completed'
                     WHERE id = $5
                 """, 
@@ -238,7 +240,9 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
                     result["total_vulnerabilities"],
                     result["critical"],
                     result["high"],
-                    scan_id
+                    scan_id,
+                    result.get("not_checked_packages", 0),
+                    result.get("error_packages", 0)
                 )
             
             # AUTO-REMEDIATION: After vuln scan completes, create remediation jobs
