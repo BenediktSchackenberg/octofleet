@@ -15,7 +15,8 @@ from pydantic import BaseModel, Field
 from auth import CurrentUser, require_permission
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
-from vulnerability import VulnerabilityScanner, get_node_vulnerabilities, get_vulnerability_summary
+from vulnerability import (VulnerabilityScanner, get_node_vulnerabilities, get_vulnerability_summary,
+                           run_vulnerability_scan)
 
 router = APIRouter(tags=["Vulnerabilities"])
 
@@ -220,49 +221,16 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
             INSERT INTO vulnerability_scans (status) VALUES ('running') RETURNING id
         """)
     
-    async def run_scan():
-        try:
-            result = await scanner.scan_all_nodes()
-            async with get_pool().acquire() as conn:
-                await conn.execute("""
-                    UPDATE vulnerability_scans SET
-                        completed_at = NOW(),
-                        packages_scanned = $1,
-                        vulnerabilities_found = $2,
-                        critical_count = $3,
-                        high_count = $4,
-                        status = 'completed'
-                    WHERE id = $5
-                """, 
-                    result["scanned_packages"],
-                    result["total_vulnerabilities"],
-                    result["critical"],
-                    result["high"],
-                    scan_id
-                )
-            
-            # AUTO-REMEDIATION: After vuln scan completes, create remediation jobs
-            try:
-                engine = RemediationEngine(get_pool())
-                remediation_result = await engine.scan_and_create_jobs(
-                    severity_filter=['CRITICAL', 'HIGH'],
-                    dry_run=False
-                )
-                logger.info(f"Auto-remediation: Created {remediation_result['jobs_created']} jobs for {remediation_result['with_fix_available']} fixable vulns")
-            except Exception as re:
-                logger.error(f"Auto-remediation failed: {re}")
-                
-        except Exception as e:
-            async with get_pool().acquire() as conn:
-                await conn.execute("""
-                    UPDATE vulnerability_scans SET
-                        completed_at = NOW(),
-                        status = 'failed',
-                        error_message = $1
-                    WHERE id = $2
-                """, str(e), scan_id)
-    
-    background_tasks.add_task(run_scan)
+    async def create_remediation_jobs():
+        # AUTO-REMEDIATION: after a complete scan, create remediation jobs
+        engine = RemediationEngine(get_pool())
+        remediation_result = await engine.scan_and_create_jobs(
+            severity_filter=['CRITICAL', 'HIGH'],
+            dry_run=False
+        )
+        logger.info(f"Auto-remediation: Created {remediation_result['jobs_created']} jobs for {remediation_result['with_fix_available']} fixable vulns")
+
+    background_tasks.add_task(run_vulnerability_scan, get_pool(), scanner, scan_id, create_remediation_jobs)
     
     return {"scan_id": scan_id, "status": "started", "message": "Vulnerability scan started in background"}
 
