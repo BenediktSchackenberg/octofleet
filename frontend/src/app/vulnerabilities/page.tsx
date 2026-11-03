@@ -1,5 +1,6 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n-context";
 import { NodeVulnerabilityPreview, UpdateCves, nodeVulnerabilitiesHref } from "@/components/node-vulnerabilities";
 
 import { Fragment, useEffect, useState } from "react";
@@ -44,6 +45,7 @@ interface VulnerabilitySummary {
   }>;
   last_scan: string | null;
   total_vulnerabilities: number;
+  last_completed_scan: { completed_at: string; packages_scanned: number } | null;
 }
 
 interface NodeVulnInfo {
@@ -84,10 +86,22 @@ interface ScanHistory {
   error_message: string | null;
 }
 
+/** "6 min 44 s" between two timestamps. */
+function formatDuration(start: string, end: string): string {
+  const seconds = Math.max(0, (new Date(end).getTime() - new Date(start).getTime()) / 1000);
+  if (seconds < 60) return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ${Math.round(seconds % 60)} s`;
+  return `${Math.floor(seconds / 3600)} h ${Math.round((seconds % 3600) / 60)} min`;
+}
+
 const TABS = ['overview', 'nodes', 'software', 'cves', 'scans'] as const;
 type Tab = typeof TABS[number];
 
 export default function VulnerabilitiesPage() {
+  const { t, locale } = useI18n();
+  const p = (key: string, params?: Record<string, string | number>) => t(`vulnerabilitiesPage.${key}`, params);
+  const sev = (severity: string) => t(`nodes.vulnerabilities.severity.${severity}`);
+  const formatTime = (value: string) => new Date(value).toLocaleString(locale);
   const [summary, setSummary] = useState<VulnerabilitySummary | null>(null);
   const [nodeVulns, setNodeVulns] = useState<NodeVulnInfo[]>([]);
   const [softwareVulns, setSoftwareVulns] = useState<SoftwareVulnInfo[]>([]);
@@ -133,7 +147,7 @@ export default function VulnerabilitiesPage() {
       if (softwareRes) { setSoftwareVulns(softwareRes.software || []); }
       if (scansRes) { setScans(scansRes.scans || []); }
     } catch (err) {
-      setError("Failed to load vulnerability data");
+      setError(p("errorLoad"));
     } finally {
       setLoading(false);
     }
@@ -151,7 +165,7 @@ export default function VulnerabilitiesPage() {
       const res = await apiClient.post(`/vulnerabilities/scan`, {}, { showErrorToast: false });
       if (res) setTimeout(fetchData, 2000);
     } catch (err) {
-      setError("Failed to start scan");
+      setError(p("errorScan"));
     } finally {
       setScanning(false);
     }
@@ -173,11 +187,11 @@ export default function VulnerabilitiesPage() {
   const getRiskLevel = (severity: string | null, cvss: number | null) => {
     const named = severity && severity !== "UNKNOWN" ? severity : null;
     const level = named || (cvss == null ? null : cvss >= 9 ? "CRITICAL" : cvss >= 7 ? "HIGH" : cvss >= 4 ? "MEDIUM" : "LOW");
-    if (level === "CRITICAL") return { label: "Kritisch", color: "text-red-500", bg: "bg-red-500", badge: "bg-red-600 text-white" };
-    if (level === "HIGH") return { label: "Hoch", color: "text-orange-500", bg: "bg-orange-500", badge: "bg-orange-500 text-white" };
-    if (level === "MEDIUM") return { label: "Mittel", color: "text-yellow-500", bg: "bg-yellow-500", badge: "bg-yellow-500 text-black" };
-    if (level === "LOW") return { label: "Niedrig", color: "text-blue-500", bg: "bg-blue-500", badge: "bg-blue-500 text-white" };
-    return { label: "Unbekannt", color: "text-zinc-400", bg: "bg-zinc-500", badge: "bg-zinc-600 text-white" };
+    if (level === "CRITICAL") return { label: sev("critical"), color: "text-red-500", bg: "bg-red-500", badge: "bg-red-600 text-white" };
+    if (level === "HIGH") return { label: sev("high"), color: "text-orange-500", bg: "bg-orange-500", badge: "bg-orange-500 text-white" };
+    if (level === "MEDIUM") return { label: sev("medium"), color: "text-yellow-500", bg: "bg-yellow-500", badge: "bg-yellow-500 text-black" };
+    if (level === "LOW") return { label: sev("low"), color: "text-blue-500", bg: "bg-blue-500", badge: "bg-blue-500 text-white" };
+    return { label: sev("unknown"), color: "text-zinc-400", bg: "bg-zinc-500", badge: "bg-zinc-600 text-white" };
   };
 
   if (loading) {
@@ -192,12 +206,12 @@ export default function VulnerabilitiesPage() {
   return (
     <div className="p-6 space-y-6">
 <PageHeader
-        title="🛡️ Vulnerability Dashboard"
-        description="CVE-Tracking für installierte Software — powered by NVD"
+        title={`🛡️ ${p("title")}`}
+        description={p("description")}
         actions={
           <Button onClick={triggerScan} disabled={scanning}>
             <RefreshCw className={`h-4 w-4 mr-2 ${scanning ? "animate-spin" : ""}`} />
-            {scanning ? "Scanning..." : "Scan starten"}
+            {scanning ? p("scanning") : p("scan")}
           </Button>
         }
       />
@@ -207,7 +221,7 @@ export default function VulnerabilitiesPage() {
         <Card className="border-l-4 border-l-red-600">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ShieldX className="h-4 w-4 text-red-400" /> Critical
+              <ShieldX className="h-4 w-4 text-red-400" /> {sev("critical")}
             </CardTitle>
           </CardHeader>
           <CardContent><div className="text-3xl font-bold text-red-400">{criticalCount}</div></CardContent>
@@ -215,7 +229,7 @@ export default function VulnerabilitiesPage() {
         <Card className="border-l-4 border-l-orange-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-orange-500" /> High
+              <ShieldAlert className="h-4 w-4 text-orange-500" /> {sev("high")}
             </CardTitle>
           </CardHeader>
           <CardContent><div className="text-3xl font-bold text-orange-500">{highCount}</div></CardContent>
@@ -223,7 +237,7 @@ export default function VulnerabilitiesPage() {
         <Card className="border-l-4 border-l-yellow-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-500" /> Medium
+              <AlertTriangle className="h-4 w-4 text-yellow-500" /> {sev("medium")}
             </CardTitle>
           </CardHeader>
           <CardContent><div className="text-3xl font-bold text-yellow-600">{mediumCount}</div></CardContent>
@@ -231,7 +245,7 @@ export default function VulnerabilitiesPage() {
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-blue-500" /> Low
+              <ShieldCheck className="h-4 w-4 text-blue-500" /> {sev("low")}
             </CardTitle>
           </CardHeader>
           <CardContent><div className="text-3xl font-bold text-blue-500">{lowCount}</div></CardContent>
@@ -239,7 +253,7 @@ export default function VulnerabilitiesPage() {
         <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Server className="h-4 w-4 text-purple-500" /> Betroffene Nodes
+              <Server className="h-4 w-4 text-purple-500" /> {p("affectedNodes")}
             </CardTitle>
           </CardHeader>
           <CardContent><div className="text-3xl font-bold text-purple-500">{summary?.affected_nodes || 0}</div></CardContent>
@@ -249,11 +263,11 @@ export default function VulnerabilitiesPage() {
       {/* Tab Navigation */}
       <div className="flex gap-1 border-b border-border">
         {[
-          { key: 'overview', label: 'Übersicht', icon: Bug },
-          { key: 'nodes', label: 'Nach Node', icon: Monitor },
-          { key: 'software', label: 'Nach Software', icon: Package },
-          { key: 'cves', label: 'Top CVEs', icon: ShieldX },
-          { key: 'scans', label: 'Scan Historie', icon: Clock },
+          { key: 'overview', label: p("tabOverview"), icon: Bug },
+          { key: 'nodes', label: p("tabNodes"), icon: Monitor },
+          { key: 'software', label: p("tabSoftware"), icon: Package },
+          { key: 'cves', label: p("tabCves"), icon: ShieldX },
+          { key: 'scans', label: p("tabScans"), icon: Clock },
         ].map(tab => (
           <button
             key={tab.key}
@@ -277,14 +291,14 @@ export default function VulnerabilitiesPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ShieldX className="h-5 w-5 text-red-500" /> Top 10 Kritische CVEs
+                <ShieldX className="h-5 w-5 text-red-500" /> {p("top10Critical")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {summary?.top_cves && summary.top_cves.length > 0 ? (
                 <div className="space-y-3">
                   {summary.top_cves.map((cve) => (
-                    <div key={cve.cve_id} className="flex items-start justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                    <div key={`${cve.cve_id}-${cve.software_name}`} className="flex items-start justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <a href={`https://nvd.nist.gov/vuln/detail/${cve.cve_id}`} target="_blank" rel="noopener noreferrer"
@@ -300,7 +314,7 @@ export default function VulnerabilitiesPage() {
                       </div>
                       <div className="text-right ml-4">
                         <div className="text-sm font-medium">{cve.affected_nodes}</div>
-                        <div className="text-xs text-muted-foreground">Nodes</div>
+                        <div className="text-xs text-muted-foreground">{p("nodes")}</div>
                       </div>
                     </div>
                   ))}
@@ -308,7 +322,7 @@ export default function VulnerabilitiesPage() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-green-500" />
-                  <p>Keine kritischen CVEs gefunden</p>
+                  <p>{p("noCriticalFound")}</p>
                 </div>
               )}
             </CardContent>
@@ -318,7 +332,7 @@ export default function VulnerabilitiesPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Bug className="h-5 w-5 text-orange-500" /> Software mit meisten Vulnerabilities
+                <Bug className="h-5 w-5 text-orange-500" /> {p("mostVulnerable")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -334,11 +348,11 @@ export default function VulnerabilitiesPage() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <div className="text-lg font-bold text-red-500">{sw.vuln_count}</div>
-                          <div className="text-xs text-muted-foreground">CVEs</div>
+                          <div className="text-xs text-muted-foreground">{p("cves")}</div>
                         </div>
                         <div className="text-right">
                           <div className="font-medium">{sw.node_count}</div>
-                          <div className="text-xs text-muted-foreground">Nodes</div>
+                          <div className="text-xs text-muted-foreground">{p("nodes")}</div>
                         </div>
                         <div className={`px-2 py-1 rounded text-xs font-bold ${
                           getRiskLevel(sw.max_severity, sw.max_cvss).badge
@@ -350,7 +364,7 @@ export default function VulnerabilitiesPage() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-green-500" />
-                  <p>Keine vulnerablen Software gefunden</p>
+                  <p>{p("noVulnerableSoftware")}</p>
                 </div>
               )}
             </CardContent>
@@ -363,7 +377,7 @@ export default function VulnerabilitiesPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Monitor className="h-5 w-5" /> Vulnerabilities nach Node
+              <Monitor className="h-5 w-5" /> {p("byNodeTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -384,8 +398,8 @@ export default function VulnerabilitiesPage() {
                           <div>
                             <div className="font-semibold">{node.hostname}</div>
                             <div className="text-xs text-muted-foreground">
-                              {node.os_type || "Windows"} · {node.affected_software_count} betroffene Updates
-                              {node.last_seen && ` · Zuletzt gesehen: ${new Date(node.last_seen).toLocaleString("de-DE")}`}
+                              {node.os_type || "Windows"} · {p("affectedUpdates", { count: node.affected_software_count })}
+                              {node.last_seen && ` · ${p("lastSeen", { time: formatTime(node.last_seen) })}`}
                             </div>
                           </div>
                         </div>
@@ -393,21 +407,21 @@ export default function VulnerabilitiesPage() {
                           {/* Severity badges */}
                           <div className="flex items-center gap-2">
                             {([
-                              ["CRITICAL", node.critical, "Critical", "bg-red-600 text-white"],
-                              ["HIGH", node.high, "High", "bg-orange-500 text-white"],
-                              ["MEDIUM", node.medium, "Med", "bg-yellow-500 text-black"],
-                              ["LOW", node.low, "Low", "bg-blue-500 text-white"],
-                            ] as const).filter(([, count]) => count > 0).map(([severity, count, label, color]) => (
+                              ["CRITICAL", node.critical, "bg-red-600 text-white"],
+                              ["HIGH", node.high, "bg-orange-500 text-white"],
+                              ["MEDIUM", node.medium, "bg-yellow-500 text-black"],
+                              ["LOW", node.low, "bg-blue-500 text-white"],
+                            ] as const).filter(([, count]) => count > 0).map(([severity, count, color]) => (
                               <a key={severity} href={nodeVulnerabilitiesHref(node.hostname, { severity })}
                                  onClick={(e) => e.stopPropagation()}
                                  className={`px-2 py-1 rounded text-xs font-bold hover:opacity-80 ${color}`}>
-                                {count} {label}
+                                {count} {sev(severity.toLowerCase())}
                               </a>
                             ))}
                           </div>
                           <div className="text-right min-w-[60px]">
                             <div className={`text-2xl font-bold ${risk.color}`}>{node.total_vulns}</div>
-                            <div className="text-xs text-muted-foreground">Total</div>
+                            <div className="text-xs text-muted-foreground">{p("total")}</div>
                           </div>
                         </div>
                       </div>
@@ -416,7 +430,7 @@ export default function VulnerabilitiesPage() {
                       {expandedNode === node.id && (
                         <div className="px-4 pb-4 space-y-3 border-t">
                           <div className="pt-3">
-                            <div className="text-sm font-medium mb-2">Severity Verteilung</div>
+                            <div className="text-sm font-medium mb-2">{p("severityDistribution")}</div>
                             <div className="flex h-4 rounded-full overflow-hidden bg-muted">
                               {node.critical > 0 && <div className="bg-red-600" style={{ width: `${(node.critical / totalBar) * 100}%` }} />}
                               {node.high > 0 && <div className="bg-orange-500" style={{ width: `${(node.high / totalBar) * 100}%` }} />}
@@ -425,13 +439,13 @@ export default function VulnerabilitiesPage() {
                             </div>
                             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
                               {([
-                                ["CRITICAL", "🔴", node.critical, "Critical"],
-                                ["HIGH", "🟠", node.high, "High"],
-                                ["MEDIUM", "🟡", node.medium, "Medium"],
-                                ["LOW", "🔵", node.low, "Low"],
-                              ] as const).map(([severity, dot, count, label]) => (
+                                ["CRITICAL", "🔴", node.critical],
+                                ["HIGH", "🟠", node.high],
+                                ["MEDIUM", "🟡", node.medium],
+                                ["LOW", "🔵", node.low],
+                              ] as const).map(([severity, dot, count]) => (
                                 <a key={severity} href={nodeVulnerabilitiesHref(node.hostname, { severity })} className="hover:underline">
-                                  {dot} {count} {label}
+                                  {dot} {count} {sev(severity.toLowerCase())}
                                 </a>
                               ))}
                             </div>
@@ -439,11 +453,11 @@ export default function VulnerabilitiesPage() {
                           <div className="flex gap-4 text-sm">
                             <div className="flex items-center gap-2">
                               <Package className="h-4 w-4 text-muted-foreground" />
-                              <span><strong>{node.affected_software_count}</strong> betroffene Updates</span>
+                              <span>{p("affectedUpdates", { count: node.affected_software_count })}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                              <span>Max CVSS: <strong className={risk.color}>{node.max_cvss != null ? node.max_cvss.toFixed(1) : "–"}</strong></span>
+                              <span>{p("maxCvss")}: <strong className={risk.color}>{node.max_cvss != null ? node.max_cvss.toFixed(1) : "–"}</strong></span>
                             </div>
                           </div>
                           <NodeVulnerabilityPreview nodeId={node.id} hostname={node.hostname} />
@@ -456,7 +470,7 @@ export default function VulnerabilitiesPage() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-green-500" />
-                <p>Keine betroffenen Nodes</p>
+                <p>{p("noNodes")}</p>
               </div>
             )}
           </CardContent>
@@ -468,7 +482,7 @@ export default function VulnerabilitiesPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" /> Vulnerabilities nach Software
+              <Package className="h-5 w-5" /> {p("bySoftwareTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -490,7 +504,7 @@ export default function VulnerabilitiesPage() {
                             <span className="text-sm text-muted-foreground">v{sw.software_version}</span>
                           </div>
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground">Installiert auf:</span>
+                            <span className="text-xs text-muted-foreground">{p("installedOn")}</span>
                             {sw.affected_nodes.map(n => (
                               <a key={n} href={nodeVulnerabilitiesHref(n, { unit: sw.software_name, version: sw.software_version })}
                                 onClick={(e) => e.stopPropagation()}
@@ -504,18 +518,18 @@ export default function VulnerabilitiesPage() {
                           {sw.critical > 0 && (
                             <div className="text-center">
                               <div className="text-lg font-bold text-red-400">{sw.critical}</div>
-                              <div className="text-xs text-muted-foreground">Critical</div>
+                              <div className="text-xs text-muted-foreground">{sev("critical")}</div>
                             </div>
                           )}
                           {sw.high > 0 && (
                             <div className="text-center">
                               <div className="text-lg font-bold text-orange-500">{sw.high}</div>
-                              <div className="text-xs text-muted-foreground">High</div>
+                              <div className="text-xs text-muted-foreground">{sev("high")}</div>
                             </div>
                           )}
                           <div className="text-center">
                             <div className={`text-2xl font-bold ${risk.color}`}>{sw.vuln_count}</div>
-                            <div className="text-xs text-muted-foreground">CVEs</div>
+                            <div className="text-xs text-muted-foreground">{p("cves")}</div>
                           </div>
                           <div className={`px-2.5 py-1.5 rounded text-xs font-bold ${
                             risk.badge
@@ -536,7 +550,7 @@ export default function VulnerabilitiesPage() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-green-500" />
-                <p>Keine vulnerablen Software-Pakete</p>
+                <p>{p("noVulnerablePackages")}</p>
               </div>
             )}
           </CardContent>
@@ -548,14 +562,14 @@ export default function VulnerabilitiesPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShieldX className="h-5 w-5 text-red-500" /> Top Kritische CVEs
+              <ShieldX className="h-5 w-5 text-red-500" /> {p("topCritical")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {summary?.top_cves && summary.top_cves.length > 0 ? (
               <div className="space-y-3">
                 {summary.top_cves.map((cve) => (
-                  <div key={cve.cve_id} className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                  <div key={`${cve.cve_id}-${cve.software_name}`} className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
@@ -572,7 +586,7 @@ export default function VulnerabilitiesPage() {
                       </div>
                       <div className="text-center ml-6 min-w-[70px]">
                         <div className="text-2xl font-bold">{cve.affected_nodes}</div>
-                        <div className="text-xs text-muted-foreground">Nodes betroffen</div>
+                        <div className="text-xs text-muted-foreground">{p("nodesAffected")}</div>
                       </div>
                     </div>
                   </div>
@@ -581,7 +595,7 @@ export default function VulnerabilitiesPage() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-green-500" />
-                <p>Keine kritischen CVEs</p>
+                <p>{p("noCritical")}</p>
               </div>
             )}
           </CardContent>
@@ -593,7 +607,7 @@ export default function VulnerabilitiesPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" /> Scan Historie
+              <Clock className="h-5 w-5" /> {p("tabScans")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -602,19 +616,23 @@ export default function VulnerabilitiesPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-2 px-3">Gestartet</th>
-                      <th className="text-left py-2 px-3">Status</th>
-                      <th className="text-right py-2 px-3">Pakete</th>
-                      <th className="text-right py-2 px-3">Gefunden</th>
-                      <th className="text-right py-2 px-3">Critical</th>
-                      <th className="text-right py-2 px-3">High</th>
+                      <th className="text-left py-2 px-3">{p("started")}</th>
+                      <th className="text-right py-2 px-3">{p("duration")}</th>
+                      <th className="text-left py-2 px-3">{p("status")}</th>
+                      <th className="text-right py-2 px-3">{p("packages")}</th>
+                      <th className="text-right py-2 px-3">{p("found")}</th>
+                      <th className="text-right py-2 px-3">{sev("critical")}</th>
+                      <th className="text-right py-2 px-3">{sev("high")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {scans.map((scan) => (
                       <Fragment key={scan.id}>
                       <tr className="border-b hover:bg-muted/50">
-                        <td className="py-2 px-3">{new Date(scan.started_at).toLocaleString("de-DE")}</td>
+                        <td className="py-2 px-3">{formatTime(scan.started_at)}</td>
+                        <td className="py-2 px-3 text-right whitespace-nowrap" title={scan.completed_at ? p("endedAt", { time: formatTime(scan.completed_at) }) : undefined}>
+                          {scan.completed_at ? formatDuration(scan.started_at, scan.completed_at) : scan.status === "running" ? "…" : "–"}
+                        </td>
                         <td className="py-2 px-3">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
                             scan.status === "completed" ? "bg-green-500/20 text-green-400 dark:bg-green-900 dark:text-green-200" :
@@ -622,7 +640,7 @@ export default function VulnerabilitiesPage() {
                             scan.status === "partial" ? "bg-yellow-500/20 text-yellow-500 dark:bg-yellow-900 dark:text-yellow-200" :
                             "bg-red-500/20 text-red-400 dark:bg-red-900 dark:text-red-200"
                           }`}>
-                            {scan.status === "completed" ? "✓ Fertig" : scan.status === "running" ? "⟳ Läuft..." : scan.status === "partial" ? "⚠ Teilweise" : "✗ Fehler"}
+                            {scan.status === "completed" ? `✓ ${p("statusCompleted")}` : scan.status === "running" ? `⟳ ${p("statusRunning")}` : scan.status === "partial" ? `⚠ ${p("statusPartial")}` : `✗ ${p("statusFailed")}`}
                           </span>
                         </td>
                         <td className="py-2 px-3 text-right">{scan.packages_scanned}</td>
@@ -632,7 +650,7 @@ export default function VulnerabilitiesPage() {
                       </tr>
                       {(scan.status === "failed" || scan.status === "partial") && scan.error_message && (
                         <tr className="border-b">
-                          <td colSpan={6} className={`px-3 pb-3 text-sm ${scan.status === "partial" ? "text-yellow-500" : "text-red-400"}`}>{scan.error_message}</td>
+                          <td colSpan={7} className={`px-3 pb-3 text-sm ${scan.status === "partial" ? "text-yellow-500" : "text-red-400"}`}>{scan.error_message}</td>
                         </tr>
                       )}
                       </Fragment>
@@ -642,8 +660,8 @@ export default function VulnerabilitiesPage() {
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                <p>Noch keine Scans durchgeführt</p>
-                <Button onClick={triggerScan} className="mt-4" variant="outline">Ersten Scan starten</Button>
+                <p>{p("noScans")}</p>
+                <Button onClick={triggerScan} className="mt-4" variant="outline">{p("firstScan")}</Button>
               </div>
             )}
           </CardContent>
@@ -651,10 +669,9 @@ export default function VulnerabilitiesPage() {
       )}
 
       {/* Last Scan Info */}
-      {summary?.last_scan && (
+      {summary?.last_completed_scan && (
         <p className="text-sm text-muted-foreground text-center">
-          Letzter Scan: {new Date(summary.last_scan).toLocaleString("de-DE")} —{" "}
-          {summary.total_vulnerabilities} Vulnerabilities in Datenbank
+          {p("lastScan", { time: formatTime(summary.last_completed_scan.completed_at), count: summary.last_completed_scan.packages_scanned })}
         </p>
       )}
     </div>
