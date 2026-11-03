@@ -237,7 +237,7 @@ function TreeSection({ title, icon, expanded, onToggle, count, indent = 0, class
           <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
         )}
         {icon && <span className="text-xs">{icon}</span>}
-        <span className={cn("truncate", warning && "font-medium")}>{title}</span>
+        <span className={cn("truncate", warning && "font-medium")} title={title}>{title}</span>
         {count !== undefined && (
           <span className={cn("text-xs ml-auto", warning ? "text-yellow-600 dark:text-yellow-500 font-semibold" : "text-muted-foreground")}>({count})</span>
         )}
