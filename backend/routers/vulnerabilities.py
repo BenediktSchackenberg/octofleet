@@ -102,6 +102,7 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
                 COUNT(DISTINCT CASE WHEN v.severity='MEDIUM' THEN v.id END) as medium,
                 COUNT(DISTINCT CASE WHEN v.severity='LOW' THEN v.id END) as low,
                 MAX(v.cvss_score) as max_cvss,
+                (ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'])[MIN(array_position(ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], v.severity))] as max_severity,
                 COUNT(DISTINCT s.name) as affected_software_count
             FROM nodes n
             JOIN software_current s ON s.node_id = n.id
@@ -115,7 +116,8 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
             "id": str(r["id"]), "hostname": r["hostname"], "os_type": r["os_name"],
             "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
             "total_vulns": r["total_vulns"], "critical": r["critical"], "high": r["high"],
-            "medium": r["medium"], "low": r["low"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] else 0,
+            "medium": r["medium"], "low": r["low"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
+            "max_severity": r["max_severity"],
             "affected_software_count": r["affected_software_count"]
         } for r in rows]}
 
@@ -128,6 +130,7 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
             SELECT v.software_name, v.software_version,
                 COUNT(DISTINCT v.id) as vuln_count,
                 MAX(v.cvss_score) as max_cvss,
+                (ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'])[MIN(array_position(ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], v.severity))] as max_severity,
                 COUNT(DISTINCT CASE WHEN v.severity='CRITICAL' THEN v.id END) as critical,
                 COUNT(DISTINCT CASE WHEN v.severity='HIGH' THEN v.id END) as high,
                 array_agg(DISTINCT n.hostname) as affected_nodes
@@ -142,7 +145,8 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
         """)
         return {"software": [{
             "software_name": r["software_name"], "software_version": r["software_version"],
-            "vuln_count": r["vuln_count"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] else 0,
+            "vuln_count": r["vuln_count"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
+            "max_severity": r["max_severity"],
             "critical": r["critical"], "high": r["high"],
             "affected_nodes": list(r["affected_nodes"])
         } for r in rows]}
@@ -184,7 +188,7 @@ async def list_vulnerabilities(
             params.append(severity.upper())
         
         query += """
-            ORDER BY v.cvss_score DESC NULLS LAST, v.discovered_at DESC
+            ORDER BY array_position(ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], v.severity) NULLS LAST, v.cvss_score DESC NULLS LAST, v.discovered_at DESC
             LIMIT $%d OFFSET $%d
         """ % (len(params) + 1, len(params) + 2)
         params.extend([limit, offset])

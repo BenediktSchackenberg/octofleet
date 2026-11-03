@@ -200,7 +200,7 @@ export function NodeVulnerabilityPreview({ nodeId, hostname, limit = 5 }: { node
         {data.vulnerabilities.map((v) => (
           <li key={`${v.cve_id}-${v.software_name}`} className="flex flex-wrap items-center gap-2 text-sm">
             <span className={`px-2 py-0.5 rounded text-xs font-bold ${severityClass(v.severity)}`}>
-              {v.cvss_score != null ? Number(v.cvss_score).toFixed(1) : "-"}
+              {v.cvss_score != null ? Number(v.cvss_score).toFixed(1) : t(`nodes.vulnerabilities.severity.${(v.severity || "unknown").toLowerCase()}`)}
             </span>
             <a href={nvdUrl(v.cve_id)} target="_blank" rel="noopener noreferrer" className="font-mono text-blue-400 hover:underline">{v.cve_id}</a>
             <span className="text-muted-foreground truncate">{v.software_name} {v.software_version}</span>

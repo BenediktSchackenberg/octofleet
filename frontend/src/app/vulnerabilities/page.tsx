@@ -29,7 +29,7 @@ interface VulnerabilitySummary {
   top_cves: Array<{
     cve_id: string;
     software_name: string;
-    cvss_score: number;
+    cvss_score: number | null;
     severity: string;
     description: string;
     affected_nodes: number;
@@ -38,7 +38,8 @@ interface VulnerabilitySummary {
     software_name: string;
     software_version: string;
     vuln_count: number;
-    max_cvss: number;
+    max_cvss: number | null;
+    max_severity: string | null;
     node_count: number;
   }>;
   last_scan: string | null;
@@ -55,7 +56,8 @@ interface NodeVulnInfo {
   high: number;
   medium: number;
   low: number;
-  max_cvss: number;
+  max_cvss: number | null;
+  max_severity: string | null;
   affected_software_count: number;
 }
 
@@ -63,7 +65,8 @@ interface SoftwareVulnInfo {
   software_name: string;
   software_version: string;
   vuln_count: number;
-  max_cvss: number;
+  max_cvss: number | null;
+  max_severity: string | null;
   critical: number;
   high: number;
   affected_nodes: string[];
@@ -140,11 +143,13 @@ export default function VulnerabilitiesPage() {
     }
   };
 
-  const getRiskLevel = (cvss: number) => {
-    if (cvss >= 9) return { label: "Kritisch", color: "text-red-500", bg: "bg-red-500" };
-    if (cvss >= 7) return { label: "Hoch", color: "text-orange-500", bg: "bg-orange-500" };
-    if (cvss >= 4) return { label: "Mittel", color: "text-yellow-500", bg: "bg-yellow-500" };
-    return { label: "Niedrig", color: "text-blue-500", bg: "bg-blue-500" };
+  // Severity first: distribution findings (OSV) carry the distribution's priority but no CVSS score.
+  const getRiskLevel = (severity: string | null, cvss: number | null) => {
+    const level = severity || (cvss == null ? null : cvss >= 9 ? "CRITICAL" : cvss >= 7 ? "HIGH" : cvss >= 4 ? "MEDIUM" : "LOW");
+    if (level === "CRITICAL") return { label: "Kritisch", color: "text-red-500", bg: "bg-red-500", badge: "bg-red-600 text-white" };
+    if (level === "HIGH") return { label: "Hoch", color: "text-orange-500", bg: "bg-orange-500", badge: "bg-orange-500 text-white" };
+    if (level === "MEDIUM") return { label: "Mittel", color: "text-yellow-500", bg: "bg-yellow-500", badge: "bg-yellow-500 text-black" };
+    return { label: "Niedrig", color: "text-blue-500", bg: "bg-blue-500", badge: "bg-blue-500 text-white" };
   };
 
   if (loading) {
@@ -259,7 +264,7 @@ export default function VulnerabilitiesPage() {
                             {cve.cve_id} <ExternalLink className="h-3 w-3" />
                           </a>
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(cve.severity)}`}>
-                            {cve.cvss_score?.toFixed(1) || "N/A"}
+                            {cve.cvss_score != null ? cve.cvss_score.toFixed(1) : getRiskLevel(cve.severity, null).label}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">{cve.software_name}</p>
@@ -308,10 +313,8 @@ export default function VulnerabilitiesPage() {
                           <div className="text-xs text-muted-foreground">Nodes</div>
                         </div>
                         <div className={`px-2 py-1 rounded text-xs font-bold ${
-                          sw.max_cvss >= 9 ? "bg-red-600 text-white" :
-                          sw.max_cvss >= 7 ? "bg-orange-500 text-white" :
-                          sw.max_cvss >= 4 ? "bg-yellow-500 text-black" : "bg-blue-500 text-white"
-                        }`}>{sw.max_cvss?.toFixed(1) || "N/A"}</div>
+                          getRiskLevel(sw.max_severity, sw.max_cvss).badge
+                        }`}>{sw.max_cvss != null ? sw.max_cvss.toFixed(1) : getRiskLevel(sw.max_severity, null).label}</div>
                       </div>
                     </div>
                   ))}
@@ -339,7 +342,7 @@ export default function VulnerabilitiesPage() {
             {nodeVulns.length > 0 ? (
               <div className="space-y-3">
                 {nodeVulns.map((node) => {
-                  const risk = getRiskLevel(node.max_cvss);
+                  const risk = getRiskLevel(node.max_severity, node.max_cvss);
                   const totalBar = Math.max(node.total_vulns, 1);
                   return (
                     <div key={node.id} className="rounded-lg border bg-card overflow-hidden">
@@ -414,7 +417,7 @@ export default function VulnerabilitiesPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                              <span>Max CVSS: <strong className={risk.color}>{node.max_cvss.toFixed(1)}</strong></span>
+                              <span>Max CVSS: <strong className={risk.color}>{node.max_cvss != null ? node.max_cvss.toFixed(1) : "–"}</strong></span>
                             </div>
                           </div>
                           <NodeVulnerabilityPreview nodeId={node.id} hostname={node.hostname} />
@@ -446,7 +449,7 @@ export default function VulnerabilitiesPage() {
             {softwareVulns.length > 0 ? (
               <div className="space-y-3">
                 {softwareVulns.map((sw) => {
-                  const risk = getRiskLevel(sw.max_cvss);
+                  const risk = getRiskLevel(sw.max_severity, sw.max_cvss);
                   return (
                     <div key={`${sw.software_name}-${sw.software_version}`}
                       className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
@@ -484,11 +487,9 @@ export default function VulnerabilitiesPage() {
                             <div className="text-xs text-muted-foreground">CVEs</div>
                           </div>
                           <div className={`px-2.5 py-1.5 rounded text-xs font-bold ${
-                            sw.max_cvss >= 9 ? "bg-red-600 text-white" :
-                            sw.max_cvss >= 7 ? "bg-orange-500 text-white" :
-                            sw.max_cvss >= 4 ? "bg-yellow-500 text-black" : "bg-blue-500 text-white"
+                            risk.badge
                           }`}>
-                            CVSS {sw.max_cvss.toFixed(1)}
+                            {sw.max_cvss != null ? `CVSS ${sw.max_cvss.toFixed(1)}` : risk.label}
                           </div>
                         </div>
                       </div>
