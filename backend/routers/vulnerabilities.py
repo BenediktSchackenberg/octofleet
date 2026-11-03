@@ -16,7 +16,8 @@ from auth import CurrentUser, require_permission
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
 from vulnerability import (COUNTED, PER_NODE_CVE, SEVERITIES_SQL, VulnerabilityScanner, get_node_vulnerabilities,
-                           get_node_vulnerability_groups, get_vulnerability_summary, run_vulnerability_scan)
+                           get_node_vulnerability_groups, get_update_vulnerabilities, get_vulnerability_summary,
+                           run_vulnerability_scan)
 
 SEVERITY_NAMES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
@@ -154,6 +155,13 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
             "critical": r["critical"], "high": r["high"],
             "affected_nodes": list(r["affected_nodes"])
         } for r in rows]}
+
+
+@router.get("/api/v1/vulnerabilities/by-software/cves")
+async def update_vulnerabilities(unit: str, unit_version: str, _: str = Depends(verify_api_key)):
+    """CVEs of one update (as listed by by-software) across all nodes, with the affected nodes."""
+    vulnerabilities = await get_update_vulnerabilities(get_pool(), unit, unit_version)
+    return {"vulnerabilities": vulnerabilities, "count": len(vulnerabilities)}
 
 
 @router.get("/api/v1/vulnerabilities/node/{node_id}")

@@ -72,3 +72,11 @@ def test_cves_of_one_update(node):
 def test_groups_of_unknown_node_is_404():
     r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/no-such-node-{uuid.uuid4().hex[:8]}/groups", headers=HEADERS, timeout=10)
     assert r.status_code == 404, r.text
+
+
+def test_cves_of_an_update_across_nodes():
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-software/cves?unit=linux&unit_version=7.0.0-42.42",
+                     headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["count"] == len(body["vulnerabilities"])

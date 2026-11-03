@@ -1,6 +1,6 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
-import { NodeVulnerabilityPreview } from "@/components/node-vulnerabilities";
+import { NodeVulnerabilityPreview, UpdateCves, nodeVulnerabilitiesHref } from "@/components/node-vulnerabilities";
 
 import { Fragment, useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
@@ -94,6 +94,7 @@ export default function VulnerabilitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'nodes' | 'software' | 'cves' | 'scans'>('overview');
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
+  const [expandedSoftware, setExpandedSoftware] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -454,19 +455,24 @@ export default function VulnerabilitiesPage() {
               <div className="space-y-3">
                 {softwareVulns.map((sw) => {
                   const risk = getRiskLevel(sw.max_severity, sw.max_cvss);
+                  const swKey = `${sw.software_name}|${sw.software_version}`;
+                  const swExpanded = expandedSoftware === swKey;
                   return (
                     <div key={`${sw.software_name}-${sw.software_version}`}
-                      className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center justify-between">
+                      className="rounded-lg border bg-card overflow-hidden">
+                      <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
+                        onClick={() => setExpandedSoftware(swExpanded ? null : swKey)} aria-expanded={swExpanded}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
+                            {swExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             <span className="font-semibold">{sw.software_name}</span>
                             <span className="text-sm text-muted-foreground">v{sw.software_version}</span>
                           </div>
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <span className="text-xs text-muted-foreground">Installiert auf:</span>
                             {sw.affected_nodes.map(n => (
-                              <a key={n} href={`/nodes/${n}`}
+                              <a key={n} href={nodeVulnerabilitiesHref(n, { unit: sw.software_name, version: sw.software_version })}
+                                onClick={(e) => e.stopPropagation()}
                                 className="px-2 py-0.5 rounded-full text-xs bg-muted hover:bg-primary/20 transition-colors font-medium">
                                 {n}
                               </a>
@@ -497,6 +503,11 @@ export default function VulnerabilitiesPage() {
                           </div>
                         </div>
                       </div>
+                      {swExpanded && (
+                        <div className="border-t p-4 bg-muted/20">
+                          <UpdateCves unit={sw.software_name} version={sw.software_version} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}

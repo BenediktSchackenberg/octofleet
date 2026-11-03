@@ -173,6 +173,7 @@
       "noFix": "No fix yet",
       "fixUnknown": "Fix unknown",
       "fixedIn": "Fixed in",
+      "nodesColumn": "Nodes",
       "kernelRunning": "Running kernel",
       "kernelOld": "Old kernel, not running",
       "kernelPending": "Reboot pending",

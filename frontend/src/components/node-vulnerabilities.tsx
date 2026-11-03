@@ -20,6 +20,7 @@ export interface NodeVulnerability {
   packages?: string[];
   fixed_version?: string | null;
   fix_status?: "fixed" | "none" | "unknown";
+  nodes?: string[];
 }
 
 interface NodeVulnerabilitiesResponse {
@@ -69,8 +70,9 @@ function nvdUrl(cveId: string) {
 }
 
 /** Link target for a node's full vulnerability list. */
-export function nodeVulnerabilitiesHref(node: string) {
-  return `/nodes/${encodeURIComponent(node)}?tab=vulnerabilities`;
+export function nodeVulnerabilitiesHref(node: string, update?: { unit: string; version: string }) {
+  const base = `/nodes/${encodeURIComponent(node)}?tab=vulnerabilities`;
+  return update ? `${base}&unit=${encodeURIComponent(update.unit)}&unit_version=${encodeURIComponent(update.version)}` : base;
 }
 
 /** Number of known vulnerabilities of a node, or null while loading or on error. */
@@ -187,10 +189,62 @@ function GroupCves({ nodeId, group }: { nodeId: string; group: VulnerabilityGrou
   );
 }
 
+/** The CVEs of one update across all nodes (vulnerabilities page, "by software"), loaded when expanded. */
+export function UpdateCves({ unit, version }: { unit: string; version: string }) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(PAGE_SIZE);
+  const { data, failed } = useApi<NodeVulnerabilitiesResponse>(
+    `/vulnerabilities/by-software/cves?unit=${encodeURIComponent(unit)}&unit_version=${encodeURIComponent(version)}`);
+  if (failed) return <p className="text-sm text-muted-foreground">{t("nodes.vulnerabilities.error")}</p>;
+  if (!data) return <p className="text-sm text-muted-foreground animate-pulse">{t("nodes.vulnerabilities.loading")}</p>;
+  const rows = data.vulnerabilities;
+  return (
+    <div className="space-y-2">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("nodes.vulnerabilities.cve")}</TableHead>
+            <TableHead>{t("nodes.vulnerabilities.severityColumn")}</TableHead>
+            <TableHead className="text-right">CVSS</TableHead>
+            <TableHead>{t("nodes.vulnerabilities.fixedIn")}</TableHead>
+            <TableHead>{t("nodes.vulnerabilities.nodesColumn")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.slice(0, shown).map((v) => (
+            <TableRow key={v.cve_id}>
+              <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
+              <TableCell><SeverityBadge severity={v.severity} /></TableCell>
+              <TableCell className="text-right font-mono">{v.cvss_score != null ? Number(v.cvss_score).toFixed(1) : "-"}</TableCell>
+              <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
+              <TableCell className="text-sm">
+                {(v.nodes || []).map((node) => (
+                  <Link key={node} href={nodeVulnerabilitiesHref(node, { unit, version })} className="mr-2 text-blue-400 hover:underline">{node}</Link>
+                ))}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {rows.length > shown && (
+        <Button variant="outline" size="sm" onClick={() => setShown(shown + PAGE_SIZE)}>
+          {t("nodes.vulnerabilities.showMore", { count: Math.min(PAGE_SIZE, rows.length - shown), remaining: rows.length - shown })}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /** A node's vulnerabilities grouped by the update that fixes them. */
 function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulnerabilityGroupsResponse }) {
   const { t } = useI18n();
   const [open, setOpen] = useState<string | null>(null);
+  // A link from the vulnerabilities page ("by software") opens the update it points to.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const unit = params.get("unit");
+    if (unit) setOpen(`${unit}|${params.get("unit_version") ?? ""}`);
+  }, []);
   const counted = data.groups.filter((g) => g.kernel_state !== "old");
   return (
     <div className="space-y-2">

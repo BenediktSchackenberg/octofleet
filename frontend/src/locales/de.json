@@ -173,6 +173,7 @@
       "noFix": "Noch kein Fix",
       "fixUnknown": "Fix unbekannt",
       "fixedIn": "Behoben in",
+      "nodesColumn": "Nodes",
       "kernelRunning": "Laufender Kernel",
       "kernelOld": "Alter Kernel, läuft nicht",
       "kernelPending": "Neustart ausstehend",
