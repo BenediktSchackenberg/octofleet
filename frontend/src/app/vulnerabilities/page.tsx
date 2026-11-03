@@ -139,17 +139,21 @@ export default function VulnerabilitiesPage() {
       case "HIGH": return "bg-orange-500 text-white";
       case "MEDIUM": return "bg-yellow-500 text-black";
       case "LOW": return "bg-blue-500 text-white";
-      default: return "bg-muted/500 text-white";
+      default: return "bg-zinc-600 text-white";
     }
   };
 
   // Severity first: distribution findings (OSV) carry the distribution's priority but no CVSS score.
+  // UNKNOWN (an OSV finding without distribution priority) or no severity and no score is shown
+  // as unknown, not as low.
   const getRiskLevel = (severity: string | null, cvss: number | null) => {
-    const level = severity || (cvss == null ? null : cvss >= 9 ? "CRITICAL" : cvss >= 7 ? "HIGH" : cvss >= 4 ? "MEDIUM" : "LOW");
+    const named = severity && severity !== "UNKNOWN" ? severity : null;
+    const level = named || (cvss == null ? null : cvss >= 9 ? "CRITICAL" : cvss >= 7 ? "HIGH" : cvss >= 4 ? "MEDIUM" : "LOW");
     if (level === "CRITICAL") return { label: "Kritisch", color: "text-red-500", bg: "bg-red-500", badge: "bg-red-600 text-white" };
     if (level === "HIGH") return { label: "Hoch", color: "text-orange-500", bg: "bg-orange-500", badge: "bg-orange-500 text-white" };
     if (level === "MEDIUM") return { label: "Mittel", color: "text-yellow-500", bg: "bg-yellow-500", badge: "bg-yellow-500 text-black" };
-    return { label: "Niedrig", color: "text-blue-500", bg: "bg-blue-500", badge: "bg-blue-500 text-white" };
+    if (level === "LOW") return { label: "Niedrig", color: "text-blue-500", bg: "bg-blue-500", badge: "bg-blue-500 text-white" };
+    return { label: "Unbekannt", color: "text-zinc-400", bg: "bg-zinc-500", badge: "bg-zinc-600 text-white" };
   };
 
   if (loading) {
