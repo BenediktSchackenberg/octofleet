@@ -174,12 +174,13 @@ async def _active_access_token(token: str) -> Optional[dict]:
         row = await conn.fetchrow(
             "SELECT session_version, is_active, must_change_password, password_changed_at FROM users WHERE id = $1", user_id
         )
-        if row and row["is_active"]:
-            from password_policy import load_policy, password_expired
-            if row["must_change_password"] or password_expired(row["password_changed_at"], await load_policy(conn)):
-                return None
-    if not row or not row["is_active"] or row["session_version"] != payload.get("session_version", 0):
-        return None
+        if not row or not row["is_active"] or row["session_version"] != payload.get("session_version", 0):
+            return None
+        from password_policy import load_policy, password_expired
+        if row["must_change_password"] or password_expired(row["password_changed_at"], await load_policy(conn)):
+            # 403 like get_current_user, not 401: the frontend signs out on 401 and would end the
+            # session before the user can change the password on /change-password.
+            raise HTTPException(status_code=403, detail="Password change required")
     return payload
 
 
