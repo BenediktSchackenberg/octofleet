@@ -582,9 +582,10 @@ export default function VulnerabilitiesPage() {
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
                             scan.status === "completed" ? "bg-green-500/20 text-green-400 dark:bg-green-900 dark:text-green-200" :
                             scan.status === "running" ? "bg-blue-500/20 text-blue-400 dark:bg-blue-900 dark:text-blue-200" :
+                            scan.status === "partial" ? "bg-yellow-500/20 text-yellow-500 dark:bg-yellow-900 dark:text-yellow-200" :
                             "bg-red-500/20 text-red-400 dark:bg-red-900 dark:text-red-200"
                           }`}>
-                            {scan.status === "completed" ? "✓ Fertig" : scan.status === "running" ? "⟳ Läuft..." : "✗ Fehler"}
+                            {scan.status === "completed" ? "✓ Fertig" : scan.status === "running" ? "⟳ Läuft..." : scan.status === "partial" ? "⚠ Teilweise" : "✗ Fehler"}
                           </span>
                         </td>
                         <td className="py-2 px-3 text-right">{scan.packages_scanned}</td>
@@ -592,9 +593,9 @@ export default function VulnerabilitiesPage() {
                         <td className="py-2 px-3 text-right text-red-400 font-bold">{scan.critical_count}</td>
                         <td className="py-2 px-3 text-right text-orange-500 font-bold">{scan.high_count}</td>
                       </tr>
-                      {scan.status === "failed" && scan.error_message && (
+                      {(scan.status === "failed" || scan.status === "partial") && scan.error_message && (
                         <tr className="border-b">
-                          <td colSpan={6} className="px-3 pb-3 text-sm text-red-400">{scan.error_message}</td>
+                          <td colSpan={6} className={`px-3 pb-3 text-sm ${scan.status === "partial" ? "text-yellow-500" : "text-red-400"}`}>{scan.error_message}</td>
                         </tr>
                       )}
                       </Fragment>
