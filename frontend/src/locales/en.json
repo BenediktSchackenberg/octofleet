@@ -118,6 +118,8 @@
     "quickActions": "Quick Actions"
   },
   "nodes": {
+    "osBuild": "OS build {build}",
+    "kernel": "Kernel {kernel}",
     "title": "Nodes",
     "addNode": "Add Node",
     "nodeDetails": "Node Details",

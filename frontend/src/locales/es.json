@@ -118,6 +118,8 @@
     "quickActions": "Acciones rápidas"
   },
   "nodes": {
+    "osBuild": "Compilación del SO {build}",
+    "kernel": "Kernel {kernel}",
     "title": "Nodos",
     "addNode": "Añadir nodo",
     "nodeDetails": "Detalles del nodo",

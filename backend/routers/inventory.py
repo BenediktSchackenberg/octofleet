@@ -6,7 +6,7 @@ import asyncpg
 from fastapi import APIRouter, Depends
 
 from alerting import update_node_health
-from app.db.nodes import update_dynamic_device_groupships, upsert_node
+from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
 from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres, verify_api_key
 
 router = APIRouter(
@@ -303,7 +303,8 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
     hostname = data.get("hostname", "unknown")
     node_id_str = data.get("nodeId", hostname)
     os_info = data.get("os", {})
-    uuid = await upsert_node(db, node_id_str, hostname, os_name=os_info.get("name"), os_version=os_info.get("version"), os_build=os_info.get("build"))
+    os_build = os_build_from(os_info)
+    uuid = await upsert_node(db, node_id_str, hostname, os_name=os_info.get("name"), os_version=os_info.get("version"), os_build=os_build)
     last_boot_time = None
     if os_info.get("lastBootTime"):
         try: last_boot_time = datetime.fromisoformat(os_info.get("lastBootTime").replace("Z", "+00:00"))
@@ -314,9 +315,9 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
             INSERT INTO system_current (node_id, users, services, startup_items, scheduled_tasks, os_name, os_version, os_build, computer_name, domain, workgroup, domain_role, is_domain_joined, uptime_hours, uptime_formatted, last_boot_time, agent_version, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
             ON CONFLICT (node_id) DO UPDATE SET users = $2, services = $3, startup_items = $4, scheduled_tasks = $5, os_name = $6, os_version = $7, os_build = $8, computer_name = $9, domain = $10, workgroup = $11, domain_role = $12, is_domain_joined = $13, uptime_hours = $14, uptime_formatted = $15, last_boot_time = $16, agent_version = $17, updated_at = NOW()
-        """, uuid, json.dumps(data.get("users", [])), json.dumps(data.get("services", [])), json.dumps(data.get("startupItems", [])), json.dumps(data.get("scheduledTasks", [])), os_info.get("name"), os_info.get("version"), os_info.get("build"), os_info.get("computerName"), os_info.get("domain"), os_info.get("workgroup"), os_info.get("domainRole"), os_info.get("isDomainJoined"), os_info.get("uptimeHours"), os_info.get("uptimeFormatted"), last_boot_time, agent_version)
+        """, uuid, json.dumps(data.get("users", [])), json.dumps(data.get("services", [])), json.dumps(data.get("startupItems", [])), json.dumps(data.get("scheduledTasks", [])), os_info.get("name"), os_info.get("version"), os_build, os_info.get("computerName"), os_info.get("domain"), os_info.get("workgroup"), os_info.get("domainRole"), os_info.get("isDomainJoined"), os_info.get("uptimeHours"), os_info.get("uptimeFormatted"), last_boot_time, agent_version)
         if agent_version: await conn.execute("UPDATE nodes SET agent_version = $1 WHERE id = $2", agent_version, uuid)
-    await update_dynamic_device_groupships(db, uuid, {"hostname": hostname, "os_name": os_info.get("name", ""), "os_version": os_info.get("version", ""), "os_build": os_info.get("build", ""), "agent_version": agent_version or "", "domain": os_info.get("domain", ""), "is_domain_joined": os_info.get("isDomainJoined", False)})
+    await update_dynamic_device_groupships(db, uuid, {"hostname": hostname, "os_name": os_info.get("name", ""), "os_version": os_info.get("version", ""), "os_build": os_build or "", "agent_version": agent_version or "", "domain": os_info.get("domain", ""), "is_domain_joined": os_info.get("isDomainJoined", False)})
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
 
 @router.post("/full")
