@@ -19,6 +19,7 @@ export interface NodeVulnerability {
   published_date?: string | null;
   packages?: string[];
   fixed_version?: string | null;
+  fix_status?: "fixed" | "none" | "unknown";
 }
 
 interface NodeVulnerabilitiesResponse {
@@ -35,6 +36,7 @@ export interface VulnerabilityGroup {
   packages: string[];
   cve_count: number;
   fixable_count: number;
+  unknown_fix_count: number;
   critical: number;
   high: number;
   medium: number;
@@ -99,6 +101,20 @@ function useApi<T>(path: string | null) {
   return { data: current?.data ?? null, failed: current !== null && current.data === null };
 }
 
+/** Whether an update fixes the group's CVEs: how many are fixed, no fix yet, or not known (NVD). */
+function GroupFix({ group }: { group: VulnerabilityGroup }) {
+  const { t } = useI18n();
+  if (group.fixable_count > 0) {
+    return <span className="text-emerald-500">{t("nodes.vulnerabilities.fixAvailable", { count: group.fixable_count, total: group.cve_count })}</span>;
+  }
+  return <span className="text-muted-foreground">{t(group.unknown_fix_count > 0 ? "nodes.vulnerabilities.fixUnknown" : "nodes.vulnerabilities.noFix")}</span>;
+}
+
+function fixedIn(v: NodeVulnerability, t: (key: string) => string) {
+  if (v.fixed_version) return v.fixed_version;
+  return v.fix_status === "unknown" ? t("nodes.vulnerabilities.fixUnknown") : t("nodes.vulnerabilities.noFix");
+}
+
 function SeverityBadge({ severity }: { severity?: string | null }) {
   const { t } = useI18n();
   return (
@@ -154,7 +170,7 @@ function GroupCves({ nodeId, group }: { nodeId: string; group: VulnerabilityGrou
               <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
               <TableCell><SeverityBadge severity={v.severity} /></TableCell>
               <TableCell className="text-right font-mono">{v.cvss_score != null ? Number(v.cvss_score).toFixed(1) : "-"}</TableCell>
-              <TableCell className="font-mono text-sm">{v.fixed_version || "–"}</TableCell>
+              <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {v.published_date ? new Date(v.published_date).toLocaleDateString() : "-"}
               </TableCell>
@@ -207,9 +223,7 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
                 <TableCell><SeverityBadge severity={g.max_severity} /></TableCell>
                 <TableCell className="text-right font-mono" title={`${g.critical} / ${g.high} / ${g.medium} / ${g.low}`}>{g.cve_count}</TableCell>
                 <TableCell className="text-sm">
-                  {g.fixable_count > 0
-                    ? <span className="text-emerald-500">{t("nodes.vulnerabilities.fixAvailable", { count: g.fixable_count, total: g.cve_count })}</span>
-                    : <span className="text-muted-foreground">{t("nodes.vulnerabilities.noFix")}</span>}
+                  <GroupFix group={g} />
                 </TableCell>
                 <TableCell className="text-right" title={g.packages.join(", ")}>{g.packages.length}</TableCell>
               </TableRow>,
@@ -290,7 +304,7 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
                   <span className="text-xs text-muted-foreground"> {t("nodes.vulnerabilities.morePackages", { count: (v.packages?.length ?? 1) - 1 })}</span>
                 )}
               </TableCell>
-              <TableCell className="font-mono text-sm">{v.fixed_version || "–"}</TableCell>
+              <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {v.published_date ? new Date(v.published_date).toLocaleDateString() : "-"}
               </TableCell>
@@ -373,9 +387,7 @@ export function NodeVulnerabilityPreview({ nodeId, hostname, limit = 5 }: { node
             <span className="text-muted-foreground">{g.fix_unit_version}</span>
             <KernelBadge state={g.kernel_state} />
             <span className="text-muted-foreground">· {t("nodes.vulnerabilities.cveCount", { count: g.cve_count })} ·</span>
-            {g.fixable_count > 0
-              ? <span className="text-emerald-500">{t("nodes.vulnerabilities.fixAvailable", { count: g.fixable_count, total: g.cve_count })}</span>
-              : <span className="text-muted-foreground">{t("nodes.vulnerabilities.noFix")}</span>}
+            <GroupFix group={g} />
           </li>
         ))}
       </ul>

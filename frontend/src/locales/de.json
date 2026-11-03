@@ -171,6 +171,7 @@
       "packagesColumn": "Pakete",
       "fixAvailable": "{count} von {total} in neuerer Version behoben",
       "noFix": "Noch kein Fix",
+      "fixUnknown": "Fix unbekannt",
       "fixedIn": "Behoben in",
       "kernelRunning": "Laufender Kernel",
       "kernelOld": "Alter Kernel, läuft nicht",
