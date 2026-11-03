@@ -1,4 +1,4 @@
-"""Vulnerabilities of one node: by id or hostname, with total count and an optional limit."""
+"""Vulnerabilities of one node: by id or hostname, with total count and an optional limit, and grouped by update."""
 import os
 import uuid
 
@@ -47,4 +47,28 @@ def test_limit_keeps_the_total_count(node):
 
 def test_unknown_node_is_404():
     r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/no-such-node-{uuid.uuid4().hex[:8]}", headers=HEADERS, timeout=10)
+    assert r.status_code == 404, r.text
+
+
+@pytest.mark.parametrize("by", ["hostname", "id"])
+def test_groups_by_hostname_or_id(node, by):
+    hostname, node_id = node
+    ref = hostname if by == "hostname" else node_id
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{ref}/groups", headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["node"] == {"id": node_id, "hostname": hostname}
+    assert body["groups"] == [] and body["count"] == 0
+
+
+def test_cves_of_one_update(node):
+    hostname, _ = node
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}?unit=linux&unit_version=7.0.0-38.38",
+                     headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    assert r.json()["vulnerabilities"] == []
+
+
+def test_groups_of_unknown_node_is_404():
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/no-such-node-{uuid.uuid4().hex[:8]}/groups", headers=HEADERS, timeout=10)
     assert r.status_code == 404, r.text

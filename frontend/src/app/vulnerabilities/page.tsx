@@ -360,7 +360,7 @@ export default function VulnerabilitiesPage() {
                           <div>
                             <div className="font-semibold">{node.hostname}</div>
                             <div className="text-xs text-muted-foreground">
-                              {node.os_type || "Windows"} · {node.affected_software_count} betroffene Software-Pakete
+                              {node.os_type || "Windows"} · {node.affected_software_count} betroffene Updates
                               {node.last_seen && ` · Zuletzt gesehen: ${new Date(node.last_seen).toLocaleString("de-DE")}`}
                             </div>
                           </div>
@@ -417,7 +417,7 @@ export default function VulnerabilitiesPage() {
                           <div className="flex gap-4 text-sm">
                             <div className="flex items-center gap-2">
                               <Package className="h-4 w-4 text-muted-foreground" />
-                              <span><strong>{node.affected_software_count}</strong> betroffene Pakete</span>
+                              <span><strong>{node.affected_software_count}</strong> betroffene Updates</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <ShieldAlert className="h-4 w-4 text-muted-foreground" />

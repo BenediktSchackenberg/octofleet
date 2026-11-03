@@ -15,8 +15,10 @@ from pydantic import BaseModel, Field
 from auth import CurrentUser, require_permission
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
-from vulnerability import (VulnerabilityScanner, get_node_vulnerabilities, get_vulnerability_summary,
-                           run_vulnerability_scan)
+from vulnerability import (COUNTED, PER_NODE_CVE, SEVERITIES_SQL, VulnerabilityScanner, get_node_vulnerabilities,
+                           get_node_vulnerability_groups, get_vulnerability_summary, run_vulnerability_scan)
+
+SEVERITY_NAMES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
 router = APIRouter(tags=["Vulnerabilities"])
 
@@ -93,23 +95,26 @@ async def vulnerability_summary():
 
 @router.get("/api/v1/vulnerabilities/by-node")
 async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
-    """Get vulnerability breakdown per node with severity counts."""
+    """Vulnerability breakdown per node: distinct CVEs by their worst severity, affected updates."""
     async with get_pool().acquire() as conn:
-        rows = await conn.fetch("""
+        rows = await conn.fetch(f"""
+            WITH per_cve AS ({PER_NODE_CVE}),
+            units AS (
+                SELECT f.node_id, COUNT(DISTINCT (f.fix_unit, f.fix_unit_version)) AS affected_software_count
+                FROM node_vulnerability_findings f WHERE {COUNTED} GROUP BY f.node_id
+            )
             SELECT n.id, n.hostname, n.os_name, n.last_seen,
-                COUNT(DISTINCT v.id) as total_vulns,
-                COUNT(DISTINCT CASE WHEN v.severity='CRITICAL' THEN v.id END) as critical,
-                COUNT(DISTINCT CASE WHEN v.severity='HIGH' THEN v.id END) as high,
-                COUNT(DISTINCT CASE WHEN v.severity='MEDIUM' THEN v.id END) as medium,
-                COUNT(DISTINCT CASE WHEN v.severity='LOW' THEN v.id END) as low,
-                MAX(v.cvss_score) as max_cvss,
-                (ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'])[MIN(array_position(ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], v.severity))] as max_severity,
-                COUNT(DISTINCT s.name) as affected_software_count
-            FROM nodes n
-            JOIN software_current s ON s.node_id = n.id
-            JOIN verified_vulnerabilities v ON s.name = v.software_name AND s.version = v.software_version
-            LEFT JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id AND nv.node_id = n.id::text
-            WHERE nv.status IS NULL OR nv.status != 'fixed'
+                COUNT(*) AS total_vulns,
+                COUNT(*) FILTER (WHERE c.rank = 1) AS critical,
+                COUNT(*) FILTER (WHERE c.rank = 2) AS high,
+                COUNT(*) FILTER (WHERE c.rank = 3) AS medium,
+                COUNT(*) FILTER (WHERE c.rank = 4) AS low,
+                MAX(c.cvss_score) AS max_cvss,
+                MIN(c.rank) AS max_rank,
+                MAX(u.affected_software_count) AS affected_software_count
+            FROM per_cve c
+            JOIN nodes n ON n.id = c.node_id
+            JOIN units u ON u.node_id = c.node_id
             GROUP BY n.id, n.hostname, n.os_name, n.last_seen
             ORDER BY total_vulns DESC
         """)
@@ -118,49 +123,58 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
             "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
             "total_vulns": r["total_vulns"], "critical": r["critical"], "high": r["high"],
             "medium": r["medium"], "low": r["low"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
-            "max_severity": r["max_severity"],
+            "max_severity": SEVERITY_NAMES[r["max_rank"] - 1] if r["max_rank"] else None,
             "affected_software_count": r["affected_software_count"]
         } for r in rows]}
 
 
 @router.get("/api/v1/vulnerabilities/by-software")
 async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
-    """Get vulnerability breakdown per software with affected node names."""
+    """Vulnerability breakdown per update (source package on Linux, product on Windows) with affected node names."""
     async with get_pool().acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT v.software_name, v.software_version,
-                COUNT(DISTINCT v.id) as vuln_count,
-                MAX(v.cvss_score) as max_cvss,
-                (ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'])[MIN(array_position(ARRAY['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], v.severity))] as max_severity,
-                COUNT(DISTINCT CASE WHEN v.severity='CRITICAL' THEN v.id END) as critical,
-                COUNT(DISTINCT CASE WHEN v.severity='HIGH' THEN v.id END) as high,
+        rows = await conn.fetch(f"""
+            SELECT f.fix_unit AS software_name, f.fix_unit_version AS software_version,
+                COUNT(DISTINCT f.cve_id) as vuln_count,
+                MAX(f.cvss_score) as max_cvss,
+                MIN(array_position({SEVERITIES_SQL}, f.severity)) as max_rank,
+                COUNT(DISTINCT f.cve_id) FILTER (WHERE f.severity = 'CRITICAL') as critical,
+                COUNT(DISTINCT f.cve_id) FILTER (WHERE f.severity = 'HIGH') as high,
                 array_agg(DISTINCT n.hostname) as affected_nodes
-            FROM verified_vulnerabilities v
-            JOIN software_current s ON s.name = v.software_name AND s.version = v.software_version
-            JOIN nodes n ON n.id = s.node_id
-            LEFT JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id AND nv.node_id = n.id::text
-            WHERE nv.status IS NULL OR nv.status != 'fixed'
-            GROUP BY v.software_name, v.software_version
+            FROM node_vulnerability_findings f
+            JOIN nodes n ON n.id = f.node_id
+            WHERE {COUNTED}
+            GROUP BY f.fix_unit, f.fix_unit_version
             ORDER BY vuln_count DESC
             LIMIT 20
         """)
         return {"software": [{
             "software_name": r["software_name"], "software_version": r["software_version"],
             "vuln_count": r["vuln_count"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
-            "max_severity": r["max_severity"],
+            "max_severity": SEVERITY_NAMES[r["max_rank"] - 1] if r["max_rank"] else None,
             "critical": r["critical"], "high": r["high"],
             "affected_nodes": list(r["affected_nodes"])
         } for r in rows]}
 
 
 @router.get("/api/v1/vulnerabilities/node/{node_id}")
-async def node_vulnerabilities(node_id: str, limit: Optional[int] = Query(None, ge=1, le=1000)):
-    """Vulnerabilities affecting one node (id or hostname), most severe first.
+async def node_vulnerabilities(node_id: str, limit: Optional[int] = Query(None, ge=1, le=1000),
+                               unit: Optional[str] = None, unit_version: Optional[str] = None):
+    """CVEs affecting one node (id or hostname), most severe first, one entry per CVE.
 
     count is the total for the node; with limit only the first entries are returned
-    (e.g. a preview of the most severe ones).
+    (e.g. a preview of the most severe ones). unit and unit_version narrow the list to one
+    update from /groups.
     """
-    result = await get_node_vulnerabilities(get_pool(), node_id, limit)
+    result = await get_node_vulnerabilities(get_pool(), node_id, limit, unit, unit_version)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return result
+
+
+@router.get("/api/v1/vulnerabilities/node/{node_id}/groups")
+async def node_vulnerability_groups(node_id: str, _: str = Depends(verify_api_key)):
+    """CVEs of one node grouped by the update that fixes them."""
+    result = await get_node_vulnerability_groups(get_pool(), node_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Node not found")
     return result
