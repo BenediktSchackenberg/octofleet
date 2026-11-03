@@ -406,6 +406,7 @@
     "scanning": "Scanning…",
     "errorLoad": "The vulnerability data could not be loaded.",
     "errorScan": "The scan could not be started.",
+    "errorStop": "The scan could not be stopped.",
     "affectedNodes": "Affected nodes",
     "tabOverview": "Overview",
     "tabNodes": "By node",
@@ -441,8 +442,17 @@
     "statusRunning": "Running…",
     "statusPartial": "Partial",
     "statusFailed": "Failed",
+    "statusCancelled": "Cancelled",
     "noScans": "No scans yet",
-    "firstScan": "Start the first scan",
-    "lastScan": "Last completed scan: {time} · {count} packages checked"
+    "firstScan": "Start the first scan"
+  },
+  "vulnerabilityScan": {
+    "running": "Scan running since {time} ({minutes} min) – {checked} of {total} software versions checked. Numbers can be incomplete until it finishes.",
+    "dataFrom": "Data from the scan of {time} ({age}).",
+    "stop": "Stop scan",
+    "stopping": "Stopping…",
+    "partial": "That scan could not check {count} software version(s); their previous findings were kept.",
+    "stale": "The data is older than {days} days – start a new scan.",
+    "none": "No scan has completed yet – the numbers are not based on a scan."
   }
 }

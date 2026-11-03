@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +50,66 @@ interface NodeVulnerabilityGroupsResponse {
   node: { id: string; hostname: string };
   groups: VulnerabilityGroup[];
   count: number;
+  scan?: ScanStatus;
+}
+
+/** The running scan (with progress) and the last finished one, from the API. */
+export interface ScanStatus {
+  running_scan: { id: number; cancel_requested: boolean; started_at: string; checked: number; total: number } | null;
+  last_completed_scan: { completed_at: string; status: string; packages_scanned: number; error_packages: number } | null;
+}
+
+/** Data older than this is marked as stale. */
+const STALE_DAYS = 7;
+
+function relativeAge(ms: number, t: (key: string, params?: Record<string, string | number>) => string) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) return t("time.secondsAgo", { seconds });
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return t("time.minutesAgo", { minutes });
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return t("time.hoursAgo", { hours });
+  return t("time.daysAgo", { days: Math.floor(hours / 24) });
+}
+
+/** How current the vulnerability data is: a running scan with its progress, or the age of the last finished scan. */
+export function ScanStatusBanner({ status, onStop }: { status?: ScanStatus | null; onStop?: (scanId: number) => void }) {
+  const { t, locale } = useI18n();
+  if (!status) return null;
+  const s = (key: string, params?: Record<string, string | number>) => t(`vulnerabilityScan.${key}`, params);
+  const warnClass = "border-yellow-500/40 bg-yellow-500/10 text-yellow-800 dark:text-yellow-300";
+  const running = status.running_scan;
+  if (running) {
+    const started = new Date(running.started_at);
+    return (
+      <div role="status" className="flex items-start gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 p-3 text-sm text-blue-800 dark:text-blue-300">
+        <Loader2 className="h-4 w-4 mt-0.5 shrink-0 animate-spin" />
+        <span className="flex-1">{s("running", {
+          time: started.toLocaleTimeString(locale),
+          minutes: Math.max(0, Math.floor((Date.now() - started.getTime()) / 60000)),
+          checked: Math.min(running.checked, running.total),
+          total: running.total,
+        })}</span>
+        {onStop && (
+          <Button size="sm" variant="outline" disabled={running.cancel_requested} onClick={() => onStop(running.id)}>
+            {running.cancel_requested ? s("stopping") : s("stop")}
+          </Button>
+        )}
+      </div>
+    );
+  }
+  const last = status.last_completed_scan;
+  if (!last) return <div role="status" className={`rounded-lg border p-3 text-sm ${warnClass}`}>{s("none")}</div>;
+  const age = Date.now() - new Date(last.completed_at).getTime();
+  const stale = age > STALE_DAYS * 24 * 60 * 60 * 1000;
+  const partial = last.status === "partial";
+  return (
+    <div role="status" className={`rounded-lg border p-3 text-sm ${stale || partial ? warnClass : "text-muted-foreground"}`}>
+      {s("dataFrom", { time: new Date(last.completed_at).toLocaleString(locale), age: relativeAge(age, t) })}
+      {partial && <> {s("partial", { count: last.error_packages })}</>}
+      {stale && <> {s("stale", { days: STALE_DAYS })}</>}
+    </div>
+  );
 }
 
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
@@ -428,6 +488,7 @@ export function NodeVulnerabilities({ nodeId }: { nodeId: string }) {
         <CardDescription>{t("nodes.vulnerabilities.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ScanStatusBanner status={data?.scan} />
         {groups.failed ? (
           <p className="text-muted-foreground">{t("nodes.vulnerabilities.error")}</p>
         ) : !data ? (

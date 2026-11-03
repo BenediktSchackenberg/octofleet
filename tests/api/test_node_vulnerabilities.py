@@ -80,3 +80,8 @@ def test_cves_of_an_update_across_nodes():
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["count"] == len(body["vulnerabilities"])
+
+
+def test_cancel_of_a_scan_that_is_not_running_is_409():
+    r = requests.post(f"{API_URL}/api/v1/vulnerabilities/scans/999999999/cancel", headers=HEADERS, timeout=10)
+    assert r.status_code == 409, r.text

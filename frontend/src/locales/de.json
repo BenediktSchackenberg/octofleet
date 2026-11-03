@@ -406,6 +406,7 @@
     "scanning": "Scan läuft…",
     "errorLoad": "Die Schwachstellendaten konnten nicht geladen werden.",
     "errorScan": "Der Scan konnte nicht gestartet werden.",
+    "errorStop": "Der Scan konnte nicht gestoppt werden.",
     "affectedNodes": "Betroffene Nodes",
     "tabOverview": "Übersicht",
     "tabNodes": "Nach Node",
@@ -441,8 +442,17 @@
     "statusRunning": "Läuft…",
     "statusPartial": "Teilweise",
     "statusFailed": "Fehler",
+    "statusCancelled": "Abgebrochen",
     "noScans": "Noch keine Scans durchgeführt",
-    "firstScan": "Ersten Scan starten",
-    "lastScan": "Letzter abgeschlossener Scan: {time} · {count} Pakete geprüft"
+    "firstScan": "Ersten Scan starten"
+  },
+  "vulnerabilityScan": {
+    "running": "Scan läuft seit {time} ({minutes} Min.) – {checked} von {total} Software-Versionen geprüft. Die Zahlen können bis zum Ende unvollständig sein.",
+    "dataFrom": "Daten vom Scan am {time} ({age}).",
+    "stop": "Scan stoppen",
+    "stopping": "Wird gestoppt…",
+    "partial": "Dieser Scan konnte {count} Software-Version(en) nicht prüfen; deren bisherige Funde wurden beibehalten.",
+    "stale": "Die Daten sind älter als {days} Tage – bitte einen neuen Scan starten.",
+    "none": "Noch kein Scan abgeschlossen – die Zahlen beruhen auf keinem Scan."
   }
 }

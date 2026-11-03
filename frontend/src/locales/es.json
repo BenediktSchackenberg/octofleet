@@ -406,6 +406,7 @@
     "scanning": "Analizando…",
     "errorLoad": "No se pudieron cargar los datos de vulnerabilidades.",
     "errorScan": "No se pudo iniciar el análisis.",
+    "errorStop": "No se pudo detener el análisis.",
     "affectedNodes": "Nodos afectados",
     "tabOverview": "Resumen",
     "tabNodes": "Por nodo",
@@ -441,8 +442,17 @@
     "statusRunning": "En curso…",
     "statusPartial": "Parcial",
     "statusFailed": "Error",
+    "statusCancelled": "Cancelado",
     "noScans": "Aún no hay análisis",
-    "firstScan": "Iniciar el primer análisis",
-    "lastScan": "Último análisis completado: {time} · {count} paquetes comprobados"
+    "firstScan": "Iniciar el primer análisis"
+  },
+  "vulnerabilityScan": {
+    "running": "Análisis en curso desde las {time} ({minutes} min): {checked} de {total} versiones de software comprobadas. Las cifras pueden estar incompletas hasta que termine.",
+    "dataFrom": "Datos del análisis del {time} ({age}).",
+    "stop": "Detener análisis",
+    "stopping": "Deteniendo…",
+    "partial": "Ese análisis no pudo comprobar {count} versión(es) de software; se conservaron sus hallazgos anteriores.",
+    "stale": "Los datos tienen más de {days} días: inicie un nuevo análisis.",
+    "none": "Aún no se ha completado ningún análisis: las cifras no se basan en un análisis."
   }
 }

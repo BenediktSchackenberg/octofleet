@@ -1,7 +1,7 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
-import { NodeVulnerabilityPreview, UpdateCves, nodeVulnerabilitiesHref } from "@/components/node-vulnerabilities";
+import { NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
 
 import { Fragment, useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
@@ -45,7 +45,8 @@ interface VulnerabilitySummary {
   }>;
   last_scan: string | null;
   total_vulnerabilities: number;
-  last_completed_scan: { completed_at: string; packages_scanned: number } | null;
+  running_scan: ScanStatus["running_scan"];
+  last_completed_scan: ScanStatus["last_completed_scan"];
 }
 
 interface NodeVulnInfo {
@@ -153,11 +154,13 @@ export default function VulnerabilitiesPage() {
     }
   };
 
+  // Refresh faster while a scan runs, so its progress and the growing results stay visible.
+  const scanRunning = !!summary?.running_scan;
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, scanRunning ? 10000 : 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [scanRunning]);
 
   const triggerScan = async () => {
     setScanning(true);
@@ -169,6 +172,15 @@ export default function VulnerabilitiesPage() {
     } finally {
       setScanning(false);
     }
+  };
+
+  const stopScan = async (scanId: number) => {
+    try {
+      await apiClient.post(`/vulnerabilities/scans/${scanId}/cancel`, {}, { showErrorToast: false });
+    } catch (err) {
+      setError(p("errorStop"));
+    }
+    fetchData();
   };
 
   const getSeverityColor = (severity: string) => {
@@ -209,12 +221,14 @@ export default function VulnerabilitiesPage() {
         title={`🛡️ ${p("title")}`}
         description={p("description")}
         actions={
-          <Button onClick={triggerScan} disabled={scanning}>
+          <Button onClick={triggerScan} disabled={scanning || scanRunning}>
             <RefreshCw className={`h-4 w-4 mr-2 ${scanning ? "animate-spin" : ""}`} />
             {scanning ? p("scanning") : p("scan")}
           </Button>
         }
       />
+
+      <ScanStatusBanner status={summary} onStop={stopScan} />
 
       {/* Severity Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -638,9 +652,10 @@ export default function VulnerabilitiesPage() {
                             scan.status === "completed" ? "bg-green-500/20 text-green-400 dark:bg-green-900 dark:text-green-200" :
                             scan.status === "running" ? "bg-blue-500/20 text-blue-400 dark:bg-blue-900 dark:text-blue-200" :
                             scan.status === "partial" ? "bg-yellow-500/20 text-yellow-500 dark:bg-yellow-900 dark:text-yellow-200" :
+                            scan.status === "cancelled" ? "bg-zinc-500/20 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-300" :
                             "bg-red-500/20 text-red-400 dark:bg-red-900 dark:text-red-200"
                           }`}>
-                            {scan.status === "completed" ? `✓ ${p("statusCompleted")}` : scan.status === "running" ? `⟳ ${p("statusRunning")}` : scan.status === "partial" ? `⚠ ${p("statusPartial")}` : `✗ ${p("statusFailed")}`}
+                            {scan.status === "completed" ? `✓ ${p("statusCompleted")}` : scan.status === "running" ? `⟳ ${p("statusRunning")}` : scan.status === "partial" ? `⚠ ${p("statusPartial")}` : scan.status === "cancelled" ? `⏹ ${p("statusCancelled")}` : `✗ ${p("statusFailed")}`}
                           </span>
                         </td>
                         <td className="py-2 px-3 text-right">{scan.packages_scanned}</td>
@@ -648,9 +663,9 @@ export default function VulnerabilitiesPage() {
                         <td className="py-2 px-3 text-right text-red-400 font-bold">{scan.critical_count}</td>
                         <td className="py-2 px-3 text-right text-orange-500 font-bold">{scan.high_count}</td>
                       </tr>
-                      {(scan.status === "failed" || scan.status === "partial") && scan.error_message && (
+                      {["failed", "partial", "cancelled"].includes(scan.status) && scan.error_message && (
                         <tr className="border-b">
-                          <td colSpan={7} className={`px-3 pb-3 text-sm ${scan.status === "partial" ? "text-yellow-500" : "text-red-400"}`}>{scan.error_message}</td>
+                          <td colSpan={7} className={`px-3 pb-3 text-sm ${scan.status === "partial" ? "text-yellow-500" : scan.status === "cancelled" ? "text-muted-foreground" : "text-red-400"}`}>{scan.error_message}</td>
                         </tr>
                       )}
                       </Fragment>
@@ -669,11 +684,6 @@ export default function VulnerabilitiesPage() {
       )}
 
       {/* Last Scan Info */}
-      {summary?.last_completed_scan && (
-        <p className="text-sm text-muted-foreground text-center">
-          {p("lastScan", { time: formatTime(summary.last_completed_scan.completed_at), count: summary.last_completed_scan.packages_scanned })}
-        </p>
-      )}
     </div>
   );
 }

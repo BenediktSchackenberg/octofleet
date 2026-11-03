@@ -261,6 +261,17 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
     return {"scan_id": scan_id, "status": "started", "message": "Vulnerability scan started in background"}
 
 
+@router.post("/api/v1/vulnerabilities/scans/{scan_id}/cancel")
+async def cancel_vulnerability_scan(scan_id: int, _: CurrentUser = Depends(require_permission("settings:write"))):
+    """Stop a running scan before its next software version; it ends as 'cancelled'."""
+    async with get_pool().acquire() as conn:
+        updated = await conn.fetchval("""UPDATE vulnerability_scans SET cancel_requested = TRUE
+            WHERE id = $1 AND status = 'running' RETURNING id""", scan_id)
+    if not updated:
+        raise HTTPException(status_code=409, detail="Scan is not running")
+    return {"scan_id": scan_id, "status": "cancelling"}
+
+
 @router.get("/api/v1/vulnerabilities/scans")
 async def list_vulnerability_scans(limit: int = 10):
     """Get vulnerability scan history."""
