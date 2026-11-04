@@ -31,6 +31,10 @@ def test_build_from_inventory_and_posture_snapshot():
     submit_system(hostname, {"buildNumber": "26100"})
     assert node_build(hostname) == "26100.33650"
 
+    # an agent that could not read the UBR and sends a bare build: the known build stays
+    submit_system(hostname, {"buildNumber": "26100", "build": "26100"})
+    assert node_build(hostname) == "26100.33650"
+
     # the daily posture snapshot carries buildNumber and UBR
     r = requests.post(f"{API_URL}/api/v1/posture/snapshots", headers=HEADERS, timeout=30,
                       json={"nodeId": hostname, "osInfo": {"buildNumber": "26100", "ubr": "33700"}})

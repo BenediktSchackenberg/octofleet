@@ -17,4 +17,6 @@ class OsBuildTests(unittest.TestCase):
     def test_build_number_alone_is_not_used(self):
         # it would replace the more precise value from a posture snapshot
         self.assertIsNone(os_build_from({"buildNumber": "26100"}))
+        self.assertIsNone(os_build_from({"build": "26100", "buildNumber": "26100"}))
+        self.assertIsNone(os_build_from({"build": 26100}))
         self.assertIsNone(os_build_from({}))

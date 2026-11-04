@@ -180,9 +180,11 @@ public static class SystemCollector
                 using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
                 var build = key?.GetValue("CurrentBuild")?.ToString() ?? result.BuildNumber;
                 var ubr = key?.GetValue("UBR")?.ToString();
-                result.Build = !string.IsNullOrEmpty(build) && !string.IsNullOrEmpty(ubr) ? $"{build}.{ubr}" : build;
+                // Without UBR the build says no more than BuildNumber; leave it unset so it cannot
+                // replace a precise value (e.g. from a posture snapshot).
+                result.Build = !string.IsNullOrEmpty(build) && !string.IsNullOrEmpty(ubr) ? $"{build}.{ubr}" : null;
             }
-            catch { result.Build = result.BuildNumber; }
+            catch { result.Build = null; }
 
             // E1-03: Domain/Workgroup info from Win32_ComputerSystem
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem"))

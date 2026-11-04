@@ -92,11 +92,11 @@ async def auto_onboard_node(conn, node_id: str, node_uuid: UUID):
 
 def os_build_from(os_info: dict) -> str | None:
     """The OS build an agent reports: "build" (Linux: uname -r; Windows: "26100.33650"), or, from
-    older Windows agents and posture snapshots, buildNumber and ubr. A build number without UBR is
-    not used, so it cannot replace a more precise value from a posture snapshot."""
-    build = os_info.get("build")
-    if build:
-        return str(build)
+    older Windows agents and posture snapshots, buildNumber and ubr. A bare build number ("26100",
+    as "build" or without ubr) is not used, so it cannot replace a more precise value."""
+    build = str(os_info.get("build") or "").strip()
+    if build and not build.isdigit():
+        return build
     number, ubr = os_info.get("buildNumber"), os_info.get("ubr")
     if number and ubr not in (None, ""):
         return f"{number}.{ubr}"
