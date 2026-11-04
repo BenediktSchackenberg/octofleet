@@ -1396,18 +1396,7 @@ async def retry_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
         return {"status": "pending", "instanceId": instance_id, "attempt": new_attempt}
 
 
-@app.delete("/api/v1/jobs/{job_id}", dependencies=[Depends(verify_api_key)])
-async def cancel_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Cancel a job and all pending instances"""
-    async with db.acquire() as conn:
-        rows = await conn.fetch("""
-            UPDATE job_instances 
-            SET status = 'cancelled', updated_at = NOW()
-            WHERE job_id = $1 AND status IN ('pending', 'queued')
-            RETURNING id
-        """, job_id)
-        
-        return {"status": "cancelled", "instancesCancelled": len(rows)}
+# DELETE /api/v1/jobs/{job_id} (cancel or delete) is in routers/jobs.py.
 
 # PACKAGE MANAGEMENT API (E4)
 # ============================================
