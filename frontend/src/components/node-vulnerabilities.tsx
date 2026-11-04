@@ -117,6 +117,23 @@ function fixedIn(v: NodeVulnerability, t: (key: string) => string) {
   return v.fix_status === "unknown" ? t("nodes.vulnerabilities.fixUnknown") : t("nodes.vulnerabilities.noFix");
 }
 
+const SEVERITY_TEXT = { critical: "text-red-500", high: "text-orange-500", medium: "text-yellow-500", low: "text-blue-500" } as const;
+
+/** How many of an update's CVEs have each severity, e.g. "4 Critical · 58 High · 512 Medium". */
+function SeverityCounts({ group }: { group: VulnerabilityGroup }) {
+  const { t } = useI18n();
+  const levels = (Object.keys(SEVERITY_TEXT) as (keyof typeof SEVERITY_TEXT)[]).filter((level) => group[level] > 0);
+  return (
+    <span className="inline-flex flex-wrap gap-x-2">
+      {levels.map((level) => (
+        <span key={level} className={SEVERITY_TEXT[level]}>
+          {group[level]} {t(`nodes.vulnerabilities.severity.${level}`)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function SeverityBadge({ severity }: { severity?: string | null }) {
   const { t } = useI18n();
   return (
@@ -243,7 +260,10 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const unit = params.get("unit");
-    if (unit) setOpen(`${unit}|${params.get("unit_version") ?? ""}`);
+    if (!unit) return;
+    const key = `${unit}|${params.get("unit_version") ?? ""}`;
+    setOpen(key);
+    setTimeout(() => document.getElementById(`update-${key}`)?.scrollIntoView({ block: "center" }), 300);
   }, []);
   const counted = data.groups.filter((g) => g.kernel_state !== "old");
   return (
@@ -264,7 +284,7 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
             const key = `${g.fix_unit}|${g.fix_unit_version}`;
             const expanded = open === key;
             return [
-              <TableRow key={key} className={`cursor-pointer ${g.kernel_state === "old" ? "opacity-60" : ""}`}
+              <TableRow key={key} id={`update-${key}`} className={`cursor-pointer ${g.kernel_state === "old" ? "opacity-60" : ""}`}
                 onClick={() => setOpen(expanded ? null : key)} aria-expanded={expanded}>
                 <TableCell>
                   <span className="inline-flex items-center gap-2 flex-wrap">
@@ -275,7 +295,10 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
                   </span>
                 </TableCell>
                 <TableCell><SeverityBadge severity={g.max_severity} /></TableCell>
-                <TableCell className="text-right font-mono" title={`${g.critical} / ${g.high} / ${g.medium} / ${g.low}`}>{g.cve_count}</TableCell>
+                <TableCell className="text-right">
+                  <div className="font-mono">{g.cve_count}</div>
+                  <div className="text-xs"><SeverityCounts group={g} /></div>
+                </TableCell>
                 <TableCell className="text-sm">
                   <GroupFix group={g} />
                 </TableCell>
@@ -437,10 +460,15 @@ export function NodeVulnerabilityPreview({ nodeId, hostname, limit = 5 }: { node
         {data.groups.filter((g) => g.kernel_state !== "old").slice(0, limit).map((g) => (
           <li key={`${g.fix_unit}|${g.fix_unit_version}`} className="flex flex-wrap items-center gap-2 text-sm">
             <SeverityBadge severity={g.max_severity} />
-            <span className="font-medium">{g.fix_unit}</span>
-            <span className="text-muted-foreground">{g.fix_unit_version}</span>
+            <Link href={nodeVulnerabilitiesHref(hostname, { unit: g.fix_unit, version: g.fix_unit_version })}
+              className="hover:underline" title={t("nodes.vulnerabilities.openUpdate")}>
+              <span className="font-medium">{g.fix_unit}</span>{" "}
+              <span className="text-muted-foreground">{g.fix_unit_version}</span>
+            </Link>
             <KernelBadge state={g.kernel_state} />
-            <span className="text-muted-foreground">· {t("nodes.vulnerabilities.cveCount", { count: g.cve_count })} ·</span>
+            <span className="text-muted-foreground">· {t("nodes.vulnerabilities.cveCount", { count: g.cve_count })}:</span>
+            <SeverityCounts group={g} />
+            <span className="text-muted-foreground">·</span>
             <GroupFix group={g} />
           </li>
         ))}

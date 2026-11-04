@@ -182,6 +182,7 @@
       "morePackages": "+{count} packages",
       "topUpdates": "Updates with the most severe CVEs",
       "cveCount": "{count} CVEs",
+      "openUpdate": "Show the CVEs of this update",
       "severity": {
         "critical": "Critical",
         "high": "High",
