@@ -84,6 +84,9 @@ interface ScanHistory {
   error_message: string | null;
 }
 
+const TABS = ['overview', 'nodes', 'software', 'cves', 'scans'] as const;
+type Tab = typeof TABS[number];
+
 export default function VulnerabilitiesPage() {
   const [summary, setSummary] = useState<VulnerabilitySummary | null>(null);
   const [nodeVulns, setNodeVulns] = useState<NodeVulnInfo[]>([]);
@@ -92,9 +95,29 @@ export default function VulnerabilitiesPage() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'nodes' | 'software' | 'cves' | 'scans'>('overview');
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
   const [expandedSoftware, setExpandedSoftware] = useState<string | null>(null);
+  const [urlRestored, setUrlRestored] = useState(false);
+
+  // Tab and open row live in the URL (?tab=nodes&node=…), so "Back" from a node page returns to them.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab && (TABS as readonly string[]).includes(tab)) setActiveTab(tab as Tab);
+    setExpandedNode(params.get("node"));
+    setExpandedSoftware(params.get("software"));
+    setUrlRestored(true);
+  }, []);
+  useEffect(() => {
+    if (!urlRestored) return;
+    const params = new URLSearchParams();
+    if (activeTab !== 'overview') params.set("tab", activeTab);
+    if (activeTab === 'nodes' && expandedNode) params.set("node", expandedNode);
+    if (activeTab === 'software' && expandedSoftware) params.set("software", expandedSoftware);
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+  }, [urlRestored, activeTab, expandedNode, expandedSoftware]);
 
   const fetchData = async () => {
     try {
@@ -234,7 +257,7 @@ export default function VulnerabilitiesPage() {
         ].map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => setActiveTab(tab.key as Tab)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.key
                 ? 'border-primary text-primary'
