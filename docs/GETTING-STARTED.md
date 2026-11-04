@@ -42,7 +42,7 @@ Wait about 30 seconds for everything to initialize, then open **http://localhost
 
 Log in as `admin`. The password is set on the first start:
 
-- If `ADMIN_PASSWORD` is set in `.env`, use that password.
+- If `ADMIN_PASSWORD` is set in `.env` (12–72 characters, not "admin"), use that password. It is only used on the very first start – changing it later has no effect; change the password in the UI instead. If it is too short, the backend does not start and says so in its log.
 - Otherwise the backend generates a one-time password and prints it to its log:
 
   ```bash
