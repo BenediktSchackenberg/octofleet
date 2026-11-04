@@ -14,6 +14,9 @@ router = APIRouter(
 @router.get("/summary")
 async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
+    # Before acquiring a connection here: the summary acquires its own, and holding two per request
+    # could exhaust the pool under concurrent dashboard requests.
+    severity_counts = (await get_vulnerability_summary(db))["severity_counts"]
     async with db.acquire() as conn:
         # Get node counts by status
         counts = await conn.fetchrow("""
@@ -64,8 +67,6 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
             LIMIT 10
         """)
         
-        severity_counts = (await get_vulnerability_summary(db))["severity_counts"]
-
         return {
             "counts": {
                 "total": counts["total"],

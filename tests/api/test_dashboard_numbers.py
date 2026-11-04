@@ -28,3 +28,14 @@ def test_event_stats_for_the_last_days_never_exceed_all_events():
     for stat in recent.json()["stats"]:
         assert stat["count"] <= totals.get(stat["event_type"], 0)
     assert requests.get(f"{API_URL}/api/v1/events/stats?days=0", headers=HEADERS, timeout=30).status_code == 422
+
+
+def test_concurrent_dashboard_requests_do_not_exhaust_the_pool():
+    # each request used to hold one connection while waiting for a second one
+    from concurrent.futures import ThreadPoolExecutor
+
+    def get(_):
+        return requests.get(f"{API_URL}/api/v1/dashboard/summary", headers=HEADERS, timeout=60).status_code
+
+    with ThreadPoolExecutor(max_workers=30) as pool:
+        assert list(pool.map(get, range(30))) == [200] * 30
