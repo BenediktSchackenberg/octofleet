@@ -474,10 +474,10 @@ export function NodeVulnerabilityPreview({ nodeId, hostname, limit = 5 }: { node
           <li key={`${g.fix_unit}|${g.fix_unit_version}`} className="flex flex-wrap items-center gap-2 text-sm">
             <SeverityBadge severity={g.max_severity} />
             <Link href={nodeVulnerabilitiesHref(hostname, { unit: g.fix_unit, version: g.fix_unit_version })}
-              className="hover:underline" title={t("nodes.vulnerabilities.openUpdate")}>
-              <span className="font-medium">{g.fix_unit}</span>{" "}
-              <span className="text-muted-foreground">{g.fix_unit_version}</span>
+              className="font-medium text-blue-400 hover:underline" title={t("nodes.vulnerabilities.openUpdate")}>
+              {g.fix_unit}
             </Link>
+            <span className="text-muted-foreground">{g.fix_unit_version}</span>
             <KernelBadge state={g.kernel_state} />
             <span className="text-muted-foreground">· {t("nodes.vulnerabilities.cveCount", { count: g.cve_count })}:</span>
             <SeverityCounts group={g} />
