@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 import uuid
 from datetime import datetime
@@ -44,6 +45,33 @@ def _get_os_family(os_name: str | None) -> str:
     elif "macos" in os_lower or "darwin" in os_lower:
         return "macOS"
     return "Other"
+
+
+def _os_product(os_name: str | None, os_version: str | None, display_version: str | None = None) -> str:
+    """Tree level below the OS family: the product with its version - "Windows Server 2025",
+    "Windows 11 24H2", "Ubuntu 26.04 LTS".
+
+    Build numbers stay out: 10.0.26100 is both Windows 11 24H2 and Windows Server 2025, and the
+    update revision changes with every cumulative update. Point releases (26.04.1) and code names
+    are dropped for the same reason.
+    """
+    name = (os_name or "").strip()
+    if not name:
+        return "Unknown"
+    if "windows" in name.lower():
+        # Product and feature version, without the edition (Datacenter, Enterprise, ...): editions get
+        # the same updates. A server's year is its version; clients and servers without a year get
+        # the feature version (24H2).
+        match = re.search(r"Windows\s+(Server\s+\d{4}(?:\s+R2)?|Server|\d+)", name, re.IGNORECASE)
+        product = f"Windows {match[1]}" if match else re.sub(r"^Microsoft\s+", "", name)
+        if display_version and not re.search(r"Server\s+\d{4}", product):
+            return f"{product} {display_version}"
+        return product
+    version = re.sub(r"\s*\(.*?\)", "", os_version or "").strip()
+    version = re.sub(r"^(\d+\.\d+)\.\d+", r"\1", version)
+    if not version or version.split()[0] in name:
+        return name
+    return f"{name} {version}"
 
 @router.get("")
 async def list_nodes(
@@ -120,6 +148,8 @@ async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         nodes = await conn.fetch("""
             SELECT n.node_id, n.hostname, n.os_name, n.os_version, n.last_seen, n.is_online,
+                   (SELECT p.os_info->>'displayVersion' FROM config_posture_snapshots p
+                    WHERE p.node_id = n.node_id ORDER BY p.created_at DESC LIMIT 1) AS display_version,
                    COALESCE(
                        (SELECT array_agg(g.name) FROM groups g 
                         JOIN device_groups dg ON g.id = dg.group_id 
@@ -160,7 +190,7 @@ async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
                 node_data["status"] = "offline"
             
             os_family = _get_os_family(node["os_name"])
-            os_version = node["os_version"] or "Unknown"
+            os_version = _os_product(node["os_name"], node["os_version"], node["display_version"])
             
             if node["group_names"] and len(node["group_names"]) > 0:
                 for i, group_name in enumerate(node["group_names"]):
