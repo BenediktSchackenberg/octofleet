@@ -69,10 +69,18 @@ function nvdUrl(cveId: string) {
   return `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cveId)}`;
 }
 
-/** Link target for a node's full vulnerability list. */
-export function nodeVulnerabilitiesHref(node: string, update?: { unit: string; version: string }) {
+/** Link target for a node's vulnerabilities: one update in the grouped view, or the CVE list filtered by severity. */
+export function nodeVulnerabilitiesHref(node: string, target?: { unit: string; version: string } | { severity: string }) {
   const base = `/nodes/${encodeURIComponent(node)}?tab=vulnerabilities`;
-  return update ? `${base}&unit=${encodeURIComponent(update.unit)}&unit_version=${encodeURIComponent(update.version)}` : base;
+  if (!target) return base;
+  if ("severity" in target) return `${base}&view=cves&severity=${encodeURIComponent(target.severity.toUpperCase())}`;
+  return `${base}&unit=${encodeURIComponent(target.unit)}&unit_version=${encodeURIComponent(target.version)}`;
+}
+
+/** Severity filter from the URL (`?severity=`), "ALL" if missing or unknown. */
+function severityFromUrl(): string {
+  const value = (new URLSearchParams(window.location.search).get("severity") || "").toUpperCase();
+  return (SEVERITIES as readonly string[]).includes(value) ? value : "ALL";
 }
 
 /** Number of known vulnerabilities of a node, or null while loading or on error. */
@@ -325,6 +333,8 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
   const [shown, setShown] = useState(PAGE_SIZE);
   const setSeverity = (value: string) => { setSeverityState(value); setShown(PAGE_SIZE); };
   const setQuery = (value: string) => { setQueryState(value); setShown(PAGE_SIZE); };
+  // A severity badge on the vulnerabilities page links here with ?severity=.
+  useEffect(() => { setSeverityState(severityFromUrl()); }, []);
 
   const all = data.vulnerabilities;
   const counts = useMemo(() => {
@@ -403,6 +413,9 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
 export function NodeVulnerabilities({ nodeId }: { nodeId: string }) {
   const { t } = useI18n();
   const [view, setView] = useState<"groups" | "cves">("groups");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("view") === "cves") setView("cves");
+  }, []);
   const base = `/vulnerabilities/node/${encodeURIComponent(nodeId)}`;
   const groups = useApi<NodeVulnerabilityGroupsResponse>(`${base}/groups`);
   const cves = useApi<NodeVulnerabilitiesResponse>(view === "cves" ? base : null);

@@ -369,26 +369,18 @@ export default function VulnerabilitiesPage() {
                         <div className="flex items-center gap-6">
                           {/* Severity badges */}
                           <div className="flex items-center gap-2">
-                            {node.critical > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-red-600 text-white">
-                                {node.critical} Critical
-                              </span>
-                            )}
-                            {node.high > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-orange-500 text-white">
-                                {node.high} High
-                              </span>
-                            )}
-                            {node.medium > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-yellow-500 text-black">
-                                {node.medium} Med
-                              </span>
-                            )}
-                            {node.low > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-blue-500 text-white">
-                                {node.low} Low
-                              </span>
-                            )}
+                            {([
+                              ["CRITICAL", node.critical, "Critical", "bg-red-600 text-white"],
+                              ["HIGH", node.high, "High", "bg-orange-500 text-white"],
+                              ["MEDIUM", node.medium, "Med", "bg-yellow-500 text-black"],
+                              ["LOW", node.low, "Low", "bg-blue-500 text-white"],
+                            ] as const).filter(([, count]) => count > 0).map(([severity, count, label, color]) => (
+                              <a key={severity} href={nodeVulnerabilitiesHref(node.hostname, { severity })}
+                                 onClick={(e) => e.stopPropagation()}
+                                 className={`px-2 py-1 rounded text-xs font-bold hover:opacity-80 ${color}`}>
+                                {count} {label}
+                              </a>
+                            ))}
                           </div>
                           <div className="text-right min-w-[60px]">
                             <div className={`text-2xl font-bold ${risk.color}`}>{node.total_vulns}</div>
@@ -409,10 +401,16 @@ export default function VulnerabilitiesPage() {
                               {node.low > 0 && <div className="bg-blue-500" style={{ width: `${(node.low / totalBar) * 100}%` }} />}
                             </div>
                             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                              <span>🔴 {node.critical} Critical</span>
-                              <span>🟠 {node.high} High</span>
-                              <span>🟡 {node.medium} Medium</span>
-                              <span>🔵 {node.low} Low</span>
+                              {([
+                                ["CRITICAL", "🔴", node.critical, "Critical"],
+                                ["HIGH", "🟠", node.high, "High"],
+                                ["MEDIUM", "🟡", node.medium, "Medium"],
+                                ["LOW", "🔵", node.low, "Low"],
+                              ] as const).map(([severity, dot, count, label]) => (
+                                <a key={severity} href={nodeVulnerabilitiesHref(node.hostname, { severity })} className="hover:underline">
+                                  {dot} {count} {label}
+                                </a>
+                              ))}
                             </div>
                           </div>
                           <div className="flex gap-4 text-sm">
