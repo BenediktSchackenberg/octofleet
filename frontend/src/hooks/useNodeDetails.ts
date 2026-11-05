@@ -92,6 +92,7 @@ export interface HotfixData {
 export interface SystemData {
   osName?: string;
   osVersion?: string;
+  osBuild?: string;
   uptimeFormatted?: string;
   computerName?: string;
   domain?: string;

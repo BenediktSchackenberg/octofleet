@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from app.db.nodes import os_build_from
 from dependencies import get_db, get_pool, verify_api_key
 
 router = APIRouter(tags=["Monitoring"])
@@ -755,6 +756,12 @@ async def submit_posture_snapshot(data: Dict[str, Any], db: asyncpg.Pool = Depen
             json.dumps(data.get("openPorts", [])))
         
         snapshot_id = str(row["id"])
+
+        # Windows posture snapshots carry the build with its update revision (UBR); keep the node's
+        # OS build current also for agents whose inventory does not report it.
+        os_build = os_build_from(data.get("osInfo") or {})
+        if os_build:
+            await conn.execute("UPDATE nodes SET os_build = $1 WHERE node_id = $2", os_build, node_id)
         
         # Auto-generate diff against previous baseline if this is not the first snapshot
         if snapshot_type == "full":

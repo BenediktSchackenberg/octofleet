@@ -9,6 +9,8 @@ public class OsInfo
     public string? Name { get; set; }
     public string? Version { get; set; }
     public string? BuildNumber { get; set; }
+    /// <summary>OS build with update revision as Microsoft shows it, e.g. "26100.33650".</summary>
+    public string? Build { get; set; }
     public string? Architecture { get; set; }
     public string? InstallDate { get; set; }
     public string? LastBootTime { get; set; }
@@ -172,6 +174,18 @@ public static class SystemCollector
                 }
             }
             
+            // WMI's BuildNumber lacks the update revision (UBR), which changes with every cumulative update.
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+                var build = key?.GetValue("CurrentBuild")?.ToString() ?? result.BuildNumber;
+                var ubr = key?.GetValue("UBR")?.ToString();
+                // Without UBR the build says no more than BuildNumber; leave it unset so it cannot
+                // replace a precise value (e.g. from a posture snapshot).
+                result.Build = !string.IsNullOrEmpty(build) && !string.IsNullOrEmpty(ubr) ? $"{build}.{ubr}" : null;
+            }
+            catch { result.Build = null; }
+
             // E1-03: Domain/Workgroup info from Win32_ComputerSystem
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem"))
             {

@@ -366,6 +366,13 @@ export default function NodeDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">{sysData.osVersion || node?.os_version}</p>
+                  {(sysData.osBuild || node?.os_build) && (
+                    <p className="text-sm text-muted-foreground font-mono">
+                      {/windows/i.test(sysData.osName || node?.os_name || "")
+                        ? t("nodes.osBuild", { build: sysData.osBuild || node?.os_build || "" })
+                        : t("nodes.kernel", { kernel: sysData.osBuild || node?.os_build || "" })}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
               <Card>
