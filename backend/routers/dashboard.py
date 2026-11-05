@@ -3,6 +3,7 @@ import asyncpg
 from fastapi import APIRouter, Depends
 
 from dependencies import get_db, verify_api_key
+from vulnerability import get_vulnerability_summary
 
 router = APIRouter(
     prefix="/api/v1/dashboard",
@@ -13,6 +14,9 @@ router = APIRouter(
 @router.get("/summary")
 async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
+    # Before acquiring a connection here: the summary acquires its own, and holding two per request
+    # could exhaust the pool under concurrent dashboard requests.
+    severity_counts = (await get_vulnerability_summary(db))["severity_counts"]
     async with db.acquire() as conn:
         # Get node counts by status
         counts = await conn.fetchrow("""
@@ -32,17 +36,6 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
             WHERE NOT EXISTS (
                 SELECT 1 FROM device_groups dg WHERE dg.node_id = n.id
             )
-        """)
-        
-        # Get vulnerability counts by severity
-        vuln_counts = await conn.fetchrow("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE severity = 'CRITICAL') as critical,
-                COUNT(*) FILTER (WHERE severity = 'HIGH') as high,
-                COUNT(*) FILTER (WHERE severity = 'MEDIUM') as medium,
-                COUNT(*) FILTER (WHERE severity = 'LOW') as low
-            FROM verified_vulnerabilities
         """)
         
         # Get job stats (last 24h)
@@ -82,12 +75,13 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
                 "offline": counts["offline"],
                 "unassigned": unassigned
             },
+            # Same counts as the vulnerabilities page (per node, not per stored row).
             "vulnerabilities": {
-                "total": vuln_counts["total"] if vuln_counts else 0,
-                "critical": vuln_counts["critical"] if vuln_counts else 0,
-                "high": vuln_counts["high"] if vuln_counts else 0,
-                "medium": vuln_counts["medium"] if vuln_counts else 0,
-                "low": vuln_counts["low"] if vuln_counts else 0
+                "total": sum(severity_counts.values()),
+                "critical": severity_counts.get("CRITICAL", 0),
+                "high": severity_counts.get("HIGH", 0),
+                "medium": severity_counts.get("MEDIUM", 0),
+                "low": severity_counts.get("LOW", 0)
             },
             "jobs": {
                 "total": job_stats["total"] if job_stats else 0,

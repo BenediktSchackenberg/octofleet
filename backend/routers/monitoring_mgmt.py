@@ -3,12 +3,12 @@ Octofleet API - Monitoring Routes
 """
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from dependencies import get_db, get_pool, verify_api_key
 
@@ -1044,24 +1044,31 @@ async def get_aggregated_events(
 
 
 @router.get("/api/v1/events/stats", dependencies=[Depends(verify_api_key)])
-async def get_event_stats_v2():
-    """Combined stats from both raw (recent) and aggregated (historical) data"""
+async def get_event_stats_v2(days: Optional[int] = Query(None, ge=1, le=3650)):
+    """Combined stats from both raw (recent) and aggregated (historical) data.
+
+    With days, only events of the last N days are counted (e.g. the dashboard's 7-day widget);
+    without, all stored events.
+    """
     pool = get_pool()
+    since = "NOW() - make_interval(days => $1)" if days else "'-infinity'::timestamptz"
+    params = [days] if days else []
     async with pool.acquire() as conn:
         # Recent raw events
-        raw_rows = await conn.fetch("""
+        raw_rows = await conn.fetch(f"""
             SELECT event_type, COUNT(*) as count
             FROM events_normalized
-            WHERE event_type NOT LIKE 'agent.%'
+            WHERE event_type NOT LIKE 'agent.%' AND ts > {since}
             GROUP BY event_type
-        """)
+        """, *params)
 
         # Historical aggregated events
-        agg_rows = await conn.fetch("""
+        agg_rows = await conn.fetch(f"""
             SELECT event_type, SUM(event_count)::bigint as count
             FROM events_aggregated
+            WHERE hour > {since}
             GROUP BY event_type
-        """)
+        """, *params)
 
         # Merge
         totals = {}
@@ -1073,8 +1080,9 @@ async def get_event_stats_v2():
         stats = [{"event_type": k, "count": v} for k, v in sorted(totals.items(), key=lambda x: -x[1])]
 
         # File events
-        raw_files = await conn.fetchval("SELECT COUNT(*) FROM file_events")
-        agg_files = await conn.fetchval("SELECT COALESCE(SUM(event_count), 0) FROM file_events_aggregated")
+        raw_files = await conn.fetchval(f"SELECT COUNT(*) FROM file_events WHERE ts > {since}", *params)
+        agg_files = await conn.fetchval(
+            f"SELECT COALESCE(SUM(event_count), 0) FROM file_events_aggregated WHERE hour > {since}", *params)
         stats.append({"event_type": "file.all", "count": raw_files + agg_files})
 
         # Retention info

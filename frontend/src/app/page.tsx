@@ -227,12 +227,13 @@ export default function HomePage() {
     const results = await Promise.allSettled([
       apiClient.get<{ pending: any[] }>("/pending-nodes"),
       apiClient.get<{ findings: any[]; total: number }>("/security/findings?severity=critical&limit=1"),
-      apiClient.get<{ jobs: any[] }>("/jobs?status=failed&limit=1"),
+      apiClient.get<DashboardSummary>("/dashboard/summary"),
       apiClient.get<{ nodes: any[] }>("/nodes"),
     ]);
     if (results[0].status === "fulfilled" && results[0].value?.pending) c.approvals = results[0].value.pending.length;
     if (results[1].status === "fulfilled" && results[1].value) c.findings = results[1].value.total || results[1].value.findings?.length || 0;
-    if (results[2].status === "fulfilled" && results[2].value?.jobs) c.failedJobs = results[2].value.jobs.length;
+    // Failed jobs of the last 24 hours, like the jobs widget (not one failed job of all time).
+    if (results[2].status === "fulfilled" && results[2].value?.jobs) c.failedJobs = results[2].value.jobs.failed || 0;
     if (results[3].status === "fulfilled" && results[3].value?.nodes) {
       const TEN_MINUTES = 10 * 60 * 1000;
       c.offline = results[3].value.nodes.filter((n: any) => {
@@ -246,7 +247,7 @@ export default function HomePage() {
 
   async function fetchEventStats() {
     try {
-      const data = await apiClient.get<{ stats: Array<{ event_type: string; count: number }>; retention: any }>("/events/stats");
+      const data = await apiClient.get<{ stats: Array<{ event_type: string; count: number }>; retention: any }>("/events/stats?days=7");
       if (data) setEventStats(data);
     } catch (e) {
       console.error("Failed to fetch event stats:", e);
@@ -347,7 +348,7 @@ export default function HomePage() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background">
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Node Tree */}
