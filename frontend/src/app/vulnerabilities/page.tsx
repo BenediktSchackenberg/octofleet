@@ -1,6 +1,6 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
-import { NodeVulnerabilityPreview } from "@/components/node-vulnerabilities";
+import { NodeVulnerabilityPreview, UpdateCves, nodeVulnerabilitiesHref } from "@/components/node-vulnerabilities";
 
 import { Fragment, useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
@@ -84,6 +84,9 @@ interface ScanHistory {
   error_message: string | null;
 }
 
+const TABS = ['overview', 'nodes', 'software', 'cves', 'scans'] as const;
+type Tab = typeof TABS[number];
+
 export default function VulnerabilitiesPage() {
   const [summary, setSummary] = useState<VulnerabilitySummary | null>(null);
   const [nodeVulns, setNodeVulns] = useState<NodeVulnInfo[]>([]);
@@ -92,8 +95,29 @@ export default function VulnerabilitiesPage() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'nodes' | 'software' | 'cves' | 'scans'>('overview');
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
+  const [expandedSoftware, setExpandedSoftware] = useState<string | null>(null);
+  const [urlRestored, setUrlRestored] = useState(false);
+
+  // Tab and open row live in the URL (?tab=nodes&node=…), so "Back" from a node page returns to them.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab && (TABS as readonly string[]).includes(tab)) setActiveTab(tab as Tab);
+    setExpandedNode(params.get("node"));
+    setExpandedSoftware(params.get("software"));
+    setUrlRestored(true);
+  }, []);
+  useEffect(() => {
+    if (!urlRestored) return;
+    const params = new URLSearchParams();
+    if (activeTab !== 'overview') params.set("tab", activeTab);
+    if (activeTab === 'nodes' && expandedNode) params.set("node", expandedNode);
+    if (activeTab === 'software' && expandedSoftware) params.set("software", expandedSoftware);
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+  }, [urlRestored, activeTab, expandedNode, expandedSoftware]);
 
   const fetchData = async () => {
     try {
@@ -233,7 +257,7 @@ export default function VulnerabilitiesPage() {
         ].map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => setActiveTab(tab.key as Tab)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.key
                 ? 'border-primary text-primary'
@@ -360,7 +384,7 @@ export default function VulnerabilitiesPage() {
                           <div>
                             <div className="font-semibold">{node.hostname}</div>
                             <div className="text-xs text-muted-foreground">
-                              {node.os_type || "Windows"} · {node.affected_software_count} betroffene Software-Pakete
+                              {node.os_type || "Windows"} · {node.affected_software_count} betroffene Updates
                               {node.last_seen && ` · Zuletzt gesehen: ${new Date(node.last_seen).toLocaleString("de-DE")}`}
                             </div>
                           </div>
@@ -368,26 +392,18 @@ export default function VulnerabilitiesPage() {
                         <div className="flex items-center gap-6">
                           {/* Severity badges */}
                           <div className="flex items-center gap-2">
-                            {node.critical > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-red-600 text-white">
-                                {node.critical} Critical
-                              </span>
-                            )}
-                            {node.high > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-orange-500 text-white">
-                                {node.high} High
-                              </span>
-                            )}
-                            {node.medium > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-yellow-500 text-black">
-                                {node.medium} Med
-                              </span>
-                            )}
-                            {node.low > 0 && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-blue-500 text-white">
-                                {node.low} Low
-                              </span>
-                            )}
+                            {([
+                              ["CRITICAL", node.critical, "Critical", "bg-red-600 text-white"],
+                              ["HIGH", node.high, "High", "bg-orange-500 text-white"],
+                              ["MEDIUM", node.medium, "Med", "bg-yellow-500 text-black"],
+                              ["LOW", node.low, "Low", "bg-blue-500 text-white"],
+                            ] as const).filter(([, count]) => count > 0).map(([severity, count, label, color]) => (
+                              <a key={severity} href={nodeVulnerabilitiesHref(node.hostname, { severity })}
+                                 onClick={(e) => e.stopPropagation()}
+                                 className={`px-2 py-1 rounded text-xs font-bold hover:opacity-80 ${color}`}>
+                                {count} {label}
+                              </a>
+                            ))}
                           </div>
                           <div className="text-right min-w-[60px]">
                             <div className={`text-2xl font-bold ${risk.color}`}>{node.total_vulns}</div>
@@ -408,16 +424,22 @@ export default function VulnerabilitiesPage() {
                               {node.low > 0 && <div className="bg-blue-500" style={{ width: `${(node.low / totalBar) * 100}%` }} />}
                             </div>
                             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                              <span>🔴 {node.critical} Critical</span>
-                              <span>🟠 {node.high} High</span>
-                              <span>🟡 {node.medium} Medium</span>
-                              <span>🔵 {node.low} Low</span>
+                              {([
+                                ["CRITICAL", "🔴", node.critical, "Critical"],
+                                ["HIGH", "🟠", node.high, "High"],
+                                ["MEDIUM", "🟡", node.medium, "Medium"],
+                                ["LOW", "🔵", node.low, "Low"],
+                              ] as const).map(([severity, dot, count, label]) => (
+                                <a key={severity} href={nodeVulnerabilitiesHref(node.hostname, { severity })} className="hover:underline">
+                                  {dot} {count} {label}
+                                </a>
+                              ))}
                             </div>
                           </div>
                           <div className="flex gap-4 text-sm">
                             <div className="flex items-center gap-2">
                               <Package className="h-4 w-4 text-muted-foreground" />
-                              <span><strong>{node.affected_software_count}</strong> betroffene Pakete</span>
+                              <span><strong>{node.affected_software_count}</strong> betroffene Updates</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <ShieldAlert className="h-4 w-4 text-muted-foreground" />
@@ -454,19 +476,24 @@ export default function VulnerabilitiesPage() {
               <div className="space-y-3">
                 {softwareVulns.map((sw) => {
                   const risk = getRiskLevel(sw.max_severity, sw.max_cvss);
+                  const swKey = `${sw.software_name}|${sw.software_version}`;
+                  const swExpanded = expandedSoftware === swKey;
                   return (
                     <div key={`${sw.software_name}-${sw.software_version}`}
-                      className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center justify-between">
+                      className="rounded-lg border bg-card overflow-hidden">
+                      <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
+                        onClick={() => setExpandedSoftware(swExpanded ? null : swKey)} aria-expanded={swExpanded}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
+                            {swExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             <span className="font-semibold">{sw.software_name}</span>
                             <span className="text-sm text-muted-foreground">v{sw.software_version}</span>
                           </div>
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <span className="text-xs text-muted-foreground">Installiert auf:</span>
                             {sw.affected_nodes.map(n => (
-                              <a key={n} href={`/nodes/${n}`}
+                              <a key={n} href={nodeVulnerabilitiesHref(n, { unit: sw.software_name, version: sw.software_version })}
+                                onClick={(e) => e.stopPropagation()}
                                 className="px-2 py-0.5 rounded-full text-xs bg-muted hover:bg-primary/20 transition-colors font-medium">
                                 {n}
                               </a>
@@ -497,6 +524,11 @@ export default function VulnerabilitiesPage() {
                           </div>
                         </div>
                       </div>
+                      {swExpanded && (
+                        <div className="border-t p-4 bg-muted/20">
+                          <UpdateCves unit={sw.software_name} version={sw.software_version} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
