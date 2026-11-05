@@ -191,7 +191,8 @@
         "medium": "Media",
         "low": "Baja",
         "unknown": "Desconocida"
-      }
+      },
+      "cvssVersion": "Versión"
     },
     "removal": {
       "button": "Eliminar nodo…",

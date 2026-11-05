@@ -142,10 +142,10 @@ export function cvssVersionLabel(vector?: string | null): string | null {
   return `v4.0-B${threat ? "T" : ""}${environmental ? "E" : ""}`;
 }
 
-/** A CVSS score with its version; the full vector as tooltip. */
-export function CvssScore({ score, vector }: { score?: number | null; vector?: string | null }) {
+/** A CVSS score, with its version unless a table shows that in its own column; the full vector as tooltip. */
+export function CvssScore({ score, vector, version = true }: { score?: number | null; vector?: string | null; version?: boolean }) {
   if (score == null) return <>-</>;
-  const label = cvssVersionLabel(vector);
+  const label = version ? cvssVersionLabel(vector) : null;
   return (
     <span title={vector || undefined}>
       {Number(score).toFixed(1)}
@@ -274,6 +274,7 @@ function GroupCves({ nodeId, group }: { nodeId: string; group: VulnerabilityGrou
             <TableHead>{t("nodes.vulnerabilities.cve")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.severityColumn")}</TableHead>
             <TableHead className="text-right">CVSS</TableHead>
+            <TableHead>{t("nodes.vulnerabilities.cvssVersion")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.fixedIn")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.published")}</TableHead>
           </TableRow>
@@ -283,7 +284,8 @@ function GroupCves({ nodeId, group }: { nodeId: string; group: VulnerabilityGrou
             <TableRow key={v.cve_id}>
               <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
               <TableCell><SeverityBadge severity={v.severity} /></TableCell>
-              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} /></TableCell>
+              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} version={false} /></TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground" title={v.cvss_vector || undefined}>{cvssVersionLabel(v.cvss_vector)?.slice(1) ?? "-"}</TableCell>
               <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {v.published_date ? new Date(v.published_date).toLocaleDateString() : "-"}
@@ -318,6 +320,7 @@ export function UpdateCves({ unit, version }: { unit: string; version: string })
             <TableHead>{t("nodes.vulnerabilities.cve")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.severityColumn")}</TableHead>
             <TableHead className="text-right">CVSS</TableHead>
+            <TableHead>{t("nodes.vulnerabilities.cvssVersion")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.fixedIn")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.nodesColumn")}</TableHead>
           </TableRow>
@@ -327,7 +330,8 @@ export function UpdateCves({ unit, version }: { unit: string; version: string })
             <TableRow key={v.cve_id}>
               <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
               <TableCell><SeverityBadge severity={v.severity} /></TableCell>
-              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} /></TableCell>
+              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} version={false} /></TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground" title={v.cvss_vector || undefined}>{cvssVersionLabel(v.cvss_vector)?.slice(1) ?? "-"}</TableCell>
               <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="text-sm">
                 {(v.nodes || []).map((node) => (
@@ -463,6 +467,7 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
             <TableHead>{t("nodes.vulnerabilities.cve")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.severityColumn")}</TableHead>
             <TableHead className="text-right">CVSS</TableHead>
+            <TableHead>{t("nodes.vulnerabilities.cvssVersion")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.software")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.fixedIn")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.published")}</TableHead>
@@ -473,7 +478,8 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
             <TableRow key={v.cve_id}>
               <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
               <TableCell><SeverityBadge severity={v.severity} /></TableCell>
-              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} /></TableCell>
+              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} version={false} /></TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground" title={v.cvss_vector || undefined}>{cvssVersionLabel(v.cvss_vector)?.slice(1) ?? "-"}</TableCell>
               <TableCell title={(v.packages || []).join(", ") || undefined}>
                 <span className="font-medium">{v.software_name}</span>
                 <span className="text-muted-foreground"> {v.software_version}</span>
