@@ -444,7 +444,8 @@
     "statusFailed": "Failed",
     "statusCancelled": "Cancelled",
     "noScans": "No scans yet",
-    "firstScan": "Start the first scan"
+    "firstScan": "Start the first scan",
+    "maxCvssSource": "CVSS {version} · {vector}\nRating of the distribution: {rating}\nCVSS is the technical score of the publisher; the distribution's rating can differ."
   },
   "vulnerabilityScan": {
     "running": "Scan running since {time} ({minutes} min) – {checked} of {total} software versions checked. Numbers can be incomplete until it finishes.",

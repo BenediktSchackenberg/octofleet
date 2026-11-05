@@ -62,6 +62,10 @@ interface NodeVulnInfo {
   max_cvss: number | null;
   max_severity: string | null;
   affected_software_count: number;
+  max_cvss_cve?: string | null;
+  max_cvss_unit?: string | null;
+  max_cvss_severity?: string | null;
+  max_cvss_vector?: string | null;
 }
 
 interface SoftwareVulnInfo {
@@ -471,7 +475,23 @@ export default function VulnerabilitiesPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                              <span>{p("maxCvss")}: <strong className={risk.color}>{node.max_cvss != null ? node.max_cvss.toFixed(1) : "–"}</strong></span>
+                              <span>{p("maxCvss")}: <strong className={risk.color}>{node.max_cvss != null ? node.max_cvss.toFixed(1) : "–"}</strong>
+                                {node.max_cvss != null && node.max_cvss_cve && (
+                                  <>
+                                    {" · "}
+                                    <a href={nodeVulnerabilitiesHref(node.hostname, { cve: node.max_cvss_cve })}
+                                       className="text-blue-400 hover:underline"
+                                       title={p("maxCvssSource", {
+                                         version: (node.max_cvss_vector || "").match(/^CVSS:([0-9.]+)/)?.[1] ?? "?",
+                                         vector: (node.max_cvss_vector || "").replace(/^CVSS:[0-9.]+\//, ""),
+                                         rating: sev((node.max_cvss_severity || "unknown").toLowerCase()),
+                                       })}>
+                                      {node.max_cvss_cve}
+                                    </a>
+                                    {node.max_cvss_unit && <span className="text-muted-foreground"> ({node.max_cvss_unit})</span>}
+                                  </>
+                                )}
+                              </span>
                             </div>
                           </div>
                           <NodeVulnerabilityPreview nodeId={node.id} hostname={node.hostname} />

@@ -444,7 +444,8 @@
     "statusFailed": "Fehler",
     "statusCancelled": "Abgebrochen",
     "noScans": "Noch keine Scans durchgeführt",
-    "firstScan": "Ersten Scan starten"
+    "firstScan": "Ersten Scan starten",
+    "maxCvssSource": "CVSS {version} · {vector}\nBewertung der Distribution: {rating}\nCVSS ist die technische Bewertung des Herausgebers; die Bewertung der Distribution kann abweichen."
   },
   "vulnerabilityScan": {
     "running": "Scan läuft seit {time} ({minutes} Min.) – {checked} von {total} Software-Versionen geprüft. Die Zahlen können bis zum Ende unvollständig sein.",

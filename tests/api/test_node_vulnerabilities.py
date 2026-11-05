@@ -85,3 +85,13 @@ def test_cves_of_an_update_across_nodes():
 def test_cancel_of_a_scan_that_is_not_running_is_409():
     r = requests.post(f"{API_URL}/api/v1/vulnerabilities/scans/999999999/cancel", headers=HEADERS, timeout=10)
     assert r.status_code == 409, r.text
+
+
+def test_by_node_names_the_source_of_the_max_cvss():
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-node", headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    for node in r.json()["nodes"]:
+        for key in ("max_cvss_cve", "max_cvss_unit", "max_cvss_severity", "max_cvss_vector"):
+            assert key in node
+        if node["max_cvss"] is not None:
+            assert node["max_cvss_cve"], node

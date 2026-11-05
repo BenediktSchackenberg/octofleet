@@ -103,6 +103,15 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
             units AS (
                 SELECT f.node_id, COUNT(DISTINCT (f.fix_unit, f.fix_unit_version)) AS affected_software_count
                 FROM node_vulnerability_findings f WHERE {COUNTED} GROUP BY f.node_id
+            ),
+            -- the finding behind each node's highest CVSS score, so the page can name its source
+            top AS (
+                SELECT DISTINCT ON (f.node_id) f.node_id, f.cve_id AS max_cvss_cve,
+                    f.fix_unit AS max_cvss_unit, f.severity AS max_cvss_severity, v.cvss_vector AS max_cvss_vector
+                FROM node_vulnerability_findings f
+                JOIN verified_vulnerabilities v ON v.id = f.vulnerability_id
+                WHERE {COUNTED} AND f.cvss_score IS NOT NULL
+                ORDER BY f.node_id, f.cvss_score DESC, array_position({SEVERITIES_SQL}, f.severity), f.cve_id
             )
             SELECT n.id, n.hostname, n.os_name, n.last_seen,
                 COUNT(*) AS total_vulns,
@@ -112,11 +121,14 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
                 COUNT(*) FILTER (WHERE c.rank = 4) AS low,
                 MAX(c.cvss_score) AS max_cvss,
                 MIN(c.rank) AS max_rank,
-                MAX(u.affected_software_count) AS affected_software_count
+                MAX(u.affected_software_count) AS affected_software_count,
+                t.max_cvss_cve, t.max_cvss_unit, t.max_cvss_severity, t.max_cvss_vector
             FROM per_cve c
             JOIN nodes n ON n.id = c.node_id
             JOIN units u ON u.node_id = c.node_id
-            GROUP BY n.id, n.hostname, n.os_name, n.last_seen
+            LEFT JOIN top t ON t.node_id = c.node_id
+            GROUP BY n.id, n.hostname, n.os_name, n.last_seen,
+                t.max_cvss_cve, t.max_cvss_unit, t.max_cvss_severity, t.max_cvss_vector
             ORDER BY total_vulns DESC
         """)
         return {"nodes": [{
@@ -125,7 +137,9 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
             "total_vulns": r["total_vulns"], "critical": r["critical"], "high": r["high"],
             "medium": r["medium"], "low": r["low"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
             "max_severity": SEVERITY_NAMES[r["max_rank"] - 1] if r["max_rank"] else None,
-            "affected_software_count": r["affected_software_count"]
+            "affected_software_count": r["affected_software_count"],
+            "max_cvss_cve": r["max_cvss_cve"], "max_cvss_unit": r["max_cvss_unit"],
+            "max_cvss_severity": r["max_cvss_severity"], "max_cvss_vector": r["max_cvss_vector"],
         } for r in rows]}
 
 

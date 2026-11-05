@@ -130,10 +130,12 @@ function nvdUrl(cveId: string) {
 }
 
 /** Link target for a node's vulnerabilities: one update in the grouped view, or the CVE list filtered by severity. */
-export function nodeVulnerabilitiesHref(node: string, target?: { unit: string; version: string } | { severity: string }) {
+export function nodeVulnerabilitiesHref(node: string,
+  target?: { unit: string; version: string } | { severity: string } | { cve: string }) {
   const base = `/nodes/${encodeURIComponent(node)}?tab=vulnerabilities`;
   if (!target) return base;
   if ("severity" in target) return `${base}&view=cves&severity=${encodeURIComponent(target.severity.toUpperCase())}`;
+  if ("cve" in target) return `${base}&view=cves&q=${encodeURIComponent(target.cve)}`;
   return `${base}&unit=${encodeURIComponent(target.unit)}&unit_version=${encodeURIComponent(target.version)}`;
 }
 
@@ -394,7 +396,10 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
   const setSeverity = (value: string) => { setSeverityState(value); setShown(PAGE_SIZE); };
   const setQuery = (value: string) => { setQueryState(value); setShown(PAGE_SIZE); };
   // A severity badge on the vulnerabilities page links here with ?severity=.
-  useEffect(() => { setSeverityState(severityFromUrl()); }, []);
+  useEffect(() => {
+    setSeverityState(severityFromUrl());
+    setQueryState(new URLSearchParams(window.location.search).get("q") ?? "");
+  }, []);
 
   const all = data.vulnerabilities;
   const counts = useMemo(() => {
