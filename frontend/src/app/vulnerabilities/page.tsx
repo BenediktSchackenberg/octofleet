@@ -1,7 +1,7 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
-import { NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
+import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
 
 import { Fragment, useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
@@ -31,6 +31,7 @@ interface VulnerabilitySummary {
     cve_id: string;
     software_name: string;
     cvss_score: number | null;
+    cvss_vector?: string | null;
     severity: string;
     description: string;
     affected_nodes: number;
@@ -40,6 +41,7 @@ interface VulnerabilitySummary {
     software_version: string;
     vuln_count: number;
     max_cvss: number | null;
+    max_cvss_vector?: string | null;
     max_severity: string | null;
     node_count: number;
   }>;
@@ -73,6 +75,7 @@ interface SoftwareVulnInfo {
   software_version: string;
   vuln_count: number;
   max_cvss: number | null;
+  max_cvss_vector?: string | null;
   max_severity: string | null;
   critical: number;
   high: number;
@@ -324,7 +327,7 @@ export default function VulnerabilitiesPage() {
                             {cve.cve_id} <ExternalLink className="h-3 w-3" />
                           </a>
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(cve.severity)}`}>
-                            {cve.cvss_score != null ? cve.cvss_score.toFixed(1) : getRiskLevel(cve.severity, null).label}
+                            {cve.cvss_score != null ? <CvssScore score={cve.cvss_score} vector={cve.cvss_vector} /> : getRiskLevel(cve.severity, null).label}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">{cve.software_name}</p>
@@ -374,7 +377,7 @@ export default function VulnerabilitiesPage() {
                         </div>
                         <div className={`px-2 py-1 rounded text-xs font-bold ${
                           getRiskLevel(sw.max_severity, sw.max_cvss).badge
-                        }`}>{sw.max_cvss != null ? sw.max_cvss.toFixed(1) : getRiskLevel(sw.max_severity, null).label}</div>
+                        }`}>{sw.max_cvss != null ? <CvssScore score={sw.max_cvss} vector={sw.max_cvss_vector} /> : getRiskLevel(sw.max_severity, null).label}</div>
                       </div>
                     </div>
                   ))}
@@ -475,7 +478,7 @@ export default function VulnerabilitiesPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                              <span>{p("maxCvss")}: <strong className={risk.color}>{node.max_cvss != null ? node.max_cvss.toFixed(1) : "–"}</strong>
+                              <span>{p("maxCvss")}: <strong className={risk.color}>{node.max_cvss != null ? <CvssScore score={node.max_cvss} vector={node.max_cvss_vector} /> : "–"}</strong>
                                 {node.max_cvss != null && node.max_cvss_cve && (
                                   <>
                                     {" · "}
@@ -568,7 +571,7 @@ export default function VulnerabilitiesPage() {
                           <div className={`px-2.5 py-1.5 rounded text-xs font-bold ${
                             risk.badge
                           }`}>
-                            {sw.max_cvss != null ? `CVSS ${sw.max_cvss.toFixed(1)}` : risk.label}
+                            {sw.max_cvss != null ? <>CVSS <CvssScore score={sw.max_cvss} vector={sw.max_cvss_vector} /></> : risk.label}
                           </div>
                         </div>
                       </div>
@@ -612,7 +615,7 @@ export default function VulnerabilitiesPage() {
                             {cve.cve_id} <ExternalLink className="h-3.5 w-3.5" />
                           </a>
                           <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${getSeverityColor(cve.severity)}`}>
-                            {cve.severity} {cve.cvss_score?.toFixed(1)}
+                            {cve.severity} {cve.cvss_score != null && <CvssScore score={cve.cvss_score} vector={cve.cvss_vector} />}
                           </span>
                         </div>
                         <div className="text-sm font-medium mt-1">{cve.software_name}</div>

@@ -95,3 +95,15 @@ def test_by_node_names_the_source_of_the_max_cvss():
             assert key in node
         if node["max_cvss"] is not None:
             assert node["max_cvss_cve"], node
+
+
+def test_scores_come_with_their_cvss_vector():
+    """Every score the UI shows can be labelled with its CVSS version."""
+    summary = requests.get(f"{API_URL}/api/v1/vulnerabilities/summary", headers=HEADERS, timeout=10).json()
+    assert all("cvss_vector" in c for c in summary["top_cves"])
+    assert all("max_cvss_vector" in s for s in summary["top_vulnerable_software"])
+    software = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-software", headers=HEADERS, timeout=10).json()
+    assert all("max_cvss_vector" in s for s in software["software"])
+    for node in requests.get(f"{API_URL}/api/v1/vulnerabilities/by-node", headers=HEADERS, timeout=10).json()["nodes"]:
+        listed = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{node['id']}?limit=5", headers=HEADERS, timeout=10).json()
+        assert all("cvss_vector" in v for v in listed["vulnerabilities"])

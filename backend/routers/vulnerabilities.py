@@ -107,9 +107,8 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
             -- the finding behind each node's highest CVSS score, so the page can name its source
             top AS (
                 SELECT DISTINCT ON (f.node_id) f.node_id, f.cve_id AS max_cvss_cve,
-                    f.fix_unit AS max_cvss_unit, f.severity AS max_cvss_severity, v.cvss_vector AS max_cvss_vector
+                    f.fix_unit AS max_cvss_unit, f.severity AS max_cvss_severity, f.cvss_vector AS max_cvss_vector
                 FROM node_vulnerability_findings f
-                JOIN verified_vulnerabilities v ON v.id = f.vulnerability_id
                 WHERE {COUNTED} AND f.cvss_score IS NOT NULL
                 ORDER BY f.node_id, f.cvss_score DESC, array_position({SEVERITIES_SQL}, f.severity), f.cve_id
             )
@@ -151,6 +150,7 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
             SELECT f.fix_unit AS software_name, f.fix_unit_version AS software_version,
                 COUNT(DISTINCT f.cve_id) as vuln_count,
                 MAX(f.cvss_score) as max_cvss,
+                (array_agg(f.cvss_vector ORDER BY f.cvss_score DESC NULLS LAST))[1] as max_cvss_vector,
                 MIN(array_position({SEVERITIES_SQL}, f.severity)) as max_rank,
                 COUNT(DISTINCT f.cve_id) FILTER (WHERE f.severity = 'CRITICAL') as critical,
                 COUNT(DISTINCT f.cve_id) FILTER (WHERE f.severity = 'HIGH') as high,
@@ -165,6 +165,7 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
         return {"software": [{
             "software_name": r["software_name"], "software_version": r["software_version"],
             "vuln_count": r["vuln_count"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
+            "max_cvss_vector": r["max_cvss_vector"],
             "max_severity": SEVERITY_NAMES[r["max_rank"] - 1] if r["max_rank"] else None,
             "critical": r["critical"], "high": r["high"],
             "affected_nodes": list(r["affected_nodes"])

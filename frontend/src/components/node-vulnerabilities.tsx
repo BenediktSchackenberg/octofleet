@@ -15,6 +15,7 @@ export interface NodeVulnerability {
   software_version: string;
   description?: string | null;
   cvss_score?: number | null;
+  cvss_vector?: string | null;
   severity?: string | null;
   published_date?: string | null;
   packages?: string[];
@@ -127,6 +128,30 @@ export function severityClass(severity?: string | null): string {
 
 function nvdUrl(cveId: string) {
   return `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cveId)}`;
+}
+
+/** CVSS version label: "v3.1", or for 4.0 the FIRST nomenclature, e.g. "v4.0-BT" (base + threat metrics). */
+export function cvssVersionLabel(vector?: string | null): string | null {
+  const match = (vector || "").match(/^CVSS:(\d\.\d)\//);
+  if (!match) return null;
+  if (match[1] !== "4.0") return `v${match[1]}`;
+  const metrics = Object.fromEntries((vector as string).split("/").slice(1).map((part) => part.split(":")));
+  const given = (keys: string[]) => keys.some((key) => metrics[key] && metrics[key] !== "X");
+  const threat = given(["E"]);
+  const environmental = given(["CR", "IR", "AR", "MAV", "MAC", "MAT", "MPR", "MUI", "MVC", "MVI", "MVA", "MSC", "MSI", "MSA"]);
+  return `v4.0-B${threat ? "T" : ""}${environmental ? "E" : ""}`;
+}
+
+/** A CVSS score with its version; the full vector as tooltip. */
+export function CvssScore({ score, vector }: { score?: number | null; vector?: string | null }) {
+  if (score == null) return <>-</>;
+  const label = cvssVersionLabel(vector);
+  return (
+    <span title={vector || undefined}>
+      {Number(score).toFixed(1)}
+      {label && <span className="ml-1 text-[10px] font-normal opacity-70">{label}</span>}
+    </span>
+  );
 }
 
 /** Link target for a node's vulnerabilities: one update in the grouped view, or the CVE list filtered by severity. */
@@ -258,7 +283,7 @@ function GroupCves({ nodeId, group }: { nodeId: string; group: VulnerabilityGrou
             <TableRow key={v.cve_id}>
               <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
               <TableCell><SeverityBadge severity={v.severity} /></TableCell>
-              <TableCell className="text-right font-mono">{v.cvss_score != null ? Number(v.cvss_score).toFixed(1) : "-"}</TableCell>
+              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} /></TableCell>
               <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {v.published_date ? new Date(v.published_date).toLocaleDateString() : "-"}
@@ -302,7 +327,7 @@ export function UpdateCves({ unit, version }: { unit: string; version: string })
             <TableRow key={v.cve_id}>
               <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
               <TableCell><SeverityBadge severity={v.severity} /></TableCell>
-              <TableCell className="text-right font-mono">{v.cvss_score != null ? Number(v.cvss_score).toFixed(1) : "-"}</TableCell>
+              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} /></TableCell>
               <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="text-sm">
                 {(v.nodes || []).map((node) => (
@@ -448,7 +473,7 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
             <TableRow key={v.cve_id}>
               <TableCell className="font-mono whitespace-nowrap"><CveLink v={v} /></TableCell>
               <TableCell><SeverityBadge severity={v.severity} /></TableCell>
-              <TableCell className="text-right font-mono">{v.cvss_score != null ? Number(v.cvss_score).toFixed(1) : "-"}</TableCell>
+              <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} /></TableCell>
               <TableCell title={(v.packages || []).join(", ") || undefined}>
                 <span className="font-medium">{v.software_name}</span>
                 <span className="text-muted-foreground"> {v.software_version}</span>
