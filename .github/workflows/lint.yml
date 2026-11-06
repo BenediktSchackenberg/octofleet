@@ -27,8 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: cd frontend && node scripts/check-i18n.mjs
-      - run: cd frontend && npm ci && npm run build
+      - run: cd frontend && npm ci && npm run check:i18n && npm run build
 
   agent-build:
     name: .NET Agent Build
