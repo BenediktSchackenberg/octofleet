@@ -2,11 +2,14 @@
 /**
  * Lightweight check against new hardcoded German UI text and fixed "de-DE" dates.
  *
- * Counts suspicious lines per file under src/ (locales excluded) and compares them with
- * i18n-baseline.json, which holds the existing backlog. The check fails only if a file
- * has more such lines than its baseline. After translating a page, lower the baseline:
+ * Counts suspicious lines (umlauts, common German words and word endings, "de-DE") per
+ * file under src/ (locales excluded) and compares them with i18n-baseline.json, which holds
+ * the existing backlog. The check fails only if a file has more such lines than its
+ * baseline. After translating a page, lower the baseline:
  *
  *   node scripts/check-i18n.mjs --update
+ *
+ * `--list` prints every matching line (e.g. to see what is left on a page).
  *
  * Text belongs in src/locales/{en,de,es}.json and is shown with t("…"); dates and numbers
  * use localeTag() or the helpers from src/lib/format.ts.
@@ -32,9 +35,21 @@ const GERMAN_WORDS = new RegExp(
       "abrufen", "erstellen", "bearbeiten", "Zeitraum", "Letzte", "Letzter", "Alle", "Neue",
       "Neuer", "Suchen", "Weiter", "Aktualisieren", "Bitte", "nicht", "und", "oder", "wird",
       "werden", "ist", "sind", "Uhr",
+      // more common words in the UI texts
+      "Erstelle", "Erstellen", "Wechsle", "zwischen", "vorhanden", "konfiguriert", "einmalig",
+      "Neuen", "Neu", "Gerade", "eben", "vor", "von", "vom", "zum", "zur", "auf", "aus", "bei",
+      "nach", "noch", "schon", "jetzt", "der", "das", "dem", "eine", "einen", "einer", "einem",
+      "Sekunden", "Minuten", "Stunden", "Tagen", "Woche", "Wochen", "Monate", "Datei", "Dateien",
+      "Ordner", "Pfad", "Gerät", "Gruppe", "Gruppen", "Rolle", "Rollen", "Aufgabe", "Aufgaben",
+      "Ergebnis", "Ergebnisse", "Ausführen", "Starten", "Beenden", "Stoppen", "Entfernen",
+      "Anzeigen", "Ausblenden", "Beschreibung", "Verwendungen", "Erfolgreich", "Gesamt", "Laufend",
+      "Neues", "Erstes", "Ersten", "Paket", "Pakete", "Pakets", "Suche", "Versionen", "Zeige", "Warte",
     ].join("|") +
     ")\\b",
+  "i", // also lower case, e.g. "Pakete suchen"
 );
+// Typical German word endings ("Erscheinungsbild", "Wartungsfenster", "Integrationen" …).
+const GERMAN_ENDINGS = /\b[A-Za-zÄÖÜäöüß]{3,}(ungen|ung|keit|heit|ionen|fenster|bild|pfade|lich|isch)\b/i;
 
 function isComment(line) {
   const t = line.trim();
@@ -43,7 +58,7 @@ function isComment(line) {
 
 function suspicious(line) {
   if (isComment(line)) return false;
-  return FIXED_LOCALE.test(line) || UMLAUT.test(line) || GERMAN_WORDS.test(line);
+  return FIXED_LOCALE.test(line) || UMLAUT.test(line) || GERMAN_WORDS.test(line) || GERMAN_ENDINGS.test(line);
 }
 
 function* sourceFiles(dir) {
@@ -71,6 +86,13 @@ for (const path of sourceFiles(srcDir)) {
     found[file] = hits.length;
     lines[file] = hits;
   }
+}
+
+if (process.argv.includes("--list")) {
+  for (const [file, hits] of Object.entries(lines)) {
+    for (const { text, number } of hits) console.log(`${file}:${number}: ${text.trim().slice(0, 140)}`);
+  }
+  process.exit(0);
 }
 
 if (process.argv.includes("--update")) {
