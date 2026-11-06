@@ -456,5 +456,15 @@
     "partial": "That scan could not check {count} software version(s); their previous findings were kept.",
     "stale": "The data is older than {days} days – start a new scan.",
     "none": "No scan has completed yet – the numbers are not based on a scan."
+  },
+  "dateTime": {
+    "menuTitle": "Language, time and date",
+    "language": "Language",
+    "time": "Time",
+    "date": "Date",
+    "auto": "Automatic (language)",
+    "hours24": "24-hour",
+    "hours12": "12-hour (AM/PM)",
+    "example": "Example"
   }
 }

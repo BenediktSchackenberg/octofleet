@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import de from "@/locales/de.json";
 import en from "@/locales/en.json";
 import es from "@/locales/es.json";
-import { setFormatLocale } from "@/lib/format";
+import { DATE_ORDERS, TIME_FORMATS, setFormatLocale, setFormatPreferences, type DateOrder, type TimeFormat } from "@/lib/format";
 
 type Locale = "de" | "en" | "es";
 type Translations = typeof de;
@@ -12,6 +12,10 @@ type Translations = typeof de;
 interface I18nContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
+  timeFormat: TimeFormat;
+  setTimeFormat: (format: TimeFormat) => void;
+  dateOrder: DateOrder;
+  setDateOrder: (order: DateOrder) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
@@ -25,6 +29,8 @@ function getNestedValue(obj: any, path: string): string | undefined {
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("de");
+  const [timeFormat, setTimeFormatState] = useState<TimeFormat>("auto");
+  const [dateOrder, setDateOrderState] = useState<DateOrder>("auto");
 
   useEffect(() => {
     // Load saved locale from localStorage
@@ -38,6 +44,25 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         setLocaleState(browserLang as Locale);
       }
     }
+    // Time format and date order, chosen in the language menu
+    try {
+      const savedTime = localStorage.getItem("timeFormat") as TimeFormat;
+      if (TIME_FORMATS.includes(savedTime)) setTimeFormatState(savedTime);
+      const savedOrder = localStorage.getItem("dateOrder") as DateOrder;
+      if (DATE_ORDERS.includes(savedOrder)) setDateOrderState(savedOrder);
+    } catch {
+      // storage unavailable: keep the language's defaults
+    }
+  }, []);
+
+  const setTimeFormat = useCallback((format: TimeFormat) => {
+    setTimeFormatState(format);
+    try { localStorage.setItem("timeFormat", format); } catch { /* not persisted */ }
+  }, []);
+
+  const setDateOrder = useCallback((order: DateOrder) => {
+    setDateOrderState(order);
+    try { localStorage.setItem("dateOrder", order); } catch { /* not persisted */ }
   }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
@@ -71,9 +96,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   // Dates and numbers formatted outside components follow the selected language too.
   setFormatLocale(locale);
+  setFormatPreferences(timeFormat, dateOrder);
 
   return (
-    <I18nContext.Provider value={{ locale, setLocale, t }}>
+    <I18nContext.Provider value={{ locale, setLocale, timeFormat, setTimeFormat, dateOrder, setDateOrder, t }}>
       {children}
     </I18nContext.Provider>
   );

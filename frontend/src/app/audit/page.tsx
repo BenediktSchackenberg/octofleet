@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Search, Filter, RefreshCw } from "lucide-react";
-import { localeTag } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 
 
 
@@ -76,7 +76,7 @@ export default function AuditPage() {
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString(localeTag(), {
+    return formatDateTime(dateStr, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",

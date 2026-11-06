@@ -20,7 +20,7 @@ import {
   TIME_RANGES, AUTO_REFRESH_OPTIONS,
   type NodeMetrics, type NodeTimeseries, type GroupByMode, type SortMode, type StatusFilter, type TimeRange,
 } from "@/hooks/usePerformanceDashboard";
-import { localeTag } from "@/lib/format";
+import { formatTime } from "@/lib/format";
 
 // ============== Components ==============
 
@@ -254,7 +254,7 @@ function NodeDetailsDrawer({
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={timeseries.timeseries} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="time" tickFormatter={(t) => new Date(t).toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })} tick={{ fontSize: 9 }} />
+                      <XAxis dataKey="time" tickFormatter={(t) => formatTime(t, { hour: "2-digit", minute: "2-digit" })} tick={{ fontSize: 9 }} />
                       <YAxis domain={[0, 100]} tick={{ fontSize: 9 }} />
                       <Tooltip />
                       <Area type="monotone" dataKey="cpu" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={1.5} />
@@ -345,7 +345,7 @@ export default function PerformancePage() {
             PERFORMANCE
           </h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {lastRefresh && <span>Updated {lastRefresh.toLocaleTimeString(localeTag())}</span>}
+            {lastRefresh && <span>Updated {formatTime(lastRefresh)}</span>}
             <Button variant="ghost" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4" />
             </Button>

@@ -11,7 +11,7 @@ import { Plus, Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, P
 import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StandardPage } from "@/components/ui/StandardPage";
-import { localeTag } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 
 
 
@@ -285,7 +285,7 @@ export default function DeploymentsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {new Date(d.created_at).toLocaleDateString(localeTag())}
+                      {formatDate(d.created_at)}
                     </TableCell>
                     <TableCell>
                       {(d.status === "active" || d.status === "paused") && (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/Navbar';
-import { localeTag } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 interface DiscoveredSystem {
   id: string;
   mac_address: string;
@@ -91,7 +91,7 @@ export default function DiscoveredSystemsPage() {
   };
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleString(localeTag(), {
+    return formatDateTime(date, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

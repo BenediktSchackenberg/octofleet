@@ -20,7 +20,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
-import { localeTag } from "@/lib/format";
+import { formatDate, formatDateTime as formatDateTimeIntl } from "@/lib/format";
 
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
@@ -77,7 +77,7 @@ function getStatusBadge(lastSeen: string) {
 
 function formatDateTime(dateStr: string) {
   const date = new Date(dateStr);
-  return date.toLocaleString(localeTag(), {
+  return formatDateTimeIntl(date, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -761,7 +761,7 @@ export default function NodeDetailPage() {
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{upd.kb || '-'}</Badge></TableCell>
                             <TableCell className="truncate max-w-[300px]">{upd.title || '-'}</TableCell>
-                            <TableCell>{upd.installedDate ? new Date(upd.installedDate).toLocaleDateString(localeTag()) : '-'}</TableCell>
+                            <TableCell>{upd.installedDate ? formatDate(upd.installedDate) : '-'}</TableCell>
                             <TableCell>
                               <Badge variant={upd.resultCode === 2 ? "default" : "secondary"}>
                                 {upd.resultCode === 2 ? "✓ OK" : upd.resultCode === 4 ? "⚠ Fehler" : upd.resultCode}
@@ -1269,7 +1269,7 @@ export default function NodeDetailPage() {
                           {events.slice(0, 100).map((event) => (
                             <TableRow key={event.id}>
                               <TableCell className="text-xs font-mono">
-                                {new Date(event.eventTime).toLocaleString(localeTag(), {
+                                {formatDateTimeIntl(event.eventTime, {
                                   month: '2-digit', day: '2-digit',
                                   hour: '2-digit', minute: '2-digit'
                                 })}

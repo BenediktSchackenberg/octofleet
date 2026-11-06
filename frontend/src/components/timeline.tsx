@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from "@/components/ui/badge";
-import { localeTag } from "@/lib/format";
+import { formatDate, formatDateTime as formatDateTimeIntl } from "@/lib/format";
 
 interface InventoryChange {
   id: number;
@@ -102,7 +102,7 @@ function formatRelativeTime(dateStr: string): string {
   if (diffHours < 24) return `vor ${diffHours} Std.`;
   if (diffDays < 7) return `vor ${diffDays} Tag${diffDays > 1 ? 'en' : ''}`;
   
-  return date.toLocaleDateString(localeTag(), {
+  return formatDate(date, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
@@ -111,7 +111,7 @@ function formatRelativeTime(dateStr: string): string {
 
 function formatDateTime(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleString(localeTag(), {
+  return formatDateTimeIntl(date, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -133,7 +133,7 @@ function groupChangesByDate(changes: InventoryChange[]): Map<string, InventoryCh
   const grouped = new Map<string, InventoryChange[]>();
   
   for (const change of changes) {
-    const date = new Date(change.detectedAt).toLocaleDateString(localeTag(), {
+    const date = formatDate(change.detectedAt, {
       weekday: 'long',
       day: '2-digit',
       month: 'long',
