@@ -7,6 +7,7 @@ import logging
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+import asyncpg
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from starlette.responses import StreamingResponse
 
@@ -100,7 +101,13 @@ async def delete_remediation_package_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Delete a remediation package."""
-    deleted = await delete_remediation_package(get_pool(), package_id)
+    try:
+        deleted = await delete_remediation_package(get_pool(), package_id)
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(
+            status_code=409,
+            detail="Remediation jobs still refer to this package. Disable it instead to keep the job history.",
+        )
     if not deleted:
         raise HTTPException(status_code=404, detail="Remediation package not found")
     return {"status": "deleted", "id": package_id}
@@ -157,7 +164,13 @@ async def delete_remediation_rule_endpoint(
     _: str = Depends(verify_api_key)
 ):
     """Delete a remediation rule."""
-    deleted = await delete_remediation_rule(get_pool(), rule_id)
+    try:
+        deleted = await delete_remediation_rule(get_pool(), rule_id)
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(
+            status_code=409,
+            detail="Remediation jobs still refer to this rule. Disable it instead to keep the job history.",
+        )
     if not deleted:
         raise HTTPException(status_code=404, detail="Remediation rule not found")
     return {"status": "deleted", "id": rule_id}
@@ -387,6 +400,20 @@ async def get_pending_remediation_jobs(node_id: str):
         return {"jobs": result, "count": len(result)}
 
 
+_NO_UPGRADE_MARKERS = (
+    "no applicable",
+    "no available upgrade",
+    "keine",
+    "neueren paketversionen",
+)
+
+
+def _is_no_upgrade_output(output: str) -> bool:
+    """True if winget reported that there is nothing to upgrade (en/de output)."""
+    text = (output or "").lower()
+    return any(marker in text for marker in _NO_UPGRADE_MARKERS)
+
+
 @router.post("/api/v1/remediation/jobs/{job_id}/result")
 async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     """
@@ -399,10 +426,13 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     error = data.get("error", "")
     
     success = exit_code == 0
-    # winget returns exit code 1 when "no upgrade available" — treat as success
-    if exit_code == 1 and output and ("keine" in output.lower() or "no applicable" in output.lower() or "no available upgrade" in output.lower() or "neueren paketversionen" in output.lower()):
-        success = True
-    status = "success" if success else "failed"
+    # winget exits with 1 when there is nothing to upgrade. That is neither a
+    # fix nor a failure: store it as "skipped" and leave the findings alone –
+    # the next inventory and scan show whether the software is still affected.
+    if exit_code == 1 and _is_no_upgrade_output(output):
+        status = "skipped"
+    else:
+        status = "success" if success else "failed"
     
     job = await update_remediation_job_status(
         get_pool(),

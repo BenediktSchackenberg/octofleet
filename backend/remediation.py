@@ -583,7 +583,9 @@ class RemediationEngine:
         results = {
             'scanned': len(rows),
             'with_fix_available': 0,
+            'dry_run': dry_run,
             'jobs_created': 0,
+            'would_create': 0,
             'jobs_skipped_existing': 0,
             'jobs_skipped_no_rule': 0,
             'details': []
@@ -644,8 +646,8 @@ class RemediationEngine:
                 detail['job_id'] = job['id']
                 results['jobs_created'] += 1
             else:
-                detail['job_id'] = None  # Dry run
-                results['jobs_created'] += 1
+                detail['job_id'] = None  # Dry run: nothing is written
+                results['would_create'] += 1
             
             results['details'].append(detail)
         

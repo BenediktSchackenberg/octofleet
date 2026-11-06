@@ -334,7 +334,7 @@ export default function RemediationPage() {
             <div className="grid grid-cols-4 gap-4 text-sm">
               <div><span className="text-zinc-400">Scanned:</span> <span className="font-mono">{scanResult.scanned}</span></div>
               <div><span className="text-zinc-400">With Fix:</span> <span className="font-mono text-green-400">{scanResult.with_fix_available}</span></div>
-              <div><span className="text-zinc-400">Jobs Created:</span> <span className="font-mono text-blue-400">{scanResult.jobs_created}</span></div>
+              <div><span className="text-zinc-400">{scanResult.dry_run ? "Would create:" : "Jobs Created:"}</span> <span className="font-mono text-blue-400">{scanResult.dry_run ? (scanResult.would_create ?? scanResult.jobs_created) : scanResult.jobs_created}</span></div>
               <div><span className="text-zinc-400">Skipped:</span> <span className="font-mono">{scanResult.jobs_skipped_existing}</span></div>
             </div>
           </div>
