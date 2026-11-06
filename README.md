@@ -217,10 +217,20 @@
 ```bash
 git clone https://github.com/BenediktSchackenberg/octofleet.git
 cd octofleet
+
+# Required settings – docker compose refuses to start without them
+cat > .env <<ENV
+DB_PASSWORD=$(openssl rand -hex 24)
+JWT_SECRET=$(openssl rand -hex 32)
+API_KEY=$(openssl rand -hex 24)
+# Optional: your own initial admin password (12–72 characters, not "admin")
+# ADMIN_PASSWORD=
+ENV
+
 docker compose up -d
 ```
 
-Open http://localhost:3000 — Login: `admin` / `admin`
+Open http://localhost:3000 and log in as `admin` with `ADMIN_PASSWORD`, or with the one-time password from `docker compose logs backend | grep "One-time admin password"` (you choose a new password right after). Details: [Getting Started](docs/GETTING-STARTED.md).
 
 ### Option 2: Install Agent
 

@@ -13,8 +13,20 @@ Welcome to Octofleet! This guide will have you up and running in under 10 minute
 ```bash
 git clone https://github.com/BenediktSchackenberg/octofleet.git
 cd octofleet
+
+# Required settings – docker compose refuses to start without them
+cat > .env <<ENV
+DB_PASSWORD=$(openssl rand -hex 24)
+JWT_SECRET=$(openssl rand -hex 32)
+API_KEY=$(openssl rand -hex 24)
+# Optional: your own initial admin password (12–72 characters, not "admin")
+# ADMIN_PASSWORD=
+ENV
+
 docker compose up -d
 ```
+
+Keep `.env` private: `API_KEY` is the key your agents use, `JWT_SECRET` signs login sessions.
 
 This starts three containers:
 
@@ -28,12 +40,16 @@ Wait about 30 seconds for everything to initialize, then open **http://localhost
 
 ## Step 2: First Login
 
-Log in with the default credentials:
+Log in as `admin`. The password is set on the first start:
 
-- **Username:** `admin`
-- **Password:** `admin`
+- If `ADMIN_PASSWORD` is set in `.env` (12–72 characters, not "admin"), use that password. It is only used on the very first start – changing it later has no effect; change the password in the UI instead. If it is too short, the backend does not start and says so in its log.
+- Otherwise the backend generates a one-time password and prints it to its log:
 
-> ⚠️ **Change the default password immediately** after your first login via Settings → Users.
+  ```bash
+  docker compose logs backend | grep "One-time admin password"
+  ```
+
+  You are asked to choose a new password right after logging in.
 
 ## Step 3: Add Your First Node
 
@@ -57,7 +73,7 @@ f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg
   sudo bash "$f" --api-url http://your-server:8080 --api-key your-api-key
 ```
 
-Replace `your-server` with your Octofleet server's IP/hostname and `your-api-key` with the API key from your `.env` or docker-compose config (env var: `API_KEY`, default: `your-api-key-here`).
+Replace `your-server` with your Octofleet server's IP/hostname and `your-api-key` with the `API_KEY` from your `.env`.
 
 > 📖 For detailed agent setup, see [AGENT-SETUP.md](AGENT-SETUP.md).
 
@@ -98,7 +114,7 @@ Now that you have a node reporting in, explore these features:
 
 ## Environment Variables
 
-For a production setup, create a `.env` file in the project root:
+`.env` in the project root (see Step 1) holds the settings. For production, also restrict CORS (default `*`):
 
 ```bash
 DB_PASSWORD=a-strong-database-password
@@ -150,7 +166,7 @@ Usually a database connection issue — make sure the `db` container is healthy 
 **Agent not showing up?**
 - Verify the API URL is reachable from the agent machine
 - Check that the API key matches between agent config and backend
-- Check agent logs: Windows Event Viewer or `journalctl -u openclaw-agent` on Linux
+- Check agent logs: Windows Event Viewer or `journalctl -u octofleet-agent` on Linux
 
 **Port conflicts?**
 Edit `docker-compose.yml` to change the exposed ports (e.g., `"3001:3000"` for the frontend).

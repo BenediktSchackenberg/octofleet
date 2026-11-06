@@ -8,12 +8,17 @@ The fastest way to get started:
 
 ```bash
 # Clone the repository
-git clone https://github.com/BenediktSchackenberg/octofleet-windows-agent.git
-cd octofleet-windows-agent
+git clone https://github.com/BenediktSchackenberg/octofleet.git
+cd octofleet
 
-# Copy and edit environment variables
-cp .env.example .env
-nano .env  # Change passwords!
+# Required settings
+cat > .env <<ENV
+DB_PASSWORD=$(openssl rand -hex 24)
+JWT_SECRET=$(openssl rand -hex 32)
+API_KEY=$(openssl rand -hex 24)
+# Optional: your own initial admin password (12–72 characters, not "admin")
+# ADMIN_PASSWORD=
+ENV
 
 # Start all services
 docker compose up -d
@@ -22,7 +27,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Open http://localhost:3000 - Default login: `admin` / `admin`
+Open http://localhost:3000 and log in as `admin` with `ADMIN_PASSWORD`, or with the one-time password from `docker compose logs backend | grep "One-time admin password"`.
 
 ## Option 2: Manual Setup
 
@@ -58,7 +63,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 EOF
 
 # Apply schema
-psql -U octofleet -d inventory -f backend/schema.sql
+psql -U octofleet -d inventory -f backend/schema-full.sql
 ```
 
 ### Step 2: Backend
@@ -134,9 +139,9 @@ f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg
 ### Frontend shows "Unauthorized"
 
 - Clear browser cache and cookies
-- Login again with admin/admin
+- Log in again
 - Check JWT_SECRET is set in backend
 
 ---
 
-Need help? Join our [Discord](https://discord.com/invite/clawd)!
+Need help? Open an issue on [GitHub](https://github.com/BenediktSchackenberg/octofleet/issues).
