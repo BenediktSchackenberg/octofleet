@@ -318,7 +318,7 @@ You can also trigger an update manually via a **restart-agent** job from the web
 
 ### "Invalid credentials" on first login
 
-Default admin credentials: `admin` / `admin` (created by the database seed file).
+There is no default password. On the first start the backend uses `ADMIN_PASSWORD` from `.env` or, if it is not set, prints a one-time password: `docker compose logs backend | grep "One-time admin password"`. `ADMIN_PASSWORD` only applies on the very first start; later changes have no effect.
 
 ### Windows: Service won't start
 

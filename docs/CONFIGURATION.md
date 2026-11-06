@@ -10,7 +10,7 @@ Set these in a `.env` file in the project root, or directly in `docker-compose.y
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_PASSWORD` | `octofleet-secret-change-me` | PostgreSQL password for the `octofleet` user |
+| `DB_PASSWORD` | *(required)* | PostgreSQL password for the `octofleet` user. `docker compose` refuses to start without it. |
 
 The database container uses these fixed values (change in `docker-compose.yml` if needed):
 
@@ -24,13 +24,15 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://octofleet:<DB_PASSWORD>@db:5432/inventory` | Full PostgreSQL connection string |
-| `JWT_SECRET` | `change-this-in-production-please` | Secret key for signing JWT tokens. **Must be changed in production.** Use a random string of 32+ characters. |
-| `API_KEY` | `your-api-key-here` | API key for agent authentication. Must match the key configured on agents. |
+| `DATABASE_URL` | `postgresql://octofleet:<DB_PASSWORD>@db:5432/inventory` | Full PostgreSQL connection string (set by `docker-compose.yml` from `DB_PASSWORD`) |
+| `JWT_SECRET` | *(required)* | Secret key for signing login sessions. Use a random string of 32+ characters, e.g. `openssl rand -hex 32`. |
+| `API_KEY` | *(required)* | API key for agent authentication. Must match the key configured on agents. |
+| `ADMIN_PASSWORD` | *(empty)* | Password of the `admin` user, used only on the very first start (12–72 characters, not `admin`; otherwise the backend does not start). Empty: the backend prints a one-time password to its log and asks for a new one after the first login. |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins. Use comma-separated URLs for production (e.g., `https://octofleet.example.com`). |
-| `NVD_API_KEY` | *(none)* | NVD API key for vulnerability scanning. Get one free at [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key). Without it, scanning is rate-limited. |
-| `OCTOFLEET_GATEWAY_URL` | `http://192.168.0.5:18789` | Gateway URL for inter-service communication |
+| `OCTOFLEET_GATEWAY_URL` | *(empty)* | Gateway URL for inter-service communication |
 | `OCTOFLEET_GATEWAY_TOKEN` | *(empty)* | Token for gateway authentication |
+
+The NVD API key for vulnerability scanning is set in the UI under **Settings → NVD API Key** (get one free at [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key); without it, scanning is rate-limited). `docker-compose.yml` does not pass an `NVD_API_KEY` variable to the backend.
 
 > ℹ️ **Note:** The backend uses `API_KEY` internally (with fallback to `INVENTORY_API_KEY` for backward compatibility). Use `API_KEY` for all new deployments. Both agent types reference this as their authentication token.
 
@@ -38,7 +40,7 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://192.168.0.49:8080` | Backend API URL as seen by the **browser** (public/external URL) |
+| `NEXT_PUBLIC_API_URL` | *(empty)* | Backend API URL as seen by the **browser** (public/external URL). Empty: the browser uses the host it opened the UI on, port 8080. |
 | `API_URL` | `http://backend:8080` | Backend API URL for server-side rendering (Docker internal) |
 
 > **Note:** `NEXT_PUBLIC_API_URL` must be reachable from the user's browser. If you access Octofleet at `https://octofleet.example.com`, set this to `https://octofleet.example.com:8080` (or route through your reverse proxy).
