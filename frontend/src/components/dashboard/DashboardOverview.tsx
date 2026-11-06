@@ -10,6 +10,7 @@ import {
   Shield, RefreshCw, Server, Database, CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
+import { formatTime } from "@/lib/format";
 
 interface DashboardOverviewProps {
   summary: any;
@@ -158,7 +159,7 @@ export function DashboardOverview({
                       </span>
                     </div>
                     <span className="text-[9px] font-black font-mono text-muted-foreground/50 tabular-nums">
-                      {new Date(alert.sent_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                      {formatTime(alert.sent_at, { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 )) : (

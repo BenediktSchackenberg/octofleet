@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
 import { EventlogChart } from "@/components/EventlogChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/format";
 
 
 
@@ -193,7 +194,7 @@ export default function EventlogPage() {
                     </div>
                   </div>
                   <div className="text-xs text-zinc-600 mt-2">
-                    {new Date(stats.lastCollected).toLocaleString("de-DE")}
+                    {formatDateTime(stats.lastCollected)}
                   </div>
                 </div>
               ))}
@@ -239,7 +240,7 @@ export default function EventlogPage() {
                           <span className="text-zinc-500 text-xs">{event.logName}</span>
                         </div>
                         <div className="text-xs text-zinc-500">
-                          {new Date(event.eventTime).toLocaleString("de-DE")}
+                          {formatDateTime(event.eventTime)}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mb-2">

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { LoadingSpinner } from "@/components/ui-components";
 import { useAuth } from "@/lib/auth-context";
 import { Plus, Trash2, Key, Copy, Check, AlertTriangle } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 
 
@@ -89,7 +90,7 @@ export default function ApiKeysPage() {
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString("de-DE", {
+    return formatDateTime(dateStr, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",

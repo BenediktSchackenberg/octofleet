@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { RefreshCw, Cpu, MemoryStick, HardDrive, Network, Wifi, WifiOff, Play, Pause, Trash2, Search } from "lucide-react";
 import { API_BASE } from '@/lib/api-config';
+import { formatDateTime, formatTime } from "@/lib/format";
 
 
 
@@ -124,7 +125,7 @@ export function PerformanceTab({ nodeId }: Props) {
         const json = await res.json();
         const data = json.data.map((d: any) => ({
           timestamp: new Date(d.timestamp).getTime(),
-          time: new Date(d.timestamp).toLocaleString('de-DE', {
+          time: formatDateTime(d.timestamp, {
             day: '2-digit',
             month: '2-digit',
             hour: '2-digit',
@@ -205,7 +206,7 @@ export function PerformanceTab({ nodeId }: Props) {
       setMetrics(data);
       
       const now = Date.now();
-      const timeStr = new Date(now).toLocaleTimeString('de-DE', { 
+      const timeStr = formatTime(now, { 
         hour: '2-digit', 
         minute: '2-digit', 
         second: '2-digit' 
@@ -529,7 +530,7 @@ export function PerformanceTab({ nodeId }: Props) {
                   {logs.slice(-5).reverse().map((log, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm">
                       <span className="text-xs text-muted-foreground">
-                        {log.timestamp ? new Date(log.timestamp).toLocaleTimeString('de-DE') : ''}
+                        {log.timestamp ? formatTime(log.timestamp) : ''}
                       </span>
                       {getLevelBadge(log.level, log.levelName)}
                       <span className="truncate">{log.source}</span>
@@ -580,7 +581,7 @@ export function PerformanceTab({ nodeId }: Props) {
                   {filteredLogs.slice(-100).reverse().map((log, i) => (
                     <TableRow key={i}>
                       <TableCell className="text-xs">
-                        {log.timestamp ? new Date(log.timestamp).toLocaleTimeString('de-DE') : ''}
+                        {log.timestamp ? formatTime(log.timestamp) : ''}
                       </TableCell>
                       <TableCell>{getLevelBadge(log.level, log.levelName)}</TableCell>
                       <TableCell className="text-xs truncate max-w-[150px]">{log.source}</TableCell>
@@ -713,7 +714,7 @@ export function PerformanceTab({ nodeId }: Props) {
                   {agentLogs.map((log, i) => (
                     <TableRow key={i}>
                       <TableCell className="text-xs">
-                        {new Date(log.timestamp).toLocaleTimeString('de-DE')}
+                        {formatTime(log.timestamp)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={log.level === 'Error' ? 'destructive' : log.level === 'Warning' ? 'secondary' : 'outline'}>

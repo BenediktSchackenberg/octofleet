@@ -21,6 +21,7 @@ import {
   Shield, Users, ScrollText, Lock, Unlock, Plus, Pencil, Trash2,
   Search, Filter, Download, ChevronRight, User as UserIcon, Eye, X
 } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ interface ScopeEntry {
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleString("de-DE", {
+  return formatDateTime(dateStr, {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }

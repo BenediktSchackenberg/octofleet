@@ -15,6 +15,7 @@ import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
+import { formatDateTime } from "@/lib/format";
 
 interface GroupMember {
   id: string;
@@ -169,7 +170,7 @@ export default function GroupDetailPage() {
 
   function formatDate(dateStr: string) {
     const date = new Date(dateStr);
-    return date.toLocaleString("de-DE", {
+    return formatDateTime(date, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",

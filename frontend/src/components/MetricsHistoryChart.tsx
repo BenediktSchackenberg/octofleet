@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatTime } from "@/lib/format";
 
 interface MetricsChartProps {
   nodeId: string;
@@ -51,7 +52,7 @@ export function MetricsHistoryChart({ nodeId, title = "Performance History" }: M
           const json = await res.json();
           // Transform data for recharts
           const chartData = (json.data || []).map((point: DataPoint) => ({
-            time: new Date(point.timestamp).toLocaleTimeString("de-DE", {
+            time: formatTime(point.timestamp, {
               hour: "2-digit",
               minute: "2-digit",
             }),

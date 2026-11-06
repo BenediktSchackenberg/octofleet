@@ -456,5 +456,15 @@
     "partial": "Ese análisis no pudo comprobar {count} versión(es) de software; se conservaron sus hallazgos anteriores.",
     "stale": "Los datos tienen más de {days} días: inicie un nuevo análisis.",
     "none": "Aún no se ha completado ningún análisis: las cifras no se basan en un análisis."
+  },
+  "dateTime": {
+    "menuTitle": "Idioma, hora y fecha",
+    "language": "Idioma",
+    "time": "Hora",
+    "date": "Fecha",
+    "auto": "Automático (idioma)",
+    "hours24": "24 horas",
+    "hours12": "12 horas (a. m./p. m.)",
+    "example": "Ejemplo"
   }
 }

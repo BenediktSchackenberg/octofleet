@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/auth-context";
 import { RoleDashboard, type DashboardRole } from "@/components/dashboard/RoleDashboard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
+import { formatTime } from "@/lib/format";
 
 // Skeleton Components for Loading State
 function Skeleton({ className = "" }: { className?: string }) {
@@ -1134,7 +1135,7 @@ export default function HomePage() {
                             <span className="text-xs font-medium truncate max-w-[280px]">{alert.message || alert.event_type}</span>
                           </div>
                           <span className="text-[10px] font-bold font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                            {new Date(alert.sent_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                            {formatTime(alert.sent_at, { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                       )) : (

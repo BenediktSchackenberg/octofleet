@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
+import { formatDateTime } from "@/lib/format";
 
 
 
@@ -87,7 +88,7 @@ function CommandTypeBadge({ type }: { type: string }) {
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString("de-DE", {
+  return formatDateTime(dateStr, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

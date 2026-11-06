@@ -456,5 +456,15 @@
     "partial": "Dieser Scan konnte {count} Software-Version(en) nicht prüfen; deren bisherige Funde wurden beibehalten.",
     "stale": "Die Daten sind älter als {days} Tage – bitte einen neuen Scan starten.",
     "none": "Noch kein Scan abgeschlossen – die Zahlen beruhen auf keinem Scan."
+  },
+  "dateTime": {
+    "menuTitle": "Sprache, Uhrzeit und Datum",
+    "language": "Sprache",
+    "time": "Uhrzeit",
+    "date": "Datum",
+    "auto": "Automatisch (Sprache)",
+    "hours24": "24 Stunden",
+    "hours12": "12 Stunden (AM/PM)",
+    "example": "Beispiel"
   }
 }
