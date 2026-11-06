@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Trash2, ArrowLeft, Download, Package } from "lucide-react";
+import { localeTag } from "@/lib/format";
 
 
 
@@ -259,10 +260,10 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
                     </TableCell>
                     <TableCell>{n.attempts}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {n.started_at ? new Date(n.started_at).toLocaleString("de-DE") : "-"}
+                      {n.started_at ? new Date(n.started_at).toLocaleString(localeTag()) : "-"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {n.completed_at ? new Date(n.completed_at).toLocaleString("de-DE") : "-"}
+                      {n.completed_at ? new Date(n.completed_at).toLocaleString(localeTag()) : "-"}
                     </TableCell>
                     <TableCell>{n.exit_code ?? "-"}</TableCell>
                     <TableCell className="text-sm text-red-500 max-w-xs truncate">

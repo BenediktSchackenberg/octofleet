@@ -21,6 +21,7 @@ import {
   Eye,
   Database,
 } from "lucide-react";
+import { localeTag } from "@/lib/format";
 
 interface AgentStatus {
   id: string;
@@ -318,7 +319,7 @@ export default function AgentMonitorPage() {
                         const label = ACTION_LABELS[evt.action] || evt.action;
                         const isError = evt.status_code >= 400;
                         const time = new Date(evt.timestamp);
-                        const timeStr = time.toLocaleTimeString("de-DE", {
+                        const timeStr = time.toLocaleTimeString(localeTag(), {
                           hour: "2-digit", minute: "2-digit", second: "2-digit",
                         });
 

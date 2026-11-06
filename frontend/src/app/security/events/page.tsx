@@ -6,6 +6,7 @@ import {
   Activity, Monitor, Network, Key, Shield, Server, FileText, RefreshCw,
   ArrowUpDown, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Clock
 } from "lucide-react";
+import { localeTag } from "@/lib/format";
 
 interface NormalizedEvent {
   id?: string;
@@ -105,7 +106,7 @@ function parsePayload(p: unknown): Record<string, unknown> {
 function formatTime(ts: string): string {
   try {
     const d = new Date(ts);
-    return d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return d.toLocaleString(localeTag(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   } catch { return ts; }
 }
 
@@ -389,7 +390,7 @@ export default function SecurityEventsPage() {
                                 fill="#ec4899" fillOpacity="0.9" />
                               {i % Math.max(1, Math.floor(sorted.length / 8)) === 0 && (
                                 <text x={x + barW / 2} y={chartH + 14} fill="#71717a" fontSize="8" textAnchor="middle">
-                                  {new Date(hour).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit" })}
+                                  {new Date(hour).toLocaleString(localeTag(), { day: "2-digit", month: "2-digit", hour: "2-digit" })}
                                 </text>
                               )}
                             </g>

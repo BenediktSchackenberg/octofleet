@@ -6,6 +6,7 @@ import { Terminal, Zap, Rocket } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge as StatusBadgeNew, statusToVariant } from "@/components/ui/StatusBadge";
 import { StandardPage } from "@/components/ui/StandardPage";
+import { localeTag } from "@/lib/format";
 
 
 
@@ -396,7 +397,7 @@ function JobDetailPanel({ job, onClose, onRetry }: { job: JobDetail; onClose: ()
           </div>
           <div>
             <span className="text-zinc-400">Erstellt:</span>
-            <span className="ml-2 text-white">{new Date(job.createdAt).toLocaleString("de-DE")}</span>
+            <span className="ml-2 text-white">{new Date(job.createdAt).toLocaleString(localeTag())}</span>
           </div>
         </div>
 
@@ -604,7 +605,7 @@ export default function JobsPage() {
                       <SummaryBar summary={job.summary} />
                     </td>
                     <td className="px-4 py-3 text-zinc-400 text-sm">
-                      {new Date(job.createdAt).toLocaleString("de-DE")}
+                      {new Date(job.createdAt).toLocaleString(localeTag())}
                     </td>
                   </tr>
                 ))}

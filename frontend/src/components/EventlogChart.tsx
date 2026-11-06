@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from "recharts";
+import { localeTag } from "@/lib/format";
 
 
 
@@ -58,7 +59,7 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
   // Format day labels
   const formattedData = data.map(d => ({
     ...d,
-    dayLabel: new Date(d.day).toLocaleDateString("de-DE", { weekday: "short", day: "numeric" })
+    dayLabel: new Date(d.day).toLocaleDateString(localeTag(), { weekday: "short", day: "numeric" })
   }));
 
   if (chartType === "line") {

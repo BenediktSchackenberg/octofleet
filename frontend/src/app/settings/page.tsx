@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Key, Users, Shield, Lock, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
 import { API_URL } from '@/lib/api-config';
 import { OnboardingDialog } from "@/components/onboarding-dialog";
+import { localeTag } from "@/lib/format";
 
 
 
@@ -365,7 +366,7 @@ export default function SettingsPage() {
                     <div className="text-sm text-zinc-500 mt-1">
                       {token.description || "Keine Beschreibung"} • 
                       {token.useCount}/{token.maxUses} verwendet • 
-                      Läuft ab: {new Date(token.expiresAt).toLocaleString("de-DE")}
+                      Läuft ab: {new Date(token.expiresAt).toLocaleString(localeTag())}
                     </div>
                   </div>
                   {token.status === "active" && (

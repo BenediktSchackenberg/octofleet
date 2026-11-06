@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { localeTag } from "@/lib/format";
 
 
 
@@ -764,7 +765,7 @@ export default function PackageDetailPage() {
                     </div>
                     <div className="flex items-center gap-4 text-sm text-zinc-400">
                       <span>{ver.filename}</span>
-                      {ver.releaseDate && <span>{new Date(ver.releaseDate).toLocaleDateString("de-DE")}</span>}
+                      {ver.releaseDate && <span>{new Date(ver.releaseDate).toLocaleDateString(localeTag())}</span>}
                       <span>{expandedVersion === ver.id ? "▲" : "▼"}</span>
                     </div>
                   </div>

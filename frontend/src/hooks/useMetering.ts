@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { apiClient, ApiResponse } from "@/lib/api-client";
+import { localeTag } from "@/lib/format";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ export function complianceBadge(status?: string) {
 
 export function formatCurrency(amount: number | null, currency = "EUR") {
   if (amount == null) return "—";
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(amount);
+  return new Intl.NumberFormat(localeTag(), { style: "currency", currency }).format(amount);
 }
 
 export function catName(c: CatalogEntry): string { return c.canonicalName || c.canonical_name || ""; }

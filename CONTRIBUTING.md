@@ -66,6 +66,14 @@ Look for issues labeled `good first issue` - these are specifically chosen for n
 - **TypeScript**: Prettier + ESLint (run `npm run lint`)
 - **C#**: Standard .NET conventions
 
+## 🌍 Translations and Dates
+
+The UI is available in English, German and Spanish.
+
+- **Text:** add every key to `frontend/src/locales/en.json`, `de.json` and `es.json` and show it with `t("…")` from `useI18n()` – no hardcoded text in components.
+- **Dates and numbers:** pass `localeTag()` from `frontend/src/lib/format.ts` as the locale (`date.toLocaleString(localeTag(), …)`), or use its `formatDateTime`, `formatDate`, `formatTime` and `formatNumber`. Never a fixed tag such as `"de-DE"`. They follow the language selected in the UI.
+- **Check:** `npm run check:i18n` (also part of the frontend CI job) fails if a file gets more lines with German text or `"de-DE"` than recorded in `frontend/i18n-baseline.json`, which holds the existing backlog. After translating a page, lower the baseline with `node scripts/check-i18n.mjs --update` and commit it.
+
 ## 🔀 Pull Request Process
 
 1. Create a branch: `git checkout -b feature/my-feature`

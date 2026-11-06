@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import de from "@/locales/de.json";
 import en from "@/locales/en.json";
 import es from "@/locales/es.json";
+import { setFormatLocale } from "@/lib/format";
 
 type Locale = "de" | "en" | "es";
 type Translations = typeof de;
@@ -67,6 +68,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     },
     [locale]
   );
+
+  // Dates and numbers formatted outside components follow the selected language too.
+  setFormatLocale(locale);
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, t }}>
