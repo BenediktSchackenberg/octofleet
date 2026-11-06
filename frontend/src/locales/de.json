@@ -456,5 +456,59 @@
     "partial": "Dieser Scan konnte {count} Software-Version(en) nicht prüfen; deren bisherige Funde wurden beibehalten.",
     "stale": "Die Daten sind älter als {days} Tage – bitte einen neuen Scan starten.",
     "none": "Noch kein Scan abgeschlossen – die Zahlen beruhen auf keinem Scan."
+  },
+  "remediation": {
+    "tabs": {
+      "jobs": "Jobs",
+      "packages": "Pakete",
+      "rules": "Regeln"
+    },
+    "form": {
+      "edit": "Bearbeiten",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "delete": "Löschen",
+      "confirmDelete": "Wirklich löschen",
+      "enabled": "Aktiv",
+      "descriptionField": "Beschreibung (optional)",
+      "saveFailed": "Speichern fehlgeschlagen.",
+      "deleteFailedInUse": "Löschen nicht möglich – Remediation-Jobs verweisen noch darauf. Stattdessen deaktivieren, dann bleibt der Job-Verlauf erhalten."
+    },
+    "package": {
+      "createTitle": "Neues Fix-Paket",
+      "editTitle": "Fix-Paket bearbeiten",
+      "description": "Was auf einem Node ausgeführt wird, um die Zielsoftware dieses Pakets zu aktualisieren.",
+      "name": "Name",
+      "targetSoftware": "Zielsoftware",
+      "targetSoftwareHelp": "Wird mit dem Namen der installierten Software verglichen, z. B. \"7-Zip\".",
+      "method": "Methode",
+      "methodScript": "Skript (PowerShell)",
+      "methodPackage": "Deployment-Paket",
+      "command": "Befehl",
+      "scriptWarning": "Das Skript läuft als SYSTEM auf jedem Node, den eine Regel diesem Paket zuordnet. Nur vertrauenswürdige Befehle verwenden.",
+      "packageId": "ID des Deployment-Pakets",
+      "minFixedVersion": "Behoben ab Version (optional)"
+    },
+    "rule": {
+      "createTitle": "Neue Remediation-Regel",
+      "editTitle": "Remediation-Regel bearbeiten",
+      "description": "Welche Schwachstellen zu Remediation-Jobs werden und wie diese freigegeben werden.",
+      "name": "Name",
+      "minSeverity": "Mindest-Schweregrad",
+      "softwarePattern": "Software (optional)",
+      "softwarePatternHelp": "Nur Software, deren Name zu diesem Muster passt; leer = jede Software mit Fix-Paket.",
+      "requireApproval": "Jobs brauchen eine Freigabe, bevor sie laufen",
+      "noApprovalWarning": "Ohne Freigabe gehen Jobs dieser Regel sofort an die Agents.",
+      "autoRemediate": "Nach jedem Scan automatisch Jobs erstellen",
+      "maintenanceWindowOnly": "Nur in Wartungsfenstern"
+    },
+    "jobs": {
+      "approval": "Freigabe",
+      "approve": "Freigeben",
+      "approved": "Freigegeben",
+      "approveSelected": "Auswahl freigeben ({count})",
+      "select": "Job auswählen",
+      "selectAll": "Alle Jobs auswählen, die auf Freigabe warten"
+    }
   }
 }

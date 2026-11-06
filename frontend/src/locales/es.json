@@ -456,5 +456,59 @@
     "partial": "Ese análisis no pudo comprobar {count} versión(es) de software; se conservaron sus hallazgos anteriores.",
     "stale": "Los datos tienen más de {days} días: inicie un nuevo análisis.",
     "none": "Aún no se ha completado ningún análisis: las cifras no se basan en un análisis."
+  },
+  "remediation": {
+    "tabs": {
+      "jobs": "Trabajos",
+      "packages": "Paquetes",
+      "rules": "Reglas"
+    },
+    "form": {
+      "edit": "Editar",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "delete": "Eliminar",
+      "confirmDelete": "Confirmar eliminación",
+      "enabled": "Activo",
+      "descriptionField": "Descripción (opcional)",
+      "saveFailed": "No se pudo guardar.",
+      "deleteFailedInUse": "No se puede eliminar: todavía hay trabajos de remediación que lo usan. Desactívalo para conservar el historial."
+    },
+    "package": {
+      "createTitle": "Nuevo paquete de corrección",
+      "editTitle": "Editar paquete de corrección",
+      "description": "Lo que se ejecuta en un nodo para corregir el software de destino de este paquete.",
+      "name": "Nombre",
+      "targetSoftware": "Software de destino",
+      "targetSoftwareHelp": "Se compara con el nombre del software instalado, p. ej. \"7-Zip\".",
+      "method": "Método",
+      "methodScript": "Script (PowerShell)",
+      "methodPackage": "Paquete de despliegue",
+      "command": "Comando",
+      "scriptWarning": "El script se ejecuta como SYSTEM en cada nodo que una regla asigne a este paquete. Usa solo comandos de confianza.",
+      "packageId": "ID del paquete de despliegue",
+      "minFixedVersion": "Corregido desde la versión (opcional)"
+    },
+    "rule": {
+      "createTitle": "Nueva regla de remediación",
+      "editTitle": "Editar regla de remediación",
+      "description": "Qué vulnerabilidades se convierten en trabajos de remediación y cómo se liberan.",
+      "name": "Nombre",
+      "minSeverity": "Gravedad mínima",
+      "softwarePattern": "Software (opcional)",
+      "softwarePatternHelp": "Solo el software cuyo nombre coincide con este patrón; vacío = todo el software con paquete de corrección.",
+      "requireApproval": "Los trabajos requieren aprobación antes de ejecutarse",
+      "noApprovalWarning": "Sin aprobación, los trabajos de esta regla se envían a los agentes de inmediato.",
+      "autoRemediate": "Crear trabajos automáticamente tras cada análisis",
+      "maintenanceWindowOnly": "Solo en ventanas de mantenimiento"
+    },
+    "jobs": {
+      "approval": "Aprobación",
+      "approve": "Aprobar",
+      "approved": "Aprobado",
+      "approveSelected": "Aprobar selección ({count})",
+      "select": "Seleccionar trabajo",
+      "selectAll": "Seleccionar todos los trabajos pendientes de aprobación"
+    }
   }
 }

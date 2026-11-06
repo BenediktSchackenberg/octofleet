@@ -456,5 +456,59 @@
     "partial": "That scan could not check {count} software version(s); their previous findings were kept.",
     "stale": "The data is older than {days} days – start a new scan.",
     "none": "No scan has completed yet – the numbers are not based on a scan."
+  },
+  "remediation": {
+    "tabs": {
+      "jobs": "Jobs",
+      "packages": "Packages",
+      "rules": "Rules"
+    },
+    "form": {
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "confirmDelete": "Really delete",
+      "enabled": "Enabled",
+      "descriptionField": "Description (optional)",
+      "saveFailed": "Could not save.",
+      "deleteFailedInUse": "Could not delete – remediation jobs still refer to it. Disable it instead to keep the job history."
+    },
+    "package": {
+      "createTitle": "New fix package",
+      "editTitle": "Edit fix package",
+      "description": "What runs on a node to fix the software this package targets.",
+      "name": "Name",
+      "targetSoftware": "Target software",
+      "targetSoftwareHelp": "Matched against the installed software name, e.g. \"7-Zip\".",
+      "method": "Method",
+      "methodScript": "Script (PowerShell)",
+      "methodPackage": "Deployment package",
+      "command": "Command",
+      "scriptWarning": "The script runs as SYSTEM on every node a rule assigns to this package. Only use commands you trust.",
+      "packageId": "Deployment package ID",
+      "minFixedVersion": "Fixed from version (optional)"
+    },
+    "rule": {
+      "createTitle": "New remediation rule",
+      "editTitle": "Edit remediation rule",
+      "description": "Which vulnerabilities become remediation jobs and how they are released.",
+      "name": "Name",
+      "minSeverity": "Minimum severity",
+      "softwarePattern": "Software (optional)",
+      "softwarePatternHelp": "Only software whose name matches this pattern; empty = all software with a fix package.",
+      "requireApproval": "Jobs need approval before they run",
+      "noApprovalWarning": "Without approval, jobs of this rule are released to the agents right away.",
+      "autoRemediate": "Create jobs automatically after each scan",
+      "maintenanceWindowOnly": "Only during maintenance windows"
+    },
+    "jobs": {
+      "approval": "Approval",
+      "approve": "Approve",
+      "approved": "Approved",
+      "approveSelected": "Approve selected ({count})",
+      "select": "Select job",
+      "selectAll": "Select all jobs awaiting approval"
+    }
   }
 }
