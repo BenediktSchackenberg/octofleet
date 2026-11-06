@@ -4,6 +4,9 @@ import { apiClient } from "@/lib/api-client";
 import { useState, useEffect, useMemo } from 'react';
 import { API_BASE } from '@/lib/api-config';
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useAuth } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n-context";
+import { PackageDialog, RuleDialog, type RemediationPackageForm, type RemediationRuleForm } from "@/components/remediation-forms";
 import { 
   Shield, Package, Plus, Play, CheckCircle, 
   XCircle, AlertTriangle, Clock, RefreshCw,
@@ -21,6 +24,7 @@ interface RemediationJob {
   cve_id: string;
   status: string;
   requires_approval: boolean;
+  approved_at?: string | null;
   created_at: string;
   package_name?: string;
   fix_method?: string;
@@ -34,6 +38,7 @@ interface RemediationPackage {
   min_fixed_version: string | null;
   fix_method: string;
   fix_command: string;
+  package_id?: string | null;
   enabled: boolean;
 }
 
@@ -45,6 +50,7 @@ interface RemediationRule {
   software_pattern: string | null;
   auto_remediate: boolean;
   require_approval: boolean;
+  maintenance_window_only?: boolean;
   enabled: boolean;
 }
 
@@ -78,6 +84,33 @@ export default function RemediationPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('id');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const { t } = useI18n();
+  const { hasPermission } = useAuth();
+  const canApprove = hasPermission('jobs:execute');
+  const canEditPackages = hasPermission('packages:write');
+  const canEditRules = hasPermission('settings:write');
+  const [packageDialog, setPackageDialog] = useState<{ open: boolean; initial: RemediationPackageForm | null }>({ open: false, initial: null });
+  const [ruleDialog, setRuleDialog] = useState<{ open: boolean; initial: RemediationRuleForm | null }>({ open: false, initial: null });
+  const [selectedJobs, setSelectedJobs] = useState<Set<number>>(new Set());
+  const [approving, setApproving] = useState(false);
+  const approvable = (job: RemediationJob) => canApprove && job.status === 'pending' && job.requires_approval;
+  const approveJobs = async (ids: number[]) => {
+    if (!ids.length) return;
+    setApproving(true);
+    try {
+      const result = await apiClient.post(`/remediation/jobs/approve`, { job_ids: ids });
+      if (!result) return;
+      setSelectedJobs(new Set());
+      await fetchData();
+    } finally {
+      setApproving(false);
+    }
+  };
+  const toggleJob = (id: number) => setSelectedJobs((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const getToken = () => localStorage.getItem('token');
 
@@ -334,7 +367,7 @@ export default function RemediationPage() {
             <div className="grid grid-cols-4 gap-4 text-sm">
               <div><span className="text-zinc-400">Scanned:</span> <span className="font-mono">{scanResult.scanned}</span></div>
               <div><span className="text-zinc-400">With Fix:</span> <span className="font-mono text-green-400">{scanResult.with_fix_available}</span></div>
-              <div><span className="text-zinc-400">Jobs Created:</span> <span className="font-mono text-blue-400">{scanResult.jobs_created}</span></div>
+              <div><span className="text-zinc-400">{scanResult.dry_run ? "Would create:" : "Jobs Created:"}</span> <span className="font-mono text-blue-400">{scanResult.dry_run ? (scanResult.would_create ?? scanResult.jobs_created) : scanResult.jobs_created}</span></div>
               <div><span className="text-zinc-400">Skipped:</span> <span className="font-mono">{scanResult.jobs_skipped_existing}</span></div>
             </div>
           </div>
@@ -342,12 +375,12 @@ export default function RemediationPage() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-4 border-b border-zinc-700 pb-2">
-          {(['dashboard', 'packages', 'rules', 'jobs'] as const).map(tab => (
+          {(['dashboard', 'packages', 'rules'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-t-lg capitalize text-sm ${
                 activeTab === tab ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
               }`}>
-              {tab === 'dashboard' ? 'Jobs' : tab}
+              {t(`remediation.tabs.${tab === 'dashboard' ? 'jobs' : tab}`)}
             </button>
           ))}
         </div>
@@ -357,6 +390,12 @@ export default function RemediationPage() {
           <div className="bg-zinc-900 rounded-xl border border-zinc-700">
             {/* Filter Bar */}
             <div className="p-4 border-b border-zinc-700 flex flex-wrap items-center gap-3">
+              {selectedJobs.size > 0 && (
+                <button onClick={() => approveJobs([...selectedJobs])} disabled={approving}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-lg text-sm">
+                  {t("remediation.jobs.approveSelected", { count: selectedJobs.size })}
+                </button>
+              )}
               {/* Search */}
               <div className="relative flex-1 min-w-[240px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
@@ -397,6 +436,11 @@ export default function RemediationPage() {
               <table className="w-full">
                 <thead className="bg-zinc-800/50">
                   <tr>
+                    <th className="p-3 w-8">
+                      {canApprove && <input type="checkbox" aria-label={t("remediation.jobs.selectAll")}
+                        checked={filteredJobs.some(approvable) && filteredJobs.filter(approvable).every(j => selectedJobs.has(j.id))}
+                        onChange={(e) => setSelectedJobs(e.target.checked ? new Set(filteredJobs.filter(approvable).map(j => j.id)) : new Set())} />}
+                    </th>
                     {([
                       ['id', 'ID'],
                       ['software_name', 'Software'],
@@ -415,14 +459,21 @@ export default function RemediationPage() {
                     ))}
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Fix Method</th>
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Node</th>
+                    <th className="text-left p-3 text-zinc-400 font-medium text-sm">{t("remediation.jobs.approval")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
                   {filteredJobs.length === 0 ? (
-                    <tr><td colSpan={7} className="p-8 text-center text-zinc-500">No jobs match your filters</td></tr>
+                    <tr><td colSpan={9} className="p-8 text-center text-zinc-500">No jobs match your filters</td></tr>
                   ) : (
                     filteredJobs.map(job => (
                       <tr key={job.id} className={`hover:bg-zinc-800/30 ${job.status === 'running' ? 'bg-purple-500/5' : ''}`}>
+                        <td className="p-3">
+                          {approvable(job) && (
+                            <input type="checkbox" aria-label={t("remediation.jobs.select")}
+                              checked={selectedJobs.has(job.id)} onChange={() => toggleJob(job.id)} />
+                          )}
+                        </td>
                         <td className="p-3 font-mono text-sm">{job.id}</td>
                         <td className="p-3">
                           <div className="font-medium">{job.software_name}</div>
@@ -441,6 +492,16 @@ export default function RemediationPage() {
                         </td>
                         <td className="p-3">{getMethodBadge(job.fix_method || 'unknown')}</td>
                         <td className="p-3 font-mono text-xs text-zinc-500">{job.node_id?.slice(0, 8)}…</td>
+                        <td className="p-3">
+                          {approvable(job) ? (
+                            <button onClick={() => approveJobs([job.id])} disabled={approving}
+                              className="px-2 py-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded text-xs">
+                              {t("remediation.jobs.approve")}
+                            </button>
+                          ) : job.requires_approval && job.approved_at ? (
+                            <span className="text-xs text-zinc-500">{t("remediation.jobs.approved")}</span>
+                          ) : null}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -455,9 +516,10 @@ export default function RemediationPage() {
           <div className="bg-zinc-900 rounded-xl border border-zinc-700">
             <div className="p-4 border-b border-zinc-700 flex justify-between items-center">
               <h2 className="font-semibold">Fix Packages</h2>
-              <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
+              {canEditPackages && <button onClick={() => setPackageDialog({ open: true, initial: null })}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
                 <Plus className="h-4 w-4" /> Add Package
-              </button>
+              </button>}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -468,6 +530,7 @@ export default function RemediationPage() {
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Method</th>
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Command</th>
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Enabled</th>
+                    <th className="p-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
@@ -478,6 +541,13 @@ export default function RemediationPage() {
                       <td className="p-3">{getMethodBadge(pkg.fix_method)}</td>
                       <td className="p-3"><code className="bg-zinc-800 px-2 py-1 rounded text-xs">{pkg.fix_command}</code></td>
                       <td className="p-3">{pkg.enabled ? <span className="text-green-400">●</span> : <span className="text-zinc-500">○</span>}</td>
+                      <td className="p-3 text-right">
+                        {canEditPackages && <button onClick={() => setPackageDialog({ open: true, initial: {
+                            id: pkg.id, name: pkg.name, description: pkg.description || '', target_software: pkg.target_software,
+                            min_fixed_version: pkg.min_fixed_version || '', fix_method: pkg.fix_method as RemediationPackageForm['fix_method'],
+                            fix_command: pkg.fix_command || '', package_id: pkg.package_id || '', enabled: pkg.enabled } })}
+                          className="px-2 py-1 border border-zinc-600 hover:bg-zinc-800 rounded text-xs">{t("remediation.form.edit")}</button>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -491,9 +561,10 @@ export default function RemediationPage() {
           <div className="bg-zinc-900 rounded-xl border border-zinc-700">
             <div className="p-4 border-b border-zinc-700 flex justify-between items-center">
               <h2 className="font-semibold">Remediation Rules</h2>
-              <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
+              {canEditRules && <button onClick={() => setRuleDialog({ open: true, initial: null })}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center gap-2 text-sm">
                 <Plus className="h-4 w-4" /> Add Rule
-              </button>
+              </button>}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -504,6 +575,7 @@ export default function RemediationPage() {
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Auto Fix</th>
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Approval</th>
                     <th className="text-left p-3 text-zinc-400 font-medium text-sm">Enabled</th>
+                    <th className="p-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
@@ -524,6 +596,15 @@ export default function RemediationPage() {
                       <td className="p-3">{rule.auto_remediate ? <span className="text-green-400">Yes</span> : <span className="text-zinc-500">No</span>}</td>
                       <td className="p-3">{rule.require_approval ? <span className="text-yellow-400">Required</span> : <span className="text-zinc-500">No</span>}</td>
                       <td className="p-3">{rule.enabled ? <span className="text-green-400">●</span> : <span className="text-zinc-500">○</span>}</td>
+                      <td className="p-3 text-right">
+                        {canEditRules && <button onClick={() => setRuleDialog({ open: true, initial: {
+                            id: rule.id, name: rule.name, description: rule.description || '',
+                            min_severity: rule.min_severity as RemediationRuleForm['min_severity'],
+                            software_pattern: rule.software_pattern || '', auto_remediate: rule.auto_remediate,
+                            require_approval: rule.require_approval, maintenance_window_only: rule.maintenance_window_only ?? true,
+                            enabled: rule.enabled } })}
+                          className="px-2 py-1 border border-zinc-600 hover:bg-zinc-800 rounded text-xs">{t("remediation.form.edit")}</button>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -532,6 +613,10 @@ export default function RemediationPage() {
           </div>
         )}
       </main>
+      <PackageDialog open={packageDialog.open} initial={packageDialog.initial}
+        onClose={() => setPackageDialog({ open: false, initial: null })} onSaved={fetchData} />
+      <RuleDialog open={ruleDialog.open} initial={ruleDialog.initial}
+        onClose={() => setRuleDialog({ open: false, initial: null })} onSaved={fetchData} />
     </div>
   );
 }

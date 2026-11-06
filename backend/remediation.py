@@ -111,7 +111,7 @@ class TriggerRemediationRequest(BaseModel):
 class ApproveRemediationRequest(BaseModel):
     """Approve pending remediation jobs"""
     job_ids: list[int]
-    approved_by: str
+    approved_by: Optional[str] = None  # Legacy clients may send this; the server records the authenticated user.
 
 
 # ============================================
@@ -286,32 +286,63 @@ async def create_maintenance_window(db_pool, data: MaintenanceWindowCreate) -> d
 
 
 async def is_in_maintenance_window(db_pool, node_id: Optional[UUID] = None) -> bool:
-    """Check if current time is within any active maintenance window"""
+    """Check the schedule and node scope of an active maintenance window."""
     async with db_pool.acquire() as conn:
-        now = datetime.now(timezone.utc)
-        current_time = now.time()
-        current_dow = now.weekday()  # 0=Monday in Python, but we store 0=Sunday
-        # Convert Python weekday to our format (0=Sunday)
-        current_dow = (current_dow + 1) % 7
-        
-        # Check both old and new schema
         try:
             rows = await conn.fetch("""
-                SELECT * FROM maintenance_windows 
-                WHERE is_active = true
-                AND $1 = ANY(days_of_week)
-                AND start_time <= $2 AND end_time >= $2
-            """, current_dow, current_time)
+                SELECT *, timezone(COALESCE(timezone, 'UTC'), NOW()) AS local_now
+                FROM maintenance_windows WHERE is_active = TRUE
+            """)
         except Exception:
-            # Fallback for new schema
             rows = await conn.fetch("""
-                SELECT * FROM maintenance_windows 
-                WHERE enabled = true
-                AND (day_of_week IS NULL OR $1 = ANY(day_of_week))
-                AND start_time <= $2 AND end_time >= $2
-            """, current_dow, current_time)
-        
-        return len(rows) > 0
+                SELECT *, timezone(COALESCE(timezone, 'UTC'), NOW()) AS local_now
+                FROM maintenance_windows WHERE enabled = TRUE
+            """)
+
+        group_ids: set[str] = set()
+        if node_id is not None:
+            node = await conn.fetchrow("SELECT node_id, hostname FROM nodes WHERE id = $1", node_id)
+            if not node:
+                return False
+            identities = [str(node_id), node['node_id'], node['hostname']]
+            try:
+                memberships = await conn.fetch(
+                    "SELECT group_id FROM group_members WHERE node_id = ANY($1::text[])", identities)
+                group_ids = {str(member['group_id']) for member in memberships}
+            except Exception:
+                # Some older databases do not have group_members. Scoped windows fail closed.
+                pass
+
+        for record in rows:
+            row = dict(record)
+            local_now = row['local_now']
+            start, end = row['start_time'], row['end_time']
+            current = local_now.time()
+            today = (local_now.weekday() + 1) % 7  # 0=Sunday
+            if start <= end:
+                if not start <= current <= end:
+                    continue
+                scheduled_day = today
+            elif current >= start:
+                scheduled_day = today
+            elif current <= end:
+                scheduled_day = (today - 1) % 7
+            else:
+                continue
+            days = row.get('day_of_week') if 'day_of_week' in row else row.get('days_of_week')
+            if days is not None and scheduled_day not in days:
+                continue
+            if node_id is None:
+                return True
+            if 'applies_to_all' in row:
+                if row['applies_to_all'] or group_ids.intersection(str(g) for g in (row.get('group_ids') or [])):
+                    return True
+            else:
+                target = row.get('target_type') or 'all'
+                if (target == 'all' or (target == 'node' and str(row.get('target_id')) == str(node_id))
+                        or (target == 'group' and str(row.get('target_id')) in group_ids)):
+                    return True
+        return False
 
 
 # Remediation Jobs
@@ -504,7 +535,7 @@ class RemediationEngine:
                 return 1
         return 0
     
-    async def get_matching_rule(self, vuln: dict) -> Optional[dict]:
+    async def get_matching_rule(self, vuln: dict, auto_only: bool = False) -> Optional[dict]:
         """
         Find the highest-priority rule that matches this vulnerability.
         """
@@ -515,6 +546,8 @@ class RemediationEngine:
         vuln_severity_rank = severity_order.get(vuln_severity, 999)
         
         for rule in sorted(rules, key=lambda r: r['priority']):
+            if auto_only and not rule['auto_remediate']:
+                continue
             # Check severity threshold
             rule_severity_rank = severity_order.get(rule['min_severity'], 999)
             if vuln_severity_rank > rule_severity_rank:
@@ -536,7 +569,8 @@ class RemediationEngine:
         severity_filter: Optional[list[str]] = None,
         software_filter: Optional[str] = None,
         node_ids: Optional[list[UUID]] = None,
-        dry_run: bool = False
+        dry_run: bool = False,
+        auto_only: bool = False
     ) -> dict:
         """
         Scan vulnerabilities and create remediation jobs.
@@ -583,7 +617,9 @@ class RemediationEngine:
         results = {
             'scanned': len(rows),
             'with_fix_available': 0,
+            'dry_run': dry_run,
             'jobs_created': 0,
+            'would_create': 0,
             'jobs_skipped_existing': 0,
             'jobs_skipped_no_rule': 0,
             'details': []
@@ -600,7 +636,7 @@ class RemediationEngine:
             results['with_fix_available'] += 1
             
             # Find matching rule
-            rule = await self.get_matching_rule(vuln)
+            rule = await self.get_matching_rule(vuln, auto_only=auto_only)
             if not rule:
                 results['jobs_skipped_no_rule'] += 1
                 continue
@@ -644,8 +680,8 @@ class RemediationEngine:
                 detail['job_id'] = job['id']
                 results['jobs_created'] += 1
             else:
-                detail['job_id'] = None  # Dry run
-                results['jobs_created'] += 1
+                detail['job_id'] = None  # Dry run: nothing is written
+                results['would_create'] += 1
             
             results['details'].append(detail)
         
