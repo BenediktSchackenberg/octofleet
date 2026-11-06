@@ -95,21 +95,28 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         return {"id": str(job_uuid), "status": "created", "instances": len(node_ids)}
 
 @router.delete("/jobs/{job_id}")
-async def cancel_or_delete_job(job_id: str, action: str = "cancel", db: asyncpg.Pool = Depends(get_db)):
+async def cancel_or_delete_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """Cancel a job that still has open instances; delete a finished job with its instances.
+
+    jobs has no status column - a job's state comes from its instances. Pending and queued
+    instances are cancelled; running ones cannot be stopped from here and keep the job.
+    """
     async with db.acquire() as conn:
-        job = await conn.fetchrow("SELECT status FROM jobs WHERE id = $1", job_id)
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
-        if job["status"] in ("completed", "failed", "cancelled"):
-            # Finished job — delete entirely
-            await conn.execute("DELETE FROM job_instances WHERE job_id = $1", job_id)
-            await conn.execute("DELETE FROM jobs WHERE id = $1", job_id)
+        async with conn.transaction():
+            if not await conn.fetchval("SELECT 1 FROM jobs WHERE id::text = $1", job_id):
+                raise HTTPException(status_code=404, detail="Job not found")
+            cancelled = await conn.fetch("""
+                UPDATE job_instances SET status = 'cancelled', updated_at = NOW()
+                WHERE job_id::text = $1 AND status IN ('pending', 'queued')
+                RETURNING id
+            """, job_id)
+            running = await conn.fetchval(
+                "SELECT COUNT(*) FROM job_instances WHERE job_id::text = $1 AND status = 'running'", job_id)
+            if cancelled or running:
+                return {"status": "cancelled", "instancesCancelled": len(cancelled), "instancesRunning": running}
+            await conn.execute("DELETE FROM job_instances WHERE job_id::text = $1", job_id)
+            await conn.execute("DELETE FROM jobs WHERE id::text = $1", job_id)
             return {"status": "deleted"}
-        else:
-            # Running/pending — cancel
-            await conn.execute("UPDATE job_instances SET status = 'cancelled' WHERE job_id = $1 AND status IN ('pending', 'queued')", job_id)
-            await conn.execute("UPDATE jobs SET status = 'cancelled' WHERE id = $1", job_id)
-            return {"status": "cancelled"}
 
 # --- Agent Endpoints ---
 
