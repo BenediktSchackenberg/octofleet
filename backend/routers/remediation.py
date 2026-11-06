@@ -7,9 +7,11 @@ import logging
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+import asyncpg
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from starlette.responses import StreamingResponse
 
+from auth import CurrentUser, require_permission
 from dependencies import API_KEY, get_pool, verify_api_key
 from remediation import (
     ApproveRemediationRequest,
@@ -69,7 +71,7 @@ async def get_remediation_package_by_id(
 @router.post("/api/v1/remediation/packages", status_code=201)
 async def create_remediation_package_endpoint(
     data: RemediationPackageCreate,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_permission("packages:write"))
 ):
     """Create a new remediation package (CVE → Fix mapping)."""
     try:
@@ -85,7 +87,7 @@ async def create_remediation_package_endpoint(
 async def update_remediation_package_endpoint(
     package_id: int,
     data: RemediationPackageUpdate,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_permission("packages:write"))
 ):
     """Update a remediation package."""
     pkg = await update_remediation_package(get_pool(), package_id, data)
@@ -97,10 +99,16 @@ async def update_remediation_package_endpoint(
 @router.delete("/api/v1/remediation/packages/{package_id}")
 async def delete_remediation_package_endpoint(
     package_id: int,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_permission("packages:write"))
 ):
     """Delete a remediation package."""
-    deleted = await delete_remediation_package(get_pool(), package_id)
+    try:
+        deleted = await delete_remediation_package(get_pool(), package_id)
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(
+            status_code=409,
+            detail="Remediation jobs still refer to this package. Disable it instead to keep the job history.",
+        )
     if not deleted:
         raise HTTPException(status_code=404, detail="Remediation package not found")
     return {"status": "deleted", "id": package_id}
@@ -131,7 +139,7 @@ async def get_remediation_rule_by_id(
 @router.post("/api/v1/remediation/rules", status_code=201)
 async def create_remediation_rule_endpoint(
     data: RemediationRuleCreate,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_permission("settings:write"))
 ):
     """Create a new remediation rule."""
     rule = await create_remediation_rule(get_pool(), data)
@@ -142,7 +150,7 @@ async def create_remediation_rule_endpoint(
 async def update_remediation_rule_endpoint(
     rule_id: int,
     data: RemediationRuleUpdate,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_permission("settings:write"))
 ):
     """Update a remediation rule."""
     rule = await update_remediation_rule(get_pool(), rule_id, data)
@@ -154,10 +162,16 @@ async def update_remediation_rule_endpoint(
 @router.delete("/api/v1/remediation/rules/{rule_id}")
 async def delete_remediation_rule_endpoint(
     rule_id: int,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_permission("settings:write"))
 ):
     """Delete a remediation rule."""
-    deleted = await delete_remediation_rule(get_pool(), rule_id)
+    try:
+        deleted = await delete_remediation_rule(get_pool(), rule_id)
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(
+            status_code=409,
+            detail="Remediation jobs still refer to this rule. Disable it instead to keep the job history.",
+        )
     if not deleted:
         raise HTTPException(status_code=404, detail="Remediation rule not found")
     return {"status": "deleted", "id": rule_id}
@@ -214,10 +228,10 @@ async def get_remediation_job_by_id(
 @router.post("/api/v1/remediation/jobs/approve")
 async def approve_jobs(
     data: ApproveRemediationRequest,
-    _: str = Depends(verify_api_key)
+    user: CurrentUser = Depends(require_permission("jobs:execute"))
 ):
     """Approve pending remediation jobs."""
-    count = await approve_remediation_jobs(get_pool(), data.job_ids, data.approved_by)
+    count = await approve_remediation_jobs(get_pool(), data.job_ids, user.username)
     return {"approved_count": count}
 
 
@@ -342,25 +356,33 @@ async def get_pending_remediation_jobs(node_id: str):
         
         node_uuid = node_row['id']
         
-        # Get pending/approved remediation jobs for this node
+        # Approval is a hard gate: an agent must never receive a pending job.
         jobs = await conn.fetch("""
-            SELECT rj.*, rp.name as package_name, rp.fix_method, rp.fix_command
+            SELECT rj.*, rp.name as package_name, rp.fix_method, rp.fix_command,
+                   COALESCE(rr.maintenance_window_only, FALSE) AS maintenance_window_only
             FROM remediation_jobs rj
             LEFT JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
+            LEFT JOIN remediation_rules rr ON rr.id = rj.rule_id
             WHERE rj.node_id = $1 
-              AND rj.status IN ('pending', 'approved')
+              AND rj.status = 'approved'
             ORDER BY rj.created_at ASC
-            LIMIT 5
         """, node_uuid)
         
+        window_open = (await is_in_maintenance_window(get_pool(), node_uuid)) if any(
+            job['maintenance_window_only'] for job in jobs) else False
         result = []
         for job in jobs:
-            # Mark as running
-            await conn.execute("""
+            if job['maintenance_window_only'] and not window_open:
+                continue
+            # Only one poll can claim a job, even if two agents ask at once.
+            claimed = await conn.fetchval("""
                 UPDATE remediation_jobs 
                 SET status = 'running', started_at = NOW(), updated_at = NOW()
-                WHERE id = $1
+                WHERE id = $1 AND status = 'approved'
+                RETURNING id
             """, job['id'])
+            if not claimed:
+                continue
             
             # Generate the command based on fix method
             fix_cmd = job['fix_command']
@@ -383,8 +405,23 @@ async def get_pending_remediation_jobs(node_id: str):
                 "fixCommand": fix_cmd,
                 "packageName": job['package_name']
             })
+            if len(result) == 5:
+                break
         
         return {"jobs": result, "count": len(result)}
+
+
+_NO_UPGRADE_MARKERS = (
+    "no applicable upgrade",
+    "no available upgrade",
+    "keine neueren paketversionen",
+)
+
+
+def _is_no_upgrade_output(output: str) -> bool:
+    """True if winget reported that there is nothing to upgrade (en/de output)."""
+    text = (output or "").lower()
+    return any(marker in text for marker in _NO_UPGRADE_MARKERS)
 
 
 @router.post("/api/v1/remediation/jobs/{job_id}/result")
@@ -399,10 +436,13 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     error = data.get("error", "")
     
     success = exit_code == 0
-    # winget returns exit code 1 when "no upgrade available" — treat as success
-    if exit_code == 1 and output and ("keine" in output.lower() or "no applicable" in output.lower() or "no available upgrade" in output.lower() or "neueren paketversionen" in output.lower()):
-        success = True
-    status = "success" if success else "failed"
+    # winget exits with 1 when there is nothing to upgrade. That is neither a
+    # fix nor a failure: store it as "skipped" and leave the findings alone –
+    # the next inventory and scan show whether the software is still affected.
+    if exit_code == 1 and _is_no_upgrade_output(output):
+        status = "skipped"
+    else:
+        status = "success" if success else "failed"
     
     job = await update_remediation_job_status(
         get_pool(),

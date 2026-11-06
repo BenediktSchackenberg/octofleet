@@ -267,7 +267,8 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
         engine = RemediationEngine(get_pool())
         remediation_result = await engine.scan_and_create_jobs(
             severity_filter=['CRITICAL', 'HIGH'],
-            dry_run=False
+            dry_run=False,
+            auto_only=True
         )
         logger.info(f"Auto-remediation: Created {remediation_result['jobs_created']} jobs for {remediation_result['with_fix_available']} fixable vulns")
 
