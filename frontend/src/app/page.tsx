@@ -22,6 +22,7 @@ import { RoleDashboard, type DashboardRole } from "@/components/dashboard/RoleDa
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
 import { formatTime } from "@/lib/format";
+import { useI18n } from "@/lib/i18n-context";
 
 // Skeleton Components for Loading State
 function Skeleton({ className = "" }: { className?: string }) {
@@ -139,6 +140,7 @@ interface MetricsSummary {
 export default function HomePage() {
   const router = useRouter();
   const { isAdmin, user } = useAuth();
+  const { t } = useI18n();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
@@ -163,11 +165,11 @@ export default function HomePage() {
   // Time-based greeting
   const greeting = useMemo(() => {
     const h = new Date().getHours();
-    if (h >= 5 && h < 12) return "Good morning";
-    if (h >= 12 && h < 17) return "Good afternoon";
-    if (h >= 17 && h < 22) return "Good evening";
-    return "Good night";
-  }, []);
+    if (h >= 5 && h < 12) return t("dashboard.greeting.morning");
+    if (h >= 12 && h < 17) return t("dashboard.greeting.afternoon");
+    if (h >= 17 && h < 22) return t("dashboard.greeting.evening");
+    return t("dashboard.greeting.night");
+  }, [t]);
 
   
 
@@ -321,23 +323,23 @@ export default function HomePage() {
   }
 
   function formatRelativeTime(timestamp: string | null) {
-    if (!timestamp) return "Never";
+    if (!timestamp) return t("time.never");
     const date = new Date(timestamp);
     const now = new Date();
     const diffMinutes = (now.getTime() - date.getTime()) / 1000 / 60;
-    if (diffMinutes < 1) return "Just now";
-    if (diffMinutes < 60) return `${Math.floor(diffMinutes)}m ago`;
-    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return `${Math.floor(diffMinutes / 1440)}d ago`;
+    if (diffMinutes < 1) return t("time.now");
+    if (diffMinutes < 60) return t("time.minutesAgo", { minutes: Math.floor(diffMinutes) });
+    if (diffMinutes < 1440) return t("time.hoursAgo", { hours: Math.floor(diffMinutes / 60) });
+    return t("time.daysAgo", { days: Math.floor(diffMinutes / 1440) });
   }
 
   function getStatusBadge(lastSeen: string) {
     const date = new Date(lastSeen);
     const now = new Date();
     const diffMinutes = (now.getTime() - date.getTime()) / 1000 / 60;
-    if (diffMinutes < 5) return <Badge className="bg-green-600">Online</Badge>;
-    if (diffMinutes < 60) return <Badge className="bg-yellow-600">Away</Badge>;
-    return <Badge variant="secondary">Offline</Badge>;
+    if (diffMinutes < 5) return <Badge className="bg-green-600">{t("common.online")}</Badge>;
+    if (diffMinutes < 60) return <Badge className="bg-yellow-600">{t("nodeDetail.away")}</Badge>;
+    return <Badge variant="secondary">{t("common.offline")}</Badge>;
   }
 
   // Info row helper
@@ -359,7 +361,7 @@ export default function HomePage() {
             <GlobalSearch onNodeSelect={handleNodeSelect} />
           </div>
           <div className="p-2 border-b">
-            <h2 className="text-sm font-semibold text-muted-foreground px-2">Nodes</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground px-2">{t("nodes.title")}</h2>
           </div>
           <NodeTree 
             onNodeSelect={handleNodeSelect} 
@@ -382,54 +384,54 @@ export default function HomePage() {
                   <p className="text-muted-foreground text-sm">{nodeData.node_id}</p>
                 </div>
                 <Button variant="outline" onClick={() => setSelectedNodeId(null)}>
-                  ← Zurück zum Dashboard
+                  {t("nodeDetail.backToDashboard")}
                 </Button>
               </div>
 
               {/* Tabs */}
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="mb-4 flex-wrap h-auto gap-1">
-                  <TabsTrigger value="overview" className="gap-1"><Monitor className="h-4 w-4" /> Übersicht</TabsTrigger>
-                  <TabsTrigger value="performance" className="gap-1"><TrendingUp className="h-4 w-4" /> Performance</TabsTrigger>
-                  <TabsTrigger value="hardware" className="gap-1"><Cpu className="h-4 w-4" /> Hardware</TabsTrigger>
-                  <TabsTrigger value="software" className="gap-1"><Package className="h-4 w-4" /> Software ({software.length})</TabsTrigger>
-                  <TabsTrigger value="security" className="gap-1"><Shield className="h-4 w-4" /> Sicherheit</TabsTrigger>
-                  <TabsTrigger value="network" className="gap-1"><Globe className="h-4 w-4" /> Netzwerk</TabsTrigger>
-                  <TabsTrigger value="browser" className="gap-1"><Cookie className="h-4 w-4" /> Browser</TabsTrigger>
-                  <TabsTrigger value="updates" className="gap-1"><HardDrive className="h-4 w-4" /> Updates ({hotfixes.hotfixes?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="overview" className="gap-1"><Monitor className="h-4 w-4" /> {t("nodeDetail.tabs.overview")}</TabsTrigger>
+                  <TabsTrigger value="performance" className="gap-1"><TrendingUp className="h-4 w-4" /> {t("nodeDetail.tabs.performance")}</TabsTrigger>
+                  <TabsTrigger value="hardware" className="gap-1"><Cpu className="h-4 w-4" /> {t("nodes.hardware")}</TabsTrigger>
+                  <TabsTrigger value="software" className="gap-1"><Package className="h-4 w-4" /> {t("nodes.software")} ({software.length})</TabsTrigger>
+                  <TabsTrigger value="security" className="gap-1"><Shield className="h-4 w-4" /> {t("nodes.security")}</TabsTrigger>
+                  <TabsTrigger value="network" className="gap-1"><Globe className="h-4 w-4" /> {t("nodes.network")}</TabsTrigger>
+                  <TabsTrigger value="browser" className="gap-1"><Cookie className="h-4 w-4" /> {t("nodeDetail.tabs.browser")}</TabsTrigger>
+                  <TabsTrigger value="updates" className="gap-1"><HardDrive className="h-4 w-4" /> {t("nodeDetail.tabs.updates")} ({hotfixes.hotfixes?.length || 0})</TabsTrigger>
                 </TabsList>
 
                 {/* Overview Tab */}
                 <TabsContent value="overview">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <Card>
-                      <CardHeader><CardTitle className="text-lg">System</CardTitle></CardHeader>
+                      <CardHeader><CardTitle className="text-lg">{t("dashboard.node.system")}</CardTitle></CardHeader>
                       <CardContent className="text-sm space-y-1">
                         <InfoRow label="OS" value={`${nodeData.os_name || ''} ${nodeData.os_version || ''}`} />
-                        <InfoRow label="Build" value={nodeData.os_build} />
-                        <InfoRow label="Agent" value={nodeData.agent_version} />
-                        <InfoRow label="First Seen" value={formatRelativeTime(nodeData.first_seen)} />
-                        <InfoRow label="Last Seen" value={formatRelativeTime(nodeData.last_seen)} />
+                        <InfoRow label={t("dashboard.node.build")} value={nodeData.os_build} />
+                        <InfoRow label={t("nodes.agent")} value={nodeData.agent_version} />
+                        <InfoRow label={t("nodeDetail.firstSeen")} value={formatRelativeTime(nodeData.first_seen)} />
+                        <InfoRow label={t("nodes.lastSeen")} value={formatRelativeTime(nodeData.last_seen)} />
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle className="text-lg">Hardware</CardTitle></CardHeader>
+                      <CardHeader><CardTitle className="text-lg">{t("nodes.hardware")}</CardTitle></CardHeader>
                       <CardContent className="text-sm space-y-1">
-                        <InfoRow label="CPU" value={hardware?.cpu?.name} />
-                        <InfoRow label="Kerne" value={hardware?.cpu?.cores} />
-                        <InfoRow label="RAM" value={hardware?.ram?.totalGB ? `${hardware.ram.totalGB} GB` : (hardware?.ram?.totalGb ? `${hardware.ram.totalGb.toFixed(1)} GB` : null)} />
-                        <InfoRow label="GPUs" value={hardware?.gpu?.length || 0} />
+                        <InfoRow label="CPU" value={hardware?.cpu?.name} />{/* i18n-ignore */}
+                        <InfoRow label={t("nodeDetail.cores")} value={hardware?.cpu?.cores} />
+                        <InfoRow label="RAM" value={hardware?.ram?.totalGB ? `${hardware.ram.totalGB} GB` : (hardware?.ram?.totalGb ? `${hardware.ram.totalGb.toFixed(1)} GB` : null)} />{/* i18n-ignore */}
+                        <InfoRow label={t("nodeDetail.gpus")} value={hardware?.gpu?.length || 0} />
                       </CardContent>
                     </Card>
                     <Card className={!nodeData.groups?.length ? "border-yellow-500/50" : ""}>
                       <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2">
                           <Users className="h-4 w-4" />
-                          Gruppen
+                          {t("dashboard.node.groups")}
                           {!nodeData.groups?.length && (
                             <Badge variant="outline" className="text-yellow-500 border-yellow-500 ml-auto">
                               <AlertCircle className="h-3 w-3 mr-1" />
-                              Nicht zugeordnet
+                              {t("dashboard.node.unassigned")}
                             </Badge>
                           )}
                         </CardTitle>
@@ -443,9 +445,9 @@ export default function HomePage() {
                           </div>
                         ) : (
                           <div className="text-sm">
-                            <p className="text-muted-foreground mb-2">Dieser Node ist keiner Gruppe zugeordnet.</p>
+                            <p className="text-muted-foreground mb-2">{t("dashboard.node.noGroup")}</p>
                             <Button variant="outline" size="sm" asChild>
-                              <Link href="/groups">Gruppen verwalten →</Link>
+                              <Link href="/groups">{t("dashboard.node.manageGroups")}</Link>
                             </Button>
                           </div>
                         )}
@@ -463,49 +465,49 @@ export default function HomePage() {
                 <TabsContent value="hardware">
                   <div className="grid gap-4 md:grid-cols-2">
                     <Card>
-                      <CardHeader><CardTitle>🖥️ CPU</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>🖥️ CPU</CardTitle></CardHeader>{/* i18n-ignore */}
                       <CardContent className="text-sm space-y-1">
-                        <InfoRow label="Name" value={hardware?.cpu?.name} />
-                        <InfoRow label="Kerne" value={hardware?.cpu?.cores} />
-                        <InfoRow label="Threads" value={hardware?.cpu?.logicalProcessors} />
-                        <InfoRow label="Takt" value={hardware?.cpu?.maxClockSpeed ? `${hardware.cpu.maxClockSpeed} MHz` : null} />
+                        <InfoRow label={t("common.name")} value={hardware?.cpu?.name} />
+                        <InfoRow label={t("nodeDetail.cores")} value={hardware?.cpu?.cores} />
+                        <InfoRow label={t("nodeDetail.threads")} value={hardware?.cpu?.logicalProcessors} />
+                        <InfoRow label={t("dashboard.node.clock")} value={hardware?.cpu?.maxClockSpeed ? `${hardware.cpu.maxClockSpeed} MHz` : null} />
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle>💾 RAM</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>💾 RAM</CardTitle></CardHeader>{/* i18n-ignore */}
                       <CardContent className="text-sm space-y-1">
-                        <InfoRow label="Gesamt" value={hardware?.ram?.totalGB ? `${hardware.ram.totalGB} GB` : (hardware?.ram?.totalGb ? `${hardware.ram.totalGb.toFixed(1)} GB` : null)} />
-                        <InfoRow label="Module" value={hardware?.ram?.modules?.length || 0} />
+                        <InfoRow label={t("nodeDetail.total")} value={hardware?.ram?.totalGB ? `${hardware.ram.totalGB} GB` : (hardware?.ram?.totalGb ? `${hardware.ram.totalGb.toFixed(1)} GB` : null)} />
+                        <InfoRow label={t("dashboard.node.modules")} value={hardware?.ram?.modules?.length || 0} />
                         {hardware?.ram?.modules?.slice(0, 4).map((m: any, i: number) => (
-                          <InfoRow key={i} label={`Slot ${i+1}`} value={`${m.capacityGB} GB ${m.memoryType || ''}`} />
+                          <InfoRow key={i} label={t("dashboard.node.slot", { number: i + 1 })} value={`${m.capacityGB} GB ${m.memoryType || ''}`} />
                         ))}
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle>🎮 GPUs</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>🎮 {t("nodeDetail.gpus")}</CardTitle></CardHeader>
                       <CardContent className="text-sm space-y-2">
                         {hardware?.gpu?.length > 0 ? hardware.gpu.map((g: any, i: number) => (
                           <div key={i} className="border-b pb-2 last:border-0">
                             <p className="font-medium">{g.name}</p>
-                            <p className="text-muted-foreground text-xs">{g.videoMemoryGB ? `${g.videoMemoryGB} GB VRAM` : ''} • {g.driverVersion || ''}</p>
+                            <p className="text-muted-foreground text-xs">{g.videoMemoryGB ? `${g.videoMemoryGB} GB VRAM` : ''} • {g.driverVersion || ''}</p>{/* i18n-ignore */}
                           </div>
-                        )) : <p className="text-muted-foreground">Keine GPUs</p>}
+                        )) : <p className="text-muted-foreground">{t("dashboard.node.noGpus")}</p>}
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle>💿 Laufwerke</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>💿 {t("dashboard.node.drives")}</CardTitle></CardHeader>
                       <CardContent className="text-sm space-y-2">
                         {hardware?.disks?.physicalDisks?.length > 0 ? hardware.disks.physicalDisks.map((d: any, i: number) => (
                           <div key={i} className="border-b pb-2 last:border-0">
-                            <p className="font-medium">{d.model || d.friendlyName || `Disk ${i+1}`}</p>
+                            <p className="font-medium">{d.model || d.friendlyName || t("dashboard.node.disk", { number: i + 1 })}</p>
                             <p className="text-muted-foreground text-xs">{d.sizeGB ? `${d.sizeGB} GB` : ''} • {d.mediaType || d.busType}</p>
                           </div>
                         )) : hardware?.disks?.volumes?.length > 0 ? hardware.disks.volumes.slice(0, 5).map((v: any, i: number) => (
                           <div key={i} className="border-b pb-2 last:border-0">
                             <p className="font-medium">{v.driveLetter} {v.volumeName || ''}</p>
-                            <p className="text-muted-foreground text-xs">{v.sizeGB ? `${v.sizeGB.toFixed(0)} GB` : ''} • {v.freeGB ? `${v.freeGB.toFixed(0)} GB frei` : ''}</p>
+                            <p className="text-muted-foreground text-xs">{v.sizeGB ? `${v.sizeGB.toFixed(0)} GB` : ''} • {v.freeGB ? t("dashboard.node.gbFree", { value: v.freeGB.toFixed(0) }) : ''}</p>
                           </div>
-                        )) : <p className="text-muted-foreground">Keine Disks</p>}
+                        )) : <p className="text-muted-foreground">{t("dashboard.node.noDisks")}</p>}
                       </CardContent>
                     </Card>
                   </div>
@@ -514,15 +516,15 @@ export default function HomePage() {
                 {/* Software Tab */}
                 <TabsContent value="software">
                   <Card>
-                    <CardHeader><CardTitle>📦 Installierte Software ({software.length})</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>📦 {t("nodeDetail.installedSoftware", { count: software.length })}</CardTitle></CardHeader>
                     <CardContent>
                       <div className="max-h-[500px] overflow-y-auto">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Name</TableHead>
-                              <TableHead>Version</TableHead>
-                              <TableHead>Publisher</TableHead>
+                              <TableHead>{t("common.name")}</TableHead>
+                              <TableHead>{t("nodeDetail.version")}</TableHead>
+                              <TableHead>{t("nodeDetail.publisher")}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -536,7 +538,7 @@ export default function HomePage() {
                           </TableBody>
                         </Table>
                         {software.length > 100 && (
-                          <p className="text-muted-foreground text-sm mt-2">... und {software.length - 100} weitere</p>
+                          <p className="text-muted-foreground text-sm mt-2">{t("dashboard.node.moreItems", { count: software.length - 100 })}</p>
                         )}
                       </div>
                     </CardContent>
@@ -547,16 +549,16 @@ export default function HomePage() {
                 <TabsContent value="security">
                   <div className="grid gap-4 md:grid-cols-2">
                     <Card>
-                      <CardHeader><CardTitle>🛡️ Windows Defender</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>🛡️ Windows Defender</CardTitle></CardHeader>{/* i18n-ignore */}
                       <CardContent className="text-sm space-y-1">
-                        <InfoRow label="Antivirus" value={security?.defender?.antivirusEnabled ? "✅ Aktiv" : "❌ Inaktiv"} />
-                        <InfoRow label="Echtzeitschutz" value={security?.defender?.realTimeProtection ? "✅ Aktiv" : "❌ Inaktiv"} />
-                        <InfoRow label="Signaturen" value={security?.defender?.signatureVersion} />
-                        <InfoRow label="Letztes Update" value={security?.defender?.lastSignatureUpdate} />
+                        <InfoRow label={t("dashboard.node.antivirus")} value={security?.defender?.antivirusEnabled ? `✅ ${t("common.active")}` : `❌ ${t("common.inactive")}`} />
+                        <InfoRow label={t("dashboard.node.realtime")} value={security?.defender?.realTimeProtection ? `✅ ${t("common.active")}` : `❌ ${t("common.inactive")}`} />
+                        <InfoRow label={t("dashboard.node.signatures")} value={security?.defender?.signatureVersion} />
+                        <InfoRow label={t("dashboard.node.lastUpdate")} value={security?.defender?.lastSignatureUpdate} />
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle>🔥 Firewall</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>🔥 Firewall</CardTitle></CardHeader>{/* i18n-ignore */}
                       <CardContent className="text-sm space-y-1">
                         {security?.firewall?.profiles ? (
                           Array.isArray(security.firewall.profiles) 
@@ -566,22 +568,22 @@ export default function HomePage() {
                             : Object.entries(security.firewall.profiles).map(([name, data]: [string, any]) => (
                                 <InfoRow key={name} label={name} value={data?.enabled ? "✅ Aktiv" : "❌ Inaktiv"} />
                               ))
-                        ) : <p className="text-muted-foreground">Keine Daten</p>}
+                        ) : <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>}
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle>👤 Benutzer</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>👤 {t("dashboard.node.users")}</CardTitle></CardHeader>
                       <CardContent className="text-sm space-y-1">
-                        <InfoRow label="Angemeldet" value={security?.users?.currentUser} />
-                        <InfoRow label="Admins" value={security?.users?.localAdmins?.join(", ")} />
+                        <InfoRow label={t("dashboard.node.signedIn")} value={security?.users?.currentUser} />
+                        <InfoRow label={t("nodeDetail.localAdmins")} value={security?.users?.localAdmins?.join(", ")} />
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle>🔐 BitLocker</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>🔐 BitLocker</CardTitle></CardHeader>{/* i18n-ignore */}
                       <CardContent className="text-sm space-y-1">
                         {security?.bitlocker?.volumes?.length > 0 ? security.bitlocker.volumes.map((v: any, i: number) => (
-                          <InfoRow key={i} label={v.mountPoint || `Volume ${i+1}`} value={v.protectionStatus || v.encryptionPercentage + "%"} />
-                        )) : <p className="text-muted-foreground">Keine BitLocker-Volumes</p>}
+                          <InfoRow key={i} label={v.mountPoint || t("dashboard.node.volume", { number: i + 1 })} value={v.protectionStatus || v.encryptionPercentage + "%"} />
+                        )) : <p className="text-muted-foreground">{t("dashboard.node.noBitlocker")}</p>}
                       </CardContent>
                     </Card>
                   </div>
@@ -594,18 +596,18 @@ export default function HomePage() {
                       <Card key={i}>
                         <CardHeader><CardTitle className="text-lg">{nic.name || nic.description}</CardTitle></CardHeader>
                         <CardContent className="text-sm space-y-1">
-                          <InfoRow label="Status" value={nic.connectionStatus || nic.status} />
-                          <InfoRow label="MAC" value={nic.macAddress} />
-                          <InfoRow label="Speed" value={nic.speedMbps ? `${nic.speedMbps} Mbps` : nic.linkSpeed} />
-                          <InfoRow label="Typ" value={nic.adapterType || nic.type} />
+                          <InfoRow label={t("common.status")} value={nic.connectionStatus || nic.status} />
+                          <InfoRow label="MAC" value={nic.macAddress} />{/* i18n-ignore */}
+                          <InfoRow label={t("nodeDetail.speed")} value={nic.speedMbps ? `${nic.speedMbps} Mbps` : nic.linkSpeed} />
+                          <InfoRow label={t("nodeDetail.type")} value={nic.adapterType || nic.type} />
                         </CardContent>
                       </Card>
-                    )) || <p className="text-muted-foreground col-span-2">Keine Netzwerkadapter</p>}
+                    )) || <p className="text-muted-foreground col-span-2">{t("dashboard.node.noAdapters")}</p>}
                     
                     {/* Network Connections Summary */}
                     {network?.connections && (
                       <Card className="md:col-span-2">
-                        <CardHeader><CardTitle>🌐 Verbindungen ({network.connections.total})</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>🌐 {t("dashboard.node.connections", { count: network.connections.total })}</CardTitle></CardHeader>
                         <CardContent className="text-sm">
                           <div className="flex gap-4 flex-wrap">
                             {network.connections.summary?.map((s: any, i: number) => (
@@ -630,21 +632,21 @@ export default function HomePage() {
                               <CardTitle className="text-lg">
                                 {browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊'} {browserName}
                               </CardTitle>
-                              <CardDescription>User: {userName}</CardDescription>
+                              <CardDescription>{t("dashboard.node.browserUser", { user: userName })}</CardDescription>
                             </CardHeader>
                             <CardContent className="text-sm space-y-1">
-                              <InfoRow label="Profile" value={profile?.name || data.profiles?.length || 0} />
-                              <InfoRow label="Verlauf" value={profile?.historyCount || 0} />
-                              <InfoRow label="Lesezeichen" value={profile?.bookmarkCount || 0} />
-                              <InfoRow label="Passwörter" value={profile?.passwordCount || "-"} />
-                              <InfoRow label="Extensions" value={data.extensionCount || 0} />
+                              <InfoRow label={t("nodeDetail.profile")} value={profile?.name || data.profiles?.length || 0} />
+                              <InfoRow label={t("nodeDetail.history")} value={profile?.historyCount || 0} />
+                              <InfoRow label={t("nodeDetail.bookmarks")} value={profile?.bookmarkCount || 0} />
+                              <InfoRow label={t("dashboard.node.passwords")} value={profile?.passwordCount || "-"} />
+                              <InfoRow label={t("nodeDetail.extensions")} value={data.extensionCount || 0} />
                             </CardContent>
                           </Card>
                         );
                       })
                     ))}
                     {(!browser?.users || Object.keys(browser.users).length === 0) && (
-                      <p className="text-muted-foreground col-span-3">Keine Browser-Daten</p>
+                      <p className="text-muted-foreground col-span-3">{t("nodeDetail.noBrowserData")}</p>
                     )}
                   </div>
                 </TabsContent>
@@ -652,15 +654,15 @@ export default function HomePage() {
                 {/* Updates Tab */}
                 <TabsContent value="updates">
                   <Card>
-                    <CardHeader><CardTitle>🔄 Installierte Updates ({hotfixes.hotfixes?.length || 0})</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>🔄 {t("dashboard.node.installedUpdates", { count: hotfixes.hotfixes?.length || 0 })}</CardTitle></CardHeader>
                     <CardContent>
                       <div className="max-h-[400px] overflow-y-auto">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Hotfix ID</TableHead>
-                              <TableHead>Beschreibung</TableHead>
-                              <TableHead>Installiert am</TableHead>
+                              <TableHead>{t("dashboard.node.hotfixId")}</TableHead>
+                              <TableHead>{t("common.description")}</TableHead>
+                              <TableHead>{t("nodeDetail.installedOn")}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -691,12 +693,12 @@ export default function HomePage() {
                 <div>
                   <h2 className="text-3xl font-extrabold tracking-tight text-foreground">{greeting}{user?.username ? `, ${user.username}` : ""}</h2>
                   <p className="text-muted-foreground flex items-center gap-2">
-                    <Monitor className="h-4 w-4" /> Global Fleet Overview
+                    <Monitor className="h-4 w-4" /> {t("dashboard.fleetOverview")}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="shadow-sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); fetchTaskCounts(); }}>
-                    <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+                    <RefreshCw className="h-4 w-4 mr-2" /> {t("common.refresh")}
                   </Button>
                 </div>
               </div>
@@ -706,22 +708,22 @@ export default function HomePage() {
                 <Card className="mb-6 border-zinc-800 bg-zinc-900/50">
                   <CardContent className="p-4 flex items-center gap-4 flex-wrap">
                     <AlertCircle className="h-5 w-5 text-orange-400" />
-                    <span className="text-sm font-medium text-foreground">Today&apos;s Tasks:</span>
+                    <span className="text-sm font-medium text-foreground">{t("dashboard.todayTasks")}</span>
                     <div className="flex items-center gap-3 flex-wrap text-sm">
                       {taskCounts.approvals > 0 && (
-                        <Link href="/tasks" className="text-orange-400 hover:underline">{taskCounts.approvals} pending approval{taskCounts.approvals !== 1 ? "s" : ""}</Link>
+                        <Link href="/tasks" className="text-orange-400 hover:underline">{t(taskCounts.approvals === 1 ? "dashboard.pendingApprovalsOne" : "dashboard.pendingApprovalsOther", { count: taskCounts.approvals })}</Link>
                       )}
                       {taskCounts.findings > 0 && (
-                        <Link href="/tasks" className="text-red-400 hover:underline">{taskCounts.findings} critical finding{taskCounts.findings !== 1 ? "s" : ""}</Link>
+                        <Link href="/tasks" className="text-red-400 hover:underline">{t(taskCounts.findings === 1 ? "dashboard.criticalFindingsOne" : "dashboard.criticalFindingsOther", { count: taskCounts.findings })}</Link>
                       )}
                       {taskCounts.failedJobs > 0 && (
-                        <Link href="/tasks" className="text-yellow-400 hover:underline">{taskCounts.failedJobs} failed job{taskCounts.failedJobs !== 1 ? "s" : ""}</Link>
+                        <Link href="/tasks" className="text-yellow-400 hover:underline">{t(taskCounts.failedJobs === 1 ? "dashboard.failedJobsOne" : "dashboard.failedJobsOther", { count: taskCounts.failedJobs })}</Link>
                       )}
                       {taskCounts.offline > 0 && (
-                        <Link href="/tasks" className="text-zinc-400 hover:underline">{taskCounts.offline} offline device{taskCounts.offline !== 1 ? "s" : ""}</Link>
+                        <Link href="/tasks" className="text-zinc-400 hover:underline">{t(taskCounts.offline === 1 ? "dashboard.offlineDevicesOne" : "dashboard.offlineDevicesOther", { count: taskCounts.offline })}</Link>
                       )}
                     </div>
-                    <Link href="/tasks" className="ml-auto text-xs text-muted-foreground hover:text-foreground">View all →</Link>
+                    <Link href="/tasks" className="ml-auto text-xs text-muted-foreground hover:text-foreground">{t("dashboard.viewAll")}</Link>
                   </CardContent>
                 </Card>
               )}
@@ -730,19 +732,19 @@ export default function HomePage() {
               {isAdmin() && (
                 <div className="flex flex-wrap gap-3 mb-6">
                   <Link href="/jobs?new=true" className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                    <Zap className="h-4 w-4" /> New Job
+                    <Zap className="h-4 w-4" /> {t("dashboard.newJob")}
                   </Link>
                   <button
                     onClick={async () => {
                       const res = await apiClient.post("/vulnerabilities/scan", {});
-                      if (res) toast.success("Vulnerability scan started");
+                      if (res) toast.success(t("dashboard.scanStarted"));
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
                   >
-                    <Bug className="h-4 w-4" /> Scan Vulnerabilities
+                    <Bug className="h-4 w-4" /> {t("dashboard.scanVulnerabilities")}
                   </button>
                   <Link href="/alerts" className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
-                    <BellIcon className="h-4 w-4" /> View Alerts
+                    <BellIcon className="h-4 w-4" /> {t("dashboard.viewAlerts")}
                   </Link>
                 </div>
               )}
@@ -750,7 +752,7 @@ export default function HomePage() {
               {/* Favorites */}
               <div className="mb-6">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <Star className="h-3.5 w-3.5" /> Favorites
+                  <Star className="h-3.5 w-3.5" /> {t("dashboard.favorites")}
                 </h3>
                 {favorites.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
@@ -766,7 +768,7 @@ export default function HomePage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground/50">⭐ Star your favorite pages, nodes or reports for quick access</p>
+                  <p className="text-sm text-muted-foreground/50">⭐ {t("dashboard.favoritesHint")}</p>
                 )}
               </div>
 
@@ -774,7 +776,7 @@ export default function HomePage() {
               {recent.length > 0 && (
                 <div className="mb-6">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" /> Recently Opened
+                    <Clock className="h-3.5 w-3.5" /> {t("dashboard.recentlyOpened")}
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {recent.slice(0, 8).map((item, i) => (
@@ -797,7 +799,7 @@ export default function HomePage() {
                 <Card className="col-span-12 md:col-span-3 border-primary/10 bg-gradient-to-br from-card to-primary/5 shadow-md">
                   <CardHeader className="pb-3">
                     <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
-                      Fleet Status
+                      {t("dashboard.fleetStatus")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
@@ -806,14 +808,14 @@ export default function HomePage() {
                       <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          <span className="text-muted-foreground">Online</span>
+                          <span className="text-muted-foreground">{t("common.online")}</span>
                         </div>
                         <span className="font-bold">{summary?.counts.online || 0}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-zinc-500" />
-                          <span className="text-muted-foreground">Offline</span>
+                          <span className="text-muted-foreground">{t("common.offline")}</span>
                         </div>
                         <span className="font-bold">{summary?.counts.offline || 0}</span>
                       </div>
@@ -825,22 +827,22 @@ export default function HomePage() {
                 <Card className="col-span-12 md:col-span-3 border-destructive/10 bg-gradient-to-br from-card to-destructive/5 shadow-md">
                   <CardHeader className="pb-3">
                     <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-destructive">
-                      Critical Threats
+                      {t("dashboard.criticalThreats")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0 space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 text-center">
                         <div className="text-2xl font-black text-destructive">{summary?.vulnerabilities?.critical || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-destructive/70">Critical</div>
+                        <div className="text-[10px] uppercase font-bold text-destructive/70">{t("dashboard.critical")}</div>
                       </div>
                       <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 text-center">
                         <div className="text-2xl font-black text-orange-500">{summary?.vulnerabilities?.high || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-orange-500/70">High Risk</div>
+                        <div className="text-[10px] uppercase font-bold text-orange-500/70">{t("dashboard.highRisk")}</div>
                       </div>
                     </div>
                     <Button variant="ghost" size="sm" className="w-full text-xs hover:bg-destructive/5 text-muted-foreground" asChild>
-                      <Link href="/vulnerabilities">View Security Reports →</Link>
+                      <Link href="/vulnerabilities">{t("dashboard.viewSecurityReports")}</Link>
                     </Button>
                   </CardContent>
                 </Card>
@@ -850,10 +852,10 @@ export default function HomePage() {
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        <TrendingUp className="h-3.5 w-3.5" /> Fleet Performance
+                        <TrendingUp className="h-3.5 w-3.5" /> {t("dashboard.fleetPerformance")}
                       </CardDescription>
                       <Link href="/performance" className="text-xs font-semibold text-primary hover:underline">
-                        Detailed Analytics →
+                        {t("dashboard.detailedAnalytics")}
                       </Link>
                     </div>
                   </CardHeader>
@@ -865,7 +867,7 @@ export default function HomePage() {
                           {/* CPU Sparkline */}
                           <div className="bg-background/40 p-3 rounded-xl border border-border/30">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase text-muted-foreground">CPU</span>
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">CPU</span>{/* i18n-ignore */}
                               <span className="text-lg font-black text-primary">{timeseries.current?.cpu?.toFixed(0) || 0}%</span>
                             </div>
                             <div className="h-12">
@@ -885,7 +887,7 @@ export default function HomePage() {
                           {/* RAM Sparkline */}
                           <div className="bg-background/40 p-3 rounded-xl border border-border/30">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase text-muted-foreground">RAM</span>
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">RAM</span>{/* i18n-ignore */}
                               <span className="text-lg font-black text-green-500">{timeseries.current?.ram?.toFixed(0) || 0}%</span>
                             </div>
                             <div className="h-12">
@@ -899,7 +901,7 @@ export default function HomePage() {
                           {/* Disk Sparkline */}
                           <div className="bg-background/40 p-3 rounded-xl border border-border/30">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Disk</span>
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">{t("dashboard.disk")}</span>
                               <span className="text-lg font-black text-purple-500">{timeseries.current?.disk?.toFixed(0) || 0}%</span>
                             </div>
                             <div className="h-12">
@@ -914,11 +916,11 @@ export default function HomePage() {
                         {/* Per-node hotspot matrix */}
                         <div className="space-y-2">
                           <div className="grid grid-cols-[1fr_75px_75px_75px_80px] gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 px-2">
-                            <span>Node Endpoint</span>
-                            <span className="text-center">CPU</span>
-                            <span className="text-center">RAM</span>
-                            <span className="text-center">Disk</span>
-                            <span className="text-right">Status</span>
+                            <span>{t("dashboard.nodeColumn")}</span>
+                            <span className="text-center">CPU</span>{/* i18n-ignore */}
+                            <span className="text-center">RAM</span>{/* i18n-ignore */}
+                            <span className="text-center">{t("dashboard.disk")}</span>
+                            <span className="text-right">{t("common.status")}</span>
                           </div>
                           <div className="max-h-[280px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                             {(Array.isArray(metrics?.nodes) ? metrics.nodes : [])
@@ -962,11 +964,11 @@ export default function HomePage() {
                                     <HeatBar value={disk} colorClass="bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.4)]" />
                                     <div className="text-right">
                                       {status === 'crit' ? (
-                                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] font-bold uppercase py-0 px-1.5">Critical</Badge>
+                                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] font-bold uppercase py-0 px-1.5">{t("dashboard.critical")}</Badge>
                                       ) : status === 'warn' ? (
-                                        <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-[9px] font-bold uppercase py-0 px-1.5">Warning</Badge>
+                                        <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-[9px] font-bold uppercase py-0 px-1.5">{t("common.warning")}</Badge>
                                       ) : (
-                                        <span className="text-[10px] font-bold text-muted-foreground/50 uppercase">Healthy</span>
+                                        <span className="text-[10px] font-bold text-muted-foreground/50 uppercase">{t("dashboard.healthy")}</span>
                                       )}
                                     </div>
                                   </div>
@@ -978,8 +980,8 @@ export default function HomePage() {
                     ) : (
                       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border">
                         <Activity className="h-8 w-8 mb-2 opacity-20" />
-                        <p className="text-sm font-medium">No performance data available</p>
-                        <p className="text-xs opacity-50">Check agent connections</p>
+                        <p className="text-sm font-medium">{t("dashboard.noPerformanceData")}</p>
+                        <p className="text-xs opacity-50">{t("dashboard.checkAgents")}</p>
                       </div>
                     )}
                   </CardContent>
@@ -988,23 +990,23 @@ export default function HomePage() {
                 <Card className="col-span-6 md:col-span-3 border-green-500/10 bg-gradient-to-br from-card to-green-500/5 shadow-md hover:shadow-green-500/5 transition-all">
                   <CardHeader className="pb-3">
                     <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-green-600">
-                      <Briefcase className="h-3.5 w-3.5" /> Jobs (24h)
+                      <Briefcase className="h-3.5 w-3.5" /> {t("dashboard.jobs24h")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="flex items-end gap-6 mb-4">
                       <Link href="/jobs" className="group">
                         <div className="text-4xl font-black text-green-500 group-hover:scale-110 transition-transform origin-left">{summary?.jobs?.success || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Success</div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">{t("common.success")}</div>
                       </Link>
                       <Link href="/jobs" className="group">
                         <div className="text-3xl font-bold text-red-500 group-hover:scale-110 transition-transform origin-left">{summary?.jobs?.failed || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Failed</div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">{t("dashboard.failed")}</div>
                       </Link>
                     </div>
                     {(summary?.jobs?.pending || 0) > 0 && (
                       <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 text-yellow-600 rounded-md text-[10px] font-bold uppercase border border-yellow-500/20">
-                        <Activity className="h-3 w-3 animate-spin" /> {summary?.jobs?.pending} pending
+                        <Activity className="h-3 w-3 animate-spin" /> {t("dashboard.pendingCount", { count: summary?.jobs?.pending ?? 0 })}
                       </div>
                     )}
                   </CardContent>
@@ -1015,10 +1017,10 @@ export default function HomePage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-400">
-                        🗄️ SQL Lifecycle
+                        🗄️ {t("dashboard.sqlLifecycle")}
                       </CardDescription>
                       <Link href="/sql" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
-                        Manage →
+                        {t("dashboard.manage")}
                       </Link>
                     </div>
                   </CardHeader>
@@ -1026,7 +1028,7 @@ export default function HomePage() {
                     {sqlCatalog && sqlCatalog.total > 0 ? (
                       <div>
                         <div className="text-4xl font-black mb-1">{sqlCatalog.total}</div>
-                        <div className="text-[10px] uppercase font-bold text-muted-foreground mb-3">Syncable CU Updates</div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground mb-3">{t("dashboard.syncableCus")}</div>
                         <div className="flex flex-wrap gap-1.5">
                           {sqlCatalog.versions.slice(0, 3).map((v) => (
                             <Badge key={v.version} variant="outline" className="text-[9px] font-bold bg-background/50 border-blue-500/20">
@@ -1038,7 +1040,7 @@ export default function HomePage() {
                     ) : (
                       <div className="flex flex-col items-center justify-center py-4 text-muted-foreground/40">
                         <Package className="h-8 w-8 mb-1 opacity-20" />
-                        <span className="text-[10px] font-bold uppercase">No CUs synced</span>
+                        <span className="text-[10px] font-bold uppercase">{t("dashboard.noCus")}</span>
                       </div>
                     )}
                   </CardContent>
@@ -1049,21 +1051,21 @@ export default function HomePage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-purple-400">
-                        <Shield className="h-3.5 w-3.5" /> Security Events
+                        <Shield className="h-3.5 w-3.5" /> {t("dashboard.securityEvents")}
                       </CardDescription>
                       <Link href="/security/events" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
-                        Details →
+                        {t("dashboard.details")}
                       </Link>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
                     {eventStats && eventStats.stats.length > 0 ? (() => {
                       const prefixMap: Record<string, { label: string; color: string }> = {
-                        logon: { label: "Logon", color: "#a78bfa" },
-                        network: { label: "Network", color: "#60a5fa" },
-                        process: { label: "Process", color: "#34d399" },
-                        service: { label: "Service", color: "#fbbf24" },
-                        file: { label: "File", color: "#f87171" },
+                        logon: { label: t("dashboard.eventTypes.logon"), color: "#a78bfa" },
+                        network: { label: t("nodes.network"), color: "#60a5fa" },
+                        process: { label: t("nodeDetail.process"), color: "#34d399" },
+                        service: { label: t("nodeDetail.service"), color: "#fbbf24" },
+                        file: { label: t("dashboard.eventTypes.file"), color: "#f87171" },
                       };
                       const grouped: Record<string, number> = {};
                       (eventStats.stats || []).forEach((s) => {
@@ -1075,7 +1077,7 @@ export default function HomePage() {
                       return (
                         <div>
                           <div className="text-4xl font-black mb-0.5">{total.toLocaleString()}</div>
-                          <div className="text-[10px] uppercase font-bold text-muted-foreground mb-3">Last 7 days</div>
+                          <div className="text-[10px] uppercase font-bold text-muted-foreground mb-3">{t("dashboard.last7days")}</div>
                           {/* Proportion bar */}
                           <div className="flex h-2 rounded-full overflow-hidden mb-3 bg-muted/30">
                             {entries.map(([key, meta]) => (
@@ -1103,7 +1105,7 @@ export default function HomePage() {
                     })() : (
                       <div className="flex flex-col items-center justify-center py-4 text-muted-foreground/40">
                         <Shield className="h-8 w-8 mb-1 opacity-20" />
-                        <span className="text-[10px] font-bold uppercase">No events</span>
+                        <span className="text-[10px] font-bold uppercase">{t("dashboard.noEvents")}</span>
                       </div>
                     )}
                   </CardContent>
@@ -1114,10 +1116,10 @@ export default function HomePage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        <AlertCircle className="h-3.5 w-3.5" /> Fleet Incidents
+                        <AlertCircle className="h-3.5 w-3.5" /> {t("dashboard.fleetIncidents")}
                       </CardDescription>
                       <Link href="/alerts" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
-                        Incident Log →
+                        {t("dashboard.incidentLog")}
                       </Link>
                     </div>
                   </CardHeader>
@@ -1140,7 +1142,7 @@ export default function HomePage() {
                         </div>
                       )) : (
                         <div className="text-center py-6 text-xs text-muted-foreground/50 italic font-medium uppercase tracking-widest">
-                          No recent incidents
+                          {t("dashboard.noIncidents")}
                         </div>
                       )}
                     </div>
@@ -1151,7 +1153,7 @@ export default function HomePage() {
                 <Card className="col-span-12 md:col-span-6 border-border/50 shadow-md">
                   <CardHeader className="pb-3">
                     <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      <Activity className="h-3.5 w-3.5" /> Infrastructure Health
+                      <Activity className="h-3.5 w-3.5" /> {t("dashboard.infrastructureHealth")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
@@ -1159,19 +1161,19 @@ export default function HomePage() {
                       <div className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-border/30">
                         <div className="flex items-center gap-3">
                           <div className={`w-3 h-3 rounded-full ${systemHealth?.status === 'ok' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-ping'}`} />
-                          <span className="text-xs font-bold uppercase tracking-tighter">Core API</span>
+                          <span className="text-xs font-bold uppercase tracking-tighter">Core API</span>{/* i18n-ignore */}
                         </div>
                         <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.status === 'ok' ? 'text-green-600 border-green-500/20' : 'text-red-400 border-red-500/20'}`}>
-                          {systemHealth?.status || 'OFFLINE'}
+                          {systemHealth?.status || t("common.offline")}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-border/30">
                         <div className="flex items-center gap-3">
                           <div className={`w-3 h-3 rounded-full ${systemHealth?.database === 'connected' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-ping'}`} />
-                          <span className="text-xs font-bold uppercase tracking-tighter">Database</span>
+                          <span className="text-xs font-bold uppercase tracking-tighter">{t("dashboard.database")}</span>
                         </div>
                         <Badge variant="outline" className={`text-[10px] font-black uppercase ${systemHealth?.database === 'connected' ? 'text-green-600 border-green-500/20' : 'text-red-400 border-red-500/20'}`}>
-                          {systemHealth?.database === 'connected' ? 'ONLINE' : 'ERROR'}
+                          {systemHealth?.database === 'connected' ? t("common.online") : t("common.error")}
                         </Badge>
                       </div>
                     </div>
