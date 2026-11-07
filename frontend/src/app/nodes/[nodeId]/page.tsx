@@ -24,9 +24,9 @@ import { formatDate, formatDateTime as formatDateTimeIntl } from "@/lib/format";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
-/** Windows reports install dates as YYYYMMDD; show them in the user's date format. */
+/** Install dates come as YYYY-MM-DD (or YYYYMMDD); show them as a local date in the user's format. */
 function formatInstallDate(value?: string | null): string {
-  const m = /^(\d{4})(\d{2})(\d{2})$/.exec(value ?? "");
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(value ?? "");
   return m ? formatDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : formatDate(value);
 }
 
