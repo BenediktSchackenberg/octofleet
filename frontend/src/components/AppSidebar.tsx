@@ -52,7 +52,8 @@ interface NavItem {
 }
 
 interface NavGroup {
-  label: string;
+  /** internal id (badges, keys); the shown name is labelKey */
+  id: string;
   labelKey: string;
   icon: LucideIcon;
   items: NavItem[];
@@ -61,8 +62,8 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    label: "Fleet",
-    labelKey: "nav.fleet",
+    id: "Fleet",
+    labelKey: "navGroups.fleet",
     icon: Server,
     roles: ["admin", "operator", "auditor", "viewer"],
     items: [
@@ -73,8 +74,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Deploy",
-    labelKey: "nav.software",
+    id: "Deploy",
+    labelKey: "navGroups.deploy",
     icon: Package,
     roles: ["admin", "operator", "auditor", "viewer"],
     items: [
@@ -87,8 +88,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Secure",
-    labelKey: "nav.security",
+    id: "Secure",
+    labelKey: "navGroups.secure",
     icon: ShieldCheck,
     roles: ["admin", "operator", "auditor"],
     items: [
@@ -109,8 +110,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Operate",
-    labelKey: "nav.operations",
+    id: "Operate",
+    labelKey: "navGroups.operate",
     icon: Activity,
     roles: ["admin", "operator", "auditor"],
     items: [
@@ -124,8 +125,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Provision",
-    labelKey: "nav.infrastructure",
+    id: "Provision",
+    labelKey: "navGroups.provision",
     icon: Network,
     roles: ["admin"],
     items: [
@@ -136,8 +137,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Admin",
-    labelKey: "nav.admin",
+    id: "Admin",
+    labelKey: "navGroups.admin",
     icon: Settings,
     roles: ["admin", "auditor"],
     items: [
@@ -152,9 +153,9 @@ const navGroups: NavGroup[] = [
 ];
 
 // Standalone items (no sub-items)
-const standaloneItems: { href: string; label: string; labelKey: string; icon: LucideIcon }[] = [
-  { href: "/", label: "Start", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Tasks", labelKey: "nav.tasks", icon: AlertTriangle },
+const standaloneItems: { href: string; labelKey: string; icon: LucideIcon }[] = [
+  { href: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/tasks", labelKey: "nav.tasks", icon: AlertTriangle },
 ];
 
 const STORAGE_KEY = "octofleet-sidebar-collapsed";
@@ -252,7 +253,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
               <rect x="24" y="18" width="2" height="4" fill="#a855f7" />
             </svg>
             <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent font-bold text-sm">
-              Octofleet
+              Octofleet{/* i18n-ignore */}
             </span>
           </Link>
         )}
@@ -265,7 +266,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
           <button
             onClick={toggleCollapse}
             className="p-1 text-zinc-400 hover:text-white transition-colors"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
@@ -275,14 +276,14 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
       {/* Primary navigation */}
       <nav className="flex-1 overflow-y-auto py-2 px-2">
         {/* Standalone items */}
-        {standaloneItems.map(({ href, label, labelKey, icon: Icon }) => {
+        {standaloneItems.map(({ href, labelKey, icon: Icon }) => {
           const active = isStandaloneActive(href);
           return (
             <Link
               key={href}
               href={href}
               onClick={onMobileClose}
-              title={collapsed ? (t(labelKey) || label) : undefined}
+              title={collapsed ? t(labelKey) : undefined}
               className={`flex items-center gap-3 h-11 rounded-lg mb-0.5 transition-colors ${
                 collapsed ? "justify-center px-0" : "px-3"
               } ${
@@ -292,7 +293,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
               }`}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="text-sm font-medium truncate">{(() => { const v = t(labelKey); return v && !v.includes('.') ? v : label; })()}</span>}
+              {!collapsed && <span className="text-sm font-medium truncate">{t(labelKey)}</span>}
             </Link>
           );
         })}
@@ -312,10 +313,10 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
 
           return (
             <Link
-              key={group.label}
+              key={group.id}
               href={primaryHref}
               onClick={onMobileClose}
-              title={collapsed ? group.label : undefined}
+              title={collapsed ? t(group.labelKey) : undefined}
               className={`flex items-center gap-3 h-11 rounded-lg mb-0.5 transition-colors ${
                 collapsed ? "justify-center px-0" : "px-3"
               } ${
@@ -325,9 +326,9 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
               }`}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="text-sm font-medium truncate">{group.label}</span>}
-              {!collapsed && groupBadges[group.label] && (
-                <BadgePill count={groupBadges[group.label].count} variant={groupBadges[group.label].variant} />
+              {!collapsed && <span className="text-sm font-medium truncate">{t(group.labelKey)}</span>}
+              {!collapsed && groupBadges[group.id] && (
+                <BadgePill count={groupBadges[group.id].count} variant={groupBadges[group.id].variant} />
               )}
             </Link>
           );
@@ -339,7 +340,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
             <div className="border-t border-zinc-800 my-2" />
             {!collapsed && activeGroup && (
               <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                {activeGroup.label}
+                {t(activeGroup.labelKey)}
               </div>
             )}
             {activeSubItems.map((item) => {

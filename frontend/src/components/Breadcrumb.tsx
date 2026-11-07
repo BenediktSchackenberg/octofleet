@@ -4,18 +4,25 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ChevronRight, Home } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
+import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
+import { crumbLabel } from "@/lib/routes";
 
 export function BreadcrumbTrail() {
   const pathname = usePathname();
+  const { t } = useI18n();
+  const { recent } = useRecentlyOpened();
 
   if (!pathname || pathname === "/" || pathname === "/login") return null;
 
   const segments = pathname.split("/").filter(Boolean);
 
-  const crumbs = segments.map((seg, i) => ({
-    label: decodeURIComponent(seg).replace(/-/g, " ").replace(/^\w/, c => c.toUpperCase()),
-    href: "/" + segments.slice(0, i + 1).join("/"),
-  }));
+  // names reported by detail pages (a group's name instead of its id)
+  const names = new Map(recent.filter((r) => r.name).map((r) => [r.href, r.name as string]));
+  const crumbs = segments.map((_, i) => {
+    const href = "/" + segments.slice(0, i + 1).join("/");
+    return { label: crumbLabel(href, t, names.get(href)), href };
+  });
 
   return (
     <motion.nav

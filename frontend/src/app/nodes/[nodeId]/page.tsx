@@ -18,6 +18,7 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
+import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
 import { formatDate, formatDateTime as formatDateTimeIntl } from "@/lib/format";
@@ -227,6 +228,11 @@ export default function NodeDetailPage() {
   const { t } = useI18n();
   
   const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
+  // "Recently opened" and the breadcrumb show the hostname instead of the id
+  const { nameRecent } = useRecentlyOpened();
+  useEffect(() => {
+    if (node?.hostname) nameRecent(`/nodes/${nodeId}`, node.hostname);
+  }, [node?.hostname, nodeId, nameRecent]);
   // The active tab can be set with ?tab=… (e.g. links to a node's vulnerabilities)
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");

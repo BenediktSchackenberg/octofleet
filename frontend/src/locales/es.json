@@ -94,7 +94,10 @@
     "vulnerabilities": "Vulnerabilidades",
     "queryEngine": "Motor de consultas",
     "metering": "Medición de software",
-    "contentLifecycle": "Ciclo de vida del contenido"
+    "contentLifecycle": "Ciclo de vida del contenido",
+    "tasks": "Tareas",
+    "discovered": "Descubiertos",
+    "patchExplorer": "Explorador de parches"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -807,5 +810,206 @@
     "changeHistory": "Historial de cambios",
     "changeHistoryDescription": "Cambios detectados en el sistema",
     "noChanges": "Aún no se han registrado cambios"
+  },
+  "navGroups": {
+    "fleet": "Flota",
+    "deploy": "Desplegar",
+    "secure": "Seguridad",
+    "operate": "Operación",
+    "provision": "Aprovisionamiento",
+    "admin": "Administración"
+  },
+  "sidebar": {
+    "expand": "Expandir barra lateral",
+    "collapse": "Contraer barra lateral"
+  },
+  "routes": {
+    "node": "Nodo {name}",
+    "package": "Paquete {name}",
+    "deployment": "Despliegue {name}",
+    "job": "Trabajo {name}",
+    "group": "Grupo {name}",
+    "service": "Servicio {name}",
+    "live": "En vivo",
+    "shell": "Shell",
+    "terminal": "Terminal",
+    "provisioningSettings": "Ajustes de aprovisionamiento",
+    "provisioningAdmin": "Administración de aprovisionamiento"
+  },
+  "palette": {
+    "categories": {
+      "navigation": "Navegación",
+      "actions": "Acciones",
+      "pinned": "Fijados",
+      "favorites": "Favoritos"
+    },
+    "modes": {
+      "knowledge": "Conocimiento"
+    },
+    "placeholders": {
+      "action": "Ejecutar una acción...",
+      "knowledge": "Buscar favoritos y páginas recientes...",
+      "jump": "Escriba un comando o busque nodos..."
+    },
+    "noResults": "No hay resultados para «{query}»",
+    "prefixHint": "Escriba para buscar o use un prefijo:",
+    "favoriteOf": "Favorito · {type}",
+    "visited": "Visitado {time}",
+    "footer": {
+      "select": "seleccionar",
+      "navigate": "navegar",
+      "actions": "acciones",
+      "knowledge": "conocimiento",
+      "brand": "Búsqueda de Octofleet"
+    },
+    "items": {
+      "navDashboard": {
+        "title": "Ir al panel",
+        "subtitle": "Resumen de toda la flota"
+      },
+      "navNodes": {
+        "title": "Ir a nodos",
+        "subtitle": "Ver y gestionar todos los dispositivos registrados"
+      },
+      "navGroups": {
+        "title": "Ir a grupos",
+        "subtitle": "Gestionar grupos de nodos y asignaciones"
+      },
+      "navPackages": {
+        "title": "Ir a paquetes",
+        "subtitle": "Paquetes de software y despliegues"
+      },
+      "navVulnerabilities": {
+        "title": "Ir a vulnerabilidades",
+        "subtitle": "CVE y hallazgos de seguridad"
+      },
+      "navCompliance": {
+        "title": "Ir a cumplimiento",
+        "subtitle": "Políticas y estado de cumplimiento"
+      },
+      "navAlerts": {
+        "title": "Ir a alertas",
+        "subtitle": "Reglas de alerta e historial de incidentes"
+      },
+      "navReports": {
+        "title": "Ir a informes",
+        "subtitle": "Generar y descargar informes de la flota"
+      },
+      "navQuery": {
+        "title": "Ir al motor de consultas",
+        "subtitle": "Ejecutar consultas en toda la flota"
+      },
+      "navProvisioning": {
+        "title": "Ir a aprovisionamiento",
+        "subtitle": "Despliegue de sistemas operativos y configuraciones automáticas"
+      },
+      "navMssql": {
+        "title": "Ir al administrador de SQL",
+        "subtitle": "Gestión de SQL Server en toda la flota"
+      },
+      "navSecurity": {
+        "title": "Ir al centro de seguridad",
+        "subtitle": "Vulnerabilidades y cumplimiento"
+      },
+      "navPerformance": {
+        "title": "Ir a rendimiento",
+        "subtitle": "Análisis de rendimiento de la flota"
+      },
+      "navSettings": {
+        "title": "Ajustes",
+        "subtitle": "Configuración del sistema y usuarios"
+      },
+      "actionAddNode": {
+        "title": "Añadir nodo",
+        "subtitle": "Generar script o token de incorporación"
+      },
+      "actionCreateJob": {
+        "title": "Crear trabajo",
+        "subtitle": "Ejecutar un trabajo nuevo en la flota"
+      },
+      "actionCreateGroup": {
+        "title": "Crear grupo",
+        "subtitle": "Crear un grupo de nodos nuevo"
+      },
+      "actionCreateDeployment": {
+        "title": "Crear despliegue",
+        "subtitle": "Desplegar software en la flota"
+      },
+      "actionRunQuery": {
+        "title": "Ejecutar consulta",
+        "subtitle": "Iniciar una consulta nueva en la flota"
+      },
+      "actionCreateAlert": {
+        "title": "Crear regla de alerta",
+        "subtitle": "Configurar una regla de alerta nueva"
+      },
+      "actionGenerateReport": {
+        "title": "Generar informe",
+        "subtitle": "Crear un informe de flota o de seguridad"
+      },
+      "actionScanVulns": {
+        "title": "Analizar vulnerabilidades",
+        "subtitle": "Iniciar un análisis de vulnerabilidades en toda la flota"
+      },
+      "actionOpenShell": {
+        "title": "Abrir shell remota",
+        "subtitle": "Iniciar una sesión de terminal en un nodo"
+      },
+      "actionCreateBaseline": {
+        "title": "Crear línea base de configuración",
+        "subtitle": "Definir una plantilla de línea base de cumplimiento"
+      },
+      "actionCreatePatchRing": {
+        "title": "Crear anillo de parches",
+        "subtitle": "Configurar un anillo nuevo de despliegue de parches"
+      },
+      "actionExportReport": {
+        "title": "Exportar informe de cumplimiento",
+        "subtitle": "Generar informe de cumplimiento en PDF/CSV"
+      },
+      "actionTriggerRemediation": {
+        "title": "Iniciar corrección",
+        "subtitle": "Corregir automáticamente vulnerabilidades conocidas en la flota"
+      },
+      "actionApproveContent": {
+        "title": "Revisar aprobaciones pendientes",
+        "subtitle": "Revisar aprobaciones de contenido y despliegue"
+      },
+      "pinnedCriticalNodes": {
+        "title": "Nodos críticos",
+        "subtitle": "Nodos con hallazgos críticos o sin conexión"
+      },
+      "pinnedFailedJobs": {
+        "title": "Trabajos fallidos",
+        "subtitle": "Trabajos que requieren atención"
+      },
+      "pinnedUnpatched": {
+        "title": "Dispositivos sin parches",
+        "subtitle": "Dispositivos a los que faltan parches críticos"
+      },
+      "pinnedRecentAlerts": {
+        "title": "Alertas recientes",
+        "subtitle": "Alertas de las últimas 24 h"
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Atajos de teclado",
+    "quickSearch": "Búsqueda rápida",
+    "goDashboard": "Ir al panel",
+    "goNodes": "Ir a nodos",
+    "goJobs": "Ir a trabajos",
+    "goAlerts": "Ir a alertas",
+    "thisDialog": "Este diálogo"
+  },
+  "globalSearch": {
+    "placeholder": "Buscar nodos… (pulse /)",
+    "noNodes": "No se encontraron nodos para «{query}»"
+  },
+  "api": {
+    "errorStatus": "Error {status}: {text}",
+    "error": "Error de la API",
+    "networkError": "Error de red",
+    "networkErrorDescription": "No se pudo conectar con el servidor de Octofleet."
   }
 }

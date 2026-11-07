@@ -94,7 +94,10 @@
     "vulnerabilities": "Schwachstellen",
     "queryEngine": "Abfrage-Engine",
     "metering": "Software-Metering",
-    "contentLifecycle": "Content-Lifecycle"
+    "contentLifecycle": "Content-Lifecycle",
+    "tasks": "Aufgaben",
+    "discovered": "Entdeckt",
+    "patchExplorer": "Patch-Explorer"
   },
   "auth": {
     "login": "Anmelden",
@@ -807,5 +810,206 @@
     "changeHistory": "Änderungsverlauf",
     "changeHistoryDescription": "Erkannte Änderungen am System",
     "noChanges": "Noch keine Änderungen erfasst"
+  },
+  "navGroups": {
+    "fleet": "Flotte",
+    "deploy": "Verteilen",
+    "secure": "Sicherheit",
+    "operate": "Betrieb",
+    "provision": "Bereitstellung",
+    "admin": "Verwaltung"
+  },
+  "sidebar": {
+    "expand": "Seitenleiste ausklappen",
+    "collapse": "Seitenleiste einklappen"
+  },
+  "routes": {
+    "node": "Node {name}",
+    "package": "Paket {name}",
+    "deployment": "Deployment {name}",
+    "job": "Job {name}",
+    "group": "Gruppe {name}",
+    "service": "Dienst {name}",
+    "live": "Live",
+    "shell": "Shell",
+    "terminal": "Terminal",
+    "provisioningSettings": "Provisioning-Einstellungen",
+    "provisioningAdmin": "Provisioning-Verwaltung"
+  },
+  "palette": {
+    "categories": {
+      "navigation": "Navigation",
+      "actions": "Aktionen",
+      "pinned": "Angeheftet",
+      "favorites": "Favoriten"
+    },
+    "modes": {
+      "knowledge": "Wissen"
+    },
+    "placeholders": {
+      "action": "Aktion ausführen...",
+      "knowledge": "Favoriten und zuletzt geöffnete Seiten durchsuchen...",
+      "jump": "Befehl eingeben oder Nodes suchen..."
+    },
+    "noResults": "Keine Treffer für „{query}“",
+    "prefixHint": "Tippen zum Suchen oder ein Präfix verwenden:",
+    "favoriteOf": "Favorit · {type}",
+    "visited": "Besucht {time}",
+    "footer": {
+      "select": "auswählen",
+      "navigate": "navigieren",
+      "actions": "Aktionen",
+      "knowledge": "Wissen",
+      "brand": "Octofleet-Suche"
+    },
+    "items": {
+      "navDashboard": {
+        "title": "Zum Dashboard",
+        "subtitle": "Übersicht über die gesamte Flotte"
+      },
+      "navNodes": {
+        "title": "Zu den Nodes",
+        "subtitle": "Alle registrierten Geräte anzeigen und verwalten"
+      },
+      "navGroups": {
+        "title": "Zu den Gruppen",
+        "subtitle": "Node-Gruppen und Zuordnungen verwalten"
+      },
+      "navPackages": {
+        "title": "Zu den Paketen",
+        "subtitle": "Softwarepakete und Verteilungen"
+      },
+      "navVulnerabilities": {
+        "title": "Zu den Schwachstellen",
+        "subtitle": "CVEs und Sicherheitsbefunde"
+      },
+      "navCompliance": {
+        "title": "Zur Compliance",
+        "subtitle": "Compliance-Richtlinien und Status"
+      },
+      "navAlerts": {
+        "title": "Zu den Alarmen",
+        "subtitle": "Alarmregeln und Vorfallverlauf"
+      },
+      "navReports": {
+        "title": "Zu den Berichten",
+        "subtitle": "Flottenberichte erstellen und herunterladen"
+      },
+      "navQuery": {
+        "title": "Zur Query Engine",
+        "subtitle": "Abfragen über die ganze Flotte ausführen"
+      },
+      "navProvisioning": {
+        "title": "Zum Provisioning",
+        "subtitle": "Betriebssystem-Installation und automatische Einrichtung"
+      },
+      "navMssql": {
+        "title": "Zum SQL-Manager",
+        "subtitle": "SQL-Server-Verwaltung für die ganze Flotte"
+      },
+      "navSecurity": {
+        "title": "Zum Security Center",
+        "subtitle": "Schwachstellen und Compliance"
+      },
+      "navPerformance": {
+        "title": "Zur Leistung",
+        "subtitle": "Leistungsauswertung der Flotte"
+      },
+      "navSettings": {
+        "title": "Einstellungen",
+        "subtitle": "Systemkonfiguration und Benutzer"
+      },
+      "actionAddNode": {
+        "title": "Neuen Node hinzufügen",
+        "subtitle": "Installationsskript oder Token erzeugen"
+      },
+      "actionCreateJob": {
+        "title": "Job erstellen",
+        "subtitle": "Neuen Job in der Flotte ausführen"
+      },
+      "actionCreateGroup": {
+        "title": "Gruppe erstellen",
+        "subtitle": "Neue Node-Gruppe anlegen"
+      },
+      "actionCreateDeployment": {
+        "title": "Deployment erstellen",
+        "subtitle": "Software in der Flotte verteilen"
+      },
+      "actionRunQuery": {
+        "title": "Abfrage ausführen",
+        "subtitle": "Neue Flottenabfrage starten"
+      },
+      "actionCreateAlert": {
+        "title": "Alarmregel erstellen",
+        "subtitle": "Neue Alarmregel einrichten"
+      },
+      "actionGenerateReport": {
+        "title": "Bericht erstellen",
+        "subtitle": "Flotten- oder Sicherheitsbericht erstellen"
+      },
+      "actionScanVulns": {
+        "title": "Schwachstellen scannen",
+        "subtitle": "Schwachstellen-Scan für die ganze Flotte starten"
+      },
+      "actionOpenShell": {
+        "title": "Remote-Shell öffnen",
+        "subtitle": "Terminal-Sitzung auf einem Node starten"
+      },
+      "actionCreateBaseline": {
+        "title": "Konfigurations-Baseline erstellen",
+        "subtitle": "Neue Compliance-Baseline-Vorlage definieren"
+      },
+      "actionCreatePatchRing": {
+        "title": "Patch-Ring erstellen",
+        "subtitle": "Neuen Patch-Verteilungsring einrichten"
+      },
+      "actionExportReport": {
+        "title": "Compliance-Bericht exportieren",
+        "subtitle": "Compliance-Bericht als PDF/CSV erstellen"
+      },
+      "actionTriggerRemediation": {
+        "title": "Behebung starten",
+        "subtitle": "Bekannte Schwachstellen in der Flotte automatisch beheben"
+      },
+      "actionApproveContent": {
+        "title": "Ausstehende Genehmigungen prüfen",
+        "subtitle": "Inhalts- und Deployment-Genehmigungen prüfen"
+      },
+      "pinnedCriticalNodes": {
+        "title": "Kritische Nodes",
+        "subtitle": "Nodes mit kritischen Funden oder offline"
+      },
+      "pinnedFailedJobs": {
+        "title": "Fehlgeschlagene Jobs",
+        "subtitle": "Jobs, die Aufmerksamkeit brauchen"
+      },
+      "pinnedUnpatched": {
+        "title": "Ungepatchte Geräte",
+        "subtitle": "Geräte, denen kritische Patches fehlen"
+      },
+      "pinnedRecentAlerts": {
+        "title": "Letzte Alarme",
+        "subtitle": "Alarme der letzten 24 h"
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Tastenkürzel",
+    "quickSearch": "Schnellsuche",
+    "goDashboard": "Zum Dashboard",
+    "goNodes": "Zu den Nodes",
+    "goJobs": "Zu den Jobs",
+    "goAlerts": "Zu den Alarmen",
+    "thisDialog": "Dieser Dialog"
+  },
+  "globalSearch": {
+    "placeholder": "Nodes suchen … (Taste /)",
+    "noNodes": "Keine Nodes für „{query}“ gefunden"
+  },
+  "api": {
+    "errorStatus": "Fehler {status}: {text}",
+    "error": "API-Fehler",
+    "networkError": "Netzwerkfehler",
+    "networkErrorDescription": "Verbindung zum Octofleet-Server fehlgeschlagen."
   }
 }

@@ -71,9 +71,7 @@
   "src/app/vulnerabilities/page.tsx": 2,
   "src/components/ActionToast.tsx": 1,
   "src/components/add-devices-dialog.tsx": 9,
-  "src/components/AppSidebar.tsx": 10,
   "src/components/BulkActionBar.tsx": 2,
-  "src/components/CommandPalette.tsx": 44,
   "src/components/create-deployment-dialog.tsx": 39,
   "src/components/create-dynamic-group-dialog.tsx": 41,
   "src/components/create-group-dialog.tsx": 12,
@@ -81,9 +79,6 @@
   "src/components/EventlogChart.tsx": 2,
   "src/components/ExportButtons.tsx": 16,
   "src/components/FavoriteButton.tsx": 1,
-  "src/components/GlobalBar.tsx": 2,
-  "src/components/GlobalSearch.tsx": 2,
-  "src/components/KeyboardShortcuts.tsx": 7,
   "src/components/LiveEventToast.tsx": 4,
   "src/components/manage-tags-dialog.tsx": 10,
   "src/components/MetricsHistoryChart.tsx": 4,
@@ -110,6 +105,5 @@
   "src/hooks/usePerformanceDashboard.ts": 1,
   "src/hooks/useQueryEngine.ts": 5,
   "src/hooks/useQueryExecution.ts": 2,
-  "src/lib/api-client.ts": 7,
   "src/lib/permissions.ts": 15
 }

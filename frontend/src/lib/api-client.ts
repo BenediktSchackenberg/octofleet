@@ -1,6 +1,7 @@
 import { API_BASE } from './api-config';
 import { getAuthHeader } from './auth-context';
 import { toast } from 'sonner';
+import { translate } from './i18n-context';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ function errorMessageFrom(errorData: unknown, response: Response): string {
     const message = (detail as { message?: unknown }).message;
     if (typeof message === 'string' && message) return message;
   }
-  return `Fehler ${response.status}: ${response.statusText}`;
+  return translate("api.errorStatus", { status: response.status, text: response.statusText });
 }
 
 // ─── Core request (returns T | null for backward compat) ────────────
@@ -98,7 +99,7 @@ async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Pr
       handlePasswordChangeRequired(response, errorMessage);
 
       if (showErrorToast) {
-        toast.error('API Fehler', {
+        toast.error(translate("api.error"), {
           description: errorMessage,
           duration: 5000,
         });
@@ -116,8 +117,8 @@ async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Pr
     return data;
   } catch (error) {
     if (showErrorToast) {
-      toast.error('Netzwerkfehler', {
-        description: 'Verbindung zum Octofleet-Server fehlgeschlagen.',
+      toast.error(translate("api.networkError"), {
+        description: translate("api.networkErrorDescription"),
         duration: 5000,
       });
     }
@@ -150,7 +151,7 @@ async function apiRequestRich<T>(endpoint: string, options: RequestOptions = {})
       handlePasswordChangeRequired(response, errorMessage);
 
       if (showErrorToast) {
-        toast.error('API Fehler', { description: errorMessage, duration: 5000 });
+        toast.error(translate("api.error"), { description: errorMessage, duration: 5000 });
       }
 
       if (response.status === 401 && onUnauthorized) { onUnauthorized(); }
@@ -165,8 +166,8 @@ async function apiRequestRich<T>(endpoint: string, options: RequestOptions = {})
     return { ok: true, data, error: null, status: response.status };
   } catch (error) {
     if (showErrorToast) {
-      toast.error('Netzwerkfehler', {
-        description: 'Verbindung zum Octofleet-Server fehlgeschlagen.',
+      toast.error(translate("api.networkError"), {
+        description: translate("api.networkErrorDescription"),
         duration: 5000,
       });
     }

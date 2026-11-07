@@ -23,6 +23,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaCh
 import { toast } from "sonner";
 import { formatTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
+import { routeLabel } from "@/lib/routes";
 
 // Skeleton Components for Loading State
 function Skeleton({ className = "" }: { className?: string }) {
@@ -785,7 +786,7 @@ export default function HomePage() {
                         href={item.href}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-800/50 text-sm text-zinc-300 hover:bg-zinc-700/50 hover:border-zinc-600 transition-colors"
                       >
-                        {item.label}
+                        {routeLabel(item.href, t, item.name)}
                       </Link>
                     ))}
                   </div>
