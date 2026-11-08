@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.rules import evaluate_dynamic_rule
 from dependencies import bad_request, conflict, get_db, not_found, verify_api_key
+from auth import require_permission, require_user_permission
 
 router = APIRouter(
     prefix="/api/v1",
@@ -14,7 +15,7 @@ router = APIRouter(
     dependencies=[Depends(verify_api_key)]
 )
 
-@router.get("/groups")
+@router.get("/groups", dependencies=[Depends(require_user_permission("groups:read"))])
 async def list_groups(db: asyncpg.Pool = Depends(get_db)):
     """List all groups with member counts"""
     async with db.acquire() as conn:
@@ -30,7 +31,7 @@ async def list_groups(db: asyncpg.Pool = Depends(get_db)):
         return {"groups": [dict(r) for r in rows]}
 
 
-@router.get("/groups/{group_id}")
+@router.get("/groups/{group_id}", dependencies=[Depends(require_user_permission("groups:read"))])
 async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get single group with members"""
     async with db.acquire() as conn:
@@ -335,7 +336,7 @@ async def remove_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.
         return {"status": "ok", "groupId": group_id, "removed": removed}
 
 
-@router.get("/tags")
+@router.get("/tags", dependencies=[Depends(require_user_permission("groups:read"))])
 async def list_tags(db: asyncpg.Pool = Depends(get_db)):
     """List all tags with usage counts"""
     async with db.acquire() as conn:
@@ -431,7 +432,7 @@ async def remove_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Poo
         return {"status": "ok", "nodeId": node_id, "removed": removed}
 
 
-@router.get("/devices/{node_id}/groups")
+@router.get("/devices/{node_id}/groups", dependencies=[Depends(require_user_permission("groups:read"))])
 async def get_device_groups(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get groups a device belongs to"""
     async with db.acquire() as conn:
@@ -450,7 +451,7 @@ async def get_device_groups(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         return {"nodeId": node_id, "groups": [dict(r) for r in rows]}
 
 
-@router.get("/devices/{node_id}/tags")
+@router.get("/devices/{node_id}/tags", dependencies=[Depends(require_user_permission("groups:read"))])
 async def get_device_tags(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get tags assigned to a device"""
     async with db.acquire() as conn:

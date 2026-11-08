@@ -8,11 +8,12 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
 from dependencies import get_db, not_found, verify_api_key
+from auth import require_permission, require_user_permission
 
 router = APIRouter(tags=["Hardware"])
 
 
-@router.get("/api/v1/hardware/fleet")
+@router.get("/api/v1/hardware/fleet", dependencies=[Depends(require_user_permission("hardware:read"))])
 async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
     """Hardware fleet overview for the Hardware dashboard page"""
     async with db.acquire() as conn:
@@ -125,7 +126,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-@router.get("/api/v1/hardware/export")
+@router.get("/api/v1/hardware/export", dependencies=[Depends(require_user_permission("hardware:read"))])
 async def export_fleet_hardware(
     format: str = "json",
     _: str = Depends(verify_api_key),
@@ -193,7 +194,7 @@ async def export_fleet_hardware(
         }
 
 
-@router.get("/api/v1/nodes/{node_id}/hardware/export", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/nodes/{node_id}/hardware/export", dependencies=[Depends(require_user_permission("hardware:read"))])
 async def export_node_hardware(
     node_id: str,
     format: str = "json",

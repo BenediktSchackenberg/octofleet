@@ -6,6 +6,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from auth import CurrentUser, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(
@@ -65,7 +66,8 @@ async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
         return res
 
 @router.post("/jobs")
-async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db),
+                     _user: CurrentUser = Depends(require_user_permission("jobs:create"))):
     async with db.acquire() as conn:
         job_uuid = uuid.uuid4()
         target_id = data.get("targetId")
@@ -95,7 +97,8 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         return {"id": str(job_uuid), "status": "created", "instances": len(node_ids)}
 
 @router.delete("/jobs/{job_id}")
-async def cancel_or_delete_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
+async def cancel_or_delete_job(job_id: str, db: asyncpg.Pool = Depends(get_db),
+                               _user: CurrentUser = Depends(require_user_permission("jobs:cancel"))):
     """Cancel a job that still has open instances; delete a finished job with its instances.
 
     jobs has no status column - a job's state comes from its instances. Pending and queued
@@ -143,6 +146,7 @@ async def list_packages(db: asyncpg.Pool = Depends(get_db)):
         return {"packages": [dict(r) for r in rows]}
 
 @router.post("/smart-install")
-async def smart_install(request: SmartInstallRequest, db: asyncpg.Pool = Depends(get_db)):
+async def smart_install(request: SmartInstallRequest, db: asyncpg.Pool = Depends(get_db),
+                        _user: CurrentUser = Depends(require_user_permission("jobs:create"))):
     # Existing smart install logic...
     return {"status": "ok"}

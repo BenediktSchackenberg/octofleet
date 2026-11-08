@@ -48,16 +48,19 @@ from auth import (
     APIKeyCreate,
     CurrentUser,
     RoleCreate,
+    ROLE_PERMISSIONS,
     UserCreate,
+    get_permissions_for_roles,
     hash_api_key,
     hash_password,
     require_auth,
     require_permission,
+    require_user_permission,
 )
 from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.alerting import router as alerting_router
 from routers.auth import router as auth_router
-from routers.auth import users_router
+from routers.auth import assert_manageable_user, users_router
 from routers.password_policy import router as password_policy_router
 from routers.baselines import router as baselines_router
 from routers.content_lifecycle import router as content_lifecycle_router
@@ -112,6 +115,7 @@ from dependencies import (
     set_db_pool,
     verify_api_key,
     verify_api_key_or_query,
+    _permissions_for_scopes,
 )
 
 # Local db_pool reference (set during lifespan)
@@ -786,7 +790,7 @@ async def list_smart_install_packages():
 
 
 
-@app.get("/api/v1/onboarding/agent-config")
+@app.get("/api/v1/onboarding/agent-config", dependencies=[Depends(require_user_permission("settings:write"))])
 async def download_agent_config(request: Request):
     """Generate a ready-to-use service-config.json for new agents."""
     api_url = await server_url(db_pool, request)
@@ -804,7 +808,7 @@ async def download_agent_config(request: Request):
     })
 
 
-@app.get("/api/v1/onboarding/install-command")
+@app.get("/api/v1/onboarding/install-command", dependencies=[Depends(require_user_permission("settings:write"))])
 async def get_install_command(request: Request):
     """Generate a one-liner PowerShell install command with pre-filled config."""
     api_url = await server_url(db_pool, request)
@@ -820,7 +824,7 @@ async def get_install_command(request: Request):
     return {"command": ps_command, "apiUrl": api_url, "apiKey": api_key}
 
 
-@app.get("/api/v1/onboarding/config")
+@app.get("/api/v1/onboarding/config", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_onboarding_config(db: asyncpg.Pool = Depends(get_db)):
     """Get onboarding configuration"""
     async with db.acquire() as conn:
@@ -842,7 +846,7 @@ async def get_onboarding_config(db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-@app.put("/api/v1/onboarding/config")
+@app.put("/api/v1/onboarding/config", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_onboarding_config(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update onboarding configuration"""
     async with db.acquire() as conn:
@@ -2529,13 +2533,19 @@ async def get_gateway_logs(
 async def assign_role(
     user_id: str,
     role_name: str,
-    user: CurrentUser = Depends(require_permission("users:write"))
+    user: CurrentUser = Depends(require_user_permission("users:write"))
 ):
     """Assign role to user"""
     async with db_pool.acquire() as conn:
-        role = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", role_name)
+        role = await conn.fetchrow("SELECT id, permissions FROM roles WHERE name = $1", role_name)
         if not role:
             raise not_found("Role", role_name)
+        await assert_manageable_user(conn, UUID(user_id), user)
+        role_permissions = get_permissions_for_roles(
+            [role_name], {role_name: list(role["permissions"])} if role["permissions"] else None
+        )
+        if not all(user.has_permission(permission) for permission in role_permissions):
+            raise HTTPException(status_code=403, detail="Cannot assign a role with greater permissions")
         
         await conn.execute(
             """INSERT INTO user_roles (user_id, role_id, assigned_by)
@@ -2552,13 +2562,14 @@ async def assign_role(
 async def remove_role(
     user_id: str,
     role_name: str,
-    user: CurrentUser = Depends(require_permission("users:write"))
+    user: CurrentUser = Depends(require_user_permission("users:write"))
 ):
     """Remove role from user"""
     async with db_pool.acquire() as conn:
         role = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", role_name)
         if not role:
             raise not_found("Role", role_name)
+        await assert_manageable_user(conn, UUID(user_id), user)
         
         await conn.execute(
             "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2",
@@ -2571,7 +2582,7 @@ async def remove_role(
 # --- Role Management ---
 
 @app.get("/api/v1/roles")
-async def list_roles(user: CurrentUser = Depends(require_permission("users:read"))):
+async def list_roles(user: CurrentUser = Depends(require_user_permission("users:read"))):
     """List all roles"""
     async with db_pool.acquire() as conn:
         roles = await conn.fetch(
@@ -2595,9 +2606,11 @@ async def list_roles(user: CurrentUser = Depends(require_permission("users:read"
 @app.post("/api/v1/roles")
 async def create_role(
     data: RoleCreate,
-    user: CurrentUser = Depends(require_permission("roles:write"))
+    user: CurrentUser = Depends(require_user_permission("roles:write"))
 ):
     """Create custom role"""
+    if data.name in ROLE_PERMISSIONS or not all(user.has_permission(p) for p in data.permissions):
+        raise HTTPException(status_code=403, detail="Cannot create a role with greater permissions")
     async with db_pool.acquire() as conn:
         role = await conn.fetchrow(
             """INSERT INTO roles (name, description, permissions, is_system)
@@ -2620,18 +2633,23 @@ async def create_role(
 @app.delete("/api/v1/roles/{role_id}")
 async def delete_role(
     role_id: str,
-    user: CurrentUser = Depends(require_permission("roles:write"))
+    user: CurrentUser = Depends(require_user_permission("roles:write"))
 ):
     """Delete custom role (not system roles)"""
     async with db_pool.acquire() as conn:
         role = await conn.fetchrow(
-            "SELECT is_system FROM roles WHERE id = $1",
+            "SELECT name, permissions, is_system FROM roles WHERE id = $1",
             UUID(role_id)
         )
         if not role:
             raise not_found("Role", role_id)
         if role["is_system"]:
             raise HTTPException(status_code=400, detail="Cannot delete system role")
+        role_permissions = get_permissions_for_roles(
+            [role["name"]], {role["name"]: list(role["permissions"])} if role["permissions"] else None
+        )
+        if not all(user.has_permission(permission) for permission in role_permissions):
+            raise HTTPException(status_code=403, detail="Cannot delete a role with greater permissions")
         
         await conn.execute("DELETE FROM roles WHERE id = $1", UUID(role_id))
         return {"status": "deleted"}
@@ -2761,7 +2779,7 @@ async def log_audit(
 # --- API Key Management ---
 
 @app.get("/api/v1/api-keys")
-async def list_api_keys(user: CurrentUser = Depends(require_auth)):
+async def list_api_keys(user: CurrentUser = Depends(require_user_permission("api-keys:read"))):
     """List API keys for current user (or all if admin)"""
     async with db_pool.acquire() as conn:
         if user.is_superuser or user.has_permission("users:read"):
@@ -2804,10 +2822,15 @@ async def list_api_keys(user: CurrentUser = Depends(require_auth)):
 @app.post("/api/v1/api-keys")
 async def create_api_key(
     data: APIKeyCreate,
-    user: CurrentUser = Depends(require_auth)
+    user: CurrentUser = Depends(require_user_permission("api-keys:write"))
 ):
     """Create new API key for current user"""
     import secrets
+    scopes = data.scopes if data.scopes else ["agent"]
+    if any(scope not in {"agent", "read", "write", "admin"} for scope in scopes):
+        raise HTTPException(status_code=400, detail="Unknown API key scope")
+    if not all(user.has_permission(p) for p in _permissions_for_scopes(scopes)):
+        raise HTTPException(status_code=403, detail="Cannot create an API key with greater permissions")
     
     # Generate key
     raw_key = f"oci_{secrets.token_hex(24)}"  # oci = octofleet inventory
@@ -2818,7 +2841,6 @@ async def create_api_key(
         expires_at = datetime.utcnow() + timedelta(days=data.expires_days)
     
     async with db_pool.acquire() as conn:
-        scopes = data.scopes if data.scopes else ["agent"]
         key = await conn.fetchrow(
             """INSERT INTO api_keys (user_id, key_hash, name, scopes, expires_at)
                VALUES ($1, $2, $3, $4, $5)
@@ -2845,7 +2867,7 @@ async def create_api_key(
 @app.delete("/api/v1/api-keys/{key_id}")
 async def revoke_api_key(
     key_id: str,
-    user: CurrentUser = Depends(require_auth)
+    user: CurrentUser = Depends(require_user_permission("api-keys:write"))
 ):
     """Revoke an API key"""
     async with db_pool.acquire() as conn:
@@ -2868,7 +2890,7 @@ async def revoke_api_key(
 @app.delete("/api/v1/api-keys/{key_id}/permanent")
 async def delete_api_key(
     key_id: str,
-    user: CurrentUser = Depends(require_permission("users:write"))
+    user: CurrentUser = Depends(require_user_permission("api-keys:write"))
 ):
     """Permanently delete an API key (admin only)"""
     async with db_pool.acquire() as conn:
@@ -2903,7 +2925,7 @@ async def list_maintenance_windows():
         return {"windows": [dict(r) for r in rows]}
 
 
-@app.post("/api/v1/maintenance-windows", dependencies=[Depends(require_auth)])
+@app.post("/api/v1/maintenance-windows", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_maintenance_window(data: dict):
     """Create a maintenance window"""
     required = ["name", "startTime", "endTime"]
@@ -2936,7 +2958,7 @@ async def get_maintenance_window(window_id: str):
         return dict(row)
 
 
-@app.put("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(require_auth)])
+@app.put("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_maintenance_window(window_id: str, data: dict):
     """Update a maintenance window"""
     async with db_pool.acquire() as conn:
@@ -2960,7 +2982,7 @@ async def update_maintenance_window(window_id: str, data: dict):
         return {"status": "updated"}
 
 
-@app.delete("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(require_auth)])
+@app.delete("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_maintenance_window(window_id: str):
     """Delete a maintenance window"""
     async with db_pool.acquire() as conn:
@@ -3242,7 +3264,7 @@ logger = logging.getLogger(__name__)
 # System Settings API
 # ============================================
 
-@app.get("/api/v1/settings")
+@app.get("/api/v1/settings", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_settings():
     """Get all system settings (values masked for secrets)."""
     async with db_pool.acquire() as conn:
@@ -3258,7 +3280,7 @@ async def get_settings():
                 settings[key] = {"value": value, "masked": False, "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None}
         return settings
 
-@app.get("/api/v1/settings/{key}")
+@app.get("/api/v1/settings/{key}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def get_setting(key: str):
     """Get a specific setting."""
     if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
@@ -3269,7 +3291,7 @@ async def get_setting(key: str):
             return {"key": key, "value": ""}
         return {"key": key, "value": row["value"], "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None}
 
-@app.put("/api/v1/settings/{key}")
+@app.put("/api/v1/settings/{key}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_setting(key: str, value: str = Body(..., embed=True)):
     """Update or create a setting."""
     if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
@@ -3290,7 +3312,7 @@ async def update_setting(key: str, value: str = Body(..., embed=True)):
     
     return {"status": "updated", "key": key}
 
-@app.delete("/api/v1/settings/{key}")
+@app.delete("/api/v1/settings/{key}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_setting(key: str):
     """Delete a setting."""
     if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
