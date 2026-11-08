@@ -12,8 +12,15 @@ from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
 from dependencies import get_pool, verify_api_key, verify_api_key_or_query
+from vulnerability import COUNTED
 
 router = APIRouter(tags=["Patch Explorer"])
+
+
+# CVEs the vulnerability scan found in one installed software of a node (sc = software_current),
+# counted like the node and vulnerability pages: packages of old, not running kernels are left out.
+SOFTWARE_CVE_COUNT = f"""SELECT COUNT(DISTINCT f.cve_id) FROM node_vulnerability_findings f
+                 WHERE f.node_id = sc.node_id AND LOWER(f.software_name) = LOWER(sc.name) AND {COUNTED}"""
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +130,7 @@ async def explorer_nodes(os: str = Query(...)):
 async def explorer_node_software(node_id: str):
     async with get_pool().acquire() as conn:
         # All software for this node, left-joined with available updates and CVEs
-        rows = await conn.fetch("""
+        rows = await conn.fetch(f"""
             SELECT
                 sc.id,
                 sc.name,
@@ -135,9 +142,7 @@ async def explorer_node_software(node_id: str):
                 u.severity AS update_severity,
                 u.source,
                 u.is_reboot_required,
-                (SELECT COUNT(*) FROM node_vulnerabilities nv
-                 JOIN verified_vulnerabilities v ON v.id = nv.vulnerability_id
-                 WHERE nv.node_id = sc.node_id::text AND LOWER(v.software_name) = LOWER(sc.name)) AS cve_count
+                ({SOFTWARE_CVE_COUNT}) AS cve_count
             FROM software_current sc
             LEFT JOIN node_available_updates u
                 ON u.node_id = sc.node_id AND LOWER(u.software_name) = LOWER(sc.name)
