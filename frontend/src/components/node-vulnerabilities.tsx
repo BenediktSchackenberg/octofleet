@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
@@ -508,10 +509,8 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
 /** A node's vulnerabilities (node page tab): grouped by update, or as a flat CVE list. */
 export function NodeVulnerabilities({ nodeId }: { nodeId: string }) {
   const { t } = useI18n();
-  const [view, setView] = useState<"groups" | "cves">("groups");
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("view") === "cves") setView("cves");
-  }, []);
+  // ?view=cves opens the CVE list (links from the node card and the vulnerabilities page)
+  const [view, setView] = useTabParam<"groups" | "cves">("groups", ["groups", "cves"], "view");
   const base = `/vulnerabilities/node/${encodeURIComponent(nodeId)}`;
   const groups = useApi<NodeVulnerabilityGroupsResponse>(`${base}/groups`);
   const cves = useApi<NodeVulnerabilitiesResponse>(view === "cves" ? base : null);

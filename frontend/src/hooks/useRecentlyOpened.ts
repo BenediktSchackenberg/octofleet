@@ -61,8 +61,11 @@ export function useRecentlyOpened() {
   /** A detail page reports the name of what it shows (e.g. a group's name instead of its id). */
   const nameRecent = useCallback((href: string, name: string) => {
     const previous = loadRecent();
-    if (!previous.some((r) => r.href === href && r.name !== name)) return;
-    saveRecent(previous.map((r) => (r.href === href ? { ...r, name } : r)));
+    const section = href.split("/").slice(0, 2).join("/"); // "/nodes", "/groups"
+    // the same node may have been opened by hostname and by id: keep only this entry
+    const duplicate = (r: RecentItem) => r.href !== href && r.name === name && r.href.startsWith(section + "/");
+    if (!previous.some((r) => (r.href === href && r.name !== name) || duplicate(r))) return;
+    saveRecent(previous.filter((r) => !duplicate(r)).map((r) => (r.href === href ? { ...r, name } : r)));
   }, []);
 
   return { recent, trackPage, nameRecent };

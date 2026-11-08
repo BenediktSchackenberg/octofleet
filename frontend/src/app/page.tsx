@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/auth-context";
 import { RoleDashboard, type DashboardRole } from "@/components/dashboard/RoleDashboard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
-import { formatTime } from "@/lib/format";
+import { formatLocalDate, formatTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
 import { routeLabel } from "@/lib/routes";
 
@@ -671,7 +671,7 @@ export default function HomePage() {
                               <TableRow key={i}>
                                 <TableCell className="font-mono">{hf.hotfixId}</TableCell>
                                 <TableCell>{hf.description}</TableCell>
-                                <TableCell>{hf.installedOn}</TableCell>
+                                <TableCell>{formatLocalDate(hf.installedOn)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>

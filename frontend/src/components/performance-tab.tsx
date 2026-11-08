@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,7 @@ export function PerformanceTab({ nodeId }: Props) {
   const [network, setNetwork] = useState<NetworkInterface[]>([]);
   const [agentLogs, setAgentLogs] = useState<AgentLogEntry[]>([]);
   const [reconnectCount, setReconnectCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'network' | 'agent'>('overview');
+  const [activeTab, setActiveTab] = useTabParam<'overview' | 'logs' | 'processes' | 'network' | 'agent'>('overview', ['overview', 'logs', 'processes', 'network', 'agent'], 'perf');
   const [logFilter, setLogFilter] = useState('');
   const [processSort, setProcessSort] = useState<'cpu' | 'memory' | 'name'>('cpu');
   const [timeRange, setTimeRange] = useState<'live' | '24h' | '7d' | '14d' | '30d'>('live');

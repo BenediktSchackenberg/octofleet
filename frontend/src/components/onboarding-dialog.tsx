@@ -187,8 +187,8 @@ export function OnboardingDialog({ trigger, open, onOpenChange }: OnboardingDial
             value={os}
             onChange={setOs}
             options={[
-              { value: "windows", label: "Windows" },
-              { value: "linux", label: "Linux" },
+              { value: "windows", label: "Windows" }, // i18n-ignore
+              { value: "linux", label: "Linux" }, // i18n-ignore
             ]}
           />
           {os === "windows" && (
@@ -243,7 +243,7 @@ export function OnboardingDialog({ trigger, open, onOpenChange }: OnboardingDial
             <Step n={3} title={t("onboarding.manualSteps.step3")}>
               <p className="text-xs text-zinc-400">
                 {t("onboarding.manualSteps.step3Before")}{" "}
-                <a href="https://github.com/BenediktSchackenberg/octofleet/releases/latest" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">GitHub Releases</a>{" "}
+                <a href="https://github.com/BenediktSchackenberg/octofleet/releases/latest" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">GitHub Releases{/* i18n-ignore */}</a>{" "}
                 {t("onboarding.manualSteps.step3After")}
               </p>
             </Step>

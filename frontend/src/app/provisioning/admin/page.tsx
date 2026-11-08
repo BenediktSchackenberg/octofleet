@@ -1,4 +1,5 @@
 "use client";
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect } from "react";
@@ -271,7 +272,7 @@ function ImageModal({
 // Main Admin Page
 // ============================================
 export default function ProvisioningAdminPage() {
-  const [activeTab, setActiveTab] = useState<"isos" | "images" | "templates" | "nfs">("isos");
+  const [activeTab, setActiveTab] = useTabParam<"isos" | "images" | "templates" | "nfs">("isos", ["isos", "images", "templates", "nfs"]);
   const [images, setImages] = useState<ProvisioningImage[]>([]);
   const [templates, setTemplates] = useState<ProvisioningTemplate[]>([]);
   const [isos, setIsos] = useState<ISOInfo[]>([]);

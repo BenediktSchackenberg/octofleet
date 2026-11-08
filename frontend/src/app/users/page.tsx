@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 import { PERMISSION_CATEGORIES } from "@/lib/permissions";
 import { useEffect, useState, useCallback } from "react";
@@ -128,7 +129,7 @@ function PermissionPicker({ selected, onChange }: { selected: string[]; onChange
 // ═════════════════════════════════════════════════════════════════════
 
 export default function UsersPage() {
-  const [tab, setTab] = useState("users");
+  const [tab, setTab] = useTabParam<"users" | "roles" | "audit">("users", ["users", "roles", "audit"]);
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);

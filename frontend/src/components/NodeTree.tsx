@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n-context";
 import { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, Monitor, Server, Laptop, Circle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ interface NodeTreeProps {
 }
 
 export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
+  const { t } = useI18n();
   const [tree, setTree] = useState<TreeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["groups", "unassigned"]));
@@ -89,7 +91,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
   if (loading) {
     return (
       <div className="p-4 text-muted-foreground text-sm">
-        Loading...
+        {t("common.loading")}
       </div>
     );
   }
@@ -97,7 +99,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
   if (!tree) {
     return (
       <div className="p-4 text-muted-foreground text-sm">
-        Failed to load
+        {t("widgets.loadFailed")}
       </div>
     );
   }
@@ -106,7 +108,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
     <div className="text-sm select-none">
       {/* Groups Section */}
       <TreeSection
-        title="Gruppen"
+        title={t("nav.groups")}
         icon="📁"
         expanded={expanded.has("groups")}
         onToggle={() => toggleExpand("groups")}
@@ -161,7 +163,7 @@ export function NodeTree({ onNodeSelect, selectedNodeId }: NodeTreeProps) {
       {/* Unassigned Section */}
       {countNodes(tree.unassigned) > 0 && (
         <TreeSection
-          title="Nicht zugeordnet"
+          title={t("dashboard.node.unassigned")}
           icon="⚠️"
           expanded={expanded.has("unassigned")}
           onToggle={() => toggleExpand("unassigned")}

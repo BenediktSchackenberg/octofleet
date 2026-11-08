@@ -1,4 +1,5 @@
 "use client";
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -190,7 +191,7 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
 }
 
 export default function SecurityEventsPage() {
-  const [tab, setTab] = useState<TabKey>("all");
+  const [tab, setTab] = useTabParam<TabKey>("all", ["all", "logon", "process", "network", "registry", "service", "file", "history"]);
   const [events, setEvents] = useState<NormalizedEvent[]>([]);
   const [fileEvents, setFileEvents] = useState<FileEvent[]>([]);
   const [stats, setStats] = useState<EventStats[]>([]);

@@ -809,7 +809,15 @@
     "powerOnHours": "Horas de funcionamiento",
     "changeHistory": "Historial de cambios",
     "changeHistoryDescription": "Cambios detectados en el sistema",
-    "noChanges": "Aún no se han registrado cambios"
+    "noChanges": "Aún no se han registrado cambios",
+    "updateResult": {
+      "notStarted": "No iniciada",
+      "inProgress": "En curso",
+      "succeeded": "Correcta",
+      "succeededWithErrors": "Correcta con errores",
+      "failed": "Fallida",
+      "aborted": "Cancelada"
+    }
   },
   "navGroups": {
     "fleet": "Flota",
@@ -1025,5 +1033,38 @@
     "error": "Error de la API",
     "networkError": "Error de red",
     "networkErrorDescription": "No se pudo conectar con el servidor de Octofleet."
+  },
+  "widgets": {
+    "loadFailed": "Error al cargar",
+    "export": {
+      "button": "Exportar",
+      "title": "Exportar datos",
+      "asFormat": "Exportar como {format}",
+      "jobs30d": "Trabajos (30 días)"
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "markAllRead": "Marcar todo como leído",
+      "none": "No hay notificaciones",
+      "viewAll": "Ver todas las alertas →"
+    },
+    "live": {
+      "agentOnline": "Agente conectado",
+      "agentOffline": "Agente desconectado",
+      "jobCompleted": "Trabajo completado",
+      "criticalAlert": "Alerta crítica"
+    },
+    "theme": {
+      "toLight": "Cambiar al modo claro",
+      "toDark": "Cambiar al modo oscuro"
+    },
+    "favorites": {
+      "add": "Añadir a favoritos",
+      "remove": "Quitar de favoritos"
+    },
+    "moreCount": "+{count} más",
+    "home": "Inicio",
+    "retry": "Reintentar",
+    "close": "Cerrar"
   }
 }

@@ -9,7 +9,8 @@ import requests
 
 API_URL = os.getenv("API_URL", "http://localhost:8080")
 API_KEY = os.getenv("INVENTORY_API_KEY")
-HEADERS = {"X-API-Key": API_KEY or "", "Content-Type": "application/json"}
+HEADERS = {"X-API-Key": API_KEY or "", "Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}", "Content-Type": "application/json"}
+AGENT_HEADERS = {"X-API-Key": API_KEY or "", "Content-Type": "application/json"}
 WAIT_SECONDS = 30  # CI runs the removal task every few seconds (NODE_REMOVAL_PROCESS_INTERVAL)
 
 
@@ -45,10 +46,10 @@ def _confirm_uninstall(payload: dict) -> None:
     # A scheduled job alone cannot delete the node; only the detached script's
     # one-time token confirms that the service and files were removed.
     assert requests.post(url, json={"confirmationToken": payload["confirmationToken"]}, timeout=10).status_code == 401
-    assert requests.post(url, headers=HEADERS, json={"confirmationToken": "wrong" * 9}, timeout=10).status_code == 403
-    r = requests.post(url, headers=HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10)
+    assert requests.post(url, headers=AGENT_HEADERS, json={"confirmationToken": "wrong" * 9}, timeout=10).status_code == 403
+    r = requests.post(url, headers=AGENT_HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10)
     assert r.status_code == 200, r.text
-    assert requests.post(url, headers=HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10).status_code == 403
+    assert requests.post(url, headers=AGENT_HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10).status_code == 403
 
 
 def _wait_for(predicate, what: str):

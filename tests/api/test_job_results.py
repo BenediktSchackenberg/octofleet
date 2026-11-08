@@ -7,7 +7,7 @@ import requests
 
 API_URL = os.getenv("API_URL", "http://localhost:8080")
 API_KEY = os.getenv("INVENTORY_API_KEY")
-HEADERS = {"X-API-Key": API_KEY or "", "Content-Type": "application/json"}
+HEADERS = {"X-API-Key": API_KEY or "", "Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}", "Content-Type": "application/json"}
 
 
 @pytest.fixture
