@@ -1025,5 +1025,38 @@
     "error": "API error",
     "networkError": "Network error",
     "networkErrorDescription": "Could not connect to the Octofleet server."
+  },
+  "widgets": {
+    "loadFailed": "Failed to load",
+    "export": {
+      "button": "Export",
+      "title": "Export data",
+      "asFormat": "Export as {format}",
+      "jobs30d": "Jobs (30 days)"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "markAllRead": "Mark all as read",
+      "none": "No notifications",
+      "viewAll": "View all alerts →"
+    },
+    "live": {
+      "agentOnline": "Agent online",
+      "agentOffline": "Agent offline",
+      "jobCompleted": "Job completed",
+      "criticalAlert": "Critical alert"
+    },
+    "theme": {
+      "toLight": "Switch to light mode",
+      "toDark": "Switch to dark mode"
+    },
+    "favorites": {
+      "add": "Add to favorites",
+      "remove": "Remove from favorites"
+    },
+    "moreCount": "+{count} more",
+    "home": "Home",
+    "retry": "Retry",
+    "close": "Close"
   }
 }

@@ -1,4 +1,6 @@
 "use client";
+
+import { useI18n } from "@/lib/i18n-context";
 import { apiClient } from "@/lib/api-client";
 
 import { useState } from "react";
@@ -17,6 +19,7 @@ interface ExportButtonsProps {
 }
 
 export function ExportButtons({ type, className = "", showExcel = true }: ExportButtonsProps) {
+  const { t } = useI18n();
   const [exporting, setExporting] = useState(false);
 
   async function handleExport(format: "json" | "csv" | "excel") {
@@ -78,29 +81,29 @@ export function ExportButtons({ type, className = "", showExcel = true }: Export
           onClick={() => handleExport("excel")}
           disabled={exporting}
           className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm disabled:opacity-50"
-          title="Export as Excel"
+          title={t("widgets.export.asFormat", { format: "Excel" })}
         >
           <Table2 className="h-4 w-4" />
-          Excel
+          Excel{/* i18n-ignore */}
         </button>
       )}
       <button
         onClick={() => handleExport("csv")}
         disabled={exporting}
         className="flex items-center gap-1 px-3 py-1.5 bg-secondary hover:bg-secondary/80 rounded text-sm disabled:opacity-50"
-        title="Export as CSV"
+        title={t("widgets.export.asFormat", { format: "CSV" })}
       >
         <FileSpreadsheet className="h-4 w-4" />
-        CSV
+        CSV{/* i18n-ignore */}
       </button>
       <button
         onClick={() => handleExport("json")}
         disabled={exporting}
         className="flex items-center gap-1 px-3 py-1.5 bg-secondary hover:bg-secondary/80 rounded text-sm disabled:opacity-50"
-        title="Export as JSON"
+        title={t("widgets.export.asFormat", { format: "JSON" })}
       >
         <FileJson className="h-4 w-4" />
-        JSON
+        JSON{/* i18n-ignore */}
       </button>
     </div>
   );
@@ -108,15 +111,16 @@ export function ExportButtons({ type, className = "", showExcel = true }: Export
 
 // Quick export dropdown for nav/header
 export function ExportDropdown() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
 
   const exports: { type: ExportType; label: string; icon: string; hasExcel: boolean }[] = [
-    { type: "nodes", label: "Nodes", icon: "🖥️", hasExcel: true },
-    { type: "software", label: "Software", icon: "📦", hasExcel: true },
-    { type: "vulnerabilities", label: "Vulnerabilities", icon: "🔓", hasExcel: true },
-    { type: "jobs", label: "Jobs (30d)", icon: "📋", hasExcel: true },
-    { type: "compliance", label: "Compliance", icon: "🛡️", hasExcel: false },
+    { type: "nodes", label: t("nav.nodes"), icon: "🖥️", hasExcel: true },
+    { type: "software", label: t("nodes.software"), icon: "📦", hasExcel: true },
+    { type: "vulnerabilities", label: t("nav.vulnerabilities"), icon: "🔓", hasExcel: true },
+    { type: "jobs", label: t("widgets.export.jobs30d"), icon: "📋", hasExcel: true },
+    { type: "compliance", label: t("nav.compliance"), icon: "🛡️", hasExcel: false },
   ];
 
   async function downloadExcel(type: string) {
@@ -150,7 +154,7 @@ export function ExportDropdown() {
         className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-secondary/80 rounded text-sm"
       >
         <Download className="h-4 w-4" />
-        Export
+        {t("widgets.export.button")}
       </button>
       
       {open && (
@@ -161,7 +165,7 @@ export function ExportDropdown() {
           />
           <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg min-w-56">
             <div className="p-2">
-              <p className="text-xs text-muted-foreground px-2 py-1">Export Data</p>
+              <p className="text-xs text-muted-foreground px-2 py-1">{t("widgets.export.title")}</p>
               {exports.map((exp) => (
                 <div key={exp.type} className="py-1">
                   <div className="px-2 py-1 text-sm font-medium flex items-center gap-2">
@@ -174,7 +178,7 @@ export function ExportDropdown() {
                         disabled={exporting === exp.type}
                         className="flex-1 text-center px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
                       >
-                        {exporting === exp.type ? "..." : "Excel"}
+                        {exporting === exp.type ? "..." : "Excel" /* i18n-ignore */}
                       </button>
                     )}
                     <a
@@ -183,7 +187,7 @@ export function ExportDropdown() {
                       className="flex-1 text-center px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded"
                       onClick={() => setOpen(false)}
                     >
-                      CSV
+                      CSV{/* i18n-ignore */}
                     </a>
                     <a
                       href={`${API_URL}/api/v1/export/${exp.type}?format=json`}
@@ -191,7 +195,7 @@ export function ExportDropdown() {
                       className="flex-1 text-center px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded"
                       onClick={() => setOpen(false)}
                     >
-                      JSON
+                      JSON{/* i18n-ignore */}
                     </a>
                   </div>
                 </div>

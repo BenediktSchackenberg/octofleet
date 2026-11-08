@@ -1,10 +1,13 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n-context";
+
 import { useState, useEffect } from "react";
 import { Moon, Sun } from "lucide-react";
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const { t } = useI18n();
 
   useEffect(() => {
     // Check localStorage or system preference
@@ -29,7 +32,7 @@ export function ThemeToggle() {
     <button
       onClick={toggleTheme}
       className="p-2 rounded-md hover:bg-secondary transition-colors"
-      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      title={theme === "dark" ? t("widgets.theme.toLight") : t("widgets.theme.toDark")}
     >
       {theme === "dark" ? (
         <Sun className="h-5 w-5" />

@@ -1025,5 +1025,38 @@
     "error": "API-Fehler",
     "networkError": "Netzwerkfehler",
     "networkErrorDescription": "Verbindung zum Octofleet-Server fehlgeschlagen."
+  },
+  "widgets": {
+    "loadFailed": "Laden fehlgeschlagen",
+    "export": {
+      "button": "Exportieren",
+      "title": "Daten exportieren",
+      "asFormat": "Als {format} exportieren",
+      "jobs30d": "Jobs (30 Tage)"
+    },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "markAllRead": "Alle als gelesen markieren",
+      "none": "Keine Benachrichtigungen",
+      "viewAll": "Alle Alarme anzeigen →"
+    },
+    "live": {
+      "agentOnline": "Agent online",
+      "agentOffline": "Agent offline",
+      "jobCompleted": "Job abgeschlossen",
+      "criticalAlert": "Kritischer Alarm"
+    },
+    "theme": {
+      "toLight": "Zum hellen Modus wechseln",
+      "toDark": "Zum dunklen Modus wechseln"
+    },
+    "favorites": {
+      "add": "Zu Favoriten hinzufügen",
+      "remove": "Aus Favoriten entfernen"
+    },
+    "moreCount": "+{count} weitere",
+    "home": "Start",
+    "retry": "Erneut versuchen",
+    "close": "Schließen"
   }
 }

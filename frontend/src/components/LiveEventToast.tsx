@@ -4,10 +4,12 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { API_URL } from "@/lib/api-config";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n-context";
 
 export function LiveEventToast() {
   const { isAdmin, token } = useAuth();
   const sourceRef = useRef<EventSource | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!isAdmin() || !token) return;
@@ -25,13 +27,13 @@ export function LiveEventToast() {
         const msg = data.message || data.hostname || evType;
 
         if (evType.includes("online")) {
-          toast.success("Agent Online", { description: msg, duration: 4000 });
+          toast.success(t("widgets.live.agentOnline"), { description: msg, duration: 4000 });
         } else if (evType.includes("offline")) {
-          toast.error("Agent Offline", { description: msg, duration: 5000 });
+          toast.error(t("widgets.live.agentOffline"), { description: msg, duration: 5000 });
         } else if (evType.includes("job_complete") || evType.includes("job_success")) {
-          toast.success("Job Completed", { description: msg, duration: 4000 });
+          toast.success(t("widgets.live.jobCompleted"), { description: msg, duration: 4000 });
         } else if (evType.includes("critical") || evType.includes("alert")) {
-          toast.error("Critical Alert", { description: msg, duration: 6000 });
+          toast.error(t("widgets.live.criticalAlert"), { description: msg, duration: 6000 });
         }
       } catch {}
     };
