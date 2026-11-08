@@ -170,8 +170,8 @@ async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        rows = await conn.fetch('SELECT name, version, publisher, install_date AS "installDate", install_path FROM software_current WHERE node_id = $1 ORDER BY name', node['id'])
-        return {"data": {"installedPrograms": [dict(r) for r in rows]}}
+        rows = await conn.fetch("SELECT name, version, publisher, install_date, install_path FROM software_current WHERE node_id = $1 ORDER BY name", node['id'])
+        return {"data": {"installedPrograms": [dict(r) | {"installDate": r["install_date"]} for r in rows]}}
 
 @router.get("/hotfixes/{node_id}", dependencies=_auth)
 async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):

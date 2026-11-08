@@ -834,7 +834,21 @@
     "shell": "Shell",
     "terminal": "Terminal",
     "provisioningSettings": "Ajustes de aprovisionamiento",
-    "provisioningAdmin": "Administración de aprovisionamiento"
+    "provisioningAdmin": "Administración de aprovisionamiento",
+    "baselineTemplates": "Plantillas de referencia",
+    "newComplianceBaseline": "Nueva línea base de cumplimiento",
+    "complianceDrift": "Desviaciones de cumplimiento",
+    "mssqlDeployments": "Despliegues de SQL Server",
+    "login": "Iniciar sesión",
+    "patchCatalog": "Catálogo de parches",
+    "newPatchDeployment": "Nuevo despliegue de parches",
+    "backupStatus": "Estado de copias de seguridad",
+    "securityActivity": "Actividad de seguridad",
+    "detectionRules": "Reglas de detección",
+    "securityMonitoring": "Supervisión de seguridad",
+    "maintenanceWindows": "Ventanas de mantenimiento",
+    "securitySettings": "Ajustes de seguridad",
+    "vulnerabilityMappings": "Asignaciones de vulnerabilidades"
   },
   "palette": {
     "categories": {

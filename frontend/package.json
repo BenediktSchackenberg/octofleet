@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "check:routes": "node scripts/check-route-labels.mjs",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report test-results/html-report"
