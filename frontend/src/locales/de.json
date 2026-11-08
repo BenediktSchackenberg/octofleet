@@ -809,7 +809,15 @@
     "powerOnHours": "Betriebsstunden",
     "changeHistory": "Änderungsverlauf",
     "changeHistoryDescription": "Erkannte Änderungen am System",
-    "noChanges": "Noch keine Änderungen erfasst"
+    "noChanges": "Noch keine Änderungen erfasst",
+    "updateResult": {
+      "notStarted": "Nicht gestartet",
+      "inProgress": "Läuft",
+      "succeeded": "Erfolgreich",
+      "succeededWithErrors": "Mit Fehlern abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "aborted": "Abgebrochen"
+    }
   },
   "navGroups": {
     "fleet": "Flotte",

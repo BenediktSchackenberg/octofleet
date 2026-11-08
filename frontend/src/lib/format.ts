@@ -119,6 +119,16 @@ export function formatDate(value: DateInput, options?: Intl.DateTimeFormatOption
   return date ? format(date, options ?? DEFAULT_DATE) : fallback;
 }
 
+/**
+ * A date without time ("2026-10-16" or "20261016"), e.g. install dates reported by agents, as
+ * a local date. new Date("2026-10-16") would be midnight UTC and could show the previous day
+ * west of UTC. Other values are formatted like formatDate.
+ */
+export function formatLocalDate(value: DateInput, options?: Intl.DateTimeFormatOptions, fallback = "-"): string {
+  const m = typeof value === "string" ? /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(value) : null;
+  return m ? formatDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), options, fallback) : formatDate(value, options, fallback);
+}
+
 /** Time only. */
 export function formatTime(value: DateInput, options?: Intl.DateTimeFormatOptions, fallback = "-"): string {
   const date = toDate(value);
