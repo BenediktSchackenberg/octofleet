@@ -60,6 +60,7 @@ jobs:
         env:
           API_URL: http://localhost:8080
           INVENTORY_API_KEY: ci-test-api-key
+          ADMIN_PASSWORD: ci-test-admin-password-2026
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

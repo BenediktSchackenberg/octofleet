@@ -17,6 +17,8 @@ Most endpoints require authentication via one of two methods:
 
 To obtain a JWT token, use the login endpoint. API keys are configured via environment variables or the API Keys management endpoints.
 
+> The shared agent key (`API_KEY` / `INVENTORY_API_KEY`) is for agents. Protected fleet and vulnerability reads, settings, user and role management, API key management, and job creation require a user account. Use a login token or a personal API key with the required permission. The shared agent key gets `403 This action requires a user account` on these routes.
+
 ---
 
 ## Core Endpoints

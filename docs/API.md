@@ -14,10 +14,12 @@ When the backend is running, access the full interactive API documentation:
 
 All API endpoints require authentication via one of:
 
-### API Key (Header)
+### Personal API Key (Header)
 ```bash
-curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/nodes
+curl -H "X-API-Key: your-personal-api-key" http://localhost:8080/api/v1/nodes
 ```
+
+> The shared agent key (`API_KEY` / `INVENTORY_API_KEY`) is for agents. Protected fleet and vulnerability reads, settings, user and role management, API key management, and job creation require a user account. Use a login token or a personal API key with the required permission. The shared agent key gets `403 This action requires a user account` on these routes.
 
 ### JWT Bearer Token
 ```bash

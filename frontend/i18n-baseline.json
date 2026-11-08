@@ -55,7 +55,6 @@
   "src/app/security/profiles/page.tsx": 45,
   "src/app/security/retention/page.tsx": 7,
   "src/app/security/rules/page.tsx": 19,
-  "src/app/security/vulnerabilities/page.tsx": 15,
   "src/app/services/[serviceId]/page.tsx": 38,
   "src/app/services/page.tsx": 38,
   "src/app/settings/maintenance-windows/page.tsx": 25,
