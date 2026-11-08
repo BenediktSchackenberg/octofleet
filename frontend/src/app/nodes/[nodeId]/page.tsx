@@ -22,15 +22,19 @@ import { useI18n } from "@/lib/i18n-context";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
-import { formatDate, formatDateTime as formatDateTimeIntl } from "@/lib/format";
+import { formatDate, formatDateTime as formatDateTimeIntl, formatLocalDate } from "@/lib/format";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
-/** Install dates come as YYYY-MM-DD (or YYYYMMDD); show them as a local date in the user's format. */
-function formatInstallDate(value?: string | null): string {
-  const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(value ?? "");
-  return m ? formatDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : formatDate(value);
-}
+/** Windows Update result as reported by the agent ("Succeeded", …) or as the numeric WUA code. */
+const UPDATE_RESULTS: Record<string, { key: string; ok: boolean }> = {
+  "0": { key: "notStarted", ok: false }, NotStarted: { key: "notStarted", ok: false },
+  "1": { key: "inProgress", ok: false }, InProgress: { key: "inProgress", ok: false },
+  "2": { key: "succeeded", ok: true }, Succeeded: { key: "succeeded", ok: true },
+  "3": { key: "succeededWithErrors", ok: false }, SucceededWithErrors: { key: "succeededWithErrors", ok: false },
+  "4": { key: "failed", ok: false }, Failed: { key: "failed", ok: false },
+  "5": { key: "aborted", ok: false }, Aborted: { key: "aborted", ok: false },
+};
 
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
@@ -691,7 +695,7 @@ export default function NodeDetailPage() {
                         </TableCell>
                         <TableCell>{sw.version || '-'}</TableCell>
                         {showPublisher && <TableCell className="truncate max-w-[200px]">{sw.publisher || '-'}</TableCell>}
-                        {showInstallDate && <TableCell>{formatInstallDate(sw.installDate)}</TableCell>}
+                        {showInstallDate && <TableCell>{formatLocalDate(sw.installDate)}</TableCell>}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -760,7 +764,7 @@ export default function NodeDetailPage() {
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
                             <TableCell>{hf.description || '-'}</TableCell>
-                            <TableCell>{hf.installedOn || '-'}</TableCell>
+                            <TableCell>{formatLocalDate(hf.installedOn)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -783,13 +787,18 @@ export default function NodeDetailPage() {
                       <TableBody>
                         {hotfixes.updateHistory?.slice(0, 50).map((upd: any, i: number) => (
                           <TableRow key={i}>
-                            <TableCell><Badge variant="outline">{upd.kb || '-'}</Badge></TableCell>
+                            <TableCell><Badge variant="outline">{upd.kbId || upd.kb || '-'}</Badge></TableCell>
                             <TableCell className="truncate max-w-[300px]">{upd.title || '-'}</TableCell>
-                            <TableCell>{upd.installedDate ? formatDate(upd.installedDate) : '-'}</TableCell>
+                            <TableCell>{formatDate(upd.installedOn ?? upd.installedDate)}</TableCell>
                             <TableCell>
-                              <Badge variant={upd.resultCode === 2 ? "default" : "secondary"}>
-                                {upd.resultCode === 2 ? "✓ OK" : upd.resultCode === 4 ? `⚠ ${t("common.error")}` : upd.resultCode}
-                              </Badge>
+                              {(() => {
+                                const result = UPDATE_RESULTS[String(upd.resultCode ?? "")];
+                                return (
+                                  <Badge variant={result?.ok ? "default" : "secondary"}>
+                                    {result ? t(`nodeDetail.updateResult.${result.key}`) : (upd.resultCode ?? "-")}
+                                  </Badge>
+                                );
+                              })()}
                             </TableCell>
                           </TableRow>
                         ))}

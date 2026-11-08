@@ -809,7 +809,15 @@
     "powerOnHours": "Power-on hours",
     "changeHistory": "Change history",
     "changeHistoryDescription": "Changes detected on the system",
-    "noChanges": "No changes recorded yet"
+    "noChanges": "No changes recorded yet",
+    "updateResult": {
+      "notStarted": "Not started",
+      "inProgress": "In progress",
+      "succeeded": "Succeeded",
+      "succeededWithErrors": "Succeeded with errors",
+      "failed": "Failed",
+      "aborted": "Aborted"
+    }
   },
   "navGroups": {
     "fleet": "Fleet",
