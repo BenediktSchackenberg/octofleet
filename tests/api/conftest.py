@@ -30,6 +30,14 @@ def pytest_configure(config):
                 print("   ✅ Admin already exists")
             else:
                 print(f"   ⚠️ Setup response: {response.status_code}")
+            login = client.post("/api/v1/auth/login", json={
+                "username": os.getenv("TEST_USERNAME", "admin"),
+                "password": os.getenv("TEST_PASSWORD", os.getenv("ADMIN_PASSWORD", "ci-test-admin-password-2026")),
+            })
+            if login.status_code == 200:
+                os.environ["TEST_ADMIN_TOKEN"] = login.json()["access_token"]
+            else:
+                print(f"   ⚠️ Admin login failed: {login.status_code}")
     except Exception as e:
         print(f"   ⚠️ Setup failed: {e}")
     

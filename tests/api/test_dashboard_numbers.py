@@ -5,7 +5,7 @@ import requests
 
 API_URL = os.getenv("API_URL", "http://localhost:8080")
 API_KEY = os.getenv("INVENTORY_API_KEY")
-HEADERS = {"X-API-Key": API_KEY or ""}
+HEADERS = {"X-API-Key": API_KEY or "", "Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}"}
 
 
 def test_dashboard_vulnerabilities_match_vulnerability_summary():

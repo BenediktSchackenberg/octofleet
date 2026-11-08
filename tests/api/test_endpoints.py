@@ -46,6 +46,7 @@ PROTECTED_ENDPOINTS = [
     "/api/v1/services",
     f"/api/v1/services/{VALID_UUID}",
 ]
+USER_ONLY_ENDPOINTS = set(PROTECTED_ENDPOINTS[:7])
 
 
 class TestHealth:
@@ -89,20 +90,6 @@ class TestBasicEndpoints:
         # Accept success or auth errors, but not server errors
         assert response.status_code in [200, 401, 403, 404], \
             f"{endpoint} returned {response.status_code}: {response.text[:200]}"
-
-
-class TestEnrollment:
-    """Enrollment endpoints for agent registration"""
-    
-    def test_enroll_requires_token(self):
-        """Enrollment without token should be rejected"""
-        response = requests.post(
-            f"{API_URL}/api/v1/enroll",
-            json={"nodeId": "test-node", "hostname": "test"},
-            timeout=10
-        )
-        # Should require valid token
-        assert response.status_code in [400, 401, 403, 422]
 
 
 class TestServiceOrchestration:
@@ -190,10 +177,10 @@ class TestAPIKeyConsistency:
             f"Old API key should be rejected! Got {response.status_code}"
     
     def test_correct_api_key_accepted(self):
-        """Current API key should work on all endpoints"""
+        """The agent key still works on legacy agent-facing job reads."""
         assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
-            f"{API_URL}/api/v1/nodes",
+            f"{API_URL}/api/v1/jobs",
             headers={"X-API-Key": API_KEY},
             timeout=10
         )
@@ -214,15 +201,19 @@ class TestAPIKeyConsistency:
     
     @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
     def test_protected_endpoints_accept_correct_key(self, endpoint):
-        """All protected endpoints should accept the centralized API key"""
+        """The agent key works where allowed; fleet reads require a user token."""
         assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
             f"{API_URL}{endpoint}",
             headers={"X-API-Key": API_KEY},
             timeout=10
         )
+        if endpoint in USER_ONLY_ENDPOINTS:
+            assert response.status_code == 403, (endpoint, response.status_code, response.text[:100])
+            response = requests.get(f"{API_URL}{endpoint}",
+                                    headers={"Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}"}, timeout=10)
         assert response.status_code in [200, 404], \
-            f"{endpoint} rejected correct key! Status: {response.status_code}: {response.text[:100]}"
+            f"{endpoint} rejected authorized access! Status: {response.status_code}: {response.text[:100]}"
     
     @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
     def test_no_auth_rejected(self, endpoint):

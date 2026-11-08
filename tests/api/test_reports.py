@@ -1,11 +1,11 @@
 """Tests for PDF Report endpoints."""
+import os
 import pytest
 import requests
 
-API_URL = "http://localhost:8080"
-API_KEY = "octofleet-inventory-dev-key"
+API_URL = os.getenv("API_URL", "http://localhost:8080")
 
-HEADERS = {"X-API-Key": API_KEY}
+HEADERS = {"Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}"}
 
 
 def test_fleet_pdf_report():

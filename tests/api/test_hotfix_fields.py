@@ -8,6 +8,18 @@ API_URL = os.getenv("API_URL", "http://localhost:8080")
 HEADERS = {"X-API-Key": os.getenv("INVENTORY_API_KEY") or "", "Content-Type": "application/json"}
 
 
+def user_headers():
+    token = os.getenv("TEST_ADMIN_TOKEN")
+    if not token:
+        login = requests.post(f"{API_URL}/api/v1/auth/login", timeout=10, json={
+            "username": os.getenv("TEST_USERNAME", "admin"),
+            "password": os.getenv("TEST_PASSWORD", "Octofleet2026!"),
+        })
+        assert login.status_code == 200, login.text
+        token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_update_history_returns_kb_date_and_result():
     hostname = f"hotfix-fields-{uuid.uuid4().hex[:8]}"
     r = requests.post(f"{API_URL}/api/v1/inventory/hotfixes", headers=HEADERS, timeout=30, json={
@@ -18,7 +30,7 @@ def test_update_history_returns_kb_date_and_result():
     })
     assert r.status_code == 200, r.text
 
-    r = requests.get(f"{API_URL}/api/v1/inventory/hotfixes/{hostname}", headers=HEADERS, timeout=10)
+    r = requests.get(f"{API_URL}/api/v1/inventory/hotfixes/{hostname}", headers=user_headers(), timeout=10)
     assert r.status_code == 200, r.text
     data = r.json()["data"]
     hotfix = data["hotfixes"][0]
