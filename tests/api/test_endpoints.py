@@ -4,6 +4,8 @@ Tests basic functionality without requiring complete database schema.
 """
 import pytest
 import requests
+
+from user_auth import user_headers
 import os
 import time
 from pathlib import Path
@@ -171,6 +173,13 @@ class TestServiceOrchestration:
             assert isinstance(data["services"], list)
 
 
+def _key_recognised(response) -> bool:
+    """The shared agent key is valid: the data, or 403 on routes that need a user account."""
+    if response.status_code in (200, 404):
+        return True
+    return response.status_code == 403 and "requires a user account" in response.text
+
+
 class TestAPIKeyConsistency:
     """
     Test API key consistency across all protected endpoints.
@@ -197,7 +206,7 @@ class TestAPIKeyConsistency:
             headers={"X-API-Key": API_KEY},
             timeout=10
         )
-        assert response.status_code == 200, \
+        assert _key_recognised(response), \
             f"Current API key should be accepted! Got {response.status_code}: {response.text[:100]}"
     
     @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
@@ -221,8 +230,15 @@ class TestAPIKeyConsistency:
             headers={"X-API-Key": API_KEY},
             timeout=10
         )
-        assert response.status_code in [200, 404], \
+        assert _key_recognised(response), \
             f"{endpoint} rejected correct key! Status: {response.status_code}: {response.text[:100]}"
+
+    @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
+    def test_protected_endpoints_accept_user(self, endpoint):
+        """A signed-in user gets the data"""
+        response = requests.get(f"{API_URL}{endpoint}", headers=user_headers(), timeout=10)
+        assert response.status_code in [200, 404], \
+            f"{endpoint} rejected the user! Status: {response.status_code}: {response.text[:100]}"
     
     @pytest.mark.parametrize("endpoint", PROTECTED_ENDPOINTS)
     def test_no_auth_rejected(self, endpoint):

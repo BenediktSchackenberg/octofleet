@@ -8,8 +8,10 @@ import uuid
 
 import requests
 
+from user_auth import user_headers
+
 API = os.getenv("API_URL", "http://localhost:8080") + "/api/v1"
-KEY = {"X-API-Key": os.getenv("INVENTORY_API_KEY", "")}
+KEY = user_headers()
 
 
 def password(tag):
@@ -32,6 +34,8 @@ def test_forced_change_answers_403_until_the_password_is_changed():
     r = requests.post(f"{API}/users", headers=KEY, json={"username": name, "password": p1}, timeout=10)
     assert r.status_code in (200, 201), r.text
     user_id = r.json()["id"]
+    # reading fleet data needs a role; viewer is read-only
+    assert requests.post(f"{API}/users/{user_id}/roles/viewer", headers=KEY, timeout=10).status_code == 200
     old = login(name, p1)
     r = requests.post(f"{API}/users/{user_id}/password", headers=KEY,
                       json={"new_password": p2, "must_change_password": True}, timeout=10)

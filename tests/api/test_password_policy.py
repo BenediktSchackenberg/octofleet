@@ -26,7 +26,7 @@ def test_password_policy_reset_and_revocation():
                   "require_lowercase": True, "require_digit": True,
                   "require_symbol": True, "history_count": 2}
         assert requests.put(f"{BASE}/security/password-policy", headers=headers, json=policy, timeout=10).status_code == 200
-        assert requests.put(f"{BASE}/settings/password_policy", json={"value": "{}"}, timeout=10).status_code == 400
+        assert requests.put(f"{BASE}/settings/password_policy", headers=headers, json={"value": "{}"}, timeout=10).status_code == 400
 
         weak = requests.post(f"{BASE}/users", headers=headers,
                              json={"username": username, "password": "alllowercasepassword"}, timeout=10)

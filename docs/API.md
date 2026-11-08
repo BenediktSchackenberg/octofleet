@@ -19,6 +19,8 @@ All API endpoints require authentication via one of:
 curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/nodes
 ```
 
+> The shared agent key (`API_KEY` / `INVENTORY_API_KEY`) is for agents. Routes that read or change fleet data, jobs, users, roles or API keys need a user: send a login token or a personal API key (created under API Keys, it acts with its owner's permissions). With the shared agent key these routes answer `403 This action requires a user account`.
+
 ### JWT Bearer Token
 ```bash
 curl -H "Authorization: Bearer your-jwt-token" http://localhost:8080/api/v1/nodes

@@ -5,9 +5,11 @@ import uuid
 import pytest
 import requests
 
+from user_auth import user_headers
+
 API_URL = os.getenv("API_URL", "http://localhost:8080")
 API_KEY = os.getenv("INVENTORY_API_KEY")
-HEADERS = {"X-API-Key": API_KEY or "", "Content-Type": "application/json"}
+HEADERS = user_headers({"Content-Type": "application/json"})
 
 
 @pytest.fixture(scope="module")

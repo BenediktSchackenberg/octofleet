@@ -3,9 +3,11 @@ import os
 
 import requests
 
+from user_auth import user_headers
+
 API_URL = os.getenv("API_URL", "http://localhost:8080")
 API_KEY = os.getenv("INVENTORY_API_KEY")
-HEADERS = {"X-API-Key": API_KEY or ""}
+HEADERS = user_headers()
 
 
 def test_dashboard_vulnerabilities_match_vulnerability_summary():

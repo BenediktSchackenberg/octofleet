@@ -7,9 +7,13 @@ import uuid
 import pytest
 import requests
 
+from user_auth import user_headers
+
 API_URL = os.getenv("API_URL", "http://localhost:8080")
 API_KEY = os.getenv("INVENTORY_API_KEY")
-HEADERS = {"X-API-Key": API_KEY or "", "Content-Type": "application/json"}
+HEADERS = user_headers({"Content-Type": "application/json"})
+# requests the agent makes: the agent key alone (with a login token they would count as a user)
+AGENT_HEADERS = {"X-API-Key": API_KEY or "", "Content-Type": "application/json"}
 WAIT_SECONDS = 30  # CI runs the removal task every few seconds (NODE_REMOVAL_PROCESS_INTERVAL)
 
 
@@ -28,13 +32,13 @@ def _node(hostname: str):
 
 def _agent_reports_job_result(hostname: str, success: bool) -> dict:
     """Fetch the pending uninstall job like an agent and report its result."""
-    r = requests.get(f"{API_URL}/api/v1/jobs/pending/{hostname}", headers=HEADERS, timeout=10)
+    r = requests.get(f"{API_URL}/api/v1/jobs/pending/{hostname}", headers=AGENT_HEADERS, timeout=10)
     assert r.status_code == 200, r.text
     body = r.json()
     jobs = body.get("jobs", body) if isinstance(body, dict) else body
     job = next(j for j in jobs if j.get("commandType") == "uninstall-agent")
     payload = json.loads(job["commandPayload"])
-    r = requests.post(f"{API_URL}/api/v1/jobs/instances/{job['instanceId']}/result", headers=HEADERS, timeout=10,
+    r = requests.post(f"{API_URL}/api/v1/jobs/instances/{job['instanceId']}/result", headers=AGENT_HEADERS, timeout=10,
                       json={"success": success, "exitCode": 0 if success else 1, "stdout": "uninstall started"})
     assert r.status_code == 200, r.text
     return payload
@@ -45,10 +49,10 @@ def _confirm_uninstall(payload: dict) -> None:
     # A scheduled job alone cannot delete the node; only the detached script's
     # one-time token confirms that the service and files were removed.
     assert requests.post(url, json={"confirmationToken": payload["confirmationToken"]}, timeout=10).status_code == 401
-    assert requests.post(url, headers=HEADERS, json={"confirmationToken": "wrong" * 9}, timeout=10).status_code == 403
-    r = requests.post(url, headers=HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10)
+    assert requests.post(url, headers=AGENT_HEADERS, json={"confirmationToken": "wrong" * 9}, timeout=10).status_code == 403
+    r = requests.post(url, headers=AGENT_HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10)
     assert r.status_code == 200, r.text
-    assert requests.post(url, headers=HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10).status_code == 403
+    assert requests.post(url, headers=AGENT_HEADERS, json={"confirmationToken": payload["confirmationToken"]}, timeout=10).status_code == 403
 
 
 def _wait_for(predicate, what: str):
