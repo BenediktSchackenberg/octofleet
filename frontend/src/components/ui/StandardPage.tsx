@@ -1,5 +1,6 @@
 "use client"
 
+import { useI18n } from "@/lib/i18n-context";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react"
 
 interface StandardPageProps {
@@ -27,6 +28,7 @@ export function StandardPage({
   error,
   onRetry,
 }: StandardPageProps) {
+  const { t } = useI18n();
   if (loading) {
     return (
       <div className="flex flex-col gap-4 p-6 animate-pulse">
@@ -54,7 +56,7 @@ export function StandardPage({
             className="flex items-center gap-2 px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors"
           >
             <RefreshCw className="h-4 w-4" />
-            Retry
+            {t("widgets.retry")}
           </button>
         )}
       </div>

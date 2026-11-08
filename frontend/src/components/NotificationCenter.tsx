@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n-context";
+
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, AlertTriangle, AlertCircle, Info, CheckCircle, X } from "lucide-react";
@@ -16,14 +18,14 @@ interface Alert {
   hostname?: string;
 }
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: ReturnType<typeof useI18n>["t"]): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
+  if (min < 1) return t("time.now");
+  if (min < 60) return t("time.minutesAgo", { minutes: min });
   const hrs = Math.floor(min / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return t("time.hoursAgo", { hours: hrs });
+  return t("time.daysAgo", { days: Math.floor(hrs / 24) });
 }
 
 function severityIcon(alert: Alert) {
@@ -35,6 +37,7 @@ function severityIcon(alert: Alert) {
 }
 
 export function NotificationCenter() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
@@ -112,17 +115,17 @@ export function NotificationCenter() {
             className="absolute right-0 top-full mt-2 w-80 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-              <span className="text-sm font-semibold text-zinc-100">Notifications</span>
+              <span className="text-sm font-semibold text-zinc-100">{t("widgets.notifications.title")}</span>
               {unreadCount > 0 && (
                 <button onClick={markAllRead} className="text-xs text-blue-400 hover:text-blue-300">
-                  Mark all read
+                  {t("widgets.notifications.markAllRead")}
                 </button>
               )}
             </div>
 
             <div className="max-h-80 overflow-y-auto">
               {alerts.length === 0 ? (
-                <div className="py-8 text-center text-xs text-zinc-500">No notifications</div>
+                <div className="py-8 text-center text-xs text-zinc-500">{t("widgets.notifications.none")}</div>
               ) : (
                 alerts.map(alert => (
                   <div
@@ -134,7 +137,7 @@ export function NotificationCenter() {
                     <div className="mt-0.5">{severityIcon(alert)}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-zinc-200 truncate">{alert.message || alert.event_type}</p>
-                      <p className="text-[10px] text-zinc-500 mt-0.5">{timeAgo(alert.sent_at)}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">{timeAgo(alert.sent_at, t)}</p>
                     </div>
                   </div>
                 ))
@@ -146,7 +149,7 @@ export function NotificationCenter() {
               onClick={() => setOpen(false)}
               className="block text-center py-2.5 text-xs font-medium text-blue-400 hover:bg-zinc-800/50 border-t border-zinc-800 transition-colors"
             >
-              View all alerts →
+              {t("widgets.notifications.viewAll")}
             </Link>
           </motion.div>
         )}

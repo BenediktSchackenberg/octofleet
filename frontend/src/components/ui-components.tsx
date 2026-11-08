@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n-context";
 import Link from "next/link";
 
 interface BreadcrumbItem {
@@ -8,10 +9,11 @@ interface BreadcrumbItem {
 }
 
 export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
+  const { t } = useI18n();
   return (
     <nav className="flex items-center gap-2 text-sm text-zinc-400 mb-4">
       <Link href="/" className="hover:text-blue-400 transition-colors">
-        🏠 Home
+        🏠 {t("widgets.home")}
       </Link>
       {items.map((item, index) => (
         <span key={index} className="flex items-center gap-2">

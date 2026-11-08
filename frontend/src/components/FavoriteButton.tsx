@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n-context";
+
 import { useFavorites, Favorite } from "@/hooks/useFavorites";
 import { Button } from "@/components/ui/button";
 import { Star } from "lucide-react";
@@ -16,6 +18,7 @@ interface FavoriteButtonProps {
 export function FavoriteButton({ type, id, label, href, className }: FavoriteButtonProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const favorited = isFavorite(type, id);
+  const { t } = useI18n();
 
   return (
     <Button
@@ -27,7 +30,7 @@ export function FavoriteButton({ type, id, label, href, className }: FavoriteBut
         e.stopPropagation();
         toggleFavorite({ type, id, label, href });
       }}
-      title={favorited ? "Remove from favorites" : "Add to favorites"}
+      title={favorited ? t("widgets.favorites.remove") : t("widgets.favorites.add")}
     >
       <Star
         className={cn(

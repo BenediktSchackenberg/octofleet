@@ -1,4 +1,6 @@
 "use client";
+
+import { useI18n } from "@/lib/i18n-context";
 import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState } from "react";
@@ -26,6 +28,7 @@ const COLORS = [
 export function OsDistributionChart({ showVersions = false }: { showVersions?: boolean }) {
   const [data, setData] = useState<OsDistribution[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useI18n();
 
   useEffect(() => {
     fetchData();
@@ -47,7 +50,7 @@ export function OsDistributionChart({ showVersions = false }: { showVersions?: b
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center text-muted-foreground">
-        Loading...
+        {t("common.loading")}
       </div>
     );
   }
@@ -55,7 +58,7 @@ export function OsDistributionChart({ showVersions = false }: { showVersions?: b
   if (data.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center text-muted-foreground">
-        No data
+        {t("nodeDetail.noData")}
       </div>
     );
   }
@@ -114,7 +117,7 @@ export function OsDistributionChart({ showVersions = false }: { showVersions?: b
                     <div key={j}>{v.version}: {v.count}</div>
                   ))}
                   {os.versions.length > 3 && (
-                    <div>+{os.versions.length - 3} more</div>
+                    <div>{t("widgets.moreCount", { count: os.versions.length - 3 })}</div>
                   )}
                 </div>
               )}
