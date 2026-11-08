@@ -99,14 +99,15 @@ function format(date: Date, options: Intl.DateTimeFormatOptions): string {
   return before + ordered.join(separator) + trailing + after;
 }
 
-// The same defaults as toLocaleString(), toLocaleDateString() and toLocaleTimeString().
+// Like toLocaleString() and toLocaleDateString(), but with two-digit day and month
+// ("07.03.2020", "03/07/2020"), so dates line up in tables.
 const DEFAULT_DATE_TIME: Intl.DateTimeFormatOptions = {
-  year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric",
+  year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "numeric", second: "numeric",
 };
-const DEFAULT_DATE: Intl.DateTimeFormatOptions = { year: "numeric", month: "numeric", day: "numeric" };
+const DEFAULT_DATE: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit" };
 const DEFAULT_TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "numeric", second: "numeric" };
 
-/** Date and time, e.g. "11/6/2026, 5:34:42 PM" (en) or "6.11.2026, 17:34:42" (de). */
+/** Date and time, e.g. "11/06/2026, 5:34:42 PM" (en) or "06.11.2026, 17:34:42" (de). */
 export function formatDateTime(value: DateInput, options?: Intl.DateTimeFormatOptions, fallback = "-"): string {
   const date = toDate(value);
   return date ? format(date, options ?? DEFAULT_DATE_TIME) : fallback;
