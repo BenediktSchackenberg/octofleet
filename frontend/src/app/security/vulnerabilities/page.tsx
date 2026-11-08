@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
@@ -18,7 +19,7 @@ export default function VulnerabilitiesPage() {
   const [nodeVulns, setNodeVulns] = useState<any[] | null>(null);
   const [selectedNode, setSelectedNode] = useState("");
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"fleet" | "cves" | "nodes" | "packages">("fleet");
+  const [tab, setTab] = useTabParam<"fleet" | "cves" | "nodes" | "packages">("fleet", ["fleet", "cves", "nodes", "packages"]);
   const [severityFilter, setSeverityFilter] = useState("all");
 
   useEffect(() => {

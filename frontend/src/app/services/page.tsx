@@ -1,4 +1,5 @@
 'use client';
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect } from 'react';
@@ -39,7 +40,7 @@ export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [serviceClasses, setServiceClasses] = useState<ServiceClass[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'services' | 'classes'>('services');
+  const [activeTab, setActiveTab] = useTabParam<'services' | 'classes'>('services', ['services', 'classes']);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
 

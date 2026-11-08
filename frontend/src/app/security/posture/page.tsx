@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
@@ -28,7 +29,7 @@ export default function PosturePage() {
   const [comparison, setComparison] = useState<{ baselineId?: string; baselineDate?: string; currentId?: string; currentDate?: string; diff?: PostureDiff } | null>(null);
   const [selectedSnapshot, setSelectedSnapshot] = useState<PostureSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<"overview" | "packages" | "services" | "config" | "ports">("overview");
+  const [tab, setTab] = useTabParam<"overview" | "packages" | "services" | "config" | "ports">("overview", ["overview", "packages", "services", "config", "ports"]);
 
   useEffect(() => {
     apiClient.get<{ nodes: any[] } | any[]>(`/nodes`, { showErrorToast: false })

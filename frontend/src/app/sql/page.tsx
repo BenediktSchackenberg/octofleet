@@ -1,4 +1,5 @@
 'use client';
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect } from 'react';
@@ -76,7 +77,7 @@ type TabType = 'configs' | 'assignments' | 'instances' | 'updates';
 
 export default function SqlPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabType>('configs');
+  const [activeTab, setActiveTab] = useTabParam<TabType>('configs', ['configs', 'assignments', 'instances', 'updates']);
   const [configs, setConfigs] = useState<MssqlConfig[]>([]);
   const [assignments, setAssignments] = useState<MssqlAssignment[]>([]);
   const [instances, setInstances] = useState<MssqlInstance[]>([]);

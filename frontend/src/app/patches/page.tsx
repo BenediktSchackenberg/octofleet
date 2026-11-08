@@ -1,5 +1,6 @@
 'use client';
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect } from 'react';
 import { apiClient } from "@/lib/api-client";
 import Link from 'next/link';
@@ -36,7 +37,7 @@ interface Deployment {
 }
 
 export default function PatchesPage() {
-  const [tab, setTab] = useState<'catalog'|'rings'|'deployments'|'compliance'>('catalog');
+  const [tab, setTab] = useTabParam<'catalog' | 'rings' | 'deployments' | 'compliance'>('catalog', ['catalog', 'rings', 'deployments', 'compliance']);
   const [compliance, setCompliance] = useState<ComplianceData|null>(null);
   const [patches, setPatches] = useState<PatchItem[]>([]);
   const [rings, setRings] = useState<Ring[]>([]);

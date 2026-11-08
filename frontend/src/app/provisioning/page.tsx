@@ -1,4 +1,5 @@
 "use client";
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect } from "react";
@@ -582,7 +583,7 @@ function NewJobModal({
 
 export default function ProvisioningPage() {
   const [showNewJob, setShowNewJob] = useState(false);
-  const [activeTab, setActiveTab] = useState<"queue" | "templates" | "images">("queue");
+  const [activeTab, setActiveTab] = useTabParam<"queue" | "templates" | "images">("queue", ["queue", "templates", "images"]);
   const [tasks, setTasks] = useState<ProvisioningTask[]>([]);
   const [images, setImages] = useState<ProvisioningImage[]>([]);
   const [templates, setTemplates] = useState<ProvisioningTemplate[]>([]);

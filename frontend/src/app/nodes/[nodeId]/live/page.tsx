@@ -1,4 +1,5 @@
 "use client";
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState, useRef } from "react";
@@ -82,7 +83,7 @@ export default function LiveViewPage() {
   const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'processes' | 'performance' | 'network' | 'agentLogs' | 'screen'>('overview');
+  const [activeTab, setActiveTab] = useTabParam<'overview' | 'logs' | 'processes' | 'performance' | 'network' | 'agentLogs' | 'screen'>('overview', ['overview', 'logs', 'processes', 'performance', 'network', 'agentLogs', 'screen']);
   const [screenActive, setScreenActive] = useState(false);
   const [screenImage, setScreenImage] = useState<string | null>(null);
   const [screenQuality, setScreenQuality] = useState(50);
