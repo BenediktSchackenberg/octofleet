@@ -19,7 +19,7 @@ test('node page: Vulnerabilities tab, direct link and button in the Security tab
   await expect(tab).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('No CVEs are stored for this node. Software that was not checked is not included.')).toBeVisible();
 
-  await page.getByRole('tab', { name: 'Sicherheit' }).click();
+  await page.getByRole('tab', { name: 'Security' }).click();
   await page.getByRole('button', { name: 'Show vulnerabilities' }).click();
   await expect(tab).toHaveAttribute('aria-selected', 'true');
   await page.evaluate(() => localStorage.removeItem('locale'));

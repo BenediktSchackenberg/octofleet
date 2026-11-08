@@ -94,7 +94,10 @@
     "vulnerabilities": "Vulnerabilidades",
     "queryEngine": "Motor de consultas",
     "metering": "Medición de software",
-    "contentLifecycle": "Ciclo de vida del contenido"
+    "contentLifecycle": "Ciclo de vida del contenido",
+    "tasks": "Tareas",
+    "discovered": "Descubiertos",
+    "patchExplorer": "Explorador de parches"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -115,7 +118,131 @@
     "pendingJobs": "Trabajos pendientes",
     "recentActivity": "Actividad reciente",
     "systemHealth": "Estado del sistema",
-    "quickActions": "Acciones rápidas"
+    "quickActions": "Acciones rápidas",
+    "node": {
+      "system": "Sistema",
+      "build": "Compilación",
+      "groups": "Grupos",
+      "unassigned": "Sin asignar",
+      "noGroup": "Este nodo no pertenece a ningún grupo.",
+      "manageGroups": "Gestionar grupos →",
+      "clock": "Frecuencia",
+      "modules": "Módulos",
+      "slot": "Ranura {number}",
+      "noGpus": "Sin GPU",
+      "drives": "Unidades",
+      "disk": "Disco {number}",
+      "gbFree": "{value} GB libres",
+      "noDisks": "Sin discos",
+      "moreItems": "… y {count} más",
+      "antivirus": "Antivirus",
+      "realtime": "Protección en tiempo real",
+      "signatures": "Firmas",
+      "lastUpdate": "Última actualización",
+      "users": "Usuarios",
+      "signedIn": "Conectado",
+      "volume": "Volumen {number}",
+      "noBitlocker": "Sin volúmenes BitLocker",
+      "noAdapters": "Sin adaptadores de red",
+      "connections": "Conexiones ({count})",
+      "browserUser": "Usuario: {user}",
+      "passwords": "Contraseñas",
+      "installedUpdates": "Actualizaciones instaladas ({count})",
+      "hotfixId": "ID de hotfix"
+    },
+    "fleetOverview": "Vista general de la flota",
+    "todayTasks": "Tareas de hoy:",
+    "pendingApprovalsOne": "{count} aprobación pendiente",
+    "pendingApprovalsOther": "{count} aprobaciones pendientes",
+    "criticalFindingsOne": "{count} hallazgo crítico",
+    "criticalFindingsOther": "{count} hallazgos críticos",
+    "failedJobsOne": "{count} trabajo fallido",
+    "failedJobsOther": "{count} trabajos fallidos",
+    "offlineDevicesOne": "{count} dispositivo sin conexión",
+    "offlineDevicesOther": "{count} dispositivos sin conexión",
+    "viewAll": "Ver todo →",
+    "newJob": "Nuevo trabajo",
+    "scanStarted": "Análisis de vulnerabilidades iniciado",
+    "scanVulnerabilities": "Analizar vulnerabilidades",
+    "viewAlerts": "Ver alertas",
+    "favorites": "Favoritos",
+    "favoritesHint": "Marque sus páginas, nodos o informes favoritos para acceder rápidamente",
+    "recentlyOpened": "Abiertos recientemente",
+    "fleetStatus": "Estado de la flota",
+    "criticalThreats": "Amenazas críticas",
+    "critical": "Críticas",
+    "highRisk": "Riesgo alto",
+    "viewSecurityReports": "Ver informes de seguridad →",
+    "fleetPerformance": "Rendimiento de la flota",
+    "detailedAnalytics": "Análisis detallado →",
+    "disk": "Disco",
+    "nodeColumn": "Nodo",
+    "healthy": "Correcto",
+    "noPerformanceData": "No hay datos de rendimiento",
+    "checkAgents": "Compruebe las conexiones de los agentes",
+    "jobs24h": "Trabajos (24 h)",
+    "failed": "Fallidos",
+    "pendingCount": "{count} pendientes",
+    "sqlLifecycle": "Ciclo de vida de SQL",
+    "manage": "Gestionar →",
+    "syncableCus": "Actualizaciones CU sincronizables",
+    "noCus": "No hay CU sincronizadas",
+    "securityEvents": "Eventos de seguridad",
+    "details": "Detalles →",
+    "eventTypes": {
+      "logon": "Inicio de sesión",
+      "file": "Archivo"
+    },
+    "last7days": "Últimos 7 días",
+    "noEvents": "Sin eventos",
+    "fleetIncidents": "Incidentes de la flota",
+    "incidentLog": "Registro de incidentes →",
+    "noIncidents": "No hay incidentes recientes",
+    "infrastructureHealth": "Estado de la infraestructura",
+    "database": "Base de datos",
+    "roles": {
+      "admin": "Administrador",
+      "operator": "Operador",
+      "auditor": "Auditor",
+      "viewer": "Observador"
+    },
+    "viewingAs": "Vista como",
+    "switchRole": "Cambiar",
+    "failedJobs": "Trabajos fallidos",
+    "runningJobs": "Trabajos en curso",
+    "offlineNodesStat": "Nodos sin conexión",
+    "openFindings": "Hallazgos abiertos",
+    "patchCompliance": "Cumplimiento de parches",
+    "recentAlerts": "Alertas recientes",
+    "noRecentAlerts": "No hay alertas recientes",
+    "quickScan": "Ejecutar análisis rápido",
+    "quickScanDescription": "Iniciar un análisis de vulnerabilidades en toda la flota",
+    "viewNodes": "Ver nodos",
+    "viewNodesDescription": "Ir a la lista completa de nodos",
+    "jobHistory": "Historial de trabajos",
+    "jobHistoryDescription": "Revisar las ejecuciones recientes",
+    "criticalFindings": "Hallazgos críticos",
+    "needsAttention": "requiere atención",
+    "clean": "limpio",
+    "highFindings": "Hallazgos altos",
+    "totalFindings": "Hallazgos totales",
+    "auditEvents": "Eventos de auditoría",
+    "securityPosture": "Postura de seguridad",
+    "recentAuditLog": "Registro de auditoría reciente",
+    "noAuditEntries": "No hay entradas de auditoría",
+    "exportReport": "Exportar informe",
+    "exportReportDescription": "Generar un informe de cumplimiento en PDF",
+    "auditLog": "Registro de auditoría",
+    "auditLogDescription": "Ver el registro de auditoría completo",
+    "securityFindings": "Hallazgos de seguridad",
+    "securityFindingsDescription": "Revisar todos los hallazgos de vulnerabilidades",
+    "readOnly": "Tiene acceso de solo lectura. Contacte con un administrador para obtener más permisos.",
+    "greeting": {
+      "morning": "Buenos días",
+      "afternoon": "Buenas tardes",
+      "evening": "Buenas tardes",
+      "night": "Buenas noches"
+    }
   },
   "nodes": {
     "osBuild": "Compilación del SO {build}",
@@ -226,7 +353,18 @@
     "devices": "Dispositivos",
     "addDevice": "Añadir dispositivo",
     "onlineSummary": "{online} de {total} en línea",
-    "pendingSummary": "{count} pendientes"
+    "pendingSummary": "{count} pendientes",
+    "pendingApprovals": "Aprobaciones pendientes ({count})",
+    "agentVersionShort": "Agente {version}",
+    "registered": "Registrado {time}",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "rejectConfirm": "¿Rechazar realmente este nodo?",
+    "listView": "Vista de lista",
+    "gridView": "Vista de cuadrícula",
+    "onlyProblems": "Solo problemas ({count})",
+    "noNodesYet": "Aún no hay nodos",
+    "agent": "Agente"
   },
   "onboarding": {
     "title": "Añadir dispositivo",
@@ -520,5 +658,372 @@
       "select": "Seleccionar trabajo",
       "selectAll": "Seleccionar todos los trabajos pendientes de aprobación"
     }
+  },
+  "nodeDetail": {
+    "copy": {
+      "copied": "¡Copiado!",
+      "title": "Copiar al portapapeles",
+      "copy": "Copiar"
+    },
+    "away": "Ausente",
+    "moveToGroup": "Mover a grupo",
+    "noGroups": "Sin grupos",
+    "links": {
+      "patches": "Parches",
+      "vulnerabilities": "Vulnerabilidades",
+      "jobs": "Trabajos",
+      "alerts": "Alertas"
+    },
+    "loadingData": "Cargando datos...",
+    "backToDashboard": "← Volver al panel",
+    "notFound": "Nodo no encontrado",
+    "screen": "Pantalla",
+    "collectInventory": "Obtener inventario",
+    "startJob": "Iniciar trabajo",
+    "generateReport": "Generar informe",
+    "tabs": {
+      "overview": "Resumen",
+      "performance": "Rendimiento",
+      "updates": "Actualizaciones",
+      "browser": "Navegador",
+      "timeline": "Cronología",
+      "monitoring": "Monitorización"
+    },
+    "coresThreads": "{cores} núcleos / {threads} hilos",
+    "modules": "{count} módulos",
+    "gpu": "Tarjeta gráfica",
+    "systemInfo": "Información del sistema",
+    "mainboard": "Placa base",
+    "biosVersion": "Versión de BIOS",
+    "biosDate": "Fecha de BIOS",
+    "bootMode": "Modo de arranque",
+    "virtualizationDomain": "Virtualización y dominio",
+    "type": "Tipo",
+    "virtual": "Virtual",
+    "physical": "Física",
+    "manufacturer": "Fabricante",
+    "noData": "Sin datos",
+    "computerName": "Nombre del equipo",
+    "domain": "Dominio",
+    "workgroup": "Grupo de trabajo",
+    "domainRole": "Rol de dominio",
+    "timestamps": "Marcas de tiempo e identificación",
+    "nodeId": "ID del nodo",
+    "firstSeen": "Visto por primera vez",
+    "changesRecorded": "Cambios registrados",
+    "agentVersion": "Versión del agente",
+    "processor": "Procesador",
+    "cores": "Núcleos",
+    "threads": "Hilos",
+    "maxClock": "Frecuencia máx.",
+    "architecture": "Arquitectura",
+    "totalGb": "{value} GB en total",
+    "slot": "Ranura",
+    "size": "Tamaño",
+    "speed": "Velocidad",
+    "gpus": "Tarjetas gráficas",
+    "driver": "Controlador",
+    "resolution": "Resolución",
+    "refreshRate": "Frecuencia de actualización",
+    "disks": "Discos",
+    "model": "Modelo",
+    "volumes": "Volúmenes",
+    "drive": "Unidad",
+    "free": "Libre",
+    "total": "Total",
+    "used": "Usado",
+    "installedSoftware": "Software instalado ({count})",
+    "version": "Versión",
+    "publisher": "Editor",
+    "installedOn": "Instalado el",
+    "showingFirst": "Mostrando 100 de {count}",
+    "windowsUpdates": "Actualizaciones de Windows ({count})",
+    "hotfixes": "Hotfixes instalados ({count})",
+    "updateHistory": "Historial de actualizaciones ({count})",
+    "title": "Título",
+    "date": "Fecha",
+    "networkAdapters": "Adaptadores de red",
+    "gateway": "Puerta de enlace",
+    "activeConnections": "Conexiones activas ({count})",
+    "local": "Local",
+    "remote": "Remoto",
+    "process": "Proceso",
+    "present": "Presente",
+    "notPresent": "No presente",
+    "enabled": "Activado",
+    "consentPrompt": "Solicitud de consentimiento",
+    "localAdmins": "Administradores locales",
+    "userAccount": "Usuario",
+    "builtIn": "Integrado",
+    "showAllFindings": "Ver todos los hallazgos de seguridad",
+    "securityNotices": "Avisos de seguridad",
+    "criticalCookies": "Cookies críticas",
+    "criticalCookiesHint": "Cookies de dominios sensibles (banca, autenticación, nube, etc.)",
+    "category": "Categoría",
+    "moreCriticalCookies": "… y {count} cookies críticas más",
+    "history": "Historial",
+    "bookmarks": "Marcadores",
+    "locked": "Bloqueado",
+    "extensions": "Extensiones",
+    "browserData": "Datos del navegador",
+    "legacyFormat": "Formato antiguo detectado. Actualice el agente.",
+    "noBrowserData": "No hay datos del navegador",
+    "browserDataHint": "El agente debe ejecutarse como servicio SYSTEM y analizar todos los perfiles de usuario",
+    "cookiesByDomain": "Todas las cookies por dominio",
+    "topDomains": "Dominios principales por usuario",
+    "profile": "Perfil",
+    "count": "Cantidad",
+    "moreDomains": "… y {count} dominios más",
+    "eventlog": "Registro de eventos de Windows",
+    "eventlogDescription": "Eventos de sistema, seguridad y aplicación",
+    "noEvents": "No se han recopilado eventos",
+    "noEventsHint": "Ejecute un trabajo de recopilación del registro de eventos",
+    "criticalError": "Crítico/Error",
+    "warnings": "Advertencias",
+    "time": "Hora",
+    "level": "Nivel",
+    "eventId": "ID de evento",
+    "source": "Origen",
+    "message": "Mensaje",
+    "services": "Servicios",
+    "activeCount": "{count} activos",
+    "failedOfTotal": "{failed} con error / {total} en total",
+    "updatesAvailable": "Actualizaciones disponibles",
+    "securityVia": "{count} de seguridad / vía {manager}",
+    "of": "de",
+    "cpuCores": "Núcleos de CPU",
+    "core": "Núcleo {number}",
+    "moreCores": "+{count} núcleos más",
+    "memoryDetails": "Detalles de memoria",
+    "available": "Disponible",
+    "buffers": "Búferes",
+    "cached": "En caché",
+    "diskSpace": "Espacio en disco",
+    "servicesCount": "Servicios ({count})",
+    "serviceStates": "🟢 {active} activos / 🔴 {failed} con error / ⚫ {inactive} inactivos",
+    "service": "Servicio",
+    "availableUpdates": "Actualizaciones disponibles ({count})",
+    "morePackages": "+{count} paquetes más",
+    "diskHealth": "Estado de los discos (SMART)",
+    "device": "Dispositivo",
+    "powerOnHours": "Horas de funcionamiento",
+    "changeHistory": "Historial de cambios",
+    "changeHistoryDescription": "Cambios detectados en el sistema",
+    "noChanges": "Aún no se han registrado cambios"
+  },
+  "navGroups": {
+    "fleet": "Flota",
+    "deploy": "Desplegar",
+    "secure": "Seguridad",
+    "operate": "Operación",
+    "provision": "Aprovisionamiento",
+    "admin": "Administración"
+  },
+  "sidebar": {
+    "expand": "Expandir barra lateral",
+    "collapse": "Contraer barra lateral"
+  },
+  "routes": {
+    "node": "Nodo {name}",
+    "package": "Paquete {name}",
+    "deployment": "Despliegue {name}",
+    "job": "Trabajo {name}",
+    "group": "Grupo {name}",
+    "service": "Servicio {name}",
+    "live": "En vivo",
+    "shell": "Shell",
+    "terminal": "Terminal",
+    "provisioningSettings": "Ajustes de aprovisionamiento",
+    "provisioningAdmin": "Administración de aprovisionamiento",
+    "baselineTemplates": "Plantillas de referencia",
+    "newComplianceBaseline": "Nueva línea base de cumplimiento",
+    "complianceDrift": "Desviaciones de cumplimiento",
+    "mssqlDeployments": "Despliegues de SQL Server",
+    "login": "Iniciar sesión",
+    "patchCatalog": "Catálogo de parches",
+    "newPatchDeployment": "Nuevo despliegue de parches",
+    "backupStatus": "Estado de copias de seguridad",
+    "securityActivity": "Actividad de seguridad",
+    "detectionRules": "Reglas de detección",
+    "securityMonitoring": "Supervisión de seguridad",
+    "maintenanceWindows": "Ventanas de mantenimiento",
+    "securitySettings": "Ajustes de seguridad",
+    "vulnerabilityMappings": "Asignaciones de vulnerabilidades"
+  },
+  "palette": {
+    "categories": {
+      "navigation": "Navegación",
+      "actions": "Acciones",
+      "pinned": "Fijados",
+      "favorites": "Favoritos"
+    },
+    "modes": {
+      "knowledge": "Conocimiento"
+    },
+    "placeholders": {
+      "action": "Ejecutar una acción...",
+      "knowledge": "Buscar favoritos y páginas recientes...",
+      "jump": "Escriba un comando o busque nodos..."
+    },
+    "noResults": "No hay resultados para «{query}»",
+    "prefixHint": "Escriba para buscar o use un prefijo:",
+    "favoriteOf": "Favorito · {type}",
+    "visited": "Visitado {time}",
+    "footer": {
+      "select": "seleccionar",
+      "navigate": "navegar",
+      "actions": "acciones",
+      "knowledge": "conocimiento",
+      "brand": "Búsqueda de Octofleet"
+    },
+    "items": {
+      "navDashboard": {
+        "title": "Ir al panel",
+        "subtitle": "Resumen de toda la flota"
+      },
+      "navNodes": {
+        "title": "Ir a nodos",
+        "subtitle": "Ver y gestionar todos los dispositivos registrados"
+      },
+      "navGroups": {
+        "title": "Ir a grupos",
+        "subtitle": "Gestionar grupos de nodos y asignaciones"
+      },
+      "navPackages": {
+        "title": "Ir a paquetes",
+        "subtitle": "Paquetes de software y despliegues"
+      },
+      "navVulnerabilities": {
+        "title": "Ir a vulnerabilidades",
+        "subtitle": "CVE y hallazgos de seguridad"
+      },
+      "navCompliance": {
+        "title": "Ir a cumplimiento",
+        "subtitle": "Políticas y estado de cumplimiento"
+      },
+      "navAlerts": {
+        "title": "Ir a alertas",
+        "subtitle": "Reglas de alerta e historial de incidentes"
+      },
+      "navReports": {
+        "title": "Ir a informes",
+        "subtitle": "Generar y descargar informes de la flota"
+      },
+      "navQuery": {
+        "title": "Ir al motor de consultas",
+        "subtitle": "Ejecutar consultas en toda la flota"
+      },
+      "navProvisioning": {
+        "title": "Ir a aprovisionamiento",
+        "subtitle": "Despliegue de sistemas operativos y configuraciones automáticas"
+      },
+      "navMssql": {
+        "title": "Ir al administrador de SQL",
+        "subtitle": "Gestión de SQL Server en toda la flota"
+      },
+      "navSecurity": {
+        "title": "Ir al centro de seguridad",
+        "subtitle": "Vulnerabilidades y cumplimiento"
+      },
+      "navPerformance": {
+        "title": "Ir a rendimiento",
+        "subtitle": "Análisis de rendimiento de la flota"
+      },
+      "navSettings": {
+        "title": "Ajustes",
+        "subtitle": "Configuración del sistema y usuarios"
+      },
+      "actionAddNode": {
+        "title": "Añadir nodo",
+        "subtitle": "Generar script o token de incorporación"
+      },
+      "actionCreateJob": {
+        "title": "Crear trabajo",
+        "subtitle": "Ejecutar un trabajo nuevo en la flota"
+      },
+      "actionCreateGroup": {
+        "title": "Crear grupo",
+        "subtitle": "Crear un grupo de nodos nuevo"
+      },
+      "actionCreateDeployment": {
+        "title": "Crear despliegue",
+        "subtitle": "Desplegar software en la flota"
+      },
+      "actionRunQuery": {
+        "title": "Ejecutar consulta",
+        "subtitle": "Iniciar una consulta nueva en la flota"
+      },
+      "actionCreateAlert": {
+        "title": "Crear regla de alerta",
+        "subtitle": "Configurar una regla de alerta nueva"
+      },
+      "actionGenerateReport": {
+        "title": "Generar informe",
+        "subtitle": "Crear un informe de flota o de seguridad"
+      },
+      "actionScanVulns": {
+        "title": "Analizar vulnerabilidades",
+        "subtitle": "Iniciar un análisis de vulnerabilidades en toda la flota"
+      },
+      "actionOpenShell": {
+        "title": "Abrir shell remota",
+        "subtitle": "Iniciar una sesión de terminal en un nodo"
+      },
+      "actionCreateBaseline": {
+        "title": "Crear línea base de configuración",
+        "subtitle": "Definir una plantilla de línea base de cumplimiento"
+      },
+      "actionCreatePatchRing": {
+        "title": "Crear anillo de parches",
+        "subtitle": "Configurar un anillo nuevo de despliegue de parches"
+      },
+      "actionExportReport": {
+        "title": "Exportar informe de cumplimiento",
+        "subtitle": "Generar informe de cumplimiento en PDF/CSV"
+      },
+      "actionTriggerRemediation": {
+        "title": "Iniciar corrección",
+        "subtitle": "Corregir automáticamente vulnerabilidades conocidas en la flota"
+      },
+      "actionApproveContent": {
+        "title": "Revisar aprobaciones pendientes",
+        "subtitle": "Revisar aprobaciones de contenido y despliegue"
+      },
+      "pinnedCriticalNodes": {
+        "title": "Nodos críticos",
+        "subtitle": "Nodos con hallazgos críticos o sin conexión"
+      },
+      "pinnedFailedJobs": {
+        "title": "Trabajos fallidos",
+        "subtitle": "Trabajos que requieren atención"
+      },
+      "pinnedUnpatched": {
+        "title": "Dispositivos sin parches",
+        "subtitle": "Dispositivos a los que faltan parches críticos"
+      },
+      "pinnedRecentAlerts": {
+        "title": "Alertas recientes",
+        "subtitle": "Alertas de las últimas 24 h"
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Atajos de teclado",
+    "quickSearch": "Búsqueda rápida",
+    "goDashboard": "Ir al panel",
+    "goNodes": "Ir a nodos",
+    "goJobs": "Ir a trabajos",
+    "goAlerts": "Ir a alertas",
+    "thisDialog": "Este diálogo"
+  },
+  "globalSearch": {
+    "placeholder": "Buscar nodos… (pulse /)",
+    "noNodes": "No se encontraron nodos para «{query}»"
+  },
+  "api": {
+    "errorStatus": "Error {status}: {text}",
+    "error": "Error de la API",
+    "networkError": "Error de red",
+    "networkErrorDescription": "No se pudo conectar con el servidor de Octofleet."
   }
 }

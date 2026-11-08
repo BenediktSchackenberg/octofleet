@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: cd frontend && npm ci && npm run check:i18n && npm run build
+      - run: cd frontend && npm ci && npm run check:i18n && npm run check:routes && npm run build
 
   agent-build:
     name: .NET Agent Build

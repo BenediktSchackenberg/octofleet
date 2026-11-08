@@ -94,7 +94,10 @@
     "vulnerabilities": "Schwachstellen",
     "queryEngine": "Abfrage-Engine",
     "metering": "Software-Metering",
-    "contentLifecycle": "Content-Lifecycle"
+    "contentLifecycle": "Content-Lifecycle",
+    "tasks": "Aufgaben",
+    "discovered": "Entdeckt",
+    "patchExplorer": "Patch-Explorer"
   },
   "auth": {
     "login": "Anmelden",
@@ -115,7 +118,131 @@
     "pendingJobs": "Ausstehende Jobs",
     "recentActivity": "Letzte Aktivität",
     "systemHealth": "Systemstatus",
-    "quickActions": "Schnellaktionen"
+    "quickActions": "Schnellaktionen",
+    "node": {
+      "system": "System",
+      "build": "Build",
+      "groups": "Gruppen",
+      "unassigned": "Nicht zugeordnet",
+      "noGroup": "Dieser Node ist keiner Gruppe zugeordnet.",
+      "manageGroups": "Gruppen verwalten →",
+      "clock": "Takt",
+      "modules": "Module",
+      "slot": "Steckplatz {number}",
+      "noGpus": "Keine GPUs",
+      "drives": "Laufwerke",
+      "disk": "Festplatte {number}",
+      "gbFree": "{value} GB frei",
+      "noDisks": "Keine Festplatten",
+      "moreItems": "… und {count} weitere",
+      "antivirus": "Virenschutz",
+      "realtime": "Echtzeitschutz",
+      "signatures": "Signaturen",
+      "lastUpdate": "Letztes Update",
+      "users": "Benutzer",
+      "signedIn": "Angemeldet",
+      "volume": "Volume {number}",
+      "noBitlocker": "Keine BitLocker-Volumes",
+      "noAdapters": "Keine Netzwerkadapter",
+      "connections": "Verbindungen ({count})",
+      "browserUser": "Benutzer: {user}",
+      "passwords": "Passwörter",
+      "installedUpdates": "Installierte Updates ({count})",
+      "hotfixId": "Hotfix-ID"
+    },
+    "fleetOverview": "Flottenübersicht",
+    "todayTasks": "Heutige Aufgaben:",
+    "pendingApprovalsOne": "{count} ausstehende Genehmigung",
+    "pendingApprovalsOther": "{count} ausstehende Genehmigungen",
+    "criticalFindingsOne": "{count} kritischer Fund",
+    "criticalFindingsOther": "{count} kritische Funde",
+    "failedJobsOne": "{count} fehlgeschlagener Job",
+    "failedJobsOther": "{count} fehlgeschlagene Jobs",
+    "offlineDevicesOne": "{count} Gerät offline",
+    "offlineDevicesOther": "{count} Geräte offline",
+    "viewAll": "Alle anzeigen →",
+    "newJob": "Neuer Job",
+    "scanStarted": "Schwachstellen-Scan gestartet",
+    "scanVulnerabilities": "Schwachstellen scannen",
+    "viewAlerts": "Alarme anzeigen",
+    "favorites": "Favoriten",
+    "favoritesHint": "Markiere Seiten, Nodes oder Berichte als Favoriten für den schnellen Zugriff",
+    "recentlyOpened": "Zuletzt geöffnet",
+    "fleetStatus": "Flottenstatus",
+    "criticalThreats": "Kritische Bedrohungen",
+    "critical": "Kritisch",
+    "highRisk": "Hohes Risiko",
+    "viewSecurityReports": "Sicherheitsberichte anzeigen →",
+    "fleetPerformance": "Flottenleistung",
+    "detailedAnalytics": "Detaillierte Auswertung →",
+    "disk": "Festplatte",
+    "nodeColumn": "Node",
+    "healthy": "Gesund",
+    "noPerformanceData": "Keine Leistungsdaten vorhanden",
+    "checkAgents": "Agent-Verbindungen prüfen",
+    "jobs24h": "Jobs (24 h)",
+    "failed": "Fehlgeschlagen",
+    "pendingCount": "{count} ausstehend",
+    "sqlLifecycle": "SQL-Lebenszyklus",
+    "manage": "Verwalten →",
+    "syncableCus": "Synchronisierbare CU-Updates",
+    "noCus": "Keine CUs synchronisiert",
+    "securityEvents": "Sicherheitsereignisse",
+    "details": "Details →",
+    "eventTypes": {
+      "logon": "Anmeldung",
+      "file": "Datei"
+    },
+    "last7days": "Letzte 7 Tage",
+    "noEvents": "Keine Ereignisse",
+    "fleetIncidents": "Vorfälle",
+    "incidentLog": "Vorfallprotokoll →",
+    "noIncidents": "Keine aktuellen Vorfälle",
+    "infrastructureHealth": "Infrastrukturstatus",
+    "database": "Datenbank",
+    "roles": {
+      "admin": "Admin",
+      "operator": "Operator",
+      "auditor": "Prüfer",
+      "viewer": "Betrachter"
+    },
+    "viewingAs": "Ansicht als",
+    "switchRole": "Wechseln",
+    "failedJobs": "Fehlgeschlagene Jobs",
+    "runningJobs": "Laufende Jobs",
+    "offlineNodesStat": "Offline-Nodes",
+    "openFindings": "Offene Funde",
+    "patchCompliance": "Patch-Compliance",
+    "recentAlerts": "Letzte Alarme",
+    "noRecentAlerts": "Keine aktuellen Alarme",
+    "quickScan": "Schnellscan starten",
+    "quickScanDescription": "Schwachstellen-Scan für die ganze Flotte starten",
+    "viewNodes": "Nodes anzeigen",
+    "viewNodesDescription": "Zur vollständigen Node-Liste",
+    "jobHistory": "Job-Verlauf",
+    "jobHistoryDescription": "Letzte Job-Ausführungen ansehen",
+    "criticalFindings": "Kritische Funde",
+    "needsAttention": "braucht Aufmerksamkeit",
+    "clean": "keine",
+    "highFindings": "Hohe Funde",
+    "totalFindings": "Funde gesamt",
+    "auditEvents": "Audit-Ereignisse",
+    "securityPosture": "Sicherheitslage",
+    "recentAuditLog": "Letzte Audit-Einträge",
+    "noAuditEntries": "Keine Audit-Einträge",
+    "exportReport": "Bericht exportieren",
+    "exportReportDescription": "Compliance-Bericht als PDF erstellen",
+    "auditLog": "Audit-Log",
+    "auditLogDescription": "Vollständiges Audit-Protokoll ansehen",
+    "securityFindings": "Sicherheitsbefunde",
+    "securityFindingsDescription": "Alle Schwachstellen-Funde prüfen",
+    "readOnly": "Du hast nur Lesezugriff. Wende dich für mehr Rechte an einen Admin.",
+    "greeting": {
+      "morning": "Guten Morgen",
+      "afternoon": "Guten Tag",
+      "evening": "Guten Abend",
+      "night": "Gute Nacht"
+    }
   },
   "nodes": {
     "osBuild": "OS-Build {build}",
@@ -226,7 +353,18 @@
     "devices": "Geräte",
     "addDevice": "Gerät hinzufügen",
     "onlineSummary": "{online} von {total} online",
-    "pendingSummary": "{count} wartend"
+    "pendingSummary": "{count} wartend",
+    "pendingApprovals": "Wartende Genehmigungen ({count})",
+    "agentVersionShort": "Agent {version}",
+    "registered": "Registriert {time}",
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "rejectConfirm": "Node wirklich ablehnen?",
+    "listView": "Listenansicht",
+    "gridView": "Kachelansicht",
+    "onlyProblems": "Nur Probleme ({count})",
+    "noNodesYet": "Keine Nodes vorhanden",
+    "agent": "Agent"
   },
   "onboarding": {
     "title": "Neues Gerät hinzufügen",
@@ -520,5 +658,372 @@
       "select": "Job auswählen",
       "selectAll": "Alle Jobs auswählen, die auf Freigabe warten"
     }
+  },
+  "nodeDetail": {
+    "copy": {
+      "copied": "Kopiert!",
+      "title": "In die Zwischenablage kopieren",
+      "copy": "Kopieren"
+    },
+    "away": "Abwesend",
+    "moveToGroup": "In Gruppe verschieben",
+    "noGroups": "Keine Gruppen",
+    "links": {
+      "patches": "Patches",
+      "vulnerabilities": "Schwachstellen",
+      "jobs": "Jobs",
+      "alerts": "Alarme"
+    },
+    "loadingData": "Lade Daten...",
+    "backToDashboard": "← Zurück zum Dashboard",
+    "notFound": "Node nicht gefunden",
+    "screen": "Bildschirm",
+    "collectInventory": "Inventory abrufen",
+    "startJob": "Job starten",
+    "generateReport": "Bericht erstellen",
+    "tabs": {
+      "overview": "Übersicht",
+      "performance": "Leistung",
+      "updates": "Updates",
+      "browser": "Browser",
+      "timeline": "Verlauf",
+      "monitoring": "Überwachung"
+    },
+    "coresThreads": "{cores} Kerne / {threads} Threads",
+    "modules": "{count} Module",
+    "gpu": "Grafikkarte",
+    "systemInfo": "Systeminformationen",
+    "mainboard": "Mainboard",
+    "biosVersion": "BIOS-Version",
+    "biosDate": "BIOS-Datum",
+    "bootMode": "Boot-Modus",
+    "virtualizationDomain": "Virtualisierung & Domäne",
+    "type": "Typ",
+    "virtual": "Virtuell",
+    "physical": "Physisch",
+    "manufacturer": "Hersteller",
+    "noData": "Keine Daten",
+    "computerName": "Computername",
+    "domain": "Domäne",
+    "workgroup": "Arbeitsgruppe",
+    "domainRole": "Domänenrolle",
+    "timestamps": "Zeitstempel & Identifikation",
+    "nodeId": "Node-ID",
+    "firstSeen": "Erste Erfassung",
+    "changesRecorded": "Änderungen erfasst",
+    "agentVersion": "Agent-Version",
+    "processor": "Prozessor",
+    "cores": "Kerne",
+    "threads": "Threads",
+    "maxClock": "Max. Takt",
+    "architecture": "Architektur",
+    "totalGb": "{value} GB gesamt",
+    "slot": "Steckplatz",
+    "size": "Größe",
+    "speed": "Geschwindigkeit",
+    "gpus": "Grafikkarten",
+    "driver": "Treiber",
+    "resolution": "Auflösung",
+    "refreshRate": "Bildwiederholrate",
+    "disks": "Festplatten",
+    "model": "Modell",
+    "volumes": "Volumes",
+    "drive": "Laufwerk",
+    "free": "Frei",
+    "total": "Gesamt",
+    "used": "Belegt",
+    "installedSoftware": "Installierte Software ({count})",
+    "version": "Version",
+    "publisher": "Herausgeber",
+    "installedOn": "Installiert am",
+    "showingFirst": "Zeige 100 von {count}",
+    "windowsUpdates": "Windows-Updates ({count})",
+    "hotfixes": "Installierte Hotfixes ({count})",
+    "updateHistory": "Update-Verlauf ({count})",
+    "title": "Titel",
+    "date": "Datum",
+    "networkAdapters": "Netzwerkadapter",
+    "gateway": "Gateway",
+    "activeConnections": "Aktive Verbindungen ({count})",
+    "local": "Lokal",
+    "remote": "Remote",
+    "process": "Prozess",
+    "present": "Vorhanden",
+    "notPresent": "Nicht vorhanden",
+    "enabled": "Aktiviert",
+    "consentPrompt": "Zustimmungsaufforderung",
+    "localAdmins": "Lokale Administratoren",
+    "userAccount": "Benutzer",
+    "builtIn": "Integriert",
+    "showAllFindings": "Alle Security Findings anzeigen",
+    "securityNotices": "Sicherheitshinweise",
+    "criticalCookies": "Kritische Cookies",
+    "criticalCookiesHint": "Cookies von sensiblen Domains (Banking, Anmeldung, Cloud usw.)",
+    "category": "Kategorie",
+    "moreCriticalCookies": "… und {count} weitere kritische Cookies",
+    "history": "Verlauf",
+    "bookmarks": "Lesezeichen",
+    "locked": "Gesperrt",
+    "extensions": "Erweiterungen",
+    "browserData": "Browser-Daten",
+    "legacyFormat": "Legacy-Format erkannt. Bitte Agent aktualisieren.",
+    "noBrowserData": "Keine Browser-Daten vorhanden",
+    "browserDataHint": "Der Agent muss als SYSTEM-Dienst laufen und alle Benutzerprofile scannen",
+    "cookiesByDomain": "Alle Cookies nach Domain",
+    "topDomains": "Top-Domains pro Benutzer",
+    "profile": "Profil",
+    "count": "Anzahl",
+    "moreDomains": "… und {count} weitere Domains",
+    "eventlog": "Windows-Ereignisprotokoll",
+    "eventlogDescription": "System-, Sicherheits- und Anwendungsereignisse",
+    "noEvents": "Keine Events gesammelt",
+    "noEventsHint": "Führe einen Eventlog-Collection-Job aus",
+    "criticalError": "Kritisch/Fehler",
+    "warnings": "Warnungen",
+    "time": "Zeit",
+    "level": "Stufe",
+    "eventId": "Ereignis-ID",
+    "source": "Quelle",
+    "message": "Meldung",
+    "services": "Dienste",
+    "activeCount": "{count} aktiv",
+    "failedOfTotal": "{failed} fehlgeschlagen / {total} gesamt",
+    "updatesAvailable": "Updates verfügbar",
+    "securityVia": "{count} Sicherheit / über {manager}",
+    "of": "von",
+    "cpuCores": "CPU-Kerne",
+    "core": "Kern {number}",
+    "moreCores": "+{count} weitere Kerne",
+    "memoryDetails": "Speicherdetails",
+    "available": "Verfügbar",
+    "buffers": "Puffer",
+    "cached": "Zwischengespeichert",
+    "diskSpace": "Speicherplatz",
+    "servicesCount": "Dienste ({count})",
+    "serviceStates": "🟢 {active} aktiv / 🔴 {failed} fehlgeschlagen / ⚫ {inactive} inaktiv",
+    "service": "Dienst",
+    "availableUpdates": "Verfügbare Updates ({count})",
+    "morePackages": "+{count} weitere Pakete",
+    "diskHealth": "Festplattenzustand (SMART)",
+    "device": "Gerät",
+    "powerOnHours": "Betriebsstunden",
+    "changeHistory": "Änderungsverlauf",
+    "changeHistoryDescription": "Erkannte Änderungen am System",
+    "noChanges": "Noch keine Änderungen erfasst"
+  },
+  "navGroups": {
+    "fleet": "Flotte",
+    "deploy": "Verteilen",
+    "secure": "Sicherheit",
+    "operate": "Betrieb",
+    "provision": "Bereitstellung",
+    "admin": "Verwaltung"
+  },
+  "sidebar": {
+    "expand": "Seitenleiste ausklappen",
+    "collapse": "Seitenleiste einklappen"
+  },
+  "routes": {
+    "node": "Node {name}",
+    "package": "Paket {name}",
+    "deployment": "Deployment {name}",
+    "job": "Job {name}",
+    "group": "Gruppe {name}",
+    "service": "Dienst {name}",
+    "live": "Live",
+    "shell": "Shell",
+    "terminal": "Terminal",
+    "provisioningSettings": "Provisioning-Einstellungen",
+    "provisioningAdmin": "Provisioning-Verwaltung",
+    "baselineTemplates": "Baseline-Vorlagen",
+    "newComplianceBaseline": "Neue Compliance-Baseline",
+    "complianceDrift": "Compliance-Abweichungen",
+    "mssqlDeployments": "SQL-Server-Deployments",
+    "login": "Anmelden",
+    "patchCatalog": "Patch-Katalog",
+    "newPatchDeployment": "Neues Patch-Deployment",
+    "backupStatus": "Backup-Status",
+    "securityActivity": "Sicherheitsaktivität",
+    "detectionRules": "Erkennungsregeln",
+    "securityMonitoring": "Sicherheitsüberwachung",
+    "maintenanceWindows": "Wartungsfenster",
+    "securitySettings": "Sicherheitseinstellungen",
+    "vulnerabilityMappings": "Schwachstellenzuordnungen"
+  },
+  "palette": {
+    "categories": {
+      "navigation": "Navigation",
+      "actions": "Aktionen",
+      "pinned": "Angeheftet",
+      "favorites": "Favoriten"
+    },
+    "modes": {
+      "knowledge": "Wissen"
+    },
+    "placeholders": {
+      "action": "Aktion ausführen...",
+      "knowledge": "Favoriten und zuletzt geöffnete Seiten durchsuchen...",
+      "jump": "Befehl eingeben oder Nodes suchen..."
+    },
+    "noResults": "Keine Treffer für „{query}“",
+    "prefixHint": "Tippen zum Suchen oder ein Präfix verwenden:",
+    "favoriteOf": "Favorit · {type}",
+    "visited": "Besucht {time}",
+    "footer": {
+      "select": "auswählen",
+      "navigate": "navigieren",
+      "actions": "Aktionen",
+      "knowledge": "Wissen",
+      "brand": "Octofleet-Suche"
+    },
+    "items": {
+      "navDashboard": {
+        "title": "Zum Dashboard",
+        "subtitle": "Übersicht über die gesamte Flotte"
+      },
+      "navNodes": {
+        "title": "Zu den Nodes",
+        "subtitle": "Alle registrierten Geräte anzeigen und verwalten"
+      },
+      "navGroups": {
+        "title": "Zu den Gruppen",
+        "subtitle": "Node-Gruppen und Zuordnungen verwalten"
+      },
+      "navPackages": {
+        "title": "Zu den Paketen",
+        "subtitle": "Softwarepakete und Verteilungen"
+      },
+      "navVulnerabilities": {
+        "title": "Zu den Schwachstellen",
+        "subtitle": "CVEs und Sicherheitsbefunde"
+      },
+      "navCompliance": {
+        "title": "Zur Compliance",
+        "subtitle": "Compliance-Richtlinien und Status"
+      },
+      "navAlerts": {
+        "title": "Zu den Alarmen",
+        "subtitle": "Alarmregeln und Vorfallverlauf"
+      },
+      "navReports": {
+        "title": "Zu den Berichten",
+        "subtitle": "Flottenberichte erstellen und herunterladen"
+      },
+      "navQuery": {
+        "title": "Zur Query Engine",
+        "subtitle": "Abfragen über die ganze Flotte ausführen"
+      },
+      "navProvisioning": {
+        "title": "Zum Provisioning",
+        "subtitle": "Betriebssystem-Installation und automatische Einrichtung"
+      },
+      "navMssql": {
+        "title": "Zum SQL-Manager",
+        "subtitle": "SQL-Server-Verwaltung für die ganze Flotte"
+      },
+      "navSecurity": {
+        "title": "Zum Security Center",
+        "subtitle": "Schwachstellen und Compliance"
+      },
+      "navPerformance": {
+        "title": "Zur Leistung",
+        "subtitle": "Leistungsauswertung der Flotte"
+      },
+      "navSettings": {
+        "title": "Einstellungen",
+        "subtitle": "Systemkonfiguration und Benutzer"
+      },
+      "actionAddNode": {
+        "title": "Neuen Node hinzufügen",
+        "subtitle": "Installationsskript oder Token erzeugen"
+      },
+      "actionCreateJob": {
+        "title": "Job erstellen",
+        "subtitle": "Neuen Job in der Flotte ausführen"
+      },
+      "actionCreateGroup": {
+        "title": "Gruppe erstellen",
+        "subtitle": "Neue Node-Gruppe anlegen"
+      },
+      "actionCreateDeployment": {
+        "title": "Deployment erstellen",
+        "subtitle": "Software in der Flotte verteilen"
+      },
+      "actionRunQuery": {
+        "title": "Abfrage ausführen",
+        "subtitle": "Neue Flottenabfrage starten"
+      },
+      "actionCreateAlert": {
+        "title": "Alarmregel erstellen",
+        "subtitle": "Neue Alarmregel einrichten"
+      },
+      "actionGenerateReport": {
+        "title": "Bericht erstellen",
+        "subtitle": "Flotten- oder Sicherheitsbericht erstellen"
+      },
+      "actionScanVulns": {
+        "title": "Schwachstellen scannen",
+        "subtitle": "Schwachstellen-Scan für die ganze Flotte starten"
+      },
+      "actionOpenShell": {
+        "title": "Remote-Shell öffnen",
+        "subtitle": "Terminal-Sitzung auf einem Node starten"
+      },
+      "actionCreateBaseline": {
+        "title": "Konfigurations-Baseline erstellen",
+        "subtitle": "Neue Compliance-Baseline-Vorlage definieren"
+      },
+      "actionCreatePatchRing": {
+        "title": "Patch-Ring erstellen",
+        "subtitle": "Neuen Patch-Verteilungsring einrichten"
+      },
+      "actionExportReport": {
+        "title": "Compliance-Bericht exportieren",
+        "subtitle": "Compliance-Bericht als PDF/CSV erstellen"
+      },
+      "actionTriggerRemediation": {
+        "title": "Behebung starten",
+        "subtitle": "Bekannte Schwachstellen in der Flotte automatisch beheben"
+      },
+      "actionApproveContent": {
+        "title": "Ausstehende Genehmigungen prüfen",
+        "subtitle": "Inhalts- und Deployment-Genehmigungen prüfen"
+      },
+      "pinnedCriticalNodes": {
+        "title": "Kritische Nodes",
+        "subtitle": "Nodes mit kritischen Funden oder offline"
+      },
+      "pinnedFailedJobs": {
+        "title": "Fehlgeschlagene Jobs",
+        "subtitle": "Jobs, die Aufmerksamkeit brauchen"
+      },
+      "pinnedUnpatched": {
+        "title": "Ungepatchte Geräte",
+        "subtitle": "Geräte, denen kritische Patches fehlen"
+      },
+      "pinnedRecentAlerts": {
+        "title": "Letzte Alarme",
+        "subtitle": "Alarme der letzten 24 h"
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Tastenkürzel",
+    "quickSearch": "Schnellsuche",
+    "goDashboard": "Zum Dashboard",
+    "goNodes": "Zu den Nodes",
+    "goJobs": "Zu den Jobs",
+    "goAlerts": "Zu den Alarmen",
+    "thisDialog": "Dieser Dialog"
+  },
+  "globalSearch": {
+    "placeholder": "Nodes suchen … (Taste /)",
+    "noNodes": "Keine Nodes für „{query}“ gefunden"
+  },
+  "api": {
+    "errorStatus": "Fehler {status}: {text}",
+    "error": "API-Fehler",
+    "networkError": "Netzwerkfehler",
+    "networkErrorDescription": "Verbindung zum Octofleet-Server fehlgeschlagen."
   }
 }

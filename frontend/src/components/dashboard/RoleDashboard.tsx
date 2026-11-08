@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n-context";
 import {
   Shield, AlertCircle, Monitor, Activity, FileText, ClipboardCheck,
   Server, Wrench, Eye, ChevronDown, CheckCircle, XCircle,
@@ -56,11 +57,11 @@ interface EventLogEntry {
 
 // ─── Role labels ─────────────────────────────────────────────────────
 
-const roleLabels: Record<DashboardRole, { label: string; icon: LucideIcon }> = {
-  admin: { label: "Admin", icon: Shield },
-  operator: { label: "Operator", icon: Wrench },
-  auditor: { label: "Auditor", icon: FileText },
-  viewer: { label: "Viewer", icon: Eye },
+const roleLabels: Record<DashboardRole, { labelKey: string; icon: LucideIcon }> = {
+  admin: { labelKey: "dashboard.roles.admin", icon: Shield },
+  operator: { labelKey: "dashboard.roles.operator", icon: Wrench },
+  auditor: { labelKey: "dashboard.roles.auditor", icon: FileText },
+  viewer: { labelKey: "dashboard.roles.viewer", icon: Eye },
 };
 
 const allRoles: DashboardRole[] = ["admin", "operator", "auditor", "viewer"];
@@ -68,26 +69,27 @@ const allRoles: DashboardRole[] = ["admin", "operator", "auditor", "viewer"];
 // ─── Role Banner ─────────────────────────────────────────────────────
 
 function RoleBanner({ role, onSwitch }: { role: DashboardRole; onSwitch: (r: DashboardRole) => void }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const { label, icon: RoleIcon } = roleLabels[role];
+  const { labelKey, icon: RoleIcon } = roleLabels[role];
 
   return (
     <div className="mb-4 flex items-center gap-2 text-sm">
       <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/60 border border-border/40">
         <RoleIcon className="h-3.5 w-3.5 text-zinc-400" />
-        <span className="text-zinc-200 font-medium">Viewing as <span className="font-bold">{label}</span></span>
+        <span className="text-zinc-200 font-medium">{t("dashboard.viewingAs")} <span className="font-bold">{t(labelKey)}</span></span>
         <span className="text-zinc-500">·</span>
         <div className="relative">
           <button
             onClick={() => setOpen(!open)}
             className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5"
           >
-            Switch <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+            {t("dashboard.switchRole")} <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
           {open && (
             <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-border rounded-lg shadow-xl z-50 min-w-[140px]">
               {allRoles.filter(r => r !== role).map(r => {
-                const { label: rl, icon: RI } = roleLabels[r];
+                const { labelKey: rl, icon: RI } = roleLabels[r];
                 return (
                   <button
                     key={r}
@@ -95,7 +97,7 @@ function RoleBanner({ role, onSwitch }: { role: DashboardRole; onSwitch: (r: Das
                     className="flex items-center gap-2 px-3 py-2 w-full text-left hover:bg-zinc-800 text-sm text-zinc-200 first:rounded-t-lg last:rounded-b-lg"
                   >
                     <RI className="h-3.5 w-3.5 text-zinc-400" />
-                    {rl}
+                    {t(rl)}
                   </button>
                 );
               })}
@@ -117,6 +119,7 @@ function AdminDashboard() {
 // ─── Operator Dashboard ──────────────────────────────────────────────
 
 function OperatorDashboard() {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [taskCounts, setTaskCounts] = useState<TaskCounts | null>(null);
   const [alerts, setAlerts] = useState<Array<{ id: string; severity: string; title: string; created_at: string }>>([]);
@@ -156,21 +159,21 @@ function OperatorDashboard() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={XCircle} label="Failed Jobs" value={jobs?.failed ?? 0} trend={jobs?.failed ? "down" : "neutral"} />
-        <StatCard icon={Activity} label="Running Jobs" value={jobs?.running ?? 0} trend="neutral" />
-        <StatCard icon={Monitor} label="Offline Nodes" value={criticalNodes} trend={criticalNodes > 0 ? "down" : "up"} />
-        <StatCard icon={Bug} label="Open Findings" value={taskCounts?.findings ?? 0} trend={taskCounts?.findings ? "down" : "neutral"} />
+        <StatCard icon={XCircle} label={t("dashboard.failedJobs")} value={jobs?.failed ?? 0} trend={jobs?.failed ? "down" : "neutral"} />
+        <StatCard icon={Activity} label={t("dashboard.runningJobs")} value={jobs?.running ?? 0} trend="neutral" />
+        <StatCard icon={Monitor} label={t("dashboard.offlineNodesStat")} value={criticalNodes} trend={criticalNodes > 0 ? "down" : "up"} />
+        <StatCard icon={Bug} label={t("dashboard.openFindings")} value={taskCounts?.findings ?? 0} trend={taskCounts?.findings ? "down" : "neutral"} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <ComplianceGauge percentage={patchCompliance} label="Patch Compliance" />
-        <ActivityFeed items={alertItems} title="Recent Alerts" emptyMessage="No recent alerts" />
+        <ComplianceGauge percentage={patchCompliance} label={t("dashboard.patchCompliance")} />
+        <ActivityFeed items={alertItems} title={t("dashboard.recentAlerts")} emptyMessage={t("dashboard.noRecentAlerts")} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <QuickActionCard icon={Zap} title="Run Quick Scan" description="Trigger a fleet-wide vulnerability scan" onClick={() => {}} />
-        <QuickActionCard icon={Server} title="View Nodes" description="Jump to the full node list" onClick={() => window.location.href = "/nodes"} />
-        <QuickActionCard icon={BarChart3} title="Job History" description="Review recent job execution history" onClick={() => window.location.href = "/jobs"} />
+        <QuickActionCard icon={Zap} title={t("dashboard.quickScan")} description={t("dashboard.quickScanDescription")} onClick={() => {}} />
+        <QuickActionCard icon={Server} title={t("dashboard.viewNodes")} description={t("dashboard.viewNodesDescription")} onClick={() => window.location.href = "/nodes"} />
+        <QuickActionCard icon={BarChart3} title={t("dashboard.jobHistory")} description={t("dashboard.jobHistoryDescription")} onClick={() => window.location.href = "/jobs"} />
       </div>
     </div>
   );
@@ -179,6 +182,7 @@ function OperatorDashboard() {
 // ─── Auditor Dashboard ───────────────────────────────────────────────
 
 function AuditorDashboard() {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [events, setEvents] = useState<EventLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,21 +215,21 @@ function AuditorDashboard() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Shield} label="Critical Findings" value={vulns?.critical ?? 0} trend={vulns?.critical ? "down" : "up"} trendLabel={vulns?.critical ? "needs attention" : "clean"} />
-        <StatCard icon={AlertCircle} label="High Findings" value={vulns?.high ?? 0} trend="neutral" />
-        <StatCard icon={Bug} label="Total Findings" value={totalFindings} trend="neutral" />
-        <StatCard icon={FileText} label="Audit Events" value={events.length} trend="neutral" />
+        <StatCard icon={Shield} label={t("dashboard.criticalFindings")} value={vulns?.critical ?? 0} trend={vulns?.critical ? "down" : "up"} trendLabel={vulns?.critical ? t("dashboard.needsAttention") : t("dashboard.clean")} />
+        <StatCard icon={AlertCircle} label={t("dashboard.highFindings")} value={vulns?.high ?? 0} trend="neutral" />
+        <StatCard icon={Bug} label={t("dashboard.totalFindings")} value={totalFindings} trend="neutral" />
+        <StatCard icon={FileText} label={t("dashboard.auditEvents")} value={events.length} trend="neutral" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <ComplianceGauge percentage={Math.max(0, complianceScore)} label="Security Posture" size="lg" />
-        <ActivityFeed items={auditItems} title="Recent Audit Log" emptyMessage="No audit entries" />
+        <ComplianceGauge percentage={Math.max(0, complianceScore)} label={t("dashboard.securityPosture")} size="lg" />
+        <ActivityFeed items={auditItems} title={t("dashboard.recentAuditLog")} emptyMessage={t("dashboard.noAuditEntries")} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <QuickActionCard icon={Download} title="Export Report" description="Generate a compliance report PDF" onClick={() => {}} />
-        <QuickActionCard icon={ClipboardCheck} title="Audit Log" description="View full event audit trail" onClick={() => window.location.href = "/eventlog"} />
-        <QuickActionCard icon={Shield} title="Security Findings" description="Review all vulnerability findings" onClick={() => window.location.href = "/security"} />
+        <QuickActionCard icon={Download} title={t("dashboard.exportReport")} description={t("dashboard.exportReportDescription")} onClick={() => {}} />
+        <QuickActionCard icon={ClipboardCheck} title={t("dashboard.auditLog")} description={t("dashboard.auditLogDescription")} onClick={() => window.location.href = "/eventlog"} />
+        <QuickActionCard icon={Shield} title={t("dashboard.securityFindings")} description={t("dashboard.securityFindingsDescription")} onClick={() => window.location.href = "/security"} />
       </div>
     </div>
   );
@@ -234,6 +238,7 @@ function AuditorDashboard() {
 // ─── Viewer Dashboard (read-only summary) ────────────────────────────
 
 function ViewerDashboard() {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -248,15 +253,15 @@ function ViewerDashboard() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Monitor} label="Total Nodes" value={summary?.counts.total ?? 0} trend="neutral" />
-        <StatCard icon={CheckCircle} label="Online" value={summary?.counts.online ?? 0} trend="up" />
-        <StatCard icon={Clock} label="Away" value={summary?.counts.away ?? 0} trend="neutral" />
-        <StatCard icon={XCircle} label="Offline" value={summary?.counts.offline ?? 0} trend={summary?.counts.offline ? "down" : "neutral"} />
+        <StatCard icon={Monitor} label={t("dashboard.totalNodes")} value={summary?.counts.total ?? 0} trend="neutral" />
+        <StatCard icon={CheckCircle} label={t("common.online")} value={summary?.counts.online ?? 0} trend="up" />
+        <StatCard icon={Clock} label={t("nodeDetail.away")} value={summary?.counts.away ?? 0} trend="neutral" />
+        <StatCard icon={XCircle} label={t("common.offline")} value={summary?.counts.offline ?? 0} trend={summary?.counts.offline ? "down" : "neutral"} />
       </div>
       <Card className="border-border/50 shadow-md">
         <CardContent className="p-6 text-center text-muted-foreground">
           <Eye className="h-8 w-8 mx-auto mb-2 text-zinc-500" />
-          <p className="text-sm">You have read-only access. Contact an admin for elevated permissions.</p>
+          <p className="text-sm">{t("dashboard.readOnly")}</p>
         </CardContent>
       </Card>
     </div>

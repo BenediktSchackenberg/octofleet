@@ -35,9 +35,9 @@ export function GlobalBar({ onHamburgerClick }: { onHamburgerClick?: () => void 
         className="hidden lg:flex items-center gap-2 px-2 py-1 rounded-md bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all text-xs group"
       >
         <Search className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
-        <span>Search</span>
+        <span>{t("common.search")}</span>
         <kbd className="ml-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-sans opacity-70">
-          Ctrl K
+          Ctrl K{/* i18n-ignore */}
         </kbd>
       </button>
       <NotificationCenter />
