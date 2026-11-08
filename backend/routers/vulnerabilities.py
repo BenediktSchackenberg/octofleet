@@ -12,7 +12,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from auth import CurrentUser, require_permission
+from auth import CurrentUser, require_user_permission
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
 from vulnerability import (COUNTED, PER_NODE_CVE, SEVERITIES_SQL, VulnerabilityScanner, get_node_vulnerabilities,
@@ -35,7 +35,7 @@ class CpeMappingUpdate(BaseModel):
 @router.get("/api/v1/vulnerabilities/checks")
 async def software_check_status(status: str | None = Query(None, pattern="^(checked|not_checked)$"),
                                 limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0),
-                                _: CurrentUser = Depends(require_permission("settings:write"))):
+                                _: CurrentUser = Depends(require_user_permission("settings:write"))):
     """Show installed software that was checked or deliberately left unverified."""
     async with get_pool().acquire() as conn:
         inventory = """WITH inventory AS (
@@ -61,7 +61,7 @@ async def software_check_status(status: str | None = Query(None, pattern="^(chec
 
 @router.put("/api/v1/vulnerabilities/cpe-mappings")
 async def set_cpe_mapping(data: CpeMappingUpdate,
-                          user: CurrentUser = Depends(require_permission("settings:write"))):
+                          user: CurrentUser = Depends(require_user_permission("settings:write"))):
     """Set a reviewed application CPE vendor/product or skip the software."""
     if not data.skip and not all(re.fullmatch(r"[a-z0-9][a-z0-9._-]*", part or "")
                              for part in (data.cpe_vendor, data.cpe_product)):
@@ -88,13 +88,13 @@ async def set_cpe_mapping(data: CpeMappingUpdate,
     return {"status": "saved", "rescan_required": True}
 
 
-@router.get("/api/v1/vulnerabilities/summary")
+@router.get("/api/v1/vulnerabilities/summary", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def vulnerability_summary():
     """Get vulnerability dashboard summary."""
     return await get_vulnerability_summary(get_pool())
 
 
-@router.get("/api/v1/vulnerabilities/by-node")
+@router.get("/api/v1/vulnerabilities/by-node", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
     """Vulnerability breakdown per node: distinct CVEs by their worst severity, affected updates."""
     async with get_pool().acquire() as conn:
@@ -142,7 +142,7 @@ async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
         } for r in rows]}
 
 
-@router.get("/api/v1/vulnerabilities/by-software")
+@router.get("/api/v1/vulnerabilities/by-software", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
     """Vulnerability breakdown per update (source package on Linux, product on Windows) with affected node names."""
     async with get_pool().acquire() as conn:
@@ -172,14 +172,14 @@ async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
         } for r in rows]}
 
 
-@router.get("/api/v1/vulnerabilities/by-software/cves")
+@router.get("/api/v1/vulnerabilities/by-software/cves", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def update_vulnerabilities(unit: str, unit_version: str, _: str = Depends(verify_api_key)):
     """CVEs of one update (as listed by by-software) across all nodes, with the affected nodes."""
     vulnerabilities = await get_update_vulnerabilities(get_pool(), unit, unit_version)
     return {"vulnerabilities": vulnerabilities, "count": len(vulnerabilities)}
 
 
-@router.get("/api/v1/vulnerabilities/node/{node_id}")
+@router.get("/api/v1/vulnerabilities/node/{node_id}", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def node_vulnerabilities(node_id: str, limit: Optional[int] = Query(None, ge=1, le=1000),
                                unit: Optional[str] = None, unit_version: Optional[str] = None):
     """CVEs affecting one node (id or hostname), most severe first, one entry per CVE.
@@ -194,7 +194,7 @@ async def node_vulnerabilities(node_id: str, limit: Optional[int] = Query(None, 
     return result
 
 
-@router.get("/api/v1/vulnerabilities/node/{node_id}/groups")
+@router.get("/api/v1/vulnerabilities/node/{node_id}/groups", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def node_vulnerability_groups(node_id: str, _: str = Depends(verify_api_key)):
     """CVEs of one node grouped by the update that fixes them."""
     result = await get_node_vulnerability_groups(get_pool(), node_id)
@@ -203,7 +203,7 @@ async def node_vulnerability_groups(node_id: str, _: str = Depends(verify_api_ke
     return result
 
 
-@router.get("/api/v1/vulnerabilities")
+@router.get("/api/v1/vulnerabilities", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def list_vulnerabilities(
     severity: Optional[str] = None,
     limit: int = 100,
@@ -251,7 +251,7 @@ async def list_vulnerabilities(
 
 @router.post("/api/v1/vulnerabilities/scan")
 async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
-                                     _: CurrentUser = Depends(require_permission("settings:write"))):
+                                     _: CurrentUser = Depends(require_user_permission("settings:write"))):
     """Trigger a full vulnerability scan of all software inventory."""
     nvd_api_key = os.environ.get("NVD_API_KEY")
     scanner = VulnerabilityScanner(get_pool(), nvd_api_key)
@@ -278,7 +278,7 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
 
 
 @router.post("/api/v1/vulnerabilities/scans/{scan_id}/cancel")
-async def cancel_vulnerability_scan(scan_id: int, _: CurrentUser = Depends(require_permission("settings:write"))):
+async def cancel_vulnerability_scan(scan_id: int, _: CurrentUser = Depends(require_user_permission("settings:write"))):
     """Stop a running scan before its next software version; it ends as 'cancelled'."""
     async with get_pool().acquire() as conn:
         updated = await conn.fetchval("""UPDATE vulnerability_scans SET cancel_requested = TRUE
@@ -288,7 +288,7 @@ async def cancel_vulnerability_scan(scan_id: int, _: CurrentUser = Depends(requi
     return {"scan_id": scan_id, "status": "cancelling"}
 
 
-@router.get("/api/v1/vulnerabilities/scans")
+@router.get("/api/v1/vulnerabilities/scans", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def list_vulnerability_scans(limit: int = 10):
     """Get vulnerability scan history."""
     async with get_pool().acquire() as conn:
@@ -306,13 +306,10 @@ async def suppress_vulnerability(
     reason: str = Body(...),
     software_name: Optional[str] = Body(None),
     expires_days: Optional[int] = Body(None),
-    auth: Any = Depends(verify_api_key)
+    user: CurrentUser = Depends(require_user_permission("settings:write"))
 ):
     """Suppress a vulnerability (mark as accepted risk or false positive)."""
-    # Get username from JWT payload or default to 'api-key'
-    username = "api-key"
-    if isinstance(auth, dict):
-        username = auth.get("sub") or auth.get("username") or auth.get("email", "unknown")
+    username = user.username
     
     expires_at = None
     if expires_days:

@@ -157,7 +157,7 @@ async def get_current_user(
     """
     # Check for API key header first (backwards compatible)
     api_key = request.headers.get("X-API-Key")
-    if api_key:
+    if api_key and not credentials:
         # Import centralized API key
         from dependencies import API_KEY
         # Check against centralized key
@@ -181,7 +181,37 @@ async def get_current_user(
                     )
                     if row:
                         scopes = list(row["scopes"]) if row["scopes"] else ["agent"]
-                        permissions = _permissions_for_scopes(scopes)
+                        scoped_permissions = _permissions_for_scopes(scopes)
+                        if row["user_id"]:
+                            owner = await conn.fetchrow(
+                                "SELECT is_active, is_superuser FROM users WHERE id = $1", row["user_id"]
+                            )
+                            if not owner or not owner["is_active"]:
+                                return None
+                            roles = await conn.fetch("""
+                                SELECT r.name, r.permissions FROM roles r
+                                JOIN user_roles ur ON ur.role_id = r.id WHERE ur.user_id = $1
+                            """, row["user_id"])
+                            role_names = [role["name"] for role in roles]
+                            db_permissions = {role["name"]: list(role["permissions"])
+                                              for role in roles if role["permissions"]}
+                            owner_permissions = (["*"] if owner["is_superuser"] else
+                                                 get_permissions_for_roles(role_names, db_permissions))
+                            owner_user = CurrentUser(str(row["user_id"]), row["name"],
+                                                     owner_permissions, owner["is_superuser"])
+                            if "*" in scoped_permissions:
+                                permissions = owner_permissions
+                            else:
+                                agent_permissions = set(_permissions_for_scopes(["agent"])) if "agent" in scopes else set()
+                                permissions = [p for p in scoped_permissions
+                                               if p in agent_permissions or owner_user.has_permission(p)]
+                        else:
+                            # Legacy unowned keys may only act as agents.
+                            if set(scopes) != {"agent"}:
+                                return None
+                            permissions = _permissions_for_scopes(["agent"])
+                        if not permissions:
+                            return None
                         return CurrentUser(
                             id=str(row["user_id"]) if row["user_id"] else "system",
                             username=row["name"],
@@ -251,6 +281,20 @@ def require_permission(permission: str):
     return permission_checker
 
 
+
+def require_user_permission(permission: str):
+    """Require a user identity with a permission, rejecting the shared agent key."""
+    async def permission_checker(user: CurrentUser = Depends(require_auth)) -> CurrentUser:
+        if user.id == "system":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="This action requires a user account")
+        if not user.has_permission(permission):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail=f"Permission denied: {permission}")
+        return user
+    return permission_checker
+
+
 def require_any_permission(*permissions: str):
     """Decorator to require any of the specified permissions."""
     async def permission_checker(user: CurrentUser = Depends(require_auth)) -> CurrentUser:
@@ -270,6 +314,7 @@ ROLE_PERMISSIONS = {
     "admin": ["*"],
     "operator": [
         "nodes:read", "nodes:write", "nodes:assign",
+        "inventory:read", "hardware:read", "vulnerabilities:read",
         "groups:read", "groups:write",
         "jobs:read", "jobs:create", "jobs:execute", "jobs:cancel",
         "packages:read", "packages:write", "packages:deploy",
@@ -280,11 +325,13 @@ ROLE_PERMISSIONS = {
     ],
     "viewer": [
         "nodes:read", "groups:read", "jobs:read", "packages:read",
+        "inventory:read", "hardware:read", "vulnerabilities:read",
         "deployments:read", "alerts:read", "eventlog:read",
         "compliance:read", "settings:read"
     ],
     "auditor": [
-        "eventlog:read", "compliance:read", "nodes:read"
+        "eventlog:read", "compliance:read", "nodes:read",
+        "inventory:read", "hardware:read", "vulnerabilities:read"
     ]
 }
 

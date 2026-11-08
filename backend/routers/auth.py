@@ -18,6 +18,7 @@ from auth import (
     hash_password,
     require_auth,
     require_permission,
+    require_user_permission,
     verify_password,
 )
 from dependencies import get_db, not_found
@@ -160,8 +161,23 @@ users_router = APIRouter(
     dependencies=[Depends(require_auth)]
 )
 
+async def assert_manageable_user(conn, target_id: UUID, actor: CurrentUser) -> None:
+    """Only a superuser may modify an administrator account."""
+    account = await conn.fetchrow("""
+        SELECT u.is_superuser, EXISTS (
+            SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+            WHERE ur.user_id = u.id AND (r.name = 'admin' OR '*' = ANY(r.permissions))
+        ) AS has_admin_role
+        FROM users u WHERE u.id = $1
+    """, target_id)
+    if not account:
+        raise not_found("User", str(target_id))
+    if not actor.is_superuser and (account["is_superuser"] or account["has_admin_role"]):
+        raise HTTPException(status_code=403, detail="Only an administrator may modify this account")
+
+
 @users_router.get("")
-async def list_users(user: CurrentUser = Depends(require_permission("users:read")), db: asyncpg.Pool = Depends(get_db)):
+async def list_users(user: CurrentUser = Depends(require_user_permission("users:read")), db: asyncpg.Pool = Depends(get_db)):
     """List all users"""
     async with db.acquire() as conn:
         users = await conn.fetch("""
@@ -179,7 +195,7 @@ async def list_users(user: CurrentUser = Depends(require_permission("users:read"
         } for u in users]}
 
 @users_router.post("", response_model=UserResponse)
-async def create_user(data: UserCreate, user: CurrentUser = Depends(require_permission("users:write")), db: asyncpg.Pool = Depends(get_db)):
+async def create_user(data: UserCreate, user: CurrentUser = Depends(require_user_permission("users:write")), db: asyncpg.Pool = Depends(get_db)):
     """Create new user"""
     async with db.acquire() as conn:
         existing = await conn.fetchval("SELECT 1 FROM users WHERE username = $1", data.username)
@@ -204,7 +220,7 @@ class ResetPasswordRequest(BaseModel):
 
 @users_router.post("/{user_id}/password")
 async def reset_user_password(user_id: UUID, data: ResetPasswordRequest,
-                              actor: CurrentUser = Depends(require_permission("users:write")),
+                              actor: CurrentUser = Depends(require_user_permission("users:write")),
                               db: asyncpg.Pool = Depends(get_db)):
     """Reset a local account password, revoke its tokens, and optionally require a change."""
     async with db.acquire() as conn:
@@ -214,6 +230,7 @@ async def reset_user_password(user_id: UUID, data: ResetPasswordRequest,
             )
             if not account:
                 raise not_found("User", str(user_id))
+            await assert_manageable_user(conn, user_id, actor)
             policy = await validate_password(conn, data.new_password, account["username"],
                                              user_id, account["password_hash"])
             await record_previous_password(conn, user_id, account["password_hash"], policy)
@@ -228,9 +245,10 @@ async def reset_user_password(user_id: UUID, data: ResetPasswordRequest,
     return {"status": "password_reset"}
 
 @users_router.put("/{user_id}")
-async def update_user(user_id: str, data: UserUpdate, user: CurrentUser = Depends(require_permission("users:write")), db: asyncpg.Pool = Depends(get_db)):
+async def update_user(user_id: str, data: UserUpdate, user: CurrentUser = Depends(require_user_permission("users:write")), db: asyncpg.Pool = Depends(get_db)):
     """Update user"""
     async with db.acquire() as conn:
+        await assert_manageable_user(conn, UUID(user_id), user)
         updates = []
         params = [UUID(user_id)]
         param_idx = 2
@@ -247,10 +265,11 @@ async def update_user(user_id: str, data: UserUpdate, user: CurrentUser = Depend
         return {"status": "updated"}
 
 @users_router.delete("/{user_id}")
-async def delete_user(user_id: str, user: CurrentUser = Depends(require_permission("users:write")), db: asyncpg.Pool = Depends(get_db)):
+async def delete_user(user_id: str, user: CurrentUser = Depends(require_user_permission("users:write")), db: asyncpg.Pool = Depends(get_db)):
     """Delete user"""
     if user_id == user.id: raise HTTPException(status_code=400, detail="Cannot delete yourself")
     async with db.acquire() as conn:
+        await assert_manageable_user(conn, UUID(user_id), user)
         await conn.execute("DELETE FROM users WHERE id = $1", UUID(user_id))
         return {"status": "deleted"}
 

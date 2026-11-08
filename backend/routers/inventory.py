@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
 from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres, verify_api_key
+from auth import require_permission, require_user_permission
 
 router = APIRouter(
     prefix="/api/v1/inventory",
@@ -16,7 +17,7 @@ router = APIRouter(
 )
 
 # Read-only endpoints require auth
-_auth = [Depends(verify_api_key)]
+_auth = [Depends(require_user_permission("inventory:read"))]
 
 @router.get("/hardware/fleet", dependencies=_auth)
 async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):

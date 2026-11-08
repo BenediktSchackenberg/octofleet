@@ -11,7 +11,7 @@ import asyncpg
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from starlette.responses import StreamingResponse
 
-from auth import CurrentUser, require_permission
+from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import API_KEY, get_pool, verify_api_key
 from remediation import (
     ApproveRemediationRequest,
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Remediation"])
 
 
-@router.get("/api/v1/remediation/packages")
+@router.get("/api/v1/remediation/packages", dependencies=[Depends(require_permission("packages:read"))])
 async def list_remediation_packages(
     enabled_only: bool = False,
     _: str = Depends(verify_api_key)
@@ -56,7 +56,7 @@ async def list_remediation_packages(
     return {"packages": packages}
 
 
-@router.get("/api/v1/remediation/packages/{package_id}")
+@router.get("/api/v1/remediation/packages/{package_id}", dependencies=[Depends(require_permission("packages:read"))])
 async def get_remediation_package_by_id(
     package_id: int,
     _: str = Depends(verify_api_key)
@@ -71,7 +71,7 @@ async def get_remediation_package_by_id(
 @router.post("/api/v1/remediation/packages", status_code=201)
 async def create_remediation_package_endpoint(
     data: RemediationPackageCreate,
-    _: CurrentUser = Depends(require_permission("packages:write"))
+    _: CurrentUser = Depends(require_user_permission("packages:write"))
 ):
     """Create a new remediation package (CVE → Fix mapping)."""
     try:
@@ -87,7 +87,7 @@ async def create_remediation_package_endpoint(
 async def update_remediation_package_endpoint(
     package_id: int,
     data: RemediationPackageUpdate,
-    _: CurrentUser = Depends(require_permission("packages:write"))
+    _: CurrentUser = Depends(require_user_permission("packages:write"))
 ):
     """Update a remediation package."""
     pkg = await update_remediation_package(get_pool(), package_id, data)
@@ -99,7 +99,7 @@ async def update_remediation_package_endpoint(
 @router.delete("/api/v1/remediation/packages/{package_id}")
 async def delete_remediation_package_endpoint(
     package_id: int,
-    _: CurrentUser = Depends(require_permission("packages:write"))
+    _: CurrentUser = Depends(require_user_permission("packages:write"))
 ):
     """Delete a remediation package."""
     try:
@@ -114,7 +114,7 @@ async def delete_remediation_package_endpoint(
     return {"status": "deleted", "id": package_id}
 
 
-@router.get("/api/v1/remediation/rules")
+@router.get("/api/v1/remediation/rules", dependencies=[Depends(require_permission("settings:read"))])
 async def list_remediation_rules(
     enabled_only: bool = False,
     _: str = Depends(verify_api_key)
@@ -124,7 +124,7 @@ async def list_remediation_rules(
     return {"rules": rules}
 
 
-@router.get("/api/v1/remediation/rules/{rule_id}")
+@router.get("/api/v1/remediation/rules/{rule_id}", dependencies=[Depends(require_permission("settings:read"))])
 async def get_remediation_rule_by_id(
     rule_id: int,
     _: str = Depends(verify_api_key)
@@ -139,7 +139,7 @@ async def get_remediation_rule_by_id(
 @router.post("/api/v1/remediation/rules", status_code=201)
 async def create_remediation_rule_endpoint(
     data: RemediationRuleCreate,
-    _: CurrentUser = Depends(require_permission("settings:write"))
+    _: CurrentUser = Depends(require_user_permission("settings:write"))
 ):
     """Create a new remediation rule."""
     rule = await create_remediation_rule(get_pool(), data)
@@ -150,7 +150,7 @@ async def create_remediation_rule_endpoint(
 async def update_remediation_rule_endpoint(
     rule_id: int,
     data: RemediationRuleUpdate,
-    _: CurrentUser = Depends(require_permission("settings:write"))
+    _: CurrentUser = Depends(require_user_permission("settings:write"))
 ):
     """Update a remediation rule."""
     rule = await update_remediation_rule(get_pool(), rule_id, data)
@@ -162,7 +162,7 @@ async def update_remediation_rule_endpoint(
 @router.delete("/api/v1/remediation/rules/{rule_id}")
 async def delete_remediation_rule_endpoint(
     rule_id: int,
-    _: CurrentUser = Depends(require_permission("settings:write"))
+    _: CurrentUser = Depends(require_user_permission("settings:write"))
 ):
     """Delete a remediation rule."""
     try:
@@ -177,7 +177,7 @@ async def delete_remediation_rule_endpoint(
     return {"status": "deleted", "id": rule_id}
 
 
-@router.get("/api/v1/remediation/maintenance-windows")
+@router.get("/api/v1/remediation/maintenance-windows", dependencies=[Depends(require_permission("settings:read"))])
 async def list_maintenance_windows(_: str = Depends(verify_api_key)):
     """List all maintenance windows."""
     windows = await get_maintenance_windows(get_pool())
@@ -187,21 +187,21 @@ async def list_maintenance_windows(_: str = Depends(verify_api_key)):
 @router.post("/api/v1/remediation/maintenance-windows", status_code=201)
 async def create_maintenance_window_endpoint(
     data: MaintenanceWindowCreate,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_user_permission("settings:write"))
 ):
     """Create a new maintenance window."""
     window = await create_maintenance_window(get_pool(), data)
     return window
 
 
-@router.get("/api/v1/remediation/maintenance-windows/active")
+@router.get("/api/v1/remediation/maintenance-windows/active", dependencies=[Depends(require_permission("settings:read"))])
 async def check_maintenance_window(_: str = Depends(verify_api_key)):
     """Check if we're currently in a maintenance window."""
     in_window = await is_in_maintenance_window(get_pool())
     return {"in_maintenance_window": in_window}
 
 
-@router.get("/api/v1/remediation/jobs")
+@router.get("/api/v1/remediation/jobs", dependencies=[Depends(require_permission("jobs:read"))])
 async def list_remediation_jobs(
     status: Optional[str] = None,
     node_id: Optional[UUID] = None,
@@ -213,7 +213,7 @@ async def list_remediation_jobs(
     return {"jobs": jobs}
 
 
-@router.get("/api/v1/remediation/jobs/{job_id}")
+@router.get("/api/v1/remediation/jobs/{job_id}", dependencies=[Depends(require_permission("jobs:read"))])
 async def get_remediation_job_by_id(
     job_id: int,
     _: str = Depends(verify_api_key)
@@ -228,11 +228,14 @@ async def get_remediation_job_by_id(
 @router.post("/api/v1/remediation/jobs/approve")
 async def approve_jobs(
     data: ApproveRemediationRequest,
-    user: CurrentUser = Depends(require_permission("jobs:execute"))
+    user: CurrentUser = Depends(require_user_permission("jobs:execute"))
 ):
     """Approve pending remediation jobs."""
     count = await approve_remediation_jobs(get_pool(), data.job_ids, user.username)
     return {"approved_count": count}
+
+
+MANUAL_JOB_STATUSES = {"running", "success", "failed", "skipped", "rolled_back"}
 
 
 @router.patch("/api/v1/remediation/jobs/{job_id}/status")
@@ -242,9 +245,11 @@ async def update_job_status(
     exit_code: Optional[int] = None,
     output_log: Optional[str] = None,
     error_message: Optional[str] = None,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_user_permission("jobs:execute"))
 ):
-    """Update remediation job status (called by agent after execution)."""
+    """Change a remediation job status manually; approval uses the audited approve endpoint."""
+    if status not in MANUAL_JOB_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid manual job status")
     job = await update_remediation_job_status(
         get_pool(), job_id, status, exit_code, output_log, error_message
     )
@@ -257,7 +262,7 @@ async def update_job_status(
 async def trigger_remediation_scan(
     data: TriggerRemediationRequest,
     background_tasks: BackgroundTasks,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_user_permission("jobs:create"))
 ):
     """
     Scan vulnerabilities and create remediation jobs.
@@ -282,7 +287,7 @@ async def trigger_remediation_scan(
 async def one_click_fix(
     vulnerability_id: int,
     node_id: UUID,
-    _: str = Depends(verify_api_key)
+    _: CurrentUser = Depends(require_user_permission("jobs:execute"))
 ):
     """
     One-click fix for a specific vulnerability on a node.

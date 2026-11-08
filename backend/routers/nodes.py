@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import node_removal
-from auth import require_auth, require_permission
+from auth import require_auth, require_permission, require_user_permission
 from dependencies import API_KEY, get_db, not_found, verify_api_key
 
 # Use the JWT secret from auth module
@@ -73,7 +73,7 @@ def _os_product(os_name: str | None, os_version: str | None, display_version: st
         return name
     return f"{name} {version}"
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_nodes(
     unassigned: bool = False,
     group_id: Optional[str] = None,
@@ -142,7 +142,7 @@ async def list_nodes(
         
         return {"nodes": nodes_list}
 
-@router.get("/tree")
+@router.get("/tree", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
     """Get nodes organized in a tree structure by groups/OS/version"""
     async with db.acquire() as conn:
@@ -211,7 +211,7 @@ async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
         
         return tree
 
-@router.get("/search")
+@router.get("/search", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def search_nodes(q: str, limit: int = 20, db: asyncpg.Pool = Depends(get_db)):
     """Search nodes by name, hostname, IP, or node_id"""
     if len(q) < 2:
@@ -249,7 +249,7 @@ async def search_nodes(q: str, limit: int = 20, db: asyncpg.Pool = Depends(get_d
         
         return {"nodes": results}
 
-@router.get("/os-distribution")
+@router.get("/os-distribution", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_os_distribution(db: asyncpg.Pool = Depends(get_db)):
     """Get OS distribution for pie chart"""
     async with db.acquire() as conn:
@@ -282,7 +282,7 @@ async def get_os_distribution(db: asyncpg.Pool = Depends(get_db)):
             ]
         }
 
-@router.get("/{node_id}")
+@router.get("/{node_id}", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_node_detail(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get detailed info for a single node"""
     async with db.acquire() as conn:
@@ -403,7 +403,7 @@ async def delete_node(node_id: str, force: bool = False, user=Depends(require_pe
         return await node_removal.delete_node(conn, node, user, forced=node["removal_state"] != node_removal.UNINSTALLED)
 
 
-@router.get("/{node_id}/history")
+@router.get("/{node_id}/history", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_node_history(node_id: str, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
     """Get change history for a node (hardware snapshots)"""
     async with db.acquire() as conn:
