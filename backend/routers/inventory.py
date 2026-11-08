@@ -1,5 +1,6 @@
 import json
-from datetime import datetime
+import re
+from datetime import date, datetime
 from typing import Any, Dict
 
 import asyncpg
@@ -149,13 +150,27 @@ async def get_hardware(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
         }}
 
+_INSTALL_DATE = re.compile(r"^(\d{4})-?(\d{2})-?(\d{2})$")
+
+
+def install_date_from(value: Any) -> date | None:
+    """The install date the Windows agent reports (YYYY-MM-DD, or the registry's YYYYMMDD)."""
+    match = _INSTALL_DATE.match(str(value or "").strip())
+    if not match:
+        return None
+    try:
+        return date(*(int(part) for part in match.groups()))
+    except ValueError:
+        return None
+
+
 @router.get("/software/{node_id}", dependencies=_auth)
 async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get software data for a node"""
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        rows = await conn.fetch("SELECT name, version, publisher, install_date, install_path FROM software_current WHERE node_id = $1 ORDER BY name", node['id'])
+        rows = await conn.fetch('SELECT name, version, publisher, install_date AS "installDate", install_path FROM software_current WHERE node_id = $1 ORDER BY name', node['id'])
         return {"data": {"installedPrograms": [dict(r) for r in rows]}}
 
 @router.get("/hotfixes/{node_id}", dependencies=_auth)
@@ -270,7 +285,7 @@ async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
             await conn.execute("""
                 INSERT INTO software_current (node_id, name, version, publisher, source_package, source_version, install_date, install_path, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-            """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, (prog.get("sourcePackage") or None), (prog.get("sourceVersion") or None), None, prog.get("installLocation"))
+            """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, (prog.get("sourcePackage") or None), (prog.get("sourceVersion") or None), install_date_from(prog.get("installDate")), prog.get("installLocation"))
     return {"status": "ok", "node_id": str(uuid), "type": "software", "count": len(programs)}
 
 @router.post("/hotfixes")

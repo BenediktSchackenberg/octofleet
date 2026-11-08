@@ -28,6 +28,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { API_URL } from '@/lib/api-config';
@@ -35,6 +36,18 @@ import { useRouter } from "next/navigation";
 import { getAuthHeader } from "@/lib/auth-context";
 import { useRecentlyOpened, RecentItem } from "@/hooks/useRecentlyOpened";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useI18n } from "@/lib/i18n-context";
+import { routeLabel, type Translate } from "@/lib/routes";
+
+// Categories are ids (grouping); their shown names come from the locale files.
+const CATEGORY_KEYS: Record<string, string> = {
+  Navigation: "palette.categories.navigation",
+  Actions: "palette.categories.actions",
+  Pinned: "palette.categories.pinned",
+  Favorites: "palette.categories.favorites",
+  "Recently Opened": "dashboard.recentlyOpened",
+  Nodes: "nav.nodes",
+};
 
 interface SearchResult {
   node_id: string;
@@ -67,6 +80,7 @@ export function CommandPalette() {
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const { recent } = useRecentlyOpened();
   const { favorites } = useFavorites();
+  const { t } = useI18n();
 
   // Determine mode from prefix
   const mode: PaletteMode = useMemo(() => {
@@ -84,8 +98,8 @@ export function CommandPalette() {
   const navigationCommands: CommandItem[] = useMemo(() => [
     {
       id: "nav-dashboard",
-      title: "Go to Dashboard",
-      subtitle: "Overview of your entire fleet",
+      title: t("palette.items.navDashboard.title"),
+      subtitle: t("palette.items.navDashboard.subtitle"),
       icon: <LayoutDashboard className="h-4 w-4" />,
       action: () => router.push("/"),
       category: "Navigation",
@@ -93,225 +107,225 @@ export function CommandPalette() {
     },
     {
       id: "nav-nodes",
-      title: "Go to Nodes",
-      subtitle: "List and manage all registered devices",
+      title: t("palette.items.navNodes.title"),
+      subtitle: t("palette.items.navNodes.subtitle"),
       icon: <Server className="h-4 w-4" />,
       action: () => router.push("/nodes"),
       category: "Navigation"
     },
     {
       id: "nav-groups",
-      title: "Go to Groups",
-      subtitle: "Manage node groups and assignments",
+      title: t("palette.items.navGroups.title"),
+      subtitle: t("palette.items.navGroups.subtitle"),
       icon: <FolderTree className="h-4 w-4" />,
       action: () => router.push("/groups"),
       category: "Navigation"
     },
     {
       id: "nav-packages",
-      title: "Go to Packages",
-      subtitle: "Software packages and deployments",
+      title: t("palette.items.navPackages.title"),
+      subtitle: t("palette.items.navPackages.subtitle"),
       icon: <Package className="h-4 w-4" />,
       action: () => router.push("/packages"),
       category: "Navigation"
     },
     {
       id: "nav-vulnerabilities",
-      title: "Go to Vulnerabilities",
-      subtitle: "CVEs and security findings",
+      title: t("palette.items.navVulnerabilities.title"),
+      subtitle: t("palette.items.navVulnerabilities.subtitle"),
       icon: <Bug className="h-4 w-4" />,
       action: () => router.push("/vulnerabilities"),
       category: "Navigation"
     },
     {
       id: "nav-compliance",
-      title: "Go to Compliance",
-      subtitle: "Compliance policies and status",
+      title: t("palette.items.navCompliance.title"),
+      subtitle: t("palette.items.navCompliance.subtitle"),
       icon: <Shield className="h-4 w-4" />,
       action: () => router.push("/compliance"),
       category: "Navigation"
     },
     {
       id: "nav-alerts",
-      title: "Go to Alerts",
-      subtitle: "Alert rules and incident history",
+      title: t("palette.items.navAlerts.title"),
+      subtitle: t("palette.items.navAlerts.subtitle"),
       icon: <Bell className="h-4 w-4" />,
       action: () => router.push("/alerts"),
       category: "Navigation"
     },
     {
       id: "nav-reports",
-      title: "Go to Reports",
-      subtitle: "Generate and download fleet reports",
+      title: t("palette.items.navReports.title"),
+      subtitle: t("palette.items.navReports.subtitle"),
       icon: <FileText className="h-4 w-4" />,
       action: () => router.push("/reports"),
       category: "Navigation"
     },
     {
       id: "nav-query",
-      title: "Go to Query Engine",
-      subtitle: "Run queries across your fleet",
+      title: t("palette.items.navQuery.title"),
+      subtitle: t("palette.items.navQuery.subtitle"),
       icon: <Database className="h-4 w-4" />,
       action: () => router.push("/query"),
       category: "Navigation"
     },
     {
       id: "nav-provisioning",
-      title: "Go to Provisioning",
-      subtitle: "OS deployment and automated setups",
+      title: t("palette.items.navProvisioning.title"),
+      subtitle: t("palette.items.navProvisioning.subtitle"),
       icon: <Terminal className="h-4 w-4" />,
       action: () => router.push("/provisioning"),
       category: "Navigation"
     },
     {
       id: "nav-mssql",
-      title: "Go to SQL Manager",
-      subtitle: "Fleet-wide SQL Server management",
+      title: t("palette.items.navMssql.title"),
+      subtitle: t("palette.items.navMssql.subtitle"),
       icon: <Database className="h-4 w-4" />,
       action: () => router.push("/sql"),
       category: "Navigation"
     },
     {
       id: "nav-security",
-      title: "Go to Security Center",
-      subtitle: "Vulnerabilities and compliance",
+      title: t("palette.items.navSecurity.title"),
+      subtitle: t("palette.items.navSecurity.subtitle"),
       icon: <Shield className="h-4 w-4" />,
       action: () => router.push("/security"),
       category: "Navigation"
     },
     {
       id: "nav-performance",
-      title: "Go to Performance",
-      subtitle: "Fleet performance analytics",
+      title: t("palette.items.navPerformance.title"),
+      subtitle: t("palette.items.navPerformance.subtitle"),
       icon: <BarChart3 className="h-4 w-4" />,
       action: () => router.push("/performance"),
       category: "Navigation"
     },
     {
       id: "nav-settings",
-      title: "Settings",
-      subtitle: "System configuration and users",
+      title: t("palette.items.navSettings.title"),
+      subtitle: t("palette.items.navSettings.subtitle"),
       icon: <Settings className="h-4 w-4" />,
       action: () => router.push("/settings"),
       category: "Navigation"
     }
-  ], [router]);
+  ], [router, t]);
 
   // Action commands (> prefix)
   const actionCommands: CommandItem[] = useMemo(() => [
     {
       id: "action-add-node",
-      title: "Add New Node",
-      subtitle: "Generate onboarding script or token",
+      title: t("palette.items.actionAddNode.title"),
+      subtitle: t("palette.items.actionAddNode.subtitle"),
       icon: <Plus className="h-4 w-4" />,
       action: () => router.push("/settings?tab=onboarding"),
       category: "Actions"
     },
     {
       id: "action-create-job",
-      title: "Create Job",
-      subtitle: "Run a new job across your fleet",
+      title: t("palette.items.actionCreateJob.title"),
+      subtitle: t("palette.items.actionCreateJob.subtitle"),
       icon: <Zap className="h-4 w-4" />,
       action: () => router.push("/jobs?new=true"),
       category: "Actions"
     },
     {
       id: "action-create-group",
-      title: "Create Group",
-      subtitle: "Create a new node group",
+      title: t("palette.items.actionCreateGroup.title"),
+      subtitle: t("palette.items.actionCreateGroup.subtitle"),
       icon: <FolderTree className="h-4 w-4" />,
       action: () => router.push("/groups?new=true"),
       category: "Actions"
     },
     {
       id: "action-create-deployment",
-      title: "Create Deployment",
-      subtitle: "Deploy software to your fleet",
+      title: t("palette.items.actionCreateDeployment.title"),
+      subtitle: t("palette.items.actionCreateDeployment.subtitle"),
       icon: <Package className="h-4 w-4" />,
       action: () => router.push("/deployments?new=true"),
       category: "Actions"
     },
     {
       id: "action-run-query",
-      title: "Run Query",
-      subtitle: "Start a new fleet query",
+      title: t("palette.items.actionRunQuery.title"),
+      subtitle: t("palette.items.actionRunQuery.subtitle"),
       icon: <Database className="h-4 w-4" />,
       action: () => router.push("/query"),
       category: "Actions"
     },
     {
       id: "action-create-alert",
-      title: "Create Alert Rule",
-      subtitle: "Set up a new alert rule",
+      title: t("palette.items.actionCreateAlert.title"),
+      subtitle: t("palette.items.actionCreateAlert.subtitle"),
       icon: <Bell className="h-4 w-4" />,
       action: () => router.push("/alerts?new=true"),
       category: "Actions"
     },
     {
       id: "action-generate-report",
-      title: "Generate Report",
-      subtitle: "Create a fleet or security report",
+      title: t("palette.items.actionGenerateReport.title"),
+      subtitle: t("palette.items.actionGenerateReport.subtitle"),
       icon: <FileText className="h-4 w-4" />,
       action: () => router.push("/reports"),
       category: "Actions"
     },
     {
       id: "action-scan-vulns",
-      title: "Scan Vulnerabilities",
-      subtitle: "Start a fleet-wide vulnerability scan",
+      title: t("palette.items.actionScanVulns.title"),
+      subtitle: t("palette.items.actionScanVulns.subtitle"),
       icon: <Bug className="h-4 w-4" />,
       action: () => router.push("/vulnerabilities?scan=true"),
       category: "Actions"
     },
     {
       id: "action-open-shell",
-      title: "Open Remote Shell",
-      subtitle: "Start a terminal session on a node",
+      title: t("palette.items.actionOpenShell.title"),
+      subtitle: t("palette.items.actionOpenShell.subtitle"),
       icon: <Terminal className="h-4 w-4" />,
       action: () => router.push("/nodes?action=shell"),
       category: "Actions"
     },
     {
       id: "action-create-baseline",
-      title: "Create Configuration Baseline",
-      subtitle: "Define a new compliance baseline template",
+      title: t("palette.items.actionCreateBaseline.title"),
+      subtitle: t("palette.items.actionCreateBaseline.subtitle"),
       icon: <Shield className="h-4 w-4" />,
       action: () => router.push("/compliance?new=true"),
       category: "Actions"
     },
     {
       id: "action-create-patch-ring",
-      title: "Create Patch Ring",
-      subtitle: "Set up a new patch deployment ring",
+      title: t("palette.items.actionCreatePatchRing.title"),
+      subtitle: t("palette.items.actionCreatePatchRing.subtitle"),
       icon: <Shield className="h-4 w-4" />,
       action: () => router.push("/patches?new-ring=true"),
       category: "Actions"
     },
     {
       id: "action-export-report",
-      title: "Export Compliance Report",
-      subtitle: "Generate PDF/CSV compliance report",
+      title: t("palette.items.actionExportReport.title"),
+      subtitle: t("palette.items.actionExportReport.subtitle"),
       icon: <FileText className="h-4 w-4" />,
       action: () => router.push("/reports?export=true"),
       category: "Actions"
     },
     {
       id: "action-trigger-remediation",
-      title: "Trigger Remediation",
-      subtitle: "Auto-fix known vulnerabilities across fleet",
+      title: t("palette.items.actionTriggerRemediation.title"),
+      subtitle: t("palette.items.actionTriggerRemediation.subtitle"),
       icon: <Zap className="h-4 w-4" />,
       action: () => router.push("/remediation?trigger=true"),
       category: "Actions"
     },
     {
       id: "action-approve-content",
-      title: "Review Pending Approvals",
-      subtitle: "Check content and deployment approvals",
+      title: t("palette.items.actionApproveContent.title"),
+      subtitle: t("palette.items.actionApproveContent.subtitle"),
       icon: <FileText className="h-4 w-4" />,
       action: () => router.push("/content?tab=approvals"),
       category: "Actions"
     },
-  ], [router]);
+  ], [router, t]);
 
   // Knowledge commands (? prefix) - built from recent + favorites + pinned
   const knowledgeCommands: CommandItem[] = useMemo(() => {
@@ -319,10 +333,10 @@ export function CommandPalette() {
 
     // Pinned quick-access items
     const pinnedItems = [
-      { id: "pinned-critical-nodes", title: "Critical Nodes", subtitle: "Nodes with critical findings or offline", icon: <Monitor className="h-4 w-4" />, href: "/nodes?status=critical" },
-      { id: "pinned-failed-jobs", title: "Failed Jobs", subtitle: "Jobs that need attention", icon: <Zap className="h-4 w-4" />, href: "/jobs?status=failed" },
-      { id: "pinned-unpatched", title: "Unpatched Devices", subtitle: "Devices missing critical patches", icon: <Shield className="h-4 w-4" />, href: "/vulnerabilities?severity=critical" },
-      { id: "pinned-recent-alerts", title: "Recent Alerts", subtitle: "Alerts triggered in last 24h", icon: <Bell className="h-4 w-4" />, href: "/alerts?timeRange=24h" },
+      { id: "pinned-critical-nodes", title: t("palette.items.pinnedCriticalNodes.title"), subtitle: t("palette.items.pinnedCriticalNodes.subtitle"), icon: <Monitor className="h-4 w-4" />, href: "/nodes?status=critical" },
+      { id: "pinned-failed-jobs", title: t("palette.items.pinnedFailedJobs.title"), subtitle: t("palette.items.pinnedFailedJobs.subtitle"), icon: <Zap className="h-4 w-4" />, href: "/jobs?status=failed" },
+      { id: "pinned-unpatched", title: t("palette.items.pinnedUnpatched.title"), subtitle: t("palette.items.pinnedUnpatched.subtitle"), icon: <Shield className="h-4 w-4" />, href: "/vulnerabilities?severity=critical" },
+      { id: "pinned-recent-alerts", title: t("palette.items.pinnedRecentAlerts.title"), subtitle: t("palette.items.pinnedRecentAlerts.subtitle"), icon: <Bell className="h-4 w-4" />, href: "/alerts?timeRange=24h" },
     ];
 
     pinnedItems.forEach(p => {
@@ -341,7 +355,7 @@ export function CommandPalette() {
       items.push({
         id: `fav-${fav.type}-${fav.id}`,
         title: fav.label,
-        subtitle: `Favorite · ${fav.type}`,
+        subtitle: t("palette.favoriteOf", { type: fav.type }),
         icon: <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />,
         action: () => router.push(fav.href),
         category: "Favorites"
@@ -352,8 +366,8 @@ export function CommandPalette() {
     recent.slice(0, 10).forEach((item, i) => {
       items.push({
         id: `recent-${i}`,
-        title: item.label,
-        subtitle: `Visited ${formatRelativeTime(item.timestamp)}`,
+        title: routeLabel(item.href, t, item.name),
+        subtitle: t("palette.visited", { time: formatRelativeTime(item.timestamp, t) }),
         icon: <Clock className="h-4 w-4" />,
         action: () => router.push(item.href),
         category: "Recently Opened"
@@ -361,7 +375,7 @@ export function CommandPalette() {
     });
 
     return items;
-  }, [favorites, recent, router]);
+  }, [favorites, recent, router, t]);
 
   // Keyboard shortcut: Ctrl+K to toggle
   useEffect(() => {
@@ -503,20 +517,21 @@ export function CommandPalette() {
   };
 
   const placeholder = mode === "action"
-    ? "Execute an action..."
+    ? t("palette.placeholders.action")
     : mode === "knowledge"
-    ? "Search favorites, recent pages..."
-    : "Type a command or search nodes...";
+    ? t("palette.placeholders.knowledge")
+    : t("palette.placeholders.jump");
 
   const modeHint = mode === "action"
-    ? { label: "Actions", color: "text-blue-400 border-blue-400/30 bg-blue-400/10" }
+    ? { label: t("palette.categories.actions"), color: "text-blue-400 border-blue-400/30 bg-blue-400/10" }
     : mode === "knowledge"
-    ? { label: "Knowledge", color: "text-purple-400 border-purple-400/30 bg-purple-400/10" }
+    ? { label: t("palette.modes.knowledge"), color: "text-purple-400 border-purple-400/30 bg-purple-400/10" }
     : null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="p-0 gap-0 sm:max-w-[600px] border-zinc-800 bg-zinc-950 overflow-hidden shadow-2xl">
+        <DialogTitle className="sr-only">{t("palette.footer.brand")}</DialogTitle>
         <div className="flex items-center border-b border-zinc-800 px-4 py-3 bg-zinc-900/50">
           <Search className="h-5 w-5 text-zinc-400 mr-3 shrink-0" />
           {modeHint && (
@@ -533,23 +548,23 @@ export function CommandPalette() {
             onKeyDown={handleKeyDown}
           />
           <div className="flex items-center gap-1 shrink-0 ml-2">
-            <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-400 font-medium">ESC</kbd>
+            <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-400 font-medium">ESC</kbd>{/* i18n-ignore */}
           </div>
         </div>
 
         <div className="max-h-[450px] overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-zinc-800">
           {allItems.length === 0 && !loading && query && (
             <div className="py-12 text-center text-zinc-500">
-              No results found for &ldquo;{effectiveQuery}&rdquo;
+              {t("palette.noResults", { query: effectiveQuery })}
             </div>
           )}
 
           {allItems.length === 0 && !loading && !query && (
             <div className="py-8 text-center text-zinc-500 space-y-2">
-              <p className="text-sm">Type to search, or use a prefix:</p>
+              <p className="text-sm">{t("palette.prefixHint")}</p>
               <div className="flex justify-center gap-3 text-xs">
-                <span className="px-2 py-1 rounded border border-zinc-700 bg-zinc-800"><kbd className="font-mono">&gt;</kbd> Actions</span>
-                <span className="px-2 py-1 rounded border border-zinc-700 bg-zinc-800"><kbd className="font-mono">?</kbd> Knowledge</span>
+                <span className="px-2 py-1 rounded border border-zinc-700 bg-zinc-800"><kbd className="font-mono">&gt;</kbd> {t("palette.categories.actions")}</span>
+                <span className="px-2 py-1 rounded border border-zinc-700 bg-zinc-800"><kbd className="font-mono">?</kbd> {t("palette.modes.knowledge")}</span>
               </div>
             </div>
           )}
@@ -570,7 +585,7 @@ export function CommandPalette() {
             return (
               <div key={category} className="mb-2">
                 <div className="px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-                  {category}
+                  {CATEGORY_KEYS[category] ? t(CATEGORY_KEYS[category]) : category}
                 </div>
                 {categoryItems.map((item) => {
                   const globalIndex = allItems.indexOf(item);
@@ -622,20 +637,20 @@ export function CommandPalette() {
         <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-2 bg-zinc-900/30 text-[10px] text-zinc-500">
           <div className="flex gap-4">
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">↵</kbd> to select
+              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">↵</kbd> {t("palette.footer.select")}
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">↑↓</kbd> to navigate
+              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">↑↓</kbd> {t("palette.footer.navigate")}
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">&gt;</kbd> actions
+              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">&gt;</kbd> {t("palette.footer.actions")}
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">?</kbd> knowledge
+              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">?</kbd> {t("palette.footer.knowledge")}
             </span>
           </div>
           <div className="flex items-center gap-1 italic">
-            Octofleet Search
+            {t("palette.footer.brand")}
           </div>
         </div>
       </DialogContent>
@@ -643,13 +658,12 @@ export function CommandPalette() {
   );
 }
 
-function formatRelativeTime(timestamp: number): string {
+function formatRelativeTime(timestamp: number, t: Translate): string {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("time.now");
+  if (minutes < 60) return t("time.minutesAgo", { minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  if (hours < 24) return t("time.hoursAgo", { hours });
+  return t("time.daysAgo", { days: Math.floor(hours / 24) });
 }

@@ -12,6 +12,8 @@ import { StandardPage } from "@/components/ui/StandardPage";
 import { NodeRemovalStatus } from "@/components/node-removal";
 import { useI18n } from "@/lib/i18n-context";
 
+type Translate = ReturnType<typeof useI18n>["t"];
+
 
 
 interface Node {
@@ -68,7 +70,7 @@ function HealthBadge({ status, count }: { status?: string; count?: number }) {
   );
 }
 
-function formatLastSeen(dateStr: string): string {
+function formatLastSeen(dateStr: string, t: Translate): string {
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -76,10 +78,10 @@ function formatLastSeen(dateStr: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMin < 1) return "gerade eben";
-  if (diffMin < 60) return `vor ${diffMin} Min`;
-  if (diffHours < 24) return `vor ${diffHours} Std`;
-  return `vor ${diffDays} Tagen`;
+  if (diffMin < 1) return t("time.now");
+  if (diffMin < 60) return t("time.minutesAgo", { minutes: diffMin });
+  if (diffHours < 24) return t("time.hoursAgo", { hours: diffHours });
+  return t("time.daysAgo", { days: diffDays });
 }
 
 function PendingNodesSection({ 
@@ -93,6 +95,7 @@ function PendingNodesSection({
   onReject: (id: string) => void;
   approving: string | null;
 }) {
+  const { t } = useI18n();
   if (pendingNodes.length === 0) return null;
 
   return (
@@ -100,7 +103,7 @@ function PendingNodesSection({
       <div className="flex items-center gap-2 mb-4">
         <Clock className="h-5 w-5 text-amber-400" />
         <h2 className="text-lg font-semibold text-amber-400">
-          Wartende Genehmigungen ({pendingNodes.length})
+          {t("nodes.pendingApprovals", { count: pendingNodes.length })}
         </h2>
       </div>
       
@@ -115,10 +118,10 @@ function PendingNodesSection({
               <div>
                 <div className="font-medium text-zinc-100">{node.hostname}</div>
                 <div className="text-sm text-zinc-400">
-                  {node.osName} • {node.ipAddress} • Agent {node.agentVersion || "?"}
+                  {node.osName} • {node.ipAddress} • {t("nodes.agentVersionShort", { version: node.agentVersion || "?" })}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  Registriert {formatLastSeen(node.createdAt)}
+                  {t("nodes.registered", { time: formatLastSeen(node.createdAt, t) })}
                 </div>
               </div>
             </div>
@@ -134,7 +137,7 @@ function PendingNodesSection({
                 ) : (
                   <Check className="h-4 w-4" />
                 )}
-                Genehmigen
+                {t("nodes.approve")}
               </button>
               <button
                 onClick={() => onReject(node.id)}
@@ -142,7 +145,7 @@ function PendingNodesSection({
                 className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-red-600 text-zinc-300 hover:text-white rounded-lg transition-colors"
               >
                 <X className="h-4 w-4" />
-                Ablehnen
+                {t("nodes.reject")}
               </button>
             </div>
           </div>
@@ -219,7 +222,7 @@ export default function NodesPage() {
   }
 
   async function handleReject(pendingId: string) {
-    if (!confirm("Node wirklich ablehnen?")) return;
+    if (!confirm(t("nodes.rejectConfirm"))) return;
     
     setApproving(pendingId);
     try {
@@ -267,14 +270,14 @@ export default function NodesPage() {
           <button
             onClick={() => { setViewMode("list"); localStorage.setItem("octofleet-nodes-view", "list"); }}
             className={`p-2 rounded-lg border transition-colors ${viewMode === "list" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
-            title="List view"
+            title={t("nodes.listView")}
           >
             <List className="h-4 w-4" />
           </button>
           <button
             onClick={() => { setViewMode("grid"); localStorage.setItem("octofleet-nodes-view", "grid"); }}
             className={`p-2 rounded-lg border transition-colors ${viewMode === "grid" ? "bg-zinc-700 border-zinc-600 text-white" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white"}`}
-            title="Grid view"
+            title={t("nodes.gridView")}
           >
             <LayoutGrid className="h-4 w-4" />
           </button>
@@ -284,7 +287,7 @@ export default function NodesPage() {
         <div className="flex flex-wrap gap-4 items-center">
           <input
             type="text"
-            placeholder="Suchen..."
+            placeholder={`${t("common.search")}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full md:w-80 px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
@@ -298,7 +301,7 @@ export default function NodesPage() {
                   : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-red-500'
               }`}
             >
-              🔴 Nur Probleme ({issueCount})
+              🔴 {t("nodes.onlyProblems", { count: issueCount })}
             </button>
           )}
         </div>
@@ -334,8 +337,8 @@ export default function NodesPage() {
                   <div className="text-xs text-zinc-400 space-y-1">
                     <div>{node.os_name}</div>
                     <div className="flex justify-between">
-                      <span>Agent {node.agent_version || "-"}</span>
-                      <span>{formatLastSeen(node.last_seen)}</span>
+                      <span>{t("nodes.agentVersionShort", { version: node.agent_version || "-" })}</span>
+                      <span>{formatLastSeen(node.last_seen, t)}</span>
                     </div>
                   </div>
                   {node.health_status && node.health_status !== "healthy" && (
@@ -347,7 +350,7 @@ export default function NodesPage() {
             })}
             {filteredNodes.length === 0 && (
               <div className="col-span-full text-center py-8 text-zinc-500">
-                {search ? "Keine Nodes gefunden" : "Keine Nodes vorhanden"}
+                {search ? t("nodes.noNodes") : t("nodes.noNodesYet")}
               </div>
             )}
           </div>
@@ -356,11 +359,11 @@ export default function NodesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-800 text-left text-sm text-zinc-400">
-                <th className="p-4">Status</th>
-                <th className="p-4">Hostname</th>
-                <th className="p-4 hidden md:table-cell">Betriebssystem</th>
-                <th className="p-4 hidden lg:table-cell">Agent</th>
-                <th className="p-4">Zuletzt gesehen</th>
+                <th className="p-4">{t("common.status")}</th>
+                <th className="p-4">{t("nodes.hostname")}</th>
+                <th className="p-4 hidden md:table-cell">{t("nodes.os")}</th>
+                <th className="p-4 hidden lg:table-cell">{t("nodes.agent")}</th>
+                <th className="p-4">{t("nodes.lastSeen")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
@@ -371,7 +374,7 @@ export default function NodesPage() {
                 >
                   <td className="p-4">
                     <StatusBadge variant={statusToVariant(node.is_online ? 'online' : 'offline')} dot>
-                      {node.is_online ? 'Online' : 'Offline'}
+                      {node.is_online ? t("common.online") : t("common.offline")}
                     </StatusBadge>
                   </td>
                   <td className="p-4">
@@ -391,7 +394,7 @@ export default function NodesPage() {
                     {node.agent_version || "-"}
                   </td>
                   <td className="p-4 text-sm text-zinc-500">
-                    {formatLastSeen(node.last_seen)}
+                    {formatLastSeen(node.last_seen, t)}
                   </td>
                 </tr>
               ))}
@@ -399,7 +402,7 @@ export default function NodesPage() {
               {filteredNodes.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-zinc-500">
-                    {search ? "Keine Nodes gefunden" : "Keine Nodes vorhanden"}
+                    {search ? t("nodes.noNodes") : t("nodes.noNodesYet")}
                   </td>
                 </tr>
               )}

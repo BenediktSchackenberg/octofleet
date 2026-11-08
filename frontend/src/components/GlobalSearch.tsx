@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n-context";
+
 import { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Search, Circle, Monitor } from "lucide-react";
@@ -20,6 +22,7 @@ interface GlobalSearchProps {
 }
 
 export function GlobalSearch({ onNodeSelect }: GlobalSearchProps) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -126,7 +129,7 @@ export function GlobalSearch({ onNodeSelect }: GlobalSearchProps) {
         <Input
           ref={inputRef}
           type="text"
-          placeholder="Search nodes... (press /)"
+          placeholder={t("globalSearch.placeholder")}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setShowResults(true)}
@@ -178,7 +181,7 @@ export function GlobalSearch({ onNodeSelect }: GlobalSearchProps) {
 
       {showResults && query.length >= 2 && results.length === 0 && !loading && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 p-4 text-center text-muted-foreground">
-          No nodes found for "{query}"
+          {t("globalSearch.noNodes", { query })}
         </div>
       )}
     </div>

@@ -16,6 +16,7 @@ import { AddDevicesDialog } from "@/components/add-devices-dialog";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
 import { formatDateTime } from "@/lib/format";
+import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 
 interface GroupMember {
   id: string;
@@ -54,6 +55,11 @@ export default function GroupDetailPage() {
   const groupId = params.id as string;
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
+  // "Recently opened" and the breadcrumb show the group's name instead of its id
+  const { nameRecent } = useRecentlyOpened();
+  useEffect(() => {
+    if (group?.name) nameRecent(`/groups/${String(params.id)}`, group.name);
+  }, [group?.name, params.id, nameRecent]);
   const [loading, setLoading] = useState(true);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);

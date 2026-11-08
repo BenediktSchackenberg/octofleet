@@ -23,6 +23,14 @@ const translations: Record<Locale, Translations> = { de, en, es };
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
+// The provider's t, for code outside components (e.g. the API client's error toasts).
+let activeTranslate: (key: string, params?: Record<string, string | number>) => string = (key) => key;
+
+/** Translate outside React components; follows the language selected in the UI. */
+export function translate(key: string, params?: Record<string, string | number>): string {
+  return activeTranslate(key, params);
+}
+
 function getNestedValue(obj: any, path: string): string | undefined {
   return path.split(".").reduce((acc, part) => acc?.[part], obj);
 }
@@ -97,6 +105,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   // Dates and numbers formatted outside components follow the selected language too.
   setFormatLocale(locale);
   setFormatPreferences(timeFormat, dateOrder);
+  activeTranslate = t;
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, timeFormat, setTimeFormat, dateOrder, setDateOrder, t }}>
