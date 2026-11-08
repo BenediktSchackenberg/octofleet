@@ -1,12 +1,13 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { API_BASE } from "@/lib/api-config";
 import Link from "next/link";
 
 export default function ActivityPage() {
-  const [tab, setTab] = useState<"files" | "users">("files");
+  const [tab, setTab] = useTabParam<"files" | "users">("files", ["files", "users"]);
   const [fileData, setFileData] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
   const [hours, setHours] = useState(24);

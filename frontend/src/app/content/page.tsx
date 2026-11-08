@@ -1,4 +1,5 @@
 "use client";
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -245,7 +246,7 @@ const enforcementColors: Record<string, { bg: string; text: string }> = {
 type TabId = "pipeline" | "repositories" | "snapshots" | "items" | "approvals" | "policies" | "auditlog";
 
 export default function ContentLifecyclePage() {
-  const [activeTab, setActiveTab] = useState<TabId>("pipeline");
+  const [activeTab, setActiveTab] = useTabParam<TabId>("pipeline", ["pipeline", "repositories", "snapshots", "items", "approvals", "policies", "auditlog"]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

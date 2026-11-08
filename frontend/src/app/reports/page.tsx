@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -121,7 +122,7 @@ const cronHint = (cron: string) => {
 };
 
 export default function ReportsPage() {
-  const [tab, setTab] = useState<TabKey>("dashboard");
+  const [tab, setTab] = useTabParam<TabKey>("dashboard", ["dashboard", "catalog", "schedules", "history"]);
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [reports, setReports] = useState<Report[]>([]);

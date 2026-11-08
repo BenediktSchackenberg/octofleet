@@ -1,4 +1,5 @@
 'use client';
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -73,7 +74,7 @@ export default function RemediationPage() {
   const [packages, setPackages] = useState<RemediationPackage[]>([]);
   const [rules, setRules] = useState<RemediationRule[]>([]);
   const [jobs, setJobs] = useState<RemediationJob[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'packages' | 'rules' | 'jobs'>('dashboard');
+  const [activeTab, setActiveTab] = useTabParam<'dashboard' | 'packages' | 'rules' | 'jobs'>('dashboard', ['dashboard', 'packages', 'rules', 'jobs']);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);

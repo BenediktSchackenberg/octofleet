@@ -1,4 +1,5 @@
 "use client";
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -64,7 +65,7 @@ export default function MonitoringProfilesPage() {
   const [showAssign, setShowAssign] = useState<Profile | null>(null);
   const [assignType, setAssignType] = useState<"node" | "group">("node");
   const [assignTarget, setAssignTarget] = useState("");
-  const [tab, setTab] = useState<"profiles" | "assignments">("profiles");
+  const [tab, setTab] = useTabParam<"profiles" | "assignments">("profiles", ["profiles", "assignments"]);
   const [form, setForm] = useState({ name: "", description: "", sensors: {} as Record<string, boolean>, include_paths: "", exclude_paths: "" });
   const { token } = useAuth();
 

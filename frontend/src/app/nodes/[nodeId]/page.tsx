@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useNodeDetails } from "@/hooks/useNodeDetails";
@@ -221,6 +222,9 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
   );
 }
 
+const NODE_TABS = ["overview", "performance", "hardware", "software", "updates", "network", "security",
+  "vulnerabilities", "browser", "events", "history", "monitoring", "linux"] as const;
+
 export default function NodeDetailPage() {
   const params = useParams();
   const nodeId = params.nodeId as string;
@@ -233,9 +237,9 @@ export default function NodeDetailPage() {
   useEffect(() => {
     if (node?.hostname) nameRecent(`/nodes/${nodeId}`, node.hostname);
   }, [node?.hostname, nodeId, nameRecent]);
-  // The active tab can be set with ?tab=… (e.g. links to a node's vulnerabilities)
+  // The open tab is kept in ?tab=… (reload, links such as a node's vulnerabilities)
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
+  const [activeTab, setActiveTab] = useTabParam("overview", NODE_TABS);
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab) setActiveTab(tab);
