@@ -817,7 +817,8 @@
       "succeededWithErrors": "Succeeded with errors",
       "failed": "Failed",
       "aborted": "Aborted"
-    }
+    },
+    "virtualMachine": "Virtual machine"
   },
   "navGroups": {
     "fleet": "Fleet",
@@ -1066,5 +1067,46 @@
     "home": "Home",
     "retry": "Retry",
     "close": "Close"
+  },
+  "hardwareFleet": {
+    "title": "Hardware fleet overview",
+    "nodesRecorded": "{count} nodes recorded",
+    "loading": "Loading hardware overview…",
+    "noData": "No data available",
+    "loadError": "Could not load the hardware overview",
+    "issues": "{count} issues",
+    "issueVolumeUsage": "Drive {drive} is {percent}% full",
+    "issueDiskHealth": "Disk {model}: {status}",
+    "totalStorage": "Total storage",
+    "used": "{used} TB used ({percent}%)",
+    "physicalDisks": "Physical disks",
+    "diskTypes": "Disk types",
+    "virtual": "Virtual",
+    "unknownType": "Unknown",
+    "cpuTypes": "CPU types",
+    "physicalDisksCount": "Physical disks ({count})",
+    "host": "Host",
+    "model": "Model",
+    "size": "Size",
+    "type": "Type",
+    "status": "Status",
+    "health": {
+      "healthy": "Healthy",
+      "warning": "Warning",
+      "unhealthy": "Unhealthy",
+      "unknown": "Unknown"
+    }
+  },
+  "tags": {
+    "manage": "Manage tags",
+    "description": "Tags help to categorize nodes and can be used in dynamic groups.",
+    "current": "Current tags",
+    "noneAssigned": "No tags assigned",
+    "available": "Available tags",
+    "noneCreated": "No tags created yet",
+    "allAssigned": "All tags assigned",
+    "create": "Create a new tag",
+    "namePlaceholder": "Tag name…",
+    "done": "Done"
   }
 }

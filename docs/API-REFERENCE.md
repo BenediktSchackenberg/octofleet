@@ -92,7 +92,7 @@ Agents push inventory data; the frontend reads it.
 | GET | `/api/v1/inventory/browser/{node_id}` | — | Browser extensions |
 | GET | `/api/v1/inventory/browser/{node_id}/cookies` | — | Browser cookies |
 | GET | `/api/v1/inventory/browser/{node_id}/critical` | — | Critical browser findings |
-| GET | `/api/v1/hardware/fleet` | — | Fleet-wide hardware summary |
+| GET | `/api/v1/hardware/fleet` | User: `hardware:read` | Fleet-wide hardware summary |
 | POST | `/api/v1/inventory/hardware` | API Key | Push hardware inventory (agent) |
 | POST | `/api/v1/inventory/software` | API Key | Push software inventory |
 | POST | `/api/v1/inventory/hotfixes` | API Key | Push hotfixes |
@@ -500,7 +500,7 @@ See [SOFTWARE-METERING.md](SOFTWARE-METERING.md) for detailed documentation.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/hardware/fleet` | — | Fleet-wide hardware summary |
+| GET | `/api/v1/hardware/fleet` | User: `hardware:read` | Fleet-wide hardware summary |
 | GET | `/api/v1/hardware/export` | — | Export hardware data |
 
 ---

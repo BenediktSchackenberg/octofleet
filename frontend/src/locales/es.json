@@ -817,7 +817,8 @@
       "succeededWithErrors": "Correcta con errores",
       "failed": "Fallida",
       "aborted": "Cancelada"
-    }
+    },
+    "virtualMachine": "Máquina virtual"
   },
   "navGroups": {
     "fleet": "Flota",
@@ -1066,5 +1067,46 @@
     "home": "Inicio",
     "retry": "Reintentar",
     "close": "Cerrar"
+  },
+  "hardwareFleet": {
+    "title": "Resumen del hardware de la flota",
+    "nodesRecorded": "{count} nodos registrados",
+    "loading": "Cargando el resumen de hardware…",
+    "noData": "No hay datos disponibles",
+    "loadError": "No se pudo cargar el resumen de hardware",
+    "issues": "{count} incidencias",
+    "issueVolumeUsage": "La unidad {drive} está al {percent}%",
+    "issueDiskHealth": "Disco {model}: {status}",
+    "totalStorage": "Almacenamiento total",
+    "used": "{used} TB usados ({percent}%)",
+    "physicalDisks": "Discos físicos",
+    "diskTypes": "Tipos de disco",
+    "virtual": "Virtual",
+    "unknownType": "Desconocido",
+    "cpuTypes": "Tipos de CPU",
+    "physicalDisksCount": "Discos físicos ({count})",
+    "host": "Host",
+    "model": "Modelo",
+    "size": "Tamaño",
+    "type": "Tipo",
+    "status": "Estado",
+    "health": {
+      "healthy": "Correcto",
+      "warning": "Advertencia",
+      "unhealthy": "Con errores",
+      "unknown": "Desconocido"
+    }
+  },
+  "tags": {
+    "manage": "Gestionar etiquetas",
+    "description": "Las etiquetas ayudan a clasificar los nodos y se pueden usar en grupos dinámicos.",
+    "current": "Etiquetas actuales",
+    "noneAssigned": "Sin etiquetas asignadas",
+    "available": "Etiquetas disponibles",
+    "noneCreated": "Todavía no hay etiquetas",
+    "allAssigned": "Todas las etiquetas asignadas",
+    "create": "Crear una etiqueta",
+    "namePlaceholder": "Nombre de la etiqueta…",
+    "done": "Listo"
   }
 }
