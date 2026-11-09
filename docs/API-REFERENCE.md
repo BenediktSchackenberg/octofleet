@@ -387,29 +387,31 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 
 See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 
+"User" routes need a login token or a personal API key whose owner has the listed permission; the shared agent key gets 403. "Agent key" routes are for agents. The Patch Explorer routes (`/api/v1/patches/explorer/*`) follow the same rules: views `packages:read`, deploy/scan/verify `packages:deploy`, `agent-updates` agent key.
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/patches/catalog` | API Key | List patches (with search, pagination) |
-| POST | `/api/v1/patches/catalog` | API Key | Create patch manually |
-| POST | `/api/v1/patches/catalog/import` | API Key | Import patches from agent scan |
-| GET | `/api/v1/patches/catalog/{patch_id}` | API Key | Get patch details with affected nodes |
-| PATCH | `/api/v1/patches/catalog/{patch_id}/approve` | API Key | Approve patch for deployment |
-| PATCH | `/api/v1/patches/catalog/{patch_id}/exclude` | API Key | Exclude patch from deployment |
-| GET | `/api/v1/patches/compliance` | API Key | Fleet-wide patch compliance summary |
-| GET | `/api/v1/patches/compliance/nodes` | API Key | Per-node compliance breakdown |
-| GET | `/api/v1/patches/rings` | API Key | List patch rings |
-| POST | `/api/v1/patches/rings` | API Key | Create ring |
-| PUT | `/api/v1/patches/rings/{ring_id}` | API Key | Update ring |
-| DELETE | `/api/v1/patches/rings/{ring_id}` | API Key | Delete ring |
-| GET | `/api/v1/patches/deployments` | API Key | List patch deployments |
-| POST | `/api/v1/patches/deployments` | API Key | Create patch deployment |
-| GET | `/api/v1/patches/deployments/{id}` | API Key | Get deployment details |
-| POST | `/api/v1/patches/deployments/{id}/pause` | API Key | Pause deployment |
-| POST | `/api/v1/patches/deployments/{id}/resume` | API Key | Resume deployment |
-| POST | `/api/v1/patches/deployments/{id}/cancel` | API Key | Cancel deployment |
-| POST | `/api/v1/patches/scan-results` | API Key | Agent submits scan results |
-| GET | `/api/v1/patches/pending/{node_id}` | API Key | Get pending patches for node |
-| POST | `/api/v1/patches/results` | API Key | Agent submits installation results |
+| GET | `/api/v1/patches/catalog` | User: `packages:read` | List patches (with search, pagination) |
+| POST | `/api/v1/patches/catalog` | User: `packages:write` | Create patch manually |
+| POST | `/api/v1/patches/catalog/import` | User: `packages:write` | Import patches from agent scan |
+| GET | `/api/v1/patches/catalog/{patch_id}` | User: `packages:read` | Get patch details with affected nodes |
+| PATCH | `/api/v1/patches/catalog/{patch_id}/approve` | User: `packages:write` | Approve patch for deployment |
+| PATCH | `/api/v1/patches/catalog/{patch_id}/exclude` | User: `packages:write` | Exclude patch from deployment |
+| GET | `/api/v1/patches/compliance` | User: `compliance:read` | Fleet-wide patch compliance summary |
+| GET | `/api/v1/patches/compliance/nodes` | User: `compliance:read` | Per-node compliance breakdown |
+| GET | `/api/v1/patches/rings` | User: `packages:read` | List patch rings |
+| POST | `/api/v1/patches/rings` | User: `packages:write` | Create ring |
+| PUT | `/api/v1/patches/rings/{ring_id}` | User: `packages:write` | Update ring |
+| DELETE | `/api/v1/patches/rings/{ring_id}` | User: `packages:write` | Delete ring |
+| GET | `/api/v1/patches/deployments` | User: `packages:read` | List patch deployments |
+| POST | `/api/v1/patches/deployments` | User: `packages:deploy` | Create patch deployment |
+| GET | `/api/v1/patches/deployments/{id}` | User: `packages:read` | Get deployment details |
+| POST | `/api/v1/patches/deployments/{id}/pause` | User: `packages:deploy` | Pause deployment |
+| POST | `/api/v1/patches/deployments/{id}/resume` | User: `packages:deploy` | Resume deployment |
+| POST | `/api/v1/patches/deployments/{id}/cancel` | User: `packages:deploy` | Cancel deployment |
+| POST | `/api/v1/patches/scan-results` | Agent key | Agent submits scan results |
+| GET | `/api/v1/patches/pending/{node_id}` | Agent key | Get pending patches for node |
+| POST | `/api/v1/patches/results` | Agent key | Agent submits installation results |
 
 ### Configuration Baselines
 

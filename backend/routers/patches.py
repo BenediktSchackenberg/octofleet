@@ -5,6 +5,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from auth import require_user_permission
 from dependencies import get_pool, verify_api_key
 
 router = APIRouter(tags=["Patches"])
@@ -17,7 +18,7 @@ def _is_uuid(val: str) -> bool:
         return False
 
 
-@router.get("/api/v1/patches/catalog", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/catalog", dependencies=[Depends(require_user_permission("packages:read"))])
 async def list_patch_catalog(
     severity: str = None, category: str = None, approved: str = None,
     search: str = None, limit: int = 100, offset: int = 0
@@ -48,7 +49,7 @@ async def list_patch_catalog(
         return {"items": [dict(r) for r in rows], "total": total}
 
 
-@router.post("/api/v1/patches/catalog", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/catalog", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_patch(data: dict):
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
@@ -60,7 +61,7 @@ async def create_patch(data: dict):
         return dict(row)
 
 
-@router.post("/api/v1/patches/catalog/import", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/catalog/import", dependencies=[Depends(require_user_permission("packages:write"))])
 async def import_patches(data: dict):
     """Import patches from agent scan results. Expects {node_id, patches: [{kb_id, title, ...}]}"""
     node_id = data.get("node_id")
@@ -69,9 +70,10 @@ async def import_patches(data: dict):
     if node_id and not _is_uuid(node_id):
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT node_id FROM nodes WHERE UPPER(hostname) = UPPER($1)", node_id)
-            if row:
-                node_id = str(row["node_id"])
+                "SELECT id FROM nodes WHERE UPPER(hostname) = UPPER($1) OR node_id = $1", node_id)
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Unknown node: {node_id}")
+            node_id = str(row["id"])
     imported = 0
     async with get_pool().acquire() as conn:
         for p in patches:
@@ -108,7 +110,7 @@ async def import_patches(data: dict):
     return {"imported": imported, "total": len(patches)}
 
 
-@router.patch("/api/v1/patches/catalog/{patch_id}/approve", dependencies=[Depends(verify_api_key)])
+@router.patch("/api/v1/patches/catalog/{patch_id}/approve", dependencies=[Depends(require_user_permission("packages:write"))])
 async def approve_patch(patch_id: str, request: Request):
     user = getattr(request.state, "user", None)
     username = user.get("username", "system") if user else "system"
@@ -120,7 +122,7 @@ async def approve_patch(patch_id: str, request: Request):
         return {"status": "approved"}
 
 
-@router.patch("/api/v1/patches/catalog/{patch_id}/exclude", dependencies=[Depends(verify_api_key)])
+@router.patch("/api/v1/patches/catalog/{patch_id}/exclude", dependencies=[Depends(require_user_permission("packages:write"))])
 async def exclude_patch(patch_id: str):
     async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_catalog SET is_excluded=true, is_approved=false WHERE id=$1", patch_id)
@@ -129,7 +131,7 @@ async def exclude_patch(patch_id: str):
         return {"status": "excluded"}
 
 
-@router.get("/api/v1/patches/catalog/{patch_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/catalog/{patch_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def get_patch_detail(patch_id: str):
     async with get_pool().acquire() as conn:
         patch = await conn.fetchrow("SELECT * FROM patch_catalog WHERE id=$1", patch_id)
@@ -145,7 +147,7 @@ async def get_patch_detail(patch_id: str):
         return result
 
 
-@router.get("/api/v1/patches/compliance", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/compliance", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_patch_compliance():
     async with get_pool().acquire() as conn:
         total_patches = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog")
@@ -181,7 +183,7 @@ async def get_patch_compliance():
         }
 
 
-@router.get("/api/v1/patches/compliance/nodes", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/compliance/nodes", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_node_compliance(limit: int = 100, offset: int = 0):
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
@@ -199,14 +201,14 @@ async def get_node_compliance(limit: int = 100, offset: int = 0):
         return {"items": [dict(r) for r in rows]}
 
 
-@router.get("/api/v1/patches/rings", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/rings", dependencies=[Depends(require_user_permission("packages:read"))])
 async def list_patch_rings():
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM patch_rings ORDER BY priority")
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/patches/rings", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/rings", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_patch_ring(data: dict):
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
@@ -217,7 +219,7 @@ async def create_patch_ring(data: dict):
         return dict(row)
 
 
-@router.put("/api/v1/patches/rings/{ring_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/patches/rings/{ring_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def update_patch_ring(ring_id: str, data: dict):
     async with get_pool().acquire() as conn:
         await conn.execute("""
@@ -230,14 +232,14 @@ async def update_patch_ring(ring_id: str, data: dict):
         return dict(row) if row else {"error": "not found"}
 
 
-@router.delete("/api/v1/patches/rings/{ring_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/patches/rings/{ring_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_patch_ring(ring_id: str):
     async with get_pool().acquire() as conn:
         await conn.execute("DELETE FROM patch_rings WHERE id=$1", ring_id)
         return {"deleted": True}
 
 
-@router.get("/api/v1/patches/deployments", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/deployments", dependencies=[Depends(require_user_permission("packages:read"))])
 async def list_patch_deployments(status: str = None, limit: int = 50, offset: int = 0):
     async with get_pool().acquire() as conn:
         where = ""
@@ -254,7 +256,7 @@ async def list_patch_deployments(status: str = None, limit: int = 50, offset: in
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/patches/deployments", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/deployments", dependencies=[Depends(require_user_permission("packages:deploy"))])
 async def create_patch_deployment(data: dict, request: Request):
     user = getattr(request.state, "user", None)
     username = user.get("username", "system") if user else "system"
@@ -311,7 +313,7 @@ async def create_patch_deployment(data: dict, request: Request):
         return dict(row)
 
 
-@router.get("/api/v1/patches/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/deployments/{deployment_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def get_patch_deployment(deployment_id: str):
     async with get_pool().acquire() as conn:
         dep = await conn.fetchrow("""
@@ -340,21 +342,21 @@ async def get_patch_deployment(deployment_id: str):
         return result
 
 
-@router.post("/api/v1/patches/deployments/{deployment_id}/pause", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/deployments/{deployment_id}/pause", dependencies=[Depends(require_user_permission("packages:deploy"))])
 async def pause_patch_deployment(deployment_id: str):
     async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_deployments SET status='paused' WHERE id=$1 AND status='in_progress'", deployment_id)
         return {"status": "paused"}
 
 
-@router.post("/api/v1/patches/deployments/{deployment_id}/resume", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/deployments/{deployment_id}/resume", dependencies=[Depends(require_user_permission("packages:deploy"))])
 async def resume_patch_deployment(deployment_id: str):
     async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_deployments SET status='in_progress' WHERE id=$1 AND status='paused'", deployment_id)
         return {"status": "in_progress"}
 
 
-@router.post("/api/v1/patches/deployments/{deployment_id}/cancel", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/deployments/{deployment_id}/cancel", dependencies=[Depends(require_user_permission("packages:deploy"))])
 async def cancel_patch_deployment(deployment_id: str):
     async with get_pool().acquire() as conn:
         await conn.execute("UPDATE patch_deployments SET status='cancelled', completed_at=NOW() WHERE id=$1", deployment_id)
@@ -362,13 +364,13 @@ async def cancel_patch_deployment(deployment_id: str):
         return {"status": "cancelled"}
 
 
-@router.post("/api/v1/patches/scan-results")
+@router.post("/api/v1/patches/scan-results", dependencies=[Depends(verify_api_key)])
 async def submit_patch_scan_results(data: dict):
     """Agent submits available Windows Updates. Same as import but explicit agent endpoint."""
     return await import_patches(data)
 
 
-@router.get("/api/v1/patches/pending/{node_id}")
+@router.get("/api/v1/patches/pending/{node_id}", dependencies=[Depends(verify_api_key)])
 async def get_pending_patches(node_id: str):
     """Agent polls for patches it needs to install."""
     async with get_pool().acquire() as conn:
@@ -385,7 +387,7 @@ async def get_pending_patches(node_id: str):
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/patches/results")
+@router.post("/api/v1/patches/results", dependencies=[Depends(verify_api_key)])
 async def submit_patch_results(data: dict):
     """Agent submits install results for patches."""
     async with get_pool().acquire() as conn:
