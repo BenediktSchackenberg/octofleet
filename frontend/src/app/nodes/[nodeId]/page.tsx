@@ -84,6 +84,12 @@ function tpmManufacturer(tpm: any): string | null {
   return /^[\x20-\x7e]+$/.test(text) ? text : String(id);
 }
 
+/** Cookie categories as the API names them -> translation keys. */
+const COOKIE_CATEGORIES: Record<string, string> = {
+  "Banking/Finance": "banking", "Password Manager": "passwordManager", "Cloud Provider": "cloud",
+  "Email": "email", "Auth Provider": "authProvider", "Communication": "communication", "Sensitive": "sensitive",
+};
+
 /** Firewall profiles: the agent sends a list of {name, enabled}; older data a map name -> {enabled}. */
 function firewallProfiles(profiles: unknown): [string, { enabled?: boolean }][] {
   if (Array.isArray(profiles)) return profiles.map((p: any) => [String(p?.name ?? "?"), p]);
@@ -1111,15 +1117,15 @@ export default function NodeDetailPage() {
 
           <TabsContent value="browser" className="space-y-4">
             {/* Security Warnings */}
-            {criticalCookies && criticalCookies.warnings?.length > 0 && (
+            {criticalCookies && (criticalCookies.warningCodes?.length ?? 0) > 0 && (
               <Card className="border-yellow-500 bg-yellow-500/10">
                 <CardHeader>
                   <CardTitle className="text-yellow-600 dark:text-yellow-400">⚠️ {t("nodeDetail.securityNotices")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    {criticalCookies.warnings?.map((warning, i) => (
-                      <li key={i} className="text-sm">{warning}</li>
+                    {(criticalCookies.warningCodes ?? []).map((code) => (
+                      <li key={code} className="text-sm">{t(`nodeDetail.cookieWarnings.${code}`)}</li>
                     ))}
                   </ul>
                 </CardContent>
@@ -1143,7 +1149,7 @@ export default function NodeDetailPage() {
                     {Object.entries(criticalCookies?.summary || {}).map(([category, data]) => (
                       <div key={category} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-sm">{category}</span>
+                          <span className="font-medium text-sm">{COOKIE_CATEGORIES[category] ? t(`nodeDetail.cookieCategory.${COOKIE_CATEGORIES[category]}`) : category}</span>
                           <Badge variant="outline">{data.count}</Badge>
                         </div>
                         <div className="flex flex-wrap gap-1">
@@ -1179,7 +1185,7 @@ export default function NodeDetailPage() {
                             {cookie.name}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-xs">{cookie.category}</Badge>
+                            <Badge variant="outline" className="text-xs">{COOKIE_CATEGORIES[cookie.category] ? t(`nodeDetail.cookieCategory.${COOKIE_CATEGORIES[cookie.category]}`) : cookie.category}</Badge>
                           </TableCell>
                           <TableCell className="text-xs">{cookie.browser}</TableCell>
                           <TableCell className="space-x-1">

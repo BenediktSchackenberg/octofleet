@@ -840,6 +840,22 @@
         "4": "Ask for consent",
         "5": "Ask for consent for non-Windows binaries (default)"
       }
+    },
+    "cookieWarnings": {
+      "notSecure": "Some critical cookies are not marked Secure (vulnerable to man-in-the-middle attacks)",
+      "notHttpOnly": "Some critical cookies are not HttpOnly (readable by scripts, vulnerable to XSS)",
+      "passwordManager": "Password manager cookies found – high-value target",
+      "banking": "Banking/finance cookies found – watch for unauthorized access",
+      "authProvider": "Sign-in provider cookies found – could be used for session hijacking"
+    },
+    "cookieCategory": {
+      "banking": "Banking/finance",
+      "passwordManager": "Password manager",
+      "cloud": "Cloud provider",
+      "email": "Email",
+      "authProvider": "Sign-in provider",
+      "communication": "Communication",
+      "sensitive": "Sensitive"
     }
   },
   "navGroups": {

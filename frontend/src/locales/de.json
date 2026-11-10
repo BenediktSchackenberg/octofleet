@@ -840,6 +840,22 @@
         "4": "Zustimmung abfragen",
         "5": "Zustimmung für Nicht-Windows-Programme abfragen (Standard)"
       }
+    },
+    "cookieWarnings": {
+      "notSecure": "Einige kritische Cookies sind nicht als Secure markiert (anfällig für Man-in-the-Middle-Angriffe)",
+      "notHttpOnly": "Einige kritische Cookies sind nicht HttpOnly (für Skripte lesbar, anfällig für XSS)",
+      "passwordManager": "Cookies von Passwort-Managern gefunden – lohnendes Angriffsziel",
+      "banking": "Cookies von Banken/Finanzdiensten gefunden – auf unbefugten Zugriff achten",
+      "authProvider": "Cookies von Anmeldediensten gefunden – könnten für Session-Hijacking genutzt werden"
+    },
+    "cookieCategory": {
+      "banking": "Banken/Finanzen",
+      "passwordManager": "Passwort-Manager",
+      "cloud": "Cloud-Anbieter",
+      "email": "E-Mail",
+      "authProvider": "Anmeldedienst",
+      "communication": "Kommunikation",
+      "sensitive": "Sensibel"
     }
   },
   "navGroups": {

@@ -34,6 +34,7 @@ AGENT_ROUTES = (
     ("POST", "/api/v1/inventory/hotfixes"), ("POST", "/api/v1/inventory/system"),
     ("POST", f"/api/v1/jobs/instances/{ID}/result"), ("POST", f"/api/v1/remediation/jobs/{ID}/result"),
     ("POST", "/api/v1/agents/HOST/health"), ("POST", "/api/v1/live-data"),
+    ("POST", "/api/v1/inventory/security"), ("POST", "/api/v1/inventory/network"), ("POST", "/api/v1/inventory/browser"),
 )
 # (method, path, permission)
 ADMIN_ROUTES = (

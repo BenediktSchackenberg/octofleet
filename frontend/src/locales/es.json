@@ -840,6 +840,22 @@
         "4": "Pedir consentimiento",
         "5": "Pedir consentimiento para programas que no son de Windows (predeterminado)"
       }
+    },
+    "cookieWarnings": {
+      "notSecure": "Algunas cookies críticas no están marcadas como Secure (vulnerables a ataques de intermediario)",
+      "notHttpOnly": "Algunas cookies críticas no son HttpOnly (legibles por scripts, vulnerables a XSS)",
+      "passwordManager": "Se encontraron cookies de gestores de contraseñas: objetivo de alto valor",
+      "banking": "Se encontraron cookies de banca/finanzas: vigile accesos no autorizados",
+      "authProvider": "Se encontraron cookies de proveedores de inicio de sesión: podrían usarse para secuestrar sesiones"
+    },
+    "cookieCategory": {
+      "banking": "Banca/finanzas",
+      "passwordManager": "Gestor de contraseñas",
+      "cloud": "Proveedor de nube",
+      "email": "Correo electrónico",
+      "authProvider": "Proveedor de inicio de sesión",
+      "communication": "Comunicación",
+      "sensitive": "Sensible"
     }
   },
   "navGroups": {

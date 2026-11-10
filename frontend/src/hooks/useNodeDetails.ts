@@ -53,6 +53,7 @@ export interface CriticalCookiesData {
   count: number;
   summary: Record<string, { count: number; domains: string[] }>;
   warnings: string[];
+  warningCodes?: string[];
 }
 
 export interface HardwareData {

@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from datetime import date, datetime
 from typing import Any, Dict
@@ -10,6 +11,8 @@ from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
 from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
 from auth import require_permission, require_user_permission
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/inventory",
@@ -261,8 +264,29 @@ async def get_browser_inventory(node_id: str, db: asyncpg.Pool = Depends(get_db)
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        rows = await conn.fetch("SELECT browser, profile, username, history_count, bookmark_count, cookies_count, logins_count, extensions, updated_at FROM browser_current WHERE node_id = $1", node['id'])
-        return {"browsers": [dict(r) for r in rows]}
+        rows = await conn.fetch("""
+            SELECT browser, profile, username, history_count, bookmark_count, cookies_count, logins_count, extensions
+            FROM browser_current WHERE node_id = $1 ORDER BY username, browser, profile
+        """, node['id'])
+        users: Dict[str, Any] = {}
+        for row in rows:
+            browser = users.setdefault(row["username"] or "unknown", {}).setdefault(
+                row["browser"], {"profiles": [], "extensionCount": 0})
+            extensions = json.loads(row["extensions"]) if row["extensions"] else []
+            browser["profiles"].append({
+                "name": row["profile"], "historyCount": row["history_count"], "bookmarkCount": row["bookmark_count"],
+                "cookiesCount": row["cookies_count"], "loginsCount": row["logins_count"], "extensions": extensions,
+            })
+            browser["extensionCount"] += len(extensions)
+        cookie_rows = await conn.fetch("""
+            SELECT username, browser, profile, domain, COUNT(*) AS count FROM browser_cookies WHERE node_id = $1
+            GROUP BY username, browser, profile, domain ORDER BY username, browser, profile, count DESC
+        """, node['id'])
+        cookies: Dict[str, list] = {}
+        for row in cookie_rows:
+            cookies.setdefault(row["username"], []).append(
+                {"browser": row["browser"], "profile": row["profile"], "domain": row["domain"], "count": row["count"]})
+        return {"data": {"users": users, "cookies": cookies}}
 
 @router.post("/hardware", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
@@ -371,6 +395,109 @@ async def store_security(db: asyncpg.Pool, node_id_str: str, hostname: str, sec:
     return uuid
 
 
+async def store_network(db: asyncpg.Pool, node_id_str: str, hostname: str, net: Dict[str, Any]):
+    """Store the network section of a Windows agent's inventory (NetworkCollector)."""
+    uuid = await upsert_node(db, node_id_str, hostname)
+    conns = net.get("connections")
+    connections = conns.get("connections", []) if isinstance(conns, dict) else (conns or [])
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO network_current (node_id, adapters, connections, listening_ports, updated_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET adapters = EXCLUDED.adapters, connections = EXCLUDED.connections,
+                listening_ports = EXCLUDED.listening_ports, updated_at = NOW()
+        """, uuid, json.dumps(net.get("networkInterfaces") or []), json.dumps(connections),
+            json.dumps(net.get("openPorts") or []))
+    return uuid
+
+
+def _cut(value, length):
+    """Text cut to the column length (browser data from agents can be longer, e.g. cookie names)."""
+    return None if value is None else str(value)[:length]
+
+
+def _cookie_expiry(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+async def store_browser(db: asyncpg.Pool, node_id_str: str, hostname: str, browser: Dict[str, Any]):
+    """Store the browser section (BrowserCollector: users -> chrome/edge/firefox -> profiles).
+
+    Profiles with their counts and extensions go to browser_current; cookie names and domains (never
+    values – the agent does not send them) to browser_cookies, for the cookie and critical-cookie views.
+    """
+    uuid = await upsert_node(db, node_id_str, hostname)
+    profiles, cookies = [], []
+    for user in browser.get("users") or []:
+        username = user.get("username") or "unknown"
+        for key in ("chrome", "edge", "firefox"):
+            data = user.get(key)
+            if not isinstance(data, dict) or not data.get("installed"):
+                continue
+            name = key.title()
+            for profile in data.get("profiles") or []:
+                profile_name = _cut(profile.get("name") or "Default", 255)
+                profiles.append((uuid, name, profile_name, _cut(username, 255), profile.get("historyCount"),
+                                 profile.get("bookmarksCount"), profile.get("cookiesCount"), profile.get("loginsCount"),
+                                 json.dumps(profile.get("extensions") or [])))
+                for cookie in profile.get("cookies") or []:
+                    if cookie.get("domain") == "ERROR":
+                        continue
+                    cookies.append((uuid, _cut(username, 255), name, profile_name, _cut(cookie.get("domain", ""), 255),
+                                    _cut(cookie.get("name", ""), 255), _cut(cookie.get("path", "/"), 512),
+                                    _cookie_expiry(cookie.get("expiresUtc")),
+                                    bool(cookie.get("isSecure")), bool(cookie.get("isHttpOnly")), _cut(cookie.get("sameSite"), 20),
+                                    bool(cookie.get("isSession")), bool(cookie.get("isExpired"))))
+    async with db.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM browser_current WHERE node_id = $1", uuid)
+            await conn.execute("DELETE FROM browser_cookies WHERE node_id = $1", uuid)
+            if profiles:
+                await conn.executemany("""
+                    INSERT INTO browser_current (node_id, browser, profile, username, history_count, bookmark_count,
+                                                 cookies_count, logins_count, extensions, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                    ON CONFLICT (node_id, browser, profile) DO UPDATE SET username = EXCLUDED.username,
+                        history_count = EXCLUDED.history_count, bookmark_count = EXCLUDED.bookmark_count,
+                        cookies_count = EXCLUDED.cookies_count, logins_count = EXCLUDED.logins_count,
+                        extensions = EXCLUDED.extensions, updated_at = NOW()
+                """, profiles)
+            if cookies:
+                await conn.executemany("""
+                    INSERT INTO browser_cookies (node_id, username, browser, profile, domain, name, path, expires_utc,
+                                                 is_secure, is_http_only, same_site, is_session, is_expired, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+                    ON CONFLICT (node_id, username, browser, profile, domain, name) DO UPDATE SET
+                        path = EXCLUDED.path, expires_utc = EXCLUDED.expires_utc, is_secure = EXCLUDED.is_secure,
+                        is_http_only = EXCLUDED.is_http_only, same_site = EXCLUDED.same_site,
+                        is_session = EXCLUDED.is_session, is_expired = EXCLUDED.is_expired, updated_at = NOW()
+                """, cookies)
+    return uuid
+
+
+@router.post("/network", dependencies=[Depends(require_permission("inventory:write"))])
+async def submit_network(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit network inventory"""
+    data = sanitize_for_postgres(data)
+    hostname = data.get("hostname", "unknown")
+    uuid = await store_network(db, data.get("nodeId", hostname), hostname, data)
+    return {"status": "ok", "node_id": str(uuid), "type": "network"}
+
+
+@router.post("/browser", dependencies=[Depends(require_permission("inventory:write"))])
+async def submit_browser(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit browser inventory"""
+    data = sanitize_for_postgres(data)
+    hostname = data.get("hostname", "unknown")
+    uuid = await store_browser(db, data.get("nodeId", hostname), hostname, data)
+    return {"status": "ok", "node_id": str(uuid), "type": "browser"}
+
+
 @router.post("/security", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_security(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit security inventory"""
@@ -405,10 +532,23 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     if sys_data.get("os") or sys_data.get("services"):
         await submit_system({"hostname": hostname, "nodeId": data.get("nodeId", hostname), **sys_data}, db)
         results["submitted"].append("system")
-    sec_data = data.get("security")
-    if isinstance(sec_data, dict) and any(sec_data.get(k) for k in ("antivirus", "firewall", "tpm", "uac", "bitlocker", "localAdmins")):
-        await store_security(db, data.get("nodeId", hostname), hostname, sec_data)
-        results["submitted"].append("security")
+    # Security, network and browser are stored on their own: a problem in one section must not fail
+    # the whole push (the agent would then report nothing at all)
+    sections = (
+        ("security", store_security, ("antivirus", "firewall", "tpm", "uac", "bitlocker", "localAdmins")),
+        ("network", store_network, ("networkInterfaces", "connections", "openPorts")),
+        ("browser", store_browser, ("users",)),
+    )
+    for name, store, keys in sections:
+        section = data.get(name)
+        if not (isinstance(section, dict) and any(section.get(k) for k in keys)):
+            continue
+        try:
+            await store(db, data.get("nodeId", hostname), hostname, section)
+            results["submitted"].append(name)
+        except Exception:
+            logger.exception("Storing the %s section of %s failed", name, hostname)
+            results.setdefault("failed", []).append(name)
     linux_keys = ("performance", "services", "updates", "diskHealth")
     if any(isinstance(data.get(k), dict) for k in linux_keys):
         await submit_linux_data(hostname, data.get("nodeId", hostname), data, db)
