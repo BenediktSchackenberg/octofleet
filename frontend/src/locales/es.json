@@ -866,7 +866,7 @@
       "passwordLogin": "Inicio de sesión con contraseña",
       "notReported": "No informado: actualice el agente",
       "noMac": "Ni SELinux ni AppArmor activos",
-      "administrators": "Administradores (sudo)",
+      "administrators": "Usuarios con permisos de sudo",
       "loginUsers": "Usuarios con shell de inicio de sesión"
     }
   },

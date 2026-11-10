@@ -866,7 +866,7 @@
       "passwordLogin": "Password login",
       "notReported": "Not reported – update the agent",
       "noMac": "Neither SELinux nor AppArmor active",
-      "administrators": "Administrators (sudo)",
+      "administrators": "Users with sudo rights",
       "loginUsers": "Users with a login shell"
     }
   },

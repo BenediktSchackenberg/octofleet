@@ -866,7 +866,7 @@
       "passwordLogin": "Anmeldung mit Kennwort",
       "notReported": "Nicht gemeldet – Agent aktualisieren",
       "noMac": "Weder SELinux noch AppArmor aktiv",
-      "administrators": "Administratoren (sudo)",
+      "administrators": "Benutzer mit sudo-Rechten",
       "loginUsers": "Benutzer mit Login-Shell"
     }
   },
