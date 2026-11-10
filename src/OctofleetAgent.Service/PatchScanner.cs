@@ -296,9 +296,14 @@ public class PatchScanner : BackgroundService
                 }).ToArray()
             };
 
-            var response = await _httpClient.PostAsJsonAsync(
-                $"{baseUrl}/api/v1/patches/scan-results",
-                payload, JsonOptions, ct);
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/v1/patches/scan-results")
+            {
+                Content = JsonContent.Create(payload, options: JsonOptions)
+            };
+            var config = ServiceConfig.Load();
+            if (!string.IsNullOrEmpty(config.InventoryApiKey))
+                request.Headers.Add("X-API-Key", config.InventoryApiKey);
+            var response = await _httpClient.SendAsync(request, ct);
 
             if (response.IsSuccessStatusCode)
             {

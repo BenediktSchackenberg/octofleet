@@ -49,6 +49,10 @@ public class RemediationPoller : BackgroundService
             await Task.Delay(5000, stoppingToken);
         }
 
+        // The agent routes require the agent key
+        _httpClient.DefaultRequestHeaders.Remove("X-API-Key");
+        _httpClient.DefaultRequestHeaders.Add("X-API-Key", ServiceConfig.Load().InventoryApiKey);
+
         var nodeId = $"win-{Environment.MachineName.ToLowerInvariant()}";
         _logger.LogInformation("RemediationPoller configured for node: {NodeId}", nodeId);
 

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
+from auth import require_user_permission
 from provisioning_config import ProvisioningConfig, load_config
 
 vm_router = APIRouter(prefix="/api/v1/provisioning/vm", tags=["provisioning-vm"])
@@ -295,7 +296,7 @@ async def get_db():
         yield conn
 
 
-@vm_router.post("/create", response_model=VMCreateResponse)
+@vm_router.post("/create", response_model=VMCreateResponse, dependencies=[Depends(require_user_permission("nodes:write"))])
 async def create_vm_and_provision(
     request: VMCreateRequest,
     conn = Depends(get_db)

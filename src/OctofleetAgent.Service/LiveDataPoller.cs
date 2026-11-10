@@ -51,6 +51,10 @@ public class LiveDataPoller : BackgroundService
             await Task.Delay(1000, stoppingToken);
         }
 
+        // The agent routes require the agent key
+        _httpClient.DefaultRequestHeaders.Remove("X-API-Key");
+        _httpClient.DefaultRequestHeaders.Add("X-API-Key", ServiceConfig.Load().InventoryApiKey);
+
         // Initial delay
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
 

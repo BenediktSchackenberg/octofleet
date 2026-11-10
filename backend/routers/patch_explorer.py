@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from dependencies import get_pool, verify_api_key, verify_api_key_or_query
+from auth import require_permission, require_user_permission
+from dependencies import get_pool, verify_api_key_or_query
 from vulnerability import COUNTED
 
 router = APIRouter(tags=["Patch Explorer"])
@@ -55,7 +56,7 @@ def _os_icon(os_name: str) -> str:
 # 1. GET /api/v1/patches/explorer/tree
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/tree", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/tree", dependencies=[Depends(require_user_permission("packages:read"))])
 async def explorer_tree():
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
@@ -91,7 +92,7 @@ async def explorer_tree():
 # 2. GET /api/v1/patches/explorer/nodes
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/nodes", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/nodes", dependencies=[Depends(require_user_permission("packages:read"))])
 async def explorer_nodes(os: str = Query(...)):
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
@@ -127,7 +128,7 @@ async def explorer_nodes(os: str = Query(...)):
 # 3. GET /api/v1/patches/explorer/node/{node_id}/software
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/node/{node_id}/software", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/node/{node_id}/software", dependencies=[Depends(require_user_permission("packages:read"))])
 async def explorer_node_software(node_id: str):
     async with get_pool().acquire() as conn:
         # All software for this node, left-joined with available updates and CVEs
@@ -199,7 +200,7 @@ async def explorer_node_software(node_id: str):
 # 4. GET /api/v1/patches/explorer/search
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/search", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/search", dependencies=[Depends(require_user_permission("packages:read"))])
 async def explorer_search(q: str = Query(..., min_length=1)):
     async with get_pool().acquire() as conn:
         pattern = f"%{q}%"
@@ -240,7 +241,7 @@ async def explorer_search(q: str = Query(..., min_length=1)):
 # 5. GET /api/v1/patches/explorer/stats
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/stats", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/stats", dependencies=[Depends(require_user_permission("packages:read"))])
 async def explorer_stats():
     async with get_pool().acquire() as conn:
         total_nodes = await conn.fetchval("SELECT COUNT(*) FROM nodes")
@@ -280,7 +281,7 @@ class DeployRequest(BaseModel):
     reboot_policy: str = "no_reboot"
     name: str = "Patch Explorer Deployment"
 
-@router.post("/api/v1/patches/explorer/deploy", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/explorer/deploy", dependencies=[Depends(require_user_permission("packages:deploy"))])
 async def explorer_deploy(data: DeployRequest, request: Request):
     user = getattr(request.state, "user", None)
     username = user.get("username", "system") if user else "system"
@@ -366,7 +367,7 @@ async def explorer_deploy(data: DeployRequest, request: Request):
 # 8. GET /api/v1/patches/explorer/by-update
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/by-update", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/by-update", dependencies=[Depends(require_user_permission("packages:read"))])
 async def explorer_by_update():
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
@@ -432,7 +433,7 @@ async def explorer_by_update():
 # 9. GET /api/v1/patches/explorer/deployment-status/{deployment_id}
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/deployment-status/{deployment_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/deployment-status/{deployment_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def explorer_deployment_status(deployment_id: str):
     async with get_pool().acquire() as conn:
         dep = await conn.fetchrow(
@@ -505,7 +506,7 @@ class AgentUpdatesPayload(BaseModel):
     hostname: str
     updates: List[AgentUpdate]
 
-@router.post("/api/v1/patches/explorer/agent-updates")
+@router.post("/api/v1/patches/explorer/agent-updates", dependencies=[Depends(require_permission("inventory:write"))])
 async def agent_submit_updates(data: AgentUpdatesPayload):
     async with get_pool().acquire() as conn:
         # Resolve hostname → node UUID
@@ -546,7 +547,7 @@ async def agent_submit_updates(data: AgentUpdatesPayload):
 # 8. POST /api/v1/patches/explorer/scan — Trigger on-demand patch scan on nodes
 # ---------------------------------------------------------------------------
 
-@router.post("/api/v1/patches/explorer/scan", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/explorer/scan", dependencies=[Depends(require_user_permission("packages:deploy"))])
 async def trigger_patch_scan(data: dict, request: Request):
     """Create patch_scan jobs for specified nodes."""
     user = getattr(request.state, "user", None)
@@ -676,7 +677,7 @@ async def deploy_stream(deployment_id: str):
 # Phase 5: Verify deployment
 # ---------------------------------------------------------------------------
 
-@router.post("/api/v1/patches/explorer/verify/{deployment_id}", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/explorer/verify/{deployment_id}", dependencies=[Depends(require_user_permission("packages:deploy"))])
 async def verify_deployment(deployment_id: str, request: Request):
     """Trigger patch_scan on all deployed nodes, compare pre/post updates."""
     user = getattr(request.state, "user", None)
@@ -735,7 +736,7 @@ async def verify_deployment(deployment_id: str, request: Request):
 # Phase 5: Deployment history
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/deployment-history", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/explorer/deployment-history", dependencies=[Depends(require_user_permission("packages:read"))])
 async def deployment_history(limit: int = Query(50, le=200), offset: int = Query(0)):
     """List past deployments with status and results."""
     async with get_pool().acquire() as conn:

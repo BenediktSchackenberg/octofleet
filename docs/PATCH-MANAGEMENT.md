@@ -70,6 +70,18 @@ The Windows agent includes `PatchScanner.cs`, which:
 
 ## API Reference
 
+### Permissions
+
+| What | Permission |
+|---|---|
+| Read the catalog, rings, deployments and the Patch Explorer | `packages:read` |
+| Compliance views | `compliance:read` |
+| Create, import, approve or exclude patches; manage rings | `packages:write` |
+| Start, pause, resume or cancel deployments; Patch Explorer deploy, scan and verify | `packages:deploy` |
+| Agent routes (`scan-results`, `pending/{node_id}`, `results`, `explorer/agent-updates`) | agent key |
+
+The built-in `viewer` role can read; `operator` and `admin` can also change and deploy. The shared agent key cannot use the user routes.
+
 ### Catalog
 
 | Method | Path | Description |

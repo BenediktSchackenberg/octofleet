@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 
 from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
-from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres, verify_api_key
+from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
 from auth import require_permission, require_user_permission
 
 router = APIRouter(
@@ -258,7 +258,7 @@ async def get_browser_inventory(node_id: str, db: asyncpg.Pool = Depends(get_db)
         rows = await conn.fetch("SELECT browser, profile, username, history_count, bookmark_count, cookies_count, logins_count, extensions, updated_at FROM browser_current WHERE node_id = $1", node['id'])
         return {"browsers": [dict(r) for r in rows]}
 
-@router.post("/hardware")
+@router.post("/hardware", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit hardware inventory"""
     hostname = data.get("hostname", "unknown")
@@ -273,7 +273,7 @@ async def submit_hardware(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
         """, uuid, json.dumps(data.get("cpu", {})), json.dumps(data.get("ram") or data.get("memory", {})), json.dumps(data.get("disks", {})), json.dumps(data.get("mainboard", {})), json.dumps(data.get("bios", {})), json.dumps(data.get("gpu") or data.get("gpus", [])), json.dumps(data.get("nics") or data.get("networkAdapters", [])), json.dumps(data.get("virtualization")) if data.get("virtualization") else None)
     return {"status": "ok", "node_id": str(uuid), "type": "hardware"}
 
-@router.post("/software")
+@router.post("/software", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit software inventory"""
     hostname = data.get("hostname", "unknown")
@@ -289,7 +289,7 @@ async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
             """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, (prog.get("sourcePackage") or None), (prog.get("sourceVersion") or None), install_date_from(prog.get("installDate")), prog.get("installLocation"))
     return {"status": "ok", "node_id": str(uuid), "type": "software", "count": len(programs)}
 
-@router.post("/hotfixes")
+@router.post("/hotfixes", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_hotfixes(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit hotfix inventory"""
     hostname = data.get("hostname", "unknown")
@@ -313,7 +313,7 @@ async def submit_hotfixes(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
             await conn.execute("INSERT INTO update_history (node_id, update_id, kb_id, title, description, installed_on, operation, result_code, support_url, categories, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) ON CONFLICT (node_id, update_id) DO UPDATE SET kb_id = EXCLUDED.kb_id, title = EXCLUDED.title, description = EXCLUDED.description, installed_on = EXCLUDED.installed_on, operation = EXCLUDED.operation, result_code = EXCLUDED.result_code, support_url = EXCLUDED.support_url, categories = EXCLUDED.categories, updated_at = NOW()", uuid, update_id, upd.get("kbId"), upd.get("title", "Unknown Update")[:500], upd.get("description"), parse_datetime(upd.get("installedOn")), upd.get("operation"), upd.get("resultCode"), upd.get("supportUrl"), json.dumps(upd.get("categories", [])))
     return {"status": "ok", "node_id": str(uuid), "type": "hotfixes", "hotfixCount": len(hotfixes), "updateHistoryCount": len(update_history)}
 
-@router.post("/system")
+@router.post("/system", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit system inventory"""
     hostname = data.get("hostname", "unknown")
@@ -336,7 +336,7 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
     await update_dynamic_device_groupships(db, uuid, {"hostname": hostname, "os_name": os_info.get("name", ""), "os_version": os_info.get("version", ""), "os_build": os_build or "", "agent_version": agent_version or "", "domain": os_info.get("domain", ""), "is_domain_joined": os_info.get("isDomainJoined", False)})
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
 
-@router.post("/full")
+@router.post("/full", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit full inventory (all types at once)"""
     data = sanitize_for_postgres(data)

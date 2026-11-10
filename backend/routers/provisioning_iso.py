@@ -9,9 +9,10 @@ import re
 import subprocess
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from auth import require_user_permission
 from provisioning_config import load_config
 
 iso_router = APIRouter(prefix="/api/v1/provisioning/iso", tags=["provisioning-iso"])
@@ -173,7 +174,7 @@ async def scan_isos(path: Optional[str] = None):
     return ISOScanResponse(iso_path=path, isos=isos)
 
 
-@iso_router.post("/mount", response_model=ISOMountResponse)
+@iso_router.post("/mount", response_model=ISOMountResponse, dependencies=[Depends(require_user_permission("settings:write"))])
 async def mount_iso(request: ISOMountRequest):
     """Mount an ISO file to a loop device"""
     config = await current_config()
@@ -210,7 +211,7 @@ async def mount_iso(request: ISOMountRequest):
     )
 
 
-@iso_router.post("/unmount")
+@iso_router.post("/unmount", dependencies=[Depends(require_user_permission("settings:write"))])
 async def unmount_iso(target: str):
     """Unmount an ISO"""
     result = await run_iso_manager(["unmount", target])
@@ -249,7 +250,7 @@ async def get_wim_info(wim_path: str):
     )
 
 
-@iso_router.post("/extract-kernel")
+@iso_router.post("/extract-kernel", dependencies=[Depends(require_user_permission("settings:write"))])
 async def extract_linux_kernel(iso_mount: str, target_dir: str):
     """Extract vmlinuz and initrd from mounted Linux ISO"""
     if not os.path.isdir(iso_mount):
@@ -263,7 +264,7 @@ async def extract_linux_kernel(iso_mount: str, target_dir: str):
     return result
 
 
-@iso_router.post("/auto-setup")
+@iso_router.post("/auto-setup", dependencies=[Depends(require_user_permission("settings:write"))])
 async def auto_setup_iso(iso_path: str):
     """
     Automatically mount ISO and detect/register images.
@@ -444,7 +445,7 @@ async def list_nfs_mounts():
     return result
 
 
-@iso_router.post("/nfs/mount")
+@iso_router.post("/nfs/mount", dependencies=[Depends(require_user_permission("settings:write"))])
 async def mount_nfs_share(request: NFSMountRequest):
     """Mount an NFS share"""
     # Mount the share
@@ -461,7 +462,7 @@ async def mount_nfs_share(request: NFSMountRequest):
     return result
 
 
-@iso_router.post("/nfs/unmount")
+@iso_router.post("/nfs/unmount", dependencies=[Depends(require_user_permission("settings:write"))])
 async def unmount_nfs_share(target: str, remove_from_fstab: bool = False):
     """Unmount an NFS share"""
     result = await run_iso_manager(["nfs-unmount", target])
@@ -478,7 +479,7 @@ async def unmount_nfs_share(target: str, remove_from_fstab: bool = False):
     return result
 
 
-@iso_router.post("/nfs/fstab/add")
+@iso_router.post("/nfs/fstab/add", dependencies=[Depends(require_user_permission("settings:write"))])
 async def add_nfs_to_fstab(server_path: str, mount_target: str):
     """Add NFS mount to /etc/fstab for boot persistence"""
     result = await run_iso_manager(["nfs-add-fstab", server_path, mount_target])
@@ -489,7 +490,7 @@ async def add_nfs_to_fstab(server_path: str, mount_target: str):
     return result
 
 
-@iso_router.delete("/nfs/fstab/remove")
+@iso_router.delete("/nfs/fstab/remove", dependencies=[Depends(require_user_permission("settings:write"))])
 async def remove_nfs_from_fstab(server_path: str):
     """Remove NFS mount from /etc/fstab"""
     result = await run_iso_manager(["nfs-remove-fstab", server_path])
