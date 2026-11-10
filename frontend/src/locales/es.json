@@ -856,6 +856,18 @@
       "authProvider": "Proveedor de inicio de sesión",
       "communication": "Comunicación",
       "sensitive": "Sensible"
+    },
+    "linuxSecurity": {
+      "firewall": "Cortafuegos",
+      "firewallTool": "Herramienta",
+      "unknown": "Desconocido",
+      "port": "Puerto",
+      "rootLogin": "Inicio de sesión de root",
+      "passwordLogin": "Inicio de sesión con contraseña",
+      "notReported": "No informado: actualice el agente",
+      "noMac": "Ni SELinux ni AppArmor activos",
+      "administrators": "Administradores (sudo)",
+      "loginUsers": "Usuarios con shell de inicio de sesión"
     }
   },
   "navGroups": {

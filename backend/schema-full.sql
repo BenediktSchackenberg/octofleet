@@ -660,7 +660,8 @@ CREATE TABLE public.security_current (
     defender jsonb,
     tpm jsonb,
     uac jsonb,
-    local_admins jsonb
+    local_admins jsonb,
+    linux jsonb
 );
 CREATE TABLE public.sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

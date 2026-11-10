@@ -856,6 +856,18 @@
       "authProvider": "Anmeldedienst",
       "communication": "Kommunikation",
       "sensitive": "Sensibel"
+    },
+    "linuxSecurity": {
+      "firewall": "Firewall",
+      "firewallTool": "Werkzeug",
+      "unknown": "Unbekannt",
+      "port": "Port",
+      "rootLogin": "Root-Anmeldung",
+      "passwordLogin": "Anmeldung mit Kennwort",
+      "notReported": "Nicht gemeldet – Agent aktualisieren",
+      "noMac": "Weder SELinux noch AppArmor aktiv",
+      "administrators": "Administratoren (sudo)",
+      "loginUsers": "Benutzer mit Login-Shell"
     }
   },
   "navGroups": {

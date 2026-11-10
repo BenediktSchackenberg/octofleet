@@ -68,6 +68,7 @@ from routers.dashboard import router as dashboard_router
 from routers.deployments import router as deployments_router
 from routers.groups import router as groups_router
 from routers.hardware import router as hardware_router
+from routers.inventory import ensure_schema as ensure_inventory_schema
 from routers.inventory import router as inventory_router
 from routers.jobs import agent_router as jobs_agent_router
 from routers.jobs import job_result_succeeded
@@ -134,6 +135,7 @@ async def lifespan(app: FastAPI):
     await node_removal.ensure_schema_on(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
+    await ensure_inventory_schema(db_pool)
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.

@@ -914,6 +914,78 @@ export default function NodeDetailPage() {
 
           {/* Security Tab */}
           <TabsContent value="security" className="space-y-4">
+            {secData.linux ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader><CardTitle>🧱 {t("nodeDetail.linuxSecurity.firewall")}</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("common.status")}</span>
+                    <Badge variant={secData.linux.firewall?.status === "active" ? "default" : secData.linux.firewall?.status === "inactive" ? "destructive" : "secondary"}>
+                      {secData.linux.firewall?.status === "active" ? t("common.active") : secData.linux.firewall?.status === "inactive" ? t("common.inactive") : t("nodeDetail.linuxSecurity.unknown")}
+                    </Badge>
+                  </div>
+                  <InfoRow label={t("nodeDetail.linuxSecurity.firewallTool")} value={secData.linux.firewall?.type && secData.linux.firewall.type !== "none" ? secData.linux.firewall.type : t("common.none")} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>🔑 SSH</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardContent className="space-y-2">
+                  {secData.linux.ssh?.port || secData.linux.ssh?.permitRootLogin || secData.linux.ssh?.passwordAuthentication ? (
+                    <>
+                      <InfoRow label={t("nodeDetail.linuxSecurity.port")} value={secData.linux.ssh.port} />
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">{t("nodeDetail.linuxSecurity.rootLogin")}</span>
+                        <span className={`font-mono text-sm ${secData.linux.ssh.permitRootLogin === "yes" ? "text-destructive" : ""}`} title="PermitRootLogin">{secData.linux.ssh.permitRootLogin || "-"}</span>{/* i18n-ignore */}
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">{t("nodeDetail.linuxSecurity.passwordLogin")}</span>
+                        <span className={`font-mono text-sm ${secData.linux.ssh.passwordAuthentication === "yes" ? "text-amber-500" : ""}`} title="PasswordAuthentication">{secData.linux.ssh.passwordAuthentication || "-"}</span>{/* i18n-ignore */}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">{t("nodeDetail.linuxSecurity.notReported")}</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>🛡️ SELinux / AppArmor</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardContent className="space-y-2">
+                  {(() => {
+                    const [module, mode] = String(secData.linux.mandatoryAccessControl || "none").split(":");
+                    if (module === "none") return <p className="text-muted-foreground">{t("nodeDetail.linuxSecurity.noMac")}</p>;
+                    const enforcing = ["enabled", "enforcing"].includes((mode || "").toLowerCase());
+                    return (
+                      <div className="flex justify-between">
+                        <span>{module === "selinux" ? "SELinux" : module === "apparmor" ? "AppArmor" : module}</span>{/* i18n-ignore */}
+                        <Badge variant={enforcing ? "default" : "secondary"}>{mode || "-"}</Badge>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>👑 {t("nodeDetail.linuxSecurity.administrators")}</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {(secData.linux.sudoUsers || []).length > 0
+                      ? secData.linux.sudoUsers.map((user: string) => <Badge key={user} variant="outline">{user}</Badge>)
+                      : <span className="text-muted-foreground">{t("common.none")}</span>}
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">{t("nodeDetail.linuxSecurity.loginUsers")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(secData.linux.loginUsers || []).map((user: string) => <Badge key={user} variant="secondary">{user}</Badge>)}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            ) : (
+            <>
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader><CardTitle>🛡️ Microsoft Defender</CardTitle></CardHeader>{/* i18n-ignore */}
@@ -1095,6 +1167,8 @@ export default function NodeDetailPage() {
                   )}
                 </CardContent>
               </Card>
+            )}
+            </>
             )}
 
             {/* Deep Links to Security modules */}

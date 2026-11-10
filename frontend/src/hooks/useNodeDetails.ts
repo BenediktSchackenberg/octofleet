@@ -117,6 +117,8 @@ export interface SecurityData {
   bitlocker?: any;
   uac?: any;
   localAdmins?: any;
+  /** Linux agent: login and sudo users, SSH, firewall, SELinux/AppArmor (as sent) */
+  linux?: any;
   data?: {
     antivirus?: { name?: string; enabled?: boolean; upToDate?: boolean };
     firewall?: { enabled?: boolean; profiles?: Record<string, boolean> };

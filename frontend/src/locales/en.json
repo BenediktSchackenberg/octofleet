@@ -856,6 +856,18 @@
       "authProvider": "Sign-in provider",
       "communication": "Communication",
       "sensitive": "Sensitive"
+    },
+    "linuxSecurity": {
+      "firewall": "Firewall",
+      "firewallTool": "Tool",
+      "unknown": "Unknown",
+      "port": "Port",
+      "rootLogin": "Root login",
+      "passwordLogin": "Password login",
+      "notReported": "Not reported – update the agent",
+      "noMac": "Neither SELinux nor AppArmor active",
+      "administrators": "Administrators (sudo)",
+      "loginUsers": "Users with a login shell"
     }
   },
   "navGroups": {
