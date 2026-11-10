@@ -18,7 +18,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
     """Hardware fleet overview for the Hardware dashboard page"""
     async with db.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT h.node_id, n.hostname, h.cpu, h.ram, h.disks, h.gpu, h.mainboard, h.bios, h.updated_at
+            SELECT h.node_id, n.hostname, h.cpu, h.ram, h.disks, h.gpu, h.mainboard, h.bios, h.virtualization, h.updated_at
             FROM hardware_current h
             JOIN nodes n ON n.id = h.node_id
         """)
@@ -29,13 +29,20 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
         cpu_map = {}
         physical_disks = []
         issues = []
-        disk_types = {"ssd": 0, "hdd": 0, "unknown": 0}
+        disk_types = {"ssd": 0, "hdd": 0, "virtual": 0, "unknown": 0}
         health = {"healthy": 0, "warning": 0, "unhealthy": 0, "unknown": 0}
         
         for r in rows:
             hostname = r["hostname"] or "unknown"
             node_id = str(r["node_id"])
             
+            # Disks of a virtual machine are virtual: SSD/HDD and health belong to the host's storage
+            virt = r["virtualization"] or {}
+            if isinstance(virt, str):
+                try: virt = json.loads(virt)
+                except: virt = {}
+            is_virtual = isinstance(virt, dict) and virt.get("isVirtual") is True
+
             # CPU stats
             cpu = r["cpu"] or {}
             if isinstance(cpu, str):
@@ -61,13 +68,18 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                         issues.append({
                             "nodeId": node_id,
                             "hostname": hostname,
-                            "issue": f"Laufwerk {vol.get('driveLetter', '?')} zu {used_pct:.0f}% belegt",
+                            "issue": f"Drive {vol.get('driveLetter', '?')} is {used_pct:.0f}% full",
+                            "kind": "volumeUsage",
+                            "drive": vol.get("driveLetter"),
+                            "usedPercent": round(used_pct),
                             "severity": "critical" if used_pct > 95 else "warning"
                         })
                 
                 for pd in disks.get("physical", []):
                     is_ssd = pd.get("isSsd")
-                    if is_ssd is True:
+                    if is_virtual:
+                        disk_types["virtual"] += 1
+                    elif is_ssd is True:
                         disk_types["ssd"] += 1
                     elif is_ssd is False:
                         disk_types["hdd"] += 1
@@ -83,6 +95,9 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                             "nodeId": node_id,
                             "hostname": hostname,
                             "issue": f"Disk {pd.get('model', '?')} Status: {pd.get('healthStatus')}",
+                            "kind": "diskHealth",
+                            "model": pd.get("model"),
+                            "status": pd.get("healthStatus"),
                             "severity": "warning"
                         })
                     elif hs in ("unhealthy", "failed"):
@@ -91,6 +106,9 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                             "nodeId": node_id,
                             "hostname": hostname,
                             "issue": f"Disk {pd.get('model', '?')} Status: {pd.get('healthStatus')}",
+                            "kind": "diskHealth",
+                            "model": pd.get("model"),
+                            "status": pd.get("healthStatus"),
                             "severity": "critical"
                         })
                     else:
@@ -104,6 +122,8 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                         "isSsd": pd.get("isSsd"),
                         "healthStatus": pd.get("healthStatus", "Unknown"),
                         "busType": pd.get("busType"),
+                        "interfaceType": pd.get("interfaceType"),
+                        "isVirtual": is_virtual,
                         "temperature": pd.get("temperature"),
                         "wearLevel": pd.get("wearLevel"),
                         "powerOnHours": pd.get("powerOnHours"),

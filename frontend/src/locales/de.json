@@ -817,7 +817,8 @@
       "succeededWithErrors": "Mit Fehlern abgeschlossen",
       "failed": "Fehlgeschlagen",
       "aborted": "Abgebrochen"
-    }
+    },
+    "virtualMachine": "Virtuelle Maschine"
   },
   "navGroups": {
     "fleet": "Flotte",
@@ -1066,5 +1067,46 @@
     "home": "Start",
     "retry": "Erneut versuchen",
     "close": "Schließen"
+  },
+  "hardwareFleet": {
+    "title": "Hardware-Übersicht der Flotte",
+    "nodesRecorded": "{count} Nodes erfasst",
+    "loading": "Hardware-Übersicht wird geladen…",
+    "noData": "Keine Daten verfügbar",
+    "loadError": "Die Hardware-Übersicht konnte nicht geladen werden",
+    "issues": "{count} Auffälligkeiten",
+    "issueVolumeUsage": "Laufwerk {drive} ist zu {percent}% belegt",
+    "issueDiskHealth": "Disk {model}: {status}",
+    "totalStorage": "Gesamtspeicher",
+    "used": "{used} TB belegt ({percent}%)",
+    "physicalDisks": "Physische Disks",
+    "diskTypes": "Disk-Typen",
+    "virtual": "Virtuell",
+    "unknownType": "Unbekannt",
+    "cpuTypes": "CPU-Typen",
+    "physicalDisksCount": "Physische Disks ({count})",
+    "host": "Host",
+    "model": "Modell",
+    "size": "Größe",
+    "type": "Typ",
+    "status": "Status",
+    "health": {
+      "healthy": "Gesund",
+      "warning": "Warnung",
+      "unhealthy": "Fehlerhaft",
+      "unknown": "Unbekannt"
+    }
+  },
+  "tags": {
+    "manage": "Tags verwalten",
+    "description": "Tags helfen bei der Kategorisierung und können in dynamischen Gruppen verwendet werden.",
+    "current": "Aktuelle Tags",
+    "noneAssigned": "Keine Tags zugewiesen",
+    "available": "Verfügbare Tags",
+    "noneCreated": "Noch keine Tags erstellt",
+    "allAssigned": "Alle Tags zugewiesen",
+    "create": "Neuen Tag erstellen",
+    "namePlaceholder": "Tag-Name…",
+    "done": "Fertig"
   }
 }

@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tag, Plus, X, Check } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [allTags, setAllTags] = useState<TagInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -110,24 +112,24 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1">
-          <Tag className="h-4 w-4" /> Tags verwalten
+          <Tag className="h-4 w-4" /> {t("tags.manage")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Tag className="h-5 w-5" />
-            Tags verwalten
+            {t("tags.manage")}
           </DialogTitle>
           <DialogDescription>
-            Tags helfen bei der Kategorisierung und können in dynamischen Gruppen verwendet werden.
+            {t("tags.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* Current tags */}
           <div>
-            <h4 className="text-sm font-medium mb-2">Aktuelle Tags</h4>
+            <h4 className="text-sm font-medium mb-2">{t("tags.current")}</h4>
             {nodeTags.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {nodeTags.map((tag) => (
@@ -149,13 +151,13 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Keine Tags zugewiesen</p>
+              <p className="text-sm text-muted-foreground">{t("tags.noneAssigned")}</p>
             )}
           </div>
 
           {/* Available tags */}
           <div>
-            <h4 className="text-sm font-medium mb-2">Verfügbare Tags</h4>
+            <h4 className="text-sm font-medium mb-2">{t("tags.available")}</h4>
             {allTags.filter((t) => !currentTagIds.has(t.id)).length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {allTags
@@ -175,14 +177,14 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {allTags.length === 0 ? "Noch keine Tags erstellt" : "Alle Tags zugewiesen"}
+                {allTags.length === 0 ? t("tags.noneCreated") : t("tags.allAssigned")}
               </p>
             )}
           </div>
 
           {/* Create new tag */}
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-2">Neuen Tag erstellen</h4>
+            <h4 className="text-sm font-medium mb-2">{t("tags.create")}</h4>
             <div className="flex gap-2">
               <Input
                 value={newTagColor}
@@ -193,7 +195,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
               <Input
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
-                placeholder="Tag-Name..."
+                placeholder={t("tags.namePlaceholder")}
                 className="flex-1"
                 onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
               />
@@ -210,7 +212,7 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Fertig
+            {t("tags.done")}
           </Button>
         </DialogFooter>
       </DialogContent>

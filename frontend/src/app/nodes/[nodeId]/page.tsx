@@ -19,6 +19,7 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
+import { hwNumber, hwText } from "@/lib/hardware";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
@@ -419,7 +420,11 @@ export default function NodeDetailPage() {
                   <CardTitle className="text-lg">{ramData.totalGB?.toFixed(1) || node?.totalMemoryGb?.toFixed(1) || '-'} GB</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">{t("nodeDetail.modules", { count: ramData.modules?.length || 0 })}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {hwData.virtualization?.isVirtual
+                      ? t("nodeDetail.virtualMachine")
+                      : t("nodeDetail.modules", { count: ramData.modules?.length || 0 })}
+                  </p>
                 </CardContent>
               </Card>
               <Card>
@@ -428,7 +433,9 @@ export default function NodeDetailPage() {
                   <CardTitle className="text-lg truncate">{String(gpuList[0]?.name || '-')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">{String(gpuList[0]?.videoMemoryGB || '-')} GB VRAM</p>{/* i18n-ignore */}
+                  {hwNumber(gpuList[0]?.videoMemoryGB) && (
+                    <p className="text-sm text-muted-foreground">{String(gpuList[0]?.videoMemoryGB)} GB VRAM</p>/* i18n-ignore */
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -438,7 +445,8 @@ export default function NodeDetailPage() {
                 <CardHeader><CardTitle>{t("nodeDetail.systemInfo")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <InfoRow label={t("nodeDetail.mainboard")} value={hwData.mainboard?.product ? `${hwData.mainboard.manufacturer} ${hwData.mainboard.product}` : null} />
-                  <InfoRow label={t("nodeDetail.biosVersion")} value={hwData.bios?.smbiosVersion || hwData.bios?.name} />
+                  {/* Windows reports the BIOS version as smbiosVersion (WMI SMBIOSBIOSVersion); the Linux agent puts the SMBIOS spec version there and the BIOS version in version */}
+                  <InfoRow label={t("nodeDetail.biosVersion")} value={(linuxData ? hwData.bios?.version : hwData.bios?.smbiosVersion) || hwData.bios?.name} />
                   <InfoRow label={t("nodeDetail.biosDate")} value={hwData.bios?.releaseDate} />
                   <InfoRow label="System UUID" value={hwData.bios?.uuid} />{/* i18n-ignore */}
                   {sysData.uptimeFormatted && (
@@ -542,7 +550,7 @@ export default function NodeDetailPage() {
                   <InfoRow label="L2 Cache" value={hwData.cpu?.l2CacheKB ? `${(hwData.cpu.l2CacheKB / 1024).toFixed(0)} MB` : null} />{/* i18n-ignore */}
                   <InfoRow label="L3 Cache" value={hwData.cpu?.l3CacheKB ? `${(hwData.cpu.l3CacheKB / 1024).toFixed(0)} MB` : null} />{/* i18n-ignore */}
                   <InfoRow label={t("nodeDetail.architecture")} value={hwData.cpu?.architecture} />
-                  <InfoRow label="Socket" value={hwData.cpu?.socketDesignation} />{/* i18n-ignore */}
+                  <InfoRow label="Socket" value={hwText(hwData.cpu?.socketDesignation)} />{/* i18n-ignore */}
                 </CardContent>
               </Card>
 
@@ -565,8 +573,8 @@ export default function NodeDetailPage() {
                         <TableRow key={i}>
                           <TableCell>{mod.deviceLocator || mod.bankLabel}</TableCell>
                           <TableCell>{mod.capacityGB} GB</TableCell>
-                          <TableCell>{mod.memoryType}</TableCell>
-                          <TableCell>{mod.speedMHz} MHz</TableCell>{/* i18n-ignore */}
+                          <TableCell>{hwText(mod.memoryType) ?? "-"}</TableCell>
+                          <TableCell>{hwNumber(mod.speedMHz) ? `${mod.speedMHz} MHz` : "-"}</TableCell>{/* i18n-ignore */}
                         </TableRow>
                       )) || (
                         <TableRow>
@@ -593,7 +601,7 @@ export default function NodeDetailPage() {
                             <InfoRow label="VRAM" value={gpu.videoMemoryGB ? `${gpu.videoMemoryGB} GB` : null} />{/* i18n-ignore */}
                             <InfoRow label={t("nodeDetail.driver")} value={gpu.driverVersion} />
                             <InfoRow label={t("nodeDetail.resolution")} value={gpu.currentResolution} />
-                            <InfoRow label={t("nodeDetail.refreshRate")} value={gpu.refreshRate ? `${gpu.refreshRate} Hz` : null} />
+                            <InfoRow label={t("nodeDetail.refreshRate")} value={hwNumber(gpu.refreshRate, 1) ? `${gpu.refreshRate} Hz` : null} />
                           </div>
                         </div>
                       ))}
