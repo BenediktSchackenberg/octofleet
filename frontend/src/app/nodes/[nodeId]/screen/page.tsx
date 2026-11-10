@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from "@/lib/i18n-context";
 import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -21,6 +22,7 @@ interface ScreenMessage {
 }
 
 export default function ScreenViewerPage() {
+  const { t } = useI18n();
   const params = useParams();
   const router = useRouter();
   const nodeId = params.nodeId as string;
@@ -77,7 +79,7 @@ export default function ScreenViewerPage() {
     
     ws.onerror = (err) => {
       console.error('WebSocket error:', err);
-      setError('WebSocket connection failed');
+      setError(t("nodeTools.webSocketFailed"));
       setStatus('error');
     };
     
@@ -117,20 +119,20 @@ export default function ScreenViewerPage() {
         break;
         
       case 'error':
-        setError(msg.message || 'Unknown error');
+        setError(msg.message || t("nodeTools.unknownError"));
         setStatus('error');
         break;
         
       case 'closed':
         setStatus('closed');
-        setError(msg.reason || 'Session closed');
+        setError(msg.reason || t("nodeTools.sessionClosed"));
         break;
         
       case 'ping':
         wsRef.current?.send(JSON.stringify({ type: 'pong' }));
         break;
     }
-  }, []);
+  }, [t]);
   
   const renderFrame = (base64: string, width: number, height: number) => {
     const canvas = canvasRef.current;
@@ -190,19 +192,19 @@ export default function ScreenViewerPage() {
     <div className="p-6 space-y-4">
       {/* Breadcrumb */}
       <nav className="flex items-center space-x-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-white">Dashboard</Link>
+        <Link href="/" className="hover:text-white">{t("nav.dashboard")}</Link>
         <span>/</span>
-        <Link href="/nodes" className="hover:text-white">Nodes</Link>
+        <Link href="/nodes" className="hover:text-white">{t("nav.nodes")}</Link>
         <span>/</span>
         <Link href={`/nodes/${nodeId}`} className="hover:text-white">{nodeId}</Link>
         <span>/</span>
-        <span className="text-white">Screen</span>
+        <span className="text-white">{t("nodeTools.tabs.screen")}</span>
       </nav>
       
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          🖥️ Screen View: {nodeId}
+          🖥️ {t("nodeTools.screenPage.title", { node: nodeId })}
         </h1>
         
         <div className="flex items-center gap-4">
@@ -213,9 +215,9 @@ export default function ScreenViewerPage() {
               onChange={(e) => setQuality(e.target.value)}
               className="bg-zinc-800 text-white border border-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="low">Low (720p, 30%)</option>
-              <option value="medium">Medium (1080p, 50%)</option>
-              <option value="high">High (1440p, 75%)</option>
+              <option value="low">{t("nodeTools.qualityLow")} (720p, 30%)</option>
+              <option value="medium">{t("nodeTools.qualityMedium")} (1080p, 50%)</option>
+              <option value="high">{t("nodeTools.qualityHigh")} (1440p, 75%)</option>
             </select>
           )}
           
@@ -226,11 +228,11 @@ export default function ScreenViewerPage() {
               onChange={(e) => setMaxFps(parseInt(e.target.value))}
               className="bg-zinc-800 text-white border border-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="5">5 FPS</option>
-              <option value="10">10 FPS</option>
-              <option value="15">15 FPS</option>
-              <option value="20">20 FPS</option>
-              <option value="30">30 FPS</option>
+              <option value="5">5 FPS</option>{/* i18n-ignore */}
+              <option value="10">10 FPS</option>{/* i18n-ignore */}
+              <option value="15">15 FPS</option>{/* i18n-ignore */}
+              <option value="20">20 FPS</option>{/* i18n-ignore */}
+              <option value="30">30 FPS</option>{/* i18n-ignore */}
             </select>
           )}
           
@@ -240,14 +242,14 @@ export default function ScreenViewerPage() {
               onClick={startSession}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
             >
-              ▶️ Start Viewing
+              ▶️ {t("nodeTools.startViewing")}
             </button>
           ) : (
             <button
               onClick={stopSession}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
             >
-              ⏹️ Stop
+              ⏹️ {t("nodeTools.stop")}
             </button>
           )}
         </div>
@@ -262,21 +264,21 @@ export default function ScreenViewerPage() {
           status === 'error' ? 'bg-red-600' :
           'bg-zinc-600'
         }`}>
-          {status === 'streaming' ? '🔴 LIVE' :
-           status === 'pending' ? '⏳ Waiting for agent...' :
-           status === 'connecting' ? '🔄 Connecting...' :
-           status === 'error' ? '❌ Error' :
-           status === 'closed' ? '⏹️ Stopped' :
-           '⚪ Ready'}
+          {status === 'streaming' ? `🔴 ${t("nodeTools.liveBadge").toUpperCase()}` :
+           status === 'pending' ? `⏳ ${t("nodeTools.waitingForAgent")}` :
+           status === 'connecting' ? `🔄 ${t("nodeTools.connecting")}` :
+           status === 'error' ? `❌ ${t("common.error")}` :
+           status === 'closed' ? `⏹️ ${t("nodeTools.stopped")}` :
+           `⚪ ${t("nodeTools.ready")}`}
         </span>
         
         {status === 'streaming' && (
           <>
             <span className="text-muted-foreground">
-              📊 {stats.fps} FPS
+              📊 {stats.fps} FPS {/* i18n-ignore */}
             </span>
             <span className="text-muted-foreground">
-              🖼️ {stats.frames} frames
+              🖼️ {t("nodeTools.screenPage.frames", { count: stats.frames })}
             </span>
           </>
         )}
@@ -292,16 +294,16 @@ export default function ScreenViewerPage() {
           <div className="flex items-center justify-center h-96 text-muted-foreground">
             <div className="text-center">
               <div className="text-6xl mb-4">🖥️</div>
-              <p>Click "Start Viewing" to begin screen sharing</p>
-              <p className="text-sm mt-2">The agent must be online and updated to v0.4.24+</p>
+              <p>{t("nodeTools.screenPage.clickStart")}</p>
+              <p className="text-sm mt-2">{t("nodeTools.screenPage.agentRequirement")}</p>
             </div>
           </div>
         ) : status === 'pending' ? (
           <div className="flex items-center justify-center h-96 text-muted-foreground">
             <div className="text-center">
               <div className="animate-pulse text-6xl mb-4">⏳</div>
-              <p>Waiting for agent to connect...</p>
-              <p className="text-sm mt-2">Session ID: {sessionId}</p>
+              <p>{t("nodeTools.waitingForAgentConnect")}</p>
+              <p className="text-sm mt-2">{t("nodeTools.sessionId", { id: sessionId ?? "" })}</p>
             </div>
           </div>
         ) : (
@@ -315,8 +317,8 @@ export default function ScreenViewerPage() {
       
       {/* Info */}
       <div className="text-sm text-muted-foreground">
-        <p>💡 Screen sharing uses JPEG compression. Quality and FPS affect bandwidth usage.</p>
-        <p>🔒 All data is transmitted over encrypted WebSocket connection.</p>
+        <p>💡 {t("nodeTools.screenPage.hintCompression")}</p>
+        <p>🔒 {t("nodeTools.screenPage.hintEncrypted")}</p>
       </div>
     </div>
   );

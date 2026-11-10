@@ -1,5 +1,6 @@
 'use client';
 
+import { useI18n } from "@/lib/i18n-context";
 import { useParams } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
@@ -16,6 +17,7 @@ interface ShellMessage {
 }
 
 export default function ShellPage() {
+  const { t } = useI18n();
   const params = useParams();
   const nodeId = params.nodeId as string;
   
@@ -167,7 +169,7 @@ export default function ShellPage() {
     
     ws.onerror = (err) => {
       console.error('WebSocket error:', err);
-      setError('WebSocket connection failed');
+      setError(t("nodeTools.webSocketFailed"));
       setStatus('error');
     };
     
@@ -196,7 +198,7 @@ export default function ShellPage() {
         break;
         
       case 'error':
-        setError(msg.message || 'Unknown error');
+        setError(msg.message || t("nodeTools.unknownError"));
         xtermRef.current?.writeln(`\x1b[1;31mError: ${msg.message}\x1b[0m`);
         break;
         
@@ -208,7 +210,7 @@ export default function ShellPage() {
         
       case 'closed':
         setStatus('closed');
-        setError(msg.reason || 'Session closed');
+        setError(msg.reason || t("nodeTools.sessionClosed"));
         xtermRef.current?.writeln('');
         xtermRef.current?.writeln(`\x1b[1;33mSession closed: ${msg.reason}\x1b[0m`);
         break;
@@ -217,7 +219,7 @@ export default function ShellPage() {
         wsRef.current?.send(JSON.stringify({ type: 'pong' }));
         break;
     }
-  }, []);
+  }, [t]);
   
   // Stop session
   const stopSession = async () => {
@@ -268,19 +270,19 @@ export default function ShellPage() {
     <div className="p-6 space-y-4">
       {/* Breadcrumb */}
       <nav className="flex items-center space-x-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-white">Dashboard</Link>
+        <Link href="/" className="hover:text-white">{t("nav.dashboard")}</Link>
         <span>/</span>
-        <Link href="/nodes" className="hover:text-white">Nodes</Link>
+        <Link href="/nodes" className="hover:text-white">{t("nav.nodes")}</Link>
         <span>/</span>
         <Link href={`/nodes/${nodeId}`} className="hover:text-white">{nodeId}</Link>
         <span>/</span>
-        <span className="text-white">Shell</span>
+        <span className="text-white">Shell</span>{/* i18n-ignore */}
       </nav>
       
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          🖥️ Remote Shell: {nodeId}
+          🖥️ {t("nodeTools.shellPage.title", { node: nodeId })}
         </h1>
         
         <div className="flex items-center gap-4">
@@ -291,9 +293,9 @@ export default function ShellPage() {
               onChange={(e) => setShellType(e.target.value as any)}
               className="bg-zinc-800 border border-zinc-600 rounded px-3 py-2"
             >
-              <option value="powershell">PowerShell</option>
-              <option value="cmd">CMD</option>
-              <option value="bash">Bash</option>
+              <option value="powershell">PowerShell</option>{/* i18n-ignore */}
+              <option value="cmd">CMD</option>{/* i18n-ignore */}
+              <option value="bash">Bash</option>{/* i18n-ignore */}
             </select>
           )}
           
@@ -305,18 +307,18 @@ export default function ShellPage() {
             status === 'error' ? 'bg-red-600' :
             'bg-zinc-600'
           }`}>
-            {status === 'active' ? '● CONNECTED' :
-             status === 'pending' ? '⏳ Waiting...' :
-             status === 'connecting' ? '🔄 Connecting...' :
-             status === 'error' ? '❌ Error' :
-             status === 'closed' ? '⬤ Closed' :
-             '○ Ready'}
+            {status === 'active' ? `● ${t("nodeTools.connected").toUpperCase()}` :
+             status === 'pending' ? `⏳ ${t("nodeTools.waiting")}` :
+             status === 'connecting' ? `🔄 ${t("nodeTools.connecting")}` :
+             status === 'error' ? `❌ ${t("common.error")}` :
+             status === 'closed' ? `⬤ ${t("nodeTools.closed")}` :
+             `○ ${t("nodeTools.ready")}`}
           </span>
           
           {/* Command Count */}
           {status === 'active' && (
             <span className="text-muted-foreground text-sm">
-              📝 {commandCount} commands
+              📝 {t("nodeTools.shellPage.commands", { count: commandCount })}
             </span>
           )}
         </div>
@@ -336,14 +338,14 @@ export default function ShellPage() {
             onClick={startSession}
             className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-medium"
           >
-            ▶️ Start Shell
+            ▶️ {t("nodeTools.shellPage.start")}
           </button>
         ) : (
           <button
             onClick={stopSession}
             className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-medium"
           >
-            ⏹️ Stop Shell
+            ⏹️ {t("nodeTools.shellPage.stop")}
           </button>
         )}
         
@@ -351,7 +353,7 @@ export default function ShellPage() {
           href={`/nodes/${nodeId}`}
           className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded"
         >
-          ← Back to Node
+          ← {t("nodeTools.backToNode")}
         </Link>
       </div>
       
@@ -366,9 +368,9 @@ export default function ShellPage() {
       
       {/* Info */}
       <div className="text-sm text-muted-foreground space-y-1">
-        <p>💡 Shell type: <span className="text-muted-foreground">{shellType}</span></p>
-        <p>🔐 All commands are logged for audit purposes.</p>
-        <p>⏱️ Sessions timeout after 30 minutes of inactivity.</p>
+        <p>💡 {t("nodeTools.shellPage.shellType")}: <span className="text-muted-foreground">{shellType}</span></p>
+        <p>🔐 {t("nodeTools.shellPage.auditHint")}</p>
+        <p>⏱️ {t("nodeTools.shellPage.timeoutHint")}</p>
       </div>
     </div>
   );

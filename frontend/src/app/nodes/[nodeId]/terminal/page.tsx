@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/lib/i18n-context";
 import { apiClient } from "@/lib/api-client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -12,6 +13,7 @@ import { Terminal, Play, Square, Trash2 } from "lucide-react";
 
 
 export default function TerminalPage() {
+  const { t } = useI18n();
   const params = useParams();
   const nodeId = params.nodeId as string;
   
@@ -117,16 +119,16 @@ export default function TerminalPage() {
     <main className="min-h-screen bg-background p-8">
 <div className="flex items-center gap-3 mb-6">
         <Terminal className="h-8 w-8" />
-        <h1 className="text-3xl font-bold">Remote Terminal</h1>
+        <h1 className="text-3xl font-bold">{t("nodeTools.terminalPage.title")}</h1>
         <Badge variant={connected ? 'default' : 'secondary'}>
-          {connected ? '🟢 Connected' : '⚫ Disconnected'}
+          {connected ? `🟢 ${t("nodeTools.connected")}` : `⚫ ${t("nodeTools.disconnected")}`}
         </Badge>
       </div>
 
       <Card className="mb-4">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Session Control</CardTitle>
+            <CardTitle className="text-lg">{t("nodeTools.terminalPage.sessionControl")}</CardTitle>
             <div className="flex items-center gap-2">
               {!sessionId ? (
                 <>
@@ -135,13 +137,13 @@ export default function TerminalPage() {
                     onChange={e => setShell(e.target.value as any)}
                     className="border rounded px-3 py-1.5 text-sm"
                   >
-                    <option value="powershell">PowerShell</option>
-                    <option value="cmd">CMD</option>
-                    <option value="bash">Bash</option>
+                    <option value="powershell">PowerShell</option>{/* i18n-ignore */}
+                    <option value="cmd">CMD</option>{/* i18n-ignore */}
+                    <option value="bash">Bash</option>{/* i18n-ignore */}
                   </select>
                   <Button onClick={startSession} disabled={loading}>
                     <Play className="h-4 w-4 mr-1" />
-                    Start Session
+                    {t("nodeTools.terminalPage.startSession")}
                   </Button>
                 </>
               ) : (
@@ -149,7 +151,7 @@ export default function TerminalPage() {
                   <Badge>{shell}</Badge>
                   <Button variant="destructive" onClick={stopSession}>
                     <Square className="h-4 w-4 mr-1" />
-                    Stop
+                    {t("nodeTools.stop")}
                   </Button>
                 </>
               )}
@@ -157,7 +159,7 @@ export default function TerminalPage() {
                 variant="outline" 
                 size="icon"
                 onClick={() => setOutput([])}
-                title="Clear output"
+                title={t("nodeTools.terminalPage.clearOutput")}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -175,7 +177,7 @@ export default function TerminalPage() {
             onClick={() => inputRef.current?.focus()}
           >
             {output.length === 0 ? (
-              <span className="text-muted-foreground">Click "Start Session" to begin...</span>
+              <span className="text-muted-foreground">{t("nodeTools.terminalPage.clickStart")}</span>
             ) : (
               output.map((line, i) => <span key={i}>{line}</span>)
             )}
@@ -192,7 +194,7 @@ export default function TerminalPage() {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 className="flex-1 bg-transparent text-green-400 outline-none"
-                placeholder="Type command and press Enter..."
+                placeholder={t("nodeTools.terminalPage.inputPlaceholder")}
                 autoFocus
               />
             </div>
@@ -201,8 +203,8 @@ export default function TerminalPage() {
       </Card>
 
       <p className="text-sm text-muted-foreground mt-4">
-        ⚠️ Commands are executed on the remote node. Use with caution.
-        Agent must support terminal polling (v0.4.28+).
+        ⚠️ {t("nodeTools.terminalPage.caution")}
+        {t("nodeTools.terminalPage.agentRequirement")}
       </p>
     </main>
   );

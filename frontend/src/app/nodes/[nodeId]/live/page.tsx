@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/lib/i18n-context";
 import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 
@@ -68,6 +69,7 @@ interface AgentLogEntry {
 }
 
 export default function LiveViewPage() {
+  const { t } = useI18n();
   const params = useParams();
   const nodeId = params.nodeId as string;
   
@@ -125,7 +127,7 @@ export default function LiveViewPage() {
       
       // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
       const backoff = Math.min(1000 * Math.pow(2, reconnectCount), 30000);
-      setError(`Connection lost. Reconnecting in ${backoff / 1000}s...`);
+      setError(t("nodeTools.connectionLost", { seconds: backoff / 1000 }));
       setReconnectCount(prev => prev + 1);
       
       reconnectTimeoutRef.current = setTimeout(() => {
@@ -273,25 +275,25 @@ export default function LiveViewPage() {
       <div className="max-w-7xl mx-auto">
 <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold">🔴 Live View</h1>
+            <h1 className="text-3xl font-bold">🔴 {t("nodeTools.livePage.title")}</h1>
             <Badge 
               variant={connected ? "default" : connecting ? "outline" : "destructive"} 
               className={connected ? "bg-green-500" : connecting ? "border-yellow-500 text-yellow-500" : ""}
             >
-              {connected ? "● Connected" : connecting ? "◐ Connecting..." : "○ Disconnected"}
+              {connected ? `● ${t("nodeTools.connected")}` : connecting ? `◐ ${t("nodeTools.connecting")}` : `○ ${t("nodeTools.disconnected")}`}
             </Badge>
             {lastHeartbeat > 0 && (
               <span className="text-sm text-muted-foreground">
-                Last: {new Date(lastHeartbeat).toLocaleTimeString()}
+                {t("nodeTools.livePage.lastHeartbeat", { time: new Date(lastHeartbeat).toLocaleTimeString() })}
               </span>
             )}
           </div>
           <div className="flex gap-2">
             <Button variant={paused ? "default" : "outline"} onClick={togglePause}>
-              {paused ? "▶ Resume" : "⏸ Pause"}
+              {paused ? `▶ ${t("nodeTools.resume")}` : `⏸ ${t("nodeTools.pause")}`}
             </Button>
             <Link href={`/nodes/${nodeId}`}>
-              <Button variant="outline">← Back to Node</Button>
+              <Button variant="outline">← {t("nodeTools.backToNode")}</Button>
             </Link>
           </div>
         </div>
@@ -302,19 +304,19 @@ export default function LiveViewPage() {
               <span>⚠️ {error}</span>
               {reconnectCount > 0 && (
                 <Badge variant="outline" className="text-red-500 border-red-500">
-                  Retry #{reconnectCount}
+                  {t("nodeTools.livePage.retry", { count: reconnectCount })}
                 </Badge>
               )}
             </div>
             <Button variant="outline" size="sm" onClick={manualReconnect} className="border-red-500 text-red-500">
-              🔄 Reconnect Now
+              🔄 {t("nodeTools.livePage.reconnectNow")}
             </Button>
           </div>
         )}
 
         {connecting && !connected && !error && (
           <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500 rounded-lg text-yellow-500">
-            ⏳ Connecting to live stream...
+            ⏳ {t("nodeTools.livePage.connectingStream")}
           </div>
         )}
 
@@ -330,13 +332,13 @@ export default function LiveViewPage() {
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {tab === 'overview' && '📊 Overview'}
-              {tab === 'logs' && `📜 Logs (${logs.length})`}
-              {tab === 'processes' && `⚙️ Processes (${processes.length})`}
-              {tab === 'performance' && '📈 Performance'}
-              {tab === 'network' && `🌐 Network (${network.length})`}
-              {tab === 'agentLogs' && `🤖 Agent (${agentLogs.length})`}
-              {tab === 'screen' && '🖥️ Screen'}
+              {tab === 'overview' && `📊 ${t("nodeTools.tabs.overview")}`}
+              {tab === 'logs' && `📜 ${t("nodeTools.tabs.logs", { count: logs.length })}`}
+              {tab === 'processes' && `⚙️ ${t("nodeTools.tabs.processes", { count: processes.length })}`}
+              {tab === 'performance' && `📈 ${t("nodeTools.tabs.performance")}`}
+              {tab === 'network' && `🌐 ${t("nodeTools.tabs.network", { count: network.length })}`}
+              {tab === 'agentLogs' && `🤖 ${t("nodeTools.tabs.agent", { count: agentLogs.length })}`}
+              {tab === 'screen' && `🖥️ ${t("nodeTools.tabs.screen")}`}
             </button>
           ))}
         </div>
@@ -347,7 +349,7 @@ export default function LiveViewPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>CPU Usage</CardDescription>
+                  <CardDescription>{t("nodeTools.cpuUsage")}</CardDescription>
                   <CardTitle className="text-3xl">
                     {metrics && metrics.cpu !== null ? `${metrics.cpu.toFixed(1)}%` : '-'}
                   </CardTitle>
@@ -359,7 +361,7 @@ export default function LiveViewPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Memory Usage</CardDescription>
+                  <CardDescription>{t("nodeTools.memoryUsage")}</CardDescription>
                   <CardTitle className="text-3xl">
                     {metrics && metrics.memory !== null ? `${metrics.memory.toFixed(1)}%` : '-'}
                   </CardTitle>
@@ -371,7 +373,7 @@ export default function LiveViewPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Disk Usage</CardDescription>
+                  <CardDescription>{t("nodeTools.diskUsage")}</CardDescription>
                   <CardTitle className="text-3xl">
                     {metrics && metrics.disk !== null ? `${metrics.disk.toFixed(1)}%` : '-'}
                   </CardTitle>
@@ -388,7 +390,7 @@ export default function LiveViewPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Network</CardDescription>
+                  <CardDescription>{t("nodeTools.network")}</CardDescription>
                   <CardTitle className="text-xl">
                     ↓ {metrics && metrics.netIn !== null ? `${metrics.netIn.toFixed(1)} MB` : '-'} 
                     <span className="mx-2">|</span>
@@ -396,7 +398,7 @@ export default function LiveViewPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <span className="text-sm text-muted-foreground">Total transferred</span>
+                  <span className="text-sm text-muted-foreground">{t("nodeTools.livePage.totalTransferred")}</span>
                 </CardContent>
               </Card>
             </div>
@@ -405,7 +407,7 @@ export default function LiveViewPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">📜 Recent Logs</CardTitle>
+                  <CardTitle className="text-lg">📜 {t("nodeTools.livePage.recentLogs")}</CardTitle>
                 </CardHeader>
                 <CardContent className="max-h-[200px] overflow-y-auto">
                   {logs.slice(-5).map(log => (
@@ -419,13 +421,13 @@ export default function LiveViewPage() {
                       <span className="font-mono">{log.source}</span>
                     </div>
                   ))}
-                  {logs.length === 0 && <p className="text-muted-foreground">No logs yet...</p>}
+                  {logs.length === 0 && <p className="text-muted-foreground">{t("nodeTools.livePage.noLogsYet")}</p>}
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">⚙️ Top Processes</CardTitle>
+                  <CardTitle className="text-lg">⚙️ {t("nodeTools.topProcesses")}</CardTitle>
                 </CardHeader>
                 <CardContent className="max-h-[200px] overflow-y-auto">
                   {processes.slice(0, 5).map((proc, i) => (
@@ -436,7 +438,7 @@ export default function LiveViewPage() {
                       </span>
                     </div>
                   ))}
-                  {processes.length === 0 && <p className="text-muted-foreground">No processes yet...</p>}
+                  {processes.length === 0 && <p className="text-muted-foreground">{t("nodeTools.livePage.noProcessesYet")}</p>}
                 </CardContent>
               </Card>
             </div>
@@ -448,18 +450,18 @@ export default function LiveViewPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>📜 Event Logs</CardTitle>
+                <CardTitle>📜 {t("nodeTools.livePage.eventLogs")}</CardTitle>
                 <div className="flex gap-2">
                   <Input 
-                    placeholder="Filter logs..." 
+                    placeholder={t("nodeTools.filterLogs")} 
                     value={logFilter}
                     onChange={(e) => setLogFilter(e.target.value)}
                     className="w-64"
                   />
-                  <Button variant="outline" size="sm" onClick={clearLogs}>Clear</Button>
+                  <Button variant="outline" size="sm" onClick={clearLogs}>{t("nodeTools.clear")}</Button>
                 </div>
               </div>
-              <CardDescription>{filteredLogs.length} logs (max 500)</CardDescription>
+              <CardDescription>{t("nodeTools.livePage.logsCount", { count: filteredLogs.length })}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[500px] overflow-y-auto font-mono text-sm bg-black/5 dark:bg-card/5 rounded p-2">
@@ -475,13 +477,13 @@ export default function LiveViewPage() {
                     {' '}
                     <span className="text-purple-500">{log.source}</span>
                     {': '}
-                    <span className="text-foreground">{log.message || '(no message)'}</span>
+                    <span className="text-foreground">{log.message || t("nodeTools.noMessage")}</span>
                   </div>
                 ))}
                 <div ref={logsEndRef} />
                 {filteredLogs.length === 0 && (
                   <p className="text-muted-foreground text-center py-8">
-                    {logs.length === 0 ? 'Waiting for logs...' : 'No logs match filter'}
+                    {logs.length === 0 ? t("nodeTools.livePage.waitingForLogs") : t("nodeTools.livePage.noLogsMatch")}
                   </p>
                 )}
               </div>
@@ -493,19 +495,19 @@ export default function LiveViewPage() {
         {activeTab === 'processes' && (
           <Card>
             <CardHeader>
-              <CardTitle>⚙️ Running Processes</CardTitle>
-              <CardDescription>Top {processes.length} processes by CPU usage</CardDescription>
+              <CardTitle>⚙️ {t("nodeTools.runningProcesses")}</CardTitle>
+              <CardDescription>{t("nodeTools.livePage.topByCpu", { count: processes.length })}</CardDescription>
             </CardHeader>
             <CardContent>
               {processes.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Process</TableHead>
-                      <TableHead className="text-right">PID</TableHead>
-                      <TableHead className="text-right">CPU %</TableHead>
-                      <TableHead className="text-right">Memory</TableHead>
-                      <TableHead>User</TableHead>
+                      <TableHead>{t("nodeTools.col.process")}</TableHead>
+                      <TableHead className="text-right">PID</TableHead>{/* i18n-ignore */}
+                      <TableHead className="text-right">CPU %</TableHead>{/* i18n-ignore */}
+                      <TableHead className="text-right">{t("nodeTools.col.memory")}</TableHead>
+                      <TableHead>{t("nodeTools.col.user")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -528,7 +530,7 @@ export default function LiveViewPage() {
                 </Table>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  {connected ? 'Loading processes...' : 'Connect to see processes'}
+                  {connected ? t("nodeTools.livePage.loadingProcesses") : t("nodeTools.livePage.connectForProcesses")}
                 </div>
               )}
             </CardContent>
@@ -544,9 +546,9 @@ export default function LiveViewPage() {
         {activeTab === 'network' && (
           <Card>
             <CardHeader>
-              <CardTitle>🌐 Network Interfaces</CardTitle>
+              <CardTitle>🌐 {t("nodeTools.networkInterfaces")}</CardTitle>
               <CardDescription>
-                {network.length > 0 ? `${network.length} interfaces` : 'Waiting for data...'}
+                {network.length > 0 ? t("nodeTools.livePage.interfaces", { count: network.length }) : t("nodeTools.waitingForData")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -558,7 +560,7 @@ export default function LiveViewPage() {
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-lg">{iface.name}</CardTitle>
                           <Badge variant={iface.linkUp ? "default" : "destructive"} className={iface.linkUp ? "bg-green-500" : ""}>
-                            {iface.linkUp ? '🟢 Up' : '🔴 Down'}
+                            {iface.linkUp ? `🟢 ${t("nodeTools.linkUp")}` : `🔴 ${t("nodeTools.linkDown")}`}
                           </Badge>
                         </div>
                         <CardDescription className="text-xs truncate">{iface.description}</CardDescription>
@@ -566,23 +568,23 @@ export default function LiveViewPage() {
                       <CardContent>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Speed</span>
-                            <div className="font-mono">{iface.speedMbps > 0 ? `${iface.speedMbps} Mbps` : '-'}</div>
+                            <span className="text-muted-foreground">{t("nodeTools.speed")}</span>
+                            <div className="font-mono">{iface.speedMbps > 0 ? `${iface.speedMbps} Mbps` : '-'}</div>{/* i18n-ignore */}
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Total</span>
+                            <span className="text-muted-foreground">{t("nodeTools.total")}</span>
                             <div className="font-mono">
                               ↓{iface.rxTotalMb.toFixed(0)}MB ↑{iface.txTotalMb.toFixed(0)}MB
                             </div>
                           </div>
                           <div>
-                            <span className="text-green-500">↓ Download</span>
+                            <span className="text-green-500">↓ {t("nodeTools.download")}</span>
                             <div className="font-mono text-lg font-bold">
                               {formatBytesPerSec(iface.rxBytesPerSec)}
                             </div>
                           </div>
                           <div>
-                            <span className="text-blue-500">↑ Upload</span>
+                            <span className="text-blue-500">↑ {t("nodeTools.upload")}</span>
                             <div className="font-mono text-lg font-bold">
                               {formatBytesPerSec(iface.txBytesPerSec)}
                             </div>
@@ -594,7 +596,7 @@ export default function LiveViewPage() {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  {connected ? 'Waiting for network data...' : 'Connect to see network interfaces'}
+                  {connected ? t("nodeTools.livePage.waitingForNetwork") : t("nodeTools.livePage.connectForNetwork")}
                 </div>
               )}
             </CardContent>
@@ -607,10 +609,10 @@ export default function LiveViewPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>🤖 Agent Service Logs</CardTitle>
-                  <CardDescription>Logs from the Octofleet Agent service</CardDescription>
+                  <CardTitle>🤖 {t("nodeTools.livePage.agentServiceLogs")}</CardTitle>
+                  <CardDescription>{t("nodeTools.livePage.agentServiceLogsDescription")}</CardDescription>
                 </div>
-                <span className="text-sm text-muted-foreground">{agentLogs.length} entries</span>
+                <span className="text-sm text-muted-foreground">{t("nodeTools.livePage.entries", { count: agentLogs.length })}</span>
               </div>
             </CardHeader>
             <CardContent>
@@ -638,7 +640,7 @@ export default function LiveViewPage() {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  {connected ? 'Waiting for agent logs... (requires agent v0.4.23+)' : 'Connect to see agent logs'}
+                  {connected ? t("nodeTools.livePage.waitingForAgentLogs") : t("nodeTools.livePage.connectForAgentLogs")}
                 </div>
               )}
             </CardContent>
@@ -651,22 +653,22 @@ export default function LiveViewPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>🖥️ Remote Screen</CardTitle>
-                  <CardDescription>View the remote desktop in real-time</CardDescription>
+                  <CardTitle>🖥️ {t("nodeTools.livePage.remoteScreen")}</CardTitle>
+                  <CardDescription>{t("nodeTools.livePage.remoteScreenDescription")}</CardDescription>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Quality:</span>
+                    <span className="text-sm text-muted-foreground">{t("nodeTools.quality")}:</span>
                     <select 
                       value={screenQuality}
                       onChange={(e) => setScreenQuality(Number(e.target.value))}
                       className="border rounded px-2 py-1 text-sm"
                       disabled={screenActive}
                     >
-                      <option value={30}>Low (30%)</option>
-                      <option value={50}>Medium (50%)</option>
-                      <option value={70}>High (70%)</option>
-                      <option value={90}>Best (90%)</option>
+                      <option value={30}>{t("nodeTools.qualityLow")} (30%)</option>
+                      <option value={50}>{t("nodeTools.qualityMedium")} (50%)</option>
+                      <option value={70}>{t("nodeTools.qualityHigh")} (70%)</option>
+                      <option value={90}>{t("nodeTools.qualityBest")} (90%)</option>
                     </select>
                   </div>
                   <Button
@@ -720,7 +722,7 @@ export default function LiveViewPage() {
                     }}
                     variant={screenActive ? 'destructive' : 'default'}
                   >
-                    {screenActive ? '⏹️ Stop' : '▶️ Start Viewing'}
+                    {screenActive ? `⏹️ ${t("nodeTools.stop")}` : `▶️ ${t("nodeTools.startViewing")}`}
                   </Button>
                 </div>
               </div>
@@ -730,7 +732,7 @@ export default function LiveViewPage() {
                 {screenImage ? (
                   <img 
                     src={screenImage} 
-                    alt="Remote Screen" 
+                    alt={t("nodeTools.livePage.remoteScreen")} 
                     className="max-w-full max-h-[70vh] object-contain"
                   />
                 ) : (
@@ -738,17 +740,17 @@ export default function LiveViewPage() {
                     {screenActive ? (
                       <div className="flex flex-col items-center gap-4">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                        <p>Waiting for screen data...</p>
-                        <p className="text-sm text-muted-foreground">Make sure the agent is running and has screen capture capability</p>
+                        <p>{t("nodeTools.livePage.waitingForScreen")}</p>
+                        <p className="text-sm text-muted-foreground">{t("nodeTools.livePage.screenCaptureHint")}</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-4">
                         <svg className="w-16 h-16 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
-                        <p>Click "Start Viewing" to connect</p>
+                        <p>{t("nodeTools.livePage.clickStartViewing")}</p>
                         <p className="text-sm text-muted-foreground">
-                          Requires: Windows (DXGI) or Linux (scrot/gnome-screenshot/grim)
+                          {t("nodeTools.livePage.screenRequires")}
                         </p>
                       </div>
                     )}
@@ -756,10 +758,10 @@ export default function LiveViewPage() {
                 )}
               </div>
               <div className="mt-4 text-sm text-muted-foreground">
-                <p>⚠️ Screen mirroring requires:</p>
+                <p>⚠️ {t("nodeTools.livePage.screenMirroringRequires")}</p>
                 <ul className="list-disc list-inside ml-2">
-                  <li><strong>Windows:</strong> Agent v0.4.24+ with DXGI support</li>
-                  <li><strong>Linux:</strong> Display server (X11/Wayland) + scrot, gnome-screenshot, or grim</li>
+                  <li><strong>Windows:</strong> {t("nodeTools.livePage.screenRequiresWindows")}</li>{/* i18n-ignore */}
+                  <li><strong>Linux:</strong> {t("nodeTools.livePage.screenRequiresLinux")}</li>{/* i18n-ignore */}
                 </ul>
               </div>
             </CardContent>
@@ -779,6 +781,7 @@ function formatBytesPerSec(bytes: number): string {
 
 // Separate component for Performance Charts
 function PerformanceChart({ nodeId }: { nodeId: string }) {
+  const { t } = useI18n();
   const [historyData, setHistoryData] = useState<Array<{
     timestamp: string;
     cpu: number | null;
@@ -821,7 +824,7 @@ function PerformanceChart({ nodeId }: { nodeId: string }) {
     label: string 
   }) => {
     const values = data.map(d => d[dataKey]).filter((v): v is number => v !== null);
-    if (values.length < 2) return <div className="text-muted-foreground text-center py-8">Not enough data</div>;
+    if (values.length < 2) return <div className="text-muted-foreground text-center py-8">{t("nodeTools.livePage.notEnoughData")}</div>;
     
     const max = Math.max(...values, 100);
     const min = 0;
@@ -878,48 +881,48 @@ function PerformanceChart({ nodeId }: { nodeId: string }) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>📈 Performance History</CardTitle>
+          <CardTitle>📈 {t("nodeTools.livePage.performanceHistory")}</CardTitle>
           <div className="flex gap-2">
             <select 
               value={hours} 
               onChange={(e) => setHours(Number(e.target.value))}
               className="px-2 py-1 border rounded text-sm bg-background"
             >
-              <option value={1}>Last 1h</option>
-              <option value={6}>Last 6h</option>
-              <option value={24}>Last 24h</option>
-              <option value={72}>Last 3d</option>
-              <option value={168}>Last 7d</option>
+              <option value={1}>{t("nodeTools.livePage.last1h")}</option>
+              <option value={6}>{t("nodeTools.livePage.last6h")}</option>
+              <option value={24}>{t("nodeTools.livePage.last24h")}</option>
+              <option value={72}>{t("nodeTools.livePage.last3d")}</option>
+              <option value={168}>{t("nodeTools.livePage.last7d")}</option>
             </select>
             <select 
               value={interval} 
               onChange={(e) => setInterval(e.target.value)}
               className="px-2 py-1 border rounded text-sm bg-background"
             >
-              <option value="1m">1 min</option>
-              <option value="5m">5 min</option>
-              <option value="15m">15 min</option>
-              <option value="1h">1 hour</option>
+              <option value="1m">1 min</option>{/* i18n-ignore */}
+              <option value="5m">5 min</option>{/* i18n-ignore */}
+              <option value="15m">15 min</option>{/* i18n-ignore */}
+              <option value="1h">{t("nodeTools.livePage.oneHour")}</option>
             </select>
             <Button variant="outline" size="sm" onClick={fetchHistory}>
-              🔄 Refresh
+              🔄 {t("common.refresh")}
             </Button>
           </div>
         </div>
         <CardDescription>
-          {loading ? 'Loading...' : `${historyData.length} data points`}
+          {loading ? t("common.loading") : t("nodeTools.livePage.dataPoints", { count: historyData.length })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {loading ? (
-          <div className="text-center py-12 text-muted-foreground">Loading historical data...</div>
+          <div className="text-center py-12 text-muted-foreground">{t("nodeTools.loadingHistory")}</div>
         ) : historyData.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">No historical data available</div>
+          <div className="text-center py-12 text-muted-foreground">{t("nodeTools.livePage.noHistory")}</div>
         ) : (
           <>
-            <LineChart data={historyData} dataKey="cpu" color="#3b82f6" label="CPU Usage" />
-            <LineChart data={historyData} dataKey="memory" color="#10b981" label="Memory Usage" />
-            <LineChart data={historyData} dataKey="disk" color="#f59e0b" label="Disk Usage" />
+            <LineChart data={historyData} dataKey="cpu" color="#3b82f6" label={t("nodeTools.cpuUsage")} />
+            <LineChart data={historyData} dataKey="memory" color="#10b981" label={t("nodeTools.memoryUsage")} />
+            <LineChart data={historyData} dataKey="disk" color="#f59e0b" label={t("nodeTools.diskUsage")} />
           </>
         )}
       </CardContent>
