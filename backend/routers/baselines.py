@@ -9,12 +9,13 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.cis_templates import CHOCO_PACKAGES, CIS_TEMPLATES
+from auth import require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(tags=["Baselines"])
 
 
-@router.post("/api/v1/software-baselines")
+@router.post("/api/v1/software-baselines", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_software_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a software baseline (package collection)"""
     async with db.acquire() as conn:
@@ -86,7 +87,7 @@ async def get_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get
         }
 
 
-@router.delete("/api/v1/software-baselines/{baseline_id}")
+@router.delete("/api/v1/software-baselines/{baseline_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a software baseline"""
     async with db.acquire() as conn:
@@ -100,7 +101,7 @@ async def delete_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(
         return {"status": "deleted", "id": baseline_id}
 
 
-@router.post("/api/v1/software-baselines/{baseline_id}/assign")
+@router.post("/api/v1/software-baselines/{baseline_id}/assign", dependencies=[Depends(require_user_permission("packages:write"))])
 async def assign_baseline_to_group(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Assign a software baseline to a group"""
     group_id = data.get("groupId")
@@ -135,7 +136,7 @@ async def assign_baseline_to_group(baseline_id: str, data: Dict[str, Any], db: a
         }
 
 
-@router.post("/api/v1/software-baselines/reconcile")
+@router.post("/api/v1/software-baselines/reconcile", dependencies=[Depends(require_user_permission("packages:write"))])
 async def reconcile_all_baselines(db: asyncpg.Pool = Depends(get_db)):
     """
     Reconcile all baseline assignments.

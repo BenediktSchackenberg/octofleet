@@ -429,7 +429,7 @@ def _is_no_upgrade_output(output: str) -> bool:
     return any(marker in text for marker in _NO_UPGRADE_MARKERS)
 
 
-@router.post("/api/v1/remediation/jobs/{job_id}/result")
+@router.post("/api/v1/remediation/jobs/{job_id}/result", dependencies=[Depends(verify_api_key)])
 async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     """
     Agent endpoint: Submit remediation job result.

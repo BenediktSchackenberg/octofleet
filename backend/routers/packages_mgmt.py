@@ -7,6 +7,7 @@ import aiofiles
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from app.core.file_utils import compute_file_sha256, detect_repo_file_type, get_repo_storage_path
+from auth import require_user_permission
 from dependencies import get_db, get_pool, not_found, verify_api_key
 
 MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))
@@ -431,7 +432,7 @@ async def list_package_sources(db: asyncpg.Pool = Depends(get_db)):
         return {"sources": sources, "count": len(sources)}
 
 
-@router.post("/api/v1/package-sources")
+@router.post("/api/v1/package-sources", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_package_source(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a package source (SMB share, HTTP, etc.)"""
     async with db.acquire() as conn:
@@ -450,7 +451,7 @@ async def create_package_source(data: Dict[str, Any], db: asyncpg.Pool = Depends
         return {"id": str(row["id"]), "status": "created"}
 
 
-@router.delete("/api/v1/package-sources/{source_id}")
+@router.delete("/api/v1/package-sources/{source_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_package_source(source_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a package source"""
     async with db.acquire() as conn:

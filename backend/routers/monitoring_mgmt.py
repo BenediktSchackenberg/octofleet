@@ -11,6 +11,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.db.nodes import os_build_from
+from auth import require_user_permission
 from dependencies import get_db, get_pool, verify_api_key
 
 router = APIRouter(tags=["Monitoring"])
@@ -121,7 +122,7 @@ def _compute_posture_diff(baseline: dict, current: dict) -> dict:
 
 
 
-@router.delete("/api/v1/detection-rules/{rule_id}")
+@router.delete("/api/v1/detection-rules/{rule_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_detection_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a detection rule"""
     async with db.acquire() as conn:
@@ -597,7 +598,7 @@ async def list_agent_capabilities():
         return {"agents": [_parse_json_fields(dict(r)) for r in rows]}
 
 
-@router.post("/api/v1/agents/{node_id}/health")
+@router.post("/api/v1/agents/{node_id}/health", dependencies=[Depends(verify_api_key)])
 async def report_agent_health(node_id: str, req: Request):
     """Agent reports health metrics: queue depth, drops, CPU overhead, etc."""
     body = await req.json()

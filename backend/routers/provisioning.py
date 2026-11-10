@@ -12,6 +12,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, validator
 
+from auth import require_user_permission
 from provisioning_config import load_config
 
 router = APIRouter(prefix="/api/v1/provisioning", tags=["provisioning"])
@@ -157,7 +158,7 @@ async def list_images(active_only: bool = True, conn = Depends(get_db)):
     return [dict(row) for row in rows]
 
 
-@router.post("/images", response_model=ProvisioningImageOut)
+@router.post("/images", response_model=ProvisioningImageOut, dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_image(image: ProvisioningImageCreate, conn = Depends(get_db)):
     """Create a new OS image entry"""
     # Check for duplicate name
@@ -177,7 +178,7 @@ async def create_image(image: ProvisioningImageCreate, conn = Depends(get_db)):
     return dict(row)
 
 
-@router.put("/images/{image_id}", response_model=ProvisioningImageOut)
+@router.put("/images/{image_id}", response_model=ProvisioningImageOut, dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_image(image_id: str, image: ProvisioningImageUpdate, conn = Depends(get_db)):
     """Update an OS image entry"""
     # Build dynamic update query
@@ -209,7 +210,7 @@ async def update_image(image_id: str, image: ProvisioningImageUpdate, conn = Dep
     return dict(row)
 
 
-@router.delete("/images/{image_id}")
+@router.delete("/images/{image_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_image(image_id: str, conn = Depends(get_db)):
     """Delete an OS image entry (or deactivate if in use)"""
     # Check if image is referenced by any tasks
@@ -255,7 +256,7 @@ async def list_templates(conn = Depends(get_db)):
     return result
 
 
-@router.post("/templates", response_model=ProvisioningTemplateOut)
+@router.post("/templates", response_model=ProvisioningTemplateOut, dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_template(template: ProvisioningTemplateCreate, conn = Depends(get_db)):
     """Create a new platform template"""
     existing = await conn.fetchrow(
@@ -278,7 +279,7 @@ async def create_template(template: ProvisioningTemplateCreate, conn = Depends(g
     return d
 
 
-@router.put("/templates/{platform}", response_model=ProvisioningTemplateOut)
+@router.put("/templates/{platform}", response_model=ProvisioningTemplateOut, dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_template(platform: str, template: ProvisioningTemplateUpdate, conn = Depends(get_db)):
     """Update a platform template"""
     updates = []
@@ -316,7 +317,7 @@ async def update_template(platform: str, template: ProvisioningTemplateUpdate, c
     return d
 
 
-@router.delete("/templates/{platform}")
+@router.delete("/templates/{platform}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_template(platform: str, conn = Depends(get_db)):
     """Delete a platform template"""
     result = await conn.execute("DELETE FROM provisioning_templates WHERE platform = $1", platform)
@@ -349,7 +350,7 @@ async def list_tasks(
     rows = await conn.fetch(query, *params)
     return [_task_to_dict(row) for row in rows]
 
-@router.post("/tasks", response_model=ProvisioningTaskOut)
+@router.post("/tasks", response_model=ProvisioningTaskOut, dependencies=[Depends(require_user_permission("nodes:write"))])
 async def create_task(task: ProvisioningTaskCreate, conn = Depends(get_db)):
     """Create a new provisioning task"""
     
@@ -427,7 +428,7 @@ async def get_task(task_id: str, conn = Depends(get_db)):
     
     return _task_to_dict(row)
 
-@router.delete("/tasks/{task_id}")
+@router.delete("/tasks/{task_id}", dependencies=[Depends(require_user_permission("nodes:write"))])
 async def delete_task(task_id: str, conn = Depends(get_db)):
     """Delete a provisioning task"""
     result = await conn.execute(

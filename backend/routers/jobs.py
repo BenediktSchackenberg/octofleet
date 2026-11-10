@@ -126,7 +126,7 @@ async def cancel_or_delete_job(job_id: str, db: asyncpg.Pool = Depends(get_db),
 # Agent endpoint moved to main.py (no auth required)
 # @agent_router.get("/jobs/pending/{node_id}") is in main.py
 
-@agent_router.post("/jobs/instances/{instance_id}/result")
+@agent_router.post("/jobs/instances/{instance_id}/result", dependencies=[Depends(verify_api_key)])
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         success = job_result_succeeded(data)

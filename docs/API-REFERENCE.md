@@ -136,7 +136,7 @@ Agents push inventory data; the frontend reads it.
 | POST | `/api/v1/jobs/instances/{instance_id}/result` | API Key | Submit job result |
 | POST | `/api/v1/jobs/result` | API Key | Submit job result (alt) |
 | POST | `/api/v1/jobs/instances/{instance_id}/retry` | API Key | Retry failed job instance |
-| POST | `/api/v1/smart-install` | API Key | Smart install (auto-detect package manager) |
+| POST | `/api/v1/smart-install` | User: `jobs:create` | Smart install (auto-detect package manager) |
 | GET | `/api/v1/smart-install/packages` | API Key | List available smart-install packages |
 
 ### Packages & Deployments
@@ -185,14 +185,14 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 |--------|------|------|-------------|
 | GET | `/api/v1/security/dashboard` | API Key | Security dashboard overview |
 | GET | `/api/v1/security/rules` | API Key | List behavior rules |
-| POST | `/api/v1/security/rules` | API Key | Create behavior rule |
-| PUT | `/api/v1/security/rules/{rule_id}` | API Key | Update rule |
-| DELETE | `/api/v1/security/rules/{rule_id}` | API Key | Delete rule |
-| POST | `/api/v1/security/rules/evaluate` | API Key | Evaluate rules against events |
+| POST | `/api/v1/security/rules` | User: `settings:write` | Create behavior rule |
+| PUT | `/api/v1/security/rules/{rule_id}` | User: `settings:write` | Update rule |
+| DELETE | `/api/v1/security/rules/{rule_id}` | User: `settings:write` | Delete rule |
+| POST | `/api/v1/security/rules/evaluate` | User: `settings:write` | Evaluate rules against events |
 | GET | `/api/v1/security/findings` | API Key | List security findings |
 | GET | `/api/v1/security/findings/summary` | API Key | Findings summary |
-| POST | `/api/v1/security/findings` | API Key | Create finding manually |
-| PUT | `/api/v1/security/findings/{finding_id}` | API Key | Update finding status |
+| POST | `/api/v1/security/findings` | User: `alerts:write` | Create finding manually |
+| PUT | `/api/v1/security/findings/{finding_id}` | User: `alerts:write` | Update finding status |
 | GET | `/api/v1/security/policies` | API Key | List security policies |
 | POST | `/api/v1/security/policies` | API Key | Create policy |
 | PUT | `/api/v1/security/policies/{policy_id}` | API Key | Update policy |
@@ -320,16 +320,16 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/provisioning/images` | API Key | List OS images |
-| POST | `/api/v1/provisioning/images` | API Key | Add OS image |
+| POST | `/api/v1/provisioning/images` | User: `settings:write` | Add OS image |
 | GET | `/api/v1/provisioning/tasks` | — | List provisioning tasks |
-| POST | `/api/v1/provisioning/tasks` | — | Create provisioning task |
-| DELETE | `/api/v1/provisioning/tasks/{task_id}` | — | Delete task |
+| POST | `/api/v1/provisioning/tasks` | User: `nodes:write` | Create provisioning task |
+| DELETE | `/api/v1/provisioning/tasks/{task_id}` | User: `nodes:write` | Delete task |
 | GET | `/api/v1/pxe/{mac}` | No | PXE boot script for MAC address |
 | GET | `/api/v1/provisioning/iso/scan` | API Key | Scan for ISOs |
-| POST | `/api/v1/provisioning/iso/mount` | API Key | Mount ISO |
-| POST | `/api/v1/provisioning/vm/create` | API Key | Create VM |
+| POST | `/api/v1/provisioning/iso/mount` | User: `settings:write` | Mount ISO |
+| POST | `/api/v1/provisioning/vm/create` | User: `nodes:write` | Create VM |
 | GET | `/api/v1/discovered-systems` | — | List discovered systems |
-| POST | `/api/v1/discovered-systems/{system_id}/provision` | — | Provision discovered system |
+| POST | `/api/v1/discovered-systems/{system_id}/provision` | User: `nodes:write` | Provision discovered system |
 
 ### Exports & Reports
 

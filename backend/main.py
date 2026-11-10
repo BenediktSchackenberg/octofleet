@@ -686,7 +686,7 @@ class SmartInstallRequest(BaseModel):
     timeout_seconds: int = Field(600, description="Timeout for installation")
 
 
-@app.post("/api/v1/smart-install")
+@app.post("/api/v1/smart-install", dependencies=[Depends(require_user_permission("jobs:create"))])
 async def smart_install(
     request: SmartInstallRequest,
     db: asyncpg.Pool = Depends(get_db)
@@ -3745,7 +3745,7 @@ async def stop_live_session(session_id: str, _: str = Depends(verify_api_key)):
     raise HTTPException(status_code=404, detail="Session not found")
 
 
-@app.post("/api/v1/live-data")
+@app.post("/api/v1/live-data", dependencies=[Depends(verify_api_key)])
 async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """
     Receives live monitoring data from agents.
@@ -5214,7 +5214,7 @@ async def register_discovered_system(data: Dict[str, Any], db: asyncpg.Pool = De
             
             return {"status": "created", "id": str(row["id"]), "boot_count": 1}
 
-@app.patch("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"])
+@app.patch("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"], dependencies=[Depends(require_user_permission("nodes:write"))])
 async def update_discovered_system(
     system_id: str, 
     data: Dict[str, Any], 
@@ -5254,7 +5254,7 @@ async def update_discovered_system(
         
         return {"status": "updated", "id": str(row["id"])}
 
-@app.delete("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"])
+@app.delete("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"], dependencies=[Depends(require_user_permission("nodes:write"))])
 async def delete_discovered_system(system_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a discovered system from the registry"""
     async with db.acquire() as conn:
@@ -5266,7 +5266,7 @@ async def delete_discovered_system(system_id: str, db: asyncpg.Pool = Depends(ge
             raise HTTPException(status_code=404, detail="System not found")
         return {"status": "deleted"}
 
-@app.post("/api/v1/discovered-systems/{system_id}/provision", tags=["Provisioning"])
+@app.post("/api/v1/discovered-systems/{system_id}/provision", tags=["Provisioning"], dependencies=[Depends(require_user_permission("nodes:write"))])
 async def provision_discovered_system(
     system_id: str,
     data: Dict[str, Any],
@@ -6153,7 +6153,7 @@ async def list_behavior_rules(db: asyncpg.Pool = Depends(get_db)):
             "cooldownSeconds": r["cooldown_seconds"], "createdAt": str(r["created_at"])
         } for r in rows]}
 
-@app.post("/api/v1/security/rules")
+@app.post("/api/v1/security/rules", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_behavior_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
@@ -6170,7 +6170,7 @@ async def create_behavior_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(
             data.get("createdBy", "api"))
         return {"id": str(row["id"]), "createdAt": str(row["created_at"])}
 
-@app.put("/api/v1/security/rules/{rule_id}")
+@app.put("/api/v1/security/rules/{rule_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_behavior_rule(rule_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         await conn.execute("""
@@ -6186,13 +6186,13 @@ async def update_behavior_rule(rule_id: str, data: Dict[str, Any], db: asyncpg.P
             data.get("cooldownSeconds", 300))
         return {"updated": True}
 
-@app.delete("/api/v1/security/rules/{rule_id}")
+@app.delete("/api/v1/security/rules/{rule_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_behavior_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         await conn.execute("DELETE FROM behavior_rules WHERE id = $1::uuid", rule_id)
         return {"deleted": True}
 
-@app.post("/api/v1/security/rules/evaluate")
+@app.post("/api/v1/security/rules/evaluate", dependencies=[Depends(require_user_permission("settings:write"))])
 async def evaluate_rules(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Evaluate all enabled behavior rules against recent events. Called periodically or on-demand."""
     async with db.acquire() as conn:
@@ -6377,7 +6377,7 @@ async def findings_summary(db: asyncpg.Pool = Depends(get_db)):
             "trend": [{"day": str(r["day"]), "count": r["count"]} for r in trend]
         }
 
-@app.put("/api/v1/security/findings/{finding_id}")
+@app.put("/api/v1/security/findings/{finding_id}", dependencies=[Depends(require_user_permission("alerts:write"))])
 async def update_finding(finding_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         updates = []
@@ -6400,7 +6400,7 @@ async def update_finding(finding_id: str, data: Dict[str, Any], db: asyncpg.Pool
             await conn.execute(f"UPDATE security_findings SET {', '.join(updates)} WHERE id = $1::uuid", *params)
         return {"updated": True}
 
-@app.post("/api/v1/security/findings")
+@app.post("/api/v1/security/findings", dependencies=[Depends(require_user_permission("alerts:write"))])
 async def create_finding(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         severity = data.get("severity", "medium")
