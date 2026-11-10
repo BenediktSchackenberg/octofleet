@@ -828,6 +828,18 @@
       "lastQuickScan": "Letzte Schnellüberprüfung",
       "lastFullScan": "Letzte vollständige Überprüfung",
       "notAvailable": "Microsoft Defender ist auf diesem Gerät nicht verfügbar"
+    },
+    "security": {
+      "firmware": "Firmware",
+      "bitlockerNotInstalled": "BitLocker ist nicht installiert",
+      "uacConsent": {
+        "0": "Ohne Nachfrage erhöhen",
+        "1": "Anmeldedaten auf dem sicheren Desktop abfragen",
+        "2": "Zustimmung auf dem sicheren Desktop abfragen",
+        "3": "Anmeldedaten abfragen",
+        "4": "Zustimmung abfragen",
+        "5": "Zustimmung für Nicht-Windows-Programme abfragen (Standard)"
+      }
     }
   },
   "navGroups": {

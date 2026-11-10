@@ -828,6 +828,18 @@
       "lastQuickScan": "Último análisis rápido",
       "lastFullScan": "Último análisis completo",
       "notAvailable": "Microsoft Defender no está disponible en este equipo"
+    },
+    "security": {
+      "firmware": "Firmware",
+      "bitlockerNotInstalled": "BitLocker no está instalado",
+      "uacConsent": {
+        "0": "Elevar sin preguntar",
+        "1": "Pedir credenciales en el escritorio seguro",
+        "2": "Pedir consentimiento en el escritorio seguro",
+        "3": "Pedir credenciales",
+        "4": "Pedir consentimiento",
+        "5": "Pedir consentimiento para programas que no son de Windows (predeterminado)"
+      }
     }
   },
   "navGroups": {

@@ -75,6 +75,15 @@ function agentDate(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) || date.getFullYear() < 2000 ? null : date;
 }
 
+/** TPM manufacturer: the readable id ("MSFT"), or the numeric id decoded to its four ASCII letters. */
+function tpmManufacturer(tpm: any): string | null {
+  if (tpm?.manufacturerIdTxt?.trim()) return tpm.manufacturerIdTxt.trim();
+  const id = Number(tpm?.manufacturerId);
+  if (!Number.isInteger(id) || id <= 0) return tpm?.manufacturer ?? null;
+  const text = [24, 16, 8, 0].map((shift) => String.fromCharCode((id >> shift) & 0xff)).join("").replace(/\0/g, "").trim();
+  return /^[\x20-\x7e]+$/.test(text) ? text : String(id);
+}
+
 /** Firewall profiles: the agent sends a list of {name, enabled}; older data a map name -> {enabled}. */
 function firewallProfiles(profiles: unknown): [string, { enabled?: boolean }][] {
   if (Array.isArray(profiles)) return profiles.map((p: any) => [String(p?.name ?? "?"), p]);
@@ -972,8 +981,9 @@ export default function NodeDetailPage() {
                           {(secData.tpm.present ?? secData.tpm.isPresent) ? t("nodeDetail.present") : t("nodeDetail.notPresent")}
                         </Badge>
                       </div>
-                      <InfoRow label={t("nodeDetail.version")} value={secData.tpm.specVersion ?? secData.tpm.manufacturerVersion} />
-                      <InfoRow label={t("nodeDetail.manufacturer")} value={secData.tpm.manufacturer ?? secData.tpm.manufacturerId} />
+                      <InfoRow label={t("nodeDetail.version")} value={secData.tpm.specVersion ? `TPM ${String(secData.tpm.specVersion).split(",")[0].trim()}` : null} />
+                      <InfoRow label={t("nodeDetail.manufacturer")} value={tpmManufacturer(secData.tpm)} />
+                      <InfoRow label={t("nodeDetail.security.firmware")} value={secData.tpm.manufacturerVersion} />
                     </>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
@@ -989,14 +999,14 @@ export default function NodeDetailPage() {
                       {secData.bitlocker?.volumes?.map((vol: any, i: number) => (
                         <div key={i} className="flex justify-between items-center">
                           <span>{vol.driveLetter ?? vol.mountPoint}</span>
-                          <Badge variant={vol.protectionStatus === "On" ? "default" : "secondary"}>
+                          <Badge variant={["On", "1"].includes(String(vol.protectionStatus)) ? "default" : "secondary"}>
                             {vol.protectionStatus}
                           </Badge>
                         </div>
                       ))}
                     </div>
                   ) : secData.bitlocker?.available === false ? (
-                    <p className="text-muted-foreground">{secData.bitlocker.reason || t("nodeDetail.noData")}</p>
+                    <p className="text-muted-foreground" title={secData.bitlocker.reason}>{t("nodeDetail.security.bitlockerNotInstalled")}</p>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
                   )}
@@ -1014,7 +1024,19 @@ export default function NodeDetailPage() {
                           {secData.uac.enabled ? t("common.yes") : t("common.no")}
                         </Badge>
                       </div>
-                      <InfoRow label={t("nodeDetail.consentPrompt")} value={(secData.uac.consentPromptBehaviorAdmin ?? secData.uac.consentPromptBehavior)?.toString()} />
+                      {(() => {
+                        const consent = secData.uac.consentPromptBehaviorAdmin ?? secData.uac.consentPromptBehavior;
+                        if (consent === undefined || consent === null) return null;
+                        const known = [0, 1, 2, 3, 4, 5].includes(Number(consent));
+                        return (
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">{t("nodeDetail.consentPrompt")}</span>
+                            <span className={`text-right text-sm ${Number(consent) === 0 ? "text-destructive" : ""}`} title={`ConsentPromptBehaviorAdmin = ${consent}`}>{/* i18n-ignore */}
+                              {known ? `${consent} – ${t(`nodeDetail.security.uacConsent.${Number(consent)}`)}` : String(consent)}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
