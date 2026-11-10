@@ -107,6 +107,10 @@ export interface SystemData {
 }
 
 export interface SecurityData {
+  defender?: any;
+  antivirusProducts?: any[];
+  secureBoot?: boolean | null;
+  updatedAt?: string | null;
   firewall?: any;
   tpm?: any;
   bitlocker?: any;

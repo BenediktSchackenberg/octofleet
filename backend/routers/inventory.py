@@ -214,12 +214,18 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT defender, firewall, tpm, uac, bitlocker, local_admins, updated_at FROM security_current WHERE node_id = $1", node['id'])
+        row = await conn.fetchrow("SELECT antivirus, defender, firewall, tpm, uac, bitlocker, secure_boot, local_admins, updated_at FROM security_current WHERE node_id = $1", node['id'])
         if not row: return {"data": None}
+
+        def section(column):
+            return json.loads(row[column]) if row[column] else None
+
+        antivirus = section("antivirus") or {}
         return {"data": {
-            "defender": json.loads(row['defender']) if row['defender'] else {}, "firewall": json.loads(row['firewall']) if row['firewall'] else [],
-            "tpm": json.loads(row['tpm']) if row['tpm'] else {}, "uac": json.loads(row['uac']) if row['uac'] else {},
-            "bitlocker": json.loads(row['bitlocker']) if row['bitlocker'] else [], "localAdmins": json.loads(row['local_admins']) if row['local_admins'] else {}
+            "defender": section("defender"), "antivirusProducts": antivirus.get("products") or [],
+            "firewall": section("firewall"), "tpm": section("tpm"), "uac": section("uac"),
+            "bitlocker": section("bitlocker"), "secureBoot": row["secure_boot"], "localAdmins": section("local_admins"),
+            "updatedAt": row["updated_at"].isoformat() if row["updated_at"] else None,
         }}
 
 @router.get("/network/{node_id}", dependencies=_auth)
@@ -336,6 +342,44 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
     await update_dynamic_device_groupships(db, uuid, {"hostname": hostname, "os_name": os_info.get("name", ""), "os_version": os_info.get("version", ""), "os_build": os_build or "", "agent_version": agent_version or "", "domain": os_info.get("domain", ""), "is_domain_joined": os_info.get("isDomainJoined", False)})
     return {"status": "ok", "node_id": str(uuid), "type": "system"}
 
+def _dict(value):
+    return value if isinstance(value, dict) else {}
+
+
+async def store_security(db: asyncpg.Pool, node_id_str: str, hostname: str, sec: Dict[str, Any]):
+    """Store the security section of a Windows agent's inventory (SecurityCollector)."""
+    uuid = await upsert_node(db, node_id_str, hostname)
+    antivirus, uac, secure_boot = _dict(sec.get("antivirus")), _dict(sec.get("uac")), _dict(sec.get("secureBoot"))
+
+    def as_json(value):
+        return json.dumps(value) if value is not None else None
+
+    async with db.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO security_current (node_id, antivirus, defender, firewall, tpm, uac, uac_enabled, bitlocker,
+                                          secure_boot, local_admins, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+            ON CONFLICT (node_id) DO UPDATE SET
+                antivirus = EXCLUDED.antivirus, defender = EXCLUDED.defender, firewall = EXCLUDED.firewall,
+                tpm = EXCLUDED.tpm, uac = EXCLUDED.uac, uac_enabled = EXCLUDED.uac_enabled,
+                bitlocker = EXCLUDED.bitlocker, secure_boot = EXCLUDED.secure_boot,
+                local_admins = EXCLUDED.local_admins, updated_at = NOW()
+        """, uuid, as_json(antivirus), as_json(antivirus.get("windowsDefender")), as_json(sec.get("firewall")),
+            as_json(sec.get("tpm")), as_json(uac or None), uac.get("enabled") if uac else None,
+            as_json(sec.get("bitlocker")), secure_boot.get("enabled") if secure_boot else None,
+            as_json(sec.get("localAdmins")))
+    return uuid
+
+
+@router.post("/security", dependencies=[Depends(require_permission("inventory:write"))])
+async def submit_security(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Submit security inventory"""
+    data = sanitize_for_postgres(data)
+    hostname = data.get("hostname", "unknown")
+    uuid = await store_security(db, data.get("nodeId", hostname), hostname, data)
+    return {"status": "ok", "node_id": str(uuid), "type": "security"}
+
+
 @router.post("/full", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit full inventory (all types at once)"""
@@ -361,6 +405,10 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     if sys_data.get("os") or sys_data.get("services"):
         await submit_system({"hostname": hostname, "nodeId": data.get("nodeId", hostname), **sys_data}, db)
         results["submitted"].append("system")
+    sec_data = data.get("security")
+    if isinstance(sec_data, dict) and any(sec_data.get(k) for k in ("antivirus", "firewall", "tpm", "uac", "bitlocker", "localAdmins")):
+        await store_security(db, data.get("nodeId", hostname), hostname, sec_data)
+        results["submitted"].append("security")
     linux_keys = ("performance", "services", "updates", "diskHealth")
     if any(isinstance(data.get(k), dict) for k in linux_keys):
         await submit_linux_data(hostname, data.get("nodeId", hostname), data, db)

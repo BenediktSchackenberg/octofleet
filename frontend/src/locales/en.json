@@ -818,7 +818,17 @@
       "failed": "Failed",
       "aborted": "Aborted"
     },
-    "virtualMachine": "Virtual machine"
+    "virtualMachine": "Virtual machine",
+    "defender": {
+      "realTime": "Real-time protection",
+      "antivirus": "Antivirus",
+      "signatureVersion": "Signature version",
+      "signatureUpdated": "Signatures updated",
+      "engineVersion": "Engine version",
+      "lastQuickScan": "Last quick scan",
+      "lastFullScan": "Last full scan",
+      "notAvailable": "Microsoft Defender is not available on this machine"
+    }
   },
   "navGroups": {
     "fleet": "Fleet",

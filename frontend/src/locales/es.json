@@ -818,7 +818,17 @@
       "failed": "Fallida",
       "aborted": "Cancelada"
     },
-    "virtualMachine": "Máquina virtual"
+    "virtualMachine": "Máquina virtual",
+    "defender": {
+      "realTime": "Protección en tiempo real",
+      "antivirus": "Antivirus",
+      "signatureVersion": "Versión de firmas",
+      "signatureUpdated": "Firmas actualizadas",
+      "engineVersion": "Versión del motor",
+      "lastQuickScan": "Último análisis rápido",
+      "lastFullScan": "Último análisis completo",
+      "notAvailable": "Microsoft Defender no está disponible en este equipo"
+    }
   },
   "navGroups": {
     "fleet": "Flota",

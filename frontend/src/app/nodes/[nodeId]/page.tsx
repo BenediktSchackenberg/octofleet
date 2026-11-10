@@ -67,6 +67,20 @@ function CopyButton({ text, className = "" }: { text: string; className?: string
   );
 }
 
+/** Dates from the agent: ISO strings, or "/Date(1731234567000)/" from Windows PowerShell's ConvertTo-Json. */
+function agentDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value) return null;
+  const ms = /\/Date\((-?\d+)\)\//.exec(value);
+  const date = ms ? new Date(Number(ms[1])) : new Date(value);
+  return Number.isNaN(date.getTime()) || date.getFullYear() < 2000 ? null : date;
+}
+
+/** Firewall profiles: the agent sends a list of {name, enabled}; older data a map name -> {enabled}. */
+function firewallProfiles(profiles: unknown): [string, { enabled?: boolean }][] {
+  if (Array.isArray(profiles)) return profiles.map((p: any) => [String(p?.name ?? "?"), p]);
+  return Object.entries((profiles as Record<string, { enabled?: boolean }>) || {});
+}
+
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
@@ -887,11 +901,52 @@ export default function NodeDetailPage() {
           <TabsContent value="security" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
+                <CardHeader><CardTitle>🛡️ Microsoft Defender</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardContent className="space-y-2">
+                  {secData.defender?.available ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">{t("nodeDetail.defender.realTime")}</span>
+                        <Badge variant={secData.defender.realTimeProtectionEnabled ? "default" : "destructive"}>
+                          {secData.defender.realTimeProtectionEnabled ? t("common.active") : t("common.inactive")}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">{t("nodeDetail.defender.antivirus")}</span>
+                        <Badge variant={secData.defender.antivirusEnabled ? "default" : "destructive"}>
+                          {secData.defender.antivirusEnabled ? t("common.active") : t("common.inactive")}
+                        </Badge>
+                      </div>
+                      <InfoRow label={t("nodeDetail.defender.signatureVersion")} value={secData.defender.signatureVersion} />
+                      <InfoRow label={t("nodeDetail.defender.signatureUpdated")} value={formatDateTimeIntl(agentDate(secData.defender.signatureLastUpdated), undefined, "")} />
+                      <InfoRow label={t("nodeDetail.defender.engineVersion")} value={secData.defender.engineVersion} />
+                      <InfoRow label={t("nodeDetail.defender.lastQuickScan")} value={formatDateTimeIntl(agentDate(secData.defender.lastQuickScan), undefined, "")} />
+                      <InfoRow label={t("nodeDetail.defender.lastFullScan")} value={formatDateTimeIntl(agentDate(secData.defender.lastFullScan), undefined, "")} />
+                    </>
+                  ) : secData.defender ? (
+                    <p className="text-muted-foreground">{secData.defender.error || t("nodeDetail.defender.notAvailable")}</p>
+                  ) : (
+                    <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
+                  )}
+                  {(secData.antivirusProducts?.length ?? 0) > 0 && (
+                    <div className="pt-2 space-y-1">
+                      {secData.antivirusProducts?.map((av: any, i: number) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span>{av.name}</span>
+                          <Badge variant={av.enabled ? "default" : "secondary"}>{av.enabled ? t("common.active") : t("common.inactive")}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
                 <CardHeader><CardTitle>🛡️ Windows Firewall</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent>
                   {secData.firewall?.profiles ? (
                     <div className="space-y-2">
-                      {Object.entries(secData.firewall?.profiles || {}).map(([profile, data]: [string, any]) => (
+                      {firewallProfiles(secData.firewall?.profiles).map(([profile, data]) => (
                         <div key={profile} className="flex justify-between items-center">
                           <span>{profile}</span>
                           <Badge variant={data?.enabled ? "default" : "destructive"}>
@@ -913,12 +968,12 @@ export default function NodeDetailPage() {
                     <>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">{t("common.status")}</span>
-                        <Badge variant={secData.tpm.isPresent ? "default" : "secondary"}>
-                          {secData.tpm.isPresent ? t("nodeDetail.present") : t("nodeDetail.notPresent")}
+                        <Badge variant={(secData.tpm.present ?? secData.tpm.isPresent) ? "default" : "secondary"}>
+                          {(secData.tpm.present ?? secData.tpm.isPresent) ? t("nodeDetail.present") : t("nodeDetail.notPresent")}
                         </Badge>
                       </div>
-                      <InfoRow label={t("nodeDetail.version")} value={secData.tpm.specVersion} />
-                      <InfoRow label={t("nodeDetail.manufacturer")} value={secData.tpm.manufacturer} />
+                      <InfoRow label={t("nodeDetail.version")} value={secData.tpm.specVersion ?? secData.tpm.manufacturerVersion} />
+                      <InfoRow label={t("nodeDetail.manufacturer")} value={secData.tpm.manufacturer ?? secData.tpm.manufacturerId} />
                     </>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
@@ -933,13 +988,15 @@ export default function NodeDetailPage() {
                     <div className="space-y-2">
                       {secData.bitlocker?.volumes?.map((vol: any, i: number) => (
                         <div key={i} className="flex justify-between items-center">
-                          <span>{vol.driveLetter}</span>
+                          <span>{vol.driveLetter ?? vol.mountPoint}</span>
                           <Badge variant={vol.protectionStatus === "On" ? "default" : "secondary"}>
                             {vol.protectionStatus}
                           </Badge>
                         </div>
                       ))}
                     </div>
+                  ) : secData.bitlocker?.available === false ? (
+                    <p className="text-muted-foreground">{secData.bitlocker.reason || t("nodeDetail.noData")}</p>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
                   )}
@@ -957,7 +1014,7 @@ export default function NodeDetailPage() {
                           {secData.uac.enabled ? t("common.yes") : t("common.no")}
                         </Badge>
                       </div>
-                      <InfoRow label={t("nodeDetail.consentPrompt")} value={secData.uac.consentPromptBehaviorAdmin?.toString()} />
+                      <InfoRow label={t("nodeDetail.consentPrompt")} value={(secData.uac.consentPromptBehaviorAdmin ?? secData.uac.consentPromptBehavior)?.toString()} />
                     </>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
