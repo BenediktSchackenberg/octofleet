@@ -18,15 +18,33 @@ def _is_uuid(val: str) -> bool:
         return False
 
 
+# Patch states that still need action on a node
+OPEN_STATES = ("detected", "approved", "downloading", "installing")
+
+# patch_catalog_nodes.node_id holds the node's UUID (patch scan report) - older entries may hold its
+# node_id. $n is resolved against both, so a node can be named either way in a request.
+NODE_ENTRY_MATCH = "(SELECT n.id::text FROM nodes n WHERE n.node_id = ${n} OR n.id::text = ${n}), ${n}"
+
+
+def _node_entries(param_index: int) -> str:
+    """SQL condition on patch_catalog_nodes (alias-free): the entries of the node in parameter $param_index."""
+    return f"node_id IN ({NODE_ENTRY_MATCH.replace('{n}', str(param_index))})"
+
+
 @router.get("/api/v1/patches/catalog", dependencies=[Depends(require_user_permission("packages:read"))])
 async def list_patch_catalog(
     severity: str = None, category: str = None, approved: str = None,
-    search: str = None, limit: int = 100, offset: int = 0
+    search: str = None, node: str = None, limit: int = 100, offset: int = 0
 ):
+    """Patch catalog. `node` (node_id or UUID) limits it to the patches still open on that node."""
     async with get_pool().acquire() as conn:
         conditions = []
         params = []
         idx = 1
+        if node:
+            conditions.append(f"id IN (SELECT patch_id FROM patch_catalog_nodes WHERE {_node_entries(idx)} "
+                              f"AND status = ANY(${idx + 1}::text[]))")
+            params.append(node); params.append(list(OPEN_STATES)); idx += 2
         if severity:
             conditions.append(f"severity = ${idx}")
             params.append(severity); idx += 1
@@ -139,7 +157,7 @@ async def get_patch_detail(patch_id: str):
             raise HTTPException(404, "Patch not found")
         nodes = await conn.fetch("""
             SELECT pcn.*, n.hostname FROM patch_catalog_nodes pcn
-            LEFT JOIN nodes n ON n.node_id = pcn.node_id
+            LEFT JOIN nodes n ON (n.id::text = pcn.node_id OR n.node_id = pcn.node_id)
             WHERE pcn.patch_id=$1 ORDER BY pcn.detected_at DESC
         """, patch_id)
         result = dict(patch)
@@ -148,20 +166,32 @@ async def get_patch_detail(patch_id: str):
 
 
 @router.get("/api/v1/patches/compliance", dependencies=[Depends(require_user_permission("compliance:read"))])
-async def get_patch_compliance():
+async def get_patch_compliance(node_id: str = None):
+    """Patch compliance of the fleet, or of one node with `node_id` (node_id or UUID): the patch and
+    entry counts, compliance and MTTP then cover only that node's entries; rings and active
+    deployments stay fleet-wide."""
     async with get_pool().acquire() as conn:
-        total_patches = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog")
-        approved = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog WHERE is_approved=true")
-        total_node_patches = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog_nodes")
-        installed = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog_nodes WHERE status='installed'")
-        failed = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog_nodes WHERE status='failed'")
-        pending = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog_nodes WHERE status IN ('detected','approved','downloading','installing')")
+        # the node's entries, or all of them
+        entries = f"patch_catalog_nodes WHERE {_node_entries(1)}" if node_id else "patch_catalog_nodes WHERE TRUE"
+        args = [node_id] if node_id else []
+        if node_id:
+            total_patches = await conn.fetchval(f"SELECT COUNT(DISTINCT patch_id) FROM {entries}", *args)
+            approved = await conn.fetchval(
+                f"SELECT COUNT(*) FROM patch_catalog WHERE is_approved=true AND id IN (SELECT patch_id FROM {entries})", *args)
+        else:
+            total_patches = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog")
+            approved = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog WHERE is_approved=true")
+        total_node_patches = await conn.fetchval(f"SELECT COUNT(*) FROM {entries}", *args)
+        installed = await conn.fetchval(f"SELECT COUNT(*) FROM {entries} AND status='installed'", *args)
+        failed = await conn.fetchval(f"SELECT COUNT(*) FROM {entries} AND status='failed'", *args)
+        pending = await conn.fetchval(
+            f"SELECT COUNT(*) FROM {entries} AND status = ANY(${len(args) + 1}::text[])", *args, list(OPEN_STATES))
         compliance_pct = round((installed / total_node_patches * 100), 1) if total_node_patches > 0 else 100.0
         # MTTP - mean time to patch (avg time from detected to installed)
-        mttp = await conn.fetchval("""
+        mttp = await conn.fetchval(f"""
             SELECT AVG(EXTRACT(EPOCH FROM (installed_at - detected_at))/3600)
-            FROM patch_catalog_nodes WHERE status='installed' AND installed_at IS NOT NULL
-        """)
+            FROM {entries} AND status='installed' AND installed_at IS NOT NULL
+        """, *args)
         active_deployments = await conn.fetchval("SELECT COUNT(*) FROM patch_deployments WHERE status='in_progress'")
         # Per-ring compliance
         rings = await conn.fetch("""
@@ -193,7 +223,7 @@ async def get_node_compliance(limit: int = 100, offset: int = 0):
                 COUNT(CASE WHEN pcn.status='failed' THEN 1 END) as failed,
                 COUNT(CASE WHEN pcn.status IN ('detected','approved','downloading','installing') THEN 1 END) as pending
             FROM patch_catalog_nodes pcn
-            LEFT JOIN nodes n ON n.node_id = pcn.node_id
+            LEFT JOIN nodes n ON (n.id::text = pcn.node_id OR n.node_id = pcn.node_id)
             GROUP BY pcn.node_id, n.hostname
             ORDER BY pending DESC
             LIMIT $1 OFFSET $2

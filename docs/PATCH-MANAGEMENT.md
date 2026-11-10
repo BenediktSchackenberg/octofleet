@@ -86,7 +86,7 @@ The built-in `viewer` role can read; `operator` and `admin` can also change and 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/patches/catalog` | List patches (with search, pagination) |
+| GET | `/api/v1/patches/catalog` | List patches (with search, pagination; `node`: only patches still open on that node) |
 | POST | `/api/v1/patches/catalog` | Create patch manually |
 | POST | `/api/v1/patches/catalog/import` | Import patches from agent scan |
 | GET | `/api/v1/patches/catalog/{patch_id}` | Get patch details with affected nodes |
@@ -97,7 +97,7 @@ The built-in `viewer` role can read; `operator` and `admin` can also change and 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/patches/compliance` | Fleet-wide patch compliance summary |
+| GET | `/api/v1/patches/compliance` | Fleet-wide patch compliance summary (`node_id`: only that node) |
 | GET | `/api/v1/patches/compliance/nodes` | Per-node compliance breakdown |
 
 ### Rings

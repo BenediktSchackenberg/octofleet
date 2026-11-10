@@ -391,13 +391,13 @@ See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/patches/catalog` | User: `packages:read` | List patches (with search, pagination) |
+| GET | `/api/v1/patches/catalog` | User: `packages:read` | List patches (with search, pagination; `node` = node ID or UUID: only patches still open on that node) |
 | POST | `/api/v1/patches/catalog` | User: `packages:write` | Create patch manually |
 | POST | `/api/v1/patches/catalog/import` | User: `packages:write` | Import patches from agent scan |
 | GET | `/api/v1/patches/catalog/{patch_id}` | User: `packages:read` | Get patch details with affected nodes |
 | PATCH | `/api/v1/patches/catalog/{patch_id}/approve` | User: `packages:write` | Approve patch for deployment |
 | PATCH | `/api/v1/patches/catalog/{patch_id}/exclude` | User: `packages:write` | Exclude patch from deployment |
-| GET | `/api/v1/patches/compliance` | User: `compliance:read` | Fleet-wide patch compliance summary |
+| GET | `/api/v1/patches/compliance` | User: `compliance:read` | Fleet-wide patch compliance summary; `node_id` (node ID or UUID) limits counts, compliance and MTTP to that node |
 | GET | `/api/v1/patches/compliance/nodes` | User: `compliance:read` | Per-node compliance breakdown |
 | GET | `/api/v1/patches/rings` | User: `packages:read` | List patch rings |
 | POST | `/api/v1/patches/rings` | User: `packages:write` | Create ring |
