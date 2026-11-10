@@ -27,3 +27,5 @@ jobs:
         run: bash tests/linux-agent/self-update.test.sh
       - name: Test collect_updates with apt (version, suite, security flag)
         run: bash tests/linux-agent/apt-updates.test.sh
+      - name: Test the mount list, used share and display adapter names
+        run: bash tests/linux-agent/filesystems.test.sh

@@ -104,10 +104,61 @@ _dmi() {
     printf '%s' "$v" | sed 's/[[:space:]]*$//'
 }
 
+_mounted_filesystems() {
+    # Mounted filesystems as a JSON list (source, fstype, target, size, used, avail in bytes).
+    # findmnt's JSON keeps sources and mount points with spaces intact (df output would need
+    # whitespace splitting). Like df, skip pseudo filesystems (size 0), bind mounts of
+    # directories (FSROOT is not the filesystem root; a btrfs subvolume's root is its subvol=)
+    # and further mounts of the same filesystem root (e.g. container overlays of / ).
+    findmnt -J -l -b --nofsroot -o SOURCE,FSTYPE,SIZE,USED,AVAIL,TARGET,FSROOT,OPTIONS \
+            -t notmpfs,nodevtmpfs,nosquashfs,nooverlay,noefivarfs,noramfs 2>/dev/null | jq -c '
+        [.filesystems[]? | select(((.size // 0) | tonumber) > 0) |
+         select(.fsroot == "/" or .fsroot == ([(.options // "") | match("(?:^|,)subvol=([^,]+)").captures[0].string] | first))] |
+        reduce .[] as $v ([]; if any(.[]; .source == $v.source and .fsroot == $v.fsroot) then . else . + [$v] end) |
+        [.[] | {source, fstype, target, size: (.size | tonumber), used: ((.used // 0) | tonumber),
+                avail: ((.avail // 0) | tonumber)}]' 2>/dev/null || echo '[]'
+}
+
+# Used share of a filesystem as df shows it: used / (used + available) - the blocks reserved
+# for root count as neither, so a full disk shows 100 % for normal users.
+_USED_PERCENT_JQ='(if (.used + .avail) > 0 then (.used / (.used + .avail) * 1000 | round / 10) else 0 end)'
+
+_virt_hypervisor() {
+    local virt
+    virt=$(systemd-detect-virt 2>/dev/null || echo none)
+    case "$virt" in
+        microsoft) echo "Hyper-V" ;;
+        kvm)       echo "KVM" ;;
+        qemu)      echo "QEMU" ;;
+        vmware)    echo "VMware" ;;
+        oracle)    echo "VirtualBox" ;;
+        xen)       echo "Xen" ;;
+        amazon)    echo "AWS Nitro" ;;
+        none|"")   echo "" ;;
+        *)         echo "$virt" ;;
+    esac
+}
+
+# Readable names for display adapters that have no PCI device, only a DRM driver
+_drm_display_name() {
+    case "$1" in
+        hyperv_drm)       echo "Microsoft Hyper-V Video" ;;
+        virtio_gpu|virtio-gpu) echo "Virtio GPU" ;;
+        vmwgfx)           echo "VMware SVGA" ;;
+        bochs|bochs-drm)  echo "QEMU Standard VGA (Bochs)" ;;
+        qxl)              echo "QXL Paravirtual Graphics" ;;
+        cirrus|cirrus-qemu) echo "Cirrus Logic VGA (emulated)" ;;
+        simpledrm|simplefb|efifb) echo "Firmware framebuffer" ;;
+        *)                echo "$1" ;;
+    esac
+}
+
 collect_hardware() {
     # Hardware inventory in the same structure the Windows agent reports,
     # so the web UI can render it (cpu, ram.modules, disks.physical/volumes,
     # gpu, mainboard, bios, virtualization).
+
+    local hypervisor=$(_virt_hypervisor)
 
     # CPU
     LSCPU_JSON=$(lscpu -J 2>/dev/null || echo '{"lscpu":[]}')
@@ -120,9 +171,12 @@ collect_hardware() {
     [[ "$cores_per_socket" =~ ^[0-9]+$ ]] || cores_per_socket=$(nproc --all 2>/dev/null || echo 1)
     local cpu_cores=$((sockets * cores_per_socket))
     local cpu_threads=$(nproc --all 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1)
+    # Maximum clock only when the CPU reports one (lscpu "CPU max MHz"; virtual machines usually
+    # have none). The current clock is its own field - on a VM it is often a boost clock.
     local cpu_mhz=$(_lscpu_field "CPU max MHz:")
-    [[ -z "$cpu_mhz" ]] && cpu_mhz=$(awk -F: '/^cpu MHz/ {print $2; exit}' /proc/cpuinfo 2>/dev/null)
     cpu_mhz=$(awk '{printf "%d", $1}' <<< "${cpu_mhz:-0}")
+    local cpu_cur_mhz=$(awk -F: '/^cpu MHz/ {print $2; exit}' /proc/cpuinfo 2>/dev/null)
+    cpu_cur_mhz=$(awk '{printf "%d", $1}' <<< "${cpu_cur_mhz:-0}")
     local l2_kb=$(_size_to_kb "$(_lscpu_field "L2 cache:")")
     local l3_kb=$(_size_to_kb "$(_lscpu_field "L3 cache:")")
     local socket_designation=""
@@ -132,9 +186,12 @@ collect_hardware() {
         --arg name "${cpu_model:-Unknown}" --arg manufacturer "$cpu_vendor" --arg arch "$(uname -m)" \
         --arg socket "$socket_designation" \
         --argjson cores "$cpu_cores" --argjson threads "$cpu_threads" --argjson mhz "$cpu_mhz" \
+        --argjson cur_mhz "$cpu_cur_mhz" \
         --argjson l2 "$l2_kb" --argjson l3 "$l3_kb" \
         '{name: $name, manufacturer: $manufacturer, architecture: $arch, cores: $cores,
-          logicalProcessors: $threads, threads: $threads, maxClockSpeedMHz: $mhz,
+          logicalProcessors: $threads, threads: $threads,
+          maxClockSpeedMHz: (if $mhz > 0 then $mhz else null end),
+          currentClockSpeedMHz: (if $cur_mhz > 0 then $cur_mhz else null end),
           l2CacheKB: $l2, l3CacheKB: $l3, socketDesignation: $socket}')
 
     # RAM (modules via dmidecode, requires root)
@@ -179,7 +236,10 @@ collect_hardware() {
           availableBytes: ($avail_kb * 1024), modules: $modules, moduleCount: ($modules | length)}')
 
     # Disks: physical disks (lsblk) and mounted volumes (findmnt)
-    local physical=$(lsblk -J -b -d -o NAME,MODEL,VENDOR,SIZE,TYPE,TRAN,ROTA,SERIAL 2>/dev/null | jq -c '
+    # Virtual disks report "rotational" whatever is behind them, so no SSD/HDD on a VM
+    # (the Windows agent reports none there either).
+    local physical=$(lsblk -J -b -d -o NAME,MODEL,VENDOR,SIZE,TYPE,TRAN,ROTA,SERIAL 2>/dev/null | \
+        jq -c --argjson virtual "$([[ -n "$hypervisor" ]] && echo true || echo false)" '
         [.blockdevices[]? | select(.type == "disk") |
          {deviceId: ("/dev/" + .name),
           model: ((.model // .name) | gsub("^\\s+|\\s+$"; "")),
@@ -190,23 +250,12 @@ collect_hardware() {
                           elif (.name | test("^(sd|hd)")) then "SCSI"
                           elif (.name | startswith("vd")) then "VIRTIO"
                           else "Unknown" end),
-          mediaType: (if .rota then "HDD" else "SSD" end),
-          isSsd: (.rota | not),
+          mediaType: (if $virtual then null elif .rota then "HDD" else "SSD" end),
+          isSsd: (if $virtual then null else (.rota | not) end),
           serialNumber: .serial}]' 2>/dev/null || echo '[]')
-    # findmnt's JSON keeps sources and mount points with spaces intact (df output would need
-    # whitespace splitting). Like df, skip pseudo filesystems (size 0), bind mounts of
-    # directories (FSROOT is not the filesystem root; a btrfs subvolume's root is its subvol=)
-    # and further mounts of the same filesystem root.
-    local volumes=$(findmnt -J -l -b --nofsroot -o SOURCE,FSTYPE,SIZE,AVAIL,TARGET,FSROOT,OPTIONS \
-            -t notmpfs,nodevtmpfs,nosquashfs,nooverlay,noefivarfs,noramfs 2>/dev/null | jq -c '
-        [.filesystems[]? | select(((.size // 0) | tonumber) > 0) |
-         select(.fsroot == "/" or .fsroot == ([(.options // "") | match("(?:^|,)subvol=([^,]+)").captures[0].string] | first))] |
-        reduce .[] as $v ([]; if any(.[]; .source == $v.source and .fsroot == $v.fsroot) then . else . + [$v] end) |
-        [.[] | (.size | tonumber) as $size | ((.avail // 0) | tonumber) as $avail |
-         {volumeName: .source, fileSystem: .fstype, driveLetter: .target,
-          sizeGB: ($size / 1073741824 * 10 | round / 10),
-          freeGB: ($avail / 1073741824 * 10 | round / 10),
-          usedPercent: ((1 - $avail / $size) * 1000 | round / 10)}]' 2>/dev/null || echo '[]')
+    local volumes=$(_mounted_filesystems | jq -c "[.[] | {volumeName: .source, fileSystem: .fstype, driveLetter: .target,
+          sizeGB: (.size / 1073741824 * 10 | round / 10), freeGB: (.avail / 1073741824 * 10 | round / 10),
+          usedPercent: $_USED_PERCENT_JQ}]" 2>/dev/null || echo '[]')
 
     # GPU: PCI display controllers, falling back to DRM devices (e.g. hyperv_drm, virtio_gpu)
     local gpus='[]'
@@ -220,15 +269,17 @@ collect_hardware() {
         [[ -e "$card/device/driver" && "$card" != *-* ]] || continue
         driver=$(basename "$(readlink -f "$card/device/driver")")
         resolution=$(cat "$card"-*/modes 2>/dev/null | head -1)
+        # Drivers built into the kernel have no version of their own: the kernel release is theirs
         version=$(modinfo -F version "$driver" 2>/dev/null)
-        drm=$(jq -c --arg d "$driver" --arg r "$resolution" --arg v "${version:-$(uname -r)}" \
-            '. + [{name: $d, driverVersion: $v, currentResolution: $r}]' <<< "$drm")
+        drm=$(jq -c --arg n "$(_drm_display_name "$driver")" --arg d "$driver" --arg r "$resolution" \
+            --arg v "${version:-$(uname -r)}" \
+            '. + [{name: $n, driverName: $d, driverVersion: $v, currentResolution: $r}]' <<< "$drm")
     done
     if [[ "$(jq 'length' <<< "$gpus")" -eq 0 ]]; then
         gpus="$drm"
     else
         # Add driver/resolution of the first DRM device to the first PCI GPU
-        gpus=$(jq -c --argjson drm "$drm" 'if ($drm | length) > 0 then .[0] += ($drm[0] | {driverVersion, currentResolution}) else . end' <<< "$gpus")
+        gpus=$(jq -c --argjson drm "$drm" 'if ($drm | length) > 0 then .[0] += ($drm[0] | {driverName, driverVersion, currentResolution}) else . end' <<< "$gpus")
     fi
 
     # Mainboard / BIOS / virtualization
@@ -246,19 +297,6 @@ collect_hardware() {
     [[ "$is_uefi" == "false" ]] && secure_boot="Not supported"
     local smbios=""
     command -v dmidecode &>/dev/null && smbios=$(dmidecode 2>/dev/null | awk '/^SMBIOS .* present/ {print $2; exit}')
-    local virt=$(systemd-detect-virt 2>/dev/null || echo none)
-    local hypervisor
-    case "$virt" in
-        microsoft) hypervisor="Hyper-V" ;;
-        kvm)       hypervisor="KVM" ;;
-        qemu)      hypervisor="QEMU" ;;
-        vmware)    hypervisor="VMware" ;;
-        oracle)    hypervisor="VirtualBox" ;;
-        xen)       hypervisor="Xen" ;;
-        amazon)    hypervisor="AWS Nitro" ;;
-        none|"")   hypervisor="" ;;
-        *)         hypervisor="$virt" ;;
-    esac
 
     jq -n \
         --argjson cpu "$cpu" --argjson ram "$ram" \
@@ -275,7 +313,8 @@ collect_hardware() {
           gpu: $gpu,
           mainboard: {manufacturer: $mb_vendor, product: $mb_product, version: $mb_version, serialNumber: $mb_serial},
           bios: {name: $bios_version, manufacturer: $bios_vendor, version: $bios_version, releaseDate: $bios_date,
-                 uuid: $uuid, serialNumber: $serial, smbiosVersion: $smbios, isUefi: $is_uefi,
+                 uuid: $uuid, serialNumber: $serial, smbiosVersion: $bios_version, smbiosSpecVersion: $smbios,
+                 isUefi: $is_uefi,
                  secureBootState: $secure_boot},
           virtualization: {isVirtual: ($hypervisor != ""), hypervisor: $hypervisor,
                            manufacturer: $sys_vendor, model: $sys_product}}'
@@ -517,14 +556,8 @@ collect_performance() {
     fi
     
     # Disk space per mount
-    local disk_space=$(df -B1 -x tmpfs -x devtmpfs -x squashfs 2>/dev/null | awk '
-        BEGIN { first = 1 }
-        NR>1 {
-            printf "%s{\"mount\": \"%s\", \"device\": \"%s\", \"totalBytes\": %s, \"usedBytes\": %s, \"availableBytes\": %s, \"usedPercent\": %.1f}",
-                (first ? "" : ","), $6, $1, $2, $3, $4, ($2>0 ? $3/$2*100 : 0)
-            first = 0
-        }
-    ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+    local disk_space=$(_mounted_filesystems | jq -c "[.[] | {mount: .target, device: .source, totalBytes: .size,
+          usedBytes: .used, availableBytes: .avail, usedPercent: $_USED_PERCENT_JQ}]" 2>/dev/null || echo '[]')
     
     # Network I/O rates
     local net_io="[]"

@@ -280,7 +280,7 @@ export function useNodeDetails(nodeId: string) {
   const secData: SecurityData = (security || {}) as SecurityData;
   const netData: NetworkData = (network || {}) as NetworkData;
   const browserData: BrowserData = (browser || {}) as BrowserData;
-  const ramData: { totalGB?: number; modules?: any[] } = ((hwData as Record<string, unknown>).ram || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.memory || {}) as { totalGB?: number; modules?: any[] };
+  const ramData: { totalGB?: number; usableGB?: number; modules?: any[] } = ((hwData as Record<string, unknown>).ram || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.memory || {}) as { totalGB?: number; usableGB?: number; modules?: any[] };
   const gpuList: Array<Record<string, unknown>> = ((hwData as Record<string, unknown>).gpu || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.gpus || []) as Array<Record<string, unknown>>;
   const nicsList: { adapters?: any[]; configurations?: any } = ((hwData as Record<string, unknown>).nics || ((hwData as Record<string, unknown>).data as Record<string, unknown>)?.network || {}) as { adapters?: any[]; configurations?: any };
   const linuxUpdates = linuxData?.updates?.packageManager ? linuxData.updates : null;
