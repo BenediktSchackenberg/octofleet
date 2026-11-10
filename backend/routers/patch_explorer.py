@@ -11,8 +11,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from auth import require_user_permission
-from dependencies import get_pool, verify_api_key, verify_api_key_or_query
+from auth import require_permission, require_user_permission
+from dependencies import get_pool, verify_api_key_or_query
 from vulnerability import COUNTED
 
 router = APIRouter(tags=["Patch Explorer"])
@@ -506,7 +506,7 @@ class AgentUpdatesPayload(BaseModel):
     hostname: str
     updates: List[AgentUpdate]
 
-@router.post("/api/v1/patches/explorer/agent-updates", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/explorer/agent-updates", dependencies=[Depends(require_permission("inventory:write"))])
 async def agent_submit_updates(data: AgentUpdatesPayload):
     async with get_pool().acquire() as conn:
         # Resolve hostname → node UUID

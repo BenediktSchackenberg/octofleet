@@ -5,8 +5,8 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from auth import require_user_permission
-from dependencies import get_pool, verify_api_key
+from auth import require_permission, require_user_permission
+from dependencies import get_pool
 
 router = APIRouter(tags=["Patches"])
 def _is_uuid(val: str) -> bool:
@@ -364,13 +364,13 @@ async def cancel_patch_deployment(deployment_id: str):
         return {"status": "cancelled"}
 
 
-@router.post("/api/v1/patches/scan-results", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/scan-results", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_patch_scan_results(data: dict):
     """Agent submits available Windows Updates. Same as import but explicit agent endpoint."""
     return await import_patches(data)
 
 
-@router.get("/api/v1/patches/pending/{node_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/patches/pending/{node_id}", dependencies=[Depends(require_permission("jobs:poll"))])
 async def get_pending_patches(node_id: str):
     """Agent polls for patches it needs to install."""
     async with get_pool().acquire() as conn:
@@ -387,7 +387,7 @@ async def get_pending_patches(node_id: str):
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/patches/results", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/patches/results", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_patch_results(data: dict):
     """Agent submits install results for patches."""
     async with get_pool().acquire() as conn:

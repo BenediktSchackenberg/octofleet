@@ -121,9 +121,14 @@ class RouteAuthenticationTests(unittest.TestCase):
             self.assertEqual(response.status_code, 403, (method, path, permission, response.text))
 
     def test_agent_key_passes_the_agent_routes(self):
-        app.dependency_overrides[verify_api_key] = lambda: True
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser("system", "system", ["*"], True)
         for method, path in AGENT_ROUTES:
             self.assertNotIn(self._request(method, path).status_code, (401, 403), (method, path))
+
+    def test_viewer_cannot_submit_agent_data(self):
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser(str(uuid4()), "viewer", ["nodes:read"])
+        for method, path in AGENT_ROUTES:
+            self.assertEqual(self._request(method, path).status_code, 403, (method, path))
 
 
 if __name__ == "__main__":

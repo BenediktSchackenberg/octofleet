@@ -6,7 +6,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from auth import CurrentUser, require_user_permission
+from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(
@@ -15,7 +15,7 @@ router = APIRouter(
     dependencies=[Depends(verify_api_key)]
 )
 
-# Separate router for agent endpoints (no auth required - agents may have outdated keys)
+# Separate router for agent endpoints; each endpoint declares its permission.
 agent_router = APIRouter(prefix="/api/v1", tags=["jobs-agent"])
 
 CHOCO_PACKAGES = {
@@ -126,7 +126,7 @@ async def cancel_or_delete_job(job_id: str, db: asyncpg.Pool = Depends(get_db),
 # Agent endpoint moved to main.py (no auth required)
 # @agent_router.get("/jobs/pending/{node_id}") is in main.py
 
-@agent_router.post("/jobs/instances/{instance_id}/result", dependencies=[Depends(verify_api_key)])
+@agent_router.post("/jobs/instances/{instance_id}/result", dependencies=[Depends(require_permission("jobs:poll"))])
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         success = job_result_succeeded(data)

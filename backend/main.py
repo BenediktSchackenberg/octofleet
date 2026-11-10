@@ -3745,7 +3745,7 @@ async def stop_live_session(session_id: str, _: str = Depends(verify_api_key)):
     raise HTTPException(status_code=404, detail="Session not found")
 
 
-@app.post("/api/v1/live-data", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/live-data", dependencies=[Depends(require_permission("inventory:write"))])
 async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """
     Receives live monitoring data from agents.

@@ -94,6 +94,18 @@ class PatchRouteAuthorizationTests(unittest.TestCase):
             else:
                 self.assertEqual(response.status_code, 403, (method, path, response.text))
 
+    def test_viewer_cannot_submit_agent_results(self):
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser(str(uuid4()), "viewer", ["packages:read"])
+        for method, path, body in AGENT_ROUTES:
+            response = self._request(method, path, body)
+            self.assertEqual(response.status_code, 403, (method, path, response.text))
+
+    def test_agent_key_can_use_agent_routes(self):
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser("system", "system", ["*"], True)
+        for method, path, body in AGENT_ROUTES:
+            response = self._request(method, path, body)
+            self.assertNotIn(response.status_code, (401, 403), (method, path, response.text))
+
 
 
 class ScanResultsNodeTests(unittest.IsolatedAsyncioTestCase):

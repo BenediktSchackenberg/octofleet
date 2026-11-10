@@ -11,7 +11,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.db.nodes import os_build_from
-from auth import require_user_permission
+from auth import require_permission, require_user_permission
 from dependencies import get_db, get_pool, verify_api_key
 
 router = APIRouter(tags=["Monitoring"])
@@ -598,7 +598,7 @@ async def list_agent_capabilities():
         return {"agents": [_parse_json_fields(dict(r)) for r in rows]}
 
 
-@router.post("/api/v1/agents/{node_id}/health", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/agents/{node_id}/health", dependencies=[Depends(require_permission("inventory:write"))])
 async def report_agent_health(node_id: str, req: Request):
     """Agent reports health metrics: queue depth, drops, CPU overhead, etc."""
     body = await req.json()
