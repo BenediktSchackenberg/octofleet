@@ -24,6 +24,7 @@ import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
 import { formatDate, formatDateTime as formatDateTimeIntl, formatLocalDate } from "@/lib/format";
+import { copyText } from "@/lib/clipboard";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
@@ -43,12 +44,12 @@ function CopyButton({ text, className = "" }: { text: string; className?: string
   const [copied, setCopied] = useState(false);
   
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
+    // copyText falls back to execCommand: navigator.clipboard is missing over plain HTTP
+    if (await copyText(text)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
+    } else {
+      console.error("Failed to copy");
     }
   };
   
@@ -505,8 +506,8 @@ export default function NodeDetailPage() {
                 <CardContent className="grid gap-4 md:grid-cols-5">
                   <div>
                     <p className="text-sm text-muted-foreground">{t("nodeDetail.nodeId")}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium font-mono text-xs truncate max-w-[120px]" title={node.node_id}>{node.node_id}</p>
+                    <div className="flex items-start gap-2">
+                      <p className="font-medium font-mono text-xs break-all">{node.node_id}</p>
                       <CopyButton text={node.node_id} />
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/api-config';
 import { PageHeader } from "@/components/ui/PageHeader";
+import { copyText } from "@/lib/clipboard";
 
 
 
@@ -308,7 +309,7 @@ export default function RepoPage() {
                         ⬇️ Download
                       </a>
                       <button
-                        onClick={() => navigator.clipboard.writeText(`${API_BASE}${file.downloadUrl}`)}
+                        onClick={() => void copyText(`${API_BASE}${file.downloadUrl}`)}
                         className="text-muted-foreground hover:text-foreground text-sm"
                       >
                         📋 Copy URL

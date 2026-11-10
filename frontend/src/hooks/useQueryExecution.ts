@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import type { QueryDSL, QueryResult, LiveResult, WhereClause, QueryTemplate, SchemaColumn } from "./useQueryEngine";
+import { copyText } from "@/lib/clipboard";
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ export function useQueryExecution(getTableColumns: (table: string) => SchemaColu
 
   const copyJson = () => {
     if (!result) return;
-    navigator.clipboard.writeText(JSON.stringify(result.rows, null, 2));
+    void copyText(JSON.stringify(result.rows, null, 2));
   };
 
   return {
