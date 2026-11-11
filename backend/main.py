@@ -1101,9 +1101,10 @@ try {{
                             "timeout": row["timeout_seconds"] or 600
                         }
                     else:
-                        # No download URL found
+                        # Report a failed job through an executable command on Windows.
                         command_payload = {
-                            "command": ["echo", "ERROR: Package version not found or missing download URL"],
+                            "command": ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                        "Write-Error 'Package version not found or missing download URL'; exit 1"],
                             "timeout": 30
                         }
                         command_type = "run"
