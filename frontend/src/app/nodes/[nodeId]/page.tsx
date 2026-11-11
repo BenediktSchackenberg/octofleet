@@ -446,7 +446,7 @@ export default function NodeDetailPage() {
                 <CardHeader><CardTitle>{t("nodeDetail.systemInfo")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <InfoRow label={t("nodeDetail.mainboard")} value={hwData.mainboard?.product ? `${hwData.mainboard.manufacturer} ${hwData.mainboard.product}` : null} />
-                  {/* Windows reports the BIOS version as smbiosVersion (WMI SMBIOSBIOSVersion); the Linux agent puts the SMBIOS spec version there and the BIOS version in version */}
+                  {/* Windows reports the BIOS version as smbiosVersion (WMI SMBIOSBIOSVersion); older Linux agents put the SMBIOS spec version there, the BIOS version is in version */}
                   <InfoRow label={t("nodeDetail.biosVersion")} value={(linuxData ? hwData.bios?.version : hwData.bios?.smbiosVersion) || hwData.bios?.name} />
                   <InfoRow label={t("nodeDetail.biosDate")} value={hwData.bios?.releaseDate} />
                   <InfoRow label="System UUID" value={hwData.bios?.uuid} />{/* i18n-ignore */}
@@ -559,7 +559,18 @@ export default function NodeDetailPage() {
               <Card>
                 <CardHeader><CardTitle>💾 {t("nodes.memory")}</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold mb-4">{t("nodeDetail.totalGb", { value: ramData.totalGB?.toFixed(0) || '-' })}</p>
+                  <p className="text-2xl font-bold">{t("nodeDetail.totalGb", { value: ramData.totalGB?.toFixed(0) || '-' })}</p>
+                  <div className="text-sm text-muted-foreground mb-4 space-y-1">
+                    {hwData.virtualization?.isVirtual && (
+                      <p>{t("nodeDetail.memoryAssigned", { hypervisor: hwData.virtualization.hypervisor || t("nodeDetail.virtualMachine") })}</p>
+                    )}
+                    {(() => {
+                      const usable = hwNumber(ramData.usableGB);
+                      return usable && usable !== ramData.totalGB ? <p>{t("nodeDetail.memoryUsable", { value: usable.toFixed(1) })}</p> : null;
+                    })()}
+                  </div>
+                  {/* On a virtual machine the "modules" are how the hypervisor presents the memory (e.g. Hyper-V: two with dynamic memory) - no slots, type or speed */}
+                  {!hwData.virtualization?.isVirtual && (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -584,6 +595,7 @@ export default function NodeDetailPage() {
                       )}
                     </TableBody>
                   </Table>
+                  )}
                 </CardContent>
               </Card>
 
@@ -600,7 +612,7 @@ export default function NodeDetailPage() {
                           <p className="font-medium">{gpu.name}</p>
                           <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
                             <InfoRow label="VRAM" value={gpu.videoMemoryGB ? `${gpu.videoMemoryGB} GB` : null} />{/* i18n-ignore */}
-                            <InfoRow label={t("nodeDetail.driver")} value={gpu.driverVersion} />
+                            <InfoRow label={t("nodeDetail.driver")} value={[gpu.driverName, gpu.driverVersion].filter(Boolean).join(" ") || null} />
                             <InfoRow label={t("nodeDetail.resolution")} value={gpu.currentResolution} />
                             <InfoRow label={t("nodeDetail.refreshRate")} value={hwNumber(gpu.refreshRate, 1) ? `${gpu.refreshRate} Hz` : null} />
                           </div>
@@ -1443,7 +1455,7 @@ export default function NodeDetailPage() {
                 <Card>
                   <CardHeader><CardTitle>💾 {t("nodeDetail.memoryDetails")}</CardTitle></CardHeader>
                   <CardContent className="space-y-2">
-                    <InfoRow label={t("nodeDetail.total")} value={linuxData.performance?.memory?.totalBytes 
+                    <InfoRow label={t("nodeDetail.usable")} value={linuxData.performance?.memory?.totalBytes
                       ? ((linuxData.performance.memory.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
                     <InfoRow label={t("nodeDetail.available")} value={linuxData.performance?.memory?.availableBytes 
                       ? ((linuxData.performance.memory.availableBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
