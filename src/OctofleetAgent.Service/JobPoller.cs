@@ -360,7 +360,7 @@ public class JobPoller : BackgroundService
                 return await ExecuteRestartAgentAsync(ct);
 
             case "inventory":
-                return await ExecuteInventoryPushAsync();
+                return await ExecuteInventoryPushAsync(timeoutSeconds);
             
             case "uninstall-agent":
                 return await ExecuteUninstallAgentAsync(baseUrl, payload, ct);
@@ -595,15 +595,33 @@ public class JobPoller : BackgroundService
     /// waiting for the next scheduled push. Before, the job fell through to script execution and
     /// failed with "No command specified".
     /// </summary>
-    private async Task<CommandResult> ExecuteInventoryPushAsync()
+    private async Task<CommandResult> ExecuteInventoryPushAsync(int timeoutSeconds)
     {
         _logger.LogInformation("Inventory push requested by a job");
-        var push = await InventoryPusher.CollectAndPushAllAsync(_config);
+        // Jobs run one after another: a collection that hangs (e.g. a WMI provider or PowerShell
+        // call that never returns) must not block the job loop - including the restart-agent job
+        // that would fix it. After the job's timeout the job fails; the collection itself cannot be
+        // cancelled and finishes (or not) in the background.
+        var limit = TimeSpan.FromSeconds(timeoutSeconds > 0 ? timeoutSeconds : 300);
+        var push = InventoryPusher.CollectAndPushAllAsync(_config);
+        if (await Task.WhenAny(push, Task.Delay(limit)) != push)
+        {
+            _ = push.ContinueWith(t => _logger.LogWarning(t.Exception, "Inventory push of a timed-out job ended late"),
+                TaskContinuationOptions.OnlyOnFaulted);
+            _logger.LogWarning("Inventory push did not finish within {Seconds} s", limit.TotalSeconds);
+            return new CommandResult
+            {
+                ExitCode = 1,
+                Stderr = $"Inventory collection did not finish within {limit.TotalSeconds:0} s " +
+                         "(a WMI query or PowerShell call may hang on this machine)",
+            };
+        }
+        var result = await push;
         return new CommandResult
         {
-            ExitCode = push.Success ? 0 : 1,
-            Stdout = push.Success ? push.Summary : "",
-            Stderr = push.Success ? "" : push.Summary,
+            ExitCode = result.Success ? 0 : 1,
+            Stdout = result.Success ? result.Summary : "",
+            Stderr = result.Success ? "" : result.Summary,
         };
     }
 
