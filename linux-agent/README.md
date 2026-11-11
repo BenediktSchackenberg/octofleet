@@ -76,7 +76,7 @@ sudo /opt/octofleet-agent/agent.sh update
 
 | Category | Data |
 |----------|------|
-| Hardware | CPU, RAM, disks, motherboard |
+| Hardware | CPU (maximum clock only when the CPU reports one), RAM, disks and volumes (used share as `df` shows it), display adapters, mainboard, BIOS; no SSD/HDD type on virtual machines |
 | Software | Installed packages (apt/dnf/pacman) |
 | Network | Interfaces, IPs, routes |
 | Security | Users, sudo, SSH config, firewall |

@@ -791,9 +791,9 @@
     "updatesAvailable": "Updates available",
     "securityVia": "{count} security / via {manager}",
     "of": "of",
-    "cpuCores": "CPU cores",
-    "core": "Core {number}",
-    "moreCores": "+{count} more cores",
+    "cpuCores": "Logical CPUs",
+    "core": "CPU {number}",
+    "moreCores": "+{count} more CPUs",
     "memoryDetails": "Memory details",
     "available": "Available",
     "buffers": "Buffers",
@@ -818,7 +818,10 @@
       "failed": "Failed",
       "aborted": "Aborted"
     },
-    "virtualMachine": "Virtual machine"
+    "virtualMachine": "Virtual machine",
+    "memoryAssigned": "Assigned by {hypervisor}",
+    "memoryUsable": "{value} GB usable by the operating system",
+    "usable": "Usable"
   },
   "navGroups": {
     "fleet": "Fleet",
