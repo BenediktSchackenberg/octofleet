@@ -18,13 +18,14 @@ import hmac
 import json
 import logging
 import os
-import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
 import asyncpg
+
+from job_types import ensure_command_types
 
 log = logging.getLogger(__name__)
 
@@ -56,18 +57,8 @@ async def ensure_schema(conn) -> None:
             ADD COLUMN IF NOT EXISTS removal_confirmed_at TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS uninstalled_at TIMESTAMPTZ
     """)
-    # Allow the new job type in the jobs command_type check, keeping the existing values
-    definition = await conn.fetchval("""
-        SELECT pg_get_constraintdef(oid) FROM pg_constraint
-        WHERE conname = 'jobs_command_type_check' AND conrelid = 'jobs'::regclass
-    """)
-    if definition and f"'{UNINSTALL_COMMAND}'" not in definition:
-        values = re.findall(r"'([^']+)'::text", definition) + [UNINSTALL_COMMAND]
-        allowed = ", ".join("'" + v.replace("'", "''") + "'" for v in dict.fromkeys(values))
-        async with conn.transaction():
-            await conn.execute("ALTER TABLE jobs DROP CONSTRAINT jobs_command_type_check")
-            await conn.execute(
-                f"ALTER TABLE jobs ADD CONSTRAINT jobs_command_type_check CHECK (command_type IN ({allowed}))")
+    # Allow the job type in the jobs command_type check, keeping the existing values
+    await ensure_command_types(conn, (UNINSTALL_COMMAND,))
 
 
 async def ensure_schema_on(pool: asyncpg.Pool) -> None:

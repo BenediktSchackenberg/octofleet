@@ -406,7 +406,7 @@ async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get
             
             job = await conn.fetchrow("""
                 INSERT INTO jobs (name, command_type, command_data, target_type, target_id, created_by)
-                VALUES ($1, 'service_reconcile', $2, 'node', $3, 'system')
+                VALUES ($1, 'service_reconcile', $2, 'device', $3, 'system')
                 RETURNING id, name
             """, f"Reconcile: {service['name']} on {assignment['hostname']}", json.dumps(job_data), assignment['node_uuid'])
             
