@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui-components";
 import { useAuth } from "@/lib/auth-context";
 import { Plus, Trash2, Key, Copy, Check, AlertTriangle } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
+import { copyText } from "@/lib/clipboard";
 
 
 
@@ -82,8 +83,8 @@ export default function ApiKeysPage() {
     }
   }
 
-  function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text);
+  async function copyToClipboard(text: string) {
+    if (!(await copyText(text))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
