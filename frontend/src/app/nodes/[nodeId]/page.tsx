@@ -13,6 +13,7 @@ import Link from "next/link";
 import { Timeline } from "@/components/timeline";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
+import { NodeServices } from "@/components/node-services";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -257,8 +258,8 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
   );
 }
 
-const NODE_TABS = ["overview", "performance", "hardware", "software", "updates", "network", "security",
-  "vulnerabilities", "browser", "events", "history", "monitoring", "linux"] as const;
+const NODE_TABS = ["overview", "performance", "hardware", "software", "services", "updates", "network", "security",
+  "vulnerabilities", "browser", "events", "history", "monitoring"] as const;
 
 export default function NodeDetailPage() {
   const params = useParams();
@@ -405,6 +406,7 @@ export default function NodeDetailPage() {
             <TabsTrigger value="performance">📊 {t("nodeDetail.tabs.performance")}</TabsTrigger>
             <TabsTrigger value="hardware">{t("nodes.hardware")}</TabsTrigger>
             <TabsTrigger value="software">{t("nodes.software")} ({software.length})</TabsTrigger>
+            <TabsTrigger value="services">{t("nodeServices.tab")}</TabsTrigger>
             <TabsTrigger value="updates">{t("nodeDetail.tabs.updates")} ({totalUpdatesCount})</TabsTrigger>
             <TabsTrigger value="network">{t("nodes.network")}</TabsTrigger>
             <TabsTrigger value="security">{t("nodes.security")}</TabsTrigger>
@@ -413,7 +415,6 @@ export default function NodeDetailPage() {
             <TabsTrigger value="events">{t("nodes.events")} ({events.length})</TabsTrigger>
             <TabsTrigger value="history">{t("nodeDetail.tabs.timeline")}</TabsTrigger>
             <TabsTrigger value="monitoring">🛡️ {t("nodeDetail.tabs.monitoring")}</TabsTrigger>
-            {linuxData && <TabsTrigger value="linux">🐧 Linux</TabsTrigger>}{/* i18n-ignore */}
           </TabsList>
 
           {/* Overview Tab */}
@@ -562,8 +563,87 @@ export default function NodeDetailPage() {
           </TabsContent>
 
           {/* Performance Tab */}
-          <TabsContent value="performance">
+          <TabsContent value="performance" className="space-y-4">
             {node && <PerformanceTab nodeId={node.node_id} />}
+            {/* Linux agent: values from the last inventory (load, swap, logical CPUs, memory) */}
+            {linuxData?.performance && (
+              <>
+                <p className="text-sm text-muted-foreground">{t("nodeDetail.lastInventorySnapshot")}</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Load Average Card */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Load Average</CardDescription>{/* i18n-ignore */}
+                    <CardTitle className="text-lg">
+                      {linuxData.performance?.loadAverage?.load1?.toFixed(2) || '-'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      5m: {linuxData.performance?.loadAverage?.load5?.toFixed(2)} / 15m: {linuxData.performance?.loadAverage?.load15?.toFixed(2)}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Swap Usage Card */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Swap</CardDescription>{/* i18n-ignore */}
+                    <CardTitle className="text-lg">
+                      {linuxData.performance?.swap?.usedBytes 
+                        ? ((linuxData.performance.swap.usedBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB')
+                        : '0 GB'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {t("nodeDetail.of")} {linuxData.performance?.swap?.totalBytes 
+                        ? ((linuxData.performance.swap.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB')
+                        : '0 GB'}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* CPU Cores */}
+                <Card>
+                  <CardHeader><CardTitle>🔲 {t("nodeDetail.cpuCores")}</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-4 gap-2">
+                      {linuxData.performance?.cpuCores?.slice(0, 32).map((core) => (
+                        <div key={core.core} className="text-center p-2 border rounded">
+                          <p className="text-xs text-muted-foreground">{t("nodeDetail.core", { number: core.core })}</p>
+                          <p className={`font-bold ${core.usagePercent > 80 ? 'text-red-500' : core.usagePercent > 50 ? 'text-yellow-500' : 'text-green-500'}`}>
+                            {core.usagePercent?.toFixed(0)}%
+                          </p>
+                        </div>
+                      )) || <p className="col-span-4 text-muted-foreground">{t("nodeDetail.noData")}</p>}
+                    </div>
+                    {(linuxData.performance?.cpuCores?.length || 0) > 32 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        {t("nodeDetail.moreCores", { count: (linuxData.performance?.cpuCores?.length || 0) - 32 })}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Memory Details */}
+                <Card>
+                  <CardHeader><CardTitle>💾 {t("nodeDetail.memoryDetails")}</CardTitle></CardHeader>
+                  <CardContent className="space-y-2">
+                    <InfoRow label={t("nodeDetail.usable")} value={linuxData.performance?.memory?.totalBytes
+                      ? ((linuxData.performance.memory.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
+                    <InfoRow label={t("nodeDetail.available")} value={linuxData.performance?.memory?.availableBytes 
+                      ? ((linuxData.performance.memory.availableBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
+                    <InfoRow label={t("nodeDetail.buffers")} value={linuxData.performance?.memory?.buffersBytes 
+                      ? ((linuxData.performance.memory.buffersBytes / 1024 / 1024 / 1024).toFixed(2) + ' GB') : null} />
+                    <InfoRow label={t("nodeDetail.cached")} value={linuxData.performance?.memory?.cachedBytes 
+                      ? ((linuxData.performance.memory.cachedBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
+                  </CardContent>
+                </Card>
+              </div>
+              </>
+            )}
           </TabsContent>
 
           {/* Hardware Tab */}
@@ -717,6 +797,40 @@ export default function NodeDetailPage() {
                 </CardContent>
               </Card>
             </div>
+              {/* Disk Health */}
+              {linuxData?.diskHealth?.smartctlAvailable && (linuxData.diskHealth?.disks?.length || 0) > 0 && (
+                <Card>
+                  <CardHeader><CardTitle>🩺 {t("nodeDetail.diskHealth")}</CardTitle></CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t("nodeDetail.device")}</TableHead>
+                          <TableHead>{t("nodeDetail.model")}</TableHead>
+                          <TableHead>{t("common.status")}</TableHead>
+                          <TableHead>Temp</TableHead>{/* i18n-ignore */}
+                          <TableHead>{t("nodeDetail.powerOnHours")}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {linuxData.diskHealth?.disks?.map((disk, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono">{disk.device}</TableCell>
+                            <TableCell>{disk.model}</TableCell>
+                            <TableCell>
+                              <Badge className={disk.healthStatus === 'PASSED' ? 'bg-green-600' : 'bg-red-600'}>
+                                {disk.healthStatus}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{disk.temperature}°C</TableCell>
+                            <TableCell>{disk.powerOnHours?.toLocaleString()}h</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
           </TabsContent>
 
           {/* Software Tab */}
@@ -755,6 +869,11 @@ export default function NodeDetailPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Services Tab - Windows (system inventory) and Linux (systemd units) */}
+          <TabsContent value="services">
+            <NodeServices windows={(system as { services?: unknown } | null)?.services} linux={linuxData?.services} />
           </TabsContent>
 
           {/* Updates Tab */}
@@ -1517,278 +1636,6 @@ export default function NodeDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Linux Data Tab */}
-          {linuxData && (
-            <TabsContent value="linux" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {/* Load Average Card */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription>Load Average</CardDescription>{/* i18n-ignore */}
-                    <CardTitle className="text-lg">
-                      {linuxData.performance?.loadAverage?.load1?.toFixed(2) || '-'}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      5m: {linuxData.performance?.loadAverage?.load5?.toFixed(2)} / 15m: {linuxData.performance?.loadAverage?.load15?.toFixed(2)}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* Services Summary Card */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription>{t("nodeDetail.services")}</CardDescription>
-                    <CardTitle className="text-lg text-green-600">
-                      {t("nodeDetail.activeCount", { count: linuxData.services?.summary?.active || 0 })}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {t("nodeDetail.failedOfTotal", { failed: linuxData.services?.summary?.failed || 0, total: linuxData.services?.summary?.total || 0 })}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* Updates Card */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription>{t("nodeDetail.updatesAvailable")}</CardDescription>
-                    <CardTitle className="text-lg">
-                      {linuxData.updates?.totalUpdates || 0}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {t("nodeDetail.securityVia", { count: linuxData.updates?.securityUpdates || 0, manager: linuxData.updates?.packageManager ?? "-" })}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* Swap Usage Card */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription>Swap</CardDescription>{/* i18n-ignore */}
-                    <CardTitle className="text-lg">
-                      {linuxData.performance?.swap?.usedBytes 
-                        ? ((linuxData.performance.swap.usedBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB')
-                        : '0 GB'}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {t("nodeDetail.of")} {linuxData.performance?.swap?.totalBytes 
-                        ? ((linuxData.performance.swap.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB')
-                        : '0 GB'}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {/* CPU Cores */}
-                <Card>
-                  <CardHeader><CardTitle>🔲 {t("nodeDetail.cpuCores")}</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-4 gap-2">
-                      {linuxData.performance?.cpuCores?.slice(0, 32).map((core) => (
-                        <div key={core.core} className="text-center p-2 border rounded">
-                          <p className="text-xs text-muted-foreground">{t("nodeDetail.core", { number: core.core })}</p>
-                          <p className={`font-bold ${core.usagePercent > 80 ? 'text-red-500' : core.usagePercent > 50 ? 'text-yellow-500' : 'text-green-500'}`}>
-                            {core.usagePercent?.toFixed(0)}%
-                          </p>
-                        </div>
-                      )) || <p className="col-span-4 text-muted-foreground">{t("nodeDetail.noData")}</p>}
-                    </div>
-                    {(linuxData.performance?.cpuCores?.length || 0) > 32 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {t("nodeDetail.moreCores", { count: (linuxData.performance?.cpuCores?.length || 0) - 32 })}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Memory Details */}
-                <Card>
-                  <CardHeader><CardTitle>💾 {t("nodeDetail.memoryDetails")}</CardTitle></CardHeader>
-                  <CardContent className="space-y-2">
-                    <InfoRow label={t("nodeDetail.usable")} value={linuxData.performance?.memory?.totalBytes
-                      ? ((linuxData.performance.memory.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
-                    <InfoRow label={t("nodeDetail.available")} value={linuxData.performance?.memory?.availableBytes 
-                      ? ((linuxData.performance.memory.availableBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
-                    <InfoRow label={t("nodeDetail.buffers")} value={linuxData.performance?.memory?.buffersBytes 
-                      ? ((linuxData.performance.memory.buffersBytes / 1024 / 1024 / 1024).toFixed(2) + ' GB') : null} />
-                    <InfoRow label={t("nodeDetail.cached")} value={linuxData.performance?.memory?.cachedBytes 
-                      ? ((linuxData.performance.memory.cachedBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
-                  </CardContent>
-                </Card>
-
-                {/* Disk Space */}
-                <Card>
-                  <CardHeader><CardTitle>💿 {t("nodeDetail.diskSpace")}</CardTitle></CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Mount</TableHead>{/* i18n-ignore */}
-                          <TableHead>{t("nodeDetail.free")}</TableHead>
-                          <TableHead>{t("nodeDetail.total")}</TableHead>
-                          <TableHead>{t("nodeDetail.used")}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {linuxData.performance?.diskSpace?.slice(0, 10).map((disk, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-mono text-xs">{disk.mount}</TableCell>
-                            <TableCell>{(disk.availableBytes / 1024 / 1024 / 1024).toFixed(0)} GB</TableCell>
-                            <TableCell>{(disk.totalBytes / 1024 / 1024 / 1024).toFixed(0)} GB</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <div className="w-16 h-2 bg-secondary rounded-full overflow-hidden">
-                                  <div 
-                                    className={`h-full ${disk.usedPercent > 90 ? 'bg-red-500' : disk.usedPercent > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                                    style={{ width: `${disk.usedPercent}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs">{disk.usedPercent?.toFixed(0)}%</span>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )) || (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-muted-foreground">{t("nodeDetail.noData")}</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                {/* Services */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>⚙️ {t("nodeDetail.servicesCount", { count: linuxData.services?.summary?.total || 0 })}</CardTitle>
-                    <CardDescription>
-                      {t("nodeDetail.serviceStates", { active: linuxData.services?.summary?.active || 0, failed: linuxData.services?.summary?.failed || 0, inactive: linuxData.services?.summary?.inactive || 0 })} 
-                       
-                      
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{t("nodeDetail.service")}</TableHead>
-                          <TableHead>{t("common.status")}</TableHead>
-                          <TableHead>{t("common.description")}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {linuxData.services?.services
-                          ?.filter(s => s.activeState === 'failed' || s.activeState === 'active')
-                          .slice(0, 50)
-                          .map((svc, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-mono text-xs">{svc.name}</TableCell>
-                            <TableCell>
-                              <Badge className={
-                                svc.activeState === 'active' ? 'bg-green-600' : 
-                                svc.activeState === 'failed' ? 'bg-red-600' : 'bg-muted/500'
-                              }>
-                                {svc.activeState}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs truncate max-w-[200px]">{svc.description}</TableCell>
-                          </TableRow>
-                        )) || (
-                          <TableRow>
-                            <TableCell colSpan={3} className="text-muted-foreground">{t("nodeDetail.noData")}</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Package Updates */}
-              {(linuxData.updates?.totalUpdates || 0) > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>📦 {t("nodeDetail.availableUpdates", { count: linuxData.updates?.totalUpdates ?? 0 })}</CardTitle>
-                    <CardDescription>
-                      {t("nodes.updates.summary", { manager: linuxData.updates?.packageManager ?? "-", security: linuxData.updates?.securityUpdates || 0 })} 
-                      
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{t("nodes.updates.package")}</TableHead>
-                          <TableHead>{t("nodes.updates.newVersion")}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {linuxData.updates?.updates?.slice(0, 30).map((pkg, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-mono">{pkg.name}</TableCell>
-                            <TableCell>{pkg.newVersion}</TableCell>
-                          </TableRow>
-                        )) || (
-                          <TableRow>
-                            <TableCell colSpan={2} className="text-muted-foreground">{t("nodes.updates.none")}</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                    {(linuxData.updates?.updates?.length || 0) > 30 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {t("nodeDetail.morePackages", { count: (linuxData.updates?.updates?.length || 0) - 30 })}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Disk Health */}
-              {linuxData.diskHealth?.smartctlAvailable && (linuxData.diskHealth?.disks?.length || 0) > 0 && (
-                <Card>
-                  <CardHeader><CardTitle>🩺 {t("nodeDetail.diskHealth")}</CardTitle></CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{t("nodeDetail.device")}</TableHead>
-                          <TableHead>{t("nodeDetail.model")}</TableHead>
-                          <TableHead>{t("common.status")}</TableHead>
-                          <TableHead>Temp</TableHead>{/* i18n-ignore */}
-                          <TableHead>{t("nodeDetail.powerOnHours")}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {linuxData.diskHealth?.disks?.map((disk, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-mono">{disk.device}</TableCell>
-                            <TableCell>{disk.model}</TableCell>
-                            <TableCell>
-                              <Badge className={disk.healthStatus === 'PASSED' ? 'bg-green-600' : 'bg-red-600'}>
-                                {disk.healthStatus}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{disk.temperature}°C</TableCell>
-                            <TableCell>{disk.powerOnHours?.toLocaleString()}h</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          )}
 
           {/* History/Timeline Tab */}
           <TabsContent value="history">

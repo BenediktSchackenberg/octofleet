@@ -871,7 +871,8 @@
       "noMac": "Weder SELinux noch AppArmor aktiv",
       "administrators": "Benutzer mit sudo-Rechten",
       "loginUsers": "Benutzer mit Login-Shell"
-    }
+    },
+    "lastInventorySnapshot": "Aus dem letzten Inventar (Linux-Agent)"
   },
   "navGroups": {
     "fleet": "Flotte",
@@ -1318,5 +1319,33 @@
   "patchesPage": {
     "openOnNode": "Offen auf {node}",
     "showAllPatches": "Alle Patches anzeigen"
+  },
+  "nodeServices": {
+    "tab": "Dienste",
+    "title": "Dienste",
+    "titleCount": "Dienste ({count})",
+    "summary": "{running} laufen · {stopped} gestoppt · {failed} fehlgeschlagen",
+    "notCollected": "Der Agent hat für diesen Node noch keine Dienste gemeldet.",
+    "none": "Keine Dienste gemeldet.",
+    "noMatch": "Keine Dienste passen zum Filter.",
+    "search": "Name oder Beschreibung suchen...",
+    "filter": {
+      "all": "Alle Zustände",
+      "running": "Läuft",
+      "stopped": "Gestoppt",
+      "failed": "Fehlgeschlagen"
+    },
+    "state": {
+      "running": "Läuft",
+      "stopped": "Gestoppt",
+      "failed": "Fehlgeschlagen",
+      "other": "Sonstiger"
+    },
+    "col": {
+      "name": "Dienst",
+      "state": "Zustand",
+      "startType": "Starttyp",
+      "account": "Konto"
+    }
   }
 }
