@@ -305,6 +305,7 @@ public static class HardwareCollector
                     var sizeBytes = Convert.ToInt64(obj["Size"] ?? 0);
                     var model = obj["Model"]?.ToString()?.Trim() ?? "";
                     var serialNumber = obj["SerialNumber"]?.ToString()?.Trim();
+                    var diskNumber = obj["Index"]?.ToString();
                     
                     var disk = new DiskInfo
                     {
@@ -318,9 +319,12 @@ public static class HardwareCollector
                         DeviceId = obj["DeviceID"]?.ToString()
                     };
                     
-                    // Try to match with SMART data by serial number or model
-                    var matchKey = serialNumber ?? model;
-                    if (!string.IsNullOrEmpty(matchKey) && healthData.TryGetValue(matchKey, out var health))
+                    // Match the Storage provider's data: by disk number (Win32_DiskDrive.Index =
+                    // MSFT_PhysicalDisk.DeviceId), else serial number, else a model only one disk has.
+                    // Serial and model often differ between the two classes or are empty (e.g. Hyper-V:
+                    // "Microsoft Virtual Disk" vs "Virtual Disk", no serial), so the number comes first.
+                    var health = FindDiskHealth(healthData, diskNumber, serialNumber, model);
+                    if (health != null)
                     {
                         disk.HealthStatus = health.HealthStatus;
                         disk.BusType = health.BusType;
@@ -328,13 +332,6 @@ public static class HardwareCollector
                         disk.Temperature = health.Temperature;
                         disk.PowerOnHours = health.PowerOnHours;
                         disk.WearLevel = health.WearLevel;
-                    }
-                    // Also try matching by model if serial didn't match
-                    else if (!string.IsNullOrEmpty(model) && healthData.TryGetValue(model, out health))
-                    {
-                        disk.HealthStatus = health.HealthStatus;
-                        disk.BusType = health.BusType;
-                        disk.IsSsd = health.IsSsd;
                     }
                     
                     result.Physical.Add(disk);
@@ -384,13 +381,12 @@ public static class HardwareCollector
             using var searcher = new ManagementObjectSearcher(scope, 
                 new ObjectQuery("SELECT * FROM MSFT_PhysicalDisk"));
             
+            var modelCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (ManagementObject obj in searcher.Get())
             {
                 var serialNumber = obj["SerialNumber"]?.ToString()?.Trim();
                 var model = obj["Model"]?.ToString()?.Trim();
-                var key = serialNumber ?? model ?? "";
-                
-                if (string.IsNullOrEmpty(key)) continue;
+                var diskNumber = obj["DeviceId"]?.ToString()?.Trim();
                 
                 var health = new DiskHealthInfo
                 {
@@ -399,13 +395,18 @@ public static class HardwareCollector
                     IsSsd = IsSolidStateDrive(obj["MediaType"])
                 };
                 
-                healthData[key] = health;
-                
-                // Also index by model for fallback matching
-                if (!string.IsNullOrEmpty(model) && !healthData.ContainsKey(model))
+                if (!string.IsNullOrEmpty(diskNumber)) healthData[NumberKey(diskNumber)] = health;
+                if (!string.IsNullOrEmpty(serialNumber)) healthData[SerialKey(serialNumber)] = health;
+                if (!string.IsNullOrEmpty(model))
                 {
-                    healthData[model] = health;
+                    healthData[ModelKey(model)] = health;
+                    modelCount[model] = modelCount.GetValueOrDefault(model) + 1;
                 }
+            }
+            // A model several disks share identifies none of them
+            foreach (var (model, count) in modelCount)
+            {
+                if (count > 1) healthData.Remove(ModelKey(model));
             }
         }
         catch
@@ -424,21 +425,17 @@ public static class HardwareCollector
             
             foreach (ManagementObject obj in searcher.Get())
             {
-                var deviceId = obj["DeviceId"]?.ToString() ?? "";
+                // MSFT_StorageReliabilityCounter.DeviceId is the disk number, as MSFT_PhysicalDisk.DeviceId
+                var diskNumber = obj["DeviceId"]?.ToString()?.Trim() ?? "";
                 var temp = obj["Temperature"];
                 var powerOn = obj["PowerOnHours"];
                 var wear = obj["Wear"];
                 
-                // Try to find matching disk in our health data
-                foreach (var kvp in healthData)
+                if (healthData.TryGetValue(NumberKey(diskNumber), out var health))
                 {
-                    if (deviceId.Contains(kvp.Key) || kvp.Key.Contains(deviceId.Split('\\').LastOrDefault() ?? ""))
-                    {
-                        if (temp != null) kvp.Value.Temperature = Convert.ToInt32(temp);
-                        if (powerOn != null) kvp.Value.PowerOnHours = Convert.ToInt32(powerOn);
-                        if (wear != null) kvp.Value.WearLevel = Convert.ToInt32(wear);
-                        break;
-                    }
+                    if (temp != null) health.Temperature = Convert.ToInt32(temp);
+                    if (powerOn != null) health.PowerOnHours = Convert.ToInt32(powerOn);
+                    if (wear != null) health.WearLevel = Convert.ToInt32(wear);
                 }
             }
         }
@@ -448,6 +445,19 @@ public static class HardwareCollector
         }
         
         return healthData;
+    }
+
+    private static string NumberKey(string diskNumber) => "disk:" + diskNumber;
+    private static string SerialKey(string serialNumber) => "serial:" + serialNumber;
+    private static string ModelKey(string model) => "model:" + model;
+
+    private static DiskHealthInfo? FindDiskHealth(Dictionary<string, DiskHealthInfo> healthData,
+        string? diskNumber, string? serialNumber, string? model)
+    {
+        if (!string.IsNullOrEmpty(diskNumber) && healthData.TryGetValue(NumberKey(diskNumber), out var health)) return health;
+        if (!string.IsNullOrEmpty(serialNumber) && healthData.TryGetValue(SerialKey(serialNumber), out health)) return health;
+        if (!string.IsNullOrEmpty(model) && healthData.TryGetValue(ModelKey(model), out health)) return health;
+        return null;
     }
 
     private class DiskHealthInfo
@@ -500,11 +510,15 @@ public static class HardwareCollector
         };
     }
 
-    private static bool IsSolidStateDrive(object? mediaType)
+    private static bool? IsSolidStateDrive(object? mediaType)
     {
-        if (mediaType == null) return false;
-        // 4 = SSD, 3 = HDD
-        return Convert.ToInt32(mediaType) == 4;
+        // MSFT_PhysicalDisk.MediaType: 4 = SSD, 3 = HDD, 5 = SCM, 0 = Unspecified (e.g. virtual disks)
+        return mediaType == null ? null : Convert.ToInt32(mediaType) switch
+        {
+            4 => true,
+            3 => false,
+            _ => null,
+        };
     }
 
     private static MainboardInfo GetMainboardInfo()
