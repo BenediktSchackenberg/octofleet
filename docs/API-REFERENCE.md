@@ -148,9 +148,9 @@ Agents push inventory data; the frontend reads it.
 | GET | `/api/v1/packages/{package_id}` | API Key | Get package |
 | PUT | `/api/v1/packages/{package_id}` | API Key | Update package |
 | DELETE | `/api/v1/packages/{package_id}` | API Key | Delete package |
-| POST | `/api/v1/packages/{package_id}/versions` | API Key | Add version |
+| POST | `/api/v1/packages/{package_id}/versions` | User: `packages:write` | Add version, including `downloadUrl` |
 | GET | `/api/v1/packages/{package_id}/versions/{version_id}` | API Key | Get version |
-| PUT | `/api/v1/packages/{package_id}/versions/{version_id}` | API Key | Update version |
+| PUT | `/api/v1/packages/{package_id}/versions/{version_id}` | User: `packages:write` | Update version, including `downloadUrl` |
 | DELETE | `/api/v1/packages/{package_id}/versions/{version_id}` | API Key | Delete version |
 | POST | `/api/v1/deployments` | API Key | Create deployment |
 | GET | `/api/v1/deployments` | API Key | List deployments |
