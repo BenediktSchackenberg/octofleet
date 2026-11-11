@@ -821,7 +821,57 @@
     "virtualMachine": "Virtual machine",
     "memoryAssigned": "Assigned by {hypervisor}",
     "memoryUsable": "{value} GB usable by the operating system",
-    "usable": "Usable"
+    "usable": "Usable",
+    "defender": {
+      "realTime": "Real-time protection",
+      "antivirus": "Antivirus",
+      "signatureVersion": "Signature version",
+      "signatureUpdated": "Signatures updated",
+      "engineVersion": "Engine version",
+      "lastQuickScan": "Last quick scan",
+      "lastFullScan": "Last full scan",
+      "notAvailable": "Microsoft Defender is not available on this machine"
+    },
+    "security": {
+      "firmware": "Firmware",
+      "bitlockerNotInstalled": "BitLocker is not installed",
+      "uacConsent": {
+        "0": "Elevate without prompting",
+        "1": "Ask for credentials on the secure desktop",
+        "2": "Ask for consent on the secure desktop",
+        "3": "Ask for credentials",
+        "4": "Ask for consent",
+        "5": "Ask for consent for non-Windows binaries (default)"
+      }
+    },
+    "cookieWarnings": {
+      "notSecure": "Some critical cookies are not marked Secure (vulnerable to man-in-the-middle attacks)",
+      "notHttpOnly": "Some critical cookies are not HttpOnly (readable by scripts, vulnerable to XSS)",
+      "passwordManager": "Password manager cookies found – high-value target",
+      "banking": "Banking/finance cookies found – watch for unauthorized access",
+      "authProvider": "Sign-in provider cookies found – could be used for session hijacking"
+    },
+    "cookieCategory": {
+      "banking": "Banking/finance",
+      "passwordManager": "Password manager",
+      "cloud": "Cloud provider",
+      "email": "Email",
+      "authProvider": "Sign-in provider",
+      "communication": "Communication",
+      "sensitive": "Sensitive"
+    },
+    "linuxSecurity": {
+      "firewall": "Firewall",
+      "firewallTool": "Tool",
+      "unknown": "Unknown",
+      "port": "Port",
+      "rootLogin": "Root login",
+      "passwordLogin": "Password login",
+      "notReported": "Not reported – update the agent",
+      "noMac": "Neither SELinux nor AppArmor active",
+      "administrators": "Users with sudo rights",
+      "loginUsers": "Users with a login shell"
+    }
   },
   "navGroups": {
     "fleet": "Fleet",

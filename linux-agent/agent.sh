@@ -441,38 +441,64 @@ EOF
 # ============================================================================
 
 collect_security() {
-    # Users with login shell
-    local users=$(getent passwd 2>/dev/null | awk -F: '$7 !~ /nologin|false/ {print $1}' | jq -R -s 'split("\n") | map(select(. != ""))' || echo '[]')
-    
-    # Sudo users
-    local sudo_users="[]"
-    if [[ -f /etc/sudoers ]] && [[ -r /etc/sudoers ]]; then
-        sudo_users=$(grep -oP '^\w+' /etc/sudoers 2>/dev/null | sort -u | jq -R -s 'split("\n") | map(select(. != ""))' 2>/dev/null || echo '[]')
+    # Users with a login shell (a shell listed in /etc/shells, not nologin/false)
+    local users
+    users=$(awk -F: 'NR==FNR { if ($0 ~ /^\//) shells[$0] = 1; next }
+                     ($7 in shells) && $7 !~ /(nologin|false)$/ { print $1 }' /etc/shells <(getent passwd 2>/dev/null) 2>/dev/null \
+        | jq -R -s 'split("\n") | map(select(. != ""))' 2>/dev/null)
+    echo "$users" | jq -e 'type == "array"' &>/dev/null || users="[]"
+
+    # Administrators: members of the sudo/admin/wheel groups and users with their own sudoers entry
+    local sudo_users
+    sudo_users=$( {
+        for group in sudo admin wheel; do
+            getent group "$group" 2>/dev/null | awk -F: '{ print $4 }' | tr ',' '\n'
+        done
+        cat /etc/sudoers /etc/sudoers.d/* 2>/dev/null \
+            | awk '$1 !~ /^(#|%|Defaults|[A-Z_]+_Alias)/ && NF > 1 && $2 ~ /=/ { print $1 }'
+    } | grep -v '^$' | sort -u | jq -R -s 'split("\n") | map(select(. != ""))' 2>/dev/null)
+    echo "$sudo_users" | jq -e 'type == "array"' &>/dev/null || sudo_users="[]"
+
+    # SSH: the effective configuration (includes sshd_config.d and the defaults)
+    local ssh_port="" ssh_root="" ssh_password="" sshd_bin
+    sshd_bin=$(command -v sshd || echo /usr/sbin/sshd)
+    if [[ -x "$sshd_bin" ]]; then
+        local effective
+        effective=$("$sshd_bin" -T 2>/dev/null)
+        ssh_port=$(awk '$1 == "port" { print $2; exit }' <<< "$effective")
+        ssh_root=$(awk '$1 == "permitrootlogin" { print $2; exit }' <<< "$effective")
+        ssh_password=$(awk '$1 == "passwordauthentication" { print $2; exit }' <<< "$effective")
     fi
-    # Ensure it's valid JSON
-    if ! echo "$sudo_users" | jq empty 2>/dev/null; then
-        sudo_users="[]"
-    fi
-    
-    # SSH config
-    local ssh_port=$(grep -oP '(?<=^Port ).+' /etc/ssh/sshd_config 2>/dev/null | head -1 || echo "22")
-    local ssh_root=$(grep -oP '(?<=^PermitRootLogin ).+' /etc/ssh/sshd_config 2>/dev/null | head -1 || echo "unknown")
-    local ssh_password=$(grep -oP '(?<=^PasswordAuthentication ).+' /etc/ssh/sshd_config 2>/dev/null | head -1 || echo "unknown")
-    
-    # Firewall status
-    local firewall_status="unknown"
+
+    # Firewall: active / inactive per tool
+    local firewall_status="inactive"
     local firewall_type="none"
-    if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "active"; then
-        firewall_status="active"
+    if command -v ufw &>/dev/null; then
         firewall_type="ufw"
-    elif command -v firewall-cmd &>/dev/null && firewall-cmd --state 2>/dev/null | grep -q "running"; then
-        firewall_status="active"
-        firewall_type="firewalld"
-    elif command -v iptables &>/dev/null && iptables -L -n 2>/dev/null | grep -q "Chain"; then
-        firewall_status="configured"
-        firewall_type="iptables"
+        ufw status 2>/dev/null | grep -q '^Status: active' && firewall_status="active"
     fi
-    
+    if [[ "$firewall_status" != "active" ]] && command -v firewall-cmd &>/dev/null; then
+        if firewall-cmd --state 2>/dev/null | grep -q '^running'; then
+            firewall_type="firewalld"; firewall_status="active"
+        elif [[ "$firewall_type" == "none" ]]; then
+            firewall_type="firewalld"
+        fi
+    fi
+    # Rules on incoming traffic (INPUT chain or an nftables input hook) - not Docker's NAT/forward chains
+    if [[ "$firewall_status" != "active" ]] && command -v iptables &>/dev/null \
+        && iptables -S INPUT 2>/dev/null | grep -qE '^-A INPUT|^-P INPUT (DROP|REJECT)'; then
+        firewall_type="iptables"; firewall_status="active"
+    elif [[ "$firewall_status" != "active" ]] && command -v nft &>/dev/null \
+        && nft list ruleset 2>/dev/null | awk '/hook input/ { inside = 1; if (/policy drop/) found = 1; next }
+                                               inside && /^[[:space:]]*}/ { inside = 0 }
+                                               inside && NF { found = 1 }
+                                               END { exit !found }'; then
+        firewall_type="nftables"; firewall_status="active"
+    fi
+    if [[ "$firewall_type" == "none" ]]; then
+        firewall_status="unknown"
+    fi
+
     # SELinux/AppArmor
     local mac_status="none"
     if command -v getenforce &>/dev/null; then
@@ -480,23 +506,14 @@ collect_security() {
     elif [[ -d /sys/kernel/security/apparmor ]]; then
         mac_status="apparmor:enabled"
     fi
-    
-    cat << EOF
-{
-    "loginUsers": $users,
-    "sudoUsers": $sudo_users,
-    "ssh": {
-        "port": "$ssh_port",
-        "permitRootLogin": "$ssh_root",
-        "passwordAuthentication": "$ssh_password"
-    },
-    "firewall": {
-        "type": "$firewall_type",
-        "status": "$firewall_status"
-    },
-    "mandatoryAccessControl": "$mac_status"
-}
-EOF
+
+    jq -n --argjson loginUsers "$users" --argjson sudoUsers "$sudo_users" \
+        --arg port "$ssh_port" --arg root "$ssh_root" --arg password "$ssh_password" \
+        --arg fwType "$firewall_type" --arg fwStatus "$firewall_status" --arg mac "$mac_status" \
+        '{loginUsers: $loginUsers, sudoUsers: $sudoUsers,
+          ssh: {port: $port, permitRootLogin: $root, passwordAuthentication: $password},
+          firewall: {type: $fwType, status: $fwStatus},
+          mandatoryAccessControl: $mac}'
 }
 
 # ============================================================================

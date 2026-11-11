@@ -821,7 +821,57 @@
     "virtualMachine": "Virtuelle Maschine",
     "memoryAssigned": "Zugewiesen von {hypervisor}",
     "memoryUsable": "{value} GB für das Betriebssystem nutzbar",
-    "usable": "Nutzbar"
+    "usable": "Nutzbar",
+    "defender": {
+      "realTime": "Echtzeitschutz",
+      "antivirus": "Virenschutz",
+      "signatureVersion": "Signaturversion",
+      "signatureUpdated": "Signaturen aktualisiert",
+      "engineVersion": "Engine-Version",
+      "lastQuickScan": "Letzte Schnellüberprüfung",
+      "lastFullScan": "Letzte vollständige Überprüfung",
+      "notAvailable": "Microsoft Defender ist auf diesem Gerät nicht verfügbar"
+    },
+    "security": {
+      "firmware": "Firmware",
+      "bitlockerNotInstalled": "BitLocker ist nicht installiert",
+      "uacConsent": {
+        "0": "Ohne Nachfrage erhöhen",
+        "1": "Anmeldedaten auf dem sicheren Desktop abfragen",
+        "2": "Zustimmung auf dem sicheren Desktop abfragen",
+        "3": "Anmeldedaten abfragen",
+        "4": "Zustimmung abfragen",
+        "5": "Zustimmung für Nicht-Windows-Programme abfragen (Standard)"
+      }
+    },
+    "cookieWarnings": {
+      "notSecure": "Einige kritische Cookies sind nicht als Secure markiert (anfällig für Man-in-the-Middle-Angriffe)",
+      "notHttpOnly": "Einige kritische Cookies sind nicht HttpOnly (für Skripte lesbar, anfällig für XSS)",
+      "passwordManager": "Cookies von Passwort-Managern gefunden – lohnendes Angriffsziel",
+      "banking": "Cookies von Banken/Finanzdiensten gefunden – auf unbefugten Zugriff achten",
+      "authProvider": "Cookies von Anmeldediensten gefunden – könnten für Session-Hijacking genutzt werden"
+    },
+    "cookieCategory": {
+      "banking": "Banken/Finanzen",
+      "passwordManager": "Passwort-Manager",
+      "cloud": "Cloud-Anbieter",
+      "email": "E-Mail",
+      "authProvider": "Anmeldedienst",
+      "communication": "Kommunikation",
+      "sensitive": "Sensibel"
+    },
+    "linuxSecurity": {
+      "firewall": "Firewall",
+      "firewallTool": "Werkzeug",
+      "unknown": "Unbekannt",
+      "port": "Port",
+      "rootLogin": "Root-Anmeldung",
+      "passwordLogin": "Anmeldung mit Kennwort",
+      "notReported": "Nicht gemeldet – Agent aktualisieren",
+      "noMac": "Weder SELinux noch AppArmor aktiv",
+      "administrators": "Benutzer mit sudo-Rechten",
+      "loginUsers": "Benutzer mit Login-Shell"
+    }
   },
   "navGroups": {
     "fleet": "Flotte",

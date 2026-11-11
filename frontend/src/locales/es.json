@@ -821,7 +821,57 @@
     "virtualMachine": "Máquina virtual",
     "memoryAssigned": "Asignada por {hypervisor}",
     "memoryUsable": "{value} GB utilizables por el sistema operativo",
-    "usable": "Utilizable"
+    "usable": "Utilizable",
+    "defender": {
+      "realTime": "Protección en tiempo real",
+      "antivirus": "Antivirus",
+      "signatureVersion": "Versión de firmas",
+      "signatureUpdated": "Firmas actualizadas",
+      "engineVersion": "Versión del motor",
+      "lastQuickScan": "Último análisis rápido",
+      "lastFullScan": "Último análisis completo",
+      "notAvailable": "Microsoft Defender no está disponible en este equipo"
+    },
+    "security": {
+      "firmware": "Firmware",
+      "bitlockerNotInstalled": "BitLocker no está instalado",
+      "uacConsent": {
+        "0": "Elevar sin preguntar",
+        "1": "Pedir credenciales en el escritorio seguro",
+        "2": "Pedir consentimiento en el escritorio seguro",
+        "3": "Pedir credenciales",
+        "4": "Pedir consentimiento",
+        "5": "Pedir consentimiento para programas que no son de Windows (predeterminado)"
+      }
+    },
+    "cookieWarnings": {
+      "notSecure": "Algunas cookies críticas no están marcadas como Secure (vulnerables a ataques de intermediario)",
+      "notHttpOnly": "Algunas cookies críticas no son HttpOnly (legibles por scripts, vulnerables a XSS)",
+      "passwordManager": "Se encontraron cookies de gestores de contraseñas: objetivo de alto valor",
+      "banking": "Se encontraron cookies de banca/finanzas: vigile accesos no autorizados",
+      "authProvider": "Se encontraron cookies de proveedores de inicio de sesión: podrían usarse para secuestrar sesiones"
+    },
+    "cookieCategory": {
+      "banking": "Banca/finanzas",
+      "passwordManager": "Gestor de contraseñas",
+      "cloud": "Proveedor de nube",
+      "email": "Correo electrónico",
+      "authProvider": "Proveedor de inicio de sesión",
+      "communication": "Comunicación",
+      "sensitive": "Sensible"
+    },
+    "linuxSecurity": {
+      "firewall": "Cortafuegos",
+      "firewallTool": "Herramienta",
+      "unknown": "Desconocido",
+      "port": "Puerto",
+      "rootLogin": "Inicio de sesión de root",
+      "passwordLogin": "Inicio de sesión con contraseña",
+      "notReported": "No informado: actualice el agente",
+      "noMac": "Ni SELinux ni AppArmor activos",
+      "administrators": "Usuarios con permisos de sudo",
+      "loginUsers": "Usuarios con shell de inicio de sesión"
+    }
   },
   "navGroups": {
     "fleet": "Flota",

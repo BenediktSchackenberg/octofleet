@@ -170,7 +170,7 @@ CREATE TABLE public.browser_current (
     profile_path text,
     bookmark_count integer,
     password_count integer,
-    username character varying(255) DEFAULT ''::character varying
+    username character varying(255) DEFAULT ''::character varying NOT NULL
 );
 CREATE TABLE public.deployment_status (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -660,7 +660,8 @@ CREATE TABLE public.security_current (
     defender jsonb,
     tpm jsonb,
     uac jsonb,
-    local_admins jsonb
+    local_admins jsonb,
+    linux jsonb
 );
 CREATE TABLE public.sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -976,7 +977,7 @@ ALTER TABLE ONLY public.browser_cookies
 ALTER TABLE ONLY public.browser_cookies
     ADD CONSTRAINT browser_cookies_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.browser_current
-    ADD CONSTRAINT browser_current_pkey PRIMARY KEY (node_id, browser, profile);
+    ADD CONSTRAINT browser_current_pkey PRIMARY KEY (node_id, browser, profile, username);
 ALTER TABLE ONLY public.deployment_status
     ADD CONSTRAINT deployment_status_deployment_id_node_id_key UNIQUE (deployment_id, node_id);
 ALTER TABLE ONLY public.deployment_status

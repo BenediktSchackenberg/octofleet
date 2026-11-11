@@ -72,7 +72,10 @@ public class TpmInfo
     public bool Activated { get; set; }
     public bool Owned { get; set; }
     public string? ManufacturerId { get; set; }
+    public string? ManufacturerIdTxt { get; set; }
     public string? ManufacturerVersion { get; set; }
+    /// <summary>e.g. "2.0, 0, 1.59" (Win32_Tpm.SpecVersion); the first part is the TPM version.</summary>
+    public string? SpecVersion { get; set; }
     public string? Error { get; set; }
 }
 
@@ -297,7 +300,8 @@ public static class SecurityCollector
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = "-NoProfile -Command \"Get-BitLockerVolume | Select-Object MountPoint,VolumeStatus,ProtectionStatus,EncryptionMethod | ConvertTo-Json\"",
+                // The statuses are enums - ConvertTo-Json would turn them into numbers, so convert them to text
+                Arguments = "-NoProfile -Command \"Get-BitLockerVolume | Select-Object MountPoint,@{n='VolumeStatus';e={[string]$_.VolumeStatus}},@{n='ProtectionStatus';e={[string]$_.ProtectionStatus}},@{n='EncryptionMethod';e={[string]$_.EncryptionMethod}} | ConvertTo-Json\"",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -313,9 +317,9 @@ public static class SecurityCollector
 
             if (!string.IsNullOrEmpty(error) && error.Contains("not recognized"))
             {
-                result.Available = false;
-                result.Reason = "BitLocker cmdlet not available";
-                return result;
+                // No BitLocker module (e.g. Windows Server without the BitLocker feature): try the WMI
+                // provider, which manage-bde uses too. Without it, BitLocker is not installed.
+                return GetBitLockerViaWmi();
             }
 
             if (string.IsNullOrEmpty(output)) return result;
@@ -358,6 +362,49 @@ public static class SecurityCollector
         return result;
     }
 
+    private static BitlockerResult GetBitLockerViaWmi()
+    {
+        var result = new BitlockerResult();
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -Command \"Get-CimInstance -Namespace root/cimv2/Security/MicrosoftVolumeEncryption -ClassName Win32_EncryptableVolume -ErrorAction Stop | Select-Object @{n='MountPoint';e={$_.DriveLetter}},@{n='ProtectionStatus';e={@('Off','On','Unknown')[[int]$_.ProtectionStatus]}} | ConvertTo-Json\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(psi);
+            if (process == null) return result;
+            var output = process.StandardOutput.ReadToEnd();
+            var error = process.StandardError.ReadToEnd();
+            process.WaitForExit(5000);
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                result.Available = false;
+                result.Reason = "BitLocker is not installed";
+                return result;
+            }
+            var json = JsonSerializer.Deserialize<JsonElement>(output);
+            foreach (var v in json.ValueKind == JsonValueKind.Array ? json.EnumerateArray() : new[] { json }.AsEnumerable())
+            {
+                result.Volumes.Add(new BitlockerVolume
+                {
+                    MountPoint = GetStringProp(v, "MountPoint"),
+                    ProtectionStatus = GetStringProp(v, "ProtectionStatus")
+                });
+            }
+        }
+        catch
+        {
+            result.Available = false;
+            result.Reason = "BitLocker is not installed";
+        }
+        return result;
+    }
+
     private static TpmInfo GetTpmInfo()
     {
         try
@@ -365,7 +412,8 @@ public static class SecurityCollector
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = "-NoProfile -Command \"Get-Tpm | ConvertTo-Json\"",
+                // Get-Tpm has no spec version; Win32_Tpm has it (e.g. "2.0, 0, 1.59")
+                Arguments = "-NoProfile -Command \"$t = Get-Tpm; $c = Get-CimInstance -Namespace root/cimv2/Security/MicrosoftTpm -ClassName Win32_Tpm -ErrorAction SilentlyContinue; $t | Add-Member -NotePropertyName SpecVersion -NotePropertyValue $c.SpecVersion -PassThru | ConvertTo-Json\"",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -397,7 +445,9 @@ public static class SecurityCollector
                 Activated = GetBoolProp(root, "TpmActivated") ?? false,
                 Owned = GetBoolProp(root, "TpmOwned") ?? false,
                 ManufacturerId = GetStringProp(root, "ManufacturerId"),
-                ManufacturerVersion = GetStringProp(root, "ManufacturerVersion")
+                ManufacturerIdTxt = GetStringProp(root, "ManufacturerIdTxt"),
+                ManufacturerVersion = GetStringProp(root, "ManufacturerVersion"),
+                SpecVersion = GetStringProp(root, "SpecVersion")
             };
         }
         catch (Exception ex)

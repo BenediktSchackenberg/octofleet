@@ -53,6 +53,7 @@ export interface CriticalCookiesData {
   count: number;
   summary: Record<string, { count: number; domains: string[] }>;
   warnings: string[];
+  warningCodes?: string[];
 }
 
 export interface HardwareData {
@@ -107,11 +108,17 @@ export interface SystemData {
 }
 
 export interface SecurityData {
+  defender?: any;
+  antivirusProducts?: any[];
+  secureBoot?: boolean | null;
+  updatedAt?: string | null;
   firewall?: any;
   tpm?: any;
   bitlocker?: any;
   uac?: any;
   localAdmins?: any;
+  /** Linux agent: login and sudo users, SSH, firewall, SELinux/AppArmor (as sent) */
+  linux?: any;
   data?: {
     antivirus?: { name?: string; enabled?: boolean; upToDate?: boolean };
     firewall?: { enabled?: boolean; profiles?: Record<string, boolean> };
