@@ -3,6 +3,7 @@ Octofleet Inventory Backend
 FastAPI server for receiving and storing inventory data from Windows Agents
 """
 import json
+import ntpath
 import os
 import time
 import uuid
@@ -28,6 +29,13 @@ def _is_uuid(val: str) -> bool:
         return True
     except (ValueError, AttributeError):
         return False
+
+
+def _powershell_literal(value: str) -> str:
+    """Quote a value as a literal PowerShell string, without interpolation."""
+    return "'" + value.replace("'", "''") + "'"
+
+
 from datetime import datetime, timedelta, timezone
 
 import matplotlib
@@ -1042,19 +1050,21 @@ async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
                     
                     if version_row and version_row["download_url"]:
                         download_url = version_row["download_url"]
-                        filename = version_row["filename"] or "installer.exe"
+                        filename = ntpath.basename(version_row["filename"] or "") or "installer.exe"
                         package_name = version_row["display_name"] or version_row["package_name"]
                         
                         ps_script = f'''
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
-$installerPath = "$env:TEMP\\{filename}"
+$installerPath = Join-Path $env:TEMP {_powershell_literal(filename)}
+$downloadUrl = {_powershell_literal(download_url)}
+$packageName = {_powershell_literal(package_name)}
 
-Write-Host "=== Installing {package_name} ==="
-Write-Host "Downloading from: {download_url}"
+Write-Host "=== Installing $packageName ==="
+Write-Host "Downloading from: $downloadUrl"
 
 try {{
-    Invoke-WebRequest -Uri "{download_url}" -OutFile $installerPath -UseBasicParsing
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath -UseBasicParsing
     Write-Host "Download complete: $installerPath"
     
     Write-Host "Running installation..."

@@ -135,7 +135,7 @@ async def get_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
             SELECT id, version, filename, file_size, sha256_hash,
                    install_command, install_args, uninstall_command, uninstall_args,
                    requires_reboot, requires_admin, silent_install,
-                   is_latest, is_active, release_date, release_notes, created_at
+                   is_latest, is_active, release_date, release_notes, download_url, created_at
             FROM package_versions 
             WHERE package_id = $1
             ORDER BY created_at DESC
@@ -158,6 +158,7 @@ async def get_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
             "isActive": v["is_active"],
             "releaseDate": v["release_date"].isoformat() if v["release_date"] else None,
             "releaseNotes": v["release_notes"],
+            "downloadUrl": v["download_url"],
             "createdAt": v["created_at"].isoformat() if v["created_at"] else None
         } for v in versions]
         
@@ -208,7 +209,7 @@ async def delete_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
         return {"status": "deleted", "name": row["name"]}
 
 
-@router.post("/api/v1/packages/{package_id}/versions", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/packages/{package_id}/versions", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_package_version(package_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new version for a package"""
     async with db.acquire() as conn:
@@ -223,9 +224,9 @@ async def create_package_version(package_id: str, data: Dict[str, Any], db: asyn
                 package_id, version, filename, file_size, sha256_hash,
                 install_command, install_args, uninstall_command, uninstall_args,
                 requires_reboot, requires_admin, silent_install,
-                is_latest, is_active, release_date, release_notes
+                is_latest, is_active, release_date, release_notes, download_url
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING id
         """,
             package_id,
@@ -243,7 +244,8 @@ async def create_package_version(package_id: str, data: Dict[str, Any], db: asyn
             data.get("isLatest", True),
             data.get("isActive", True),
             data.get("releaseDate"),
-            data.get("releaseNotes")
+            data.get("releaseNotes"),
+            data.get("downloadUrl")
         )
         return {"id": str(row["id"]), "status": "created"}
 
@@ -256,7 +258,7 @@ async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool
             SELECT id, version, filename, file_size, sha256_hash,
                    install_command, install_args, uninstall_command, uninstall_args,
                    requires_reboot, requires_admin, silent_install,
-                   is_latest, is_active, release_date, release_notes, created_at
+                   is_latest, is_active, release_date, release_notes, download_url, created_at
             FROM package_versions 
             WHERE id = $1 AND package_id = $2
         """, version_id, package_id)
@@ -281,6 +283,7 @@ async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool
             "isActive": row["is_active"],
             "releaseDate": row["release_date"].isoformat() if row["release_date"] else None,
             "releaseNotes": row["release_notes"],
+            "downloadUrl": row["download_url"],
             "createdAt": row["created_at"].isoformat() if row["created_at"] else None
         }
         
@@ -303,11 +306,11 @@ async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool
         # Get sources
         sources = await conn.fetch("""
             SELECT pvs.id, ps.id as source_id, ps.name, ps.source_type, ps.base_url,
-                   pvs.relative_path, pvs.priority
+                   pvs.relative_path, ps.priority
             FROM package_version_sources pvs
             JOIN package_sources ps ON ps.id = pvs.source_id
             WHERE pvs.package_version_id = $1
-            ORDER BY pvs.priority ASC
+            ORDER BY ps.priority ASC
         """, version_id)
         
         version["sources"] = [{
@@ -323,7 +326,7 @@ async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool
         return version
 
 
-@router.put("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def update_package_version(package_id: str, version_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update a package version"""
     async with db.acquire() as conn:
@@ -344,6 +347,7 @@ async def update_package_version(package_id: str, version_id: str, data: Dict[st
             "isActive": "is_active",
             "releaseNotes": "release_notes",
             "sha256Hash": "sha256_hash",
+            "downloadUrl": "download_url",
         }
         
         for json_key, db_col in field_mapping.items():
