@@ -872,7 +872,14 @@
       "administrators": "Users with sudo rights",
       "loginUsers": "Users with a login shell"
     },
-    "lastInventorySnapshot": "From the last inventory (Linux agent)"
+    "lastInventorySnapshot": "From the last inventory (Linux agent)",
+    "linuxValuesNotReported": "The Linux agent has not reported load, memory and CPU values for this node.",
+    "smart": {
+      "virtual": "Not available on virtual disks – the hypervisor's storage holds the SMART data.",
+      "notReported": "The Linux agent has not reported disk health for this node.",
+      "noSmartctl": "smartctl is not installed – no SMART data (package smartmontools).",
+      "noDisks": "smartctl found no disks with SMART data."
+    }
   },
   "navGroups": {
     "fleet": "Fleet",

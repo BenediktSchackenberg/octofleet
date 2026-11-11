@@ -872,7 +872,14 @@
       "administrators": "Usuarios con permisos de sudo",
       "loginUsers": "Usuarios con shell de inicio de sesión"
     },
-    "lastInventorySnapshot": "Del último inventario (agente de Linux)"
+    "lastInventorySnapshot": "Del último inventario (agente de Linux)",
+    "linuxValuesNotReported": "El agente de Linux no ha informado valores de carga, memoria y CPU para este nodo.",
+    "smart": {
+      "virtual": "No disponible en discos virtuales: los datos SMART están en el almacenamiento del hipervisor.",
+      "notReported": "El agente de Linux no ha informado el estado de los discos para este nodo.",
+      "noSmartctl": "smartctl no está instalado: sin datos SMART (paquete smartmontools).",
+      "noDisks": "smartctl no encontró discos con datos SMART."
+    }
   },
   "navGroups": {
     "fleet": "Flota",

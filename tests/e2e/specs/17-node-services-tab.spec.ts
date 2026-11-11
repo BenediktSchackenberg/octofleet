@@ -87,3 +87,22 @@ test('Services tab stays visible when no services were reported', async ({ page,
   const panel = await openServicesTab(page, hostname);
   await expect(panel.getByText('The agent has not reported any services for this node yet.')).toBeVisible();
 });
+
+// Cards of the Linux agent stay on a Linux node when their data is missing, with a notice
+test('a Linux node without load values or smartctl shows notices instead of hiding the cards', async ({ page, request }) => {
+  const hostname = `e2e-linux-notices-${Date.now()}`;
+  await push(request, {
+    hostname,
+    nodeId: hostname,
+    services: { services: [], summary: { total: 0, active: 0, failed: 0, inactive: 0 }, enabledServices: [] },
+    diskHealth: { smartctlAvailable: false, disks: [] },
+  });
+
+  await page.goto(`/nodes/${hostname}?tab=performance`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.setItem('locale', 'en'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('The Linux agent has not reported load, memory and CPU values for this node.')).toBeVisible();
+
+  await page.getByRole('tab', { name: /^Hardware$/ }).click();
+  await expect(page.getByText('smartctl is not installed – no SMART data (package smartmontools).')).toBeVisible();
+});

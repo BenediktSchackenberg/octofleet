@@ -872,7 +872,14 @@
       "administrators": "Benutzer mit sudo-Rechten",
       "loginUsers": "Benutzer mit Login-Shell"
     },
-    "lastInventorySnapshot": "Aus dem letzten Inventar (Linux-Agent)"
+    "lastInventorySnapshot": "Aus dem letzten Inventar (Linux-Agent)",
+    "linuxValuesNotReported": "Der Linux-Agent hat für diesen Node keine Last-, Speicher- und CPU-Werte gemeldet.",
+    "smart": {
+      "virtual": "Bei virtuellen Datenträgern nicht verfügbar – die SMART-Daten liegen beim Speicher des Hypervisors.",
+      "notReported": "Der Linux-Agent hat für diesen Node keinen Datenträgerzustand gemeldet.",
+      "noSmartctl": "smartctl ist nicht installiert – keine SMART-Daten (Paket smartmontools).",
+      "noDisks": "smartctl hat keine Datenträger mit SMART-Daten gefunden."
+    }
   },
   "navGroups": {
     "fleet": "Flotte",

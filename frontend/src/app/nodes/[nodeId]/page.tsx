@@ -268,6 +268,10 @@ export default function NodeDetailPage() {
   const { t } = useI18n();
   
   const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
+  // Linux nodes get the Linux agent's cards even without data (with a notice): a missing card
+  // would look like a node with nothing to report, not like a collection problem.
+  const nodeOsName = sysData.osName || node?.os_name || "";
+  const isLinuxNode = !!linuxData || (nodeOsName !== "" && !/windows/i.test(nodeOsName));
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
   useEffect(() => {
@@ -566,9 +570,11 @@ export default function NodeDetailPage() {
           <TabsContent value="performance" className="space-y-4">
             {node && <PerformanceTab nodeId={node.node_id} />}
             {/* Linux agent: values from the last inventory (load, swap, logical CPUs, memory) */}
-            {linuxData?.performance && (
+            {isLinuxNode && (
               <>
                 <p className="text-sm text-muted-foreground">{t("nodeDetail.lastInventorySnapshot")}</p>
+              {linuxData?.performance ? (
+              <>
               <div className="grid gap-4 md:grid-cols-2">
                 {/* Load Average Card */}
                 <Card>
@@ -642,6 +648,14 @@ export default function NodeDetailPage() {
                   </CardContent>
                 </Card>
               </div>
+              </>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-muted-foreground">{t("nodeDetail.linuxValuesNotReported")}</p>
+                  </CardContent>
+                </Card>
+              )}
               </>
             )}
           </TabsContent>
@@ -798,10 +812,11 @@ export default function NodeDetailPage() {
               </Card>
             </div>
               {/* Disk Health */}
-              {linuxData?.diskHealth?.smartctlAvailable && (linuxData.diskHealth?.disks?.length || 0) > 0 && (
+              {isLinuxNode && (
                 <Card>
                   <CardHeader><CardTitle>🩺 {t("nodeDetail.diskHealth")}</CardTitle></CardHeader>
                   <CardContent>
+                    {linuxData?.diskHealth?.smartctlAvailable && (linuxData.diskHealth.disks?.length || 0) > 0 ? (
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -828,6 +843,17 @@ export default function NodeDetailPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {hwData.virtualization?.isVirtual
+                          ? t("nodeDetail.smart.virtual")
+                          : !linuxData?.diskHealth
+                            ? t("nodeDetail.smart.notReported")
+                            : !linuxData.diskHealth.smartctlAvailable
+                              ? t("nodeDetail.smart.noSmartctl")
+                              : t("nodeDetail.smart.noDisks")}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               )}
