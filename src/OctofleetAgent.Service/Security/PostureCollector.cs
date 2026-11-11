@@ -251,9 +251,7 @@ public class PostureCollector : BackgroundService
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                using var proc = Process.Start(psi);
-                var output = proc?.StandardOutput.ReadToEnd() ?? "";
-                proc?.WaitForExit(5000);
+                var output = ProcessRunner.Run(psi)?.Stdout ?? "";
                 config["firewallEnabled"] = output.Contains("ON");
                 config["firewallDetails"] = output.Trim();
             }
@@ -270,9 +268,7 @@ public class PostureCollector : BackgroundService
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                using var proc = Process.Start(psi);
-                var output = proc?.StandardOutput.ReadToEnd() ?? "";
-                proc?.WaitForExit(5000);
+                var output = ProcessRunner.Run(psi)?.Stdout ?? "";
 
                 var members = output.Split('\n')
                     .SkipWhile(l => !l.Contains("---"))
@@ -298,9 +294,7 @@ public class PostureCollector : BackgroundService
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                using var proc = Process.Start(psi);
-                var output = proc?.StandardOutput.ReadToEnd() ?? "";
-                proc?.WaitForExit(5000);
+                var output = ProcessRunner.Run(psi)?.Stdout ?? "";
                 config["guestAccount"] = output.Contains("Account active               Yes");
             }
             catch { config["guestAccount"] = "unknown"; }

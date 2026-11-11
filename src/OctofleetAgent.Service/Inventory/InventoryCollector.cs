@@ -1,16 +1,25 @@
+using System.Text.Json.Serialization;
+
 namespace OctofleetAgent.Service.Inventory;
 
+/// <summary>
+/// The full inventory. A section whose collector timed out or failed is null and left out of the
+/// JSON: the server then keeps that section's last data. (Sent as null or empty it would fail the
+/// push or - for the browser section - clear the stored data.)
+/// </summary>
 public class FullInventoryResult
 {
     public string Timestamp { get; set; } = "";
     public string Hostname { get; set; } = "";
-    public HardwareResult Hardware { get; set; } = new();
-    public SoftwareResult Software { get; set; } = new();
-    public HotfixResult Hotfixes { get; set; } = new();
-    public SystemResult System { get; set; } = new();
-    public SecurityResult Security { get; set; } = new();
-    public BrowserCollector.BrowserResult Browser { get; set; } = new();
-    public NetworkResult Network { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public HardwareResult? Hardware { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SoftwareResult? Software { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public HotfixResult? Hotfixes { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SystemResult? System { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SecurityResult? Security { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public BrowserCollector.BrowserResult? Browser { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public NetworkResult? Network { get; set; }
+    /// <summary>Sections left out of this push, with the reason (e.g. "security: timed out after 180 s").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<string>? IncompleteSections { get; set; }
 }
 
 public class CategoryInventoryResult
@@ -38,21 +47,55 @@ public static class InventoryCollector
             Hostname = Environment.MachineName
         };
 
-        // Run all collectors in parallel
-        var tasks = new List<Task>
-        {
-            Task.Run(async () => result.Hardware = await HardwareCollector.CollectAsync()),
-            Task.Run(async () => result.Software = await SoftwareCollector.CollectAsync()),
-            Task.Run(async () => result.Hotfixes = await HotfixCollector.CollectAsync()),
-            Task.Run(async () => result.System = await SystemCollector.CollectAsync()),
-            Task.Run(async () => result.Security = await SecurityCollector.CollectAsync()),
-            Task.Run(async () => result.Browser = await BrowserCollector.CollectAsync(null)),
-            Task.Run(async () => result.Network = await NetworkCollector.CollectAsync())
-        };
+        // Run all collectors in parallel, each with a time limit: one that hangs or fails must not
+        // hold back (or lose) the others
+        var incomplete = new List<string>();
+        var hardware = Limited("hardware", HardwareCollector.CollectAsync, incomplete);
+        var software = Limited("software", SoftwareCollector.CollectAsync, incomplete);
+        var hotfixes = Limited("hotfixes", HotfixCollector.CollectAsync, incomplete);
+        var system = Limited("system", SystemCollector.CollectAsync, incomplete);
+        var security = Limited("security", SecurityCollector.CollectAsync, incomplete);
+        var browser = Limited("browser", () => BrowserCollector.CollectAsync(null), incomplete);
+        var network = Limited("network", NetworkCollector.CollectAsync, incomplete);
+        await Task.WhenAll(hardware, software, hotfixes, system, security, browser, network);
 
-        await Task.WhenAll(tasks);
-
+        result.Hardware = hardware.Result;
+        result.Software = software.Result;
+        result.Hotfixes = hotfixes.Result;
+        result.System = system.Result;
+        result.Security = security.Result;
+        result.Browser = browser.Result;
+        result.Network = network.Result;
+        if (incomplete.Count > 0) result.IncompleteSections = incomplete;
         return result;
+    }
+
+    /// <summary>Time limit per collector (WMI queries and helper processes have their own, shorter ones).</summary>
+    public static readonly TimeSpan CollectorTimeout = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// Runs a collector with <see cref="CollectorTimeout"/>. Returns null (and notes the section in
+    /// <paramref name="incomplete"/>) when it times out or throws; a timed-out collector cannot be
+    /// cancelled and ends in the background.
+    /// </summary>
+    private static async Task<T?> Limited<T>(string section, Func<Task<T>> collect, List<string> incomplete) where T : class
+    {
+        var task = Task.Run(collect);
+        if (await Task.WhenAny(task, Task.Delay(CollectorTimeout)) != task)
+        {
+            _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            lock (incomplete) incomplete.Add($"{section}: timed out after {CollectorTimeout.TotalSeconds:0} s");
+            return null;
+        }
+        try
+        {
+            return await task;
+        }
+        catch (Exception ex)
+        {
+            lock (incomplete) incomplete.Add($"{section}: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>

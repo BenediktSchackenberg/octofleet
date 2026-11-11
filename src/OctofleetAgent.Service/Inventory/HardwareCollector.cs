@@ -182,7 +182,7 @@ public static class HardwareCollector
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_Processor");
             var cpus = new List<CpuInfo>();
             
             foreach (ManagementObject obj in searcher.Get())
@@ -227,7 +227,7 @@ public static class HardwareCollector
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_PhysicalMemory");
             var modules = new List<RamModule>();
             long totalBytes = 0;
 
@@ -298,7 +298,7 @@ public static class HardwareCollector
             var healthData = GetDiskHealthData();
             
             // Physical disks from Win32_DiskDrive
-            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_DiskDrive"))
+            using (var searcher = Wmi.Searcher("SELECT * FROM Win32_DiskDrive"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
@@ -342,7 +342,7 @@ public static class HardwareCollector
             }
 
             // Add logical disk info (free space)
-            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_LogicalDisk WHERE DriveType=3"))
+            using (var searcher = Wmi.Searcher("SELECT * FROM Win32_LogicalDisk WHERE DriveType=3"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
@@ -378,10 +378,10 @@ public static class HardwareCollector
         try
         {
             // Use Storage WMI provider for SMART data
-            var scope = new ManagementScope(@"\\.\root\Microsoft\Windows\Storage");
+            var scope = Wmi.Scope(@"\\.\root\Microsoft\Windows\Storage");
             scope.Connect();
             
-            using var searcher = new ManagementObjectSearcher(scope, 
+            using var searcher = Wmi.Searcher(scope, 
                 new ObjectQuery("SELECT * FROM MSFT_PhysicalDisk"));
             
             foreach (ManagementObject obj in searcher.Get())
@@ -416,10 +416,10 @@ public static class HardwareCollector
         // Try to get temperature from MSFT_StorageReliabilityCounter
         try
         {
-            var scope = new ManagementScope(@"\\.\root\Microsoft\Windows\Storage");
+            var scope = Wmi.Scope(@"\\.\root\Microsoft\Windows\Storage");
             scope.Connect();
             
-            using var searcher = new ManagementObjectSearcher(scope,
+            using var searcher = Wmi.Searcher(scope,
                 new ObjectQuery("SELECT * FROM MSFT_StorageReliabilityCounter"));
             
             foreach (ManagementObject obj in searcher.Get())
@@ -511,7 +511,7 @@ public static class HardwareCollector
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_BaseBoard");
             foreach (ManagementObject obj in searcher.Get())
             {
                 return new MainboardInfo
@@ -537,7 +537,7 @@ public static class HardwareCollector
             var result = new BiosInfo();
             
             // Basic BIOS info
-            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
+            using (var searcher = Wmi.Searcher("SELECT * FROM Win32_BIOS"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
@@ -552,7 +552,7 @@ public static class HardwareCollector
             }
             
             // UUID from Win32_ComputerSystemProduct
-            using (var searcher = new ManagementObjectSearcher("SELECT UUID FROM Win32_ComputerSystemProduct"))
+            using (var searcher = Wmi.Searcher("SELECT UUID FROM Win32_ComputerSystemProduct"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
@@ -603,7 +603,7 @@ public static class HardwareCollector
         {
             var result = new VirtualizationInfo();
             
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_ComputerSystem");
             foreach (ManagementObject obj in searcher.Get())
             {
                 result.Model = obj["Model"]?.ToString()?.Trim();
@@ -692,7 +692,7 @@ public static class HardwareCollector
 
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_VideoController");
 
             foreach (ManagementObject obj in searcher.Get())
             {
@@ -724,7 +724,7 @@ public static class HardwareCollector
 
         try
         {
-            using var searcher = new ManagementObjectSearcher(
+            using var searcher = Wmi.Searcher(
                 "SELECT * FROM Win32_NetworkAdapter WHERE NetConnectionStatus IS NOT NULL");
 
             foreach (ManagementObject obj in searcher.Get())
@@ -744,7 +744,7 @@ public static class HardwareCollector
             }
 
             // Also get IP configuration
-            using var configSearcher = new ManagementObjectSearcher(
+            using var configSearcher = Wmi.Searcher(
                 "SELECT * FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled=True");
             
             foreach (ManagementObject obj in configSearcher.Get())
