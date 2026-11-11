@@ -3,6 +3,7 @@
 import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect } from 'react';
 import { apiClient } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n-context";
 import Link from 'next/link';
 import {
   Shield, Package, CheckCircle, XCircle, AlertTriangle, Clock,
@@ -63,6 +64,17 @@ export default function PatchesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState('');
+  const { t } = useI18n();
+  // ?node=<node_id or UUID> (link from the node page): only the patches still open on that node.
+  // Read after mounting like useTabParam; undefined = not read yet, so the catalog loads once.
+  const [nodeFilter, setNodeFilter] = useState<string | null | undefined>(undefined);
+  useEffect(() => { setNodeFilter(new URLSearchParams(window.location.search).get('node')); }, []);
+  const clearNodeFilter = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('node');
+    window.history.replaceState(window.history.state, '', url.toString());
+    setNodeFilter(null);
+  };
 
   const getToken = () => localStorage.getItem('token');
 
@@ -74,7 +86,7 @@ export default function PatchesPage() {
     try {
       const [compRes, catRes, ringRes, depRes, grpRes] = await Promise.all([
         apiClient.get<ComplianceData>(`/patches/compliance`, { showErrorToast: false }),
-        apiClient.get<{ items: PatchItem[] }>(`/patches/catalog?limit=100${search ? `&search=${search}` : ''}${severityFilter ? `&severity=${severityFilter}` : ''}`, { showErrorToast: false }),
+        apiClient.get<{ items: PatchItem[] }>(`/patches/catalog?limit=100${search ? `&search=${search}` : ''}${severityFilter ? `&severity=${severityFilter}` : ''}${nodeFilter ? `&node=${encodeURIComponent(nodeFilter)}` : ''}`, { showErrorToast: false }),
         apiClient.get<Ring[]>(`/patches/rings`, { showErrorToast: false }),
         apiClient.get<Deployment[]>(`/patches/deployments?limit=50`, { showErrorToast: false }),
         apiClient.get<{ groups: Array<{ id: string; name: string }> }>(`/groups`, { showErrorToast: false }),
@@ -88,7 +100,7 @@ export default function PatchesPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchAll(); }, [search, severityFilter]);
+  useEffect(() => { if (nodeFilter !== undefined) fetchAll(); }, [search, severityFilter, nodeFilter]);
 
   const approvePatch = async (id: string) => {
     const token = getToken();
@@ -178,6 +190,12 @@ export default function PatchesPage() {
       {/* Catalog Tab */}
       {tab === 'catalog' && (
         <div className="space-y-4">
+          {nodeFilter && (
+            <div className="flex items-center gap-3 text-sm">
+              <span className="px-2 py-1 rounded bg-cyan-500/20 text-cyan-400">{t("patchesPage.openOnNode", { node: nodeFilter })}</span>
+              <button onClick={clearNodeFilter} className="text-muted-foreground hover:text-foreground underline">{t("patchesPage.showAllPatches")}</button>
+            </div>
+          )}
           <div className="flex gap-3">
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search patches..." className="flex-1 px-3 py-2 bg-card border border-border rounded-lg text-foreground" />

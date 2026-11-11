@@ -1108,5 +1108,9 @@
     "create": "Neuen Tag erstellen",
     "namePlaceholder": "Tag-Name…",
     "done": "Fertig"
+  },
+  "patchesPage": {
+    "openOnNode": "Offen auf {node}",
+    "showAllPatches": "Alle Patches anzeigen"
   }
 }

@@ -1108,5 +1108,9 @@
     "create": "Create a new tag",
     "namePlaceholder": "Tag name…",
     "done": "Done"
+  },
+  "patchesPage": {
+    "openOnNode": "Open on {node}",
+    "showAllPatches": "Show all patches"
   }
 }

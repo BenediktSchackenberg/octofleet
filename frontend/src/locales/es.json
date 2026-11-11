@@ -1108,5 +1108,9 @@
     "create": "Crear una etiqueta",
     "namePlaceholder": "Nombre de la etiqueta…",
     "done": "Listo"
+  },
+  "patchesPage": {
+    "openOnNode": "Pendientes en {node}",
+    "showAllPatches": "Mostrar todos los parches"
   }
 }
