@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n-context";
 import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,6 +87,7 @@ interface Props {
 }
 
 export function PerformanceTab({ nodeId }: Props) {
+  const { t } = useI18n();
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [paused, setPaused] = useState(false);
@@ -192,7 +194,7 @@ export function PerformanceTab({ nodeId }: Props) {
       setConnecting(false);
       
       const backoff = Math.min(1000 * Math.pow(2, reconnectCount), 30000);
-      setError(`Verbindung verloren. Reconnect in ${backoff / 1000}s...`);
+      setError(t("nodeTools.connectionLost", { seconds: backoff / 1000 }));
       setReconnectCount(prev => prev + 1);
       
       reconnectTimeoutRef.current = setTimeout(() => {
@@ -317,15 +319,15 @@ export function PerformanceTab({ nodeId }: Props) {
         <div className="flex items-center gap-3">
           {connected ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
-              <Wifi className="h-3 w-3 mr-1" /> Live
+              <Wifi className="h-3 w-3 mr-1" /> {t("nodeTools.liveBadge")}
             </Badge>
           ) : connecting ? (
             <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
-              <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Verbinde...
+              <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> {t("nodeTools.connecting")}
             </Badge>
           ) : (
             <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/30">
-              <WifiOff className="h-3 w-3 mr-1" /> Offline
+              <WifiOff className="h-3 w-3 mr-1" /> {t("common.offline")}
             </Badge>
           )}
           {error && <span className="text-sm text-muted-foreground">{error}</span>}
@@ -352,11 +354,11 @@ export function PerformanceTab({ nodeId }: Props) {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab === 'overview' && `📊 Übersicht`}
-            {tab === 'logs' && `📜 Logs (${logs.length})`}
-            {tab === 'processes' && `⚙️ Prozesse (${processes.length})`}
-            {tab === 'network' && `🌐 Netzwerk (${network.length})`}
-            {tab === 'agent' && `🤖 Agent (${agentLogs.length})`}
+            {tab === 'overview' && `📊 ${t("nodeTools.tabs.overview")}`}
+            {tab === 'logs' && `📜 ${t("nodeTools.tabs.logs", { count: logs.length })}`}
+            {tab === 'processes' && `⚙️ ${t("nodeTools.tabs.processes", { count: processes.length })}`}
+            {tab === 'network' && `🌐 ${t("nodeTools.tabs.network", { count: network.length })}`}
+            {tab === 'agent' && `🤖 ${t("nodeTools.tabs.agent", { count: agentLogs.length })}`}
           </button>
         ))}
       </div>
@@ -371,7 +373,7 @@ export function PerformanceTab({ nodeId }: Props) {
                 <div className="flex items-center gap-2">
                   <Cpu className="h-5 w-5 text-blue-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">CPU</p>
+                    <p className="text-sm text-muted-foreground">CPU</p>{/* i18n-ignore */}
                     <p className="text-2xl font-bold">{currentCpu.toFixed(1)}%</p>
                   </div>
                 </div>
@@ -389,7 +391,7 @@ export function PerformanceTab({ nodeId }: Props) {
                 <div className="flex items-center gap-2">
                   <MemoryStick className="h-5 w-5 text-green-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">RAM</p>
+                    <p className="text-sm text-muted-foreground">RAM</p>{/* i18n-ignore */}
                     <p className="text-2xl font-bold">{currentMem.toFixed(1)}%</p>
                   </div>
                 </div>
@@ -407,7 +409,7 @@ export function PerformanceTab({ nodeId }: Props) {
                 <div className="flex items-center gap-2">
                   <HardDrive className="h-5 w-5 text-purple-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Disk</p>
+                    <p className="text-sm text-muted-foreground">{t("nodeTools.disk")}</p>
                     <p className="text-2xl font-bold">{currentDisk.toFixed(1)}%</p>
                   </div>
                 </div>
@@ -425,7 +427,7 @@ export function PerformanceTab({ nodeId }: Props) {
                 <div className="flex items-center gap-2">
                   <Network className="h-5 w-5 text-orange-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Network</p>
+                    <p className="text-sm text-muted-foreground">{t("nodeTools.network")}</p>
                     <p className="text-lg font-bold">
                       ↓{currentNetIn.toFixed(1)} ↑{currentNetOut.toFixed(1)}
                     </p>
@@ -441,13 +443,13 @@ export function PerformanceTab({ nodeId }: Props) {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg">CPU & RAM {timeRange === 'live' ? 'Live' : 'Verlauf'}</CardTitle>
+                  <CardTitle className="text-lg">{t(timeRange === "live" ? "nodeTools.performance.cpuRamLive" : "nodeTools.performance.cpuRamHistory")}</CardTitle>
                   <CardDescription>
-                    {timeRange === 'live' && 'Echtzeit-Auslastung (letzte 5 Minuten)'}
-                    {timeRange === '24h' && 'Letzte 24 Stunden (15 Min Intervall)'}
-                    {timeRange === '7d' && 'Letzte 7 Tage (1 Std Intervall)'}
-                    {timeRange === '14d' && 'Letzte 14 Tage (6 Std Intervall)'}
-                    {timeRange === '30d' && 'Letzte 30 Tage (Tages-Durchschnitt)'}
+                    {timeRange === 'live' && t("nodeTools.performance.rangeLive")}
+                    {timeRange === '24h' && t("nodeTools.performance.range24h")}
+                    {timeRange === '7d' && t("nodeTools.performance.range7d")}
+                    {timeRange === '14d' && t("nodeTools.performance.range14d")}
+                    {timeRange === '30d' && t("nodeTools.performance.range30d")}
                   </CardDescription>
                 </div>
                 <div className="flex gap-1">
@@ -459,7 +461,7 @@ export function PerformanceTab({ nodeId }: Props) {
                       onClick={() => setTimeRange(range)}
                       disabled={loadingHistory}
                     >
-                      {range === 'live' ? '⚡ Live' : range}
+                      {range === 'live' ? `⚡ ${t("nodeTools.liveBadge")}` : range}
                     </Button>
                   ))}
                 </div>
@@ -469,7 +471,7 @@ export function PerformanceTab({ nodeId }: Props) {
               <div className="h-64">
                 {loadingHistory ? (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <RefreshCw className="h-5 w-5 animate-spin mr-2" /> Lade historische Daten...
+                    <RefreshCw className="h-5 w-5 animate-spin mr-2" /> {t("nodeTools.loadingHistory")}
                   </div>
                 ) : (timeRange === 'live' ? history : historicalData).length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -494,7 +496,7 @@ export function PerformanceTab({ nodeId }: Props) {
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
-                    {connecting ? <><RefreshCw className="h-5 w-5 animate-spin mr-2" /> Verbinde...</> : <>Warte auf Daten...</>}
+                    {connecting ? <><RefreshCw className="h-5 w-5 animate-spin mr-2" /> {t("nodeTools.connecting")}</> : <>{t("nodeTools.waitingForData")}</>}
                   </div>
                 )}
               </div>
@@ -506,7 +508,7 @@ export function PerformanceTab({ nodeId }: Props) {
             {/* Top Processes */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Top Prozesse</CardTitle>
+                <CardTitle className="text-lg">{t("nodeTools.topProcesses")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -516,7 +518,7 @@ export function PerformanceTab({ nodeId }: Props) {
                       <span className="text-muted-foreground">{proc.cpu?.toFixed(1)}%</span>
                     </div>
                   ))}
-                  {processes.length === 0 && <p className="text-muted-foreground text-sm">Keine Daten</p>}
+                  {processes.length === 0 && <p className="text-muted-foreground text-sm">{t("nodeDetail.noData")}</p>}
                 </div>
               </CardContent>
             </Card>
@@ -524,7 +526,7 @@ export function PerformanceTab({ nodeId }: Props) {
             {/* Recent Logs */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Letzte Events</CardTitle>
+                <CardTitle className="text-lg">{t("nodeTools.performance.recentEvents")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -537,7 +539,7 @@ export function PerformanceTab({ nodeId }: Props) {
                       <span className="truncate">{log.source}</span>
                     </div>
                   ))}
-                  {logs.length === 0 && <p className="text-muted-foreground text-sm">Keine Logs</p>}
+                  {logs.length === 0 && <p className="text-muted-foreground text-sm">{t("nodeTools.noLogs")}</p>}
                 </div>
               </CardContent>
             </Card>
@@ -550,12 +552,12 @@ export function PerformanceTab({ nodeId }: Props) {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Windows Event Logs</CardTitle>
+              <CardTitle className="text-lg">{t("nodeTools.performance.windowsEventLogs")}</CardTitle>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Filter logs..."
+                    placeholder={t("nodeTools.filterLogs")}
                     value={logFilter}
                     onChange={(e) => setLogFilter(e.target.value)}
                     className="pl-8 w-64"
@@ -572,10 +574,10 @@ export function PerformanceTab({ nodeId }: Props) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">Zeit</TableHead>
-                    <TableHead className="w-[100px]">Level</TableHead>
-                    <TableHead className="w-[150px]">Quelle</TableHead>
-                    <TableHead>Nachricht</TableHead>
+                    <TableHead className="w-[100px]">{t("nodeTools.col.time")}</TableHead>
+                    <TableHead className="w-[100px]">{t("nodeTools.col.level")}</TableHead>
+                    <TableHead className="w-[150px]">{t("nodeTools.col.source")}</TableHead>
+                    <TableHead>{t("nodeTools.col.message")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -592,7 +594,7 @@ export function PerformanceTab({ nodeId }: Props) {
                 </TableBody>
               </Table>
               {filteredLogs.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">Keine Logs</p>
+                <p className="text-center text-muted-foreground py-8">{t("nodeTools.noLogs")}</p>
               )}
               <div ref={logsEndRef} />
             </div>
@@ -605,11 +607,11 @@ export function PerformanceTab({ nodeId }: Props) {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Laufende Prozesse</CardTitle>
+              <CardTitle className="text-lg">{t("nodeTools.runningProcesses")}</CardTitle>
               <div className="flex gap-2">
-                <Button variant={processSort === 'cpu' ? 'default' : 'outline'} size="sm" onClick={() => setProcessSort('cpu')}>CPU</Button>
-                <Button variant={processSort === 'memory' ? 'default' : 'outline'} size="sm" onClick={() => setProcessSort('memory')}>RAM</Button>
-                <Button variant={processSort === 'name' ? 'default' : 'outline'} size="sm" onClick={() => setProcessSort('name')}>Name</Button>
+                <Button variant={processSort === 'cpu' ? 'default' : 'outline'} size="sm" onClick={() => setProcessSort('cpu')}>CPU</Button>{/* i18n-ignore */}
+                <Button variant={processSort === 'memory' ? 'default' : 'outline'} size="sm" onClick={() => setProcessSort('memory')}>RAM</Button>{/* i18n-ignore */}
+                <Button variant={processSort === 'name' ? 'default' : 'outline'} size="sm" onClick={() => setProcessSort('name')}>{t("common.name")}</Button>
               </div>
             </div>
           </CardHeader>
@@ -618,11 +620,11 @@ export function PerformanceTab({ nodeId }: Props) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="w-[80px]">PID</TableHead>
-                    <TableHead className="w-[100px]">CPU %</TableHead>
-                    <TableHead className="w-[100px]">RAM MB</TableHead>
-                    <TableHead>User</TableHead>
+                    <TableHead>{t("common.name")}</TableHead>
+                    <TableHead className="w-[80px]">PID</TableHead>{/* i18n-ignore */}
+                    <TableHead className="w-[100px]">CPU %</TableHead>{/* i18n-ignore */}
+                    <TableHead className="w-[100px]">RAM MB</TableHead>{/* i18n-ignore */}
+                    <TableHead>{t("nodeTools.col.user")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -645,7 +647,7 @@ export function PerformanceTab({ nodeId }: Props) {
                 </TableBody>
               </Table>
               {processes.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">Keine Prozesse</p>
+                <p className="text-center text-muted-foreground py-8">{t("nodeTools.noProcesses")}</p>
               )}
             </div>
           </CardContent>
@@ -656,7 +658,7 @@ export function PerformanceTab({ nodeId }: Props) {
       {activeTab === 'network' && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Netzwerk Interfaces</CardTitle>
+            <CardTitle className="text-lg">{t("nodeTools.networkInterfaces")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -665,29 +667,29 @@ export function PerformanceTab({ nodeId }: Props) {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Badge variant={iface.linkUp ? "default" : "secondary"}>
-                        {iface.linkUp ? "🟢 Up" : "🔴 Down"}
+                        {iface.linkUp ? `🟢 ${t("nodeTools.linkUp")}` : `🔴 ${t("nodeTools.linkDown")}`}
                       </Badge>
                       <span className="font-medium">{iface.name}</span>
                     </div>
-                    <span className="text-sm text-muted-foreground">{iface.speedMbps} Mbps</span>
+                    <span className="text-sm text-muted-foreground">{iface.speedMbps} Mbps</span>{/* i18n-ignore */}
                   </div>
                   <p className="text-sm text-muted-foreground mb-2">{iface.description}</p>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-muted-foreground">↓ Download:</span>
+                      <span className="text-muted-foreground">↓ {t("nodeTools.download")}:</span>
                       <span className="ml-2">{(iface.rxBytesPerSec / 1024 / 1024).toFixed(2)} MB/s</span>
-                      <span className="text-muted-foreground ml-2">({iface.rxTotalMb.toFixed(0)} MB total)</span>
+                      <span className="text-muted-foreground ml-2">({t("nodeTools.mbTotal", { value: iface.rxTotalMb.toFixed(0) })})</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">↑ Upload:</span>
+                      <span className="text-muted-foreground">↑ {t("nodeTools.upload")}:</span>
                       <span className="ml-2">{(iface.txBytesPerSec / 1024 / 1024).toFixed(2)} MB/s</span>
-                      <span className="text-muted-foreground ml-2">({iface.txTotalMb.toFixed(0)} MB total)</span>
+                      <span className="text-muted-foreground ml-2">({t("nodeTools.mbTotal", { value: iface.txTotalMb.toFixed(0) })})</span>
                     </div>
                   </div>
                 </div>
               ))}
               {network.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">Keine Netzwerk-Daten</p>
+                <p className="text-center text-muted-foreground py-8">{t("nodeTools.noNetworkData")}</p>
               )}
             </div>
           </CardContent>
@@ -698,17 +700,17 @@ export function PerformanceTab({ nodeId }: Props) {
       {activeTab === 'agent' && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Agent Logs</CardTitle>
+            <CardTitle className="text-lg">{t("nodeTools.agentLogs")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="max-h-[500px] overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">Zeit</TableHead>
-                    <TableHead className="w-[80px]">Level</TableHead>
-                    <TableHead className="w-[150px]">Source</TableHead>
-                    <TableHead>Message</TableHead>
+                    <TableHead className="w-[100px]">{t("nodeTools.col.time")}</TableHead>
+                    <TableHead className="w-[80px]">{t("nodeTools.col.level")}</TableHead>
+                    <TableHead className="w-[150px]">{t("nodeTools.col.source")}</TableHead>
+                    <TableHead>{t("nodeTools.col.message")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -729,7 +731,7 @@ export function PerformanceTab({ nodeId }: Props) {
                 </TableBody>
               </Table>
               {agentLogs.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">Keine Agent Logs</p>
+                <p className="text-center text-muted-foreground py-8">{t("nodeTools.noAgentLogs")}</p>
               )}
             </div>
           </CardContent>
