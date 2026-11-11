@@ -1378,6 +1378,18 @@ schedule_uninstall() {
     echo "Agent uninstall started without systemd-run; the agent will be removed in ${delay} seconds."
 }
 
+schedule_restart() {
+    # A transient timer runs outside this service, after the job result has been sent.
+    if ! command -v systemd-run &>/dev/null || ! command -v systemctl &>/dev/null; then
+        echo "Cannot schedule agent restart: systemd is unavailable"
+        return 1
+    fi
+    systemd-run --quiet --collect --on-active=30s \
+        --unit "octofleet-agent-restart-$(date +%s)-$$" \
+        /bin/systemctl restart octofleet-agent.service || return 1
+    echo "Agent restart scheduled in 30 seconds"
+}
+
 execute_job() {
     local job="$1"
     local instance_id=$(echo "$job" | jq -r '.instanceId // .instance_id')
@@ -1397,15 +1409,42 @@ execute_job() {
     local exit_code=0
     
     case "$command_type" in
+        run)
+            local command_kind
+            command_kind=$(jq -r '.command | type' <<< "$command_payload" 2>/dev/null)
+            if [[ "$command_kind" == "array" ]]; then
+                local -a argv=()
+                mapfile -d '' -t argv < <(jq -j '.command[] | tostring, "\u0000"' <<< "$command_payload")
+                if (( ${#argv[@]} )); then
+                    output=$("${argv[@]}" 2>&1) || exit_code=$?
+                else
+                    output="Missing command"; exit_code=1
+                fi
+            elif [[ "$command_kind" == "string" ]]; then
+                local script
+                script=$(jq -r '.command' <<< "$command_payload")
+                if [[ -n "$script" ]]; then
+                    output=$(bash -c "$script" 2>&1) || exit_code=$?
+                else
+                    output="Missing command"; exit_code=1
+                fi
+            else
+                output="Missing command"; exit_code=1
+            fi
+            ;;
         shell|script)
             local script=$(echo "$command_payload" | jq -r '.script // .command // ""')
             if [[ -n "$script" ]]; then
                 output=$(bash -c "$script" 2>&1) || exit_code=$?
+            else
+                output="Missing script"; exit_code=1
             fi
             ;;
-        inventory_push)
-            push_inventory && exit_code=0 || exit_code=1
-            output="Inventory push completed"
+        inventory|inventory_push)
+            output=$(push_inventory 2>&1) || exit_code=$?
+            ;;
+        restart-agent)
+            output=$(schedule_restart 2>&1) || exit_code=$?
             ;;
         service_reconcile)
             output=$(reconcile_service "$command_payload") || exit_code=$?
