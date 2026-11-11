@@ -68,6 +68,35 @@ function CopyButton({ text, className = "" }: { text: string; className?: string
   );
 }
 
+/** Dates from the agent: ISO strings, or "/Date(1731234567000)/" from Windows PowerShell's ConvertTo-Json. */
+function agentDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value) return null;
+  const ms = /\/Date\((-?\d+)\)\//.exec(value);
+  const date = ms ? new Date(Number(ms[1])) : new Date(value);
+  return Number.isNaN(date.getTime()) || date.getFullYear() < 2000 ? null : date;
+}
+
+/** TPM manufacturer: the readable id ("MSFT"), or the numeric id decoded to its four ASCII letters. */
+function tpmManufacturer(tpm: any): string | null {
+  if (tpm?.manufacturerIdTxt?.trim()) return tpm.manufacturerIdTxt.trim();
+  const id = Number(tpm?.manufacturerId);
+  if (!Number.isInteger(id) || id <= 0) return tpm?.manufacturer ?? null;
+  const text = [24, 16, 8, 0].map((shift) => String.fromCharCode((id >> shift) & 0xff)).join("").replace(/\0/g, "").trim();
+  return /^[\x20-\x7e]+$/.test(text) ? text : String(id);
+}
+
+/** Cookie categories as the API names them -> translation keys. */
+const COOKIE_CATEGORIES: Record<string, string> = {
+  "Banking/Finance": "banking", "Password Manager": "passwordManager", "Cloud Provider": "cloud",
+  "Email": "email", "Auth Provider": "authProvider", "Communication": "communication", "Sensitive": "sensitive",
+};
+
+/** Firewall profiles: the agent sends a list of {name, enabled}; older data a map name -> {enabled}. */
+function firewallProfiles(profiles: unknown): [string, { enabled?: boolean }][] {
+  if (Array.isArray(profiles)) return profiles.map((p: any) => [String(p?.name ?? "?"), p]);
+  return Object.entries((profiles as Record<string, { enabled?: boolean }>) || {});
+}
+
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
@@ -898,13 +927,126 @@ export default function NodeDetailPage() {
 
           {/* Security Tab */}
           <TabsContent value="security" className="space-y-4">
+            {secData.linux ? (
             <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader><CardTitle>🧱 {t("nodeDetail.linuxSecurity.firewall")}</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("common.status")}</span>
+                    <Badge variant={secData.linux.firewall?.status === "active" ? "default" : secData.linux.firewall?.status === "inactive" ? "destructive" : "secondary"}>
+                      {secData.linux.firewall?.status === "active" ? t("common.active") : secData.linux.firewall?.status === "inactive" ? t("common.inactive") : t("nodeDetail.linuxSecurity.unknown")}
+                    </Badge>
+                  </div>
+                  <InfoRow label={t("nodeDetail.linuxSecurity.firewallTool")} value={secData.linux.firewall?.type && secData.linux.firewall.type !== "none" ? secData.linux.firewall.type : t("common.none")} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>🔑 SSH</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardContent className="space-y-2">
+                  {secData.linux.ssh?.port || secData.linux.ssh?.permitRootLogin || secData.linux.ssh?.passwordAuthentication ? (
+                    <>
+                      <InfoRow label={t("nodeDetail.linuxSecurity.port")} value={secData.linux.ssh.port} />
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">{t("nodeDetail.linuxSecurity.rootLogin")}</span>
+                        <span className={`font-mono text-sm ${secData.linux.ssh.permitRootLogin === "yes" ? "text-destructive" : ""}`} title="PermitRootLogin">{secData.linux.ssh.permitRootLogin || "-"}</span>{/* i18n-ignore */}
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">{t("nodeDetail.linuxSecurity.passwordLogin")}</span>
+                        <span className={`font-mono text-sm ${secData.linux.ssh.passwordAuthentication === "yes" ? "text-amber-500" : ""}`} title="PasswordAuthentication">{secData.linux.ssh.passwordAuthentication || "-"}</span>{/* i18n-ignore */}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">{t("nodeDetail.linuxSecurity.notReported")}</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>🛡️ SELinux / AppArmor</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardContent className="space-y-2">
+                  {(() => {
+                    const [module, mode] = String(secData.linux.mandatoryAccessControl || "none").split(":");
+                    if (module === "none") return <p className="text-muted-foreground">{t("nodeDetail.linuxSecurity.noMac")}</p>;
+                    const enforcing = ["enabled", "enforcing"].includes((mode || "").toLowerCase());
+                    return (
+                      <div className="flex justify-between">
+                        <span>{module === "selinux" ? "SELinux" : module === "apparmor" ? "AppArmor" : module}</span>{/* i18n-ignore */}
+                        <Badge variant={enforcing ? "default" : "secondary"}>{mode || "-"}</Badge>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>👑 {t("nodeDetail.linuxSecurity.administrators")}</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {(secData.linux.sudoUsers || []).length > 0
+                      ? secData.linux.sudoUsers.map((user: string) => <Badge key={user} variant="outline">{user}</Badge>)
+                      : <span className="text-muted-foreground">{t("common.none")}</span>}
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">{t("nodeDetail.linuxSecurity.loginUsers")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(secData.linux.loginUsers || []).map((user: string) => <Badge key={user} variant="secondary">{user}</Badge>)}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            ) : (
+            <>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader><CardTitle>🛡️ Microsoft Defender</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardContent className="space-y-2">
+                  {secData.defender?.available ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">{t("nodeDetail.defender.realTime")}</span>
+                        <Badge variant={secData.defender.realTimeProtectionEnabled ? "default" : "destructive"}>
+                          {secData.defender.realTimeProtectionEnabled ? t("common.active") : t("common.inactive")}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">{t("nodeDetail.defender.antivirus")}</span>
+                        <Badge variant={secData.defender.antivirusEnabled ? "default" : "destructive"}>
+                          {secData.defender.antivirusEnabled ? t("common.active") : t("common.inactive")}
+                        </Badge>
+                      </div>
+                      <InfoRow label={t("nodeDetail.defender.signatureVersion")} value={secData.defender.signatureVersion} />
+                      <InfoRow label={t("nodeDetail.defender.signatureUpdated")} value={formatDateTimeIntl(agentDate(secData.defender.signatureLastUpdated), undefined, "")} />
+                      <InfoRow label={t("nodeDetail.defender.engineVersion")} value={secData.defender.engineVersion} />
+                      <InfoRow label={t("nodeDetail.defender.lastQuickScan")} value={formatDateTimeIntl(agentDate(secData.defender.lastQuickScan), undefined, "")} />
+                      <InfoRow label={t("nodeDetail.defender.lastFullScan")} value={formatDateTimeIntl(agentDate(secData.defender.lastFullScan), undefined, "")} />
+                    </>
+                  ) : secData.defender ? (
+                    <p className="text-muted-foreground">{secData.defender.error || t("nodeDetail.defender.notAvailable")}</p>
+                  ) : (
+                    <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
+                  )}
+                  {(secData.antivirusProducts?.length ?? 0) > 0 && (
+                    <div className="pt-2 space-y-1">
+                      {secData.antivirusProducts?.map((av: any, i: number) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span>{av.name}</span>
+                          <Badge variant={av.enabled ? "default" : "secondary"}>{av.enabled ? t("common.active") : t("common.inactive")}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader><CardTitle>🛡️ Windows Firewall</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent>
                   {secData.firewall?.profiles ? (
                     <div className="space-y-2">
-                      {Object.entries(secData.firewall?.profiles || {}).map(([profile, data]: [string, any]) => (
+                      {firewallProfiles(secData.firewall?.profiles).map(([profile, data]) => (
                         <div key={profile} className="flex justify-between items-center">
                           <span>{profile}</span>
                           <Badge variant={data?.enabled ? "default" : "destructive"}>
@@ -926,12 +1068,13 @@ export default function NodeDetailPage() {
                     <>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">{t("common.status")}</span>
-                        <Badge variant={secData.tpm.isPresent ? "default" : "secondary"}>
-                          {secData.tpm.isPresent ? t("nodeDetail.present") : t("nodeDetail.notPresent")}
+                        <Badge variant={(secData.tpm.present ?? secData.tpm.isPresent) ? "default" : "secondary"}>
+                          {(secData.tpm.present ?? secData.tpm.isPresent) ? t("nodeDetail.present") : t("nodeDetail.notPresent")}
                         </Badge>
                       </div>
-                      <InfoRow label={t("nodeDetail.version")} value={secData.tpm.specVersion} />
-                      <InfoRow label={t("nodeDetail.manufacturer")} value={secData.tpm.manufacturer} />
+                      <InfoRow label={t("nodeDetail.version")} value={secData.tpm.specVersion ? `TPM ${String(secData.tpm.specVersion).split(",")[0].trim()}` : null} />
+                      <InfoRow label={t("nodeDetail.manufacturer")} value={tpmManufacturer(secData.tpm)} />
+                      <InfoRow label={t("nodeDetail.security.firmware")} value={secData.tpm.manufacturerVersion} />
                     </>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
@@ -946,13 +1089,15 @@ export default function NodeDetailPage() {
                     <div className="space-y-2">
                       {secData.bitlocker?.volumes?.map((vol: any, i: number) => (
                         <div key={i} className="flex justify-between items-center">
-                          <span>{vol.driveLetter}</span>
-                          <Badge variant={vol.protectionStatus === "On" ? "default" : "secondary"}>
+                          <span>{vol.driveLetter ?? vol.mountPoint}</span>
+                          <Badge variant={["On", "1"].includes(String(vol.protectionStatus)) ? "default" : "secondary"}>
                             {vol.protectionStatus}
                           </Badge>
                         </div>
                       ))}
                     </div>
+                  ) : secData.bitlocker?.available === false ? (
+                    <p className="text-muted-foreground" title={secData.bitlocker.reason}>{t("nodeDetail.security.bitlockerNotInstalled")}</p>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
                   )}
@@ -970,7 +1115,19 @@ export default function NodeDetailPage() {
                           {secData.uac.enabled ? t("common.yes") : t("common.no")}
                         </Badge>
                       </div>
-                      <InfoRow label={t("nodeDetail.consentPrompt")} value={secData.uac.consentPromptBehaviorAdmin?.toString()} />
+                      {(() => {
+                        const consent = secData.uac.consentPromptBehaviorAdmin ?? secData.uac.consentPromptBehavior;
+                        if (consent === undefined || consent === null) return null;
+                        const known = [0, 1, 2, 3, 4, 5].includes(Number(consent));
+                        return (
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">{t("nodeDetail.consentPrompt")}</span>
+                            <span className={`text-right text-sm ${Number(consent) === 0 ? "text-destructive" : ""}`} title={`ConsentPromptBehaviorAdmin = ${consent}`}>{/* i18n-ignore */}
+                              {known ? `${consent} – ${t(`nodeDetail.security.uacConsent.${Number(consent)}`)}` : String(consent)}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </>
                   ) : (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
@@ -1024,6 +1181,8 @@ export default function NodeDetailPage() {
                 </CardContent>
               </Card>
             )}
+            </>
+            )}
 
             {/* Deep Links to Security modules */}
             <div className="flex flex-wrap gap-3 mt-2">
@@ -1045,15 +1204,15 @@ export default function NodeDetailPage() {
 
           <TabsContent value="browser" className="space-y-4">
             {/* Security Warnings */}
-            {criticalCookies && criticalCookies.warnings?.length > 0 && (
+            {criticalCookies && (criticalCookies.warningCodes?.length ?? 0) > 0 && (
               <Card className="border-yellow-500 bg-yellow-500/10">
                 <CardHeader>
                   <CardTitle className="text-yellow-600 dark:text-yellow-400">⚠️ {t("nodeDetail.securityNotices")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    {criticalCookies.warnings?.map((warning, i) => (
-                      <li key={i} className="text-sm">{warning}</li>
+                    {(criticalCookies.warningCodes ?? []).map((code) => (
+                      <li key={code} className="text-sm">{t(`nodeDetail.cookieWarnings.${code}`)}</li>
                     ))}
                   </ul>
                 </CardContent>
@@ -1077,7 +1236,7 @@ export default function NodeDetailPage() {
                     {Object.entries(criticalCookies?.summary || {}).map(([category, data]) => (
                       <div key={category} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-sm">{category}</span>
+                          <span className="font-medium text-sm">{COOKIE_CATEGORIES[category] ? t(`nodeDetail.cookieCategory.${COOKIE_CATEGORIES[category]}`) : category}</span>
                           <Badge variant="outline">{data.count}</Badge>
                         </div>
                         <div className="flex flex-wrap gap-1">
@@ -1113,7 +1272,7 @@ export default function NodeDetailPage() {
                             {cookie.name}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-xs">{cookie.category}</Badge>
+                            <Badge variant="outline" className="text-xs">{COOKIE_CATEGORIES[cookie.category] ? t(`nodeDetail.cookieCategory.${COOKIE_CATEGORIES[cookie.category]}`) : cookie.category}</Badge>
                           </TableCell>
                           <TableCell className="text-xs">{cookie.browser}</TableCell>
                           <TableCell className="space-x-1">

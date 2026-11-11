@@ -79,7 +79,7 @@ sudo /opt/octofleet-agent/agent.sh update
 | Hardware | CPU (maximum clock only when the CPU reports one), RAM, disks and volumes (used share as `df` shows it), display adapters, mainboard, BIOS; no SSD/HDD type on virtual machines |
 | Software | Installed packages (apt/dnf/pacman) |
 | Network | Interfaces, IPs, routes |
-| Security | Users, sudo, SSH config, firewall |
+| Security | Users with a login shell, administrators (sudo/admin/wheel groups and sudoers entries), effective SSH settings (`sshd -T`), firewall (ufw, firewalld, or rules on incoming traffic in iptables/nftables), SELinux/AppArmor |
 | System | OS, kernel, uptime, services |
 
 ## Commands
