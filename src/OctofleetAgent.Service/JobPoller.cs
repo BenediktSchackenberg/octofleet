@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OctofleetAgent.Service.Inventory;
 
 namespace OctofleetAgent.Service;
 
@@ -357,6 +358,9 @@ public class JobPoller : BackgroundService
             
             case "restart-agent":
                 return await ExecuteRestartAgentAsync(ct);
+
+            case "inventory":
+                return await ExecuteInventoryPushAsync();
             
             case "uninstall-agent":
                 return await ExecuteUninstallAgentAsync(baseUrl, payload, ct);
@@ -586,6 +590,23 @@ public class JobPoller : BackgroundService
     /// Restarts the Octofleet Agent service by spawning an external process
     /// that will restart the service after this process exits.
     /// </summary>
+    /// <summary>
+    /// Collect and push the full inventory now (the node page's "Collect inventory"), instead of
+    /// waiting for the next scheduled push. Before, the job fell through to script execution and
+    /// failed with "No command specified".
+    /// </summary>
+    private async Task<CommandResult> ExecuteInventoryPushAsync()
+    {
+        _logger.LogInformation("Inventory push requested by a job");
+        var push = await InventoryPusher.CollectAndPushAllAsync(_config);
+        return new CommandResult
+        {
+            ExitCode = push.Success ? 0 : 1,
+            Stdout = push.Success ? push.Summary : "",
+            Stderr = push.Success ? "" : push.Summary,
+        };
+    }
+
     private async Task<CommandResult> ExecuteRestartAgentAsync(CancellationToken ct)
     {
         _logger.LogInformation("Agent restart requested - spawning restart script...");

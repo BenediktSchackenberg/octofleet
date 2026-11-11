@@ -871,6 +871,14 @@
       "noMac": "Neither SELinux nor AppArmor active",
       "administrators": "Users with sudo rights",
       "loginUsers": "Users with a login shell"
+    },
+    "collect": {
+      "hint": "Asks the agent for a fresh inventory and shows it once the agent has sent it",
+      "waiting": "Waiting for the agent…",
+      "collected": "Inventory collected and updated",
+      "failed": "The agent could not collect the inventory",
+      "timeout": "The agent has not answered within 3 minutes – is it online?",
+      "notRequested": "No inventory job could be created (permission?) – showing the stored data"
     }
   },
   "navGroups": {

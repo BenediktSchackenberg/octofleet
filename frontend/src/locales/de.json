@@ -871,6 +871,14 @@
       "noMac": "Weder SELinux noch AppArmor aktiv",
       "administrators": "Benutzer mit sudo-Rechten",
       "loginUsers": "Benutzer mit Login-Shell"
+    },
+    "collect": {
+      "hint": "Fordert beim Agent ein neues Inventar an und zeigt es, sobald er es gesendet hat",
+      "waiting": "Warte auf den Agent…",
+      "collected": "Inventar erfasst und aktualisiert",
+      "failed": "Der Agent konnte das Inventar nicht erfassen",
+      "timeout": "Der Agent hat nicht innerhalb von 3 Minuten geantwortet – ist er online?",
+      "notRequested": "Es konnte kein Inventar-Job angelegt werden (Berechtigung?) – gespeicherte Daten werden angezeigt"
     }
   },
   "navGroups": {

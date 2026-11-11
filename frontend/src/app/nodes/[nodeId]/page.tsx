@@ -25,6 +25,7 @@ import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
 import { formatDate, formatDateTime as formatDateTimeIntl, formatLocalDate } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
+import { toast } from "sonner";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
@@ -266,7 +267,7 @@ export default function NodeDetailPage() {
   const { hasPermission } = useAuth();
   const { t } = useI18n();
   
-  const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
+  const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, collecting, collectInventory, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
   useEffect(() => {
@@ -367,12 +368,20 @@ export default function NodeDetailPage() {
                 🐚 Shell{/* i18n-ignore */}
               </Button>
             </Link>
-            <Button 
-              variant="outline" 
-              onClick={refreshInventory}
-              disabled={refreshing}
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!node) return;
+                const result = await collectInventory(String(node.id));
+                if (result.status === "collected") toast.success(t("nodeDetail.collect.collected"));
+                else if (result.status === "failed") toast.error(t("nodeDetail.collect.failed"), { description: result.detail });
+                else if (result.status === "timeout") toast.warning(t("nodeDetail.collect.timeout"));
+                else toast.info(t("nodeDetail.collect.notRequested"));
+              }}
+              disabled={refreshing || collecting || !node}
+              title={t("nodeDetail.collect.hint")}
             >
-              {refreshing ? `⏳ ${t("common.loading")}` : `📊 ${t("nodeDetail.collectInventory")}`}
+              {collecting ? `⏳ ${t("nodeDetail.collect.waiting")}` : refreshing ? `⏳ ${t("common.loading")}` : `📊 ${t("nodeDetail.collectInventory")}`}
             </Button>
             <Link href={`/jobs?target=${nodeId}`}>
               <Button variant="outline" className="bg-blue-500/10 border-blue-500 text-blue-500 hover:bg-blue-500/20">

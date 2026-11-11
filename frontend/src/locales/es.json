@@ -871,6 +871,14 @@
       "noMac": "Ni SELinux ni AppArmor activos",
       "administrators": "Usuarios con permisos de sudo",
       "loginUsers": "Usuarios con shell de inicio de sesión"
+    },
+    "collect": {
+      "hint": "Solicita al agente un inventario nuevo y lo muestra en cuanto el agente lo envía",
+      "waiting": "Esperando al agente…",
+      "collected": "Inventario recopilado y actualizado",
+      "failed": "El agente no pudo recopilar el inventario",
+      "timeout": "El agente no ha respondido en 3 minutos: ¿está en línea?",
+      "notRequested": "No se pudo crear el trabajo de inventario (¿permiso?): se muestran los datos guardados"
     }
   },
   "navGroups": {
