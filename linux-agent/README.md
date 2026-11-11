@@ -5,7 +5,7 @@ Lightweight bash-based agent for Linux systems. Collects inventory and pushes to
 ## Features
 
 - **Inventory Collection**: Hardware, software, network, security info
-- **Job Polling**: Execute scheduled jobs from the backend
+- **Job Polling**: Execute scheduled jobs from the backend – `run` (a command, e.g. from "Start job"), `script`/`shell`, `inventory` (push the inventory now), `restart-agent`, `service_reconcile`, `uninstall-agent`. `patch_scan`/`patch_install` are not supported yet: package updates are reported with the inventory.
 - **Live Data**: Real-time CPU, memory, disk, network metrics
 - **Auto-Update**: Self-update from the Octofleet server (every 6 hours)
 - **Systemd Integration**: Runs as a systemd service

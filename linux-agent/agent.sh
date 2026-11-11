@@ -1380,8 +1380,8 @@ schedule_uninstall() {
 
 schedule_restart() {
     # A transient timer runs outside this service, after the job result has been sent.
-    if ! command -v systemd-run &>/dev/null || ! command -v systemctl &>/dev/null; then
-        echo "Cannot schedule agent restart: systemd is unavailable"
+    if ! command -v systemd-run &>/dev/null || ! systemctl cat octofleet-agent.service &>/dev/null; then
+        echo "Cannot schedule agent restart: the systemd service is unavailable"
         return 1
     fi
     systemd-run --quiet --collect --on-active=30s \
@@ -1407,6 +1407,9 @@ execute_job() {
     local start_time=$(date +%s)
     local output=""
     local exit_code=0
+    local timeout_seconds
+    timeout_seconds=$(jq -r '.timeout // 300' <<< "$command_payload" 2>/dev/null)
+    [[ "$timeout_seconds" =~ ^[0-9]+$ ]] && (( timeout_seconds > 0 && timeout_seconds <= 86400 )) || timeout_seconds=300
     
     case "$command_type" in
         run)
@@ -1416,7 +1419,7 @@ execute_job() {
                 local -a argv=()
                 mapfile -d '' -t argv < <(jq -j '.command[] | tostring, "\u0000"' <<< "$command_payload")
                 if (( ${#argv[@]} )); then
-                    output=$("${argv[@]}" 2>&1) || exit_code=$?
+                    output=$(timeout "$timeout_seconds" "${argv[@]}" 2>&1) || exit_code=$?
                 else
                     output="Missing command"; exit_code=1
                 fi
@@ -1424,7 +1427,7 @@ execute_job() {
                 local script
                 script=$(jq -r '.command' <<< "$command_payload")
                 if [[ -n "$script" ]]; then
-                    output=$(bash -c "$script" 2>&1) || exit_code=$?
+                    output=$(timeout "$timeout_seconds" bash -c "$script" 2>&1) || exit_code=$?
                 else
                     output="Missing command"; exit_code=1
                 fi
@@ -1445,6 +1448,10 @@ execute_job() {
             ;;
         restart-agent)
             output=$(schedule_restart 2>&1) || exit_code=$?
+            ;;
+        patch_scan|patch_install)
+            exit_code=1
+            output="Not supported by the Linux agent yet: package updates are reported with the inventory"
             ;;
         service_reconcile)
             output=$(reconcile_service "$command_payload") || exit_code=$?

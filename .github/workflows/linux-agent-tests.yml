@@ -31,3 +31,5 @@ jobs:
         run: bash tests/linux-agent/filesystems.test.sh
       - name: Test Linux job type handling
         run: bash tests/linux-agent/job-types.test.sh
+      - name: Test the job types (run, inventory, restart-agent, unsupported patch jobs)
+        run: bash tests/linux-agent/jobs.test.sh
