@@ -29,3 +29,5 @@ jobs:
         run: bash tests/linux-agent/apt-updates.test.sh
       - name: Test the mount list, used share and display adapter names
         run: bash tests/linux-agent/filesystems.test.sh
+      - name: Test the job types (run, inventory, restart-agent, unsupported patch jobs)
+        run: bash tests/linux-agent/jobs.test.sh

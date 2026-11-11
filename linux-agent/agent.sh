@@ -1337,6 +1337,35 @@ EOF
 # Runs as a transient systemd unit: outside this service's sandbox (which cannot write
 # /etc/systemd/system) and not ended when the service stops. The delay lets this job report
 # its result first.
+# The command of a "run" job (the UI's "Start job" dialog): {"command": [...] or "...", "timeout": seconds}.
+# The Windows agent joins the array to one command line as well.
+run_command() {
+    local payload="$1" cmd limit
+    cmd=$(jq -r 'if (.command | type) == "array" then (.command | join(" ")) else (.command // .script // "") end' \
+        <<< "$payload" 2>/dev/null)
+    limit=$(jq -r '.timeout // 300' <<< "$payload" 2>/dev/null)
+    [[ "$limit" =~ ^[0-9]+$ ]] && (( limit > 0 )) || limit=300
+    if [[ -z "$cmd" ]]; then
+        echo "No command given"
+        return 1
+    fi
+    timeout "$limit" bash -c "$cmd" 2>&1
+}
+
+# Restart the agent's service after the job result is reported: systemd-run starts the restart
+# outside the service, so stopping the service does not stop the restart (like schedule_uninstall).
+schedule_restart() {
+    local unit="octofleet-agent.service"
+    if command -v systemd-run &>/dev/null && systemctl cat "$unit" &>/dev/null \
+            && systemd-run --quiet --collect --on-active=5 \
+                --unit "octofleet-agent-restart-$(date +%s)" systemctl restart "$unit"; then
+        echo "Agent restart scheduled in 5 seconds."
+        return 0
+    fi
+    echo "Restart not possible: the agent does not run as the systemd service $unit"
+    return 1
+}
+
 schedule_uninstall() {
     local delay="${1:-10}"
     local node_uuid="${2:-}"
@@ -1403,9 +1432,19 @@ execute_job() {
                 output=$(bash -c "$script" 2>&1) || exit_code=$?
             fi
             ;;
-        inventory_push)
+        run)
+            output=$(run_command "$command_payload") || exit_code=$?
+            ;;
+        inventory|inventory_push)
             push_inventory && exit_code=0 || exit_code=1
             output="Inventory push completed"
+            ;;
+        restart-agent)
+            output=$(schedule_restart) || exit_code=$?
+            ;;
+        patch_scan|patch_install)
+            exit_code=1
+            output="Not supported by the Linux agent yet: package updates are reported with the inventory"
             ;;
         service_reconcile)
             output=$(reconcile_service "$command_payload") || exit_code=$?

@@ -294,7 +294,7 @@ The Windows agent includes an **AutoUpdater** that checks GitHub Releases period
 3. Schedules a deferred update (service restart required)
 4. On next restart, the new version takes over
 
-You can also trigger an update manually via a **restart-agent** job from the web UI.
+You can also trigger an update manually via a **restart-agent** job from the web UI. The Linux agent handles **restart-agent** too (through `systemd-run`, so the job reports its result before the service restarts) and updates itself at the next start.
 
 ---
 

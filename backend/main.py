@@ -49,6 +49,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import job_types
 import node_removal
 import password_policy
 import vulnerability
@@ -141,6 +142,7 @@ async def lifespan(app: FastAPI):
 
     # Node removal (#160): schema for existing installs and the background task
     await node_removal.ensure_schema_on(db_pool)
+    await job_types.ensure_schema(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
     await ensure_inventory_schema(db_pool)
