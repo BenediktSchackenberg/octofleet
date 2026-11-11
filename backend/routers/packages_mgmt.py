@@ -223,9 +223,9 @@ async def create_package_version(package_id: str, data: Dict[str, Any], db: asyn
                 package_id, version, filename, file_size, sha256_hash,
                 install_command, install_args, uninstall_command, uninstall_args,
                 requires_reboot, requires_admin, silent_install,
-                is_latest, is_active, release_date, release_notes
+                is_latest, is_active, release_date, release_notes, download_url
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING id
         """,
             package_id,
@@ -243,7 +243,8 @@ async def create_package_version(package_id: str, data: Dict[str, Any], db: asyn
             data.get("isLatest", True),
             data.get("isActive", True),
             data.get("releaseDate"),
-            data.get("releaseNotes")
+            data.get("releaseNotes"),
+            data.get("downloadUrl")
         )
         return {"id": str(row["id"]), "status": "created"}
 
