@@ -155,7 +155,7 @@ public static class SecurityCollector
         try
         {
             // Try Windows Security Center first (Win10+)
-            using var searcher = new ManagementObjectSearcher(
+            using var searcher = Wmi.Searcher(
                 @"root\SecurityCenter2",
                 "SELECT * FROM AntiVirusProduct");
 
@@ -200,11 +200,10 @@ public static class SecurityCollector
                 CreateNoWindow = true
             };
 
-            using var process = Process.Start(psi);
-            if (process == null) return new DefenderStatus { Error = "Failed to start PowerShell" };
+            var run = ProcessRunner.Run(psi);
+            if (run == null) return new DefenderStatus { Error = "Failed to start PowerShell" };
 
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(5000);
+            var output = run.Stdout;
 
             if (string.IsNullOrEmpty(output)) return new DefenderStatus { Available = false };
 
@@ -249,11 +248,10 @@ public static class SecurityCollector
                 CreateNoWindow = true
             };
 
-            using var process = Process.Start(psi);
-            if (process == null) return result;
+            var run = ProcessRunner.Run(psi);
+            if (run == null) return result;
 
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(5000);
+            var output = run.Stdout;
 
             if (string.IsNullOrEmpty(output)) return result;
 
@@ -308,12 +306,11 @@ public static class SecurityCollector
                 CreateNoWindow = true
             };
 
-            using var process = Process.Start(psi);
-            if (process == null) return result;
+            var run = ProcessRunner.Run(psi);
+            if (run == null) return result;
 
-            var output = process.StandardOutput.ReadToEnd();
-            var error = process.StandardError.ReadToEnd();
-            process.WaitForExit(5000);
+            var output = run.Stdout;
+            var error = run.Stderr;
 
             if (!string.IsNullOrEmpty(error) && error.Contains("not recognized"))
             {
@@ -376,11 +373,9 @@ public static class SecurityCollector
                 RedirectStandardError = true,
                 CreateNoWindow = true
             };
-            using var process = Process.Start(psi);
-            if (process == null) return result;
-            var output = process.StandardOutput.ReadToEnd();
-            var error = process.StandardError.ReadToEnd();
-            process.WaitForExit(5000);
+            var run = ProcessRunner.Run(psi);
+            if (run == null) return result;
+            var output = run.Stdout;
             if (string.IsNullOrWhiteSpace(output))
             {
                 result.Available = false;
@@ -420,12 +415,11 @@ public static class SecurityCollector
                 CreateNoWindow = true
             };
 
-            using var process = Process.Start(psi);
-            if (process == null) return new TpmInfo { Error = "Failed to start PowerShell" };
+            var run = ProcessRunner.Run(psi);
+            if (run == null) return new TpmInfo { Error = "Failed to start PowerShell" };
 
-            var output = process.StandardOutput.ReadToEnd();
-            var error = process.StandardError.ReadToEnd();
-            process.WaitForExit(5000);
+            var output = run.Stdout;
+            var error = run.Stderr;
 
             if (!string.IsNullOrEmpty(error) && error.Contains("not recognized"))
             {
@@ -496,12 +490,11 @@ public static class SecurityCollector
                 CreateNoWindow = true
             };
 
-            using var process = Process.Start(psi);
-            if (process == null) return new SecureBootInfo { Supported = false };
+            var run = ProcessRunner.Run(psi);
+            if (run == null) return new SecureBootInfo { Supported = false };
 
-            var output = process.StandardOutput.ReadToEnd().Trim();
-            var error = process.StandardError.ReadToEnd();
-            process.WaitForExit(5000);
+            var output = run.Stdout.Trim();
+            var error = run.Stderr;
 
             if (!string.IsNullOrEmpty(error))
             {
@@ -555,7 +548,7 @@ public static class SecurityCollector
         {
             // Use WMI to get members of local Administrators group
             // Win32_GroupUser links groups to users
-            using var searcher = new ManagementObjectSearcher(
+            using var searcher = Wmi.Searcher(
                 "SELECT * FROM Win32_GroupUser WHERE GroupComponent=\"Win32_Group.Domain='" + 
                 Environment.MachineName + "',Name='Administrators'\"");
 
@@ -615,11 +608,10 @@ public static class SecurityCollector
                     CreateNoWindow = true
                 };
 
-                using var process = Process.Start(psi);
-                if (process != null)
+                var run = ProcessRunner.Run(psi);
+                if (run != null)
                 {
-                    var output = process.StandardOutput.ReadToEnd();
-                    process.WaitForExit();
+                    var output = run.Stdout;
 
                     // Parse output - members are listed after "Members" line and before "---" line
                     var lines = output.Split('\n');

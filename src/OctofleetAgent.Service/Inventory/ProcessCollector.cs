@@ -137,7 +137,7 @@ public class ProcessCollector
         try
         {
             var query = $"SELECT * FROM Win32_Process WHERE ProcessId = {processId}";
-            using var searcher = new ManagementObjectSearcher(query);
+            using var searcher = Wmi.Searcher(query);
             foreach (ManagementObject obj in searcher.Get())
             {
                 var outParams = new object[2];
@@ -168,7 +168,7 @@ public class ProcessCollector
         {
             // Memory via WMI
             var query = "SELECT * FROM Win32_OperatingSystem";
-            using var searcher = new ManagementObjectSearcher(query);
+            using var searcher = Wmi.Searcher(query);
             foreach (ManagementObject obj in searcher.Get())
             {
                 var total = Convert.ToDouble(obj["TotalVisibleMemorySize"]);

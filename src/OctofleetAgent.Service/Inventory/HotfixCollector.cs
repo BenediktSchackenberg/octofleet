@@ -50,7 +50,7 @@ public static class HotfixCollector
             // 1. Collect classic hotfixes via WMI
             try
             {
-                using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_QuickFixEngineering");
+                using var searcher = Wmi.Searcher("SELECT * FROM Win32_QuickFixEngineering");
                 
                 foreach (ManagementObject obj in searcher.Get())
                 {

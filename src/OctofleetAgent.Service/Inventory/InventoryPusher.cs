@@ -107,6 +107,7 @@ public static class InventoryPusher
         // Push to /full endpoint
         var pushResult = await PushAsync("full", fullData, config);
         results.FullPush = pushResult;
+        results.IncompleteSections = fullData.IncompleteSections;
         
         return results;
     }
@@ -123,8 +124,11 @@ public class PushResult
 public class FullPushResult
 {
     public PushResult? FullPush { get; set; }
+    /// <summary>Sections left out because their collector timed out or failed (see FullInventoryResult).</summary>
+    public List<string>? IncompleteSections { get; set; }
     public bool Success => FullPush?.Success ?? false;
-    public string Summary => FullPush?.Success == true 
+    public string Summary => (FullPush?.Success == true
         ? $"Successfully pushed inventory (HTTP {FullPush.StatusCode})"
-        : $"Push failed: {FullPush?.Error}";
+        : $"Push failed: {FullPush?.Error}")
+        + (IncompleteSections is { Count: > 0 } ? $"; left out: {string.Join("; ", IncompleteSections)}" : "");
 }
