@@ -879,6 +879,14 @@
       "notReported": "The Linux agent has not reported disk health for this node.",
       "noSmartctl": "smartctl is not installed – no SMART data (package smartmontools).",
       "noDisks": "smartctl found no disks with SMART data."
+    },
+    "collect": {
+      "hint": "Asks the agent for a fresh inventory and shows it once the agent has sent it",
+      "waiting": "Waiting for the agent…",
+      "collected": "Inventory collected and updated",
+      "failed": "The agent could not collect the inventory",
+      "timeout": "The agent has not answered within 3 minutes – is it online?",
+      "notRequested": "No inventory job could be created (permission?) – showing the stored data"
     }
   },
   "navGroups": {

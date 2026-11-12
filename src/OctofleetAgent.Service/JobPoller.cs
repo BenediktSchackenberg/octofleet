@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OctofleetAgent.Service.Inventory;
 
 namespace OctofleetAgent.Service;
 
@@ -357,6 +358,9 @@ public class JobPoller : BackgroundService
             
             case "restart-agent":
                 return await ExecuteRestartAgentAsync(ct);
+
+            case "inventory":
+                return await ExecuteInventoryPushAsync(timeoutSeconds);
             
             case "uninstall-agent":
                 return await ExecuteUninstallAgentAsync(baseUrl, payload, ct);
@@ -586,6 +590,41 @@ public class JobPoller : BackgroundService
     /// Restarts the Octofleet Agent service by spawning an external process
     /// that will restart the service after this process exits.
     /// </summary>
+    /// <summary>
+    /// Collect and push the full inventory now (the node page's "Collect inventory"), instead of
+    /// waiting for the next scheduled push. Before, the job fell through to script execution and
+    /// failed with "No command specified".
+    /// </summary>
+    private async Task<CommandResult> ExecuteInventoryPushAsync(int timeoutSeconds)
+    {
+        _logger.LogInformation("Inventory push requested by a job");
+        // Jobs run one after another: a collection that hangs (e.g. a WMI provider or PowerShell
+        // call that never returns) must not block the job loop - including the restart-agent job
+        // that would fix it. After the job's timeout the job fails; the collection itself cannot be
+        // cancelled and finishes (or not) in the background.
+        var limit = TimeSpan.FromSeconds(timeoutSeconds > 0 ? timeoutSeconds : 300);
+        var push = InventoryPusher.CollectAndPushAllAsync(_config);
+        if (await Task.WhenAny(push, Task.Delay(limit)) != push)
+        {
+            _ = push.ContinueWith(t => _logger.LogWarning(t.Exception, "Inventory push of a timed-out job ended late"),
+                TaskContinuationOptions.OnlyOnFaulted);
+            _logger.LogWarning("Inventory push did not finish within {Seconds} s", limit.TotalSeconds);
+            return new CommandResult
+            {
+                ExitCode = 1,
+                Stderr = $"Inventory collection did not finish within {limit.TotalSeconds:0} s " +
+                         "(a WMI query or PowerShell call may hang on this machine)",
+            };
+        }
+        var result = await push;
+        return new CommandResult
+        {
+            ExitCode = result.Success ? 0 : 1,
+            Stdout = result.Success ? result.Summary : "",
+            Stderr = result.Success ? "" : result.Summary,
+        };
+    }
+
     private async Task<CommandResult> ExecuteRestartAgentAsync(CancellationToken ct)
     {
         _logger.LogInformation("Agent restart requested - spawning restart script...");

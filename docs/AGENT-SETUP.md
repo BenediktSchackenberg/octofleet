@@ -79,6 +79,8 @@ Create or edit `C:\ProgramData\Octofleet\service-config.json`:
 | `PreferRepo` | Check local repo before external download URLs | `true` | No |
 | `FallbackToSource` | Fall back to source URL if package not in repo | `true` | No |
 
+Between scheduled pushes, **Collect inventory** on the node page sends the agent an `inventory` job: the agent collects and pushes its inventory right away, and the page shows it once the agent has reported back (the agent picks up jobs about once a minute).
+
 > **Important:** `InventoryApiUrl` and `InventoryApiKey` are required for the agent to function. Without them, the agent will not push inventory data or poll for jobs.
 
 #### `device-identity.json`
