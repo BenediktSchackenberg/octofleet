@@ -188,7 +188,7 @@ public class PendingNodeRegistration : BackgroundService
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT Caption FROM Win32_OperatingSystem");
+            using var searcher = Wmi.Searcher("SELECT Caption FROM Win32_OperatingSystem");
             foreach (var obj in searcher.Get())
             {
                 return obj["Caption"]?.ToString() ?? "Windows";
@@ -203,7 +203,7 @@ public class PendingNodeRegistration : BackgroundService
         try
         {
             // Use motherboard serial number as unique ID
-            using var searcher = new ManagementObjectSearcher("SELECT SerialNumber FROM Win32_BaseBoard");
+            using var searcher = Wmi.Searcher("SELECT SerialNumber FROM Win32_BaseBoard");
             foreach (var obj in searcher.Get())
             {
                 var serial = obj["SerialNumber"]?.ToString();
@@ -214,7 +214,7 @@ public class PendingNodeRegistration : BackgroundService
             }
             
             // Fallback to BIOS serial
-            using var biosSearcher = new ManagementObjectSearcher("SELECT SerialNumber FROM Win32_BIOS");
+            using var biosSearcher = Wmi.Searcher("SELECT SerialNumber FROM Win32_BIOS");
             foreach (var obj in biosSearcher.Get())
             {
                 var serial = obj["SerialNumber"]?.ToString();

@@ -140,7 +140,7 @@ public static class SystemCollector
             var result = new OsInfo();
             
             // Basic OS info
-            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem"))
+            using (var searcher = Wmi.Searcher("SELECT * FROM Win32_OperatingSystem"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
@@ -187,7 +187,7 @@ public static class SystemCollector
             catch { result.Build = null; }
 
             // E1-03: Domain/Workgroup info from Win32_ComputerSystem
-            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem"))
+            using (var searcher = Wmi.Searcher("SELECT * FROM Win32_ComputerSystem"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
@@ -248,7 +248,7 @@ public static class SystemCollector
 
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_UserAccount WHERE LocalAccount=True");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_UserAccount WHERE LocalAccount=True");
 
             foreach (ManagementObject obj in searcher.Get())
             {
@@ -279,7 +279,7 @@ public static class SystemCollector
 
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Service");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_Service");
 
             foreach (ManagementObject obj in searcher.Get())
             {
@@ -349,7 +349,7 @@ public static class SystemCollector
         // WMI Startup items
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_StartupCommand");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_StartupCommand");
             foreach (ManagementObject obj in searcher.Get())
             {
                 items.Add(new StartupItem
@@ -376,7 +376,7 @@ public static class SystemCollector
         // For now, just get basic info via WMI
         try
         {
-            using var searcher = new ManagementObjectSearcher(
+            using var searcher = Wmi.Searcher(
                 "root\\Microsoft\\Windows\\TaskScheduler",
                 "SELECT * FROM MSFT_ScheduledTask WHERE State = 3"); // 3 = Ready
             
@@ -406,7 +406,7 @@ public static class SystemCollector
 
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Share");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_Share");
 
             foreach (ManagementObject obj in searcher.Get())
             {
@@ -450,7 +450,7 @@ public static class SystemCollector
 
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Printer");
+            using var searcher = Wmi.Searcher("SELECT * FROM Win32_Printer");
 
             foreach (ManagementObject obj in searcher.Get())
             {

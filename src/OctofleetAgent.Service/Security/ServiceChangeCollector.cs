@@ -249,7 +249,7 @@ public class ServiceChangeCollector : BackgroundService
         var snapshot = new Dictionary<string, ServiceSnapshot>();
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT Name, DisplayName, PathName, StartMode, State FROM Win32_Service");
+            using var searcher = Wmi.Searcher("SELECT Name, DisplayName, PathName, StartMode, State FROM Win32_Service");
             foreach (var obj in searcher.Get())
             {
                 var name = obj["Name"]?.ToString() ?? "";
