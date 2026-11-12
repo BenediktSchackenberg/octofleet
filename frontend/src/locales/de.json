@@ -1366,5 +1366,18 @@
   "jobsPage": {
     "forNode": "Jobs für {node}",
     "showAllJobs": "Alle Jobs anzeigen"
+  },
+  "patchScan": {
+    "last": "Letzte Update-Suche:",
+    "sourceWsus": "über WSUS {server}",
+    "sourceWindowsUpdate": "über Windows Update",
+    "updates": "{count} ausstehende Updates",
+    "none": "Der Agent hat noch keine Update-Suche gemeldet.",
+    "failedKeep": "Die Suche ist fehlgeschlagen – die Liste unten stammt von der letzten erfolgreichen Suche.",
+    "status": {
+      "succeeded": "Erfolgreich",
+      "partial": "Mit Fehlern",
+      "failed": "Fehlgeschlagen"
+    }
   }
 }

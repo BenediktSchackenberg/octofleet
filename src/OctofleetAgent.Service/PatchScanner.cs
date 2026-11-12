@@ -57,19 +57,12 @@ public class PatchScanner : BackgroundService
             throw new InvalidOperationException("InventoryApiUrl not configured");
 
         _logger.LogInformation("On-demand patch scan starting for {NodeId}...", nodeId);
-        var patches = await ScanForUpdatesAsync(ct);
+        var outcome = await ScanWithTimeLimitAsync(ct);
+        await ReportScanResultsAsync(baseUrl, nodeId, outcome, ct);
 
-        if (patches.Count > 0)
-        {
-            _logger.LogInformation("Found {Count} pending updates, reporting to API", patches.Count);
-            await ReportScanResultsAsync(baseUrl, nodeId, patches, ct);
-        }
-        else
-        {
-            _logger.LogInformation("No pending updates found");
-            // Report empty scan to clear old entries
-            await ReportScanResultsAsync(baseUrl, nodeId, new List<PendingPatch>(), ct);
-        }
+        // A failed search must fail the patch_scan job, not report "completed"
+        if (outcome.Status == "failed")
+            throw new InvalidOperationException($"Windows Update search failed: {outcome.Error}");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -104,19 +97,9 @@ public class PatchScanner : BackgroundService
 
                 _logger.LogInformation("Starting Windows Update scan for node {NodeId}...", nodeId);
 
-                var patches = await ScanForUpdatesAsync(stoppingToken);
-
-                if (patches.Count > 0)
-                {
-                    _logger.LogInformation("Found {Count} pending updates, reporting to API", patches.Count);
-                    await ReportScanResultsAsync(baseUrl, nodeId, patches, stoppingToken);
-                }
-                else
-                {
-                    _logger.LogInformation("No pending updates found");
-                    // Report empty scan so server knows we scanned
-                    await ReportScanResultsAsync(baseUrl, nodeId, patches, stoppingToken);
-                }
+                var outcome = await ScanWithTimeLimitAsync(stoppingToken);
+                // Reported in every case: the server keeps the last list when the search failed
+                await ReportScanResultsAsync(baseUrl, nodeId, outcome, stoppingToken);
 
                 await Task.Delay(ScanIntervalMs, stoppingToken);
             }
@@ -134,21 +117,82 @@ public class PatchScanner : BackgroundService
         _logger.LogInformation("PatchScanner stopped");
     }
 
+    /// <summary>A Windows Update search can take minutes (first scan against WSUS) - but not forever.</summary>
+    private static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(20);
+
+    /// <summary>
+    /// Runs the search with <see cref="SearchTimeout"/>. A search that hangs is reported as failed;
+    /// the COM call itself cannot be cancelled and ends in the background.
+    /// </summary>
+    private async Task<ScanOutcome> ScanWithTimeLimitAsync(CancellationToken ct)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var scan = ScanForUpdatesAsync(ct);
+        ScanOutcome outcome;
+        if (await Task.WhenAny(scan, Task.Delay(SearchTimeout, ct)) != scan)
+        {
+            _ = scan.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            outcome = new ScanOutcome
+            {
+                Status = "failed",
+                Error = $"Windows Update search did not finish within {SearchTimeout.TotalMinutes:0} min",
+            };
+            (outcome.Source, outcome.Server) = ReadUpdateSource();
+        }
+        else
+        {
+            outcome = await scan;
+        }
+        outcome.DurationSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
+
+        if (outcome.Status == "failed")
+            _logger.LogWarning("Windows Update search failed after {Seconds} s: {Error}", outcome.DurationSeconds, outcome.Error);
+        else
+            _logger.LogInformation("Windows Update search {Status} via {Source}: {Count} pending updates in {Seconds} s",
+                outcome.Status, outcome.Server ?? outcome.Source, outcome.Patches.Count, outcome.DurationSeconds);
+        return outcome;
+    }
+
+    /// <summary>
+    /// Where Windows Update gets its updates: WSUS when the policy says so (UseWUServer = 1 and
+    /// WUServer set), otherwise Windows Update / Microsoft Update.
+    /// </summary>
+    private static (string Source, string? Server) ReadUpdateSource()
+    {
+        try
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return ("windows_update", null);
+            using var wu = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate");
+            using var au = wu?.OpenSubKey("AU");
+            var server = wu?.GetValue("WUServer") as string;
+            var useServer = au?.GetValue("UseWUServer") is int value && value == 1;
+            return useServer && !string.IsNullOrWhiteSpace(server) ? ("wsus", server) : ("windows_update", null);
+        }
+        catch
+        {
+            return ("windows_update", null);
+        }
+    }
+
     /// <summary>
     /// Uses Windows Update Agent COM API to search for pending updates.
     /// Must run on a thread with COM initialized (STA or MTA).
+    /// A search that fails is reported as failed - before, it came back as an empty list, which the
+    /// server took for "no pending updates" and cleared the node's update list.
     /// </summary>
-    private async Task<List<PendingPatch>> ScanForUpdatesAsync(CancellationToken ct)
+    private async Task<ScanOutcome> ScanForUpdatesAsync(CancellationToken ct)
     {
         // COM calls must run on a separate thread
         return await Task.Run(() =>
         {
-            var patches = new List<PendingPatch>();
+            var outcome = new ScanOutcome();
+            (outcome.Source, outcome.Server) = ReadUpdateSource();
+            var patches = outcome.Patches;
 
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                _logger.LogWarning("PatchScanner only works on Windows");
-                return patches;
+                outcome.Error = "PatchScanner only works on Windows";
+                return outcome;
             }
 
             dynamic? session = null;
@@ -157,18 +201,36 @@ public class PatchScanner : BackgroundService
                 var sessionType = Type.GetTypeFromProgID("Microsoft.Update.Session");
                 if (sessionType == null)
                 {
-                    _logger.LogWarning("Windows Update Session COM not available");
-                    return patches;
+                    outcome.Error = "Windows Update Session COM not available";
+                    return outcome;
                 }
 
                 session = Activator.CreateInstance(sessionType);
-                if (session == null) return patches;
+                if (session == null)
+                {
+                    outcome.Error = "Windows Update Session could not be created";
+                    return outcome;
+                }
 
                 dynamic searcher = session.CreateUpdateSearcher();
 
                 // Search for updates that are not installed and not hidden
                 _logger.LogDebug("Searching for pending updates...");
                 dynamic searchResult = searcher.Search("IsInstalled=0 AND IsHidden=0");
+
+                // OperationResultCode: 2 = succeeded, 3 = succeeded with errors, 4 = failed, 5 = aborted
+                outcome.ResultCode = (int)searchResult.ResultCode;
+                outcome.Status = outcome.ResultCode switch
+                {
+                    2 => "succeeded",
+                    3 => "partial",
+                    _ => "failed",
+                };
+                if (outcome.Status == "failed")
+                {
+                    outcome.Error = $"Windows Update search ended with result code {outcome.ResultCode}";
+                    return outcome;
+                }
 
                 _logger.LogDebug("Found {Count} updates in search result", (int)searchResult.Updates.Count);
 
@@ -257,7 +319,11 @@ public class PatchScanner : BackgroundService
             }
             catch (Exception ex)
             {
+                // e.g. 0x8024401C (WSUS not reachable), 0x80244022, certificate errors
                 _logger.LogError(ex, "Windows Update search failed");
+                outcome.Status = "failed";
+                outcome.Error = $"0x{ex.HResult:X8}: {ex.Message}";
+                outcome.Patches.Clear();
             }
             finally
             {
@@ -267,22 +333,31 @@ public class PatchScanner : BackgroundService
                 }
             }
 
-            return patches;
+            return outcome;
         }, ct);
     }
 
     private async Task ReportScanResultsAsync(string baseUrl, string nodeId,
-        List<PendingPatch> patches, CancellationToken ct)
+        ScanOutcome outcome, CancellationToken ct)
     {
+        var patches = outcome.Patches;
         try
         {
-            // Look up our node UUID first
-            string? nodeUuid = await GetNodeUuidAsync(baseUrl, nodeId, ct);
-
+            // The server resolves the hostname to the node (before, the agent looked its UUID up
+            // through GET /api/v1/nodes, a user route that answers the agent key with 403)
             var payload = new
             {
-                node_id = nodeUuid ?? nodeId,
+                node_id = nodeId,
                 scanned_at = DateTime.UtcNow.ToString("o"),
+                scan = new
+                {
+                    status = outcome.Status,
+                    result_code = outcome.ResultCode,
+                    error = outcome.Error,
+                    source = outcome.Source,
+                    server = outcome.Server,
+                    duration_seconds = outcome.DurationSeconds,
+                },
                 patches = patches.Select(p => new
                 {
                     kb_id = p.KbId,
@@ -307,7 +382,7 @@ public class PatchScanner : BackgroundService
 
             if (response.IsSuccessStatusCode)
             {
-                _logger.LogInformation("Reported {Count} patches for {Node}", patches.Count, nodeId);
+                _logger.LogInformation("Reported {Count} patches for {Node} (scan {Status})", patches.Count, nodeId, outcome.Status);
             }
             else
             {
@@ -322,54 +397,26 @@ public class PatchScanner : BackgroundService
         }
     }
 
-    /// <summary>
-    /// Look up our node UUID from the API by hostname.
-    /// </summary>
-    private async Task<string?> GetNodeUuidAsync(string baseUrl, string hostname, CancellationToken ct)
-    {
-        try
-        {
-            var config = ServiceConfig.Load();
-            using var request = new HttpRequestMessage(HttpMethod.Get,
-                $"{baseUrl}/api/v1/nodes?hostname={hostname}");
-
-            if (!string.IsNullOrEmpty(config.InventoryApiKey))
-                request.Headers.Add("X-API-Key", config.InventoryApiKey);
-
-            var response = await _httpClient.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode) return null;
-
-            var json = await response.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(json);
-
-            // Try different response formats
-            JsonElement nodes;
-            if (doc.RootElement.TryGetProperty("nodes", out nodes) && nodes.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var node in nodes.EnumerateArray())
-                {
-                    if (node.TryGetProperty("hostname", out var h) &&
-                        h.GetString()?.Equals(hostname, StringComparison.OrdinalIgnoreCase) == true)
-                    {
-                        if (node.TryGetProperty("id", out var id))
-                            return id.GetString();
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not resolve node UUID for {Hostname}", hostname);
-        }
-
-        return null;
-    }
-
     private static string? ExtractKbId(string title)
     {
         var match = System.Text.RegularExpressions.Regex.Match(title, @"KB(\d+)",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return match.Success ? $"KB{match.Groups[1].Value}" : null;
+    }
+
+    /// <summary>Result of one Windows Update search, reported to the server with the updates.</summary>
+    private sealed class ScanOutcome
+    {
+        /// <summary>succeeded, partial (result code 3: succeeded with errors) or failed</summary>
+        public string Status { get; set; } = "failed";
+        public int? ResultCode { get; set; }
+        public string? Error { get; set; }
+        /// <summary>wsus or windows_update</summary>
+        public string Source { get; set; } = "windows_update";
+        /// <summary>WSUS server URL (WUServer policy)</summary>
+        public string? Server { get; set; }
+        public double DurationSeconds { get; set; }
+        public List<PendingPatch> Patches { get; } = new();
     }
 
     private class PendingPatch

@@ -90,6 +90,7 @@ from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
 from routers.agent_releases import router as agent_releases_router
 from routers.patch_explorer import router as patch_explorer_router
+from routers.patches import ensure_schema as ensure_patches_schema
 from routers.patches import router as patches_router
 from routers.provisioning import pxe_router
 
@@ -143,6 +144,7 @@ async def lifespan(app: FastAPI):
     # Node removal (#160): schema for existing installs and the background task
     await node_removal.ensure_schema_on(db_pool)
     await job_types.ensure_schema(db_pool)
+    await ensure_patches_schema(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
     await ensure_inventory_schema(db_pool)
