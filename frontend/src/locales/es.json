@@ -1318,5 +1318,9 @@
   "patchesPage": {
     "openOnNode": "Pendientes en {node}",
     "showAllPatches": "Mostrar todos los parches"
+  },
+  "jobsPage": {
+    "forNode": "Trabajos de {node}",
+    "showAllJobs": "Mostrar todos los trabajos"
   }
 }

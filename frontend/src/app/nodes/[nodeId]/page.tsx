@@ -220,9 +220,10 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
             const count = d?.count ?? 0;
             if (count > 0) results.push({ label: t("nodeDetail.links.vulnerabilities"), count, href: nodeVulnerabilitiesHref(nodeId), icon: <Bug className="h-4 w-4" /> });
           }).catch(() => {}),
-        apiClient.get<any>(`/jobs?target_id=${nodeId}&limit=5`)
+        apiClient.get<any>(`/jobs?node=${encodeURIComponent(nodeId)}&limit=1`)
           .then((d) => {
-            const count = Array.isArray(d) ? d.length : d?.jobs?.length ?? d?.total ?? 0;
+            // total: all jobs that run on this node (the list was the fleet's newest 5 before)
+            const count = d?.total ?? 0;
             if (count > 0) results.push({ label: t("nodeDetail.links.jobs"), count, href: `/jobs?node=${nodeId}`, icon: <Briefcase className="h-4 w-4" /> });
           }).catch(() => {}),
         apiClient.get<any>("/alert-rules")

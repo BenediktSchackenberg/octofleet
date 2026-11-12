@@ -1318,5 +1318,9 @@
   "patchesPage": {
     "openOnNode": "Open on {node}",
     "showAllPatches": "Show all patches"
+  },
+  "jobsPage": {
+    "forNode": "Jobs for {node}",
+    "showAllJobs": "Show all jobs"
   }
 }

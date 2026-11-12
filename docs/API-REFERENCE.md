@@ -127,8 +127,8 @@ Agents push inventory data; the frontend reads it.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/jobs` | API Key | Create a job |
-| GET | `/api/v1/jobs` | API Key | List jobs |
+| POST | `/api/v1/jobs` | API Key | Create a job (`targetType`: `device`/`group` with `targetId` = node or group UUID, or `all`) |
+| GET | `/api/v1/jobs` | API Key | List jobs, newest first, with `total`; `node` (node ID, UUID or hostname) returns only the jobs that run on that node (targeted at it, at its group or at all nodes) |
 | GET | `/api/v1/jobs/{job_id}` | API Key | Get job details |
 | DELETE | `/api/v1/jobs/{job_id}` | API Key | Delete job |
 | GET | `/api/v1/jobs/pending/{node_id}` | API Key | Get pending jobs for a node (agent poll) |

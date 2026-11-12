@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
@@ -39,21 +39,39 @@ def job_result_succeeded(data: Dict[str, Any]) -> bool:
 # --- Job Management ---
 
 @router.get("/jobs")
-async def list_jobs(limit: int = 50, offset: int = 0, db: asyncpg.Pool = Depends(get_db)):
+async def list_jobs(limit: int = 50, offset: int = 0, node: Optional[str] = None, target_id: Optional[str] = None,
+                    db: asyncpg.Pool = Depends(get_db)):
+    """Jobs, newest first, with `total`. `node` (node ID, UUID or hostname; `target_id` is accepted
+    as an alias): only the jobs that run on that node - targeted at it, at one of its groups or at all
+    nodes (a job instance for the node exists)."""
+    node = node or target_id
     async with db.acquire() as conn:
-        rows = await conn.fetch("""
+        conditions, params = [], []
+        if node:
+            row = await conn.fetchrow(
+                "SELECT id, node_id FROM nodes WHERE node_id = $1 OR id::text = $1 OR UPPER(hostname) = UPPER($1) LIMIT 1", node)
+            if row is None:
+                return {"jobs": [], "total": 0}
+            # job_instances.node_id is text: the node's UUID (older rows may hold its node_id)
+            params += [str(row["id"]), row["node_id"]]
+            conditions.append(f"js.job_id IN (SELECT job_id FROM job_instances WHERE node_id IN (${len(params) - 1}, ${len(params)}))")
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM job_summary js{where}", *params)
+        rows = await conn.fetch(f"""
             SELECT js.job_id, js.name, js.command_type, js.target_type, js.target_id, js.created_at,
                    js.total_instances, js.pending, js.queued, js.running, js.success, js.failed, js.cancelled,
                    COALESCE(n.hostname, g.name) as target_name
             FROM job_summary js
             LEFT JOIN nodes n ON n.id::text = js.target_id::text
             LEFT JOIN groups g ON g.id::text = js.target_id::text
-            ORDER BY js.created_at DESC LIMIT $1 OFFSET $2
-        """, limit, offset)
+            {where}
+            ORDER BY js.created_at DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
+        """, *params, limit, offset)
         return {"jobs": [{
             **dict(r),
             "target_name": r["target_name"] or (str(r["target_id"])[:8] if r["target_id"] else "—"),
-        } for r in rows]}
+        } for r in rows], "total": total}
+
 
 @router.get("/jobs/{job_id}")
 async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
