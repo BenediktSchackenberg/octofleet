@@ -738,7 +738,7 @@
     "installedOn": "Installiert am",
     "showingFirst": "Zeige 100 von {count}",
     "windowsUpdates": "Windows-Updates ({count})",
-    "hotfixes": "Installierte Hotfixes ({count})",
+    "hotfixes": "Installierte Updates ({count})",
     "updateHistory": "Update-Verlauf ({count})",
     "title": "Titel",
     "date": "Datum",
@@ -871,6 +871,14 @@
       "noMac": "Weder SELinux noch AppArmor aktiv",
       "administrators": "Benutzer mit sudo-Rechten",
       "loginUsers": "Benutzer mit Login-Shell"
+    },
+    "installedUpdateInstalled": "Installiert",
+    "installedUpdateType": {
+      "cumulative": "Kumulatives Update",
+      "servicingStack": "Servicing Stack",
+      "dotnet": ".NET",
+      "security": "Sicherheitsupdate",
+      "update": "Update"
     }
   },
   "navGroups": {

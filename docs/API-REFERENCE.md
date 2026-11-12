@@ -84,7 +84,7 @@ Agents push inventory data; the frontend reads it.
 |--------|------|------|-------------|
 | GET | `/api/v1/inventory/hardware/{node_id}` | — | Hardware inventory for node |
 | GET | `/api/v1/inventory/software/{node_id}` | — | Installed software |
-| GET | `/api/v1/inventory/hotfixes/{node_id}` | — | Windows hotfixes |
+| GET | `/api/v1/inventory/hotfixes/{node_id}` | — | Installed Windows updates (`hotfixes`, from `Win32_QuickFixEngineering`) and the Windows Update history (`updateHistory`: up to 2000 entries, of the Defender signature updates only the newest) |
 | GET | `/api/v1/inventory/system/{node_id}` | — | System info (OS, hostname, etc.) |
 | GET | `/api/v1/inventory/security/{node_id}` | — | Security status (firewall, AV) |
 | GET | `/api/v1/inventory/network/{node_id}` | — | Network interfaces & connections |
