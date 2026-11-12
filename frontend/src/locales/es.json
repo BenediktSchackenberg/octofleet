@@ -738,7 +738,7 @@
     "installedOn": "Instalado el",
     "showingFirst": "Mostrando 100 de {count}",
     "windowsUpdates": "Actualizaciones de Windows ({count})",
-    "hotfixes": "Hotfixes instalados ({count})",
+    "hotfixes": "Actualizaciones instaladas ({count})",
     "updateHistory": "Historial de actualizaciones ({count})",
     "title": "Título",
     "date": "Fecha",
@@ -887,6 +887,14 @@
       "failed": "El agente no pudo recopilar el inventario",
       "timeout": "El agente no ha respondido en 3 minutos: ¿está en línea?",
       "notRequested": "No se pudo crear el trabajo de inventario (¿permiso?): se muestran los datos guardados"
+    },
+    "installedUpdateInstalled": "Instalada",
+    "installedUpdateType": {
+      "cumulative": "Actualización acumulativa",
+      "servicingStack": "Pila de servicio",
+      "dotnet": ".NET",
+      "security": "Actualización de seguridad",
+      "update": "Actualización"
     }
   },
   "navGroups": {

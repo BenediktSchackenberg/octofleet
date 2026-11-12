@@ -87,7 +87,8 @@ export interface SoftwareItem {
 
 export interface HotfixData {
   hotfixes: { hotfixId: string; description?: string; installedOn?: string }[];
-  updateHistory: { title?: string; date?: string; result?: string }[];
+  /** Windows Update history (title, operation, result code per entry) */
+  updateHistory: { kbId?: string; kb?: string; title?: string; date?: string; result?: string; resultCode?: string | number; operation?: string; installedOn?: string; installedDate?: string }[];
 }
 
 export interface SystemData {

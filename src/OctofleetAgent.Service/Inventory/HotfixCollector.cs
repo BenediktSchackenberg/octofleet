@@ -113,43 +113,55 @@ public static class HotfixCollector
                 
                 if (count == 0) return updates;
                 
-                // Get last 200 entries (or all if less)
-                int queryCount = Math.Min(count, 200);
-                dynamic history = searcher.QueryHistory(0, queryCount);
-                
-                foreach (dynamic entry in history)
+                // The history is read newest first, in blocks, up to MaxHistoryEntries. Defender
+                // installs several signature updates a day: the newest 200 entries (the old limit) were
+                // almost only those, so the monthly cumulative updates fell out within weeks. Only the
+                // newest signature update is kept.
+                int toRead = Math.Min(count, MaxHistoryEntries);
+                bool signatureKept = false;
+                for (int start = 0; start < toRead; start += HistoryBlock)
                 {
-                    try
+                    dynamic history = searcher.QueryHistory(start, Math.Min(HistoryBlock, toRead - start));
+
+                    foreach (dynamic entry in history)
                     {
-                        string title = entry.Title?.ToString() ?? "";
-                        string? kbId = ExtractKbId(title);
-                        
-                        var categories = new List<string>();
                         try
                         {
-                            foreach (dynamic cat in entry.Categories)
+                            string title = entry.Title?.ToString() ?? "";
+                            string? kbId = ExtractKbId(title);
+                            if (IsDefenderSignatureUpdate(kbId, title))
                             {
-                                categories.Add(cat.Name?.ToString() ?? "");
+                                if (signatureKept) continue;
+                                signatureKept = true;
                             }
-                        }
-                        catch { }
+
+                            var categories = new List<string>();
+                            try
+                            {
+                                foreach (dynamic cat in entry.Categories)
+                                {
+                                    categories.Add(cat.Name?.ToString() ?? "");
+                                }
+                            }
+                            catch { }
                         
-                        updates.Add(new UpdateHistoryEntry
+                            updates.Add(new UpdateHistoryEntry
+                            {
+                                Title = title,
+                                KbId = kbId,
+                                Description = entry.Description?.ToString(),
+                                InstalledOn = ParseComDate(entry.Date),
+                                Operation = ParseOperation(entry.Operation),
+                                ResultCode = ParseResultCode(entry.ResultCode),
+                                UpdateId = entry.UpdateIdentity?.UpdateID?.ToString(),
+                                SupportUrl = entry.SupportUrl?.ToString(),
+                                Categories = categories
+                            });
+                        }
+                        catch
                         {
-                            Title = title,
-                            KbId = kbId,
-                            Description = entry.Description?.ToString(),
-                            InstalledOn = ParseComDate(entry.Date),
-                            Operation = ParseOperation(entry.Operation),
-                            ResultCode = ParseResultCode(entry.ResultCode),
-                            UpdateId = entry.UpdateIdentity?.UpdateID?.ToString(),
-                            SupportUrl = entry.SupportUrl?.ToString(),
-                            Categories = categories
-                        });
-                    }
-                    catch
-                    {
-                        // Skip problematic entries
+                            // Skip problematic entries
+                        }
                     }
                 }
             }
@@ -166,6 +178,14 @@ public static class HotfixCollector
         
         return updates.OrderByDescending(u => u.InstalledOn).ToList();
     }
+
+    /// <summary>History entries read at most (newest first) and per QueryHistory call.</summary>
+    private const int MaxHistoryEntries = 2000;
+    private const int HistoryBlock = 500;
+
+    /// <summary>Microsoft Defender security intelligence (signature) updates - several a day.</summary>
+    private static bool IsDefenderSignatureUpdate(string? kbId, string title) =>
+        kbId == "KB2267602" || title.Contains("Security Intelligence Update", StringComparison.OrdinalIgnoreCase);
 
     private static string? ExtractKbId(string title)
     {
