@@ -41,6 +41,20 @@ const UPDATE_RESULTS: Record<string, { key: string; ok: boolean }> = {
   "5": { key: "aborted", ok: false }, Aborted: { key: "aborted", ok: false },
 };
 
+/**
+ * What kind of Windows update an installed KB is, from its history title (e.g. "2026-10 Cumulative
+ * Update for Microsoft server operating system ... (KB5128646)") or, without one, from the
+ * Win32_QuickFixEngineering description ("Security Update", "Update").
+ */
+function installedUpdateType(title: string | undefined, description: string | undefined): string {
+  const text = title ?? "";
+  if (/\.NET/i.test(text)) return "dotnet";
+  if (/Cumulative Update/i.test(text)) return "cumulative";
+  if (/Servicing Stack/i.test(text)) return "servicingStack";
+  if (/Security Update/i.test(text) || /Security Update/i.test(description ?? "")) return "security";
+  return "update";
+}
+
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
   const { t } = useI18n();
@@ -963,18 +977,32 @@ export default function NodeDetailPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>KB</TableHead>
-                          <TableHead>{t("common.description")}</TableHead>
+                          <TableHead>{t("nodeDetail.title")}</TableHead>
+                          <TableHead>{t("nodeDetail.type")}</TableHead>
                           <TableHead>{t("nodeDetail.installedOn")}</TableHead>
+                          <TableHead>{t("common.status")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hotfixes.hotfixes?.slice(0, 20).map((hf: any, i: number) => (
-                          <TableRow key={i}>
-                            <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
-                            <TableCell>{hf.description || '-'}</TableCell>
-                            <TableCell>{formatLocalDate(hf.installedOn)}</TableCell>
-                          </TableRow>
-                        ))}
+                        {hotfixes.hotfixes?.slice(0, 20).map((hf: any, i: number) => {
+                          // The Windows Update history has the title and the result of the installation;
+                          // Win32_QuickFixEngineering only the KB and "Update" / "Security Update"
+                          const entry = hotfixes.updateHistory?.find((u: any) => (u.kbId || u.kb) === hf.hotfixId && (u.operation ?? "Installation") === "Installation");
+                          const result = entry ? UPDATE_RESULTS[String(entry.resultCode ?? "")] : undefined;
+                          return (
+                            <TableRow key={i}>
+                              <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
+                              <TableCell className="truncate max-w-[360px]" title={entry?.title}>{entry?.title || hf.description || '-'}</TableCell>
+                              <TableCell><Badge variant="secondary">{t(`nodeDetail.installedUpdateType.${installedUpdateType(entry?.title, hf.description)}`)}</Badge></TableCell>
+                              <TableCell>{formatLocalDate(hf.installedOn)}</TableCell>
+                              <TableCell>
+                                <Badge variant={!result || result.ok ? "default" : "secondary"}>
+                                  {result ? t(`nodeDetail.updateResult.${result.key}`) : t("nodeDetail.installedUpdateInstalled")}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </>

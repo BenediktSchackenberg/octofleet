@@ -738,7 +738,7 @@
     "installedOn": "Installiert am",
     "showingFirst": "Zeige 100 von {count}",
     "windowsUpdates": "Windows-Updates ({count})",
-    "hotfixes": "Installierte Hotfixes ({count})",
+    "hotfixes": "Installierte Updates ({count})",
     "updateHistory": "Update-Verlauf ({count})",
     "title": "Titel",
     "date": "Datum",
@@ -887,6 +887,14 @@
       "failed": "Der Agent konnte das Inventar nicht erfassen",
       "timeout": "Der Agent hat nicht innerhalb von 3 Minuten geantwortet – ist er online?",
       "notRequested": "Es konnte kein Inventar-Job angelegt werden (Berechtigung?) – gespeicherte Daten werden angezeigt"
+    },
+    "installedUpdateInstalled": "Installiert",
+    "installedUpdateType": {
+      "cumulative": "Kumulatives Update",
+      "servicingStack": "Servicing Stack",
+      "dotnet": ".NET",
+      "security": "Sicherheitsupdate",
+      "update": "Update"
     }
   },
   "navGroups": {
