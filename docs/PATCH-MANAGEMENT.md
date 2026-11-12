@@ -61,10 +61,21 @@ A patch deployment targets one or more patches to a set of rings/nodes. Deployme
 
 The Windows agent includes `PatchScanner.cs`, which:
 
-1. Queries the Windows Update Agent API for available updates
-2. Reports missing patches to the backend via `POST /api/v1/patches/scan-results`
+1. Queries the Windows Update Agent API for available updates (every 6 hours, or on a `patch_scan` job), with the client's configured source – on WSUS clients only the updates approved in WSUS. The search has a 20-minute limit.
+2. Reports missing patches to the backend via `POST /api/v1/patches/scan-results`, together with the search's status: `scan: {status, result_code, error, source, server, duration_seconds}` – `status` is `succeeded`, `partial` (result code 3, searched with errors) or `failed` (e.g. WSUS not reachable: `0x8024401C`), `source` is `wsus` (with the WSUS URL as `server`) or `windows_update`.
 3. Receives pending patches via `GET /api/v1/patches/pending/{node_id}`
 4. Reports installation results via `POST /api/v1/patches/results`
+
+What the server does with a scan report:
+
+| Status | Available updates (Patch Explorer) | Catalog entries of the node |
+|---|---|---|
+| `succeeded` | replaced by the report | entries still waiting (`detected`, `approved`) that are no longer offered are removed – installed outside Octofleet (WSUS, Windows Update, Defender), superseded or declined; entries of Octofleet's own deployments stay |
+| `partial` | replaced | unchanged |
+| `failed` | **kept** – the last successful search stays visible | unchanged |
+| no `scan` block (older agents, catalog import) | replaced | unchanged |
+
+The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`.
 
 ---
 
@@ -99,6 +110,7 @@ The built-in `viewer` role can read; `operator` and `admin` can also change and 
 |--------|------|-------------|
 | GET | `/api/v1/patches/compliance` | Fleet-wide patch compliance summary (`node_id`: only that node) |
 | GET | `/api/v1/patches/compliance/nodes` | Per-node compliance breakdown |
+| GET | `/api/v1/patches/scan-status/{node_id}` | The node's last Windows Update search: time, status, source (WSUS/Windows Update), error, update count |
 
 ### Rings
 

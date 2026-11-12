@@ -399,6 +399,7 @@ See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 | PATCH | `/api/v1/patches/catalog/{patch_id}/exclude` | User: `packages:write` | Exclude patch from deployment |
 | GET | `/api/v1/patches/compliance` | User: `compliance:read` | Fleet-wide patch compliance summary; `node_id` (node ID or UUID) limits counts, compliance and MTTP to that node |
 | GET | `/api/v1/patches/compliance/nodes` | User: `compliance:read` | Per-node compliance breakdown |
+| GET | `/api/v1/patches/scan-status/{node_id}` | User: `packages:read` | The node's last Windows Update search (time, status, source, error, update count) |
 | GET | `/api/v1/patches/rings` | User: `packages:read` | List patch rings |
 | POST | `/api/v1/patches/rings` | User: `packages:write` | Create ring |
 | PUT | `/api/v1/patches/rings/{ring_id}` | User: `packages:write` | Update ring |
@@ -409,7 +410,7 @@ See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 | POST | `/api/v1/patches/deployments/{id}/pause` | User: `packages:deploy` | Pause deployment |
 | POST | `/api/v1/patches/deployments/{id}/resume` | User: `packages:deploy` | Resume deployment |
 | POST | `/api/v1/patches/deployments/{id}/cancel` | User: `packages:deploy` | Cancel deployment |
-| POST | `/api/v1/patches/scan-results` | Agent key | Agent submits scan results |
+| POST | `/api/v1/patches/scan-results` | Agent key | Agent submits scan results, with the search's status (`scan`); a failed search keeps the node's lists |
 | GET | `/api/v1/patches/pending/{node_id}` | Agent key | Get pending patches for node |
 | POST | `/api/v1/patches/results` | Agent key | Agent submits installation results |
 

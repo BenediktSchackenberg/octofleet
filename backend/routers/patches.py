@@ -31,6 +31,53 @@ def _node_entries(param_index: int) -> str:
     return f"node_id IN ({NODE_ENTRY_MATCH.replace('{n}', str(param_index))})"
 
 
+# The last Windows Update search per node, as the agent reported it (status, source, error)
+NODE_PATCH_SCANS_DDL = """
+    CREATE TABLE IF NOT EXISTS node_patch_scans (
+        node_id UUID PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+        scanned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        status TEXT NOT NULL,
+        source TEXT,
+        server TEXT,
+        result_code INTEGER,
+        error TEXT,
+        duration_seconds REAL,
+        update_count INTEGER
+    )
+"""
+
+# Catalog states a successful scan may resolve: still waiting, nothing started by Octofleet yet
+UNRESOLVED_STATES = ("detected", "approved")
+
+
+async def ensure_schema(pool) -> None:
+    """Tables added after the initial schema (existing installations)."""
+    async with pool.acquire() as conn:
+        await conn.execute(NODE_PATCH_SCANS_DDL)
+
+
+def _scan_info(data: dict):
+    """The agent's scan block ({status, result_code, error, source, server, duration_seconds}), or None
+    for agents that do not send one."""
+    scan = data.get("scan")
+    if not isinstance(scan, dict) or scan.get("status") not in ("succeeded", "partial", "failed"):
+        return None
+    return scan
+
+
+async def _record_scan(conn, node_uuid: str, scan: dict, update_count) -> None:
+    await conn.execute("""
+        INSERT INTO node_patch_scans (node_id, scanned_at, status, source, server, result_code, error,
+                                      duration_seconds, update_count)
+        VALUES ($1::uuid, NOW(), $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (node_id) DO UPDATE SET scanned_at = NOW(), status = EXCLUDED.status,
+            source = EXCLUDED.source, server = EXCLUDED.server, result_code = EXCLUDED.result_code,
+            error = EXCLUDED.error, duration_seconds = EXCLUDED.duration_seconds,
+            update_count = EXCLUDED.update_count
+    """, node_uuid, scan["status"], scan.get("source"), scan.get("server"), scan.get("result_code"),
+        (scan.get("error") or None) and str(scan["error"])[:2000], scan.get("duration_seconds"), update_count)
+
+
 @router.get("/api/v1/patches/catalog", dependencies=[Depends(require_user_permission("packages:read"))])
 async def list_patch_catalog(
     severity: str = None, category: str = None, approved: str = None,
@@ -81,9 +128,20 @@ async def create_patch(data: dict):
 
 @router.post("/api/v1/patches/catalog/import", dependencies=[Depends(require_user_permission("packages:write"))])
 async def import_patches(data: dict):
-    """Import patches from agent scan results. Expects {node_id, patches: [{kb_id, title, ...}]}"""
+    """Import patches from agent scan results. Expects {node_id, patches: [{kb_id, title, ...}]}.
+
+    Agents that send a scan block ({status: succeeded | partial | failed, ...}):
+    - failed: the search did not work (e.g. WSUS not reachable) - the node's lists stay as they are;
+      only the status is recorded. Before, a failed search arrived as an empty list and cleared them.
+    - succeeded: catalog entries of the node that are still waiting (detected/approved) but no
+      longer offered are removed - installed outside Octofleet (WSUS, Windows Update, Defender),
+      superseded or declined. Entries of Octofleet's own deployments stay.
+    - partial (searched with errors): the lists are updated, nothing is removed.
+    Without a scan block (older agents, the catalog import) nothing is removed, as before.
+    """
     node_id = data.get("node_id")
     patches = data.get("patches", [])
+    scan = _scan_info(data)
     # Resolve hostname to UUID if needed
     if node_id and not _is_uuid(node_id):
         async with get_pool().acquire() as conn:
@@ -92,7 +150,12 @@ async def import_patches(data: dict):
             if not row:
                 raise HTTPException(status_code=404, detail=f"Unknown node: {node_id}")
             node_id = str(row["id"])
+    if scan is not None and scan["status"] == "failed":
+        async with get_pool().acquire() as conn:
+            await _record_scan(conn, node_id, scan, None)
+        return {"imported": 0, "total": 0, "removed": 0, "scan": "failed"}
     imported = 0
+    reported_ids = []
     async with get_pool().acquire() as conn:
         for p in patches:
             # Upsert patch catalog entry
@@ -107,6 +170,7 @@ async def import_patches(data: dict):
                     p.get("severity","moderate"), p.get("category","security"))
                 patch_id = row["id"]
                 imported += 1
+            reported_ids.append(patch_id)
             # Upsert node association
             exists = await conn.fetchval(
                 "SELECT 1 FROM patch_catalog_nodes WHERE patch_id=$1 AND node_id=$2", patch_id, node_id)
@@ -115,17 +179,43 @@ async def import_patches(data: dict):
                     INSERT INTO patch_catalog_nodes (patch_id, node_id, status) VALUES ($1,$2,'detected')
                 """, patch_id, node_id)
 
+        removed = 0
+        if scan is not None and scan["status"] == "succeeded":
+            result = await conn.execute(
+                f"DELETE FROM patch_catalog_nodes WHERE {_node_entries(1)} AND status = ANY($2::text[]) "
+                "AND NOT (patch_id = ANY($3::uuid[]))", node_id, list(UNRESOLVED_STATES), reported_ids)
+            removed = int(result.split()[-1])
+
         # Also sync to node_available_updates for Patch Explorer
         # Clear old entries for this node, then re-insert from scan
         node_uuid = node_id
+        source = (scan or {}).get("source") or "windows_update"
         await conn.execute("DELETE FROM node_available_updates WHERE node_id = $1::uuid", node_uuid)
         for p in patches:
             await conn.execute("""
                 INSERT INTO node_available_updates (node_id, kb_id, title, severity, category, source, is_reboot_required)
-                VALUES ($1::uuid, $2, $3, $4, $5, 'windows_update', false)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, false)
             """, node_uuid, p.get("kb_id"), p.get("title", ""),
-                p.get("severity", "moderate"), p.get("category", "security"))
-    return {"imported": imported, "total": len(patches)}
+                p.get("severity", "moderate"), p.get("category", "security"), source)
+        if scan is not None:
+            await _record_scan(conn, node_uuid, scan, len(patches))
+    return {"imported": imported, "total": len(patches), "removed": removed}
+
+
+@router.get("/api/v1/patches/scan-status/{node_id}", dependencies=[Depends(require_user_permission("packages:read"))])
+async def get_patch_scan_status(node_id: str):
+    """The node's last Windows Update search (node_id or UUID): when, status, source, error, update count."""
+    async with get_pool().acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT s.* FROM node_patch_scans s JOIN nodes n ON n.id = s.node_id
+            WHERE n.node_id = $1 OR n.id::text = $1
+        """, node_id)
+    if not row:
+        return {"data": None}
+    data = dict(row)
+    data["node_id"] = str(data["node_id"])
+    data["scanned_at"] = data["scanned_at"].isoformat()
+    return {"data": data}
 
 
 @router.patch("/api/v1/patches/catalog/{patch_id}/approve", dependencies=[Depends(require_user_permission("packages:write"))])

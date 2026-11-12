@@ -1318,5 +1318,18 @@
   "patchesPage": {
     "openOnNode": "Open on {node}",
     "showAllPatches": "Show all patches"
+  },
+  "patchScan": {
+    "last": "Last update search:",
+    "sourceWsus": "via WSUS {server}",
+    "sourceWindowsUpdate": "via Windows Update",
+    "updates": "{count} pending updates",
+    "none": "The agent has not reported an update search yet.",
+    "failedKeep": "The search failed – the list below is from the last successful search.",
+    "status": {
+      "succeeded": "Succeeded",
+      "partial": "With errors",
+      "failed": "Failed"
+    }
   }
 }
