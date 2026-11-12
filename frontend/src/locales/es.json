@@ -1366,5 +1366,18 @@
   "jobsPage": {
     "forNode": "Trabajos de {node}",
     "showAllJobs": "Mostrar todos los trabajos"
+  },
+  "patchScan": {
+    "last": "Última búsqueda de actualizaciones:",
+    "sourceWsus": "mediante WSUS {server}",
+    "sourceWindowsUpdate": "mediante Windows Update",
+    "updates": "{count} actualizaciones pendientes",
+    "none": "El agente aún no ha informado una búsqueda de actualizaciones.",
+    "failedKeep": "La búsqueda falló: la lista de abajo es de la última búsqueda correcta.",
+    "status": {
+      "succeeded": "Correcta",
+      "partial": "Con errores",
+      "failed": "Fallida"
+    }
   }
 }

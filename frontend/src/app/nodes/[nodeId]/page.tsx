@@ -14,6 +14,7 @@ import { Timeline } from "@/components/timeline";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
+import { PatchScanStatus } from "@/components/patch-scan-status";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -914,6 +915,8 @@ export default function NodeDetailPage() {
 
           {/* Updates Tab */}
           <TabsContent value="updates" className="space-y-4">
+            {/* Windows: the agent's last update search (source WSUS / Windows Update, failed or not) */}
+            {!isLinuxNode && <PatchScanStatus nodeId={nodeId} />}
             {linuxUpdates ? (
             <Card>
               <CardHeader>

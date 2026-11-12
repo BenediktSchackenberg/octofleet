@@ -2043,6 +2043,17 @@ CREATE TABLE IF NOT EXISTS patch_catalog_nodes (
 CREATE INDEX IF NOT EXISTS idx_pcn_patch ON patch_catalog_nodes(patch_id);
 CREATE INDEX IF NOT EXISTS idx_pcn_node ON patch_catalog_nodes(node_id);
 CREATE INDEX IF NOT EXISTS idx_pcn_status ON patch_catalog_nodes(status);
+CREATE TABLE IF NOT EXISTS node_patch_scans (
+    node_id UUID PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+    scanned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    status TEXT NOT NULL,
+    source TEXT,
+    server TEXT,
+    result_code INTEGER,
+    error TEXT,
+    duration_seconds REAL,
+    update_count INTEGER
+);
 
 CREATE TABLE IF NOT EXISTS patch_rings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
