@@ -1362,5 +1362,9 @@
       "startType": "Start type",
       "account": "Account"
     }
+  },
+  "jobsPage": {
+    "forNode": "Jobs for {node}",
+    "showAllJobs": "Show all jobs"
   }
 }

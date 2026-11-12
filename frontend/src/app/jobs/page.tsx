@@ -1,5 +1,6 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n-context";
 
 import { useEffect, useState } from "react";
 import { Terminal, Zap, Rocket } from "lucide-react";
@@ -86,7 +87,7 @@ function SummaryBar({ summary }: { summary: JobSummary }) {
   );
 }
 
-function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateJobDialog({ onClose, onCreated, initialNode }: { onClose: () => void; onCreated: () => void; initialNode?: string }) {
   const [name, setName] = useState("");
   const [jobType, setJobType] = useState<"run" | "install_package">("run");
   const [targetType, setTargetType] = useState("all");
@@ -102,7 +103,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   const [loadingVersions, setLoadingVersions] = useState(false);
   
   // For node/group selection
-  const [nodes, setNodes] = useState<{node_id: string; hostname: string}[]>([]);
+  const [nodes, setNodes] = useState<{id: string; node_id: string; hostname: string}[]>([]);
   const [groups, setGroups] = useState<{id: string; name: string}[]>([]);
 
   useEffect(() => {
@@ -113,7 +114,14 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
       apiClient.get<{ groups: any[] }>(`/groups`, { showErrorToast: false }),
     ]).then(async ([pkgRes, nodeRes, groupRes]) => {
       if (pkgRes) { setPackages(pkgRes.packages || pkgRes || []); }
-      if (nodeRes) { setNodes(nodeRes.nodes || nodeRes || []); }
+      if (nodeRes) {
+        const list = nodeRes.nodes || nodeRes || [];
+        setNodes(list);
+        // "Start job" on a node page opens the dialog with that node (?target=<node ID, UUID or hostname>)
+        const match = initialNode && list.find((n: any) =>
+          n.id === initialNode || n.node_id === initialNode || n.hostname?.toLowerCase() === initialNode.toLowerCase());
+        if (match) { setTargetType("device"); setTargetId(match.id); }
+      }
       if (groupRes) { setGroups(groupRes.groups || groupRes || []); }
     });
   }, []);
@@ -170,11 +178,10 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
         commandData,
       };
 
-      // Add target ID for specific targets
-      if (targetType === "device" && targetId) {
-        body.targetDeviceId = targetId;
-      } else if (targetType === "group" && targetId) {
-        body.targetGroupId = targetId;
+      // The target the backend reads: targetId (node or group UUID). The dialog sent targetDeviceId /
+      // targetGroupId, which the backend ignored - the job got no instance and never ran.
+      if ((targetType === "device" || targetType === "group") && targetId) {
+        body.targetId = targetId;
       }
 
       const res = await apiClient.post(`/jobs`, body, { showErrorToast: false });
@@ -248,7 +255,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
               >
                 <option value="">-- Gerät wählen --</option>
                 {nodes.map(n => (
-                  <option key={n.node_id} value={n.node_id}>{n.hostname}</option>
+                  <option key={n.id} value={n.id}>{n.hostname}</option>
                 ))}
               </select>
             </div>
@@ -457,14 +464,33 @@ function JobDetailPanel({ job, onClose, onRetry }: { job: JobDetail; onClose: ()
 }
 
 export default function JobsPage() {
+  const { t } = useI18n();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
+  // ?node=<node ID, UUID or hostname> (link from the node page): only that node's jobs.
+  // ?target=<node> ("Start job" on the node page): open the dialog with that node.
+  // Read after mounting like useTabParam; undefined = not read yet.
+  const [nodeFilter, setNodeFilter] = useState<string | null | undefined>(undefined);
+  const [initialNode, setInitialNode] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setNodeFilter(params.get("node"));
+    const target = params.get("target");
+    if (target) { setInitialNode(target); setShowCreate(true); }
+  }, []);
+  const clearNodeFilter = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("node");
+    window.history.replaceState(window.history.state, "", url.toString());
+    setNodeFilter(null);
+  };
 
   const fetchJobs = async () => {
     try {
-      const data = await apiClient.get<{ jobs: any[] }>(`/jobs`, { showErrorToast: false });
+      const query = nodeFilter ? `?node=${encodeURIComponent(nodeFilter)}` : "";
+      const data = await apiClient.get<{ jobs: any[] }>(`/jobs${query}`, { showErrorToast: false });
       setJobs((data?.jobs || []).map((j: any) => ({
         id: j.job_id || j.id,
         name: j.name,
@@ -517,10 +543,11 @@ export default function JobsPage() {
   };
 
   useEffect(() => {
+    if (nodeFilter === undefined) return;
     fetchJobs();
     const interval = setInterval(fetchJobs, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [nodeFilter]);
 
   return (
     <StandardPage
@@ -538,6 +565,12 @@ export default function JobsPage() {
       }
     >
       <div className="mx-auto max-w-6xl">
+        {nodeFilter && (
+          <div className="flex items-center gap-3 text-sm mb-4">
+            <span className="px-2 py-1 rounded bg-cyan-500/20 text-cyan-400">{t("jobsPage.forNode", { node: nodeFilter })}</span>
+            <button onClick={clearNodeFilter} className="text-zinc-400 hover:text-white underline">{t("jobsPage.showAllJobs")}</button>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
@@ -618,7 +651,8 @@ export default function JobsPage() {
       {/* Modals */}
       {showCreate && (
         <CreateJobDialog
-          onClose={() => setShowCreate(false)}
+          initialNode={initialNode}
+          onClose={() => { setShowCreate(false); setInitialNode(undefined); }}
           onCreated={fetchJobs}
         />
       )}

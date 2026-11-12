@@ -1362,5 +1362,9 @@
       "startType": "Tipo de inicio",
       "account": "Cuenta"
     }
+  },
+  "jobsPage": {
+    "forNode": "Trabajos de {node}",
+    "showAllJobs": "Mostrar todos los trabajos"
   }
 }
