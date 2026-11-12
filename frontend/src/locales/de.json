@@ -879,6 +879,14 @@
       "notReported": "Der Linux-Agent hat für diesen Node keinen Datenträgerzustand gemeldet.",
       "noSmartctl": "smartctl ist nicht installiert – keine SMART-Daten (Paket smartmontools).",
       "noDisks": "smartctl hat keine Datenträger mit SMART-Daten gefunden."
+    },
+    "collect": {
+      "hint": "Fordert beim Agent ein neues Inventar an und zeigt es, sobald er es gesendet hat",
+      "waiting": "Warte auf den Agent…",
+      "collected": "Inventar erfasst und aktualisiert",
+      "failed": "Der Agent konnte das Inventar nicht erfassen",
+      "timeout": "Der Agent hat nicht innerhalb von 3 Minuten geantwortet – ist er online?",
+      "notRequested": "Es konnte kein Inventar-Job angelegt werden (Berechtigung?) – gespeicherte Daten werden angezeigt"
     }
   },
   "navGroups": {

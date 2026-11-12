@@ -187,6 +187,12 @@ export interface LinuxData {
   };
 }
 
+export type CollectResult =
+  | { status: "collected" }
+  | { status: "failed"; detail?: string }
+  | { status: "timeout" }
+  | { status: "notRequested" };
+
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useNodeDetails(nodeId: string) {
@@ -204,6 +210,7 @@ export function useNodeDetails(nodeId: string) {
   const [events, setEvents] = useState<EventlogEntry[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [collecting, setCollecting] = useState(false);
   const [linuxData, setLinuxData] = useState<LinuxData | null>(null);
 
   async function refreshInventory() {
@@ -228,10 +235,56 @@ export function useNodeDetails(nodeId: string) {
       if (netRes.ok && netRes.data) { const d = (netRes.data as any).data || netRes.data; setNetwork(d as NetworkData); }
       if (brRes.ok && brRes.data) { const d = (brRes.data as any).data || brRes.data; setBrowser(d as BrowserData); }
       if (critRes.ok && critRes.data) { setCriticalCookies(critRes.data); }
+      const linuxRes = await apiClient.richGet<any>(`/inventory/linux/${nodeId}`);
+      if (linuxRes.ok && linuxRes.data) { const d = 'data' in linuxRes.data ? linuxRes.data.data : linuxRes.data; setLinuxData(d || null); }
     } catch (err) {
       console.error("Failed to refresh inventory:", err);
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  /**
+   * "Collect inventory": ask the node's agent for a fresh inventory (an `inventory` job), wait until
+   * it reports back (up to 3 minutes; agents poll for jobs about once a minute), then reload the
+   * data. Without the jobs:create permission or when the job cannot be created, only the stored data
+   * is reloaded.
+   */
+  async function collectInventory(nodeUuid: string): Promise<CollectResult> {
+    setCollecting(true);
+    try {
+      const job = await apiClient.post<{ id?: string }>(`/jobs`, {
+        name: "Collect inventory",
+        targetType: "device",
+        targetId: nodeUuid,
+        commandType: "inventory",
+        commandData: {},
+      }, { showErrorToast: false });
+      if (!job?.id) {
+        await refreshInventory();
+        return { status: "notRequested" };
+      }
+      const deadline = Date.now() + 180_000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        const state = await apiClient.get<{ instances?: { status?: string; stderr?: string; stdout?: string }[] }>(
+          `/jobs/${job.id}`, { showErrorToast: false });
+        const instance = state?.instances?.[0];
+        if (instance?.status === "success") {
+          await refreshInventory();
+          return { status: "collected" };
+        }
+        if (instance?.status === "failed" || instance?.status === "cancelled") {
+          await refreshInventory();
+          return { status: "failed", detail: instance.stderr || instance.stdout || undefined };
+        }
+      }
+      return { status: "timeout" };
+    } catch {
+      await refreshInventory();
+      return { status: "notRequested" };
+    } finally {
+      setCollecting(false);
     }
   }
 
@@ -303,6 +356,6 @@ export function useNodeDetails(nodeId: string) {
     hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList,
     linuxUpdates, totalUpdatesCount,
     // Actions
-    refreshInventory, fetchNodeDetails,
+    refreshInventory, collectInventory, collecting, fetchNodeDetails,
   };
 }
