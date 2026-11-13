@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
 
-interface PatchScan {
+export interface PatchScan {
   scanned_at: string;
   status: "succeeded" | "partial" | "failed";
   source?: string | null;
@@ -19,20 +19,26 @@ interface PatchScan {
 }
 
 /**
- * The node's last update search, as the agent reported it: when, from where (WSUS or Windows Update;
- * on Linux the package manager, e.g. apt) and whether it worked. A failed search keeps the last update
- * list - this line says so. A change of `refreshKey` loads it again.
+ * The node's last update search (undefined while loading, null if there is none). A change of
+ * `refreshKey` loads it again.
  */
-export function PatchScanStatus({ nodeId, refreshKey = 0 }: { nodeId: string; refreshKey?: number }) {
-  const { t } = useI18n();
+export function usePatchScan(nodeId: string, refreshKey = 0): PatchScan | null | undefined {
   const [scan, setScan] = useState<PatchScan | null | undefined>(undefined);
-
   useEffect(() => {
     apiClient.get<{ data: PatchScan | null }>(`/patches/scan-status/${encodeURIComponent(nodeId)}`, { showErrorToast: false })
       .then((res) => setScan(res?.data ?? null))
       .catch(() => setScan(null));
   }, [nodeId, refreshKey]);
+  return scan;
+}
 
+/**
+ * The node's last update search, as the agent reported it: when, from where (WSUS or Windows Update;
+ * on Linux the package manager, e.g. apt) and whether it worked. A failed search keeps the last update
+ * list - this line says so.
+ */
+export function PatchScanStatus({ scan }: { scan: PatchScan | null | undefined }) {
+  const { t } = useI18n();
   if (scan === undefined) return null;
   const source = scan?.source === "wsus"
     ? t("patchScan.sourceWsus", { server: scan.server ?? "?" })

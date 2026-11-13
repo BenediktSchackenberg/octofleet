@@ -75,7 +75,7 @@ What the server does with a scan report:
 | `failed` | **kept** – the last successful search stays visible | unchanged |
 | no `scan` block (older agents, catalog import) | replaced | unchanged |
 
-The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`.
+The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`. The tab itself turns amber while updates are pending (Linux: the package list; Windows: the last search) and red when the last search failed.
 
 ### Linux Nodes
 

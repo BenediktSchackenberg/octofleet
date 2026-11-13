@@ -34,6 +34,10 @@ test('Linux updates: last search, reboot flag, search and install with confirmat
   await expect(page.getByText('via apt')).toBeVisible();
   await expect(page.getByText('Package updates (2)')).toBeVisible();
   await expect(page.getByText('Reboot required')).toBeVisible();
+  // The Updates tab is highlighted while updates are pending
+  const tab = page.getByRole('tab', { name: /Updates/ });
+  await expect(tab).toHaveAttribute('title', '2 pending updates');
+  await expect(tab).toHaveClass(/text-amber-500/);
 
   // Install asks first; cancelling creates no job
   await page.getByRole('button', { name: /Install updates/ }).click();
@@ -53,9 +57,10 @@ test('Linux updates: last search, reboot flag, search and install with confirmat
   const afterInstall = await request.get(`${API_URL}/api/v1/jobs?node=${hostname}`, { headers });
   const install = (await afterInstall.json()).jobs.find((j: { command_type: string }) => j.command_type === 'patch_install');
   expect(install).toBeTruthy();
-  const detail = await (await request.get(`${API_URL}/api/v1/jobs/${install.id}`, { headers })).json();
-  const data = typeof detail.commandData === 'string' ? JSON.parse(detail.commandData) : (detail.commandData ?? detail.command_data);
+  const detail = await (await request.get(`${API_URL}/api/v1/jobs/${install.job_id}`, { headers })).json();
+  const data = typeof detail.command_data === 'string' ? JSON.parse(detail.command_data) : detail.command_data;
   expect(data.packages).toEqual(['openssl']);
+  expect(data.timeout).toBe(3600);  // the agent's limit for the upgrade
   await page.reload({ waitUntil: 'domcontentloaded' });
 
   // Search: a patch_scan job for the node; no agent answers in the test, so the button waits

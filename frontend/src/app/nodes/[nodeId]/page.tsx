@@ -15,7 +15,7 @@ import { Timeline } from "@/components/timeline";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
-import { PatchScanStatus } from "@/components/patch-scan-status";
+import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { LinuxUpdateActions } from "@/components/linux-update-actions";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
@@ -295,6 +295,13 @@ export default function NodeDetailPage() {
   const [updateSearchKey, setUpdateSearchKey] = useState(0);
   // Linux packages selected on the Updates tab for "Install selected"
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  // The Updates tab in color: amber with pending updates (Linux: the package list; Windows: the last
+  // update search, the tab's count there being the installed updates), red if the last search failed
+  const patchScan = usePatchScan(nodeId, updateSearchKey);
+  const pendingUpdates = linuxUpdates
+    ? linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0
+    : patchScan?.status !== "failed" ? patchScan?.update_count ?? 0 : 0;
+  const updatesTabState = patchScan?.status === "failed" ? "failed" : pendingUpdates > 0 ? "pending" : null;
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
   useEffect(() => {
@@ -442,7 +449,13 @@ export default function NodeDetailPage() {
             <TabsTrigger value="hardware">{t("nodes.hardware")}</TabsTrigger>
             <TabsTrigger value="software">{t("nodes.software")} ({software.length})</TabsTrigger>
             <TabsTrigger value="services">{t("nodeServices.tab")}</TabsTrigger>
-            <TabsTrigger value="updates">{t("nodeDetail.tabs.updates")} ({totalUpdatesCount})</TabsTrigger>
+            <TabsTrigger value="updates"
+              className={updatesTabState === "failed" ? "text-red-500 data-[state=active]:text-red-500"
+                : updatesTabState === "pending" ? "text-amber-500 data-[state=active]:text-amber-500" : undefined}
+              title={updatesTabState === "failed" ? t("nodeDetail.updatesTab.failed")
+                : updatesTabState === "pending" ? t("patchScan.updates", { count: pendingUpdates }) : undefined}>
+              {t("nodeDetail.tabs.updates")} ({totalUpdatesCount})
+            </TabsTrigger>
             <TabsTrigger value="network">{t("nodes.network")}</TabsTrigger>
             <TabsTrigger value="security">{t("nodes.security")}</TabsTrigger>
             <TabsTrigger value="vulnerabilities">{t("nodes.vulnerabilities.tab", { count: vulnerabilityCount ?? "…" })}</TabsTrigger>
@@ -936,7 +949,7 @@ export default function NodeDetailPage() {
           {/* Updates Tab */}
           <TabsContent value="updates" className="space-y-4">
             {/* The agent's last update search: WSUS / Windows Update, or the package lists on Linux */}
-            <PatchScanStatus nodeId={nodeId} refreshKey={updateSearchKey} />
+            <PatchScanStatus scan={patchScan} />
             {linuxUpdates ? (
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">

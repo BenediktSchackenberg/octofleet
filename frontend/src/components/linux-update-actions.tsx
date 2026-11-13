@@ -15,7 +15,7 @@ import { useI18n } from "@/lib/i18n-context";
 import { runNodeJob, type NodeJobResult } from "@/lib/node-jobs";
 
 // How long the page waits for the agent: a package list refresh takes seconds to minutes, an
-// upgrade can take much longer. The agent's own limits are the jobs' timeoutSeconds.
+// upgrade can take much longer. timeoutSeconds is the agent's limit, sent as the payload's timeout.
 const SCAN = { timeoutSeconds: 900, waitMs: 10 * 60_000 };
 const INSTALL = { timeoutSeconds: 3600, waitMs: 65 * 60_000 };
 
@@ -52,8 +52,9 @@ export function LinuxUpdateActions({ nodeUuid, updateCount, packageManager, sele
         name: kind === "scan" ? "Search for updates"
           : packages.length ? `Install updates: ${packages.join(", ")}`.slice(0, 200) : "Install updates",
         commandType: kind === "scan" ? "patch_scan" : "patch_install",
-        commandData: packages.length ? { packages } : {},
-        timeoutSeconds: limits.timeoutSeconds,
+        // The time limit goes into the payload: the agent reads it there first (POST /jobs keeps the
+        // default timeout of the job, 300 s - too short for an upgrade)
+        commandData: packages.length ? { packages, timeout: limits.timeoutSeconds } : { timeout: limits.timeoutSeconds },
       }, limits.waitMs);
     } finally {
       setRunning(null);

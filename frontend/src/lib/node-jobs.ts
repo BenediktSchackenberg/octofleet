@@ -10,8 +10,6 @@ interface NodeJob {
   name: string;
   commandType: string;
   commandData?: Record<string, unknown>;
-  /** The agent's time limit for the job (the server's default otherwise) */
-  timeoutSeconds?: number;
 }
 
 /**
@@ -28,7 +26,6 @@ export async function runNodeJob(nodeUuid: string, job: NodeJob, waitMs: number)
       targetId: nodeUuid,
       commandType: job.commandType,
       commandData: job.commandData ?? {},
-      ...(job.timeoutSeconds ? { timeoutSeconds: job.timeoutSeconds } : {}),
     }, { showErrorToast: false });
   } catch {
     return { status: "notCreated" };

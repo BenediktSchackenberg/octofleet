@@ -914,6 +914,9 @@
       "dotnet": ".NET",
       "security": "Security update",
       "update": "Update"
+    },
+    "updatesTab": {
+      "failed": "The last update search failed"
     }
   },
   "navGroups": {
