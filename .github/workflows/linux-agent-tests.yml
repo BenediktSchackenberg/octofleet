@@ -35,3 +35,5 @@ jobs:
         run: bash tests/linux-agent/jobs.test.sh
       - name: Test the patch jobs (patch_scan, patch_install with apt, dnf, pacman)
         run: bash tests/linux-agent/patch-jobs.test.sh
+      - name: Test the retry of a failed inventory push
+        run: bash tests/linux-agent/push-retry.test.sh

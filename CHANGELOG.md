@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Linux nodes: **Search for updates** (`patch_scan`: refresh the package lists with apt, dnf or yum and report the updates, with the result as the node's last update search) and **Install updates** (`patch_install`: all updates, or the packages selected in the list). The inventory reports whether a reboot is required. The Updates tab of Windows nodes lists the available updates of the last search. The tab of Windows and Linux nodes turns amber while updates are pending (not counting Defender signature updates) and red when the last update search failed ([#230](https://github.com/BenediktSchackenberg/octofleet/issues/230)).
 
+### Fixed
+- Linux agent: a failed inventory push is retried after a minute (`PUSH_RETRY_INTERVAL`, doubling with every further failure up to the push interval, with random jitter), not after the full push interval. After a reboot, the first push often fails because the server is not reachable yet (on the Octofleet server itself, its containers are still starting); the node then showed the state from before the reboot, e.g. "Reboot required", for up to 30 minutes.
+
 ## [0.8.1] - 2026-10-26
 
 ### Fixed
