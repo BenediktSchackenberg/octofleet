@@ -1652,7 +1652,6 @@ run_service() {
         info "Screen capture available via: $SCREEN_CAPTURE_TOOL"
     fi
     
-    local last_push=0
     local push_due=0
     local push_failures=0
     local push_rc
