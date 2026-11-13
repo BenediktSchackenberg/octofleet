@@ -1419,6 +1419,23 @@ package_manager() {
     fi
 }
 
+# run_package_command LIMIT COMMAND...: run the package manager, stopped after LIMIT seconds (exit 124).
+# The agent's service runs with ProtectSystem=strict: /usr, /etc and /var/lib are read-only for it,
+# so apt and dnf cannot write their lists or install anything. Under systemd (INVOCATION_ID) the
+# command therefore runs in a transient unit outside that sandbox, like the restart-agent job;
+# otherwise directly. NEEDRESTART_MODE=l: needrestart lists services with old libraries instead of
+# restarting them (the agent too, in the middle of the job).
+run_package_command() {
+    local limit="$1"; shift
+    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+        systemd-run --quiet --wait --pipe --collect --unit "octofleet-packages-$(date +%s)-$$" \
+            --setenv=LANG=C --setenv=DEBIAN_FRONTEND=noninteractive --setenv=NEEDRESTART_MODE=l \
+            timeout "$limit" "$@"
+    else
+        LANG=C DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l timeout "$limit" "$@"
+    fi
+}
+
 # refresh_package_lists LIMIT: download the current package lists, within LIMIT seconds. Prints the
 # scan block for the inventory: {status, source, error, duration_seconds} with status succeeded,
 # partial (some repositories failed) or failed.
@@ -1427,8 +1444,7 @@ refresh_package_lists() {
     pm=$(package_manager) || pm=""
     case "$pm" in
         apt)
-            out=$(LANG=C DEBIAN_FRONTEND=noninteractive timeout "$limit" \
-                apt-get -q update -o DPkg::Lock::Timeout=120 2>&1) || rc=$?
+            out=$(run_package_command "$limit" apt-get -q update -o DPkg::Lock::Timeout=120 2>&1) || rc=$?
             # apt-get update exits 0 when single repositories fail; they show as "Err:" / "W: Failed to fetch"
             local problems
             problems=$(grep -E '^(Err:|E:|W: (Failed to fetch|Some index files failed))' <<< "$out" | head -n 5)
@@ -1437,7 +1453,7 @@ refresh_package_lists() {
             fi
             ;;
         dnf|yum)
-            out=$(LANG=C timeout "$limit" "$pm" -q makecache 2>&1) || rc=$?
+            out=$(run_package_command "$limit" "$pm" -q makecache 2>&1) || rc=$?
             (( rc != 0 )) && { status=failed; error=$(tail -n 3 <<< "$out"); }
             ;;
         pacman)
@@ -1489,15 +1505,15 @@ run_patch_install() {
             local -a options=(-q -y -o DPkg::Lock::Timeout=120
                 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
             if (( ${#packages[@]} )); then
-                out=$(LANG=C DEBIAN_FRONTEND=noninteractive timeout "$limit" \
+                out=$(run_package_command "$limit" \
                     apt-get "${options[@]}" install --only-upgrade "${packages[@]}" 2>&1) || rc=$?
             else
-                out=$(LANG=C DEBIAN_FRONTEND=noninteractive timeout "$limit" \
+                out=$(run_package_command "$limit" \
                     apt-get "${options[@]}" --with-new-pkgs upgrade 2>&1) || rc=$?
             fi
             ;;
         dnf|yum)
-            out=$(LANG=C timeout "$limit" "$pm" -y upgrade "${packages[@]}" 2>&1) || rc=$?
+            out=$(run_package_command "$limit" "$pm" -y upgrade "${packages[@]}" 2>&1) || rc=$?
             ;;
         *)
             echo "Installing updates is not supported with $pm"; return 1

@@ -12,7 +12,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # JSON here-document with a "}" at the start of a line, so it ends at the first "}" after "EOF".
 eval "$(awk '/^package_manager\(\) \{/ { f = 1 } /^execute_job\(\) \{/ { exit } f { print }' "$AGENT")"
 eval "$(awk '/^execute_job\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
-for fn in package_manager refresh_package_lists run_patch_scan run_patch_install execute_job; do
+for fn in package_manager run_package_command refresh_package_lists run_patch_scan run_patch_install execute_job; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 info() { :; }; warn() { :; }
@@ -34,6 +34,7 @@ check() {  # check DESCRIPTION CONDITION...
 
 WORK=$(mktemp -d)
 TOOLS="$WORK/tools"; mkdir -p "$TOOLS"
+unset INVOCATION_ID  # not under systemd unless a test says so
 for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env date; do
     ln -s "$(command -v "$tool")" "$TOOLS/$tool"
 done
@@ -126,6 +127,36 @@ run_job patch_install '{"packages": ["nosuchpackage"]}'
 check "apt install failed: the job fails with apt-get's exit code" \
     [ "$(field .success)" = "false" ] && [ "$(field .exitCode)" = "100" ]
 check "apt install failed: the error is in the output" grep -q "Unable to locate package" <<< "$(field .stdout)"
+
+# --- under systemd: the package manager runs in a transient unit, outside the service's sandbox ---
+cat > "$TOOLS/systemd-run" <<'EOF'
+#!/bin/bash
+echo "systemd-run $*" >> "$WORK/calls"
+env=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --setenv=*) env+=("${1#--setenv=}") ;;
+    --unit) shift ;;
+    --*) ;;
+    *) break ;;
+  esac
+  shift
+done
+exec env "${env[@]}" "$@"
+EOF
+chmod +x "$TOOLS/systemd-run"
+clear_fakes; fake apt-get 0 'Hit:1 http://archive.example/ubuntu resolute InRelease'
+INVOCATION_ID=test-invocation run_job patch_scan '{}'
+check "under systemd: apt-get update runs through systemd-run --wait --pipe" \
+    grep -q "^systemd-run --quiet --wait --pipe --collect --unit octofleet-packages-.* timeout 600 apt-get -q update" <<< "$(calls)"
+check "under systemd: non-interactive, needrestart only lists" \
+    grep -q -- "--setenv=DEBIAN_FRONTEND=noninteractive --setenv=NEEDRESTART_MODE=l" <<< "$(calls)" && \
+    grep -q "^apt-get -q update .*\[DEBIAN_FRONTEND=noninteractive\]" <<< "$(calls)"
+check "under systemd: the scan result comes back" [ "$(scan .status)" = "succeeded" ] && [ "$(field .success)" = "true" ]
+fake apt-get 100 'E: Unable to locate package nosuchpackage'
+INVOCATION_ID=test-invocation run_job patch_install '{"packages": ["nosuchpackage"]}'
+check "under systemd: apt-get's exit code comes back" [ "$(field .exitCode)" = "100" ]
+rm -f "$TOOLS/systemd-run"
 
 # --- dnf ---
 clear_fakes; fake dnf 0 'Metadata cache created.'
