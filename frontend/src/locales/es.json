@@ -97,7 +97,12 @@
     "contentLifecycle": "Ciclo de vida del contenido",
     "tasks": "Tareas",
     "discovered": "Descubiertos",
-    "patchExplorer": "Explorador de parches"
+    "patchExplorer": "Explorador de parches",
+    "badges": {
+      "failedJobs": "{count} trabajos fallidos en los últimos 7 días",
+      "alertsNotSent": "{count} alertas no enviadas en los últimos 7 días",
+      "findings": "{count} hallazgos de seguridad"
+    }
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -151,7 +156,7 @@
       "hotfixId": "ID de hotfix"
     },
     "fleetOverview": "Vista general de la flota",
-    "todayTasks": "Tareas de hoy:",
+    "todayTasks": "Tareas pendientes:",
     "pendingApprovalsOne": "{count} aprobación pendiente",
     "pendingApprovalsOther": "{count} aprobaciones pendientes",
     "criticalFindingsOne": "{count} hallazgo crítico",

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { OsDistributionChart } from "@/components/OsDistributionChart";
 import { getAuthHeader } from "@/lib/auth-context";
 import { apiClient } from "@/lib/api-client";
+import { FAILED_JOBS_PATH } from "@/lib/tasks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -231,13 +232,13 @@ export default function HomePage() {
     const results = await Promise.allSettled([
       apiClient.get<{ pending: any[] }>("/pending-nodes"),
       apiClient.get<{ findings: any[]; total: number }>("/security/findings?severity=critical&limit=1"),
-      apiClient.get<DashboardSummary>("/dashboard/summary"),
+      apiClient.get<{ total?: number }>(`${FAILED_JOBS_PATH}&limit=1`, { showErrorToast: false }),
       apiClient.get<{ nodes: any[] }>("/nodes"),
     ]);
     if (results[0].status === "fulfilled" && results[0].value?.pending) c.approvals = results[0].value.pending.length;
     if (results[1].status === "fulfilled" && results[1].value) c.findings = results[1].value.total || results[1].value.findings?.length || 0;
-    // Failed jobs of the last 24 hours, like the jobs widget (not one failed job of all time).
-    if (results[2].status === "fulfilled" && results[2].value?.jobs) c.failedJobs = results[2].value.jobs.failed || 0;
+    // Failed jobs of the last 7 days - the same number as on the Tasks page the widget links to
+    if (results[2].status === "fulfilled") c.failedJobs = results[2].value?.total || 0;
     if (results[3].status === "fulfilled" && results[3].value?.nodes) {
       const TEN_MINUTES = 10 * 60 * 1000;
       c.offline = results[3].value.nodes.filter((n: any) => {
@@ -718,7 +719,7 @@ export default function HomePage() {
                         <Link href="/tasks?tab=security" className="text-red-400 hover:underline">{t(taskCounts.findings === 1 ? "dashboard.criticalFindingsOne" : "dashboard.criticalFindingsOther", { count: taskCounts.findings })}</Link>
                       )}
                       {taskCounts.failedJobs > 0 && (
-                        <Link href="/jobs?status=failed" className="text-yellow-400 hover:underline">{t(taskCounts.failedJobs === 1 ? "dashboard.failedJobsOne" : "dashboard.failedJobsOther", { count: taskCounts.failedJobs })}</Link>
+                        <Link href="/tasks?tab=jobs" className="text-yellow-400 hover:underline">{t(taskCounts.failedJobs === 1 ? "dashboard.failedJobsOne" : "dashboard.failedJobsOther", { count: taskCounts.failedJobs })}</Link>
                       )}
                       {taskCounts.offline > 0 && (
                         <Link href="/tasks?tab=devices" className="text-zinc-400 hover:underline">{t(taskCounts.offline === 1 ? "dashboard.offlineDevicesOne" : "dashboard.offlineDevicesOther", { count: taskCounts.offline })}</Link>

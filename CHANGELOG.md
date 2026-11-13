@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Tasks page: failed jobs are really the failed ones (`GET /api/v1/jobs?status=failed&since_hours=`; before, the newest 20 jobs of any state were listed as "Job failed"); critical vulnerabilities per node from the same counts as the dashboard instead of repeated rows of the CVE table; every entry shows its status, date/time and links to the item itself; agents waiting for approval, security findings and failed alert deliveries are read correctly; translated (en/de/es). The dashboard's "Today's tasks" links open the matching filter, failed jobs the jobs page with `?status=failed`.
+- Tasks page: failed jobs are really the failed ones (`GET /api/v1/jobs?status=failed&since_hours=`; before, the newest 20 jobs of any state were listed as "Job failed"); critical vulnerabilities per node from the same counts as the dashboard instead of repeated rows of the CVE table; every entry shows its status, date/time and links to the item itself; agents waiting for approval, security findings and failed alert deliveries are read correctly; translated (en/de/es). The dashboard widget is now "Open tasks": same numbers as the Tasks page (failed jobs of the last 7 days instead of 24 hours) and links to the matching Tasks filter. The sidebar badges say what they count (tooltip): the Jobs badge counts failed jobs of the last 7 days (it counted all failed jobs ever), the Alerts badge alerts that could not be sent (it counted the alert rules). The jobs page reads `?status=failed`.
 
 ## [0.8.1] - 2026-10-26
 

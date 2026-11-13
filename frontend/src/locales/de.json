@@ -97,7 +97,12 @@
     "contentLifecycle": "Content-Lifecycle",
     "tasks": "Aufgaben",
     "discovered": "Entdeckt",
-    "patchExplorer": "Patch-Explorer"
+    "patchExplorer": "Patch-Explorer",
+    "badges": {
+      "failedJobs": "{count} fehlgeschlagene Jobs in den letzten 7 Tagen",
+      "alertsNotSent": "{count} nicht gesendete Alarme in den letzten 7 Tagen",
+      "findings": "{count} Sicherheitsbefunde"
+    }
   },
   "auth": {
     "login": "Anmelden",
@@ -151,7 +156,7 @@
       "hotfixId": "Hotfix-ID"
     },
     "fleetOverview": "Flottenübersicht",
-    "todayTasks": "Heutige Aufgaben:",
+    "todayTasks": "Offene Aufgaben:",
     "pendingApprovalsOne": "{count} ausstehende Genehmigung",
     "pendingApprovalsOther": "{count} ausstehende Genehmigungen",
     "criticalFindingsOne": "{count} kritischer Fund",

@@ -97,7 +97,12 @@
     "contentLifecycle": "Content Lifecycle",
     "tasks": "Tasks",
     "discovered": "Discovered",
-    "patchExplorer": "Patch explorer"
+    "patchExplorer": "Patch explorer",
+    "badges": {
+      "failedJobs": "{count} failed jobs in the last 7 days",
+      "alertsNotSent": "{count} alerts not sent in the last 7 days",
+      "findings": "{count} security findings"
+    }
   },
   "auth": {
     "login": "Login",
@@ -151,7 +156,7 @@
       "hotfixId": "Hotfix ID"
     },
     "fleetOverview": "Global fleet overview",
-    "todayTasks": "Today's tasks:",
+    "todayTasks": "Open tasks:",
     "pendingApprovalsOne": "{count} pending approval",
     "pendingApprovalsOther": "{count} pending approvals",
     "criticalFindingsOne": "{count} critical finding",

@@ -39,7 +39,13 @@ test('Tasks page: a failed job with status, time and link; jobs page ?status=fai
   // a successful job is not a task
   await expect(page.getByText(okName, { exact: true })).toHaveCount(0);
 
-  // the jobs page with the dashboard's link: only failed jobs, with a chip to show all
+  // the dashboard counts like the Tasks page and links to its jobs filter; the sidebar badge says what it counts
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Open tasks:')).toBeVisible();
+  await expect(page.getByRole('link', { name: /failed job/ }).first()).toHaveAttribute('href', '/tasks?tab=jobs');
+  await expect(page.locator('span[title$="failed jobs in the last 7 days"]').first()).toBeAttached();
+
+  // the jobs page with ?status=failed: only failed jobs, with a chip to show all
   await page.goto('/jobs?status=failed', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Failed jobs', { exact: true })).toBeVisible();
   await expect(page.getByText(failedName)).toBeVisible();

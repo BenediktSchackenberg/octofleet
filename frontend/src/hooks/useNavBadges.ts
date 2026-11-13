@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
+import { FAILED_JOBS_PATH, withinTaskWindow } from "@/lib/tasks";
 
 interface NavBadges {
   findings: number;
@@ -46,8 +47,14 @@ async function fetchBadges(): Promise<NavBadges> {
         return res.unpatched ?? res.unpatchedCount ?? res.total ?? 0;
       } catch { return 0; }
     })(),
-    safeCount("/jobs?status=failed"),
-    safeCount("/alert-rules"),
+    // like the Tasks page: failed jobs and alerts that could not be sent, of the last 7 days
+    safeCount(`${FAILED_JOBS_PATH}&limit=1`),
+    (async () => {
+      try {
+        const rows = await apiClient.get<{ status?: string; created_at?: string }[]>("/alert-history?limit=200", { showErrorToast: false });
+        return (Array.isArray(rows) ? rows : []).filter((a) => a.status === "failed" && withinTaskWindow(a.created_at)).length;
+      } catch { return 0; }
+    })(),
   ]);
   return { findings, unpatched, pendingApprovals: 0, failedJobs, alerts };
 }

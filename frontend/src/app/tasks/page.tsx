@@ -15,6 +15,7 @@ import { useI18n } from "@/lib/i18n-context";
 import { formatDateTime } from "@/lib/format";
 import { useTabParam } from "@/hooks/useTabParam";
 import { nodeVulnerabilitiesHref } from "@/components/node-vulnerabilities";
+import { FAILED_JOBS_PATH, withinTaskWindow } from "@/lib/tasks";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -33,9 +34,6 @@ interface TaskItem {
   at: string | null;
   link: string;
 }
-
-/** Failed jobs, remediations and alert deliveries: the last 7 days (the dashboard counts the last 24 hours) */
-const RECENT_HOURS = 7 * 24;
 
 const PRIORITY_ORDER: Record<Priority, number> = { critical: 0, high: 1, medium: 2 };
 
@@ -69,10 +67,6 @@ const FILTER_TYPES: Record<Filter, TaskType[]> = {
 
 type T = (key: string, params?: Record<string, string | number>) => string;
 
-function isRecent(iso: string | null | undefined): boolean {
-  return !!iso && Date.now() - new Date(iso).getTime() <= RECENT_HOURS * 3600_000;
-}
-
 /** "3 min ago", "5 h ago", "2 d ago" */
 function ago(t: T, iso: string | null): string {
   if (!iso) return "";
@@ -99,7 +93,7 @@ async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> 
   const [pending, jobs, vulnSummary, vulnNodes, remediation, findings, nodes, alerts] = await Promise.allSettled([
     apiClient.get<{ pending: { id: string; hostname?: string; ipAddress?: string; agentVersion?: string; createdAt?: string }[] }>("/pending-nodes", quiet),
     apiClient.get<{ jobs: { job_id: string; name?: string; target_name?: string; failed: number; total_instances: number; last_failed_at?: string; last_error?: string }[]; total: number }>(
-      `/jobs?status=failed&since_hours=${RECENT_HOURS}&limit=50`, quiet),
+      `${FAILED_JOBS_PATH}&limit=50`, quiet),
     apiClient.get<{ severity_counts?: Record<string, number>; last_completed_scan?: { completed_at?: string } }>("/vulnerabilities/summary", quiet),
     apiClient.get<{ nodes: { id: string; hostname?: string; critical: number; max_cvss?: number; max_cvss_cve?: string }[] }>("/vulnerabilities/by-node", quiet),
     apiClient.get<{ job_counts?: Record<string, number>; recent_jobs?: { id: string; software_name?: string; software_version?: string; cve_id?: string; status?: string; error_message?: string; completed_at?: string; updated_at?: string; created_at?: string }[] }>("/remediation/summary", quiet),
@@ -154,7 +148,7 @@ async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> 
 
   // Failed remediation jobs
   const rem = value(remediation);
-  for (const r of (rem?.recent_jobs ?? []).filter((x) => x.status === "failed" && isRecent(x.completed_at || x.updated_at || x.created_at))) {
+  for (const r of (rem?.recent_jobs ?? []).filter((x) => x.status === "failed" && withinTaskWindow(x.completed_at || x.updated_at || x.created_at))) {
     counts.remediationFailed++;
     tasks.push({
       id: `rem-${r.id}`, priority: "high", type: "remediation_failed",
@@ -194,7 +188,7 @@ async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> 
 
   // Alerts that could not be sent (the alert history is a delivery log; only failures need action)
   const alertRows = value(alerts);
-  for (const a of (Array.isArray(alertRows) ? alertRows : []).filter((x) => x.status === "failed" && isRecent(x.created_at))) {
+  for (const a of (Array.isArray(alertRows) ? alertRows : []).filter((x) => x.status === "failed" && withinTaskWindow(x.created_at))) {
     tasks.push({
       id: `alert-${a.id}`, priority: "medium", type: "alert_failed",
       object: a.rule_name || a.event_type || a.id,
