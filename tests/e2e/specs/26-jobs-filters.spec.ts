@@ -54,7 +54,7 @@ test('Jobs page: filters in the URL, job counts, translation', async ({ page, re
   // German texts
   await page.evaluate(() => localStorage.setItem('locale', 'de'));
   await page.goto(`/jobs?node=${tag}`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Fehlgeschlagen', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Fehlgeschlagen/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Neuer Job/ })).toBeVisible();
   await page.evaluate(() => localStorage.setItem('locale', 'en'));
 });

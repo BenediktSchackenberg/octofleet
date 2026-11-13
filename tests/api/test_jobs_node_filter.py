@@ -70,7 +70,8 @@ def test_a_job_for_all_nodes_appears_for_each_node(two_nodes):
 
 def test_unknown_node_and_target_id_alias(two_nodes):
     (host_a, uuid_a), _ = two_nodes
-    assert jobs_for("no-such-node-xyz") == {"jobs": [], "total": 0}
+    unknown = jobs_for("no-such-node-xyz")
+    assert unknown["jobs"] == [] and unknown["total"] == 0
     create_job("filter test alias", "device", uuid_a)
     r = requests.get(f"{API_URL}/api/v1/jobs", headers=HEADERS, params={"target_id": host_a}, timeout=10)
     assert r.status_code == 200 and r.json()["total"] >= 1

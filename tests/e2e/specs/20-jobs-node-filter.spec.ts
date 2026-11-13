@@ -18,7 +18,7 @@ test('jobs page filtered by node, node count, and Start job preselects the node'
   await page.goto(`/nodes/${hostname}`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.setItem('locale', 'en'));
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const jobsLink = page.locator(`a[href="/jobs?node=${hostname}"]`);
+  const jobsLink = page.locator(`a[href="/jobs?node=${hostname}&range=all"]`);
   await expect(jobsLink).toContainText('2');
 
   await jobsLink.click();
