@@ -7,6 +7,7 @@ import { useNodeDetails } from "@/hooks/useNodeDetails";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
@@ -292,6 +293,8 @@ export default function NodeDetailPage() {
   const isLinuxNode = !!linuxData || (nodeOsName !== "" && !/windows/i.test(nodeOsName));
   // Reloads the last update search after a search or installation from the Updates tab
   const [updateSearchKey, setUpdateSearchKey] = useState(0);
+  // Linux packages selected on the Updates tab for "Install selected"
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
   useEffect(() => {
@@ -952,8 +955,8 @@ export default function NodeDetailPage() {
                 </div>
                 {hasPermission("jobs:create") && (
                   <LinuxUpdateActions nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
-                    packageManager={linuxUpdates.packageManager}
-                    onChanged={async () => { await refreshInventory(); setUpdateSearchKey((k) => k + 1); }} />
+                    packageManager={linuxUpdates.packageManager} selected={selectedPackages}
+                    onChanged={async () => { await refreshInventory(); setSelectedPackages([]); setUpdateSearchKey((k) => k + 1); }} />
                 )}
               </CardHeader>
               <CardContent>
@@ -961,6 +964,13 @@ export default function NodeDetailPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        {hasPermission("jobs:create") && (
+                          <TableHead className="w-8">
+                            <Checkbox aria-label={t("nodes.updates.selectAll")}
+                              checked={selectedPackages.length > 0 && selectedPackages.length === (linuxUpdates.updates?.length ?? 0)}
+                              onCheckedChange={(checked) => setSelectedPackages(checked ? (linuxUpdates.updates ?? []).map((p) => p.name) : [])} />
+                          </TableHead>
+                        )}
                         <TableHead>{t("nodes.updates.package")}</TableHead>
                         <TableHead>{t("nodes.updates.newVersion")}</TableHead>
                         <TableHead>{t("nodes.updates.source")}</TableHead>
@@ -969,6 +979,14 @@ export default function NodeDetailPage() {
                     <TableBody>
                       {linuxUpdates.updates?.map((pkg, i) => (
                         <TableRow key={i}>
+                          {hasPermission("jobs:create") && (
+                            <TableCell>
+                              <Checkbox aria-label={t("nodes.updates.selectPackage", { name: pkg.name })}
+                                checked={selectedPackages.includes(pkg.name)}
+                                onCheckedChange={(checked) => setSelectedPackages((current) =>
+                                  checked ? [...current.filter((n) => n !== pkg.name), pkg.name] : current.filter((n) => n !== pkg.name))} />
+                            </TableCell>
+                          )}
                           <TableCell className="font-mono">
                             {pkg.name} {pkg.security && <Badge variant="destructive" className="ml-2">{t("nodes.updates.securityBadge")}</Badge>}
                           </TableCell>

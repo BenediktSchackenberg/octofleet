@@ -286,7 +286,12 @@
       "installFailed": "Die Installation der Updates ist fehlgeschlagen",
       "timeout": "Der Agent hat sich noch nicht zurückgemeldet – das Ergebnis erscheint unter Jobs",
       "notCreated": "Es konnte kein Job erstellt werden (Berechtigung?)",
-      "rebootRequired": "Neustart erforderlich"
+      "rebootRequired": "Neustart erforderlich",
+      "installSelected": "Ausgewählte installieren ({count})",
+      "installSelectedConfirmTitle": "Ausgewählte Updates installieren?",
+      "installSelectedConfirmText": "Der Agent aktualisiert diese Pakete mit {manager}: {packages}. Der Paketmanager aktualisiert dabei ggf. auch Pakete, von denen sie abhängen. Dienste können neu starten; der Node wird nicht automatisch neu gestartet.",
+      "selectAll": "Alle Updates auswählen",
+      "selectPackage": "{name} auswählen"
     },
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",

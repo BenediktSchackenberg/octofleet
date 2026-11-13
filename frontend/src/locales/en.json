@@ -286,7 +286,12 @@
       "installFailed": "Installing the updates failed",
       "timeout": "The agent has not reported back yet – the result will be under Jobs",
       "notCreated": "No job could be created (permission?)",
-      "rebootRequired": "Reboot required"
+      "rebootRequired": "Reboot required",
+      "installSelected": "Install selected ({count})",
+      "installSelectedConfirmTitle": "Install the selected updates?",
+      "installSelectedConfirmText": "The agent upgrades these packages with {manager}: {packages}. The package manager may also upgrade packages they depend on. Services may restart; the node is not rebooted automatically.",
+      "selectAll": "Select all updates",
+      "selectPackage": "Select {name}"
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",

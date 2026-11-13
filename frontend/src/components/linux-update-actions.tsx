@@ -26,28 +26,33 @@ function tail(text?: string, lines = 4): string | undefined {
 
 /**
  * "Search for updates" (patch_scan: the agent refreshes the package lists and reports the updates)
- * and "Install updates" (patch_install: all available updates, after a confirmation) for a Linux node.
- * `onChanged` reloads the node's data once the agent has answered.
+ * and "Install updates" (patch_install, after a confirmation) for a Linux node: the packages in
+ * `selected`, or all available updates when nothing is selected. `onChanged` reloads the node's data
+ * once the agent has answered.
  */
-export function LinuxUpdateActions({ nodeUuid, updateCount, packageManager, onChanged }: {
+export function LinuxUpdateActions({ nodeUuid, updateCount, packageManager, selected, onChanged }: {
   nodeUuid: string | undefined;
   updateCount: number;
   packageManager?: string;
+  selected: string[];
   onChanged: () => void | Promise<void>;
 }) {
   const { t } = useI18n();
   const [running, setRunning] = useState<"scan" | "install" | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  // The packages to install, fixed when the confirmation opens; [] = all updates
+  const [confirming, setConfirming] = useState<string[] | null>(null);
 
-  async function run(kind: "scan" | "install") {
+  async function run(kind: "scan" | "install", packages: string[] = []) {
     if (!nodeUuid) return;
     setRunning(kind);
     const limits = kind === "scan" ? SCAN : INSTALL;
     let result: NodeJobResult;
     try {
       result = await runNodeJob(nodeUuid, {
-        name: kind === "scan" ? "Search for updates" : "Install updates",
+        name: kind === "scan" ? "Search for updates"
+          : packages.length ? `Install updates: ${packages.join(", ")}`.slice(0, 200) : "Install updates",
         commandType: kind === "scan" ? "patch_scan" : "patch_install",
+        commandData: packages.length ? { packages } : {},
         timeoutSeconds: limits.timeoutSeconds,
       }, limits.waitMs);
     } finally {
@@ -67,6 +72,7 @@ export function LinuxUpdateActions({ nodeUuid, updateCount, packageManager, onCh
     if (result.status !== "notCreated") await onChanged();
   }
 
+  const manager = packageManager ?? "";
   return (
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" size="sm" disabled={!nodeUuid || running !== null}
@@ -74,20 +80,28 @@ export function LinuxUpdateActions({ nodeUuid, updateCount, packageManager, onCh
         {running === "scan" ? `⏳ ${t("nodes.updates.searching")}` : `🔍 ${t("nodes.updates.search")}`}
       </Button>
       <Button variant="outline" size="sm" disabled={!nodeUuid || running !== null || updateCount === 0}
-        onClick={() => setConfirming(true)}>
-        {running === "install" ? `⏳ ${t("nodes.updates.installing")}` : `⬇️ ${t("nodes.updates.install")}`}
+        onClick={() => setConfirming([...selected])}>
+        {running === "install" ? `⏳ ${t("nodes.updates.installing")}`
+          : selected.length ? `⬇️ ${t("nodes.updates.installSelected", { count: selected.length })}`
+          : `⬇️ ${t("nodes.updates.install")}`}
       </Button>
-      <Dialog open={confirming} onOpenChange={setConfirming}>
+      <Dialog open={confirming !== null} onOpenChange={(open) => { if (!open) setConfirming(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("nodes.updates.installConfirmTitle")}</DialogTitle>
+            <DialogTitle>
+              {confirming?.length ? t("nodes.updates.installSelectedConfirmTitle") : t("nodes.updates.installConfirmTitle")}
+            </DialogTitle>
             <DialogDescription>
-              {t("nodes.updates.installConfirmText", { count: updateCount, manager: packageManager ?? "" })}
+              {confirming?.length
+                ? t("nodes.updates.installSelectedConfirmText", { manager, packages: confirming.join(", ") })
+                : t("nodes.updates.installConfirmText", { count: updateCount, manager })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>{t("common.cancel")}</Button>
-            <Button onClick={() => { setConfirming(false); run("install"); }}>{t("nodes.updates.install")}</Button>
+            <Button variant="outline" onClick={() => setConfirming(null)}>{t("common.cancel")}</Button>
+            <Button onClick={() => { const packages = confirming ?? []; setConfirming(null); run("install", packages); }}>
+              {confirming?.length ? t("nodes.updates.installSelected", { count: confirming.length }) : t("nodes.updates.install")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

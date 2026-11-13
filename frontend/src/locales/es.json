@@ -286,7 +286,12 @@
       "installFailed": "La instalación de las actualizaciones ha fallado",
       "timeout": "El agente aún no ha respondido: el resultado aparecerá en Trabajos",
       "notCreated": "No se pudo crear el trabajo (¿permiso?)",
-      "rebootRequired": "Reinicio necesario"
+      "rebootRequired": "Reinicio necesario",
+      "installSelected": "Instalar seleccionadas ({count})",
+      "installSelectedConfirmTitle": "¿Instalar las actualizaciones seleccionadas?",
+      "installSelectedConfirmText": "El agente actualiza estos paquetes con {manager}: {packages}. El gestor de paquetes puede actualizar también paquetes de los que dependen. Los servicios pueden reiniciarse; el nodo no se reinicia automáticamente.",
+      "selectAll": "Seleccionar todas las actualizaciones",
+      "selectPackage": "Seleccionar {name}"
     },
     "vulnerabilities": {
       "tab": "Vulnerabilidades ({count})",

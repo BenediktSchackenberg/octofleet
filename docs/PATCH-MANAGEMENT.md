@@ -87,11 +87,11 @@ The Linux agent reports the available package updates with every inventory push 
   - `failed`, with the error. The job fails as well.
 
   pacman is not supported: refreshing without upgrading leaves a partially updated system.
-- **Install updates** – a `patch_install` job, after a confirmation. The agent installs all available updates:
+- **Install updates** / **Install selected (n)** – a `patch_install` job, after a confirmation. Without a selection the agent installs all available updates; with packages ticked in the list, only those (the package manager may also upgrade packages they depend on):
   - apt: `apt-get --with-new-pkgs upgrade`, non-interactive, keeping changed configuration files;
   - dnf / yum: `upgrade`.
 
-  With `{"packages": ["openssl", ...]}` in the job's payload (API), it upgrades only those packages: `apt-get install --only-upgrade` or `dnf upgrade <packages>`. The job's output ends with the package manager's last lines and `Reboot required: yes/no`. Afterwards the agent sends the inventory, so the list is current.
+  The selection is sent as `{"packages": ["openssl", ...]}` in the job's payload (also through the API); the agent then upgrades only those packages: `apt-get install --only-upgrade` or `dnf upgrade <packages>`. The job's output ends with the package manager's last lines and `Reboot required: yes/no`. Afterwards the agent sends the inventory, so the list is current.
 
 Time limits: the payload's `timeout`, else the job's `timeoutSeconds`, else 10 minutes for the search and 60 minutes for the installation. The buttons use 15 and 60 minutes. Under systemd the package manager runs in a transient unit (`systemd-run --wait --pipe`), because the agent service itself runs with `ProtectSystem=strict` and cannot write `/usr`, `/etc` or `/var/lib`. It runs with `NEEDRESTART_MODE=l`, so needrestart only lists services that use old libraries and does not restart them. The apt commands run with `-o DPkg::Lock::Timeout=120`, so they wait up to 2 minutes when another apt process (e.g. unattended-upgrades) holds the lock.
 
