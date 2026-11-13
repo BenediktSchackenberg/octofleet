@@ -322,9 +322,9 @@ export default function TasksPage() {
                   <TableCell>
                     <div className="flex items-center gap-2 text-sm">{TYPE_ICONS[task.type]} {t(`tasksPage.types.${task.type}`)}</div>
                   </TableCell>
-                  <TableCell className="font-medium break-words max-w-[280px]">{task.object}</TableCell>
+                  <TableCell className="font-medium whitespace-normal break-words max-w-[280px]">{task.object}</TableCell>
                   <TableCell className="text-sm">{task.status}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm break-words max-w-[360px]">{task.description || "-"}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm whitespace-normal break-words max-w-[360px]">{task.description || "-"}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {task.at ? (
                       <div className="flex items-start gap-1" title={task.at}>
