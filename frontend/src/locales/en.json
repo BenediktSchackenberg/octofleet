@@ -1405,7 +1405,7 @@
     "last": "Last update search:",
     "sourceWsus": "via WSUS {server}",
     "sourceWindowsUpdate": "via Windows Update",
-    "updates": "{count} pending updates",
+    "updates": "Pending updates: {count}",
     "none": "The agent has not reported an update search yet.",
     "failedKeep": "The search failed – the list below is from the last successful search.",
     "status": {
@@ -1413,6 +1413,7 @@
       "partial": "With errors",
       "failed": "Failed"
     },
-    "sourcePackageManager": "via {manager}"
+    "sourcePackageManager": "via {manager}",
+    "definitions": "+ {count} Defender signatures"
   }
 }

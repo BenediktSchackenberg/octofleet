@@ -1405,7 +1405,7 @@
     "last": "Última búsqueda de actualizaciones:",
     "sourceWsus": "mediante WSUS {server}",
     "sourceWindowsUpdate": "mediante Windows Update",
-    "updates": "{count} actualizaciones pendientes",
+    "updates": "Actualizaciones pendientes: {count}",
     "none": "El agente aún no ha informado una búsqueda de actualizaciones.",
     "failedKeep": "La búsqueda falló: la lista de abajo es de la última búsqueda correcta.",
     "status": {
@@ -1413,6 +1413,7 @@
       "partial": "Con errores",
       "failed": "Fallida"
     },
-    "sourcePackageManager": "mediante {manager}"
+    "sourcePackageManager": "mediante {manager}",
+    "definitions": "+ {count} firmas de Defender"
   }
 }

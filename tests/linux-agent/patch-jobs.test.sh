@@ -110,7 +110,10 @@ check "apt install: all upgrades (with new dependencies), -y, non-interactive" \
 check "apt install: keeps changed configuration files" grep -q -- "--force-confold" <<< "$(calls)"
 check "apt install: the output has the package manager's lines" grep -q "Setting up openssl" <<< "$(field .stdout)"
 check "apt install: says whether a reboot is required" grep -qE "^Reboot required: (yes|no)" <<< "$(field .stdout)"
-check "apt install: the inventory is sent afterwards (no scan block)" [ "$(cat "$WORK/inventory")" = "none" ]
+check "apt install: then an update search (apt-get update after the upgrade)" \
+    bash -c 'grep -n "" <<< "$1" | grep -q "^2:apt-get -q update"' _ "$(calls)"
+check "apt install: the inventory is sent with that search" [ "$(scan .status)" = "succeeded" ]
+check "apt install: the output names the search" grep -q "^Update search afterwards: succeeded" <<< "$(field .stdout)"
 
 run_job patch_install '{"packages": ["openssl", "libssl3t64"]}'
 check "apt install of named packages: only upgrades them" \

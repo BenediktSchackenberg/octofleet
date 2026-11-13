@@ -37,7 +37,13 @@ export function usePatchScan(nodeId: string, refreshKey = 0): PatchScan | null |
  * on Linux the package manager, e.g. apt) and whether it worked. A failed search keeps the last update
  * list - this line says so.
  */
-export function PatchScanStatus({ scan }: { scan: PatchScan | null | undefined }) {
+export function PatchScanStatus({ scan, pending, definitions = 0 }: {
+  scan: PatchScan | null | undefined;
+  /** The pending updates as the Updates tab counts them; the search's own count otherwise */
+  pending?: number;
+  /** Microsoft Defender signature updates, not counted in `pending` */
+  definitions?: number;
+}) {
   const { t } = useI18n();
   if (scan === undefined) return null;
   const source = scan?.source === "wsus"
@@ -60,7 +66,10 @@ export function PatchScanStatus({ scan }: { scan: PatchScan | null | undefined }
                 {t(`patchScan.status.${scan.status}`)}
               </Badge>
               <span className="text-muted-foreground">{source}</span>
-              {scan.status !== "failed" && <span>{t("patchScan.updates", { count: scan.update_count ?? 0 })}</span>}
+              {scan.status !== "failed" && <span>{t("patchScan.updates", { count: pending ?? scan.update_count ?? 0 })}</span>}
+              {scan.status !== "failed" && definitions > 0 && (
+                <span className="text-muted-foreground">{t("patchScan.definitions", { count: definitions })}</span>
+              )}
             </div>
             {scan.status === "failed" && (
               <p className="text-destructive">

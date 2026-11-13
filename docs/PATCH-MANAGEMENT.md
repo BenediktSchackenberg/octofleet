@@ -75,7 +75,7 @@ What the server does with a scan report:
 | `failed` | **kept** – the last successful search stays visible | unchanged |
 | no `scan` block (older agents, catalog import) | replaced | unchanged |
 
-The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`. On Windows nodes the tab lists the **Available updates** of the last successful search below it (`GET /api/v1/patches/available/{node_id}`). The tab itself turns amber while updates are pending and red when the last search failed. Linux nodes count their package list. Windows nodes count the available updates without Microsoft Defender signature updates (KB2267602): Defender gets several of those a day and installs them itself.
+The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`. On Windows nodes the tab lists the **Available updates** of the last successful search below it (`GET /api/v1/patches/available/{node_id}`). The tab itself turns amber while updates are pending and red when the last search failed. Linux nodes count their package list. Windows nodes count the available updates without Microsoft Defender signature updates (KB2267602): Defender gets several of those a day and installs them itself. The last search's line counts the same way and shows Defender signature updates separately ("Pending updates: 0 + 1 Defender signatures").
 
 ### Linux Nodes
 
@@ -91,7 +91,7 @@ The Linux agent reports the available package updates with every inventory push 
   - apt: `apt-get --with-new-pkgs upgrade`, non-interactive, keeping changed configuration files;
   - dnf / yum: `upgrade`.
 
-  The selection is sent as `{"packages": ["openssl", ...]}` in the job's payload (also through the API); the agent then upgrades only those packages: `apt-get install --only-upgrade` or `dnf upgrade <packages>`. The job's output ends with the package manager's last lines and `Reboot required: yes/no`. Afterwards the agent sends the inventory, so the list is current.
+  The selection is sent as `{"packages": ["openssl", ...]}` in the job's payload (also through the API); the agent then upgrades only those packages: `apt-get install --only-upgrade` or `dnf upgrade <packages>`. The job's output ends with the package manager's last lines and `Reboot required: yes/no`. Afterwards the agent searches for updates again and sends the inventory with that search, so the list and the last update search are current.
 
 Time limits: the payload's `timeout`, else the job's `timeoutSeconds`, else 10 minutes for the search and 60 minutes for the installation. The buttons use 15 and 60 minutes. Under systemd the package manager runs in a transient unit (`systemd-run --wait --pipe`), because the agent service itself runs with `ProtectSystem=strict` and cannot write `/usr`, `/etc` or `/var/lib`. It runs with `NEEDRESTART_MODE=l`, so needrestart only lists services that use old libraries and does not restart them. The apt commands run with `-o DPkg::Lock::Timeout=120`, so they wait up to 2 minutes when another apt process (e.g. unattended-upgrades) holds the lock.
 

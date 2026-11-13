@@ -956,7 +956,8 @@ export default function NodeDetailPage() {
           {/* Updates Tab */}
           <TabsContent value="updates" className="space-y-4">
             {/* The agent's last update search: WSUS / Windows Update, or the package lists on Linux */}
-            <PatchScanStatus scan={patchScan} />
+            <PatchScanStatus scan={patchScan} pending={pendingUpdates}
+              definitions={linuxUpdates ? 0 : (availableUpdates ?? []).filter((u) => u.definition).length} />
             {/* Windows: the pending updates of the last search */}
             {!linuxUpdates && !isLinuxNode && <AvailableUpdates updates={availableUpdates} />}
             {linuxUpdates ? (

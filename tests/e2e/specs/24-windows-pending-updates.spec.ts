@@ -23,11 +23,15 @@ test('Windows Updates tab: available updates and the pending highlight without D
   await expect(panel.getByText('Defender signatures')).toBeVisible();
   const tab = page.getByRole('tab', { name: /Updates/ });
   await expect(tab).not.toHaveClass(/text-amber-500/);
+  // The status line counts like the tab: none pending, the Defender update separately
+  await expect(panel.getByText('Pending updates: 0')).toBeVisible();
+  await expect(panel.getByText('+ 1 Defender signatures')).toBeVisible();
 
   // A cumulative update as well: the tab turns amber, counting only that one
   expect((await report([defender, { kb_id: 'KB5130001', title: '2026-11 Cumulative Update for Microsoft server operating system', severity: 'critical', category: 'security' }])).ok()).toBeTruthy();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(panel.getByText('Available updates (2)')).toBeVisible();
   await expect(tab).toHaveClass(/text-amber-500/);
-  await expect(tab).toHaveAttribute('title', '1 pending updates');
+  await expect(tab).toHaveAttribute('title', 'Pending updates: 1');
+  await expect(panel.getByText('Pending updates: 1')).toBeVisible();
 });

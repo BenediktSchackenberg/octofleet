@@ -36,7 +36,8 @@ test('Linux updates: last search, reboot flag, search and install with confirmat
   await expect(page.getByText('Reboot required')).toBeVisible();
   // The Updates tab is highlighted while updates are pending
   const tab = page.getByRole('tab', { name: /Updates/ });
-  await expect(tab).toHaveAttribute('title', '2 pending updates');
+  await expect(tab).toHaveAttribute('title', 'Pending updates: 2');
+  await expect(page.getByText('Pending updates: 2')).toBeVisible();
   await expect(tab).toHaveClass(/text-amber-500/);
 
   // Install asks first; cancelling creates no job

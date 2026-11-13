@@ -1491,7 +1491,8 @@ run_patch_scan() {
 
 # patch_install job: upgrade the packages in the payload ({"packages": [...]}), or all packages
 # without a list. Prints the end of the package manager's output and whether a reboot is required,
-# then pushes the inventory so the update list is current.
+# then searches for updates again and pushes the inventory with that search, so the update list and
+# the node's last update search are both current.
 run_patch_install() {
     local payload="$1" limit="$2" pm out="" rc=0 pkg
     local -a packages=()
@@ -1528,7 +1529,10 @@ run_patch_install() {
     else
         echo "Reboot required: no"
     fi
+    PATCH_SCAN_JSON=$(refresh_package_lists 600)
+    jq -r '"Update search afterwards: \(.status)" + (if .error then " (\(.error))" else "" end)' <<< "$PATCH_SCAN_JSON"
     push_inventory >/dev/null 2>&1 || echo "Sending the inventory failed"
+    PATCH_SCAN_JSON=""
     return "$rc"
 }
 
