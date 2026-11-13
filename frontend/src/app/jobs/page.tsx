@@ -473,9 +473,12 @@ export default function JobsPage() {
   // ?target=<node> ("Start job" on the node page): open the dialog with that node.
   // Read after mounting like useTabParam; undefined = not read yet.
   const [nodeFilter, setNodeFilter] = useState<string | null | undefined>(undefined);
+  // ?status=failed (link from the dashboard / tasks): only jobs with a failed instance, newest failure first
+  const [failedOnly, setFailedOnly] = useState(false);
   const [initialNode, setInitialNode] = useState<string | undefined>(undefined);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    setFailedOnly(params.get("status") === "failed");
     setNodeFilter(params.get("node"));
     const target = params.get("target");
     if (target) { setInitialNode(target); setShowCreate(true); }
@@ -483,13 +486,18 @@ export default function JobsPage() {
   const clearNodeFilter = () => {
     const url = new URL(window.location.href);
     url.searchParams.delete("node");
+    url.searchParams.delete("status");
     window.history.replaceState(window.history.state, "", url.toString());
     setNodeFilter(null);
+    setFailedOnly(false);
   };
 
   const fetchJobs = async () => {
     try {
-      const query = nodeFilter ? `?node=${encodeURIComponent(nodeFilter)}` : "";
+      const params = new URLSearchParams();
+      if (nodeFilter) params.set("node", nodeFilter);
+      if (failedOnly) params.set("status", "failed");
+      const query = params.toString() ? `?${params.toString()}` : "";
       const data = await apiClient.get<{ jobs: any[] }>(`/jobs${query}`, { showErrorToast: false });
       setJobs((data?.jobs || []).map((j: any) => ({
         id: j.job_id || j.id,
@@ -547,7 +555,7 @@ export default function JobsPage() {
     fetchJobs();
     const interval = setInterval(fetchJobs, 5000);
     return () => clearInterval(interval);
-  }, [nodeFilter]);
+  }, [nodeFilter, failedOnly]);
 
   return (
     <StandardPage
@@ -565,9 +573,10 @@ export default function JobsPage() {
       }
     >
       <div className="mx-auto max-w-6xl">
-        {nodeFilter && (
+        {(nodeFilter || failedOnly) && (
           <div className="flex items-center gap-3 text-sm mb-4">
-            <span className="px-2 py-1 rounded bg-cyan-500/20 text-cyan-400">{t("jobsPage.forNode", { node: nodeFilter })}</span>
+            {nodeFilter && <span className="px-2 py-1 rounded bg-cyan-500/20 text-cyan-400">{t("jobsPage.forNode", { node: nodeFilter })}</span>}
+            {failedOnly && <span className="px-2 py-1 rounded bg-red-500/20 text-red-400">{t("jobsPage.failedOnly")}</span>}
             <button onClick={clearNodeFilter} className="text-zinc-400 hover:text-white underline">{t("jobsPage.showAllJobs")}</button>
           </div>
         )}
