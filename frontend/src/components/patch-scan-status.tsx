@@ -19,10 +19,11 @@ interface PatchScan {
 }
 
 /**
- * The node's last Windows Update search, as the agent reported it: when, from where (WSUS or Windows
- * Update) and whether it worked. A failed search keeps the last update list - this line says so.
+ * The node's last update search, as the agent reported it: when, from where (WSUS or Windows Update;
+ * on Linux the package manager, e.g. apt) and whether it worked. A failed search keeps the last update
+ * list - this line says so. A change of `refreshKey` loads it again.
  */
-export function PatchScanStatus({ nodeId }: { nodeId: string }) {
+export function PatchScanStatus({ nodeId, refreshKey = 0 }: { nodeId: string; refreshKey?: number }) {
   const { t } = useI18n();
   const [scan, setScan] = useState<PatchScan | null | undefined>(undefined);
 
@@ -30,12 +31,14 @@ export function PatchScanStatus({ nodeId }: { nodeId: string }) {
     apiClient.get<{ data: PatchScan | null }>(`/patches/scan-status/${encodeURIComponent(nodeId)}`, { showErrorToast: false })
       .then((res) => setScan(res?.data ?? null))
       .catch(() => setScan(null));
-  }, [nodeId]);
+  }, [nodeId, refreshKey]);
 
   if (scan === undefined) return null;
   const source = scan?.source === "wsus"
     ? t("patchScan.sourceWsus", { server: scan.server ?? "?" })
-    : t("patchScan.sourceWindowsUpdate");
+    : !scan?.source || scan.source === "windows_update"
+      ? t("patchScan.sourceWindowsUpdate")
+      : t("patchScan.sourcePackageManager", { manager: scan.source });
 
   return (
     <Card>

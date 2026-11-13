@@ -3,6 +3,7 @@
 import type { NodeRemovalInfo } from "@/components/node-removal";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { runNodeJob } from "@/lib/node-jobs";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -180,6 +181,8 @@ export interface LinuxData {
     totalUpdates?: number;
     securityUpdates?: number;
     lastCheckTime?: string;
+    rebootRequired?: boolean | null;
+    rebootPackages?: string[];
     updates?: { name: string; newVersion: string; repository?: string; security: boolean }[];
   };
   diskHealth?: {
@@ -254,35 +257,11 @@ export function useNodeDetails(nodeId: string) {
   async function collectInventory(nodeUuid: string): Promise<CollectResult> {
     setCollecting(true);
     try {
-      const job = await apiClient.post<{ id?: string }>(`/jobs`, {
-        name: "Collect inventory",
-        targetType: "device",
-        targetId: nodeUuid,
-        commandType: "inventory",
-        commandData: {},
-      }, { showErrorToast: false });
-      if (!job?.id) {
-        await refreshInventory();
-        return { status: "notRequested" };
-      }
-      const deadline = Date.now() + 180_000;
-      while (Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 5_000));
-        const state = await apiClient.get<{ instances?: { status?: string; stderr?: string; stdout?: string }[] }>(
-          `/jobs/${job.id}`, { showErrorToast: false });
-        const instance = state?.instances?.[0];
-        if (instance?.status === "success") {
-          await refreshInventory();
-          return { status: "collected" };
-        }
-        if (instance?.status === "failed" || instance?.status === "cancelled") {
-          await refreshInventory();
-          return { status: "failed", detail: instance.stderr || instance.stdout || undefined };
-        }
-      }
-      return { status: "timeout" };
-    } catch {
+      const result = await runNodeJob(nodeUuid, { name: "Collect inventory", commandType: "inventory" }, 180_000);
+      if (result.status === "timeout") return { status: "timeout" };
       await refreshInventory();
+      if (result.status === "success") return { status: "collected" };
+      if (result.status === "failed") return { status: "failed", detail: result.detail };
       return { status: "notRequested" };
     } finally {
       setCollecting(false);

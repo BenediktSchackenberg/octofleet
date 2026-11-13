@@ -272,7 +272,21 @@
       "newVersion": "Neue Version",
       "source": "Quelle",
       "securityBadge": "Sicherheit",
-      "none": "Keine Updates verfügbar"
+      "none": "Keine Updates verfügbar",
+      "search": "Nach Updates suchen",
+      "searching": "Suche läuft… (warte auf den Agent)",
+      "searchHint": "Aktualisiert die Paketlisten auf dem Node und meldet die verfügbaren Updates",
+      "searchDone": "Update-Suche abgeschlossen",
+      "searchFailed": "Die Update-Suche ist fehlgeschlagen",
+      "install": "Updates installieren",
+      "installing": "Installation läuft… (warte auf den Agent)",
+      "installConfirmTitle": "Alle Updates installieren?",
+      "installConfirmText": "Der Agent installiert alle {count} Paket-Updates mit {manager}. Dienste können neu starten; der Node wird nicht automatisch neu gestartet.",
+      "installDone": "Updates installiert",
+      "installFailed": "Die Installation der Updates ist fehlgeschlagen",
+      "timeout": "Der Agent hat sich noch nicht zurückgemeldet – das Ergebnis erscheint unter Jobs",
+      "notCreated": "Es konnte kein Job erstellt werden (Berechtigung?)",
+      "rebootRequired": "Neustart erforderlich"
     },
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",
@@ -1386,6 +1400,7 @@
       "succeeded": "Erfolgreich",
       "partial": "Mit Fehlern",
       "failed": "Fehlgeschlagen"
-    }
+    },
+    "sourcePackageManager": "über {manager}"
   }
 }

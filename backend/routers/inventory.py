@@ -11,6 +11,7 @@ from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
 from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
 from auth import require_permission, require_user_permission
+from routers.patches import record_scan, scan_info
 
 logger = logging.getLogger(__name__)
 
@@ -588,6 +589,15 @@ async def submit_linux_data(hostname: str, node_id_str: str, data: Dict[str, Any
     """Store the Linux agent's performance/services/updates/diskHealth for the Linux tab"""
     uuid = await upsert_node(db, node_id_str, hostname)
 
+    # A patch_scan job sends its result with the update list: it becomes the node's last update
+    # search (as for the Windows agent) and is not stored with the list
+    updates = data.get("updates")
+    scan = None
+    if isinstance(updates, dict) and "scan" in updates:
+        scan = scan_info(updates)
+        updates = {k: v for k, v in updates.items() if k != "scan"}
+        data = {**data, "updates": updates}
+
     def as_json(key: str):
         value = data.get(key)
         return json.dumps(value) if isinstance(value, dict) else None
@@ -605,3 +615,6 @@ async def submit_linux_data(hostname: str, node_id_str: str, data: Dict[str, Any
                 disk_health = COALESCE(EXCLUDED.disk_health, linux_data_current.disk_health),
                 updated_at = NOW()
         """, str(uuid), as_json("performance"), as_json("services"), as_json("updates"), as_json("diskHealth"))
+        if scan is not None:
+            total = updates.get("totalUpdates")
+            await record_scan(conn, str(uuid), scan, total if isinstance(total, int) else None)

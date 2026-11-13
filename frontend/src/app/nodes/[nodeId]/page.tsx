@@ -15,6 +15,7 @@ import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus } from "@/components/patch-scan-status";
+import { LinuxUpdateActions } from "@/components/linux-update-actions";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -289,6 +290,8 @@ export default function NodeDetailPage() {
   // would look like a node with nothing to report, not like a collection problem.
   const nodeOsName = sysData.osName || node?.os_name || "";
   const isLinuxNode = !!linuxData || (nodeOsName !== "" && !/windows/i.test(nodeOsName));
+  // Reloads the last update search after a search or installation from the Updates tab
+  const [updateSearchKey, setUpdateSearchKey] = useState(0);
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
   useEffect(() => {
@@ -929,15 +932,29 @@ export default function NodeDetailPage() {
 
           {/* Updates Tab */}
           <TabsContent value="updates" className="space-y-4">
-            {/* Windows: the agent's last update search (source WSUS / Windows Update, failed or not) */}
-            {!isLinuxNode && <PatchScanStatus nodeId={nodeId} />}
+            {/* The agent's last update search: WSUS / Windows Update, or the package lists on Linux */}
+            <PatchScanStatus nodeId={nodeId} refreshKey={updateSearchKey} />
             {linuxUpdates ? (
             <Card>
-              <CardHeader>
-                <CardTitle>{t("nodes.updates.packageUpdates", { count: totalUpdatesCount })}</CardTitle>
-                <CardDescription>
-                  {t("nodes.updates.summary", { manager: linuxUpdates.packageManager ?? "", security: linuxUpdates.securityUpdates || 0 })}
-                </CardDescription>
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+                <div className="space-y-1.5">
+                  <CardTitle className="flex flex-wrap items-center gap-2">
+                    {t("nodes.updates.packageUpdates", { count: totalUpdatesCount })}
+                    {linuxUpdates.rebootRequired && (
+                      <Badge variant="destructive" title={linuxUpdates.rebootPackages?.join(", ") || undefined}>
+                        {t("nodes.updates.rebootRequired")}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {t("nodes.updates.summary", { manager: linuxUpdates.packageManager ?? "", security: linuxUpdates.securityUpdates || 0 })}
+                  </CardDescription>
+                </div>
+                {hasPermission("jobs:create") && (
+                  <LinuxUpdateActions nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
+                    packageManager={linuxUpdates.packageManager}
+                    onChanged={async () => { await refreshInventory(); setUpdateSearchKey((k) => k + 1); }} />
+                )}
               </CardHeader>
               <CardContent>
                 {(linuxUpdates.updates?.length || 0) > 0 ? (

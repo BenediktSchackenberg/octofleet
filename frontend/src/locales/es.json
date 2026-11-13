@@ -272,7 +272,21 @@
       "newVersion": "Nueva versión",
       "source": "Origen",
       "securityBadge": "Seguridad",
-      "none": "No hay actualizaciones disponibles"
+      "none": "No hay actualizaciones disponibles",
+      "search": "Buscar actualizaciones",
+      "searching": "Buscando… (esperando al agente)",
+      "searchHint": "Actualiza las listas de paquetes en el nodo e informa de las actualizaciones disponibles",
+      "searchDone": "Búsqueda de actualizaciones finalizada",
+      "searchFailed": "La búsqueda de actualizaciones ha fallado",
+      "install": "Instalar actualizaciones",
+      "installing": "Instalando… (esperando al agente)",
+      "installConfirmTitle": "¿Instalar todas las actualizaciones?",
+      "installConfirmText": "El agente instala las {count} actualizaciones de paquetes con {manager}. Los servicios pueden reiniciarse; el nodo no se reinicia automáticamente.",
+      "installDone": "Actualizaciones instaladas",
+      "installFailed": "La instalación de las actualizaciones ha fallado",
+      "timeout": "El agente aún no ha respondido: el resultado aparecerá en Trabajos",
+      "notCreated": "No se pudo crear el trabajo (¿permiso?)",
+      "rebootRequired": "Reinicio necesario"
     },
     "vulnerabilities": {
       "tab": "Vulnerabilidades ({count})",
@@ -1386,6 +1400,7 @@
       "succeeded": "Correcta",
       "partial": "Con errores",
       "failed": "Fallida"
-    }
+    },
+    "sourcePackageManager": "mediante {manager}"
   }
 }

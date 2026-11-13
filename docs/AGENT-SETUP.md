@@ -298,6 +298,8 @@ The Windows agent includes an **AutoUpdater** that checks GitHub Releases period
 
 You can also trigger an update manually via a **restart-agent** job from the web UI. The Linux agent handles **restart-agent** too (through `systemd-run`, so the job reports its result before the service restarts) and updates itself at the next start.
 
+On Linux nodes, **Search for updates** and **Install updates** on the node's Updates tab send `patch_scan` and `patch_install` jobs to the Linux agent. See [Patch Management](PATCH-MANAGEMENT.md#linux-nodes).
+
 ---
 
 ## Troubleshooting

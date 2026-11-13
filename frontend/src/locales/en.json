@@ -272,7 +272,21 @@
       "newVersion": "New version",
       "source": "Source",
       "securityBadge": "Security",
-      "none": "No updates available"
+      "none": "No updates available",
+      "search": "Search for updates",
+      "searching": "Searching… (waiting for the agent)",
+      "searchHint": "Refreshes the package lists on the node and reports the available updates",
+      "searchDone": "Update search finished",
+      "searchFailed": "The update search failed",
+      "install": "Install updates",
+      "installing": "Installing… (waiting for the agent)",
+      "installConfirmTitle": "Install all updates?",
+      "installConfirmText": "The agent installs all {count} package updates with {manager}. Services may restart; the node is not rebooted automatically.",
+      "installDone": "Updates installed",
+      "installFailed": "Installing the updates failed",
+      "timeout": "The agent has not reported back yet – the result will be under Jobs",
+      "notCreated": "No job could be created (permission?)",
+      "rebootRequired": "Reboot required"
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",
@@ -1386,6 +1400,7 @@
       "succeeded": "Succeeded",
       "partial": "With errors",
       "failed": "Failed"
-    }
+    },
+    "sourcePackageManager": "via {manager}"
   }
 }

@@ -77,6 +77,30 @@ What the server does with a scan report:
 
 The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`.
 
+### Linux Nodes
+
+The Linux agent reports the available package updates with every inventory push (apt, dnf, yum, pacman), from the package lists already on the machine. The node's Updates tab has two buttons (with the `jobs:create` permission):
+
+- **Search for updates** – a `patch_scan` job. The agent refreshes the package lists (`apt-get update`, `dnf makecache` or `yum makecache`) and sends the inventory with the update list and the search's result. The result appears as the node's last update search, like on Windows:
+  - `succeeded`;
+  - `partial`: single repositories failed, shown as `Err:` / `W: Failed to fetch` lines;
+  - `failed`, with the error. The job fails as well.
+
+  pacman is not supported: refreshing without upgrading leaves a partially updated system.
+- **Install updates** – a `patch_install` job, after a confirmation. The agent installs all available updates:
+  - apt: `apt-get --with-new-pkgs upgrade`, non-interactive, keeping changed configuration files;
+  - dnf / yum: `upgrade`.
+
+  With `{"packages": ["openssl", ...]}` in the job's payload (API), it upgrades only those packages: `apt-get install --only-upgrade` or `dnf upgrade <packages>`. The job's output ends with the package manager's last lines and `Reboot required: yes/no`. Afterwards the agent sends the inventory, so the list is current.
+
+Time limits: the payload's `timeout`, else the job's `timeoutSeconds`, else 10 minutes for the search and 60 minutes for the installation. The buttons use 15 and 60 minutes. The apt commands run with `-o DPkg::Lock::Timeout=120`, so they wait up to 2 minutes when another apt process (e.g. unattended-upgrades) holds the lock.
+
+The node is never rebooted automatically. The inventory reports `rebootRequired`:
+- Debian/Ubuntu: `/var/run/reboot-required`, with the packages from `reboot-required.pkgs`;
+- dnf/yum: `needs-restarting -r`.
+
+The Updates tab then shows **Reboot required**.
+
 ---
 
 ## API Reference

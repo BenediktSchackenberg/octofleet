@@ -5,6 +5,11 @@ All notable changes to Octofleet will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Linux nodes: **Search for updates** (`patch_scan`: refresh the package lists with apt, dnf or yum and report the updates, with the result as the node's last update search) and **Install updates** (`patch_install`: all updates, or the packages in the payload). The inventory reports whether a reboot is required ([#230](https://github.com/BenediktSchackenberg/octofleet/issues/230)).
+
 ## [0.8.1] - 2026-10-26
 
 ### Fixed
