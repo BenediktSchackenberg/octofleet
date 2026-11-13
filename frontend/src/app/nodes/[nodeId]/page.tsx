@@ -450,8 +450,12 @@ export default function NodeDetailPage() {
             <TabsTrigger value="software">{t("nodes.software")} ({software.length})</TabsTrigger>
             <TabsTrigger value="services">{t("nodeServices.tab")}</TabsTrigger>
             <TabsTrigger value="updates"
-              className={updatesTabState === "failed" ? "text-red-500 data-[state=active]:text-red-500"
-                : updatesTabState === "pending" ? "text-amber-500 data-[state=active]:text-amber-500" : undefined}
+              // dark: too - the tab's own dark-mode text colors would win otherwise
+              className={updatesTabState === "failed"
+                ? "text-red-500 data-[state=active]:text-red-500 dark:text-red-500 dark:data-[state=active]:text-red-500"
+                : updatesTabState === "pending"
+                  ? "text-amber-500 data-[state=active]:text-amber-500 dark:text-amber-500 dark:data-[state=active]:text-amber-500"
+                  : undefined}
               title={updatesTabState === "failed" ? t("nodeDetail.updatesTab.failed")
                 : updatesTabState === "pending" ? t("patchScan.updates", { count: pendingUpdates }) : undefined}>
               {t("nodeDetail.tabs.updates")} ({totalUpdatesCount})
