@@ -1,5 +1,6 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n-context";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -43,6 +44,7 @@ interface JobDetail {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
   const colors: Record<string, string> = {
     pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     queued: "bg-blue-500/20 text-blue-400 border-blue-500/30",
@@ -63,18 +65,19 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${colors[status] || "bg-muted/500/20 border-zinc-600/30"}`}>
-      {icons[status]} {status}
+      {icons[status]} {t(`jobsPage.status.${status}`)}
     </span>
   );
 }
 
 function CommandTypeBadge({ type }: { type: string }) {
+  const { t } = useI18n();
   const labels: Record<string, { label: string; color: string }> = {
-    run: { label: "Command", color: "bg-blue-500/20 text-blue-400" },
-    script: { label: "Script", color: "bg-purple-500/20 text-purple-400" },
-    install_package: { label: "Install Package", color: "bg-green-500/20 text-green-400" },
-    uninstall_package: { label: "Uninstall Package", color: "bg-red-500/20 text-red-400" },
-    inventory: { label: "Inventory", color: "bg-yellow-500/20 text-yellow-400" },
+    run: { label: t("jobDetail.types.run"), color: "bg-blue-500/20 text-blue-400" },
+    script: { label: t("jobDetail.types.script"), color: "bg-purple-500/20 text-purple-400" },
+    install_package: { label: t("jobDetail.types.installPackage"), color: "bg-green-500/20 text-green-400" },
+    uninstall_package: { label: t("jobDetail.types.uninstallPackage"), color: "bg-red-500/20 text-red-400" },
+    inventory: { label: t("jobDetail.types.inventory"), color: "bg-yellow-500/20 text-yellow-400" },
   };
 
   const config = labels[type] || { label: type, color: "bg-muted/500/20 text-muted-foreground" };
@@ -106,6 +109,7 @@ function formatDuration(ms: number | null): string {
 }
 
 export default function JobDetailPage() {
+  const { t } = useI18n();
   const params = useParams();
   const router = useRouter();
   const jobId = params.id as string;
@@ -115,6 +119,13 @@ export default function JobDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedInstance, setExpandedInstance] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  // Instances name the node by its UUID: show the hostname
+  const [nodeNames, setNodeNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    apiClient.get<{ nodes: { id: string; hostname?: string }[] }>("/nodes", { showErrorToast: false })
+      .then((res) => setNodeNames(new Map((res?.nodes ?? []).map((n) => [n.id, n.hostname || n.id]))))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchJob();
@@ -127,7 +138,7 @@ export default function JobDetailPage() {
     try {
       const data = await apiClient.get<Record<string, any>>(`/jobs/${jobId}`, { showErrorToast: false });
       if (!data) {
-        setError("Job nicht gefunden");
+        setError(t("jobDetail.notFound"));
         return;
       }
       // Map snake_case API response to camelCase
@@ -159,7 +170,7 @@ export default function JobDetailPage() {
       setJob(mapped as unknown as JobDetail);
       setError(null);
     } catch (err) {
-      setError("Verbindung zum Server fehlgeschlagen");
+      setError(t("jobDetail.connectionFailed"));
     } finally {
       setLoading(false);
     }
@@ -168,7 +179,7 @@ export default function JobDetailPage() {
   async function retryInstance(instanceId: string) {
     setRetrying(instanceId);
     try {
-      const res = await apiClient.post(`/jobs/${jobId}/instances/${instanceId}/retry`, {}, { showErrorToast: false });
+      const res = await apiClient.post(`/jobs/instances/${instanceId}/retry`, {}, { showErrorToast: false });
       if (res) {
         await fetchJob();
       }
@@ -198,7 +209,7 @@ export default function JobDetailPage() {
       <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
         <div className="max-w-4xl mx-auto">
 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
-            <p className="text-red-400">{error || "Job nicht gefunden"}</p>
+            <p className="text-red-400">{error || t("jobDetail.notFound")}</p>
           </div>
         </div>
       </div>
@@ -231,7 +242,7 @@ export default function JobDetailPage() {
                 onClick={retryAllFailed}
                 className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                🔄 Alle fehlgeschlagenen wiederholen ({failedCount})
+                🔄 {t("jobDetail.retryAllFailed", { count: failedCount })}
               </button>
             )}
           </div>
@@ -241,46 +252,46 @@ export default function JobDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
             <div className="text-3xl font-bold text-green-400">{successCount}</div>
-            <div className="text-sm text-zinc-400">Erfolgreich</div>
+            <div className="text-sm text-zinc-400">{t("jobsPage.status.success")}</div>
           </div>
           <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
             <div className="text-3xl font-bold text-red-400">{failedCount}</div>
-            <div className="text-sm text-zinc-400">Fehlgeschlagen</div>
+            <div className="text-sm text-zinc-400">{t("jobsPage.status.failed")}</div>
           </div>
           <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
             <div className="text-3xl font-bold text-purple-400">{runningCount}</div>
-            <div className="text-sm text-zinc-400">Laufend</div>
+            <div className="text-sm text-zinc-400">{t("jobsPage.status.running")}</div>
           </div>
           <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
             <div className="text-3xl font-bold text-yellow-400">{pendingCount}</div>
-            <div className="text-sm text-zinc-400">Ausstehend</div>
+            <div className="text-sm text-zinc-400">{t("jobsPage.status.pending")}</div>
           </div>
         </div>
 
         {/* Job Info */}
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-4 mb-6">
-          <h2 className="text-lg font-semibold mb-3">Job Details</h2>
+          <h2 className="text-lg font-semibold mb-3">{t("jobDetail.details")}</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="text-zinc-500">Erstellt:</span>
+              <span className="text-zinc-500">{t("jobsPage.columns.created")}:</span>
               <div>{formatDate(job.createdAt)}</div>
             </div>
             <div>
-              <span className="text-zinc-500">Ziel:</span>
-              <div className="capitalize">{job.targetType}</div>
+              <span className="text-zinc-500">{t("jobsPage.columns.target")}:</span>
+              <div>{job.targetType === "all" ? t("jobsPage.create.targetAll") : ((job as unknown as { targetName?: string }).targetName || job.targetType)}</div>
             </div>
             <div>
-              <span className="text-zinc-500">Timeout:</span>
+              <span className="text-zinc-500">{t("jobDetail.timeout")}:</span>
               <div>{job.timeoutSeconds}s</div>
             </div>
             <div>
-              <span className="text-zinc-500">Priorität:</span>
+              <span className="text-zinc-500">{t("jobDetail.priority")}:</span>
               <div>{job.priority}</div>
             </div>
           </div>
           {Object.keys(job.commandData).length > 0 && (
             <div className="mt-4 pt-4 border-t border-zinc-800">
-              <span className="text-zinc-500 text-sm">Command Data:</span>
+              <span className="text-zinc-500 text-sm">{t("jobDetail.commandData")}:</span>
               <pre className="mt-2 bg-zinc-950 rounded p-3 text-xs overflow-x-auto">
                 {JSON.stringify(job.commandData, null, 2)}
               </pre>
@@ -292,7 +303,7 @@ export default function JobDetailPage() {
         <div className="bg-zinc-900 rounded-lg border border-zinc-800">
           <div className="p-4 border-b border-zinc-800">
             <h2 className="text-lg font-semibold">
-              Instanzen ({job.instances.length})
+              {t("jobsPage.detail.instances", { count: job.instances.length })}
             </h2>
           </div>
           <div className="divide-y divide-zinc-800">
@@ -313,11 +324,11 @@ export default function JobDetailPage() {
                       className="font-medium text-blue-400 hover:text-blue-300"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {instance.nodeId}
+                      {nodeNames.get(instance.nodeId) || instance.nodeId}
                     </Link>
                     {instance.attempt > 1 && (
                       <span className="text-xs text-zinc-500">
-                        Versuch #{instance.attempt}
+                        {t("jobDetail.attempt", { n: instance.attempt })}
                       </span>
                     )}
                   </div>
@@ -328,7 +339,7 @@ export default function JobDetailPage() {
                           instance.exitCode === 0 ? "text-green-400" : "text-red-400"
                         }`}
                       >
-                        Exit: {instance.exitCode}
+                        {t("jobsPage.detail.exitCode")}: {instance.exitCode}
                       </span>
                     )}
                     <span className="text-sm text-zinc-500">
@@ -343,7 +354,7 @@ export default function JobDetailPage() {
                         disabled={retrying === instance.id}
                         className="px-3 py-1 bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-white rounded text-xs font-medium transition-colors"
                       >
-                        {retrying === instance.id ? "..." : "🔄 Retry"}
+                        {retrying === instance.id ? "…" : `🔄 ${t("jobsPage.detail.retry")}`}
                       </button>
                     )}
                     <span className="text-zinc-500">
@@ -356,26 +367,26 @@ export default function JobDetailPage() {
                   <div className="mt-4 space-y-3">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="text-zinc-500">Queued:</span>
+                        <span className="text-zinc-500">{t("jobDetail.queued")}:</span>
                         <div>{formatDate(instance.queuedAt)}</div>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Gestartet:</span>
+                        <span className="text-zinc-500">{t("jobDetail.started")}:</span>
                         <div>{formatDate(instance.startedAt)}</div>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Beendet:</span>
+                        <span className="text-zinc-500">{t("jobsPage.detail.finished")}:</span>
                         <div>{formatDate(instance.completedAt)}</div>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Dauer:</span>
+                        <span className="text-zinc-500">{t("jobDetail.duration")}:</span>
                         <div>{formatDuration(instance.durationMs)}</div>
                       </div>
                     </div>
 
                     {instance.stdout && (
                       <div>
-                        <div className="text-sm text-zinc-500 mb-1">Output:</div>
+                        <div className="text-sm text-zinc-500 mb-1">{t("jobDetail.output")}:</div>
                         <pre className="bg-zinc-950 rounded p-3 text-xs text-green-400 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
                           {instance.stdout}
                         </pre>
@@ -384,7 +395,7 @@ export default function JobDetailPage() {
 
                     {instance.stderr && instance.stderr.trim() && (
                       <div>
-                        <div className="text-sm text-zinc-500 mb-1">Errors:</div>
+                        <div className="text-sm text-zinc-500 mb-1">{t("jobDetail.errors")}:</div>
                         <pre className="bg-zinc-950 rounded p-3 text-xs text-red-400 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
                           {instance.stderr}
                         </pre>
@@ -393,7 +404,7 @@ export default function JobDetailPage() {
 
                     {instance.errorMessage && (
                       <div>
-                        <div className="text-sm text-zinc-500 mb-1">Error Message:</div>
+                        <div className="text-sm text-zinc-500 mb-1">{t("jobDetail.errorMessage")}:</div>
                         <pre className="bg-red-950/50 border border-red-500/30 rounded p-3 text-xs text-red-400 overflow-x-auto">
                           {instance.errorMessage}
                         </pre>
@@ -406,7 +417,7 @@ export default function JobDetailPage() {
 
             {job.instances.length === 0 && (
               <div className="p-8 text-center text-zinc-500">
-                Keine Instanzen vorhanden
+                {t("jobDetail.noInstances")}
               </div>
             )}
           </div>

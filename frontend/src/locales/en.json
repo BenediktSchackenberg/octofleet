@@ -1377,9 +1377,106 @@
     }
   },
   "jobsPage": {
+    "title": "Jobs",
+    "description": "Run commands on devices and groups",
+    "newJob": "New job",
+    "loading": "Loading jobs…",
+    "noMatches": "No jobs match the filters.",
+    "cardsNote": "Counted jobs, {range}: created in this time (running: now; failed: failed in this time).",
     "forNode": "Jobs for {node}",
     "showAllJobs": "Show all jobs",
-    "failedOnly": "Failed jobs"
+    "status": {
+      "failed": "Failed",
+      "running": "Running",
+      "queued": "Queued",
+      "pending": "Pending",
+      "success": "Successful",
+      "cancelled": "Cancelled"
+    },
+    "range": {
+      "24h": "last 24 hours",
+      "7d": "last 7 days",
+      "30d": "last 30 days",
+      "all": "all time"
+    },
+    "cards": {
+      "total": "Jobs",
+      "running": "Running",
+      "success": "Successful",
+      "failed": "Failed"
+    },
+    "filters": {
+      "search": "Search by name",
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "type": "Type",
+      "allTypes": "All types",
+      "range": "Time range",
+      "removeNode": "Remove node filter"
+    },
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "type": "Type",
+      "target": "Target",
+      "progress": "Progress",
+      "created": "Created"
+    },
+    "paging": {
+      "range": "{from}–{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "empty": {
+      "title": "No jobs yet",
+      "text": "Create your first job to run commands remotely.",
+      "hint": "Jobs run shell commands, scripts or package installations on your nodes.",
+      "create": "Create the first job"
+    },
+    "create": {
+      "title": "Create a new job",
+      "jobType": "Job type",
+      "typeRun": "Run a command",
+      "typeInstall": "Install a package",
+      "name": "Name (optional)",
+      "namePlaceholderInstall": "e.g. 7-Zip installation",
+      "namePlaceholderRun": "e.g. Windows Update check",
+      "target": "Target",
+      "targetAll": "All devices",
+      "targetDevice": "Single device",
+      "targetGroup": "Group",
+      "selectDevice": "Device",
+      "chooseDevice": "-- choose a device --",
+      "selectGroup": "Group",
+      "chooseGroup": "-- choose a group --",
+      "command": "Command",
+      "commandPlaceholder": "e.g. hostname",
+      "package": "Package",
+      "choosePackage": "-- choose a package --",
+      "version": "Version",
+      "loadingVersions": "Loading versions…",
+      "chooseVersion": "-- choose a version --",
+      "noVersions": "This package has no versions yet. Add a version first.",
+      "creating": "Creating…",
+      "submit": "Create job",
+      "failed": "The job could not be created.",
+      "defaultName": "Job {time}",
+      "defaultInstallName": "Install {package} {time}"
+    },
+    "detail": {
+      "cancel": "Cancel job",
+      "confirmCancel": "Cancel this job?",
+      "delete": "Delete",
+      "confirmDelete": "Delete this job permanently?",
+      "openPage": "Open page",
+      "close": "Close",
+      "command": "Command",
+      "instances": "Instances ({count})",
+      "retry": "Retry",
+      "retryFailed": "The retry failed.",
+      "finished": "Finished",
+      "exitCode": "Exit code"
+    }
   },
   "patchScan": {
     "last": "Last update search:",
@@ -1460,6 +1557,30 @@
       "finding": "Finding",
       "offline": "Offline",
       "alert_failed": "Alert not sent"
+    }
+  },
+  "jobDetail": {
+    "notFound": "Job not found",
+    "connectionFailed": "Could not reach the server",
+    "retryAllFailed": "Retry all failed ({count})",
+    "details": "Job details",
+    "timeout": "Timeout",
+    "priority": "Priority",
+    "commandData": "Command data",
+    "attempt": "Attempt #{n}",
+    "queued": "Queued",
+    "started": "Started",
+    "duration": "Duration",
+    "output": "Output",
+    "errors": "Errors",
+    "errorMessage": "Error message",
+    "noInstances": "No instances",
+    "types": {
+      "run": "Command",
+      "script": "Script",
+      "installPackage": "Install package",
+      "uninstallPackage": "Uninstall package",
+      "inventory": "Inventory"
     }
   }
 }

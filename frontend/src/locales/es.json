@@ -1377,9 +1377,106 @@
     }
   },
   "jobsPage": {
+    "title": "Trabajos",
+    "description": "Ejecutar comandos en dispositivos y grupos",
+    "newJob": "Nuevo trabajo",
+    "loading": "Cargando trabajos…",
+    "noMatches": "Ningún trabajo coincide con los filtros.",
+    "cardsNote": "Trabajos contados, {range}: creados en este periodo (en ejecución: ahora; fallidos: fallidos en este periodo).",
     "forNode": "Trabajos de {node}",
     "showAllJobs": "Mostrar todos los trabajos",
-    "failedOnly": "Trabajos fallidos"
+    "status": {
+      "failed": "Fallido",
+      "running": "En ejecución",
+      "queued": "En cola",
+      "pending": "Pendiente",
+      "success": "Correcto",
+      "cancelled": "Cancelado"
+    },
+    "range": {
+      "24h": "últimas 24 horas",
+      "7d": "últimos 7 días",
+      "30d": "últimos 30 días",
+      "all": "todo el periodo"
+    },
+    "cards": {
+      "total": "Trabajos",
+      "running": "En ejecución",
+      "success": "Correctos",
+      "failed": "Fallidos"
+    },
+    "filters": {
+      "search": "Buscar por nombre",
+      "status": "Estado",
+      "allStatuses": "Todos los estados",
+      "type": "Tipo",
+      "allTypes": "Todos los tipos",
+      "range": "Periodo",
+      "removeNode": "Quitar el filtro de nodo"
+    },
+    "columns": {
+      "name": "Nombre",
+      "status": "Estado",
+      "type": "Tipo",
+      "target": "Destino",
+      "progress": "Progreso",
+      "created": "Creado"
+    },
+    "paging": {
+      "range": "{from}–{to} de {total}",
+      "previous": "Anterior",
+      "next": "Siguiente"
+    },
+    "empty": {
+      "title": "Aún no hay trabajos",
+      "text": "Crea tu primer trabajo para ejecutar comandos de forma remota.",
+      "hint": "Los trabajos ejecutan comandos, scripts o instalaciones de paquetes en tus nodos.",
+      "create": "Crear el primer trabajo"
+    },
+    "create": {
+      "title": "Crear un trabajo nuevo",
+      "jobType": "Tipo de trabajo",
+      "typeRun": "Ejecutar un comando",
+      "typeInstall": "Instalar un paquete",
+      "name": "Nombre (opcional)",
+      "namePlaceholderInstall": "p. ej. instalación de 7-Zip",
+      "namePlaceholderRun": "p. ej. comprobación de Windows Update",
+      "target": "Destino",
+      "targetAll": "Todos los dispositivos",
+      "targetDevice": "Un dispositivo",
+      "targetGroup": "Grupo",
+      "selectDevice": "Dispositivo",
+      "chooseDevice": "-- elegir un dispositivo --",
+      "selectGroup": "Grupo",
+      "chooseGroup": "-- elegir un grupo --",
+      "command": "Comando",
+      "commandPlaceholder": "p. ej. hostname",
+      "package": "Paquete",
+      "choosePackage": "-- elegir un paquete --",
+      "version": "Versión",
+      "loadingVersions": "Cargando versiones…",
+      "chooseVersion": "-- elegir una versión --",
+      "noVersions": "Este paquete aún no tiene versiones. Añade primero una versión.",
+      "creating": "Creando…",
+      "submit": "Crear trabajo",
+      "failed": "No se pudo crear el trabajo.",
+      "defaultName": "Trabajo {time}",
+      "defaultInstallName": "Instalar {package} {time}"
+    },
+    "detail": {
+      "cancel": "Cancelar trabajo",
+      "confirmCancel": "¿Cancelar este trabajo?",
+      "delete": "Eliminar",
+      "confirmDelete": "¿Eliminar este trabajo definitivamente?",
+      "openPage": "Abrir página",
+      "close": "Cerrar",
+      "command": "Comando",
+      "instances": "Instancias ({count})",
+      "retry": "Reintentar",
+      "retryFailed": "No se pudo reintentar.",
+      "finished": "Terminado",
+      "exitCode": "Código de salida"
+    }
   },
   "patchScan": {
     "last": "Última búsqueda de actualizaciones:",
@@ -1460,6 +1557,30 @@
       "finding": "Hallazgo",
       "offline": "Sin conexión",
       "alert_failed": "Alerta no enviada"
+    }
+  },
+  "jobDetail": {
+    "notFound": "Trabajo no encontrado",
+    "connectionFailed": "No se pudo conectar con el servidor",
+    "retryAllFailed": "Reintentar todos los fallidos ({count})",
+    "details": "Detalles del trabajo",
+    "timeout": "Tiempo límite",
+    "priority": "Prioridad",
+    "commandData": "Datos del comando",
+    "attempt": "Intento n.º {n}",
+    "queued": "En cola",
+    "started": "Iniciado",
+    "duration": "Duración",
+    "output": "Salida",
+    "errors": "Errores",
+    "errorMessage": "Mensaje de error",
+    "noInstances": "No hay instancias",
+    "types": {
+      "run": "Comando",
+      "script": "Script",
+      "installPackage": "Instalar paquete",
+      "uninstallPackage": "Desinstalar paquete",
+      "inventory": "Inventario"
     }
   }
 }

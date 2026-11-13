@@ -1377,9 +1377,106 @@
     }
   },
   "jobsPage": {
+    "title": "Jobs",
+    "description": "Befehle auf Geräten und Gruppen ausführen",
+    "newJob": "Neuer Job",
+    "loading": "Lade Jobs…",
+    "noMatches": "Keine Jobs passen zu den Filtern.",
+    "cardsNote": "Gezählte Jobs, {range}: in diesem Zeitraum erstellt (laufend: jetzt; fehlgeschlagen: in diesem Zeitraum fehlgeschlagen).",
     "forNode": "Jobs für {node}",
     "showAllJobs": "Alle Jobs anzeigen",
-    "failedOnly": "Fehlgeschlagene Jobs"
+    "status": {
+      "failed": "Fehlgeschlagen",
+      "running": "Laufend",
+      "queued": "In Warteschlange",
+      "pending": "Ausstehend",
+      "success": "Erfolgreich",
+      "cancelled": "Abgebrochen"
+    },
+    "range": {
+      "24h": "letzte 24 Stunden",
+      "7d": "letzte 7 Tage",
+      "30d": "letzte 30 Tage",
+      "all": "gesamter Zeitraum"
+    },
+    "cards": {
+      "total": "Jobs",
+      "running": "Laufend",
+      "success": "Erfolgreich",
+      "failed": "Fehlgeschlagen"
+    },
+    "filters": {
+      "search": "Nach Name suchen",
+      "status": "Status",
+      "allStatuses": "Alle Status",
+      "type": "Typ",
+      "allTypes": "Alle Typen",
+      "range": "Zeitraum",
+      "removeNode": "Node-Filter entfernen"
+    },
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "type": "Typ",
+      "target": "Ziel",
+      "progress": "Fortschritt",
+      "created": "Erstellt"
+    },
+    "paging": {
+      "range": "{from}–{to} von {total}",
+      "previous": "Zurück",
+      "next": "Weiter"
+    },
+    "empty": {
+      "title": "Noch keine Jobs",
+      "text": "Erstelle deinen ersten Job, um Befehle remote auszuführen.",
+      "hint": "Jobs führen Shell-Befehle, Skripte oder Paketinstallationen auf deinen Nodes aus.",
+      "create": "Ersten Job erstellen"
+    },
+    "create": {
+      "title": "Neuen Job erstellen",
+      "jobType": "Job-Typ",
+      "typeRun": "Befehl ausführen",
+      "typeInstall": "Paket installieren",
+      "name": "Name (optional)",
+      "namePlaceholderInstall": "z. B. 7-Zip-Installation",
+      "namePlaceholderRun": "z. B. Windows-Update-Prüfung",
+      "target": "Ziel",
+      "targetAll": "Alle Geräte",
+      "targetDevice": "Einzelnes Gerät",
+      "targetGroup": "Gruppe",
+      "selectDevice": "Gerät",
+      "chooseDevice": "-- Gerät wählen --",
+      "selectGroup": "Gruppe",
+      "chooseGroup": "-- Gruppe wählen --",
+      "command": "Befehl",
+      "commandPlaceholder": "z. B. hostname",
+      "package": "Paket",
+      "choosePackage": "-- Paket wählen --",
+      "version": "Version",
+      "loadingVersions": "Lade Versionen…",
+      "chooseVersion": "-- Version wählen --",
+      "noVersions": "Dieses Paket hat noch keine Versionen. Bitte erst eine Version hinzufügen.",
+      "creating": "Erstelle…",
+      "submit": "Job erstellen",
+      "failed": "Der Job konnte nicht erstellt werden.",
+      "defaultName": "Job {time}",
+      "defaultInstallName": "{package} installieren {time}"
+    },
+    "detail": {
+      "cancel": "Job abbrechen",
+      "confirmCancel": "Diesen Job abbrechen?",
+      "delete": "Löschen",
+      "confirmDelete": "Diesen Job endgültig löschen?",
+      "openPage": "Seite öffnen",
+      "close": "Schließen",
+      "command": "Befehl",
+      "instances": "Instanzen ({count})",
+      "retry": "Wiederholen",
+      "retryFailed": "Wiederholen fehlgeschlagen.",
+      "finished": "Beendet",
+      "exitCode": "Exit-Code"
+    }
   },
   "patchScan": {
     "last": "Letzte Update-Suche:",
@@ -1460,6 +1557,30 @@
       "finding": "Befund",
       "offline": "Offline",
       "alert_failed": "Alarm nicht gesendet"
+    }
+  },
+  "jobDetail": {
+    "notFound": "Job nicht gefunden",
+    "connectionFailed": "Verbindung zum Server fehlgeschlagen",
+    "retryAllFailed": "Alle fehlgeschlagenen wiederholen ({count})",
+    "details": "Job-Details",
+    "timeout": "Timeout",
+    "priority": "Priorität",
+    "commandData": "Befehlsdaten",
+    "attempt": "Versuch #{n}",
+    "queued": "Eingereiht",
+    "started": "Gestartet",
+    "duration": "Dauer",
+    "output": "Ausgabe",
+    "errors": "Fehler",
+    "errorMessage": "Fehlermeldung",
+    "noInstances": "Keine Instanzen vorhanden",
+    "types": {
+      "run": "Befehl",
+      "script": "Skript",
+      "installPackage": "Paket installieren",
+      "uninstallPackage": "Paket deinstallieren",
+      "inventory": "Inventar"
     }
   }
 }
