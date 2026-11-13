@@ -20,7 +20,7 @@ test('Windows Updates tab: available updates and the pending highlight without D
   await page.reload({ waitUntil: 'domcontentloaded' });
   const panel = page.getByRole('tabpanel');
   await expect(panel.getByText('Available updates (1)')).toBeVisible();
-  await expect(panel.getByText('Defender signatures')).toBeVisible();
+  await expect(panel.getByText('Defender signatures', { exact: true })).toBeVisible();
   const tab = page.getByRole('tab', { name: /Updates/ });
   await expect(tab).not.toHaveClass(/text-amber-500/);
   // The status line counts like the tab: none pending, the Defender update separately
