@@ -102,6 +102,11 @@ Now that you have a node reporting in, explore these features:
 
 - **📊 Dashboard** — Fleet overview with health status and hotspot matrix
 - **🖥️ Node Details** — Click any node for deep hardware/software inventory
+  - **Collect inventory** asks the agent for a fresh inventory, instead of waiting for the next scheduled push.
+  - The **Jobs** and **Patches** counts link to the node's own jobs and open patches.
+  - The **Services** tab lists the services of Windows and Linux nodes. Linux nodes also have a **Linux** tab for their Linux-specific details.
+  - The **Updates** tab of Windows nodes shows the last update search (WSUS or Windows Update), the installed updates with their status, and the update history.
+  - A tab whose data the agent did not report stays visible with a notice, so a collection problem is not mistaken for an empty node.
 - **🔒 Vulnerabilities** — Scan for CVEs across your fleet
 - **📦 Packages** — Track and deploy software
 - **🔐 Security Center** — File audit, behavior rules, and compliance monitoring

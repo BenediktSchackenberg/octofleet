@@ -77,6 +77,15 @@ What the server does with a scan report:
 
 The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`.
 
+### Installed Updates
+
+Below the last search, the Updates tab lists the node's **Installed updates** from `Win32_QuickFixEngineering` (KB, installed on), together with the Windows Update history:
+
+- Each KB shows the title and result (Succeeded, Failed, ...) of its history entry. A KB without a history entry, e.g. installed offline or as part of another update, shows "Installed".
+- The type comes from the title, or else from the description: cumulative update, servicing stack, .NET, security update or update.
+- The agent reads the history newest first, up to 2000 entries. Of the Microsoft Defender signature updates, which come several times a day, it keeps only the newest, so the monthly cumulative updates stay in the history.
+- The full history is listed under **Update history**.
+
 ---
 
 ## API Reference
