@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Linux agent: a failed inventory push is retried after a minute (`PUSH_RETRY_INTERVAL`, doubling with every further failure up to the push interval, with random jitter), not after the full push interval. After a reboot, the first push often fails because the server is not reachable yet (on the Octofleet server itself, its containers are still starting); the node then showed the state from before the reboot, e.g. "Reboot required", for up to 30 minutes.
+- The date format picked in the language menu shows as labeled in every language: with the UI in English or Spanish, "31.12.2026" gave 31/12/2026.
 
 ## [0.8.1] - 2026-10-26
 

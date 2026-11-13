@@ -28,11 +28,12 @@ const LOCALE_TAGS: Record<UiLocale, string> = {
   es: "es-ES",
 };
 
-// Separator between day, month and year when the user picks an order.
-const DATE_SEPARATORS: Record<Exclude<DateOrder, "auto">, Record<UiLocale, string>> = {
-  dmy: { de: ".", en: "/", es: "/" },
-  mdy: { de: "/", en: "/", es: "/" },
-  ymd: { de: "-", en: "-", es: "-" },
+// Separator between day, month and year when the user picks an order. It belongs to the order the
+// menu shows (31.12.2026, 12/31/2026, 2026-12-31), not to the language: "auto" follows the language.
+const DATE_SEPARATORS: Record<Exclude<DateOrder, "auto">, string> = {
+  dmy: ".",
+  mdy: "/",
+  ymd: "-",
 };
 
 const ORDER_PARTS: Record<Exclude<DateOrder, "auto">, Intl.DateTimeFormatPartTypes[]> = {
@@ -91,7 +92,7 @@ function format(date: Date, options: Intl.DateTimeFormatOptions): string {
   const last = indices[indices.length - 1];
   const values = new Map(parts.filter((p) => dateTypes.has(p.type)).map((p) => [p.type, p.value]));
   const ordered = ORDER_PARTS[currentDateOrder].filter((type) => values.has(type)).map((type) => values.get(type));
-  const separator = DATE_SEPARATORS[currentDateOrder][currentLocale] ?? "/";
+  const separator = DATE_SEPARATORS[currentDateOrder];
   const before = parts.slice(0, first).map((p) => p.value).join("");
   // German ends a date without year with a dot ("28.10."); it belongs to the old order.
   const after = parts.slice(last + 1).map((p) => p.value).join("").replace(/^\./, "");
