@@ -40,13 +40,26 @@ def job_result_succeeded(data: Dict[str, Any]) -> bool:
 
 @router.get("/jobs")
 async def list_jobs(limit: int = 50, offset: int = 0, node: Optional[str] = None, target_id: Optional[str] = None,
+                    status: Optional[str] = None, since_hours: Optional[int] = None,
                     db: asyncpg.Pool = Depends(get_db)):
     """Jobs, newest first, with `total`. `node` (node ID, UUID or hostname; `target_id` is accepted
     as an alias): only the jobs that run on that node - targeted at it, at one of its groups or at all
-    nodes (a job instance for the node exists)."""
+    nodes (a job instance for the node exists). `status=failed`: only jobs with a failed instance,
+    newest failure first, with the time (`last_failed_at`) and error (`last_error`) of the last failure;
+    `since_hours` limits them to failures within that many hours."""
     node = node or target_id
+    if status not in (None, "", "failed"):
+        raise HTTPException(status_code=400, detail="status: only 'failed' is supported")
+    failed_only = status == "failed"
     async with db.acquire() as conn:
         conditions, params = [], []
+        if failed_only:
+            if since_hours and since_hours > 0:
+                params.append(since_hours)
+                conditions.append("js.job_id IN (SELECT job_id FROM job_instances WHERE status = 'failed' "
+                                  f"AND COALESCE(completed_at, updated_at) >= NOW() - make_interval(hours => ${len(params)}))")
+            else:
+                conditions.append("js.failed > 0")
         if node:
             row = await conn.fetchrow(
                 "SELECT id, node_id FROM nodes WHERE node_id = $1 OR id::text = $1 OR UPPER(hostname) = UPPER($1) LIMIT 1", node)
@@ -57,15 +70,26 @@ async def list_jobs(limit: int = 50, offset: int = 0, node: Optional[str] = None
             conditions.append(f"js.job_id IN (SELECT job_id FROM job_instances WHERE node_id IN (${len(params) - 1}, ${len(params)}))")
         where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
         total = await conn.fetchval(f"SELECT COUNT(*) FROM job_summary js{where}", *params)
+        # The last failure of each job (its time and error) for status=failed
+        last_failure = """,
+                   lf.last_failed_at, lf.last_error""" if failed_only else ""
+        failure_join = """
+            LEFT JOIN LATERAL (
+                SELECT COALESCE(ji.completed_at, ji.updated_at) AS last_failed_at,
+                       LEFT(COALESCE(NULLIF(ji.error_message, ''), NULLIF(ji.stderr, ''), ji.stdout), 300) AS last_error
+                FROM job_instances ji WHERE ji.job_id = js.job_id AND ji.status = 'failed'
+                ORDER BY COALESCE(ji.completed_at, ji.updated_at) DESC NULLS LAST LIMIT 1
+            ) lf ON true""" if failed_only else ""
+        order = "lf.last_failed_at DESC NULLS LAST" if failed_only else "js.created_at DESC"
         rows = await conn.fetch(f"""
             SELECT js.job_id, js.name, js.command_type, js.target_type, js.target_id, js.created_at,
                    js.total_instances, js.pending, js.queued, js.running, js.success, js.failed, js.cancelled,
-                   COALESCE(n.hostname, g.name) as target_name
+                   COALESCE(n.hostname, g.name) as target_name{last_failure}
             FROM job_summary js
             LEFT JOIN nodes n ON n.id::text = js.target_id::text
-            LEFT JOIN groups g ON g.id::text = js.target_id::text
+            LEFT JOIN groups g ON g.id::text = js.target_id::text{failure_join}
             {where}
-            ORDER BY js.created_at DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
+            ORDER BY {order} LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
         """, *params, limit, offset)
         return {"jobs": [{
             **dict(r),

@@ -61,7 +61,6 @@
   "src/app/software-compare/page.tsx": 16,
   "src/app/sql/CuManagement.tsx": 80,
   "src/app/sql/page.tsx": 92,
-  "src/app/tasks/page.tsx": 31,
   "src/app/users/page.tsx": 83,
   "src/app/vulnerabilities/page.tsx": 2,
   "src/components/add-devices-dialog.tsx": 9,

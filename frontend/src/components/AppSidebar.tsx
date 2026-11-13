@@ -206,15 +206,19 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
   const activeSubItems = activeGroup ? filterItems(activeGroup.items) : [];
 
   // Badge counts per group and per sub-item
-  const groupBadges: Record<string, { count: number; variant: "critical" | "warning" }> = {};
-  if (badges.findings > 0) groupBadges["Secure"] = { count: badges.findings, variant: "critical" };
-  const itemBadges: Record<string, { count: number; variant: "critical" | "warning" }> = {};
-  if (badges.failedJobs > 0) itemBadges["/jobs"] = { count: badges.failedJobs, variant: "warning" };
-  if (badges.alerts > 0) itemBadges["/alerts"] = { count: badges.alerts, variant: "warning" };
-  if (badges.findings > 0) itemBadges["/security/findings"] = { count: badges.findings, variant: "critical" };
+  // (each with a tooltip saying what it counts)
+  type NavBadge = { count: number; variant: "critical" | "warning"; title: string };
+  const groupBadges: Record<string, NavBadge> = {};
+  const findingsTitle = t("nav.badges.findings", { count: badges.findings });
+  if (badges.findings > 0) groupBadges["Secure"] = { count: badges.findings, variant: "critical", title: findingsTitle };
+  const itemBadges: Record<string, NavBadge> = {};
+  if (badges.failedJobs > 0) itemBadges["/jobs"] = { count: badges.failedJobs, variant: "warning", title: t("nav.badges.failedJobs", { count: badges.failedJobs }) };
+  if (badges.alerts > 0) itemBadges["/alerts"] = { count: badges.alerts, variant: "warning", title: t("nav.badges.alertsNotSent", { count: badges.alerts }) };
+  if (badges.findings > 0) itemBadges["/security/findings"] = { count: badges.findings, variant: "critical", title: findingsTitle };
 
-  const BadgePill = ({ count, variant }: { count: number; variant: "critical" | "warning" }) => (
+  const BadgePill = ({ count, variant, title }: NavBadge) => (
     <span
+      title={title}
       className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-auto ${
         variant === "critical" ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"
       }`}
@@ -328,7 +332,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
               <Icon className="h-5 w-5 shrink-0" />
               {!collapsed && <span className="text-sm font-medium truncate">{t(group.labelKey)}</span>}
               {!collapsed && groupBadges[group.id] && (
-                <BadgePill count={groupBadges[group.id].count} variant={groupBadges[group.id].variant} />
+                <BadgePill {...groupBadges[group.id]} />
               )}
             </Link>
           );
@@ -366,7 +370,7 @@ export function AppSidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean
                   <ItemIcon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span className="text-sm truncate">{(() => { const v = t(item.labelKey); return v && !v.includes('.') ? v : item.labelKey.split('.').pop(); })()}</span>}
                   {!collapsed && itemBadges[item.href] && (
-                    <BadgePill count={itemBadges[item.href].count} variant={itemBadges[item.href].variant} />
+                    <BadgePill {...itemBadges[item.href]} />
                   )}
                 </Link>
               );
