@@ -62,10 +62,12 @@ export function AvailableUpdates({ updates }: { updates: AvailableUpdate[] | und
               {updates.map((u, i) => (
                 <TableRow key={`${u.kb_id ?? ""}-${i}`}>
                   <TableCell>{u.kb_id ? <Badge variant="outline">{u.kb_id}</Badge> : "-"}</TableCell>
-                  <TableCell className="max-w-[480px]">
-                    <span className="truncate" title={u.title}>{u.title}</span>
-                    {u.definition && <Badge variant="secondary" className="ml-2">{t("nodeDetail.definitionUpdate")}</Badge>}
-                    {u.is_reboot_required && <Badge variant="destructive" className="ml-2">{t("nodes.updates.rebootRequired")}</Badge>}
+                  <TableCell>
+                    <div className="flex max-w-[560px] items-center gap-2">
+                      <span className="truncate" title={u.title}>{u.title}</span>
+                      {u.definition && <Badge variant="secondary" className="shrink-0">{t("nodeDetail.definitionUpdate")}</Badge>}
+                      {u.is_reboot_required && <Badge variant="destructive" className="shrink-0">{t("nodes.updates.rebootRequired")}</Badge>}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={u.severity === "critical" || u.severity === "important" ? "destructive" : "secondary"}>{u.severity}</Badge>
