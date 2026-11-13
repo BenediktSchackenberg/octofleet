@@ -131,7 +131,8 @@ async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> 
       id: `job-${j.job_id}`, priority: "high", type: "job_failed",
       object: j.name || j.job_id,
       status: t("tasksPage.status.failedOn", { failed: j.failed, total: j.total_instances }),
-      description: [j.target_name, firstLine(j.last_error)].filter(Boolean).join(" · "),
+      // the job list shows "—" for jobs without a target (e.g. from the Patch Explorer)
+      description: [j.target_name !== "—" ? j.target_name : null, firstLine(j.last_error)].filter(Boolean).join(" · "),
       at: j.last_failed_at ?? null, link: `/jobs/${j.job_id}`,
     });
   }
