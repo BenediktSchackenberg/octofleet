@@ -244,7 +244,7 @@ function QuickLinksBar({ nodeId }: { nodeId: string }) {
           .then((d) => {
             // total: all jobs that run on this node (the list was the fleet's newest 5 before)
             const count = d?.total ?? 0;
-            if (count > 0) results.push({ label: t("nodeDetail.links.jobs"), count, href: `/jobs?node=${nodeId}`, icon: <Briefcase className="h-4 w-4" /> });
+            if (count > 0) results.push({ label: t("nodeDetail.links.jobs"), count, href: `/jobs?node=${nodeId}&range=all`, icon: <Briefcase className="h-4 w-4" /> });
           }).catch(() => {}),
         apiClient.get<any>("/alert-rules")
           .then((d) => {

@@ -18,8 +18,6 @@
   "src/app/groups/[id]/page.tsx": 49,
   "src/app/groups/page.tsx": 17,
   "src/app/hardware/page.tsx": 1,
-  "src/app/jobs/[id]/page.tsx": 31,
-  "src/app/jobs/page.tsx": 55,
   "src/app/layout.tsx": 2,
   "src/app/login/page.tsx": 2,
   "src/app/metering/page.tsx": 105,

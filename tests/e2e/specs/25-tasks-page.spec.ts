@@ -44,9 +44,9 @@ test('Tasks page: a failed job with status, time and link; jobs page ?status=fai
   await expect(page.getByText('Open tasks:')).toBeVisible();
   await expect(page.getByRole('link', { name: /failed job/ }).first()).toHaveAttribute('href', '/tasks?tab=jobs');
 
-  // the jobs page with ?status=failed: only failed jobs, with a chip to show all
+  // the jobs page with ?status=failed: only failed jobs (the status filter is set)
   await page.goto('/jobs?status=failed', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Failed jobs', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Status')).toHaveValue('failed');
   await expect(page.getByText(failedName)).toBeVisible();
   await expect(page.getByText(okName)).toHaveCount(0);
   // the sidebar badge next to Jobs (shown in the Deploy area) says what it counts

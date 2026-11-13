@@ -128,7 +128,7 @@ Agents push inventory data; the frontend reads it.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/jobs` | API Key | Create a job (`targetType`: `device`/`group` with `targetId` = node or group UUID, or `all`) |
-| GET | `/api/v1/jobs` | API Key | List jobs, newest first, with `total`; `node` (node ID, UUID or hostname) returns only the jobs that run on that node (targeted at it, at its group or at all nodes); `status=failed` only jobs with a failed instance, newest failure first, with `last_failed_at` and `last_error`; `since_hours` limits them to failures within that many hours |
+| GET | `/api/v1/jobs` | API Key | List jobs, newest first, with `total`; `node` (node ID, UUID or hostname) returns only the jobs that run on that node (targeted at it, at its group or at all nodes); `status` = `failed` (a failed instance; newest failure first, with `last_failed_at` and `last_error`), `running`, `pending`, `success` (all instances succeeded) or `cancelled`; `since_hours` = created within that many hours (with `status=failed`: failed within them); `command_type`; `q` (part of the name); `limit`/`offset`. Also returns `counts` (`total`, `running`, `success`, `failed` for the same filters except `status`) and `command_types` |
 | GET | `/api/v1/jobs/{job_id}` | API Key | Get job details |
 | DELETE | `/api/v1/jobs/{job_id}` | API Key | Delete job |
 | GET | `/api/v1/jobs/pending/{node_id}` | API Key | Get pending jobs for a node (agent poll) |
