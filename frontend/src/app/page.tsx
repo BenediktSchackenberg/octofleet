@@ -712,16 +712,16 @@ export default function HomePage() {
                     <span className="text-sm font-medium text-foreground">{t("dashboard.todayTasks")}</span>
                     <div className="flex items-center gap-3 flex-wrap text-sm">
                       {taskCounts.approvals > 0 && (
-                        <Link href="/tasks" className="text-orange-400 hover:underline">{t(taskCounts.approvals === 1 ? "dashboard.pendingApprovalsOne" : "dashboard.pendingApprovalsOther", { count: taskCounts.approvals })}</Link>
+                        <Link href="/tasks?tab=approvals" className="text-orange-400 hover:underline">{t(taskCounts.approvals === 1 ? "dashboard.pendingApprovalsOne" : "dashboard.pendingApprovalsOther", { count: taskCounts.approvals })}</Link>
                       )}
                       {taskCounts.findings > 0 && (
-                        <Link href="/tasks" className="text-red-400 hover:underline">{t(taskCounts.findings === 1 ? "dashboard.criticalFindingsOne" : "dashboard.criticalFindingsOther", { count: taskCounts.findings })}</Link>
+                        <Link href="/tasks?tab=security" className="text-red-400 hover:underline">{t(taskCounts.findings === 1 ? "dashboard.criticalFindingsOne" : "dashboard.criticalFindingsOther", { count: taskCounts.findings })}</Link>
                       )}
                       {taskCounts.failedJobs > 0 && (
-                        <Link href="/tasks" className="text-yellow-400 hover:underline">{t(taskCounts.failedJobs === 1 ? "dashboard.failedJobsOne" : "dashboard.failedJobsOther", { count: taskCounts.failedJobs })}</Link>
+                        <Link href="/jobs?status=failed" className="text-yellow-400 hover:underline">{t(taskCounts.failedJobs === 1 ? "dashboard.failedJobsOne" : "dashboard.failedJobsOther", { count: taskCounts.failedJobs })}</Link>
                       )}
                       {taskCounts.offline > 0 && (
-                        <Link href="/tasks" className="text-zinc-400 hover:underline">{t(taskCounts.offline === 1 ? "dashboard.offlineDevicesOne" : "dashboard.offlineDevicesOther", { count: taskCounts.offline })}</Link>
+                        <Link href="/tasks?tab=devices" className="text-zinc-400 hover:underline">{t(taskCounts.offline === 1 ? "dashboard.offlineDevicesOne" : "dashboard.offlineDevicesOther", { count: taskCounts.offline })}</Link>
                       )}
                     </div>
                     <Link href="/tasks" className="ml-auto text-xs text-muted-foreground hover:text-foreground">{t("dashboard.viewAll")}</Link>

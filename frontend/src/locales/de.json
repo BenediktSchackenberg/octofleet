@@ -1373,7 +1373,8 @@
   },
   "jobsPage": {
     "forNode": "Jobs für {node}",
-    "showAllJobs": "Alle Jobs anzeigen"
+    "showAllJobs": "Alle Jobs anzeigen",
+    "failedOnly": "Fehlgeschlagene Jobs"
   },
   "patchScan": {
     "last": "Letzte Update-Suche:",
@@ -1386,6 +1387,74 @@
       "succeeded": "Erfolgreich",
       "partial": "Mit Fehlern",
       "failed": "Fehlgeschlagen"
+    }
+  },
+  "tasksPage": {
+    "title": "Aufgaben",
+    "subtitle": "Was in der Flotte Aufmerksamkeit braucht",
+    "refresh": "Aktualisieren",
+    "window": "Fehlgeschlagene Jobs, Behebungen und Alarm-Zustellungen der letzten 7 Tage; Schwachstellen aus dem letzten Scan.",
+    "open": "Öffnen",
+    "agentVersion": "Agent {version}",
+    "criticalCves": "{count} kritische CVEs",
+    "maxCvss": "max. CVSS {score} ({cve})",
+    "onNode": "auf {node}",
+    "lastSeen": "zuletzt gesehen {time}",
+    "neverSeen": "nie gesehen",
+    "status": {
+      "waitingApproval": "Wartet auf Freigabe",
+      "failedOn": "Fehlgeschlagen auf {failed} von {total}",
+      "open": "Offen",
+      "failed": "Fehlgeschlagen",
+      "offline": "Offline",
+      "notSent": "Nicht gesendet"
+    },
+    "ago": {
+      "minutes": "vor {count} Min.",
+      "hours": "vor {count} Std.",
+      "days": "vor {count} Tagen"
+    },
+    "cards": {
+      "approvals": "Ausstehende Freigaben",
+      "criticalCves": "Kritische CVEs",
+      "findings": "Kritische Befunde",
+      "failedJobs": "Fehlgeschlagene Jobs",
+      "offline": "Offline-Geräte",
+      "remediationFailed": "Fehlgeschlagene Behebungen"
+    },
+    "filters": {
+      "all": "Alle ({count})",
+      "critical": "Kritisch",
+      "security": "Sicherheit",
+      "jobs": "Jobs",
+      "devices": "Geräte",
+      "approvals": "Freigaben"
+    },
+    "empty": {
+      "title": "Alles erledigt",
+      "text": "Keine Aufgaben für diesen Filter."
+    },
+    "columns": {
+      "priority": "Priorität",
+      "type": "Typ",
+      "object": "Objekt",
+      "status": "Status",
+      "details": "Details",
+      "when": "Wann"
+    },
+    "priority": {
+      "critical": "Kritisch",
+      "high": "Hoch",
+      "medium": "Mittel"
+    },
+    "types": {
+      "approval": "Freigabe",
+      "job_failed": "Fehlgeschlagener Job",
+      "cve": "Kritische CVEs",
+      "remediation_failed": "Behebung",
+      "finding": "Befund",
+      "offline": "Offline",
+      "alert_failed": "Alarm nicht gesendet"
     }
   }
 }

@@ -5,6 +5,11 @@ All notable changes to Octofleet will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Tasks page: failed jobs are really the failed ones (`GET /api/v1/jobs?status=failed&since_hours=`; before, the newest 20 jobs of any state were listed as "Job failed"); critical vulnerabilities per node from the same counts as the dashboard instead of repeated rows of the CVE table; every entry shows its status, date/time and links to the item itself; agents waiting for approval, security findings and failed alert deliveries are read correctly; translated (en/de/es). The dashboard's "Today's tasks" links open the matching filter, failed jobs the jobs page with `?status=failed`.
+
 ## [0.8.1] - 2026-10-26
 
 ### Fixed

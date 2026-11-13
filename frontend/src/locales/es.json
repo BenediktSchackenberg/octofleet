@@ -1373,7 +1373,8 @@
   },
   "jobsPage": {
     "forNode": "Trabajos de {node}",
-    "showAllJobs": "Mostrar todos los trabajos"
+    "showAllJobs": "Mostrar todos los trabajos",
+    "failedOnly": "Trabajos fallidos"
   },
   "patchScan": {
     "last": "Última búsqueda de actualizaciones:",
@@ -1386,6 +1387,74 @@
       "succeeded": "Correcta",
       "partial": "Con errores",
       "failed": "Fallida"
+    }
+  },
+  "tasksPage": {
+    "title": "Tareas",
+    "subtitle": "Lo que requiere atención en la flota",
+    "refresh": "Actualizar",
+    "window": "Trabajos, correcciones y envíos de alertas fallidos de los últimos 7 días; vulnerabilidades del último análisis.",
+    "open": "Abrir",
+    "agentVersion": "agente {version}",
+    "criticalCves": "{count} CVE críticos",
+    "maxCvss": "CVSS máx. {score} ({cve})",
+    "onNode": "en {node}",
+    "lastSeen": "visto por última vez {time}",
+    "neverSeen": "nunca visto",
+    "status": {
+      "waitingApproval": "Esperando aprobación",
+      "failedOn": "Fallido en {failed} de {total}",
+      "open": "Abierto",
+      "failed": "Fallido",
+      "offline": "Sin conexión",
+      "notSent": "No enviada"
+    },
+    "ago": {
+      "minutes": "hace {count} min",
+      "hours": "hace {count} h",
+      "days": "hace {count} d"
+    },
+    "cards": {
+      "approvals": "Aprobaciones pendientes",
+      "criticalCves": "CVE críticos",
+      "findings": "Hallazgos críticos",
+      "failedJobs": "Trabajos fallidos",
+      "offline": "Dispositivos sin conexión",
+      "remediationFailed": "Correcciones fallidas"
+    },
+    "filters": {
+      "all": "Todas ({count})",
+      "critical": "Críticas",
+      "security": "Seguridad",
+      "jobs": "Trabajos",
+      "devices": "Dispositivos",
+      "approvals": "Aprobaciones"
+    },
+    "empty": {
+      "title": "Todo en orden",
+      "text": "No hay tareas para este filtro."
+    },
+    "columns": {
+      "priority": "Prioridad",
+      "type": "Tipo",
+      "object": "Objeto",
+      "status": "Estado",
+      "details": "Detalles",
+      "when": "Cuándo"
+    },
+    "priority": {
+      "critical": "Crítica",
+      "high": "Alta",
+      "medium": "Media"
+    },
+    "types": {
+      "approval": "Aprobación",
+      "job_failed": "Trabajo fallido",
+      "cve": "CVE críticos",
+      "remediation_failed": "Corrección",
+      "finding": "Hallazgo",
+      "offline": "Sin conexión",
+      "alert_failed": "Alerta no enviada"
     }
   }
 }

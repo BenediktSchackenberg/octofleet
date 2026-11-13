@@ -101,6 +101,7 @@ The job will be picked up by the agent on its next poll cycle (default: 60 secon
 Now that you have a node reporting in, explore these features:
 
 - **📊 Dashboard** — Fleet overview with health status and hotspot matrix
+- **✅ Tasks** — What needs attention: agents waiting for approval, failed jobs, remediations and alert deliveries (last 7 days), nodes with critical CVEs, critical security findings and offline devices – each with its status, time and a link to it. The dashboard's "Today's tasks" links there (failed jobs open the jobs page filtered to `?status=failed`).
 - **🖥️ Node Details** — Click any node for deep hardware/software inventory
 - **🔒 Vulnerabilities** — Scan for CVEs across your fleet
 - **📦 Packages** — Track and deploy software

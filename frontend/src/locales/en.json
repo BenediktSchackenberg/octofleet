@@ -1373,7 +1373,8 @@
   },
   "jobsPage": {
     "forNode": "Jobs for {node}",
-    "showAllJobs": "Show all jobs"
+    "showAllJobs": "Show all jobs",
+    "failedOnly": "Failed jobs"
   },
   "patchScan": {
     "last": "Last update search:",
@@ -1386,6 +1387,74 @@
       "succeeded": "Succeeded",
       "partial": "With errors",
       "failed": "Failed"
+    }
+  },
+  "tasksPage": {
+    "title": "Tasks",
+    "subtitle": "What needs attention across the fleet",
+    "refresh": "Refresh",
+    "window": "Failed jobs, remediations and alert deliveries of the last 7 days; vulnerabilities from the last scan.",
+    "open": "Open",
+    "agentVersion": "agent {version}",
+    "criticalCves": "{count} critical CVEs",
+    "maxCvss": "max. CVSS {score} ({cve})",
+    "onNode": "on {node}",
+    "lastSeen": "last seen {time}",
+    "neverSeen": "never seen",
+    "status": {
+      "waitingApproval": "Waiting for approval",
+      "failedOn": "Failed on {failed} of {total}",
+      "open": "Open",
+      "failed": "Failed",
+      "offline": "Offline",
+      "notSent": "Not sent"
+    },
+    "ago": {
+      "minutes": "{count} min ago",
+      "hours": "{count} h ago",
+      "days": "{count} d ago"
+    },
+    "cards": {
+      "approvals": "Pending approvals",
+      "criticalCves": "Critical CVEs",
+      "findings": "Critical findings",
+      "failedJobs": "Failed jobs",
+      "offline": "Offline devices",
+      "remediationFailed": "Failed remediations"
+    },
+    "filters": {
+      "all": "All ({count})",
+      "critical": "Critical",
+      "security": "Security",
+      "jobs": "Jobs",
+      "devices": "Devices",
+      "approvals": "Approvals"
+    },
+    "empty": {
+      "title": "All clear",
+      "text": "No tasks for this filter."
+    },
+    "columns": {
+      "priority": "Priority",
+      "type": "Type",
+      "object": "Object",
+      "status": "Status",
+      "details": "Details",
+      "when": "When"
+    },
+    "priority": {
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium"
+    },
+    "types": {
+      "approval": "Approval",
+      "job_failed": "Failed job",
+      "cve": "Critical CVEs",
+      "remediation_failed": "Remediation",
+      "finding": "Finding",
+      "offline": "Offline",
+      "alert_failed": "Alert not sent"
     }
   }
 }
