@@ -31,7 +31,8 @@ def _node_entries(param_index: int) -> str:
     return f"node_id IN ({NODE_ENTRY_MATCH.replace('{n}', str(param_index))})"
 
 
-# The last Windows Update search per node, as the agent reported it (status, source, error)
+# The last update search per node, as the agent reported it (status, source, error): Windows Update or
+# WSUS from the Windows agent, the package lists (apt, dnf, yum) from the Linux agent
 NODE_PATCH_SCANS_DDL = """
     CREATE TABLE IF NOT EXISTS node_patch_scans (
         node_id UUID PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
@@ -56,7 +57,7 @@ async def ensure_schema(pool) -> None:
         await conn.execute(NODE_PATCH_SCANS_DDL)
 
 
-def _scan_info(data: dict):
+def scan_info(data: dict):
     """The agent's scan block ({status, result_code, error, source, server, duration_seconds}), or None
     for agents that do not send one."""
     scan = data.get("scan")
@@ -65,7 +66,7 @@ def _scan_info(data: dict):
     return scan
 
 
-async def _record_scan(conn, node_uuid: str, scan: dict, update_count) -> None:
+async def record_scan(conn, node_uuid: str, scan: dict, update_count) -> None:
     await conn.execute("""
         INSERT INTO node_patch_scans (node_id, scanned_at, status, source, server, result_code, error,
                                       duration_seconds, update_count)
@@ -141,7 +142,7 @@ async def import_patches(data: dict):
     """
     node_id = data.get("node_id")
     patches = data.get("patches", [])
-    scan = _scan_info(data)
+    scan = scan_info(data)
     # Resolve hostname to UUID if needed
     if node_id and not _is_uuid(node_id):
         async with get_pool().acquire() as conn:
@@ -152,7 +153,7 @@ async def import_patches(data: dict):
             node_id = str(row["id"])
     if scan is not None and scan["status"] == "failed":
         async with get_pool().acquire() as conn:
-            await _record_scan(conn, node_id, scan, None)
+            await record_scan(conn, node_id, scan, None)
         return {"imported": 0, "total": 0, "removed": 0, "scan": "failed"}
     imported = 0
     reported_ids = []
@@ -198,13 +199,38 @@ async def import_patches(data: dict):
             """, node_uuid, p.get("kb_id"), p.get("title", ""),
                 p.get("severity", "moderate"), p.get("category", "security"), source)
         if scan is not None:
-            await _record_scan(conn, node_uuid, scan, len(patches))
+            await record_scan(conn, node_uuid, scan, len(patches))
     return {"imported": imported, "total": len(patches), "removed": removed}
+
+
+def is_definition_update(kb_id, title) -> bool:
+    """A Microsoft Defender signature update: offered several times a day and installed by Defender
+    itself, so it does not make a node's updates pending in the UI."""
+    return kb_id == "KB2267602" or "security intelligence update" in (title or "").lower()
+
+
+@router.get("/api/v1/patches/available/{node_id}", dependencies=[Depends(require_user_permission("packages:read"))])
+async def get_available_updates(node_id: str):
+    """The updates the node's last successful update search found (node_id or UUID), newest first.
+    `definition` marks Microsoft Defender signature updates."""
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT u.kb_id, u.title, u.severity, u.category, u.source, u.is_reboot_required, u.discovered_at
+            FROM node_available_updates u JOIN nodes n ON n.id = u.node_id
+            WHERE n.node_id = $1 OR n.id::text = $1
+            ORDER BY u.discovered_at DESC NULLS LAST, u.kb_id
+        """, node_id)
+    return {"updates": [{
+        **dict(r),
+        "is_reboot_required": bool(r["is_reboot_required"]),
+        "discovered_at": r["discovered_at"].isoformat() if r["discovered_at"] else None,
+        "definition": is_definition_update(r["kb_id"], r["title"]),
+    } for r in rows]}
 
 
 @router.get("/api/v1/patches/scan-status/{node_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def get_patch_scan_status(node_id: str):
-    """The node's last Windows Update search (node_id or UUID): when, status, source, error, update count."""
+    """The node's last update search (node_id or UUID): when, status, source, error, update count."""
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow("""
             SELECT s.* FROM node_patch_scans s JOIN nodes n ON n.id = s.node_id

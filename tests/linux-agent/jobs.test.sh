@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests for the job types of the Linux agent (execute_job in linux-agent/agent.sh): run, inventory,
-# restart-agent and the patch types it does not support yet. Runs without network or root: curl,
+# restart-agent (patch_scan and patch_install: patch-jobs.test.sh). Runs without network or root: curl,
 # systemd-run and systemctl are replaced by fake commands in a temporary PATH directory.
 set -u
 
@@ -93,11 +93,6 @@ check "restart-agent without the systemd service: failed with a reason" \
     [ "$(field .success)" = "false" ] && grep -q "systemd service" <<< "$(field .stdout)"
 check "restart-agent without the systemd service: systemd-run not called" \
     bash -c '! grep -q systemd-run "$WORK/calls"'
-
-# patch jobs: a clear message instead of "Unknown command type"
-run_job patch_scan '{}'
-check "patch_scan: failed" [ "$(field .success)" = "false" ]
-check "patch_scan: says it is not supported yet" grep -q "Not supported by the Linux agent yet" <<< "$(field .stdout)"
 
 run_job something-else '{}'
 check "unknown type: still failed" [ "$(field .stdout)" = "Unknown command type" ]

@@ -51,6 +51,15 @@ check "empty list: valid JSON" valid_json
 check "empty list: no updates" [ "$(field '.updates | length')" = "0" ] && [ "$(field .totalUpdates)" = "0" ]
 check "empty list: no security updates" [ "$(field .securityUpdates)" = "0" ]
 
+# Reboot flag and the scan block of a patch_scan job
+check "rebootRequired is true or false with apt" bash -c '[[ "$1" == true || "$1" == false ]]' _ "$(field .rebootRequired)"
+check "rebootPackages is a list" [ "$(field '.rebootPackages | type')" = "array" ]
+check "no scan block outside a patch_scan job" [ "$(field .scan)" = "null" ]
+PATCH_SCAN_JSON='{"status":"partial","source":"apt","error":"W: Failed to fetch","duration_seconds":3}'
+run_case 'Listing... Done'
+unset PATCH_SCAN_JSON
+check "the scan block of a patch_scan job is sent with the updates" [ "$(field .scan.status)" = "partial" ] && valid_json
+
 echo
 if [ "$failures" -eq 0 ]; then echo "All apt update tests passed"; else echo "$failures apt update test(s) failed"; fi
 exit $(( failures > 0 ))

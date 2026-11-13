@@ -7,6 +7,7 @@ import { useNodeDetails } from "@/hooks/useNodeDetails";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
@@ -14,7 +15,9 @@ import { Timeline } from "@/components/timeline";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
-import { PatchScanStatus } from "@/components/patch-scan-status";
+import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
+import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
+import { LinuxUpdateActions } from "@/components/linux-update-actions";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -289,6 +292,19 @@ export default function NodeDetailPage() {
   // would look like a node with nothing to report, not like a collection problem.
   const nodeOsName = sysData.osName || node?.os_name || "";
   const isLinuxNode = !!linuxData || (nodeOsName !== "" && !/windows/i.test(nodeOsName));
+  // Reloads the last update search after a search or installation from the Updates tab
+  const [updateSearchKey, setUpdateSearchKey] = useState(0);
+  // Linux packages selected on the Updates tab for "Install selected"
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  // The Updates tab in color: amber with pending updates (Linux: the package list; Windows: the
+  // available updates without Defender signature updates - the tab's count there is the installed
+  // updates), red if the last update search failed
+  const patchScan = usePatchScan(nodeId, updateSearchKey);
+  const availableUpdates = useAvailableUpdates(nodeId, updateSearchKey);
+  const pendingUpdates = linuxUpdates
+    ? linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0
+    : relevantUpdateCount(availableUpdates);
+  const updatesTabState = patchScan?.status === "failed" ? "failed" : pendingUpdates > 0 ? "pending" : null;
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
   useEffect(() => {
@@ -436,7 +452,17 @@ export default function NodeDetailPage() {
             <TabsTrigger value="hardware">{t("nodes.hardware")}</TabsTrigger>
             <TabsTrigger value="software">{t("nodes.software")} ({software.length})</TabsTrigger>
             <TabsTrigger value="services">{t("nodeServices.tab")}</TabsTrigger>
-            <TabsTrigger value="updates">{t("nodeDetail.tabs.updates")} ({totalUpdatesCount})</TabsTrigger>
+            <TabsTrigger value="updates"
+              // dark: too - the tab's own dark-mode text colors would win otherwise
+              className={updatesTabState === "failed"
+                ? "text-red-500 data-[state=active]:text-red-500 dark:text-red-500 dark:data-[state=active]:text-red-500"
+                : updatesTabState === "pending"
+                  ? "text-amber-500 data-[state=active]:text-amber-500 dark:text-amber-500 dark:data-[state=active]:text-amber-500"
+                  : undefined}
+              title={updatesTabState === "failed" ? t("nodeDetail.updatesTab.failed")
+                : updatesTabState === "pending" ? t("patchScan.updates", { count: pendingUpdates }) : undefined}>
+              {t("nodeDetail.tabs.updates")} ({totalUpdatesCount})
+            </TabsTrigger>
             <TabsTrigger value="network">{t("nodes.network")}</TabsTrigger>
             <TabsTrigger value="security">{t("nodes.security")}</TabsTrigger>
             <TabsTrigger value="vulnerabilities">{t("nodes.vulnerabilities.tab", { count: vulnerabilityCount ?? "…" })}</TabsTrigger>
@@ -929,21 +955,45 @@ export default function NodeDetailPage() {
 
           {/* Updates Tab */}
           <TabsContent value="updates" className="space-y-4">
-            {/* Windows: the agent's last update search (source WSUS / Windows Update, failed or not) */}
-            {!isLinuxNode && <PatchScanStatus nodeId={nodeId} />}
+            {/* The agent's last update search: WSUS / Windows Update, or the package lists on Linux */}
+            <PatchScanStatus scan={patchScan} pending={pendingUpdates}
+              definitions={linuxUpdates ? 0 : (availableUpdates ?? []).filter((u) => u.definition).length} />
+            {/* Windows: the pending updates of the last search */}
+            {!linuxUpdates && !isLinuxNode && <AvailableUpdates updates={availableUpdates} />}
             {linuxUpdates ? (
             <Card>
-              <CardHeader>
-                <CardTitle>{t("nodes.updates.packageUpdates", { count: totalUpdatesCount })}</CardTitle>
-                <CardDescription>
-                  {t("nodes.updates.summary", { manager: linuxUpdates.packageManager ?? "", security: linuxUpdates.securityUpdates || 0 })}
-                </CardDescription>
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+                <div className="space-y-1.5">
+                  <CardTitle className="flex flex-wrap items-center gap-2">
+                    {t("nodes.updates.packageUpdates", { count: totalUpdatesCount })}
+                    {linuxUpdates.rebootRequired && (
+                      <Badge variant="destructive" title={linuxUpdates.rebootPackages?.join(", ") || undefined}>
+                        {t("nodes.updates.rebootRequired")}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {t("nodes.updates.summary", { manager: linuxUpdates.packageManager ?? "", security: linuxUpdates.securityUpdates || 0 })}
+                  </CardDescription>
+                </div>
+                {hasPermission("jobs:create") && (
+                  <LinuxUpdateActions nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
+                    packageManager={linuxUpdates.packageManager} selected={selectedPackages}
+                    onChanged={async () => { await refreshInventory(); setSelectedPackages([]); setUpdateSearchKey((k) => k + 1); }} />
+                )}
               </CardHeader>
               <CardContent>
                 {(linuxUpdates.updates?.length || 0) > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        {hasPermission("jobs:create") && (
+                          <TableHead className="w-8">
+                            <Checkbox aria-label={t("nodes.updates.selectAll")}
+                              checked={selectedPackages.length > 0 && selectedPackages.length === (linuxUpdates.updates?.length ?? 0)}
+                              onCheckedChange={(checked) => setSelectedPackages(checked ? (linuxUpdates.updates ?? []).map((p) => p.name) : [])} />
+                          </TableHead>
+                        )}
                         <TableHead>{t("nodes.updates.package")}</TableHead>
                         <TableHead>{t("nodes.updates.newVersion")}</TableHead>
                         <TableHead>{t("nodes.updates.source")}</TableHead>
@@ -952,6 +1002,14 @@ export default function NodeDetailPage() {
                     <TableBody>
                       {linuxUpdates.updates?.map((pkg, i) => (
                         <TableRow key={i}>
+                          {hasPermission("jobs:create") && (
+                            <TableCell>
+                              <Checkbox aria-label={t("nodes.updates.selectPackage", { name: pkg.name })}
+                                checked={selectedPackages.includes(pkg.name)}
+                                onCheckedChange={(checked) => setSelectedPackages((current) =>
+                                  checked ? [...current.filter((n) => n !== pkg.name), pkg.name] : current.filter((n) => n !== pkg.name))} />
+                            </TableCell>
+                          )}
                           <TableCell className="font-mono">
                             {pkg.name} {pkg.security && <Badge variant="destructive" className="ml-2">{t("nodes.updates.securityBadge")}</Badge>}
                           </TableCell>
