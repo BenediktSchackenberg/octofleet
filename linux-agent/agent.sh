@@ -766,12 +766,28 @@ collect_updates() {
         last_update_check=$(date -r /var/cache/dnf/last_makecache -Iseconds 2>/dev/null || echo "")
     fi
     
+    # Reboot required after updates: Debian/Ubuntu mark it with /var/run/reboot-required (and the
+    # packages in reboot-required.pkgs); dnf/yum systems answer through needs-restarting -r (exit 1)
+    local reboot_required=null reboot_packages="[]"
+    if [[ -e /var/run/reboot-required ]]; then
+        reboot_required=true
+        [[ -r /var/run/reboot-required.pkgs ]] && \
+            reboot_packages=$(sort -u /var/run/reboot-required.pkgs | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null || echo '[]')
+    elif [[ "$package_manager" == "apt" ]]; then
+        reboot_required=false
+    elif command -v needs-restarting &>/dev/null; then
+        needs-restarting -r &>/dev/null && reboot_required=false || reboot_required=true
+    fi
+
     cat << EOF
 {
     "packageManager": "$package_manager",
     "totalUpdates": $total_updates,
     "securityUpdates": $security_updates,
     "lastCheckTime": "$last_update_check",
+    "rebootRequired": $reboot_required,
+    "rebootPackages": $reboot_packages,
+    "scan": ${PATCH_SCAN_JSON:-null},
     "updates": $updates
 }
 EOF
@@ -1390,6 +1406,151 @@ schedule_restart() {
     echo "Agent restart scheduled in 30 seconds"
 }
 
+# --- Package updates: patch_scan and patch_install jobs ---
+# (no "# ===" section line here: the job tests load everything from schedule_restart to the next one)
+
+# The package manager used for updates: apt, dnf, yum or pacman
+package_manager() {
+    if command -v apt-get &>/dev/null; then echo apt
+    elif command -v dnf &>/dev/null; then echo dnf
+    elif command -v yum &>/dev/null; then echo yum
+    elif command -v pacman &>/dev/null; then echo pacman
+    else return 1
+    fi
+}
+
+# run_package_command LIMIT COMMAND...: run the package manager, stopped after LIMIT seconds (exit 124).
+# The agent's service runs with ProtectSystem=strict: /usr, /etc and /var/lib are read-only for it,
+# so apt and dnf cannot write their lists or install anything. Under systemd (INVOCATION_ID) the
+# command therefore runs in a transient unit outside that sandbox, like the restart-agent job;
+# otherwise directly. NEEDRESTART_MODE=l: needrestart lists services with old libraries instead of
+# restarting them (the agent too, in the middle of the job).
+run_package_command() {
+    local limit="$1"; shift
+    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+        systemd-run --quiet --wait --pipe --collect --unit "octofleet-packages-$(date +%s)-$$" \
+            --setenv=LANG=C --setenv=DEBIAN_FRONTEND=noninteractive --setenv=NEEDRESTART_MODE=l \
+            timeout "$limit" "$@"
+    else
+        LANG=C DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l timeout "$limit" "$@"
+    fi
+}
+
+# refresh_package_lists LIMIT: download the current package lists, within LIMIT seconds. Prints the
+# scan block for the inventory: {status, source, error, duration_seconds} with status succeeded,
+# partial (some repositories failed) or failed.
+refresh_package_lists() {
+    local limit="$1" pm out="" rc=0 status=succeeded error="" start=$SECONDS
+    pm=$(package_manager) || pm=""
+    case "$pm" in
+        apt)
+            out=$(run_package_command "$limit" apt-get -q update -o DPkg::Lock::Timeout=120 2>&1) || rc=$?
+            # apt-get update exits 0 when single repositories fail; they show as "Err:" / "W: Failed to fetch"
+            local problems
+            problems=$(grep -E '^(Err:|E:|W: (Failed to fetch|Some index files failed))' <<< "$out" | head -n 5)
+            if (( rc != 0 )); then status=failed; error=${problems:-$(tail -n 3 <<< "$out")}
+            elif [[ -n "$problems" ]]; then status=partial; error=$problems
+            fi
+            ;;
+        dnf|yum)
+            out=$(run_package_command "$limit" "$pm" -q makecache 2>&1) || rc=$?
+            (( rc != 0 )) && { status=failed; error=$(tail -n 3 <<< "$out"); }
+            ;;
+        pacman)
+            # pacman -Sy without the upgrade leaves a partially updated system behind
+            status=failed; error="Refreshing the package lists is not supported with pacman"
+            ;;
+        *)
+            status=failed; error="No supported package manager (apt, dnf, yum)"
+            ;;
+    esac
+    (( rc == 124 )) && error="Timed out after ${limit} s"
+    jq -nc --arg status "$status" --arg source "${pm:-unknown}" --arg error "$error" \
+        --argjson duration "$((SECONDS - start))" \
+        '{status: $status, source: $source, error: (if $error == "" then null else $error[0:2000] end),
+          duration_seconds: $duration}'
+}
+
+# patch_scan job: refresh the package lists, then push the inventory with the update list and the
+# scan result. A failed refresh still pushes it (the list then comes from the old package lists)
+# but fails the job.
+run_patch_scan() {
+    local limit="$1" status
+    PATCH_SCAN_JSON=$(refresh_package_lists "$limit")
+    status=$(jq -r '.status' <<< "$PATCH_SCAN_JSON")
+    jq -r '"Package lists refreshed with \(.source): \(.status) after \(.duration_seconds) s"
+           + (if .error then "\n\(.error)" else "" end)' <<< "$PATCH_SCAN_JSON"
+    if push_inventory >/dev/null 2>&1; then
+        echo "Inventory with the update list sent"
+    else
+        echo "Sending the inventory failed"; status=failed
+    fi
+    PATCH_SCAN_JSON=""
+    [[ "$status" != "failed" ]]
+}
+
+# patch_install job: upgrade named packages ({"packages": [...]}) or explicitly all
+# ({"all": true}). Reject other payloads: a job with Windows KB IDs must never upgrade every Linux
+# package by accident. Prints the end of the package manager's output and whether a reboot is required,
+# then searches for updates again and pushes the inventory with that search, so the update list and
+# the node's last update search are both current.
+run_patch_install() {
+    local payload="$1" limit="$2" pm out="" rc=0 pkg
+    local -a packages=()
+    local selection
+    selection=$(jq -r '
+        if type != "object" then "invalid"
+        elif .all == true and (has("packages") | not) then "all"
+        elif (.all == null or .all == false) and (.packages | type) == "array"
+             and (.packages | length) > 0 and (.packages | all(.[]; type == "string"))
+             then "selected"
+        else "invalid" end' <<< "$payload" 2>/dev/null) || selection=invalid
+    if [[ "$selection" == "invalid" ]]; then
+        echo 'Invalid patch_install payload: specify {"all":true} or a nonempty string array in "packages"'
+        return 1
+    fi
+    if [[ "$selection" == "selected" ]]; then
+        mapfile -t packages < <(jq -r '.packages[]' <<< "$payload")
+    fi
+    for pkg in "${packages[@]}"; do
+        [[ "$pkg" =~ ^[A-Za-z0-9][A-Za-z0-9+._:@-]*$ ]] || { echo "Invalid package name: $pkg"; return 1; }
+    done
+    pm=$(package_manager) || { echo "No supported package manager (apt, dnf, yum)"; return 1; }
+    case "$pm" in
+        apt)
+            local -a options=(-q -y -o DPkg::Lock::Timeout=120
+                -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
+            if (( ${#packages[@]} )); then
+                out=$(run_package_command "$limit" \
+                    apt-get "${options[@]}" install --only-upgrade "${packages[@]}" 2>&1) || rc=$?
+            else
+                out=$(run_package_command "$limit" \
+                    apt-get "${options[@]}" --with-new-pkgs upgrade 2>&1) || rc=$?
+            fi
+            ;;
+        dnf|yum)
+            out=$(run_package_command "$limit" "$pm" -y upgrade "${packages[@]}" 2>&1) || rc=$?
+            ;;
+        *)
+            echo "Installing updates is not supported with $pm"; return 1
+            ;;
+    esac
+    tail -n 60 <<< "$out"
+    (( rc == 124 )) && echo "Timed out after ${limit} s"
+    if [[ -e /var/run/reboot-required ]]; then
+        echo "Reboot required: yes$( [[ -r /var/run/reboot-required.pkgs ]] && printf ' (%s)' "$(sort -u /var/run/reboot-required.pkgs | paste -sd, -)")"
+    elif [[ "$pm" != "apt" ]] && command -v needs-restarting &>/dev/null && ! needs-restarting -r &>/dev/null; then
+        echo "Reboot required: yes"
+    else
+        echo "Reboot required: no"
+    fi
+    PATCH_SCAN_JSON=$(refresh_package_lists 600)
+    jq -r '"Update search afterwards: \(.status)" + (if .error then " (\(.error))" else "" end)' <<< "$PATCH_SCAN_JSON"
+    push_inventory >/dev/null 2>&1 || echo "Sending the inventory failed"
+    PATCH_SCAN_JSON=""
+    return "$rc"
+}
+
 execute_job() {
     local job="$1"
     local instance_id=$(echo "$job" | jq -r '.instanceId // .instance_id')
@@ -1450,8 +1611,16 @@ execute_job() {
             output=$(schedule_restart 2>&1) || exit_code=$?
             ;;
         patch_scan|patch_install)
-            exit_code=1
-            output="Not supported by the Linux agent yet: package updates are reported with the inventory"
+            local patch_limit
+            patch_limit=$(jq -r '.timeout // empty' <<< "$command_payload" 2>/dev/null)
+            [[ -n "$patch_limit" ]] || patch_limit=$(jq -r '.timeoutSeconds // .timeout_seconds // empty' <<< "$job" 2>/dev/null)
+            [[ "$patch_limit" =~ ^[0-9]+$ ]] && (( patch_limit > 0 && patch_limit <= 86400 )) || \
+                patch_limit=$([[ "$command_type" == patch_scan ]] && echo 600 || echo 3600)
+            if [[ "$command_type" == patch_scan ]]; then
+                output=$(run_patch_scan "$patch_limit" 2>&1) || exit_code=$?
+            else
+                output=$(run_patch_install "$command_payload" "$patch_limit" 2>&1) || exit_code=$?
+            fi
             ;;
         service_reconcile)
             output=$(reconcile_service "$command_payload") || exit_code=$?

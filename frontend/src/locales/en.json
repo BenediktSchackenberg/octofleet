@@ -272,7 +272,26 @@
       "newVersion": "New version",
       "source": "Source",
       "securityBadge": "Security",
-      "none": "No updates available"
+      "none": "No updates available",
+      "search": "Search for updates",
+      "searching": "Searching… (waiting for the agent)",
+      "searchHint": "Refreshes the package lists on the node and reports the available updates",
+      "searchDone": "Update search finished",
+      "searchFailed": "The update search failed",
+      "install": "Install updates",
+      "installing": "Installing… (waiting for the agent)",
+      "installConfirmTitle": "Install all updates?",
+      "installConfirmText": "The agent installs all {count} package updates with {manager}. Services may restart; the node is not rebooted automatically.",
+      "installDone": "Updates installed",
+      "installFailed": "Installing the updates failed",
+      "timeout": "The agent has not reported back yet – the result will be under Jobs",
+      "notCreated": "No job could be created (permission?)",
+      "rebootRequired": "Reboot required",
+      "installSelected": "Install selected ({count})",
+      "installSelectedConfirmTitle": "Install the selected updates?",
+      "installSelectedConfirmText": "The agent upgrades these packages with {manager}: {packages}. The package manager may also upgrade packages they depend on. Services may restart; the node is not rebooted automatically.",
+      "selectAll": "Select all updates",
+      "selectPackage": "Select {name}"
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",
@@ -895,7 +914,14 @@
       "dotnet": ".NET",
       "security": "Security update",
       "update": "Update"
-    }
+    },
+    "updatesTab": {
+      "failed": "The last update search failed"
+    },
+    "availableUpdatesNone": "The last update search found no updates.",
+    "availableUpdateSeverity": "Severity",
+    "availableUpdateFound": "Found on",
+    "definitionUpdate": "Defender signatures"
   },
   "navGroups": {
     "fleet": "Fleet",
@@ -1379,13 +1405,15 @@
     "last": "Last update search:",
     "sourceWsus": "via WSUS {server}",
     "sourceWindowsUpdate": "via Windows Update",
-    "updates": "{count} pending updates",
+    "updates": "Pending updates: {count}",
     "none": "The agent has not reported an update search yet.",
     "failedKeep": "The search failed – the list below is from the last successful search.",
     "status": {
       "succeeded": "Succeeded",
       "partial": "With errors",
       "failed": "Failed"
-    }
+    },
+    "sourcePackageManager": "via {manager}",
+    "definitions": "+ {count} Defender signatures"
   }
 }

@@ -272,7 +272,26 @@
       "newVersion": "Neue Version",
       "source": "Quelle",
       "securityBadge": "Sicherheit",
-      "none": "Keine Updates verfügbar"
+      "none": "Keine Updates verfügbar",
+      "search": "Nach Updates suchen",
+      "searching": "Suche läuft… (warte auf den Agent)",
+      "searchHint": "Aktualisiert die Paketlisten auf dem Node und meldet die verfügbaren Updates",
+      "searchDone": "Update-Suche abgeschlossen",
+      "searchFailed": "Die Update-Suche ist fehlgeschlagen",
+      "install": "Updates installieren",
+      "installing": "Installation läuft… (warte auf den Agent)",
+      "installConfirmTitle": "Alle Updates installieren?",
+      "installConfirmText": "Der Agent installiert alle {count} Paket-Updates mit {manager}. Dienste können neu starten; der Node wird nicht automatisch neu gestartet.",
+      "installDone": "Updates installiert",
+      "installFailed": "Die Installation der Updates ist fehlgeschlagen",
+      "timeout": "Der Agent hat sich noch nicht zurückgemeldet – das Ergebnis erscheint unter Jobs",
+      "notCreated": "Es konnte kein Job erstellt werden (Berechtigung?)",
+      "rebootRequired": "Neustart erforderlich",
+      "installSelected": "Ausgewählte installieren ({count})",
+      "installSelectedConfirmTitle": "Ausgewählte Updates installieren?",
+      "installSelectedConfirmText": "Der Agent aktualisiert diese Pakete mit {manager}: {packages}. Der Paketmanager aktualisiert dabei ggf. auch Pakete, von denen sie abhängen. Dienste können neu starten; der Node wird nicht automatisch neu gestartet.",
+      "selectAll": "Alle Updates auswählen",
+      "selectPackage": "{name} auswählen"
     },
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",
@@ -895,7 +914,14 @@
       "dotnet": ".NET",
       "security": "Sicherheitsupdate",
       "update": "Update"
-    }
+    },
+    "updatesTab": {
+      "failed": "Die letzte Update-Suche ist fehlgeschlagen"
+    },
+    "availableUpdatesNone": "Die letzte Update-Suche hat keine Updates gefunden.",
+    "availableUpdateSeverity": "Schweregrad",
+    "availableUpdateFound": "Gefunden am",
+    "definitionUpdate": "Defender-Signaturen"
   },
   "navGroups": {
     "fleet": "Flotte",
@@ -1379,13 +1405,15 @@
     "last": "Letzte Update-Suche:",
     "sourceWsus": "über WSUS {server}",
     "sourceWindowsUpdate": "über Windows Update",
-    "updates": "{count} ausstehende Updates",
+    "updates": "Ausstehende Updates: {count}",
     "none": "Der Agent hat noch keine Update-Suche gemeldet.",
     "failedKeep": "Die Suche ist fehlgeschlagen – die Liste unten stammt von der letzten erfolgreichen Suche.",
     "status": {
       "succeeded": "Erfolgreich",
       "partial": "Mit Fehlern",
       "failed": "Fehlgeschlagen"
-    }
+    },
+    "sourcePackageManager": "über {manager}",
+    "definitions": "+ {count} Defender-Signaturen"
   }
 }
