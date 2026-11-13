@@ -203,6 +203,31 @@ async def import_patches(data: dict):
     return {"imported": imported, "total": len(patches), "removed": removed}
 
 
+def is_definition_update(kb_id, title) -> bool:
+    """A Microsoft Defender signature update: offered several times a day and installed by Defender
+    itself, so it does not make a node's updates pending in the UI."""
+    return kb_id == "KB2267602" or "security intelligence update" in (title or "").lower()
+
+
+@router.get("/api/v1/patches/available/{node_id}", dependencies=[Depends(require_user_permission("packages:read"))])
+async def get_available_updates(node_id: str):
+    """The updates the node's last successful update search found (node_id or UUID), newest first.
+    `definition` marks Microsoft Defender signature updates."""
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT u.kb_id, u.title, u.severity, u.category, u.source, u.is_reboot_required, u.discovered_at
+            FROM node_available_updates u JOIN nodes n ON n.id = u.node_id
+            WHERE n.node_id = $1 OR n.id::text = $1
+            ORDER BY u.discovered_at DESC NULLS LAST, u.kb_id
+        """, node_id)
+    return {"updates": [{
+        **dict(r),
+        "is_reboot_required": bool(r["is_reboot_required"]),
+        "discovered_at": r["discovered_at"].isoformat() if r["discovered_at"] else None,
+        "definition": is_definition_update(r["kb_id"], r["title"]),
+    } for r in rows]}
+
+
 @router.get("/api/v1/patches/scan-status/{node_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def get_patch_scan_status(node_id: str):
     """The node's last update search (node_id or UUID): when, status, source, error, update count."""

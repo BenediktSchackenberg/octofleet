@@ -917,7 +917,11 @@
     },
     "updatesTab": {
       "failed": "The last update search failed"
-    }
+    },
+    "availableUpdatesNone": "The last update search found no updates.",
+    "availableUpdateSeverity": "Severity",
+    "availableUpdateFound": "Found on",
+    "definitionUpdate": "Defender signatures"
   },
   "navGroups": {
     "fleet": "Fleet",

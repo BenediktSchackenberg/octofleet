@@ -16,6 +16,7 @@ import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
+import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
 import { LinuxUpdateActions } from "@/components/linux-update-actions";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
@@ -295,12 +296,14 @@ export default function NodeDetailPage() {
   const [updateSearchKey, setUpdateSearchKey] = useState(0);
   // Linux packages selected on the Updates tab for "Install selected"
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
-  // The Updates tab in color: amber with pending updates (Linux: the package list; Windows: the last
-  // update search, the tab's count there being the installed updates), red if the last search failed
+  // The Updates tab in color: amber with pending updates (Linux: the package list; Windows: the
+  // available updates without Defender signature updates - the tab's count there is the installed
+  // updates), red if the last update search failed
   const patchScan = usePatchScan(nodeId, updateSearchKey);
+  const availableUpdates = useAvailableUpdates(nodeId, updateSearchKey);
   const pendingUpdates = linuxUpdates
     ? linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0
-    : patchScan?.status !== "failed" ? patchScan?.update_count ?? 0 : 0;
+    : relevantUpdateCount(availableUpdates);
   const updatesTabState = patchScan?.status === "failed" ? "failed" : pendingUpdates > 0 ? "pending" : null;
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
@@ -954,6 +957,8 @@ export default function NodeDetailPage() {
           <TabsContent value="updates" className="space-y-4">
             {/* The agent's last update search: WSUS / Windows Update, or the package lists on Linux */}
             <PatchScanStatus scan={patchScan} />
+            {/* Windows: the pending updates of the last search */}
+            {!linuxUpdates && !isLinuxNode && <AvailableUpdates updates={availableUpdates} />}
             {linuxUpdates ? (
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">

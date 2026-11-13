@@ -917,7 +917,11 @@
     },
     "updatesTab": {
       "failed": "Die letzte Update-Suche ist fehlgeschlagen"
-    }
+    },
+    "availableUpdatesNone": "Die letzte Update-Suche hat keine Updates gefunden.",
+    "availableUpdateSeverity": "Schweregrad",
+    "availableUpdateFound": "Gefunden am",
+    "definitionUpdate": "Defender-Signaturen"
   },
   "navGroups": {
     "fleet": "Flotte",

@@ -75,7 +75,7 @@ What the server does with a scan report:
 | `failed` | **kept** – the last successful search stays visible | unchanged |
 | no `scan` block (older agents, catalog import) | replaced | unchanged |
 
-The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`. The tab itself turns amber while updates are pending (Linux: the package list; Windows: the last search) and red when the last search failed.
+The last search per node (time, status, source, error, number of updates) is shown at the top of the node's Updates tab and returned by `GET /api/v1/patches/scan-status/{node_id}`. On Windows nodes the tab lists the **Available updates** of the last successful search below it (`GET /api/v1/patches/available/{node_id}`). The tab itself turns amber while updates are pending and red when the last search failed. Linux nodes count their package list. Windows nodes count the available updates without Microsoft Defender signature updates (KB2267602): Defender gets several of those a day and installs them itself.
 
 ### Linux Nodes
 

@@ -32,6 +32,9 @@ test('a failed update search keeps the list and shows the error', async ({ page,
   await expect(panel.getByText('Failed', { exact: true })).toBeVisible();
   await expect(panel.getByText('via WSUS https://wsus.example:8531')).toBeVisible();
   await expect(panel.getByText('0x8024401C: WSUS not reachable')).toBeVisible();
+  // The update kept from the last successful search is listed on the Updates tab
+  await expect(panel.getByText('Available updates (1)')).toBeVisible();
+  await expect(panel.getByText('E2E Cumulative Update')).toBeVisible();
   // The Updates tab shows that the last search failed
   const tab = page.getByRole('tab', { name: /Updates/ });
   await expect(tab).toHaveAttribute('title', 'The last update search failed');

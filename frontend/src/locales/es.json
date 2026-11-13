@@ -917,7 +917,11 @@
     },
     "updatesTab": {
       "failed": "La última búsqueda de actualizaciones ha fallado"
-    }
+    },
+    "availableUpdatesNone": "La última búsqueda no encontró actualizaciones.",
+    "availableUpdateSeverity": "Gravedad",
+    "availableUpdateFound": "Detectada el",
+    "definitionUpdate": "Firmas de Defender"
   },
   "navGroups": {
     "fleet": "Flota",

@@ -399,6 +399,7 @@ See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 | PATCH | `/api/v1/patches/catalog/{patch_id}/exclude` | User: `packages:write` | Exclude patch from deployment |
 | GET | `/api/v1/patches/compliance` | User: `compliance:read` | Fleet-wide patch compliance summary; `node_id` (node ID or UUID) limits counts, compliance and MTTP to that node |
 | GET | `/api/v1/patches/compliance/nodes` | User: `compliance:read` | Per-node compliance breakdown |
+| GET | `/api/v1/patches/available/{node_id}` | User: `packages:read` | The updates the node's last successful update search found (Windows): KB, title, severity, category, source, reboot flag, found on; `definition` marks Microsoft Defender signature updates |
 | GET | `/api/v1/patches/scan-status/{node_id}` | User: `packages:read` | The node's last update search (time, status, source, error, update count): Windows Update / WSUS, or on Linux the package lists (`source` `apt`, `dnf`, `yum`) from a `patch_scan` job, sent as `updates.scan` with `POST /api/v1/inventory/full` |
 | GET | `/api/v1/patches/rings` | User: `packages:read` | List patch rings |
 | POST | `/api/v1/patches/rings` | User: `packages:write` | Create ring |
