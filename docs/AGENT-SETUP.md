@@ -219,6 +219,7 @@ LOG_FILE="/var/log/octofleet-agent.log"
 | `API_KEY` | API key for authentication | — | **Yes** |
 | `NODE_ID` | Override node identifier | hostname | No |
 | `PUSH_INTERVAL` | Full inventory push interval (seconds) | `1800` | No |
+| `PUSH_RETRY_INTERVAL` | First retry of a failed inventory push (seconds), e.g. while the server is still starting after a reboot; doubles with every further failure up to `PUSH_INTERVAL`, plus 0–50 % random jitter so a large fleet does not retry in lockstep | `60` | No |
 | `LOG_FILE` | Path to log file | `/var/log/octofleet-agent.log` | No |
 
 ### Systemd Service

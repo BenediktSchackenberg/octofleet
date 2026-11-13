@@ -33,3 +33,5 @@ jobs:
         run: bash tests/linux-agent/job-types.test.sh
       - name: Test the job types (run, inventory, restart-agent, unsupported patch jobs)
         run: bash tests/linux-agent/jobs.test.sh
+      - name: Test the retry of a failed inventory push
+        run: bash tests/linux-agent/push-retry.test.sh

@@ -30,6 +30,9 @@ API_URL="${API_URL:-http://localhost:8080}"
 API_KEY="${API_KEY:-octofleet-inventory-dev-key}"
 NODE_ID="${NODE_ID:-$(hostname)}"
 PUSH_INTERVAL="${PUSH_INTERVAL:-1800}"
+# After a failed push (server not reachable yet, e.g. still starting after a reboot) the first retry;
+# it doubles with every further failure, up to PUSH_INTERVAL, with random jitter (see next_push_time)
+PUSH_RETRY_INTERVAL="${PUSH_RETRY_INTERVAL:-60}"
 JOB_POLL_INTERVAL="${JOB_POLL_INTERVAL:-60}"
 LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
@@ -1390,6 +1393,17 @@ schedule_restart() {
     echo "Agent restart scheduled in 30 seconds"
 }
 
+# next_push_time EXIT_CODE NOW FAILURES: when the next inventory push is due. After a successful push:
+# PUSH_INTERVAL. After a failed one: PUSH_RETRY_INTERVAL, doubled for every earlier failure in a row
+# (FAILURES) up to PUSH_INTERVAL, plus a random 0-50 %. When the server comes back after an outage,
+# a large fleet then does not retry in lockstep every minute.
+next_push_time() {
+    if (( $1 == 0 )); then echo $(( $2 + PUSH_INTERVAL )); return; fi
+    local delay=$(( PUSH_RETRY_INTERVAL << ($3 > 6 ? 6 : $3) ))
+    (( delay > PUSH_INTERVAL )) && delay=$PUSH_INTERVAL
+    echo $(( $2 + delay + RANDOM % (delay / 2 + 1) ))
+}
+
 execute_job() {
     local job="$1"
     local instance_id=$(echo "$job" | jq -r '.instanceId // .instance_id')
@@ -1639,6 +1653,9 @@ run_service() {
     fi
     
     local last_push=0
+    local push_due=0
+    local push_failures=0
+    local push_rc
     local last_poll=0
     local last_live=0
     local last_screen=0
@@ -1648,9 +1665,12 @@ run_service() {
     # Start file audit collector
     start_file_audit &
     
-    # Initial push
-    push_inventory || true
-    last_push=$(date +%s)
+    # Initial push. Right after a boot the server may not answer yet (on the Octofleet server itself
+    # its containers are still starting): then the next try comes after PUSH_RETRY_INTERVAL, not after
+    # PUSH_INTERVAL, so the node does not show the state from before the reboot for half an hour.
+    push_inventory; push_rc=$?
+    push_due=$(next_push_time "$push_rc" "$(date +%s)" "$push_failures")
+    (( push_rc == 0 )) && push_failures=0 || push_failures=$(( push_failures + 1 ))
     
     while true; do
         local now=$(date +%s)
@@ -1662,9 +1682,10 @@ run_service() {
         fi
         
         # Push inventory
-        if (( now - last_push >= PUSH_INTERVAL )); then
-            push_inventory || true
-            last_push=$now
+        if (( now >= push_due )); then
+            push_inventory; push_rc=$?
+            push_due=$(next_push_time "$push_rc" "$now" "$push_failures")
+            (( push_rc == 0 )) && push_failures=0 || push_failures=$(( push_failures + 1 ))
         fi
         
         # Poll jobs
