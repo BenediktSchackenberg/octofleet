@@ -10,7 +10,7 @@ test('Windows Updates tab: available updates and the pending highlight without D
     headers, data: { hostname, nodeId: hostname, system: { os: { name: 'Microsoft Windows Server 2025 Standard' } } },
   })).ok()).toBeTruthy();
   const scan = { status: 'succeeded', source: 'wsus', server: 'https://wsus.example:8531', result_code: 2 };
-  const defender = { kb_id: 'KB2267602', title: 'Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.463.277.0)', severity: 'unknown', category: 'definition' };
+  const defender = { kb_id: 'KB2267602', title: 'Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.463.277.0)', severity: 'low', category: 'security' };
   const report = (patches: object[]) => request.post(`${API_URL}/api/v1/patches/scan-results`, { headers, data: { node_id: hostname, scan, patches } });
 
   // Only a Defender signature update: listed, but the tab is not highlighted
