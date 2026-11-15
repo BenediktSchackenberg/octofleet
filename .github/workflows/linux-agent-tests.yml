@@ -37,3 +37,7 @@ jobs:
         run: bash tests/linux-agent/patch-jobs.test.sh
       - name: Test the retry of a failed inventory push
         run: bash tests/linux-agent/push-retry.test.sh
+      - name: Test the logrotate configuration
+        run: |
+          sudo apt-get install -y -q logrotate >/dev/null || true
+          bash tests/linux-agent/logrotate.test.sh

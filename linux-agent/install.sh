@@ -155,6 +155,9 @@ install -m 755 "$TMP_DIR/agent.sh" "$INSTALL_DIR/agent.sh"
 )
 chmod 600 "$INSTALL_DIR/config.env"
 
+# Rotate the agent's log (/etc/logrotate.d/octofleet-agent); the service checks it again at every start
+"$INSTALL_DIR/agent.sh" logrotate || true
+
 echo "⚙️  Installing systemd service..."
 install -m 644 "$TMP_DIR/octofleet-agent.service" "$SERVICE_FILE"
 systemctl daemon-reload

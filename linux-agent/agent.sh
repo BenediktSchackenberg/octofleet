@@ -36,6 +36,10 @@ PUSH_RETRY_INTERVAL="${PUSH_RETRY_INTERVAL:-60}"
 JOB_POLL_INTERVAL="${JOB_POLL_INTERVAL:-60}"
 LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
+# logrotate for LOG_FILE (see ensure_logrotate); LOGROTATE_FILE="" turns it off
+LOGROTATE_FILE="${LOGROTATE_FILE-/etc/logrotate.d/octofleet-agent}"
+LOG_ROTATE_COUNT="${LOG_ROTATE_COUNT:-8}"     # rotated files kept
+LOG_ROTATE_MAXSIZE="${LOG_ROTATE_MAXSIZE:-10M}"  # rotated earlier than weekly when larger
 AUTO_UPDATE="${AUTO_UPDATE:-true}"
 UPDATE_CHECK_INTERVAL="${UPDATE_CHECK_INTERVAL:-21600}"  # 6 hours
 
@@ -1382,7 +1386,9 @@ schedule_uninstall() {
         printf 'rm -f -- %q\n' "/etc/systemd/system/$unit"
         printf '%s\n' 'systemctl daemon-reload'
         printf 'rm -rf -- %q\n' "$SCRIPT_DIR"
-        printf 'rm -f -- %q\n' "$LOG_FILE"
+        printf 'rm -f -- %q %q.*\n' "$LOG_FILE" "$LOG_FILE"
+        [[ -n "$LOGROTATE_FILE" ]] && printf 'grep -qF %q %q 2>/dev/null && rm -f -- %q || true\n' \
+            "$LOGROTATE_MARKER" "$LOGROTATE_FILE" "$LOGROTATE_FILE"
         printf 'test ! -e %q\n' "$SCRIPT_DIR"
         printf 'curl -fsS --max-time 15 -X POST -H %q -H %q --data-binary %q %q >/dev/null\n' \
             'Content-Type: application/json' "X-API-Key: $API_KEY" "$payload" "$url"
@@ -1846,6 +1852,54 @@ poll_terminal_commands() {
 # Service Loop
 # ============================================================================
 
+# The agent's logrotate configuration. The marker line lets the agent update a file it installed; an
+# administrator who deletes the line keeps their own version.
+LOGROTATE_MARKER="# octofleet-agent: managed"
+logrotate_config() {
+    cat <<EOF
+$LOGROTATE_MARKER - delete this line to keep your own changes
+$LOG_FILE {
+    weekly
+    maxsize $LOG_ROTATE_MAXSIZE
+    rotate $LOG_ROTATE_COUNT
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su root root
+}
+EOF
+}
+
+# Install the logrotate configuration for LOG_FILE if there is none, or update one the agent installed
+# (marker line). A file without the marker belongs to the administrator and is left alone. At the
+# service's start (so also after a self-update) and from install.sh. The service runs with
+# ProtectSystem=strict and cannot write /etc: it writes through a transient unit, like the package
+# manager. copytruncate: the agent appends with tee -a, so the file keeps its name.
+ensure_logrotate() {
+    [[ -n "$LOGROTATE_FILE" && "$LOG_FILE" == /* ]] || return 0
+    if [[ -e "$LOGROTATE_FILE" ]] && ! grep -qF "$LOGROTATE_MARKER" "$LOGROTATE_FILE" 2>/dev/null; then
+        return 0
+    fi
+    local wanted
+    wanted=$(logrotate_config)
+    [[ -f "$LOGROTATE_FILE" && "$(cat "$LOGROTATE_FILE")" == "$wanted" ]] && return 0
+    if ! command -v logrotate &>/dev/null; then
+        warn "logrotate is not installed - $LOG_FILE is not rotated (install logrotate; the agent then adds $LOGROTATE_FILE)"
+        return 0
+    fi
+    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null && [[ ! -w "$(dirname "$LOGROTATE_FILE")" ]]; then
+        printf '%s\n' "$wanted" | systemd-run --quiet --wait --pipe --collect --unit "octofleet-logrotate-$(date +%s)-$$" \
+            /bin/sh -c 'cat > "$1" && chmod 644 "$1"' sh "$LOGROTATE_FILE" || {
+            warn "Could not write $LOGROTATE_FILE"; return 1; }
+    else
+        { printf '%s\n' "$wanted" > "$LOGROTATE_FILE" && chmod 644 "$LOGROTATE_FILE"; } 2>/dev/null || {
+            warn "Could not write $LOGROTATE_FILE"; return 1; }
+    fi
+    info "logrotate: $LOGROTATE_FILE for $LOG_FILE (weekly or at $LOG_ROTATE_MAXSIZE, $LOG_ROTATE_COUNT files kept)"
+}
+
 run_service() {
     show_banner
     info "Octofleet Linux Agent v$VERSION starting..."
@@ -1853,6 +1907,7 @@ run_service() {
     info "API URL: $API_URL"
     info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"
     info "Auto-update: ${AUTO_UPDATE} (every ${UPDATE_CHECK_INTERVAL}s from the Octofleet server)"
+    ensure_logrotate || true
     
     # Detect screen capture tool
     detect_screen_capture_tool
@@ -2147,6 +2202,9 @@ case "${1:-service}" in
     version)
         echo "Octofleet Linux Agent v$VERSION"
         ;;
+    logrotate)
+        ensure_logrotate
+        ;;
     update)
         if AUTO_UPDATE=true MANUAL_UPDATE=true check_for_update; then
             echo "Octofleet Linux Agent v$VERSION is up to date"
@@ -2156,7 +2214,7 @@ case "${1:-service}" in
         fi
         ;;
     *)
-        echo "Usage: $0 {push|poll|collect|service|version|update}"
+        echo "Usage: $0 {push|poll|collect|service|version|update|logrotate}"
         exit 1
         ;;
 esac
