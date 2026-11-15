@@ -35,6 +35,16 @@ export function linuxRebootBehavior(name: string): RebootBehavior {
   return "never";
 }
 
+/** The newest installation entry of a KB in the Windows Update history: a failed attempt followed by a
+ *  successful one (e.g. a cumulative update installed again after its servicing stack) shows the success */
+export function latestInstallEntry<T extends { kbId?: string; kb?: string; operation?: string; installedDate?: string; installedOn?: string }>(
+  history: T[] | undefined, kb: string): T | undefined {
+  const time = (u: T) => Date.parse(u.installedDate || u.installedOn || "") || 0;
+  return (history ?? [])
+    .filter((u) => (u.kbId || u.kb) === kb && (u.operation ?? "Installation") === "Installation")
+    .reduce<T | undefined>((newest, u) => (!newest || time(u) > time(newest) ? u : newest), undefined);
+}
+
 /** Badge variant of an update result: successful stays quiet, failed stands out */
 export function resultVariant(ok: boolean | undefined): "outline" | "destructive" {
   return ok === false ? "destructive" : "outline";

@@ -18,7 +18,7 @@ import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
 import { UpdateActions } from "@/components/node-update-actions";
-import { UPDATE_COLS, installedUpdateType, linuxRebootBehavior, resultVariant, type RebootBehavior } from "@/lib/update-tables";
+import { UPDATE_COLS, installedUpdateType, linuxRebootBehavior, resultVariant, type RebootBehavior, latestInstallEntry } from "@/lib/update-tables";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -1057,7 +1057,8 @@ export default function NodeDetailPage() {
                         {hotfixes.hotfixes?.slice(0, 20).map((hf: any, i: number) => {
                           // The Windows Update history has the title and the result of the installation;
                           // Win32_QuickFixEngineering only the KB and "Update" / "Security Update"
-                          const entry = hotfixes.updateHistory?.find((u: any) => (u.kbId || u.kb) === hf.hotfixId && (u.operation ?? "Installation") === "Installation");
+                          // the newest attempt: a failed one followed by a successful one shows the success
+                          const entry = latestInstallEntry<any>(hotfixes.updateHistory, hf.hotfixId);
                           const result = entry ? UPDATE_RESULTS[String(entry.resultCode ?? "")] : undefined;
                           return (
                             <TableRow key={i}>

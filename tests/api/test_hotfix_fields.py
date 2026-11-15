@@ -40,3 +40,31 @@ def test_update_history_returns_kb_date_and_result():
     assert entry["kbId"] == "KB2267602"
     assert entry["installedOn"].startswith("2026-11-01")
     assert entry["resultCode"] == "Succeeded"
+
+
+def test_update_history_keeps_each_result():
+    """An update installed a second time has the same update ID: its failed and its successful attempt
+    are both kept; repeated successes of one update stay one row (the newest)"""
+    hostname = f"hotfix-attempts-{uuid.uuid4().hex[:8]}"
+    title = "2026-11 Cumulative Update for Microsoft server operating system (KB5136489)"
+    r = requests.post(f"{API_URL}/api/v1/inventory/hotfixes", headers=HEADERS, timeout=30, json={
+        "hostname": hostname, "nodeId": hostname,
+        "hotfixes": [{"hotfixId": "KB5136489", "description": "Update", "installedOn": "2026-11-15"}],
+        "updateHistory": [  # the agent sends the newest first
+            {"updateId": "cu-1", "kbId": "KB5136489", "title": title, "installedOn": "2026-11-15T15:23:09Z",
+             "operation": "Installation", "resultCode": "Succeeded"},
+            {"updateId": "app-1", "kbId": None, "title": "9NRZT3Q9R3DL-Microsoft.WindowsAppRuntime", "installedOn": "2026-11-15T09:00:00Z",
+             "operation": "Installation", "resultCode": "Succeeded"},
+            {"updateId": "cu-1", "kbId": "KB5136489", "title": title, "installedOn": "2026-11-15T14:44:22Z",
+             "operation": "Installation", "resultCode": "Failed"},
+            {"updateId": "app-1", "kbId": None, "title": "9NRZT3Q9R3DL-Microsoft.WindowsAppRuntime", "installedOn": "2026-11-14T09:00:00Z",
+             "operation": "Installation", "resultCode": "Succeeded"},
+        ],
+    })
+    assert r.status_code == 200, r.text
+    r = requests.get(f"{API_URL}/api/v1/inventory/hotfixes/{hostname}", headers=user_headers(), timeout=10)
+    assert r.status_code == 200, r.text
+    history = r.json()["data"]["updateHistory"]
+    assert [(e["updateId"], e["resultCode"], e["installedOn"][:10]) for e in history] == [
+        ("cu-1", "Succeeded", "2026-11-15"), ("cu-1", "Failed", "2026-11-15"), ("app-1", "Succeeded", "2026-11-15")]
+
