@@ -18,6 +18,7 @@ import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
 import { UpdateActions } from "@/components/node-update-actions";
+import { UPDATE_COLS, installedUpdateType, resultVariant } from "@/lib/update-tables";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -49,15 +50,6 @@ const UPDATE_RESULTS: Record<string, { key: string; ok: boolean }> = {
  * Update for Microsoft server operating system ... (KB5128646)") or, without one, from the
  * Win32_QuickFixEngineering description ("Security Update", "Update").
  */
-function installedUpdateType(title: string | undefined, description: string | undefined): string {
-  const text = title ?? "";
-  if (/\.NET/i.test(text)) return "dotnet";
-  if (/Cumulative Update/i.test(text)) return "cumulative";
-  if (/Servicing Stack/i.test(text)) return "servicingStack";
-  if (/Security Update/i.test(text) || /Security Update/i.test(description ?? "")) return "security";
-  return "update";
-}
-
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
   const { t } = useI18n();
@@ -997,19 +989,19 @@ export default function NodeDetailPage() {
               </CardHeader>
               <CardContent>
                 {(linuxUpdates.updates?.length || 0) > 0 ? (
-                  <Table>
+                  <Table className="table-fixed">
                     <TableHeader>
                       <TableRow>
                         {hasPermission("jobs:create") && (
-                          <TableHead className="w-8">
+                          <TableHead className={UPDATE_COLS.select}>
                             <Checkbox aria-label={t("nodes.updates.selectAll")}
                               checked={selectedPackages.length > 0 && selectedPackages.length === (linuxUpdates.updates?.length ?? 0)}
                               onCheckedChange={(checked) => setSelectedPackages(checked ? (linuxUpdates.updates ?? []).map((p) => p.name) : [])} />
                           </TableHead>
                         )}
                         <TableHead>{t("nodes.updates.package")}</TableHead>
-                        <TableHead>{t("nodes.updates.newVersion")}</TableHead>
-                        <TableHead>{t("nodes.updates.source")}</TableHead>
+                        <TableHead className={UPDATE_COLS.version}>{t("nodes.updates.newVersion")}</TableHead>
+                        <TableHead className={UPDATE_COLS.source}>{t("nodes.updates.source")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1044,14 +1036,15 @@ export default function NodeDetailPage() {
                 {hotfixes.hotfixes.length > 0 && (
                   <>
                     <p className="font-medium mb-2">{t("nodeDetail.hotfixes", { count: hotfixes.hotfixes.length })}</p>
-                    <Table>
+                    <Table className="table-fixed">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>KB</TableHead>
+                          <TableHead className={UPDATE_COLS.select} />
+                          <TableHead className={UPDATE_COLS.kb}>KB</TableHead>
                           <TableHead>{t("nodeDetail.title")}</TableHead>
-                          <TableHead>{t("nodeDetail.type")}</TableHead>
-                          <TableHead>{t("nodeDetail.installedOn")}</TableHead>
-                          <TableHead>{t("common.status")}</TableHead>
+                          <TableHead className={UPDATE_COLS.type}>{t("nodeDetail.type")}</TableHead>
+                          <TableHead className={UPDATE_COLS.date}>{t("nodeDetail.installedOn")}</TableHead>
+                          <TableHead className={UPDATE_COLS.status}>{t("common.status")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1062,12 +1055,13 @@ export default function NodeDetailPage() {
                           const result = entry ? UPDATE_RESULTS[String(entry.resultCode ?? "")] : undefined;
                           return (
                             <TableRow key={i}>
+                              <TableCell />
                               <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
-                              <TableCell className="truncate max-w-[360px]" title={entry?.title}>{entry?.title || hf.description || '-'}</TableCell>
+                              <TableCell className="truncate" title={entry?.title}>{entry?.title || hf.description || '-'}</TableCell>
                               <TableCell><Badge variant="secondary">{t(`nodeDetail.installedUpdateType.${installedUpdateType(entry?.title, hf.description)}`)}</Badge></TableCell>
                               <TableCell>{formatLocalDate(hf.installedOn)}</TableCell>
                               <TableCell>
-                                <Badge variant={!result || result.ok ? "default" : "secondary"}>
+                                <Badge variant={resultVariant(result ? result.ok : true)}>
                                   {result ? t(`nodeDetail.updateResult.${result.key}`) : t("nodeDetail.installedUpdateInstalled")}
                                 </Badge>
                               </TableCell>
@@ -1082,26 +1076,30 @@ export default function NodeDetailPage() {
                 {hotfixes.updateHistory.length > 0 && (
                   <>
                     <p className="font-medium mb-2 mt-6">{t("nodeDetail.updateHistory", { count: hotfixes.updateHistory.length })}</p>
-                    <Table>
+                    <Table className="table-fixed">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>KB</TableHead>
+                          <TableHead className={UPDATE_COLS.select} />
+                          <TableHead className={UPDATE_COLS.kb}>KB</TableHead>
                           <TableHead>{t("nodeDetail.title")}</TableHead>
-                          <TableHead>{t("nodeDetail.date")}</TableHead>
-                          <TableHead>{t("common.status")}</TableHead>
+                          <TableHead className={UPDATE_COLS.type}>{t("nodeDetail.type")}</TableHead>
+                          <TableHead className={UPDATE_COLS.date}>{t("nodeDetail.date")}</TableHead>
+                          <TableHead className={UPDATE_COLS.status}>{t("common.status")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {hotfixes.updateHistory?.slice(0, 50).map((upd: any, i: number) => (
                           <TableRow key={i}>
+                            <TableCell />
                             <TableCell><Badge variant="outline">{upd.kbId || upd.kb || '-'}</Badge></TableCell>
-                            <TableCell className="truncate max-w-[300px]">{upd.title || '-'}</TableCell>
+                            <TableCell className="truncate" title={upd.title}>{upd.title || '-'}</TableCell>
+                            <TableCell><Badge variant="secondary">{t(`nodeDetail.installedUpdateType.${installedUpdateType(upd.title)}`)}</Badge></TableCell>
                             <TableCell>{formatDate(upd.installedOn ?? upd.installedDate)}</TableCell>
                             <TableCell>
                               {(() => {
                                 const result = UPDATE_RESULTS[String(upd.resultCode ?? "")];
                                 return (
-                                  <Badge variant={result?.ok ? "default" : "secondary"}>
+                                  <Badge variant={resultVariant(result?.ok)}>
                                     {result ? t(`nodeDetail.updateResult.${result.key}`) : (upd.resultCode ?? "-")}
                                   </Badge>
                                 );

@@ -1074,28 +1074,57 @@ if ($svc) {{
             };
         }
 
-        try
+        // Time limit: the payload's timeout, else PatchInstaller.InstallTimeout (30 min). An installation
+        // that takes longer is NOT stopped - killing TrustedInstaller/TiWorker can corrupt the component
+        // store. The job reports it as still running (with the servicing processes) and frees the job
+        // loop; the installation finishes in the background, then the reboot policy, search and
+        // inventory follow as usual.
+        var limit = payload.TryGetProperty("timeout", out var to) && to.TryGetInt32(out var seconds) && seconds > 0
+            ? TimeSpan.FromSeconds(seconds) : PatchInstaller.InstallTimeout;
+        var install = Task.Run(async () =>
         {
-            var result = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _logger, ct);
+            var r = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _logger, CancellationToken.None);
 
             // Search again, so the node's available updates and its last update search are current
             // (like the Linux agent); then a fresh inventory in the background (installed updates,
             // history). A failed search does not fail the installation.
             try
             {
-                await new PatchScanner(_logger, _config).RunOnDemandScanAsync(ct);
-                result.SearchAfter = "succeeded";
+                await new PatchScanner(_logger, _config).RunOnDemandScanAsync(CancellationToken.None);
+                r.SearchAfter = "succeeded";
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Update search after the installation failed");
-                result.SearchAfter = $"failed: {ex.Message}";
+                r.SearchAfter = $"failed: {ex.Message}";
             }
             _ = Task.Run(async () =>
             {
                 try { await InventoryPusher.CollectAndPushAllAsync(_config); }
                 catch (Exception ex) { _logger.LogWarning(ex, "Inventory push after the installation failed"); }
             });
+            return r;
+        });
+
+        try
+        {
+            if (await Task.WhenAny(install, Task.Delay(limit, ct)) != install)
+            {
+                _ = install.ContinueWith(t => _logger.LogInformation(
+                    "Patch installation finished after the job's time limit: {Result}",
+                    t.IsCompletedSuccessfully ? t.Result.ToJson() : t.Exception?.GetBaseException().Message));
+                var running = ServicingProcesses();
+                _logger.LogWarning("Patch installation still running after {Minutes} min; servicing processes: {Processes}",
+                    (int)limit.TotalMinutes, running);
+                return new CommandResult
+                {
+                    ExitCode = 1,
+                    Stderr = $"The installation is still running after {(int)limit.TotalMinutes} min and was not interrupted " +
+                             $"(servicing processes: {running}). It finishes in the background; the update search " +
+                             "afterwards shows the result."
+                };
+            }
+            var result = await install;
 
             return new CommandResult
             {
@@ -1112,6 +1141,28 @@ if ($svc) {{
                 Stderr = $"PatchInstaller exception: {ex.Message}"
             };
         }
+    }
+
+    /// <summary>
+    /// The Windows servicing processes that are running (TrustedInstaller, TiWorker, dism, dismhost),
+    /// with PID and runtime - reported when an installation takes longer than its time limit. They are
+    /// never stopped: that can corrupt the component store.
+    /// </summary>
+    private static string ServicingProcesses()
+    {
+        var parts = new List<string>();
+        foreach (var name in new[] { "TrustedInstaller", "TiWorker", "dismhost", "dism" })
+        {
+            foreach (var p in Process.GetProcessesByName(name))
+            {
+                using (p)
+                {
+                    try { parts.Add($"{name} (PID {p.Id}, {(int)(DateTime.Now - p.StartTime).TotalMinutes} min)"); }
+                    catch { parts.Add($"{name} (PID {p.Id})"); }
+                }
+            }
+        }
+        return parts.Count > 0 ? string.Join(", ", parts) : "none";
     }
 
     /// <summary>

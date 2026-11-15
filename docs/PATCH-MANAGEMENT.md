@@ -95,7 +95,9 @@ The Linux agent reports the available package updates with every inventory push 
 
 Time limits: the payload's `timeout`, else the job's `timeoutSeconds`, else 10 minutes for the search and 60 minutes for the installation. The buttons use 15 and 60 minutes. Under systemd the package manager runs in a transient unit (`systemd-run --wait --pipe`), because the agent service itself runs with `ProtectSystem=strict` and cannot write `/usr`, `/etc` or `/var/lib`. It runs with `NEEDRESTART_MODE=l`, so needrestart only lists services that use old libraries and does not restart them. The apt commands run with `-o DPkg::Lock::Timeout=120`, so they wait up to 2 minutes when another apt process (e.g. unattended-upgrades) holds the lock.
 
-The node is never rebooted automatically. The inventory reports `rebootRequired`:
+A reboot happens only when an installed update needs one and the job asks for it: the install confirmation (Windows and Linux) offers *no reboot* (default), *reboot at* a set time, or *reboot in one minute* (`reboot_policy` `no_reboot` / `schedule` with `reboot_schedule_time` / `force`). On Linux a transient systemd timer runs `systemctl reboot` after the job has reported its result and the update search (without systemd: `shutdown -r`); a time in the past means one minute. On Windows the agent calls `shutdown /r /t <seconds>`. A Windows installation that takes longer than the job's limit (30 minutes) is never stopped – stopping TrustedInstaller/TiWorker can corrupt the component store: the job reports it as still running, with the servicing processes and their runtime, and the installation, reboot and update search finish in the background.
+
+The inventory reports `rebootRequired`:
 - Debian/Ubuntu: `/var/run/reboot-required`, with the packages from `reboot-required.pkgs`;
 - dnf/yum: `needs-restarting -r`.
 

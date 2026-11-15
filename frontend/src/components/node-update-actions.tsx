@@ -19,11 +19,12 @@ import { runNodeJob, type NodeJobResult } from "@/lib/node-jobs";
 // 20-minute limit, an installation 30 minutes; then the agent searches again.
 const LIMITS = {
   linux: { scan: { timeoutSeconds: 900, waitMs: 10 * 60_000 }, install: { timeoutSeconds: 3600, waitMs: 65 * 60_000 } },
-  windows: { scan: { timeoutSeconds: 1500, waitMs: 25 * 60_000 }, install: { timeoutSeconds: 3600, waitMs: 65 * 60_000 } },
+  // Windows: after 30 minutes the job reports a still running installation (it is never stopped)
+  windows: { scan: { timeoutSeconds: 1500, waitMs: 25 * 60_000 }, install: { timeoutSeconds: 1800, waitMs: 35 * 60_000 } },
 };
 
 type Os = "linux" | "windows";
-/** Windows: what happens when an update needs a reboot */
+/** What happens when an update needs a reboot (Windows and Linux) */
 type RebootPolicy = "no_reboot" | "schedule" | "force";
 
 /** The last lines of a job's output, for a toast */
@@ -44,8 +45,9 @@ function defaultRebootTime(): string {
  * "Search for updates" (patch_scan) and "Install updates" (patch_install, after a confirmation) for
  * a node, Linux or Windows.
  * - Linux: the packages in `selected`, or all available updates (`{"all": true}`).
- * - Windows: the KB IDs in `selected`, or all of `allIds`; the confirmation asks what happens when an
- *   update needs a reboot (no reboot, at a set time, in one minute).
+ * - Windows: the KB IDs in `selected`, or all of `allIds`.
+ * The confirmation asks what happens when an update needs a reboot (no reboot, at a set time, in one
+ * minute) - on both systems.
  * `onChanged` reloads the node's data once the agent has answered.
  */
 export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selected, allIds = [], onChanged }: {
@@ -66,8 +68,9 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
   const [rebootAt, setRebootAt] = useState(defaultRebootTime);
 
   function installData(items: string[], timeout: number): Record<string, unknown> {
-    if (os === "linux") return items.length ? { packages: items, timeout } : { all: true, timeout };
-    const data: Record<string, unknown> = { kb_ids: items.length ? items : allIds, reboot_policy: reboot, timeout };
+    const data: Record<string, unknown> = os === "linux"
+      ? { ...(items.length ? { packages: items } : { all: true }), reboot_policy: reboot, timeout }
+      : { kb_ids: items.length ? items : allIds, reboot_policy: reboot, timeout };
     // The agent compares the time with the current UTC time: send it with its offset (ISO, UTC)
     if (reboot === "schedule") data.reboot_schedule_time = new Date(rebootAt).toISOString();
     return data;
@@ -103,7 +106,7 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
     }
     if (result.status === "success") {
       toast.success(t(kind === "scan" ? "nodes.updates.searchDone" : "nodes.updates.installDone"),
-        { description: kind === "install" ? (os === "windows" ? windowsSummary(result.output) : tail(result.output, 1)) : undefined });
+        { description: kind === "install" ? (os === "windows" ? windowsSummary(result.output) : tail(result.output, 2)) : undefined });
     } else if (result.status === "failed") {
       toast.error(t(kind === "scan" ? "nodes.updates.searchFailed" : "nodes.updates.installFailed"),
         { description: os === "windows" && kind === "install" ? windowsSummary(result.detail) : tail(result.detail) });
@@ -143,7 +146,7 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
                   : t("nodes.updates.installConfirmText", { count: updateCount, manager })}
             </DialogDescription>
           </DialogHeader>
-          {os === "windows" && (
+          {(
             <fieldset className="space-y-2 text-sm">
               <legend className="font-medium mb-1">{t("nodes.updates.rebootLegend")}</legend>
               {(["no_reboot", "schedule", "force"] as RebootPolicy[]).map((policy) => (
@@ -161,7 +164,7 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(null)}>{t("common.cancel")}</Button>
-            <Button disabled={os === "windows" && reboot === "schedule" && !rebootAt}
+            <Button disabled={reboot === "schedule" && !rebootAt}
               onClick={() => { const items = confirming ?? []; setConfirming(null); run("install", items); }}>
               {confirming?.length ? t("nodes.updates.installSelected", { count: confirming.length }) : t("nodes.updates.install")}
             </Button>

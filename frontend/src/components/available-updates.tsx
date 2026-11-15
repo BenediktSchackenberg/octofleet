@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiClient } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
+import { UPDATE_COLS, installedUpdateType } from "@/lib/update-tables";
 
 export interface AvailableUpdate {
   kb_id: string | null;
@@ -60,28 +61,29 @@ export function AvailableUpdates({ updates, selected, onSelectedChange, actions 
         {updates.length === 0 ? (
           <p className="text-muted-foreground">{t("nodeDetail.availableUpdatesNone")}</p>
         ) : (
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
-                {onSelectedChange && (
-                  <TableHead className="w-8">
+                <TableHead className={UPDATE_COLS.select}>
+                  {onSelectedChange && (
                     <Checkbox aria-label={t("nodes.updates.selectAll")}
                       checked={chosen.length > 0 && chosen.length === selectable.length}
                       onCheckedChange={(checked) => onSelectedChange(checked ? selectable : [])} />
-                  </TableHead>
-                )}
-                <TableHead>KB{/* i18n-ignore */}</TableHead>
+                  )}
+                </TableHead>
+                <TableHead className={UPDATE_COLS.kb}>KB{/* i18n-ignore */}</TableHead>
                 <TableHead>{t("nodeDetail.title")}</TableHead>
-                <TableHead>{t("nodeDetail.availableUpdateSeverity")}</TableHead>
-                <TableHead>{t("nodeDetail.availableUpdateFound")}</TableHead>
+                <TableHead className={UPDATE_COLS.type}>{t("nodeDetail.type")}</TableHead>
+                <TableHead className={UPDATE_COLS.date}>{t("nodeDetail.availableUpdateFound")}</TableHead>
+                <TableHead className={UPDATE_COLS.status}>{t("nodeDetail.availableUpdateSeverity")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {updates.map((u, i) => (
                 <TableRow key={`${u.kb_id ?? ""}-${i}`}>
-                  {onSelectedChange && (
+                  {(
                     <TableCell>
-                      {u.kb_id && (
+                      {onSelectedChange && u.kb_id && (
                         <Checkbox aria-label={t("nodes.updates.selectPackage", { name: u.kb_id })}
                           checked={chosen.includes(u.kb_id)}
                           onCheckedChange={(checked) => onSelectedChange(checked
@@ -91,16 +93,19 @@ export function AvailableUpdates({ updates, selected, onSelectedChange, actions 
                   )}
                   <TableCell>{u.kb_id ? <Badge variant="outline">{u.kb_id}</Badge> : "-"}</TableCell>
                   <TableCell>
-                    <div className="flex max-w-[560px] items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate" title={u.title}>{u.title}</span>
                       {u.definition && <Badge variant="secondary" className="shrink-0">{t("nodeDetail.definitionUpdate")}</Badge>}
                       {u.is_reboot_required && <Badge variant="destructive" className="shrink-0">{t("nodes.updates.rebootRequired")}</Badge>}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={u.severity === "critical" || u.severity === "important" ? "destructive" : "secondary"}>{u.severity}</Badge>
+                    <Badge variant="secondary">{t(`nodeDetail.installedUpdateType.${installedUpdateType(u.title)}`)}</Badge>
                   </TableCell>
                   <TableCell>{formatDate(u.discovered_at)}</TableCell>
+                  <TableCell>
+                    <Badge variant={u.severity === "critical" || u.severity === "important" ? "destructive" : "secondary"}>{u.severity}</Badge>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

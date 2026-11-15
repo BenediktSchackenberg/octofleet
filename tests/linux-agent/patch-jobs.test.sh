@@ -12,7 +12,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # JSON here-document with a "}" at the start of a line, so it ends at the first "}" after "EOF".
 eval "$(awk '/^package_manager\(\) \{/ { f = 1 } /^execute_job\(\) \{/ { exit } f { print }' "$AGENT")"
 eval "$(awk '/^execute_job\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
-for fn in package_manager run_package_command refresh_package_lists run_patch_scan run_patch_install execute_job; do
+for fn in package_manager run_package_command refresh_package_lists run_patch_scan run_patch_install schedule_system_reboot execute_job; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 info() { :; }; warn() { :; }
@@ -192,6 +192,45 @@ run_job patch_scan '{}'
 check "no package manager: scan failed with a reason" [ "$(field .success)" = "false" ] && grep -q "No supported package manager" <<< "$(scan .error)"
 run_job patch_install '{"all": true}'
 check "no package manager: install failed with a reason" [ "$(field .success)" = "false" ] && grep -q "No supported package manager" <<< "$(field .stdout)"
+
+# --- reboot after updates that need it (a fake systemd-run records the timer) ---
+cat > "$TOOLS/systemd-run" <<'EOF'
+#!/bin/bash
+echo "systemd-run $*" >> "$WORK/calls"
+env=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --setenv=*) env+=("${1#--setenv=}") ;;
+    --unit|--on-calendar|--on-active) shift ;;
+    --*) ;;
+    *) break ;;
+  esac
+  shift
+done
+# a reboot timer only records itself; package commands run
+[ "$1" = "/bin/systemctl" ] && exit 0
+exec env "${env[@]}" "$@"
+EOF
+chmod +x "$TOOLS/systemd-run"
+export REBOOT_REQUIRED_FILE="$WORK/reboot-required"
+clear_fakes; fake apt-get 0 'Setting up linux-image (1) ...'
+touch "$REBOOT_REQUIRED_FILE"
+INVOCATION_ID=t run_job patch_install '{"all": true, "reboot_policy": "force"}'
+check "reboot force: a timer runs systemctl reboot in a minute" grep -q "^systemd-run .*--on-active=60s /bin/systemctl reboot" <<< "$(calls)"
+check "reboot force: said in the output" grep -q "^Reboot in one minute" <<< "$(field .stdout)"
+check "reboot: only after the update search" bash -c '[ "$(grep -n "/bin/systemctl reboot" <<< "$1" | tail -1 | cut -d: -f1)" -gt "$(grep -n "apt-get -q update" <<< "$1" | head -1 | cut -d: -f1)" ]' _ "$(calls)"
+INVOCATION_ID=t run_job patch_install '{"all": true, "reboot_policy": "schedule", "reboot_schedule_time": "2099-01-02T21:00:00Z"}'
+check "reboot schedule: a calendar timer at the time in UTC" grep -q -- "--on-calendar=2099-01-02 21:00:00 UTC /bin/systemctl reboot" <<< "$(calls)"
+check "reboot schedule: said in the output" grep -q "^Reboot scheduled for 2099-01-02 21:00:00 UTC" <<< "$(field .stdout)"
+INVOCATION_ID=t run_job patch_install '{"all": true, "reboot_policy": "schedule", "reboot_schedule_time": "2000-01-01T00:00:00Z"}'
+check "reboot schedule in the past: in one minute" grep -q -- "--on-active=60s /bin/systemctl reboot" <<< "$(calls)"
+INVOCATION_ID=t run_job patch_install '{"all": true}'
+check "no reboot_policy: no reboot" bash -c '! grep -q "systemctl reboot" <<< "$1"' _ "$(calls)"
+check "no reboot_policy: said in the output" grep -q "^Reboot: not requested" <<< "$(field .stdout)"
+rm -f "$REBOOT_REQUIRED_FILE"
+INVOCATION_ID=t run_job patch_install '{"all": true, "reboot_policy": "force"}'
+check "no reboot required: no reboot even with force" bash -c '! grep -q "systemctl reboot" <<< "$1"' _ "$(calls)"
+rm -f "$TOOLS/systemd-run"; unset REBOOT_REQUIRED_FILE
 
 rm -rf "$WORK"
 echo

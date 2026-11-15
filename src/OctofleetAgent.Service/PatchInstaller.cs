@@ -11,7 +11,8 @@ namespace OctofleetAgent.Service;
 /// </summary>
 public static class PatchInstaller
 {
-    private static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
+    /// <summary>Default time limit of a patch_install job (the installation itself is never stopped)</summary>
+    public static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
 
     public static async Task<PatchInstallResult> InstallPatchesAsync(
         List<string> kbIds, string rebootPolicy, string? rebootScheduleTime,

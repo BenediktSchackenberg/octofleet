@@ -44,6 +44,8 @@ test('Linux updates: last search, reboot flag, search and install with confirmat
   await page.getByRole('button', { name: /Install updates/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('Install all updates?')).toBeVisible();
+  // the reboot choice, like on Windows: no reboot by default
+  await expect(dialog.getByLabel('Don\'t reboot (do it yourself later)')).toBeChecked();
   await expect(dialog).toContainText('all 2 package updates with apt');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
