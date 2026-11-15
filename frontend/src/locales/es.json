@@ -299,19 +299,20 @@
       "selectPackage": "Seleccionar {name}",
       "searchHintWindows": "Busca actualizaciones con Windows Update (en clientes WSUS: las aprobadas en WSUS)",
       "installConfirmTextWindows": "El agente instala {count} actualizaciones con Windows Update: {updates}. Después vuelve a buscar actualizaciones.",
-      "rebootLegend": "Si una actualización requiere reiniciar",
+      "rebootLegend": "Si una actualización instalada requiere reiniciar (si no, no pasa nada)",
       "rebootAt": "Hora del reinicio",
       "rebootOption": {
-        "no_reboot": "No reiniciar (más tarde, manualmente)",
+        "no_reboot": "No reiniciar: Octofleet no reinicia el nodo",
         "schedule": "Reiniciar a las",
-        "force": "Reiniciar en un minuto"
+        "force": "Reiniciar al terminar la instalación (un minuto después)"
       },
       "windowsResult": "Instaladas: {installed} · fallidas: {failed}",
       "windowsReboot": {
         "no_reboot": "reinicio necesario",
         "schedule": "reinicio programado",
         "force": "reinicio en un minuto"
-      }
+      },
+      "windowsOwnRestart": "Windows puede reiniciarse por sí mismo según su directiva de actualizaciones (p. ej. instalación automática con reinicio programado, horas activas, plazos). Con «notificar el reinicio» (AUOptions 7) no lo hace."
     },
     "vulnerabilities": {
       "tab": "Vulnerabilidades ({count})",

@@ -45,7 +45,8 @@ test('Windows Updates tab: available updates and the pending highlight without D
   await panel.getByRole('button', { name: /Install selected \(1\)/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('KB5130001');
-  await expect(dialog.getByLabel('Don\'t reboot (do it yourself later)')).toBeChecked();
+  await expect(dialog.getByLabel(/^Don't reboot/)).toBeChecked();
+  await expect(dialog).toContainText('Windows may still restart by itself');
   await dialog.getByLabel('Reboot at').check();
   await expect(dialog.getByLabel('Reboot time')).toHaveValue(/T22:00$/);
   await dialog.getByRole('button', { name: 'Cancel' }).click();

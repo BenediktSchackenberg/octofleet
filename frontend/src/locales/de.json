@@ -299,19 +299,20 @@
       "selectPackage": "{name} auswählen",
       "searchHintWindows": "Sucht mit Windows Update nach Updates (auf WSUS-Clients: die in WSUS freigegebenen)",
       "installConfirmTextWindows": "Der Agent installiert {count} Updates mit Windows Update: {updates}. Danach sucht er erneut nach Updates.",
-      "rebootLegend": "Wenn ein Update einen Neustart braucht",
+      "rebootLegend": "Wenn ein installiertes Update einen Neustart braucht (sonst passiert nichts)",
       "rebootAt": "Neustart-Zeitpunkt",
       "rebootOption": {
-        "no_reboot": "Nicht neu starten (später selbst)",
+        "no_reboot": "Nicht neu starten – Octofleet startet den Node nicht neu",
         "schedule": "Neu starten um",
-        "force": "In einer Minute neu starten"
+        "force": "Neu starten, wenn die Installation fertig ist (eine Minute danach)"
       },
       "windowsResult": "Installiert: {installed} · fehlgeschlagen: {failed}",
       "windowsReboot": {
         "no_reboot": "Neustart erforderlich",
         "schedule": "Neustart geplant",
         "force": "Neustart in einer Minute"
-      }
+      },
+      "windowsOwnRestart": "Windows kann trotzdem selbst neu starten, je nach seiner Update-Richtlinie (z. B. automatische Installation mit geplantem Neustart, Nutzungszeit, Fristen). Mit „Neustart melden“ (AUOptions 7) nicht."
     },
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",

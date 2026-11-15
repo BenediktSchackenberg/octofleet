@@ -160,6 +160,8 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
                   )}
                 </label>
               ))}
+              {/* Windows can restart by its own update policy, whatever Octofleet does */}
+              {os === "windows" && <p className="text-xs text-muted-foreground pt-1">{t("nodes.updates.windowsOwnRestart")}</p>}
             </fieldset>
           )}
           <DialogFooter>

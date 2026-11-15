@@ -299,19 +299,20 @@
       "selectPackage": "Select {name}",
       "searchHintWindows": "Searches for updates with Windows Update (on WSUS clients: the updates approved in WSUS)",
       "installConfirmTextWindows": "The agent installs {count} updates with Windows Update: {updates}. Afterwards it searches for updates again.",
-      "rebootLegend": "If an update needs a reboot",
+      "rebootLegend": "If an installed update needs a reboot (otherwise nothing happens)",
       "rebootAt": "Reboot time",
       "rebootOption": {
-        "no_reboot": "Don't reboot (do it yourself later)",
+        "no_reboot": "Don't reboot – Octofleet does not restart the node",
         "schedule": "Reboot at",
-        "force": "Reboot in one minute"
+        "force": "Reboot when the installation is done (one minute later)"
       },
       "windowsResult": "Installed: {installed} · failed: {failed}",
       "windowsReboot": {
         "no_reboot": "reboot required",
         "schedule": "reboot scheduled",
         "force": "rebooting in one minute"
-      }
+      },
+      "windowsOwnRestart": "Windows may still restart by itself, depending on its update policy (e.g. automatic installation with a scheduled restart, active hours, deadlines). With \"notify to restart\" (AUOptions 7) it does not."
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",
