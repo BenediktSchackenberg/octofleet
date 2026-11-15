@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json;
 
 namespace OctofleetAgent.Service;
 
@@ -112,6 +111,7 @@ public static class PatchInstaller
                 logger.LogInformation("PatchInstaller: Installing {Count} updates...", (int)toInstall.Count);
                 dynamic installer = session.CreateUpdateInstaller();
                 installer.Updates = toInstall;
+                var installStart = DateTime.UtcNow;
                 dynamic installResult = installer.Install();
 
                 int instResultCode = (int)installResult.ResultCode;
@@ -124,7 +124,10 @@ public static class PatchInstaller
                     string? kb = UpdateKey(upd);
                     if (kb == null) continue;
 
-                    int itemCode = (int)installResult.GetUpdateResult(i).ResultCode;
+                    dynamic updateResult = installResult.GetUpdateResult(i);
+                    int itemCode = (int)updateResult.ResultCode;
+                    int itemHResult = (int)updateResult.HResult;
+                    result.Details[kb] = new PatchDetail(itemCode, itemHResult, "installer");
                     if (itemCode == 2) // succeeded
                     {
                         result.InstalledKBs.Add(kb);
@@ -133,10 +136,17 @@ public static class PatchInstaller
                     else
                     {
                         result.FailedKBs.Add(kb);
-                        logger.LogWarning("PatchInstaller: Failed {KB} (code {Code})", kb, itemCode);
+                        logger.LogWarning("PatchInstaller: Failed {KB} (code {Code}, 0x{HResult:X8})", kb, itemCode, itemHResult);
                     }
                 }
 
+                // The installer can report success while the update history records a failure (e.g.
+                // 0x800F0823: Windows installed a newer servicing stack first; the update is offered
+                // again after the restart) - the history decides
+                PatchInstallCheck.ApplyHistory(result, ReadHistory(searcher, logger), installStart.AddMinutes(-1));
+                foreach (var kb in result.FailedKBs)
+                    if (result.Details.TryGetValue(kb, out var d) && d.Source == "history")
+                        logger.LogWarning("PatchInstaller: {KB} reported as installed, but the update history says failed (0x{HResult:X8})", kb, d.HResult);
                 result.Success = result.FailedKBs.Count == 0;
                 logger.LogInformation("PatchInstaller: Done. Installed={Installed}, Failed={Failed}, RebootRequired={Reboot}",
                     result.InstalledKBs.Count, result.FailedKBs.Count, result.RebootRequired);
@@ -206,6 +216,31 @@ public static class PatchInstaller
         catch { /* best effort */ }
     }
 
+    /// <summary>The newest 50 entries of the Windows Update history (empty if it cannot be read)</summary>
+    private static List<PatchHistoryEntry> ReadHistory(dynamic searcher, ILogger logger)
+    {
+        var entries = new List<PatchHistoryEntry>();
+        try
+        {
+            int count = (int)searcher.GetTotalHistoryCount();
+            if (count == 0) return entries;
+            dynamic history = searcher.QueryHistory(0, Math.Min(count, 50));
+            for (int i = 0; i < (int)history.Count; i++)
+            {
+                dynamic entry = history.Item(i);
+                string title = entry.Title?.ToString() ?? "";
+                // IUpdateHistoryEntry.Date is UTC
+                entries.Add(new PatchHistoryEntry(ExtractKbId(title), DateTime.SpecifyKind((DateTime)entry.Date, DateTimeKind.Utc),
+                    (int)entry.Operation, (int)entry.ResultCode, (int)entry.HResult));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "PatchInstaller: could not read the update history");
+        }
+        return entries;
+    }
+
     private static string? ExtractKbId(string title)
     {
         var match = System.Text.RegularExpressions.Regex.Match(title, @"KB(\d+)",
@@ -227,24 +262,4 @@ public static class PatchInstaller
         }
         catch { return null; }
     }
-}
-
-public class PatchInstallResult
-{
-    public bool Success { get; set; }
-    public bool RebootRequired { get; set; }
-    public List<string> InstalledKBs { get; set; } = new();
-    public List<string> FailedKBs { get; set; } = new();
-    public string? ErrorMessage { get; set; }
-    /// <summary>Result of the update search after the installation (null: not run)</summary>
-    public string? SearchAfter { get; set; }
-
-    public string ToJson() => JsonSerializer.Serialize(new
-    {
-        installed = InstalledKBs,
-        failed = FailedKBs,
-        reboot_required = RebootRequired,
-        error = ErrorMessage,
-        search_after = SearchAfter
-    });
 }

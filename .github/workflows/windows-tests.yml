@@ -9,6 +9,7 @@ on:
       - 'tests/windows/Release-Package.Tests.ps1'
       - 'tests/OctofleetAgent.Inventory.Tests/**'
       - 'tests/OctofleetAgent.Update.Tests/**'
+      - 'tests/OctofleetAgent.Patch.Tests/**'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
       - 'installer/Build-Release.ps1'
@@ -20,6 +21,7 @@ on:
       - 'Install-OctofleetAgent.ps1'
       - 'tests/OctofleetAgent.Inventory.Tests/**'
       - 'tests/OctofleetAgent.Update.Tests/**'
+      - 'tests/OctofleetAgent.Patch.Tests/**'
       - 'tests/windows/Release-Package.Tests.ps1'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
@@ -41,6 +43,8 @@ jobs:
         run: dotnet run --project tests/OctofleetAgent.Inventory.Tests -c Release
       - name: Test agent update source lookup and GitHub fallback
         run: dotnet run --project tests/OctofleetAgent.Update.Tests -c Release
+      - name: Test patch installation results against the update history
+        run: dotnet run --project tests/OctofleetAgent.Patch.Tests -c Release
       - name: Test isolated release packaging
         shell: pwsh
         run: ./tests/windows/Release-Package.Tests.ps1
