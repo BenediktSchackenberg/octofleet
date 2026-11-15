@@ -15,6 +15,9 @@ public class JobPoller : BackgroundService
     private readonly ILogger<JobPoller> _logger;
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
+    // A timed-out job leaves Windows servicing running in the background. Do not start another
+    // installation until that work and the follow-up search have finished.
+    private readonly SemaphoreSlim _patchInstallGate = new(1, 1);
     
     // Polling settings
     private const int DefaultPollIntervalMs = 30000;  // 30 seconds
@@ -1074,9 +1077,64 @@ if ($svc) {{
             };
         }
 
+        // Time limit: the payload's timeout, else PatchInstaller.InstallTimeout (30 min). An installation
+        // that takes longer is NOT stopped - killing TrustedInstaller/TiWorker can corrupt the component
+        // store. The job reports it as still running (with the servicing processes) and frees the job
+        // loop; the installation finishes in the background, then the reboot policy, search and
+        // inventory follow as usual.
+        var limit = payload.TryGetProperty("timeout", out var to) && to.TryGetInt32(out var seconds) && seconds > 0
+            ? TimeSpan.FromSeconds(seconds) : PatchInstaller.InstallTimeout;
+        if (!await _patchInstallGate.WaitAsync(0, ct))
+            return new CommandResult { ExitCode = 1, Stderr = "Another patch installation is still running on this node." };
+        var install = Task.Run(async () =>
+        {
+            try
+            {
+                var r = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _logger, CancellationToken.None);
+
+                // Keep the guard until the follow-up search has refreshed the update list.
+                try
+                {
+                    await new PatchScanner(_logger, _config).RunOnDemandScanAsync(CancellationToken.None);
+                    r.SearchAfter = "succeeded";
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Update search after the installation failed");
+                    r.SearchAfter = $"failed: {ex.Message}";
+                }
+                _ = Task.Run(async () =>
+                {
+                    try { await InventoryPusher.CollectAndPushAllAsync(_config); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Inventory push after the installation failed"); }
+                });
+                return r;
+            }
+            finally
+            {
+                _patchInstallGate.Release();
+            }
+        });
+
         try
         {
-            var result = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _logger, ct);
+            if (await Task.WhenAny(install, Task.Delay(limit, ct)) != install)
+            {
+                _ = install.ContinueWith(t => _logger.LogInformation(
+                    "Patch installation finished after the job's time limit: {Result}",
+                    t.IsCompletedSuccessfully ? t.Result.ToJson() : t.Exception?.GetBaseException().Message));
+                var running = ServicingProcesses();
+                _logger.LogWarning("Patch installation still running after {Minutes} min; servicing processes: {Processes}",
+                    (int)limit.TotalMinutes, running);
+                return new CommandResult
+                {
+                    ExitCode = 1,
+                    Stderr = $"The installation is still running after {(int)limit.TotalMinutes} min and was not interrupted " +
+                             $"(servicing processes: {running}). It finishes in the background; the update search " +
+                             "afterwards shows the result."
+                };
+            }
+            var result = await install;
 
             return new CommandResult
             {
@@ -1093,6 +1151,28 @@ if ($svc) {{
                 Stderr = $"PatchInstaller exception: {ex.Message}"
             };
         }
+    }
+
+    /// <summary>
+    /// The Windows servicing processes that are running (TrustedInstaller, TiWorker, dism, dismhost),
+    /// with PID and runtime - reported when an installation takes longer than its time limit. They are
+    /// never stopped: that can corrupt the component store.
+    /// </summary>
+    private static string ServicingProcesses()
+    {
+        var parts = new List<string>();
+        foreach (var name in new[] { "TrustedInstaller", "TiWorker", "dismhost", "dism" })
+        {
+            foreach (var p in Process.GetProcessesByName(name))
+            {
+                using (p)
+                {
+                    try { parts.Add($"{name} (PID {p.Id}, {(int)(DateTime.Now - p.StartTime).TotalMinutes} min)"); }
+                    catch { parts.Add($"{name} (PID {p.Id})"); }
+                }
+            }
+        }
+        return parts.Count > 0 ? string.Join(", ", parts) : "none";
     }
 
     /// <summary>

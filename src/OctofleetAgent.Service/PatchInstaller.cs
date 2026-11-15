@@ -11,7 +11,8 @@ namespace OctofleetAgent.Service;
 /// </summary>
 public static class PatchInstaller
 {
-    private static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
+    /// <summary>Default time limit of a patch_install job (the installation itself is never stopped)</summary>
+    public static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
 
     public static async Task<PatchInstallResult> InstallPatchesAsync(
         List<string> kbIds, string rebootPolicy, string? rebootScheduleTime,
@@ -60,7 +61,7 @@ public static class PatchInstaller
                 foreach (dynamic update in searchResult.Updates)
                 {
                     string title = update.Title?.ToString() ?? "";
-                    string? kb = ExtractKbId(title);
+                    string? kb = UpdateKey(update);
                     if (kb != null && kbSet.Contains(kb))
                     {
                         // Accept EULA if needed
@@ -120,7 +121,7 @@ public static class PatchInstaller
                 {
                     dynamic upd = toInstall.Item(i);
                     string title = upd.Title?.ToString() ?? "";
-                    string? kb = ExtractKbId(title);
+                    string? kb = UpdateKey(upd);
                     if (kb == null) continue;
 
                     int itemCode = (int)installResult.GetUpdateResult(i).ResultCode;
@@ -167,9 +168,12 @@ public static class PatchInstaller
                     StartReboot(60);
                     break;
                 case "schedule" when !string.IsNullOrEmpty(rebootScheduleTime):
-                    if (DateTime.TryParse(rebootScheduleTime, out var scheduled))
+                    // DateTimeOffset keeps the time's offset ("…Z", "+01:00"); DateTime.TryParse turned it
+                    // into local time, compared with UtcNow - an hour off on a UTC+1 machine
+                    if (DateTimeOffset.TryParse(rebootScheduleTime, System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.AssumeUniversal, out var scheduled))
                     {
-                        var delay = (int)Math.Max((scheduled - DateTime.UtcNow).TotalSeconds, 60);
+                        var delay = (int)Math.Max((scheduled - DateTimeOffset.UtcNow).TotalSeconds, 60);
                         logger.LogInformation("PatchInstaller: Scheduling reboot in {Delay}s", delay);
                         StartReboot(delay);
                     }
@@ -208,6 +212,21 @@ public static class PatchInstaller
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return match.Success ? $"KB{match.Groups[1].Value}" : null;
     }
+
+    // The scanner lists updates without a KB as UPDATE-<first eight characters of UpdateID>.
+    // Accept that key when the user selects such an update on the node page.
+    private static string? UpdateKey(dynamic update)
+    {
+        string title = update.Title?.ToString() ?? "";
+        var kb = ExtractKbId(title);
+        if (kb != null) return kb;
+        try
+        {
+            string? id = update.Identity.UpdateID?.ToString();
+            return string.IsNullOrEmpty(id) ? null : $"UPDATE-{id[..Math.Min(8, id.Length)]}";
+        }
+        catch { return null; }
+    }
 }
 
 public class PatchInstallResult
@@ -217,12 +236,15 @@ public class PatchInstallResult
     public List<string> InstalledKBs { get; set; } = new();
     public List<string> FailedKBs { get; set; } = new();
     public string? ErrorMessage { get; set; }
+    /// <summary>Result of the update search after the installation (null: not run)</summary>
+    public string? SearchAfter { get; set; }
 
     public string ToJson() => JsonSerializer.Serialize(new
     {
         installed = InstalledKBs,
         failed = FailedKBs,
         reboot_required = RebootRequired,
-        error = ErrorMessage
+        error = ErrorMessage,
+        search_after = SearchAfter
     });
 }
