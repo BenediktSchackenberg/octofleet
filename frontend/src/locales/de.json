@@ -102,7 +102,8 @@
       "failedJobs": "{count} fehlgeschlagene Jobs in den letzten 7 Tagen",
       "alertsNotSent": "{count} nicht gesendete Alarme in den letzten 7 Tagen",
       "findings": "{count} Sicherheitsbefunde"
-    }
+    },
+    "fleetUpdates": "Updates der Flotte"
   },
   "auth": {
     "login": "Anmelden",
@@ -1642,6 +1643,58 @@
       "installPackage": "Paket installieren",
       "uninstallPackage": "Paket deinstallieren",
       "inventory": "Inventar"
+    }
+  },
+  "fleetUpdates": {
+    "title": "Updates der Flotte",
+    "description": "Ausstehende Updates, Neustarts und Update-Suchen aller Nodes, Windows und Linux",
+    "search": "Node suchen…",
+    "os": "Betriebssystem",
+    "allSystems": "Alle Systeme",
+    "showAll": "Alle Nodes anzeigen",
+    "shown": "Angezeigt: {count}",
+    "noMatches": "Keine Nodes passen zu den Filtern.",
+    "empty": "Noch keine Nodes.",
+    "neverSearched": "Noch nicht gesucht",
+    "security": "{count} Sicherheit",
+    "offline": "Offline",
+    "range": "{from}–{to} von {total}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "cards": {
+      "nodes": "Nodes",
+      "pending": "Mit ausstehenden Updates",
+      "security": "Mit Sicherheitsupdates",
+      "reboot": "Neustart ausstehend oder nötig",
+      "failed": "Suche fehlgeschlagen",
+      "stale": "Seit {days} Tagen nicht gesucht",
+      "offline": "Offline"
+    },
+    "cardHint": {
+      "nodes": "Alle Nodes – entfernt die Filter",
+      "pending": "Nur Nodes mit ausstehenden Updates (Windows ohne Defender-Signaturen)",
+      "security": "Nur Nodes mit Sicherheitsupdates (Windows: Kategorie Sicherheit oder kritisch / wichtig)",
+      "reboot": "Nur Nodes, die auf einen Neustart warten oder deren Updates einen brauchen",
+      "failed": "Nur Nodes, deren letzte Update-Suche fehlgeschlagen ist",
+      "stale": "Nur Nodes ohne Update-Suche seit {days} Tagen oder überhaupt",
+      "offline": "Nur Nodes, die offline sind"
+    },
+    "col": {
+      "node": "Node",
+      "pending": "Ausstehende Updates",
+      "reboot": "Neustart",
+      "lastSearch": "Letzte Update-Suche",
+      "status": "Status"
+    },
+    "reboot": {
+      "pending": "Neustart ausstehend",
+      "needed": "Braucht einen Neustart",
+      "maybe": "Evtl. Neustart nötig",
+      "unknown": "Unbekannt"
+    },
+    "running": {
+      "patch_scan": "Sucht…",
+      "patch_install": "Installiert…"
     }
   }
 }

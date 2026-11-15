@@ -31,7 +31,7 @@ export type RebootBehavior = "never" | "always" | "can" | "unknown";
  */
 export function linuxRebootBehavior(name: string): RebootBehavior {
   if (/^(linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)/.test(name)) return "always";
-  if (/^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d|openssl(-libs)?)(\b|-|:|$)/.test(name)) return "can";
+  if (/^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d+(t64)?|openssl(-libs)?)(\b|-|:|$)/.test(name)) return "can";
   return "never";
 }
 

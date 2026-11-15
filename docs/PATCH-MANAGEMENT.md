@@ -118,6 +118,19 @@ Below the last search, the Updates tab lists the node's **Installed updates** fr
 - The agent reads the history newest first, up to 2000 entries. Of the Microsoft Defender signature updates, which come several times a day, it keeps only the newest, so the monthly cumulative updates stay in the history.
 - The full history is listed under **Update history**.
 
+### Fleet Updates
+
+**Patches → Fleet updates** (`/patches/updates`, `packages:read`) lists every node, Windows and Linux, with its update state – which nodes need updating, which are stuck, which wait for a reboot:
+
+| Column | Windows | Linux |
+|---|---|---|
+| Pending updates, security updates | the last search's available updates; Defender signature updates are counted separately (*+ n Defender signatures*), not as pending | the inventory's `totalUpdates` / `securityUpdates` |
+| Reboot | *Reboot pending* (`reboot_pending`), *Will need a reboot* / *May need a reboot* from the pending updates' `reboot_behavior`, *Unknown* when an update did not report it | *Reboot pending* (`rebootRequired`), else estimated from the package names like on the node page |
+| Last update search | time, status (with errors / failed), source; the error as tooltip | same, from `patch_scan` jobs |
+| Status | a running search or installation, offline | same |
+
+The node name leads to the node's Updates tab. The cards count over all nodes and switch filters on and off: with pending updates, with security updates (Windows: category security, or severity critical or important), reboot pending or needed, last search failed, no search for 7 days, offline. A name search and the operating system narrow the list further; the columns sort on click (default: most pending updates first). Filters and sorting are kept in the URL, and each change is a browser history entry, so *Back* returns to the previous filters. The list reloads every 15 seconds.
+
 ---
 
 ## API Reference
@@ -126,7 +139,7 @@ Below the last search, the Updates tab lists the node's **Installed updates** fr
 
 | What | Permission |
 |---|---|
-| Read the catalog, rings, deployments and the Patch Explorer | `packages:read` |
+| Read the catalog, rings, deployments, the Patch Explorer and the fleet updates | `packages:read` |
 | Compliance views | `compliance:read` |
 | Create, import, approve or exclude patches; manage rings | `packages:write` |
 | Start, pause, resume or cancel deployments; Patch Explorer deploy, scan and verify | `packages:deploy` |
