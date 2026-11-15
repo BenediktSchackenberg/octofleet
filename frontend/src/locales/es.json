@@ -102,7 +102,8 @@
       "failedJobs": "{count} trabajos fallidos en los últimos 7 días",
       "alertsNotSent": "{count} alertas no enviadas en los últimos 7 días",
       "findings": "{count} hallazgos de seguridad"
-    }
+    },
+    "fleetUpdates": "Actualizaciones de la flota"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -1642,6 +1643,58 @@
       "installPackage": "Instalar paquete",
       "uninstallPackage": "Desinstalar paquete",
       "inventory": "Inventario"
+    }
+  },
+  "fleetUpdates": {
+    "title": "Actualizaciones de la flota",
+    "description": "Actualizaciones pendientes, reinicios y búsquedas de actualizaciones de todos los nodos, Windows y Linux",
+    "search": "Buscar nodo…",
+    "os": "Sistema operativo",
+    "allSystems": "Todos los sistemas",
+    "showAll": "Mostrar todos los nodos",
+    "shown": "Mostrados: {count}",
+    "noMatches": "Ningún nodo coincide con los filtros.",
+    "empty": "Aún no hay nodos.",
+    "neverSearched": "Aún no buscado",
+    "security": "{count} de seguridad",
+    "offline": "Sin conexión",
+    "range": "{from}–{to} de {total}",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "cards": {
+      "nodes": "Nodos",
+      "pending": "Con actualizaciones pendientes",
+      "security": "Con actualizaciones de seguridad",
+      "reboot": "Reinicio pendiente o necesario",
+      "failed": "Búsqueda fallida",
+      "stale": "Sin búsqueda en {days} días",
+      "offline": "Sin conexión"
+    },
+    "cardHint": {
+      "nodes": "Todos los nodos – quita los filtros",
+      "pending": "Solo nodos con actualizaciones pendientes (Windows sin firmas de Defender)",
+      "security": "Solo nodos con actualizaciones de seguridad (Windows: categoría seguridad, o críticas / importantes)",
+      "reboot": "Solo nodos que esperan un reinicio o cuyas actualizaciones lo necesitan",
+      "failed": "Solo nodos cuya última búsqueda falló",
+      "stale": "Solo nodos sin búsqueda en {days} días o nunca",
+      "offline": "Solo nodos sin conexión"
+    },
+    "col": {
+      "node": "Nodo",
+      "pending": "Actualizaciones pendientes",
+      "reboot": "Reinicio",
+      "lastSearch": "Última búsqueda",
+      "status": "Estado"
+    },
+    "reboot": {
+      "pending": "Reinicio pendiente",
+      "needed": "Necesitará reinicio",
+      "maybe": "Puede necesitar reinicio",
+      "unknown": "Desconocido"
+    },
+    "running": {
+      "patch_scan": "Buscando…",
+      "patch_install": "Instalando…"
     }
   }
 }
