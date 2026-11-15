@@ -40,7 +40,7 @@ public class AutoUpdater : BackgroundService
     public AutoUpdater(ILogger<AutoUpdater> logger)
     {
         _logger = logger;
-        _httpClient = new HttpClient();
+        _httpClient = AgentHttp.Create();
         // GitHub API requires User-Agent header
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "OctofleetAgent");
         _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");

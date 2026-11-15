@@ -26,7 +26,7 @@ public class RepoResolver
         _logger = logger;
         _preferRepo = preferRepo;
         _fallbackToSource = fallbackToSource;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(10));
     }
 
     /// <summary>

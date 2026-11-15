@@ -21,6 +21,7 @@ public class LiveDataPoller : BackgroundService
     private readonly ILogger<LiveDataPoller> _logger;
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
+    private readonly ConnectionProblems _problems;
     private readonly ProcessCollector _processCollector;
     private readonly string _nodeId;
     
@@ -33,7 +34,8 @@ public class LiveDataPoller : BackgroundService
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(10));
+        _problems = new ConnectionProblems(logger, "Live data push");
         _processCollector = new ProcessCollector(logger);
         _nodeId = Environment.MachineName.ToUpperInvariant(); // Same as inventory reports
     }
@@ -63,13 +65,16 @@ public class LiveDataPoller : BackgroundService
             try
             {
                 await PushLiveData(stoppingToken);
+                _problems.Success();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogWarning(ex, "Error pushing live data");
+                if (!_problems.Report(ex, stoppingToken))
+                    _logger.LogWarning(ex, "Error pushing live data");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(PollIntervalSeconds), stoppingToken);
+            // longer while the server is not reachable
+            await Task.Delay(_problems.Delay(TimeSpan.FromSeconds(PollIntervalSeconds), TimeSpan.FromMinutes(1)), stoppingToken);
         }
     }
 
