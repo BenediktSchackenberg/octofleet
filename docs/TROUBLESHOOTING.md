@@ -121,6 +121,50 @@ Get-Service OctofleetNodeAgent
 
 ---
 
+## Inventory Incomplete or "Collect inventory" Times Out (Windows)
+
+### Symptoms
+- **Collect inventory** on the node page reports a failed job: `Inventory collection did not finish within 300 s (a WMI query or PowerShell call may hang on this machine)`
+- Some sections of the node (e.g. hardware or security) are not updated, and the agent log names them: `Scheduled inventory push #12 completed: Successfully pushed inventory (HTTP 200); left out: security: timed out after 180 s`
+
+### Cause
+A WMI provider or a helper process (PowerShell, `net`, `netsh`) does not answer, for example because of a damaged WMI repository or a stuck provider host. The agent limits the time it waits:
+
+| What | Limit |
+|---|---|
+| WMI connect and query | 30 s |
+| Helper process | 60 s |
+| One collector (hardware, software, hotfixes, system, security, browser, network) | 3 min |
+| `inventory` job | the job's timeout (300 s by default) |
+
+A collector that times out or fails is left out of the push, and the other sections are still pushed. A timed-out collection cannot be cancelled. It ends in the background, and the agent keeps running its other jobs.
+
+### Solution
+1. Find the section in the agent log (see [Checking Logs](#checking-logs)) or in the job's output.
+2. Check WMI on the machine:
+
+   ```powershell
+   Get-CimInstance Win32_ComputerSystem
+   winmgmt /verifyrepository
+   ```
+
+   If the repository is inconsistent, `winmgmt /salvagerepository` repairs it. Restarting the `Winmgmt` service ends a stuck provider host.
+3. Restart the agent with a `restart-agent` job, or with `Restart-Service OctofleetNodeAgent`, and run **Collect inventory** again.
+
+---
+
+## Disks Without SSD/HDD Type or Health Status
+
+Virtual disks (Hyper-V, VMware, ...) report their media type as *unspecified*. The Hardware tab then shows no SSD/HDD type. This is expected, not an error.
+
+The health status, bus type, temperature and wear come from `MSFT_PhysicalDisk` and `MSFT_StorageReliabilityCounter`, matched to the disk by its disk number. If a disk still has no health status, check that the Storage Management provider answers:
+
+```powershell
+Get-PhysicalDisk | Select-Object DeviceId, FriendlyName, MediaType, HealthStatus
+```
+
+---
+
 ## Checking Logs
 
 ```powershell
