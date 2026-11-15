@@ -1695,6 +1695,47 @@
     "running": {
       "patch_scan": "Searching…",
       "patch_install": "Installing…"
-    }
+    },
+    "selectShown": "Select the nodes shown",
+    "selectNode": "Select {name}",
+    "failedJob": {
+      "patch_scan": "Search failed",
+      "patch_install": "Installation failed"
+    },
+    "bulk": {
+      "selected": "{count} selected",
+      "search": "Search for updates ({count})",
+      "install": "Install updates…",
+      "clear": "Clear selection",
+      "searchStarted": "Update search started – nodes: {count}",
+      "installStarted": "Installation started – nodes: {count}",
+      "skipped": "Skipped: {count} (Linux, not approved, no pending updates or busy)",
+      "failed": "Could not start the jobs",
+      "confirmTitle": "Install updates on the selected nodes?",
+      "confirmText": "Each Windows node installs its pending updates that are approved in the catalog (Patches → Catalog). Linux nodes are installed from their node page for now: Linux packages have no approval yet.",
+      "nothing": "nothing to install",
+      "updates": "Approved updates: {count} of {pending}",
+      "includeDefinitions": "Include Defender signature updates (Defender usually updates itself)",
+      "rebootMaybe": "Some of these updates need or may need a reboot, or a reboot is already pending (see the nodes).",
+      "rebootNone": "None of these updates needs a reboot.",
+      "installOn": "Install ({count})",
+      "busy": "a search or installation is running – skipped",
+      "unfinished": {
+        "restarting": "restarting to finish the last installation – skipped",
+        "awaiting_restart": "last installation waits for a restart – skipped"
+      },
+      "retry": "Install again on nodes whose last installation has not finished (restart)",
+      "notApproved": "no approved updates – skipped",
+      "toCatalog": "Approve in the catalog",
+      "linuxHeld": "Linux – no bulk installation yet",
+      "toNode": "Install on the node page"
+    },
+    "installation": {
+      "installing": "Installing…",
+      "restarting": "Restarting to finish the installation",
+      "awaiting_restart": "Installed – restart pending",
+      "restartAt": "Restart at {time}; finished once the node reports again"
+    },
+    "approved": "{count} approved"
   }
 }

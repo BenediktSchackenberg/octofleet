@@ -1695,6 +1695,47 @@
     "running": {
       "patch_scan": "Buscando…",
       "patch_install": "Instalando…"
-    }
+    },
+    "selectShown": "Seleccionar los nodos mostrados",
+    "selectNode": "Seleccionar {name}",
+    "failedJob": {
+      "patch_scan": "Búsqueda fallida",
+      "patch_install": "Instalación fallida"
+    },
+    "bulk": {
+      "selected": "{count} seleccionados",
+      "search": "Buscar actualizaciones ({count})",
+      "install": "Instalar actualizaciones…",
+      "clear": "Quitar selección",
+      "searchStarted": "Búsqueda iniciada – nodos: {count}",
+      "installStarted": "Instalación iniciada – nodos: {count}",
+      "skipped": "Omitidos: {count} (Linux, no aprobadas, sin actualizaciones pendientes u ocupados)",
+      "failed": "No se pudieron iniciar los trabajos",
+      "confirmTitle": "¿Instalar actualizaciones en los nodos seleccionados?",
+      "confirmText": "Cada nodo Windows instala sus actualizaciones pendientes aprobadas en el catálogo (Parches → Catálogo). Los nodos Linux se instalan por ahora desde su página: los paquetes Linux aún no tienen aprobación.",
+      "nothing": "nada que instalar",
+      "updates": "Actualizaciones aprobadas: {count} de {pending}",
+      "includeDefinitions": "Incluir actualizaciones de firmas de Defender (Defender suele actualizarse solo)",
+      "rebootMaybe": "Algunas de estas actualizaciones necesitan o pueden necesitar un reinicio, o ya hay uno pendiente (ver los nodos).",
+      "rebootNone": "Ninguna de estas actualizaciones necesita reinicio.",
+      "installOn": "Instalar ({count})",
+      "busy": "hay una búsqueda o instalación en curso – omitido",
+      "unfinished": {
+        "restarting": "reiniciando para terminar la última instalación – omitido",
+        "awaiting_restart": "la última instalación espera un reinicio – omitido"
+      },
+      "retry": "Instalar de nuevo en nodos cuya última instalación no ha terminado (reinicio)",
+      "notApproved": "ninguna actualización aprobada – omitido",
+      "toCatalog": "Aprobar en el catálogo",
+      "linuxHeld": "Linux – aún sin instalación masiva",
+      "toNode": "Instalar en la página del nodo"
+    },
+    "installation": {
+      "installing": "Instalando…",
+      "restarting": "Reiniciando para terminar la instalación",
+      "awaiting_restart": "Instalado – reinicio pendiente",
+      "restartAt": "Reinicio a las {time}; termina cuando el nodo vuelva a informar"
+    },
+    "approved": "{count} aprobadas"
   }
 }
