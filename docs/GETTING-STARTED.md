@@ -103,6 +103,11 @@ Now that you have a node reporting in, explore these features:
 - **📊 Dashboard** — Fleet overview with health status and hotspot matrix
 - **✅ Tasks** — What needs attention: agents waiting for approval, failed jobs, remediations and alert deliveries (last 7 days), nodes with critical CVEs, critical security findings and offline devices – each with its status, time and a link to it. The dashboard's "Open tasks" and the sidebar badges count the same way (failed jobs of the last 7 days, with a tooltip) and link to the matching filter; the jobs page shows only failed jobs with `?status=failed`.
 - **🖥️ Node Details** — Click any node for deep hardware/software inventory
+  - **Collect inventory** asks the agent for a fresh inventory, instead of waiting for the next scheduled push.
+  - The **Jobs** and **Patches** counts link to the node's own jobs and open patches.
+  - The **Services** tab lists the services of Windows and Linux nodes. Linux nodes also have a **Linux** tab for their Linux-specific details.
+  - The **Updates** tab of Windows nodes shows the last update search (WSUS or Windows Update), the installed updates with their status, and the update history.
+  - A tab whose data the agent did not report stays visible with a notice, so a collection problem is not mistaken for an empty node.
 - **🔒 Vulnerabilities** — Scan for CVEs across your fleet
 - **📦 Packages** — Track and deploy software
 - **🔐 Security Center** — File audit, behavior rules, and compliance monitoring
