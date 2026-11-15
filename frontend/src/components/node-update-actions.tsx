@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n-context";
 import { runNodeJob, type NodeJobResult } from "@/lib/node-jobs";
+import { formatDate, formatTime } from "@/lib/format";
 import type { RebootBehavior } from "@/lib/update-tables";
 
 // How long the page waits for the agent. timeoutSeconds is the agent's limit, sent as the payload's
@@ -33,13 +34,24 @@ function tail(text?: string, lines = 4): string | undefined {
   return text?.trim().split("\n").slice(-lines).join("\n") || undefined;
 }
 
-/** Today 22:00 (or tomorrow, if that has passed) as a value for <input type="datetime-local"> */
-function defaultRebootTime(): string {
+// The reboot time is chosen from two lists (day, time in 30-minute steps) labelled with the user's
+// language, date and time format - a native datetime-local field uses the browser's instead.
+const REBOOT_DAYS = 14;
+const REBOOT_TIMES = Array.from({ length: 48 }, (_, i) => i * 30); // minutes after midnight
+
+/** The day (0 = today) and minute of the default reboot: today 22:00, or tomorrow if that has passed */
+function defaultReboot(): { day: number; minute: number } {
   const d = new Date();
   d.setHours(22, 0, 0, 0);
-  if (d.getTime() < Date.now() + 5 * 60_000) d.setDate(d.getDate() + 1);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return { day: d.getTime() < Date.now() + 5 * 60_000 ? 1 : 0, minute: 22 * 60 };
+}
+
+/** Local date of day `day` (0 = today) at `minute` after midnight */
+function rebootDate(day: number, minute: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + day);
+  d.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+  return d;
 }
 
 /**
@@ -71,7 +83,8 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
   // The packages / KB IDs to install, fixed when the confirmation opens; [] = all updates
   const [confirming, setConfirming] = useState<string[] | null>(null);
   const [reboot, setReboot] = useState<RebootPolicy>("no_reboot");
-  const [rebootAt, setRebootAt] = useState(defaultRebootTime);
+  const [rebootDay, setRebootDay] = useState(() => defaultReboot().day);
+  const [rebootMinute, setRebootMinute] = useState(() => defaultReboot().minute);
 
   /** What the dialog says about a reboot for these updates, and whether it offers the reboot choice */
   function rebootOutlook(items: string[]) {
@@ -90,7 +103,7 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
       ? { ...(items.length ? { packages: items } : { all: true }), reboot_policy: policy, timeout }
       : { kb_ids: items.length ? items : allIds, reboot_policy: policy, timeout };
     // The agent compares the time with the current UTC time: send it with its offset (ISO, UTC)
-    if (policy === "schedule") data.reboot_schedule_time = new Date(rebootAt).toISOString();
+    if (policy === "schedule") data.reboot_schedule_time = rebootDate(rebootDay, rebootMinute).toISOString();
     return data;
   }
 
@@ -138,6 +151,8 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
 
   const manager = os === "windows" ? "Windows Update" : packageManager ?? "";
   const outlook = rebootOutlook(confirming ?? []);
+  // A time that has passed would mean "reboot right after the installation" on the agent
+  const scheduledInPast = outlook.offer && reboot === "schedule" && rebootDate(rebootDay, rebootMinute).getTime() < Date.now() + 60_000;
   const count = confirming?.length || updateCount;
   return (
     <div className="flex flex-wrap gap-2">
@@ -181,19 +196,36 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
                   <input type="radio" name="reboot" value={policy} checked={reboot === policy} onChange={() => setReboot(policy)} />
                   {t(`nodes.updates.rebootOption.${policy}`)}
                   {policy === "schedule" && reboot === "schedule" && (
-                    <input type="datetime-local" value={rebootAt} onChange={(e) => setRebootAt(e.target.value)}
-                      aria-label={t("nodes.updates.rebootAt")}
-                      className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-white" />
+                    <>
+                      <select value={rebootDay} onChange={(e) => setRebootDay(Number(e.target.value))}
+                        aria-label={t("nodes.updates.rebootDay")}
+                        className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-white">
+                        {Array.from({ length: REBOOT_DAYS }, (_, day) => (
+                          <option key={day} value={day}>
+                            {day === 0 ? t("nodes.updates.today") : day === 1 ? t("nodes.updates.tomorrow")
+                              : formatDate(rebootDate(day, 0), { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}
+                          </option>
+                        ))}
+                      </select>
+                      <select value={rebootMinute} onChange={(e) => setRebootMinute(Number(e.target.value))}
+                        aria-label={t("nodes.updates.rebootAt")}
+                        className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-white">
+                        {REBOOT_TIMES.map((minute) => (
+                          <option key={minute} value={minute}>{formatTime(rebootDate(0, minute), { hour: "2-digit", minute: "2-digit" })}</option>
+                        ))}
+                      </select>
+                    </>
                   )}
                 </label>
               ))}
+              {scheduledInPast && <p className="text-xs text-red-400">{t("nodes.updates.rebootPast")}</p>}
               {/* Windows can restart by its own update policy, whatever Octofleet does */}
               {os === "windows" && <p className="text-xs text-muted-foreground pt-1">{t("nodes.updates.windowsOwnRestart")}</p>}
             </fieldset>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(null)}>{t("common.cancel")}</Button>
-            <Button disabled={reboot === "schedule" && !rebootAt}
+            <Button disabled={scheduledInPast}
               onClick={() => { const items = confirming ?? []; setConfirming(null); run("install", items); }}>
               {confirming?.length ? t("nodes.updates.installSelected", { count: confirming.length }) : t("nodes.updates.install")}
             </Button>

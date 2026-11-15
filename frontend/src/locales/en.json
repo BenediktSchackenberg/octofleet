@@ -324,7 +324,11 @@
       "rebootBadge": {
         "always": "Needs a reboot",
         "can": "May need a reboot"
-      }
+      },
+      "rebootDay": "Reboot day",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "rebootPast": "This time has passed – choose a later one."
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",

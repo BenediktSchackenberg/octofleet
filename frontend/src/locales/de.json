@@ -324,7 +324,11 @@
       "rebootBadge": {
         "always": "Braucht Neustart",
         "can": "Evtl. Neustart"
-      }
+      },
+      "rebootDay": "Neustart-Tag",
+      "today": "Heute",
+      "tomorrow": "Morgen",
+      "rebootPast": "Dieser Zeitpunkt ist vorbei – bitte einen späteren wählen."
     },
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",

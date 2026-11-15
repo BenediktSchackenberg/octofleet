@@ -50,7 +50,9 @@ test('Windows Updates tab: available updates and the pending highlight without D
   await expect(dialog.getByLabel(/^Don't reboot/)).toBeChecked();
   await expect(dialog).toContainText('Windows may still restart by itself');
   await dialog.getByLabel('Reboot at').check();
-  await expect(dialog.getByLabel('Reboot time')).toHaveValue(/T22:00$/);
+  // day and time from lists in the user's language and time format (default 22:00, today or tomorrow)
+  await expect(dialog.getByLabel('Reboot time')).toHaveValue(String(22 * 60));
+  await expect(dialog.getByLabel('Reboot day').locator('option').first()).toHaveText('Today');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
 
