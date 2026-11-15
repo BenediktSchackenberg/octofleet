@@ -71,6 +71,8 @@ ADMIN_ROUTES = (
     ("POST", "/api/v1/provisioning/iso/nfs/fstab/add", "settings:write"),
     ("DELETE", "/api/v1/provisioning/iso/nfs/fstab/remove", "settings:write"),
     ("POST", "/api/v1/provisioning/vm/create", "nodes:write"),
+    ("POST", "/api/v1/patches/fleet/search", "packages:deploy"),
+    ("POST", "/api/v1/patches/fleet/install", "packages:deploy"),
 )
 
 

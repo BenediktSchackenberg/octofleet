@@ -3,7 +3,8 @@ Octofleet API - Patches Routes
 """
 import json
 import re
-from datetime import datetime, timezone
+import uuid as _uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -586,7 +587,7 @@ async def submit_patch_results(data: dict):
 
 # ---------------------------------------------------------------------------
 # Fleet updates: one row per node (Windows and Linux) with its pending updates, reboot state and last
-# update search (/patches/updates in the UI)
+# update search; search / install on several nodes at once (/patches/updates in the UI)
 # ---------------------------------------------------------------------------
 
 # Linux: whether upgrading a package usually needs a reboot, from its name (like the UI's estimate)
@@ -619,6 +620,67 @@ def _windows_reboot(pending, behaviors) -> str:
     return "none"
 
 
+# How long a node may take to restart and report again before the installation no longer counts as
+# "restarting" (a node that stays away shows as offline instead)
+RESTART_GRACE = timedelta(hours=2)
+FINISHED = ("success", "failed", "cancelled", "timeout")
+
+
+def _reboot_required(output: str | None) -> bool:
+    """Whether an installation's output says a reboot is required: the Windows agent's JSON
+    (`reboot_required`), the Linux agent's line `Reboot required: yes`"""
+    if not output:
+        return False
+    if re.search(r"^Reboot required: yes", output, re.MULTILINE):
+        return True
+    start = output.find("{")
+    if start >= 0:
+        try:
+            return json.JSONDecoder().raw_decode(output[start:])[0].get("reboot_required") is True
+        except (ValueError, AttributeError):
+            # A large per-KB result may be truncated after the reboot flag.
+            return re.search(r'"reboot_required"\s*:\s*true', output[start:]) is not None
+    return False
+
+
+def install_state(last_install: dict | None, scanned_at: datetime | None, reboot_pending: bool | None,
+                  now: datetime) -> dict | None:
+    """The state of the newest installation until the node has finished it:
+    - `installing`: the job has not finished;
+    - `restarting`: finished, a reboot is required and was ordered (now or at a time), and the node has
+      not searched for updates since (the agent searches again after its restart) - `restart_at` is when;
+    - `awaiting_restart`: finished, a reboot is required, none was ordered, and the node still reports
+      a pending reboot.
+    None once the node has reported after the restart (or nothing is pending)."""
+    if not last_install:
+        return None
+    status = last_install.get("status")
+    if status not in FINISHED:
+        return {"state": "installing", "job_id": str(last_install.get("id"))}
+    completed = last_install.get("completed_at")
+    if isinstance(completed, str):
+        completed = datetime.fromisoformat(completed)
+    if completed is None or not _reboot_required(last_install.get("output")):
+        return None
+    if completed.tzinfo is None:
+        completed = completed.replace(tzinfo=timezone.utc)
+    policy = last_install.get("reboot_policy") or "no_reboot"
+    searched_since = scanned_at is not None and scanned_at > completed
+    if policy in ("force", "schedule"):
+        restart_at = completed + timedelta(minutes=1)
+        if policy == "schedule":
+            try:
+                restart_at = max(restart_at, datetime.fromisoformat(str(last_install.get("reboot_schedule_time")).replace("Z", "+00:00")))
+            except ValueError:
+                pass
+        if not searched_since and now < restart_at + RESTART_GRACE:
+            return {"state": "restarting", "job_id": str(last_install.get("id")), "restart_at": restart_at.isoformat()}
+        return None
+    if reboot_pending:
+        return {"state": "awaiting_restart", "job_id": str(last_install.get("id"))}
+    return None
+
+
 async def _fleet_rows(conn) -> list:
     """All nodes with their update state (unfiltered)"""
     rows = await conn.fetch("""
@@ -627,19 +689,30 @@ async def _fleet_rows(conn) -> list:
                s.error AS search_error, s.reboot_pending,
                l.node_id AS linux_node_id, l.updates AS linux_updates,
                (SELECT json_agg(json_build_object('kb_id', u.kb_id, 'title', u.title, 'severity', u.severity, 'category', u.category,
-                                                  'reboot_behavior', u.reboot_behavior))
+                                                  'reboot_behavior', u.reboot_behavior,
+                                                  'approved', EXISTS (SELECT 1 FROM patch_catalog c WHERE c.kb_id = u.kb_id
+                                                                      AND c.is_approved AND NOT COALESCE(c.is_excluded, false))))
                   FROM node_available_updates u WHERE u.node_id = n.id) AS windows_updates,
-               (SELECT j.command_type FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
+               (SELECT json_build_object('id', j.id, 'type', j.command_type, 'status', ji.status,
+                                         'at', COALESCE(ji.completed_at, ji.queued_at))
+                  FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
                  WHERE ji.node_id IN (n.id::text, n.node_id)
-                   AND ji.status IN ('pending', 'queued', 'running')
                    AND j.command_type IN ('patch_scan', 'patch_install')
-                 ORDER BY ji.queued_at DESC LIMIT 1) AS running
+                 ORDER BY ji.queued_at DESC LIMIT 1) AS last_job,
+               (SELECT json_build_object('id', j.id, 'status', ji.status, 'completed_at', ji.completed_at,
+                                         'reboot_policy', j.command_data->>'reboot_policy',
+                                         'reboot_schedule_time', j.command_data->>'reboot_schedule_time',
+                                         'output', left(ji.stdout, 4000))
+                  FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
+                 WHERE ji.node_id IN (n.id::text, n.node_id) AND j.command_type = 'patch_install'
+                 ORDER BY ji.queued_at DESC LIMIT 1) AS last_install
         FROM nodes n
         LEFT JOIN node_patch_scans s ON s.node_id = n.id
         LEFT JOIN linux_data_current l ON l.node_id = n.id::text
         WHERE n.removal_state IS NULL OR n.removal_state NOT IN ('removed', 'uninstalling')
     """)
     out = []
+    now = datetime.now(timezone.utc)
     for r in rows:
         linux = r["linux_updates"]
         if isinstance(linux, str):
@@ -647,6 +720,12 @@ async def _fleet_rows(conn) -> list:
         windows = r["windows_updates"]
         if isinstance(windows, str):
             windows = json.loads(windows)
+        last_job = r["last_job"]
+        if isinstance(last_job, str):
+            last_job = json.loads(last_job)
+        last_install = r["last_install"]
+        if isinstance(last_install, str):
+            last_install = json.loads(last_install)
         os_name = (r["os_name"] or "").lower()
         is_windows = "windows" in os_name
         is_linux = r["linux_node_id"] is not None or any(name in os_name for name in
@@ -663,6 +742,9 @@ async def _fleet_rows(conn) -> list:
                            or (u.get("severity") or "").lower() in ("critical", "important"))
             reboot = _windows_reboot(r["reboot_pending"], [u.get("reboot_behavior") for u in relevant])
             os_family = "windows"
+            # approved in the catalog (Patches -> Catalog): what a bulk installation installs
+            approved = sum(1 for u in relevant if u.get("approved"))
+            approved_definitions = sum(1 for u in definitions if u.get("approved"))
         else:
             linux = linux or {}
             names = [p.get("name") for p in (linux.get("updates") or []) if p.get("name")]
@@ -671,18 +753,24 @@ async def _fleet_rows(conn) -> list:
             security = linux.get("securityUpdates") if isinstance(linux.get("securityUpdates"), int) else 0
             reboot = _linux_reboot(names, linux.get("rebootRequired") is True)
             os_family = "linux"
+            approved = approved_definitions = None  # no approval path for Linux packages yet
         out.append({
             "id": str(r["id"]), "node_id": r["node_id"], "hostname": r["hostname"], "os_name": r["os_name"],
             "os_family": os_family, "online": bool(r["is_online"]),
             "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
             "pending": pending, "security": security, "definitions": len(definitions),
+            "approved": approved, "approved_definitions": approved_definitions,
             "reboot": reboot if (pending or reboot == "pending") else "none",
             "last_search": {
                 "at": r["scanned_at"].isoformat() if r["scanned_at"] else None,
                 "status": r["search_status"], "source": r["search_source"], "server": r["search_server"],
                 "error": r["search_error"],
             },
-            "running": r["running"],
+            # the newest search or installation; `running` while the agent has not answered
+            "last_job": last_job,
+            "running": last_job["type"] if last_job and last_job["status"] in ("pending", "queued", "running") else None,
+            # an installation that has not finished on the node yet (job running, restarting, awaiting restart)
+            "installation": install_state(last_install, r["scanned_at"], r["reboot_pending"], now),
         })
     return out
 
@@ -693,7 +781,9 @@ async def fleet_updates(os: str = None, pending: bool = False, security: bool = 
                         sort: str = "pending", dir: str = None, limit: int = 100, offset: int = 0):
     """Nodes with their update state: pending and security updates (Windows without Defender signature
     updates, counted as `definitions`), reboot (pending / needed / maybe / unknown / none), the last
-    update search and a running search or installation.
+    update search, the newest search or installation (`last_job`: id, type, status, at), `running`
+    while one has not finished, and `installation` while the newest installation has not finished on
+    the node (`installing`, `restarting` with `restart_at`, `awaiting_restart`).
 
     Filters: `os` (windows / linux), `pending`, `security`, `reboot` (pending or needed), `failed`
     (last search failed), `stale_days` (no search for that many days), `offline`, `q` (hostname).
@@ -748,3 +838,111 @@ async def fleet_updates(os: str = None, pending: bool = False, security: bool = 
     rows.sort(key=lambda r: (r["hostname"] or "").lower())
     rows.sort(key=keys[sort], reverse=descending)
     return {"nodes": rows[offset:offset + limit], "total": len(rows), "counts": counts}
+
+
+async def _create_node_job(conn, node_uuid: str, name: str, command_type: str, data: dict, username: str) -> str:
+    job_id = _uuid.uuid4()
+    await conn.execute("""
+        INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command_data, created_by)
+        VALUES ($1, $2, $3, 'device', $4::uuid, $5, $6::jsonb, $7)
+    """, job_id, name, "Fleet updates", node_uuid, command_type, json.dumps(data), username)
+    await conn.execute("""
+        INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
+        VALUES (gen_random_uuid(), $1, $2, 'pending', NOW())
+    """, job_id, node_uuid)
+    return str(job_id)
+
+
+def _node_ids(data: dict) -> list:
+    ids = data.get("node_ids")
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise HTTPException(status_code=400, detail="node_ids: a nonempty list of node UUIDs")
+    unique = list(dict.fromkeys(ids))
+    if len(unique) > 500:
+        raise HTTPException(status_code=400, detail="node_ids: at most 500 nodes")
+    return unique
+
+
+@router.post("/api/v1/patches/fleet/search", dependencies=[Depends(require_user_permission("packages:deploy"))])
+async def fleet_search(data: dict, request: Request):
+    """An update search (patch_scan job) on each of the nodes; skipped (`busy`) while a search or
+    installation runs or the node restarts after one."""
+    user = getattr(request.state, "user", None)
+    username = user.get("username", "system") if user else "system"
+    jobs, skipped = [], []
+    async with get_pool().acquire() as conn, conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('octofleet:fleet-updates'))")
+        rows = {r["id"]: r for r in await _fleet_rows(conn)}
+        for node_uuid in _node_ids(data):
+            row = rows.get(node_uuid)
+            if row is None:
+                skipped.append({"node": node_uuid, "reason": "unknown node"})
+                continue
+            if row["running"] or (row["installation"] or {}).get("state") in ("installing", "restarting"):
+                skipped.append({"node": node_uuid, "reason": "busy"})
+                continue
+            jobs.append({"node": node_uuid, "job_id": await _create_node_job(
+                conn, node_uuid, "Search for updates", "patch_scan", {"timeout": 1500}, username)})
+    return {"jobs": jobs, "skipped": skipped}
+
+
+@router.post("/api/v1/patches/fleet/install", dependencies=[Depends(require_user_permission("packages:deploy"))])
+async def fleet_install(data: dict, request: Request):
+    """Install the approved updates on each of the Windows nodes (patch_install job per node). The
+    server builds each payload from what it stores: the KB IDs of the node's available updates that are
+    approved (and not excluded) in the patch catalog; Defender signature updates only with
+    `include_definitions`. Linux nodes are skipped (`linux_not_available`): Linux packages have no
+    approval path yet, so they are installed from the node page. `reboot_policy`
+    (no_reboot / schedule with `reboot_schedule_time` / force) applies when an update needs a reboot.
+    Nodes whose newest installation has not finished (`installation`: installing, restarting, awaiting
+    restart) are skipped - a cumulative update stays listed until the restart; `retry: true` installs
+    again anyway on those that are restarting or awaiting a restart (never while a job runs)."""
+    policy = data.get("reboot_policy", "no_reboot")
+    if policy not in ("no_reboot", "schedule", "force"):
+        raise HTTPException(status_code=400, detail="reboot_policy: no_reboot, schedule or force")
+    schedule = data.get("reboot_schedule_time")
+    if policy == "schedule":
+        try:
+            scheduled_at = datetime.fromisoformat(str(schedule).replace("Z", "+00:00"))
+            if scheduled_at.tzinfo is None or scheduled_at <= datetime.now(timezone.utc) + timedelta(minutes=1):
+                raise ValueError
+        except ValueError:
+            raise HTTPException(status_code=400, detail="reboot_schedule_time: future ISO 8601 with offset") from None
+    include_definitions = data.get("include_definitions") is True
+    retry = data.get("retry") is True
+    user = getattr(request.state, "user", None)
+    username = user.get("username", "system") if user else "system"
+    jobs, skipped = [], []
+    async with get_pool().acquire() as conn, conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('octofleet:fleet-updates'))")
+        rows = {r["id"]: r for r in await _fleet_rows(conn)}
+        for node_uuid in _node_ids(data):
+            row = rows.get(node_uuid)
+            if row is None:
+                skipped.append({"node": node_uuid, "reason": "unknown node"})
+                continue
+            state = (row["installation"] or {}).get("state")
+            if row["running"] or state == "installing":
+                skipped.append({"node": node_uuid, "reason": "busy"})
+                continue
+            if state in ("restarting", "awaiting_restart") and not retry:
+                skipped.append({"node": node_uuid, "reason": state})
+                continue
+            reboot = {"reboot_policy": policy, **({"reboot_schedule_time": schedule} if policy == "schedule" else {})}
+            if row["os_family"] != "windows":
+                skipped.append({"node": node_uuid, "reason": "linux_not_available"})
+                continue
+            available = await conn.fetch("""
+                SELECT u.kb_id, u.title,
+                       EXISTS (SELECT 1 FROM patch_catalog c WHERE c.kb_id = u.kb_id
+                               AND c.is_approved AND NOT COALESCE(c.is_excluded, false)) AS approved
+                  FROM node_available_updates u WHERE u.node_id = $1::uuid AND u.kb_id IS NOT NULL""", node_uuid)
+            wanted = [r for r in available if include_definitions or not is_definition_update(r["kb_id"], r["title"])]
+            kb_ids = [r["kb_id"] for r in wanted if r["approved"]]
+            if not kb_ids:
+                skipped.append({"node": node_uuid, "reason": "not_approved" if wanted else "no pending updates"})
+                continue
+            payload = {"kb_ids": kb_ids, "timeout": 1800, **reboot}
+            jobs.append({"node": node_uuid, "job_id": await _create_node_job(
+                conn, node_uuid, "Install updates", "patch_install", payload, username)})
+    return {"jobs": jobs, "skipped": skipped}
