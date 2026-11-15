@@ -1695,6 +1695,47 @@
     "running": {
       "patch_scan": "Sucht…",
       "patch_install": "Installiert…"
-    }
+    },
+    "selectShown": "Angezeigte Nodes auswählen",
+    "selectNode": "{name} auswählen",
+    "failedJob": {
+      "patch_scan": "Suche fehlgeschlagen",
+      "patch_install": "Installation fehlgeschlagen"
+    },
+    "bulk": {
+      "selected": "{count} ausgewählt",
+      "search": "Nach Updates suchen ({count})",
+      "install": "Updates installieren…",
+      "clear": "Auswahl aufheben",
+      "searchStarted": "Update-Suche gestartet – Nodes: {count}",
+      "installStarted": "Installation gestartet – Nodes: {count}",
+      "skipped": "Übersprungen: {count} (Linux, nicht freigegeben, keine ausstehenden Updates oder beschäftigt)",
+      "failed": "Die Jobs konnten nicht gestartet werden",
+      "confirmTitle": "Updates auf den ausgewählten Nodes installieren?",
+      "confirmText": "Jeder Windows-Node installiert seine ausstehenden Updates, die im Katalog freigegeben sind (Patches → Katalog). Linux-Nodes werden vorerst auf ihrer Node-Seite installiert: Linux-Pakete haben noch keine Freigabe.",
+      "nothing": "nichts zu installieren",
+      "updates": "Freigegebene Updates: {count} von {pending}",
+      "includeDefinitions": "Defender-Signaturupdates einschließen (Defender aktualisiert sich meist selbst)",
+      "rebootMaybe": "Einige dieser Updates brauchen evtl. einen Neustart, oder ein Neustart steht schon aus (siehe Nodes).",
+      "rebootNone": "Keines dieser Updates braucht einen Neustart.",
+      "installOn": "Installieren ({count})",
+      "busy": "eine Suche oder Installation läuft – übersprungen",
+      "unfinished": {
+        "restarting": "startet neu, um die letzte Installation abzuschließen – übersprungen",
+        "awaiting_restart": "letzte Installation wartet auf einen Neustart – übersprungen"
+      },
+      "retry": "Auch auf Nodes erneut installieren, deren letzte Installation nicht abgeschlossen ist (Neustart)",
+      "notApproved": "keine freigegebenen Updates – übersprungen",
+      "toCatalog": "Im Katalog freigeben",
+      "linuxHeld": "Linux – noch keine Sammelinstallation",
+      "toNode": "Auf der Node-Seite installieren"
+    },
+    "installation": {
+      "installing": "Installiert…",
+      "restarting": "Neustart zum Abschluss der Installation",
+      "awaiting_restart": "Installiert – Neustart ausstehend",
+      "restartAt": "Neustart um {time}; abgeschlossen, sobald sich der Node wieder meldet"
+    },
+    "approved": "{count} freigegeben"
   }
 }

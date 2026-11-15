@@ -125,7 +125,20 @@ Below the last search, the Updates tab lists the node's **Installed updates** fr
 | Last update search | time, status (with errors / failed), source; the error as tooltip | same, from `patch_scan` jobs |
 | Status | a running search or installation, offline | same |
 
-The node name leads to the node's Updates tab. The cards count over all nodes and switch filters on and off: with pending updates, with security updates (Windows: category security, or severity critical or important), reboot pending or needed, last search failed, no search for 7 days, offline. A name search and the operating system narrow the list further; the columns sort on click (default: most pending updates first). Filters and sorting are kept in the URL, and each change is a browser history entry, so *Back* returns to the previous filters. The list reloads every 15 seconds.
+The node name leads to the node's Updates tab. The cards count over all nodes and switch filters on and off: with pending updates, with security updates (Windows: category security, or severity critical or important), reboot pending or needed, last search failed, no search for 7 days, offline. A name search and the operating system narrow the list further; the columns sort on click (default: most pending updates first). Filters and sorting are kept in the URL, and each change is a browser history entry, so *Back* returns to the previous filters. The list reloads every 15 seconds, every 5 seconds while a search or installation runs.
+
+**Several nodes at once** (`packages:deploy`): tick nodes (the header box ticks the nodes shown; the selection stays when the filters change), then
+- **Search for updates (n)** – one `patch_scan` job per node, like the node page's button;
+- **Install updates…** – Windows nodes install their pending updates that are **approved in the catalog** (*Patches → Catalog*, not excluded); the list shows *n approved* per Windows node. **Linux nodes are not installed in bulk** – Linux packages have no approval path yet – and are installed from their node page. A confirmation lists each node with its number of approved updates and reboot outlook; nodes without approved updates link to the catalog, Linux nodes to their Updates tab, and both are skipped. Defender signature updates are left out unless *Include Defender signature updates* is ticked (Defender usually updates itself). The reboot choice is the node page's (no reboot / at a day and time / one minute after the installation), offered when one of the nodes can need a reboot or has one pending, and applies to every node; on Windows the agent reboots only if an installed update needs it, on Linux only if `/var/run/reboot-required` exists afterwards.
+
+The server builds each node's job from what it stores – the KB IDs of the node's last search that are approved in the catalog – with the node page's time limit (30 minutes). Staged installations (a pilot ring first) are planned with the existing deployment rings. The rows show *Searching…* / *Installing…* until the agent answers; a failed search or installation shows as a red badge linking to the job.
+
+**An installation is finished when the node reports after its restart.** Windows lists a cumulative update until the restart, so the list would offer it again. While the newest installation has not finished, the row says so and the node is skipped by *Install updates* (and by *Search for updates* while it restarts):
+- *Installing…* – the job runs;
+- *Restarting to finish the installation* – a reboot was required and ordered (one minute after, or at a time); until the node searches for updates after its restart (the agent does after starting), at most two hours after the restart time;
+- *Installed – restart pending* – a reboot was required but not ordered, and the node still reports a pending reboot.
+
+*Install again on nodes whose last installation has not finished* overrides the last two, never a running job. The API reports this as `installation` (`state`, `job_id`, `restart_at`); `POST …/fleet/install` skips such nodes (`busy`, `restarting`, `awaiting_restart`) unless `retry: true`.
 
 ---
 
@@ -138,7 +151,7 @@ The node name leads to the node's Updates tab. The cards count over all nodes an
 | Read the catalog, rings, deployments, the Patch Explorer and the fleet updates | `packages:read` |
 | Compliance views | `compliance:read` |
 | Create, import, approve or exclude patches; manage rings | `packages:write` |
-| Start, pause, resume or cancel deployments; Patch Explorer deploy, scan and verify | `packages:deploy` |
+| Start, pause, resume or cancel deployments; Patch Explorer deploy, scan and verify; search and install on several nodes from the fleet updates | `packages:deploy` |
 | Agent routes (`scan-results`, `pending/{node_id}`, `results`, `explorer/agent-updates`) | agent key |
 
 The built-in `viewer` role can read; `operator` and `admin` can also change and deploy. The shared agent key cannot use the user routes.
