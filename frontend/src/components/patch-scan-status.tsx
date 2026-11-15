@@ -16,6 +16,8 @@ export interface PatchScan {
   error?: string | null;
   duration_seconds?: number | null;
   update_count?: number | null;
+  /** Windows: whether a reboot is pending (from the last search); null if unknown */
+  reboot_pending?: boolean | null;
 }
 
 /**

@@ -296,7 +296,39 @@
       "installSelectedConfirmTitle": "Install the selected updates?",
       "installSelectedConfirmText": "The agent upgrades these packages with {manager}: {packages}. The package manager may also upgrade packages they depend on. Services may restart; the node is not rebooted automatically.",
       "selectAll": "Select all updates",
-      "selectPackage": "Select {name}"
+      "selectPackage": "Select {name}",
+      "searchHintWindows": "Searches for updates with Windows Update (on WSUS clients: the updates approved in WSUS)",
+      "installConfirmTextWindows": "The agent installs {count} updates with Windows Update: {updates}. Afterwards it searches for updates again.",
+      "rebootLegend": "If an installed update needs a reboot (otherwise nothing happens)",
+      "rebootAt": "Reboot time",
+      "rebootOption": {
+        "no_reboot": "Don't reboot – Octofleet does not restart the node",
+        "schedule": "Reboot at",
+        "force": "Reboot when the installation is done (one minute later)"
+      },
+      "windowsResult": "Installed: {installed} · failed: {failed}",
+      "windowsReboot": {
+        "no_reboot": "reboot required",
+        "schedule": "reboot scheduled",
+        "force": "rebooting in one minute"
+      },
+      "windowsOwnRestart": "Windows may still restart by itself, depending on its update policy (e.g. automatic installation with a scheduled restart, active hours, deadlines). With \"notify to restart\" (AUOptions 7) it does not.",
+      "rebootOutlook": {
+        "pending": "A reboot is already pending on this node.",
+        "needed": "These updates need a reboot: {items}.",
+        "maybe": "These updates may need a reboot: {items}.",
+        "none": "These updates do not need a reboot.",
+        "unknown": "Whether a reboot is needed is only known after the installation.",
+        "estimated": "(estimated from the package names)"
+      },
+      "rebootBadge": {
+        "always": "Needs a reboot",
+        "can": "May need a reboot"
+      },
+      "rebootDay": "Reboot day",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "rebootPast": "This time has passed – choose a later one."
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",
@@ -926,7 +958,8 @@
     "availableUpdatesNone": "The last update search found no updates.",
     "availableUpdateSeverity": "Severity",
     "availableUpdateFound": "Found on",
-    "definitionUpdate": "Defender signatures"
+    "definitionUpdate": "Defender signatures",
+    "windowsUpdateHistory": "Installed updates and history"
   },
   "navGroups": {
     "fleet": "Fleet",

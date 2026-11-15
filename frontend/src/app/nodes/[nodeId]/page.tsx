@@ -17,7 +17,8 @@ import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
-import { LinuxUpdateActions } from "@/components/linux-update-actions";
+import { UpdateActions } from "@/components/node-update-actions";
+import { UPDATE_COLS, installedUpdateType, linuxRebootBehavior, resultVariant, type RebootBehavior } from "@/lib/update-tables";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -49,15 +50,6 @@ const UPDATE_RESULTS: Record<string, { key: string; ok: boolean }> = {
  * Update for Microsoft server operating system ... (KB5128646)") or, without one, from the
  * Win32_QuickFixEngineering description ("Security Update", "Update").
  */
-function installedUpdateType(title: string | undefined, description: string | undefined): string {
-  const text = title ?? "";
-  if (/\.NET/i.test(text)) return "dotnet";
-  if (/Cumulative Update/i.test(text)) return "cumulative";
-  if (/Servicing Stack/i.test(text)) return "servicingStack";
-  if (/Security Update/i.test(text) || /Security Update/i.test(description ?? "")) return "security";
-  return "update";
-}
-
 // Copy to clipboard component
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
   const { t } = useI18n();
@@ -296,6 +288,8 @@ export default function NodeDetailPage() {
   const [updateSearchKey, setUpdateSearchKey] = useState(0);
   // Linux packages selected on the Updates tab for "Install selected"
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  // Windows KB IDs selected on the Updates tab
+  const [selectedKbs, setSelectedKbs] = useState<string[]>([]);
   // The Updates tab in color: amber with pending updates (Linux: the package list; Windows: the
   // available updates without Defender signature updates - the tab's count there is the installed
   // updates), red if the last update search failed
@@ -461,7 +455,8 @@ export default function NodeDetailPage() {
                   : undefined}
               title={updatesTabState === "failed" ? t("nodeDetail.updatesTab.failed")
                 : updatesTabState === "pending" ? t("patchScan.updates", { count: pendingUpdates }) : undefined}>
-              {t("nodeDetail.tabs.updates")} ({totalUpdatesCount})
+              {/* the pending updates on both systems (Windows: not the installed ones and the history) */}
+              {t("nodeDetail.tabs.updates")} ({pendingUpdates})
             </TabsTrigger>
             <TabsTrigger value="network">{t("nodes.network")}</TabsTrigger>
             <TabsTrigger value="security">{t("nodes.security")}</TabsTrigger>
@@ -959,7 +954,20 @@ export default function NodeDetailPage() {
             <PatchScanStatus scan={patchScan} pending={pendingUpdates}
               definitions={linuxUpdates ? 0 : (availableUpdates ?? []).filter((u) => u.definition).length} />
             {/* Windows: the pending updates of the last search */}
-            {!linuxUpdates && !isLinuxNode && <AvailableUpdates updates={availableUpdates} />}
+            {!linuxUpdates && !isLinuxNode && (
+              <AvailableUpdates updates={availableUpdates}
+                selected={selectedKbs} onSelectedChange={hasPermission("jobs:create") ? setSelectedKbs : undefined}
+                actions={hasPermission("jobs:create") ? (
+                  <UpdateActions os="windows" nodeUuid={node ? String(node.id) : undefined}
+                    updateCount={(availableUpdates ?? []).filter((u) => u.kb_id).length}
+                    allIds={(availableUpdates ?? []).map((u) => u.kb_id).filter((kb): kb is string => !!kb)}
+                    rebootBehavior={Object.fromEntries((availableUpdates ?? []).filter((u) => u.kb_id)
+                      .map((u) => [u.kb_id as string, (u.reboot_behavior ?? "unknown") as RebootBehavior]))}
+                    rebootPending={patchScan?.reboot_pending === true}
+                    selected={selectedKbs}
+                    onChanged={async () => { await refreshInventory(); setSelectedKbs([]); setUpdateSearchKey((k) => k + 1); }} />
+                ) : undefined} />
+            )}
             {linuxUpdates ? (
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
@@ -977,26 +985,29 @@ export default function NodeDetailPage() {
                   </CardDescription>
                 </div>
                 {hasPermission("jobs:create") && (
-                  <LinuxUpdateActions nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
+                  <UpdateActions os="linux" nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
                     packageManager={linuxUpdates.packageManager} selected={selectedPackages}
+                    allIds={(linuxUpdates.updates ?? []).map((p) => p.name)}
+                    rebootBehavior={Object.fromEntries((linuxUpdates.updates ?? []).map((p) => [p.name, linuxRebootBehavior(p.name)]))}
+                    rebootPending={linuxUpdates.rebootRequired === true}
                     onChanged={async () => { await refreshInventory(); setSelectedPackages([]); setUpdateSearchKey((k) => k + 1); }} />
                 )}
               </CardHeader>
               <CardContent>
                 {(linuxUpdates.updates?.length || 0) > 0 ? (
-                  <Table>
+                  <Table className="table-fixed">
                     <TableHeader>
                       <TableRow>
                         {hasPermission("jobs:create") && (
-                          <TableHead className="w-8">
+                          <TableHead className={UPDATE_COLS.select}>
                             <Checkbox aria-label={t("nodes.updates.selectAll")}
                               checked={selectedPackages.length > 0 && selectedPackages.length === (linuxUpdates.updates?.length ?? 0)}
                               onCheckedChange={(checked) => setSelectedPackages(checked ? (linuxUpdates.updates ?? []).map((p) => p.name) : [])} />
                           </TableHead>
                         )}
                         <TableHead>{t("nodes.updates.package")}</TableHead>
-                        <TableHead>{t("nodes.updates.newVersion")}</TableHead>
-                        <TableHead>{t("nodes.updates.source")}</TableHead>
+                        <TableHead className={UPDATE_COLS.version}>{t("nodes.updates.newVersion")}</TableHead>
+                        <TableHead className={UPDATE_COLS.source}>{t("nodes.updates.source")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1026,19 +1037,20 @@ export default function NodeDetailPage() {
             </Card>
             ) : (
             <Card>
-              <CardHeader><CardTitle>{t("nodeDetail.windowsUpdates", { count: totalUpdatesCount })}</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("nodeDetail.windowsUpdateHistory")}</CardTitle></CardHeader>
               <CardContent>
                 {hotfixes.hotfixes.length > 0 && (
                   <>
                     <p className="font-medium mb-2">{t("nodeDetail.hotfixes", { count: hotfixes.hotfixes.length })}</p>
-                    <Table>
+                    <Table className="table-fixed">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>KB</TableHead>
+                          <TableHead className={UPDATE_COLS.select} />
+                          <TableHead className={UPDATE_COLS.kb}>KB</TableHead>
                           <TableHead>{t("nodeDetail.title")}</TableHead>
-                          <TableHead>{t("nodeDetail.type")}</TableHead>
-                          <TableHead>{t("nodeDetail.installedOn")}</TableHead>
-                          <TableHead>{t("common.status")}</TableHead>
+                          <TableHead className={UPDATE_COLS.type}>{t("nodeDetail.type")}</TableHead>
+                          <TableHead className={UPDATE_COLS.date}>{t("nodeDetail.installedOn")}</TableHead>
+                          <TableHead className={UPDATE_COLS.status}>{t("common.status")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1049,12 +1061,13 @@ export default function NodeDetailPage() {
                           const result = entry ? UPDATE_RESULTS[String(entry.resultCode ?? "")] : undefined;
                           return (
                             <TableRow key={i}>
+                              <TableCell />
                               <TableCell><Badge variant="outline">{hf.hotfixId}</Badge></TableCell>
-                              <TableCell className="truncate max-w-[360px]" title={entry?.title}>{entry?.title || hf.description || '-'}</TableCell>
+                              <TableCell className="truncate" title={entry?.title}>{entry?.title || hf.description || '-'}</TableCell>
                               <TableCell><Badge variant="secondary">{t(`nodeDetail.installedUpdateType.${installedUpdateType(entry?.title, hf.description)}`)}</Badge></TableCell>
                               <TableCell>{formatLocalDate(hf.installedOn)}</TableCell>
                               <TableCell>
-                                <Badge variant={!result || result.ok ? "default" : "secondary"}>
+                                <Badge variant={resultVariant(result ? result.ok : true)}>
                                   {result ? t(`nodeDetail.updateResult.${result.key}`) : t("nodeDetail.installedUpdateInstalled")}
                                 </Badge>
                               </TableCell>
@@ -1069,26 +1082,30 @@ export default function NodeDetailPage() {
                 {hotfixes.updateHistory.length > 0 && (
                   <>
                     <p className="font-medium mb-2 mt-6">{t("nodeDetail.updateHistory", { count: hotfixes.updateHistory.length })}</p>
-                    <Table>
+                    <Table className="table-fixed">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>KB</TableHead>
+                          <TableHead className={UPDATE_COLS.select} />
+                          <TableHead className={UPDATE_COLS.kb}>KB</TableHead>
                           <TableHead>{t("nodeDetail.title")}</TableHead>
-                          <TableHead>{t("nodeDetail.date")}</TableHead>
-                          <TableHead>{t("common.status")}</TableHead>
+                          <TableHead className={UPDATE_COLS.type}>{t("nodeDetail.type")}</TableHead>
+                          <TableHead className={UPDATE_COLS.date}>{t("nodeDetail.date")}</TableHead>
+                          <TableHead className={UPDATE_COLS.status}>{t("common.status")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {hotfixes.updateHistory?.slice(0, 50).map((upd: any, i: number) => (
                           <TableRow key={i}>
+                            <TableCell />
                             <TableCell><Badge variant="outline">{upd.kbId || upd.kb || '-'}</Badge></TableCell>
-                            <TableCell className="truncate max-w-[300px]">{upd.title || '-'}</TableCell>
+                            <TableCell className="truncate" title={upd.title}>{upd.title || '-'}</TableCell>
+                            <TableCell><Badge variant="secondary">{t(`nodeDetail.installedUpdateType.${installedUpdateType(upd.title)}`)}</Badge></TableCell>
                             <TableCell>{formatDate(upd.installedOn ?? upd.installedDate)}</TableCell>
                             <TableCell>
                               {(() => {
                                 const result = UPDATE_RESULTS[String(upd.resultCode ?? "")];
                                 return (
-                                  <Badge variant={result?.ok ? "default" : "secondary"}>
+                                  <Badge variant={resultVariant(result?.ok)}>
                                     {result ? t(`nodeDetail.updateResult.${result.key}`) : (upd.resultCode ?? "-")}
                                   </Badge>
                                 );

@@ -1540,9 +1540,12 @@ run_patch_install() {
     esac
     tail -n 60 <<< "$out"
     (( rc == 124 )) && echo "Timed out after ${limit} s"
-    if [[ -e /var/run/reboot-required ]]; then
-        echo "Reboot required: yes$( [[ -r /var/run/reboot-required.pkgs ]] && printf ' (%s)' "$(sort -u /var/run/reboot-required.pkgs | paste -sd, -)")"
+    local flag="${REBOOT_REQUIRED_FILE:-/var/run/reboot-required}" reboot_needed=false
+    if [[ -e "$flag" ]]; then
+        reboot_needed=true
+        echo "Reboot required: yes$( [[ -r "$flag.pkgs" ]] && printf ' (%s)' "$(sort -u "$flag.pkgs" | paste -sd, -)")"
     elif [[ "$pm" != "apt" ]] && command -v needs-restarting &>/dev/null && ! needs-restarting -r &>/dev/null; then
+        reboot_needed=true
         echo "Reboot required: yes"
     else
         echo "Reboot required: no"
@@ -1551,7 +1554,43 @@ run_patch_install() {
     jq -r '"Update search afterwards: \(.status)" + (if .error then " (\(.error))" else "" end)' <<< "$PATCH_SCAN_JSON"
     push_inventory >/dev/null 2>&1 || echo "Sending the inventory failed"
     PATCH_SCAN_JSON=""
+    # The reboot comes last (at the earliest in a minute), after the result and the inventory
+    if [[ "$reboot_needed" == true ]]; then
+        schedule_system_reboot "$(jq -r '.reboot_policy // "no_reboot"' <<< "$payload" 2>/dev/null)" \
+            "$(jq -r '.reboot_schedule_time // empty' <<< "$payload" 2>/dev/null)" || echo "Scheduling the reboot failed"
+    fi
     return "$rc"
+}
+
+# schedule_system_reboot POLICY TIME: reboot after updates that need it. force: in one minute;
+# schedule: at TIME (ISO 8601 with offset; a past time means one minute); anything else: no reboot.
+# Under systemd a transient timer runs `systemctl reboot` (outside the service's sandbox, like
+# restart-agent); otherwise shutdown -r.
+schedule_system_reboot() {
+    local policy="$1" at="$2" when="" now unit="octofleet-reboot-$(date +%s)-$$"
+    case "$policy" in
+        force) ;;
+        schedule)
+            when=$(date -u -d "$at" '+%Y-%m-%d %H:%M:%S' 2>/dev/null) || { echo "Reboot: invalid time '$at'"; return 1; }
+            now=$(date +%s)
+            (( $(date -u -d "$when UTC" +%s) > now + 60 )) || when=""
+            ;;
+        *) echo "Reboot: not requested (no_reboot)"; return 0 ;;
+    esac
+    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+        if [[ -n "$when" ]]; then
+            systemd-run --quiet --collect --unit "$unit" --on-calendar="$when UTC" /bin/systemctl reboot || return 1
+            echo "Reboot scheduled for $when UTC"
+        else
+            systemd-run --quiet --collect --unit "$unit" --on-active=60s /bin/systemctl reboot || return 1
+            echo "Reboot in one minute"
+        fi
+    else
+        local minutes=1
+        [[ -n "$when" ]] && minutes=$(( ($(date -u -d "$when UTC" +%s) - $(date +%s) + 59) / 60 ))
+        shutdown -r +"$minutes" "Octofleet: reboot after updates" >/dev/null 2>&1 || return 1
+        echo "Reboot in $minutes min"
+    fi
 }
 
 # next_push_time EXIT_CODE NOW FAILURES: when the next inventory push is due. After a successful push:

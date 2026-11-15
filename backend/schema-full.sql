@@ -2052,7 +2052,8 @@ CREATE TABLE IF NOT EXISTS node_patch_scans (
     result_code INTEGER,
     error TEXT,
     duration_seconds REAL,
-    update_count INTEGER
+    update_count INTEGER,
+    reboot_pending BOOLEAN
 );
 
 CREATE TABLE IF NOT EXISTS patch_rings (
@@ -2343,6 +2344,7 @@ CREATE TABLE IF NOT EXISTS node_available_updates (
   category TEXT DEFAULT 'update',
   source TEXT DEFAULT 'windows_update',
   is_reboot_required BOOLEAN DEFAULT FALSE,
+  reboot_behavior TEXT,
   discovered_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(node_id, kb_id, software_name)
 );
