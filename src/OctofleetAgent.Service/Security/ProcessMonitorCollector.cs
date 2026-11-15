@@ -12,6 +12,8 @@ public class ProcessMonitorCollector : BackgroundService
 {
     private readonly ILogger<ProcessMonitorCollector> _logger;
     private ConnectionProblems? _uploadProblems;
+    // A batch the server could not take (not reachable, timeout, 5xx/429): sent first next time
+    private List<object>? _pendingBatch;
     private ConnectionProblems UploadProblems => _uploadProblems ??= new ConnectionProblems(_logger, "Uploading process events");
     private readonly ConcurrentQueue<Dictionary<string, object?>> _eventQueue = new();
     private readonly ConcurrentDictionary<string, (int Count, DateTime First)> _aggregation = new();
@@ -168,9 +170,12 @@ public class ProcessMonitorCollector : BackgroundService
 
     private async Task FlushEventsAsync(ServiceConfig config)
     {
-        var batch = new List<object>();
-        var count = 0;
-        while (_eventQueue.TryDequeue(out var evt) && count < MaxBatchSize)
+        // the batch kept after a failed upload first; check the size before taking an event out of
+        // the queue (the other order dropped one event with every full batch)
+        var batch = _pendingBatch ?? new List<object>();
+        _pendingBatch = null;
+        var count = batch.Count;
+        while (count < MaxBatchSize && _eventQueue.TryDequeue(out var evt))
         {
             batch.Add(evt);
             count++;
@@ -185,13 +190,20 @@ public class ProcessMonitorCollector : BackgroundService
             var resp = await client.PostAsync(
                 $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/ingest/events/normalized",
                 new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
-            UploadProblems.Success();
-            if (!resp.IsSuccessStatusCode)
-                _logger.LogWarning("Failed to flush process events: {Status}", resp.StatusCode);
+            if (resp.IsSuccessStatusCode)
+                UploadProblems.Success();
+            else if (AgentHttp.IsRetryable(resp.StatusCode))
+            {
+                _pendingBatch = batch;
+                UploadProblems.Report(new HttpRequestException($"HTTP {(int)resp.StatusCode} {resp.StatusCode}", null, resp.StatusCode));
+            }
+            else
+                _logger.LogWarning("Failed to flush process events: {Status} - {Count} events dropped", resp.StatusCode, batch.Count);
         }
         catch (Exception ex)
         {
-            if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing process events");
+            if (AgentHttp.IsTransient(ex)) _pendingBatch = batch;
+            if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing process events - {Count} events dropped", batch.Count);
         }
     }
 

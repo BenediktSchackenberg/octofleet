@@ -12,6 +12,8 @@ public class LogonEventCollector : BackgroundService
 {
     private readonly ILogger<LogonEventCollector> _logger;
     private ConnectionProblems? _uploadProblems;
+    // A batch the server could not take (not reachable, timeout, 5xx/429): sent first next time
+    private List<object>? _pendingBatch;
     private ConnectionProblems UploadProblems => _uploadProblems ??= new ConnectionProblems(_logger, "Uploading logon events");
     private readonly ConcurrentQueue<Dictionary<string, object?>> _eventQueue = new();
     private readonly ConcurrentDictionary<string, List<DateTime>> _failedLogonTracker = new();
@@ -225,9 +227,12 @@ public class LogonEventCollector : BackgroundService
 
     private async Task FlushEventsAsync(ServiceConfig config)
     {
-        var batch = new List<object>();
-        int count = 0;
-        while (_eventQueue.TryDequeue(out var evt) && count < MaxBatchSize) { batch.Add(evt); count++; }
+        // the batch kept after a failed upload first; check the size before taking an event out of
+        // the queue (the other order dropped one event with every full batch)
+        var batch = _pendingBatch ?? new List<object>();
+        _pendingBatch = null;
+        int count = batch.Count;
+        while (count < MaxBatchSize && _eventQueue.TryDequeue(out var evt)) { batch.Add(evt); count++; }
         if (batch.Count == 0) return;
         try
         {
@@ -237,11 +242,21 @@ public class LogonEventCollector : BackgroundService
             var resp = await client.PostAsync(
                 $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/ingest/events/normalized",
                 new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
-            UploadProblems.Success();
-            if (!resp.IsSuccessStatusCode)
-                _logger.LogWarning("Failed to flush logon events: {Status}", resp.StatusCode);
+            if (resp.IsSuccessStatusCode)
+                UploadProblems.Success();
+            else if (AgentHttp.IsRetryable(resp.StatusCode))
+            {
+                _pendingBatch = batch;
+                UploadProblems.Report(new HttpRequestException($"HTTP {(int)resp.StatusCode} {resp.StatusCode}", null, resp.StatusCode));
+            }
+            else
+                _logger.LogWarning("Failed to flush logon events: {Status} - {Count} events dropped", resp.StatusCode, batch.Count);
         }
-        catch (Exception ex) { if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing logon events"); }
+        catch (Exception ex)
+        {
+            if (AgentHttp.IsTransient(ex)) _pendingBatch = batch;
+            if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing logon events - {Count} events dropped", batch.Count);
+        }
     }
 
     private async Task ReportHealthAsync(ServiceConfig config)

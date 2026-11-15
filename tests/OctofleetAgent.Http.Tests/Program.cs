@@ -9,6 +9,9 @@ using OctofleetAgent.Service;
 Assert(AgentHttp.IsTransient(new HttpRequestException("refused", new SocketException(10061))), "server not reachable");
 Assert(AgentHttp.IsTransient(new HttpRequestException("bad gateway", null, HttpStatusCode.BadGateway)), "5xx answer");
 Assert(!AgentHttp.IsTransient(new HttpRequestException("unauthorized", null, HttpStatusCode.Unauthorized)), "4xx answer is not");
+Assert(AgentHttp.IsTransient(new HttpRequestException("busy", null, HttpStatusCode.TooManyRequests)), "429 (server busy) is");
+Assert(AgentHttp.IsRetryable(HttpStatusCode.ServiceUnavailable) && AgentHttp.IsRetryable(HttpStatusCode.RequestTimeout)
+    && !AgentHttp.IsRetryable(HttpStatusCode.BadRequest) && !AgentHttp.IsRetryable(HttpStatusCode.Unauthorized), "retryable answers");
 Assert(AgentHttp.IsTransient(new TaskCanceledException("HttpClient.Timeout")), "timeout");
 Assert(AgentHttp.IsTransient(new IOException("aborted", new SocketException(10053))), "connection dropped");
 Assert(!AgentHttp.IsTransient(new InvalidOperationException("bug")), "an error in the agent is not");
