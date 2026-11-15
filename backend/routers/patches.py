@@ -2,6 +2,8 @@
 Octofleet API - Patches Routes
 """
 import json
+import re
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -580,3 +582,164 @@ async def submit_patch_results(data: dict):
                     if remaining == 0:
                         await conn.execute("UPDATE patch_deployments SET status='completed', completed_at=NOW() WHERE id=$1", pdr["deployment_id"])
         return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Fleet updates: one row per node (Windows and Linux) with its pending updates, reboot state and last
+# update search (/patches/updates in the UI)
+# ---------------------------------------------------------------------------
+
+# Linux: whether upgrading a package usually needs a reboot, from its name (like the UI's estimate)
+_LINUX_REBOOT_ALWAYS = re.compile(r"^(linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)")
+_LINUX_REBOOT_CAN = re.compile(r"^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d+(t64)?|openssl(-libs)?)(\b|-|:|$)")
+
+FLEET_SORTS = ("hostname", "pending", "security", "reboot", "last_search", "os")
+REBOOT_ORDER = {"pending": 0, "needed": 1, "maybe": 2, "unknown": 3, "none": 4}
+
+
+def _linux_reboot(names, pending) -> str:
+    if pending:
+        return "pending"
+    if any(_LINUX_REBOOT_ALWAYS.match(n) for n in names):
+        return "needed"
+    if any(_LINUX_REBOOT_CAN.match(n) for n in names):
+        return "maybe"
+    return "none"
+
+
+def _windows_reboot(pending, behaviors) -> str:
+    if pending:
+        return "pending"
+    if "always" in behaviors:
+        return "needed"
+    if "can" in behaviors:
+        return "maybe"
+    if any(b is None for b in behaviors):
+        return "unknown"
+    return "none"
+
+
+async def _fleet_rows(conn) -> list:
+    """All nodes with their update state (unfiltered)"""
+    rows = await conn.fetch("""
+        SELECT n.id, n.node_id, n.hostname, n.os_name, n.is_online, n.last_seen,
+               s.scanned_at, s.status AS search_status, s.source AS search_source, s.server AS search_server,
+               s.error AS search_error, s.reboot_pending,
+               l.updates AS linux_updates,
+               (SELECT json_agg(json_build_object('kb_id', u.kb_id, 'title', u.title, 'severity', u.severity, 'category', u.category,
+                                                  'reboot_behavior', u.reboot_behavior))
+                  FROM node_available_updates u WHERE u.node_id = n.id) AS windows_updates,
+               (SELECT j.command_type FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
+                 WHERE ji.node_id IN (n.id::text, n.node_id)
+                   AND ji.status IN ('pending', 'queued', 'running')
+                   AND j.command_type IN ('patch_scan', 'patch_install')
+                 ORDER BY ji.queued_at DESC LIMIT 1) AS running
+        FROM nodes n
+        LEFT JOIN node_patch_scans s ON s.node_id = n.id
+        LEFT JOIN linux_data_current l ON l.node_id = n.id::text
+        WHERE n.removal_state IS NULL OR n.removal_state NOT IN ('removed', 'uninstalling')
+    """)
+    out = []
+    for r in rows:
+        linux = r["linux_updates"]
+        if isinstance(linux, str):
+            linux = json.loads(linux)
+        windows = r["windows_updates"]
+        if isinstance(windows, str):
+            windows = json.loads(windows)
+        is_windows = "windows" in (r["os_name"] or "").lower()
+        if is_windows:
+            updates = windows or []
+            definitions = [u for u in updates if is_definition_update(u.get("kb_id"), u.get("title"))]
+            relevant = [u for u in updates if u not in definitions]
+            pending = len(relevant)
+            # security: the category (cumulative updates often only have "moderate" as severity) or the severity
+            security = sum(1 for u in relevant if (u.get("category") or "").lower() == "security"
+                           or (u.get("severity") or "").lower() in ("critical", "important"))
+            reboot = _windows_reboot(r["reboot_pending"], [u.get("reboot_behavior") for u in relevant])
+            os_family = "windows"
+        else:
+            linux = linux or {}
+            names = [p.get("name") for p in (linux.get("updates") or []) if p.get("name")]
+            definitions = []
+            pending = linux.get("totalUpdates") if isinstance(linux.get("totalUpdates"), int) else len(names)
+            security = linux.get("securityUpdates") if isinstance(linux.get("securityUpdates"), int) else 0
+            reboot = _linux_reboot(names, linux.get("rebootRequired") is True)
+            os_family = "linux"
+        out.append({
+            "id": str(r["id"]), "node_id": r["node_id"], "hostname": r["hostname"], "os_name": r["os_name"],
+            "os_family": os_family, "online": bool(r["is_online"]),
+            "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
+            "pending": pending, "security": security, "definitions": len(definitions),
+            "reboot": reboot if (pending or reboot == "pending") else "none",
+            "last_search": {
+                "at": r["scanned_at"].isoformat() if r["scanned_at"] else None,
+                "status": r["search_status"], "source": r["search_source"], "server": r["search_server"],
+                "error": r["search_error"],
+            },
+            "running": r["running"],
+        })
+    return out
+
+
+@router.get("/api/v1/patches/fleet", dependencies=[Depends(require_user_permission("packages:read"))])
+async def fleet_updates(os: str = None, pending: bool = False, security: bool = False, reboot: bool = False,
+                        failed: bool = False, stale_days: int = 0, offline: bool = False, q: str = None,
+                        sort: str = "pending", dir: str = None, limit: int = 100, offset: int = 0):
+    """Nodes with their update state: pending and security updates (Windows without Defender signature
+    updates, counted as `definitions`), reboot (pending / needed / maybe / unknown / none), the last
+    update search and a running search or installation.
+
+    Filters: `os` (windows / linux), `pending`, `security`, `reboot` (pending or needed), `failed`
+    (last search failed), `stale_days` (no search for that many days), `offline`, `q` (hostname).
+    `sort`: hostname, pending, security, reboot, last_search, os; `dir`: asc / desc.
+    `counts` are over all nodes (for the cards), `total` over the filtered ones."""
+    async with get_pool().acquire() as conn:
+        rows = await _fleet_rows(conn)
+    now = datetime.now(timezone.utc)
+
+    def stale(r, days):
+        at = r["last_search"]["at"]
+        return at is None or (now - datetime.fromisoformat(at)).days >= days
+
+    counts = {
+        "nodes": len(rows),
+        "pending": sum(1 for r in rows if r["pending"]),
+        "security": sum(1 for r in rows if r["security"]),
+        "reboot": sum(1 for r in rows if r["reboot"] in ("pending", "needed")),
+        "failed": sum(1 for r in rows if r["last_search"]["status"] == "failed"),
+        "stale": sum(1 for r in rows if stale(r, 7)),
+        "offline": sum(1 for r in rows if not r["online"]),
+    }
+    if os in ("windows", "linux"):
+        rows = [r for r in rows if r["os_family"] == os]
+    if pending:
+        rows = [r for r in rows if r["pending"]]
+    if security:
+        rows = [r for r in rows if r["security"]]
+    if reboot:
+        rows = [r for r in rows if r["reboot"] in ("pending", "needed")]
+    if failed:
+        rows = [r for r in rows if r["last_search"]["status"] == "failed"]
+    if stale_days and stale_days > 0:
+        rows = [r for r in rows if stale(r, stale_days)]
+    if offline:
+        rows = [r for r in rows if not r["online"]]
+    if q:
+        rows = [r for r in rows if q.lower() in (r["hostname"] or "").lower()]
+
+    if sort not in FLEET_SORTS:
+        raise HTTPException(status_code=400, detail=f"sort: one of {', '.join(FLEET_SORTS)}")
+    descending = (dir or ("desc" if sort in ("pending", "security", "last_search") else "asc")) == "desc"
+    keys = {
+        "hostname": lambda r: (r["hostname"] or "").lower(),
+        "pending": lambda r: (r["pending"], r["security"]),
+        "security": lambda r: (r["security"], r["pending"]),
+        "reboot": lambda r: -REBOOT_ORDER.get(r["reboot"], 9),
+        "last_search": lambda r: r["last_search"]["at"] or "",
+        "os": lambda r: (r["os_family"], (r["hostname"] or "").lower()),
+    }
+    # stable: the name first, then the chosen column
+    rows.sort(key=lambda r: (r["hostname"] or "").lower())
+    rows.sort(key=keys[sort], reverse=descending)
+    return {"nodes": rows[offset:offset + limit], "total": len(rows), "counts": counts}

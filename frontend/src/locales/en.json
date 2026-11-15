@@ -102,7 +102,8 @@
       "failedJobs": "{count} failed jobs in the last 7 days",
       "alertsNotSent": "{count} alerts not sent in the last 7 days",
       "findings": "{count} security findings"
-    }
+    },
+    "fleetUpdates": "Fleet updates"
   },
   "auth": {
     "login": "Login",
@@ -1642,6 +1643,58 @@
       "installPackage": "Install package",
       "uninstallPackage": "Uninstall package",
       "inventory": "Inventory"
+    }
+  },
+  "fleetUpdates": {
+    "title": "Fleet updates",
+    "description": "Pending updates, reboots and update searches of all nodes, Windows and Linux",
+    "search": "Search node…",
+    "os": "Operating system",
+    "allSystems": "All systems",
+    "showAll": "Show all nodes",
+    "shown": "Shown: {count}",
+    "noMatches": "No nodes match the filters.",
+    "empty": "No nodes yet.",
+    "neverSearched": "Not searched yet",
+    "security": "{count} security",
+    "offline": "Offline",
+    "range": "{from}–{to} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "cards": {
+      "nodes": "Nodes",
+      "pending": "With pending updates",
+      "security": "With security updates",
+      "reboot": "Reboot pending or needed",
+      "failed": "Search failed",
+      "stale": "No search for {days} days",
+      "offline": "Offline"
+    },
+    "cardHint": {
+      "nodes": "All nodes – removes the filters",
+      "pending": "Only nodes with pending updates (Windows without Defender signatures)",
+      "security": "Only nodes with security updates (Windows: category security, or critical / important)",
+      "reboot": "Only nodes waiting for a reboot or whose pending updates need one",
+      "failed": "Only nodes whose last update search failed",
+      "stale": "Only nodes without an update search for {days} days or never",
+      "offline": "Only offline nodes"
+    },
+    "col": {
+      "node": "Node",
+      "pending": "Pending updates",
+      "reboot": "Reboot",
+      "lastSearch": "Last update search",
+      "status": "Status"
+    },
+    "reboot": {
+      "pending": "Reboot pending",
+      "needed": "Will need a reboot",
+      "maybe": "May need a reboot",
+      "unknown": "Unknown"
+    },
+    "running": {
+      "patch_scan": "Searching…",
+      "patch_install": "Installing…"
     }
   }
 }
