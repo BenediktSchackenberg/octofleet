@@ -11,7 +11,7 @@ test('Windows Updates tab: available updates and the pending highlight without D
     headers, data: { hostname, nodeId: hostname, system: { os: { name: 'Microsoft Windows Server 2025 Standard' } } },
   })).ok()).toBeTruthy();
   const scan = { status: 'succeeded', source: 'wsus', server: 'https://wsus.example:8531', result_code: 2 };
-  const defender = { kb_id: 'KB2267602', title: 'Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.463.277.0)', severity: 'low', category: 'security' };
+  const defender = { kb_id: 'KB2267602', title: 'Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.463.277.0)', severity: 'low', category: 'security', reboot_behavior: 'never' };
   const report = (patches: object[]) => request.post(`${API_URL}/api/v1/patches/scan-results`, { headers, data: { node_id: hostname, scan, patches } });
 
   // Only a Defender signature update: listed, but the tab is not highlighted
@@ -29,7 +29,7 @@ test('Windows Updates tab: available updates and the pending highlight without D
   await expect(panel.getByText('+ 1 Defender signatures')).toBeVisible();
 
   // A cumulative update as well: the tab turns amber, counting only that one
-  expect((await report([defender, { kb_id: 'KB5130001', title: '2026-11 Cumulative Update for Microsoft server operating system', severity: 'critical', category: 'security' }])).ok()).toBeTruthy();
+  expect((await report([defender, { kb_id: 'KB5130001', title: '2026-11 Cumulative Update for Microsoft server operating system', severity: 'critical', category: 'security', reboot_behavior: 'always' }])).ok()).toBeTruthy();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(panel.getByText('Available updates (2)')).toBeVisible();
   await expect(tab).toHaveClass(/text-amber-500/);
@@ -45,10 +45,21 @@ test('Windows Updates tab: available updates and the pending highlight without D
   await panel.getByRole('button', { name: /Install selected \(1\)/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('KB5130001');
+  // the dialog says whether a reboot is needed (Windows reports it per update)
+  await expect(dialog).toContainText('These updates need a reboot: KB5130001.');
   await expect(dialog.getByLabel(/^Don't reboot/)).toBeChecked();
   await expect(dialog).toContainText('Windows may still restart by itself');
   await dialog.getByLabel('Reboot at').check();
   await expect(dialog.getByLabel('Reboot time')).toHaveValue(/T22:00$/);
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
+
+  // An update that never needs a reboot: stated, and no reboot choice
+  await panel.getByRole('checkbox', { name: 'Select KB5130001' }).uncheck();
+  await panel.getByRole('checkbox', { name: 'Select KB2267602' }).check();
+  await panel.getByRole('button', { name: /Install selected \(1\)/ }).click();
+  await expect(dialog).toContainText('These updates do not need a reboot.');
+  await expect(dialog.getByLabel('Reboot at')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(panel.getByText('Needs a reboot')).toBeVisible();
 });

@@ -22,6 +22,19 @@ export function installedUpdateType(title: string | undefined, description?: str
   return "update";
 }
 
+export type RebootBehavior = "never" | "always" | "can" | "unknown";
+
+/**
+ * Linux: whether upgrading a package usually needs a reboot, from its name - the kernel always, the C
+ * library, systemd and dbus may (Debian/Ubuntu then write /var/run/reboot-required). An estimate:
+ * the agent reports the real state after the installation.
+ */
+export function linuxRebootBehavior(name: string): RebootBehavior {
+  if (/^(linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)/.test(name)) return "always";
+  if (/^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d|openssl(-libs)?)(\b|-|:|$)/.test(name)) return "can";
+  return "never";
+}
+
 /** Badge variant of an update result: successful stays quiet, failed stands out */
 export function resultVariant(ok: boolean | undefined): "outline" | "destructive" {
   return ok === false ? "destructive" : "outline";

@@ -18,7 +18,7 @@ import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
 import { UpdateActions } from "@/components/node-update-actions";
-import { UPDATE_COLS, installedUpdateType, resultVariant } from "@/lib/update-tables";
+import { UPDATE_COLS, installedUpdateType, linuxRebootBehavior, resultVariant, type RebootBehavior } from "@/lib/update-tables";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -961,6 +961,9 @@ export default function NodeDetailPage() {
                   <UpdateActions os="windows" nodeUuid={node ? String(node.id) : undefined}
                     updateCount={(availableUpdates ?? []).filter((u) => u.kb_id).length}
                     allIds={(availableUpdates ?? []).map((u) => u.kb_id).filter((kb): kb is string => !!kb)}
+                    rebootBehavior={Object.fromEntries((availableUpdates ?? []).filter((u) => u.kb_id)
+                      .map((u) => [u.kb_id as string, (u.reboot_behavior ?? "unknown") as RebootBehavior]))}
+                    rebootPending={patchScan?.reboot_pending === true}
                     selected={selectedKbs}
                     onChanged={async () => { await refreshInventory(); setSelectedKbs([]); setUpdateSearchKey((k) => k + 1); }} />
                 ) : undefined} />
@@ -984,6 +987,9 @@ export default function NodeDetailPage() {
                 {hasPermission("jobs:create") && (
                   <UpdateActions os="linux" nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
                     packageManager={linuxUpdates.packageManager} selected={selectedPackages}
+                    allIds={(linuxUpdates.updates ?? []).map((p) => p.name)}
+                    rebootBehavior={Object.fromEntries((linuxUpdates.updates ?? []).map((p) => [p.name, linuxRebootBehavior(p.name)]))}
+                    rebootPending={linuxUpdates.rebootRequired === true}
                     onChanged={async () => { await refreshInventory(); setSelectedPackages([]); setUpdateSearchKey((k) => k + 1); }} />
                 )}
               </CardHeader>

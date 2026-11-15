@@ -43,7 +43,8 @@ NODE_PATCH_SCANS_DDL = """
         result_code INTEGER,
         error TEXT,
         duration_seconds REAL,
-        update_count INTEGER
+        update_count INTEGER,
+        reboot_pending BOOLEAN
     )
 """
 
@@ -55,6 +56,9 @@ async def ensure_schema(pool) -> None:
     """Tables added after the initial schema (existing installations)."""
     async with pool.acquire() as conn:
         await conn.execute(NODE_PATCH_SCANS_DDL)
+        # whether Windows waits for a reboot (scan), whether an update needs one (never/always/can)
+        await conn.execute("ALTER TABLE node_patch_scans ADD COLUMN IF NOT EXISTS reboot_pending BOOLEAN")
+        await conn.execute("ALTER TABLE node_available_updates ADD COLUMN IF NOT EXISTS reboot_behavior TEXT")
 
 
 def scan_info(data: dict):
@@ -69,14 +73,15 @@ def scan_info(data: dict):
 async def record_scan(conn, node_uuid: str, scan: dict, update_count) -> None:
     await conn.execute("""
         INSERT INTO node_patch_scans (node_id, scanned_at, status, source, server, result_code, error,
-                                      duration_seconds, update_count)
-        VALUES ($1::uuid, NOW(), $2, $3, $4, $5, $6, $7, $8)
+                                      duration_seconds, reboot_pending, update_count)
+        VALUES ($1::uuid, NOW(), $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (node_id) DO UPDATE SET scanned_at = NOW(), status = EXCLUDED.status,
             source = EXCLUDED.source, server = EXCLUDED.server, result_code = EXCLUDED.result_code,
             error = EXCLUDED.error, duration_seconds = EXCLUDED.duration_seconds,
-            update_count = EXCLUDED.update_count
+            reboot_pending = EXCLUDED.reboot_pending, update_count = EXCLUDED.update_count
     """, node_uuid, scan["status"], scan.get("source"), scan.get("server"), scan.get("result_code"),
-        (scan.get("error") or None) and str(scan["error"])[:2000], scan.get("duration_seconds"), update_count)
+        (scan.get("error") or None) and str(scan["error"])[:2000], scan.get("duration_seconds"),
+        scan.get("reboot_pending") if isinstance(scan.get("reboot_pending"), bool) else None, update_count)
 
 
 @router.get("/api/v1/patches/catalog", dependencies=[Depends(require_user_permission("packages:read"))])
@@ -194,13 +199,21 @@ async def import_patches(data: dict):
         await conn.execute("DELETE FROM node_available_updates WHERE node_id = $1::uuid", node_uuid)
         for p in patches:
             await conn.execute("""
-                INSERT INTO node_available_updates (node_id, kb_id, title, severity, category, source, is_reboot_required)
-                VALUES ($1::uuid, $2, $3, $4, $5, $6, false)
+                INSERT INTO node_available_updates (node_id, kb_id, title, severity, category, source,
+                                                    is_reboot_required, reboot_behavior)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)
             """, node_uuid, p.get("kb_id"), p.get("title", ""),
-                p.get("severity", "moderate"), p.get("category", "security"), source)
+                p.get("severity", "moderate"), p.get("category", "security"), source,
+                reboot_behavior(p) == "always", reboot_behavior(p))
         if scan is not None:
             await record_scan(conn, node_uuid, scan, len(patches))
     return {"imported": imported, "total": len(patches), "removed": removed}
+
+
+def reboot_behavior(patch: dict):
+    """never / always / can (may request a reboot) as the Windows agent reports it; None if not sent"""
+    value = patch.get("reboot_behavior")
+    return value if value in ("never", "always", "can") else None
 
 
 def is_definition_update(kb_id, title) -> bool:
@@ -215,7 +228,8 @@ async def get_available_updates(node_id: str):
     `definition` marks Microsoft Defender signature updates."""
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
-            SELECT u.kb_id, u.title, u.severity, u.category, u.source, u.is_reboot_required, u.discovered_at
+            SELECT u.kb_id, u.title, u.severity, u.category, u.source, u.is_reboot_required, u.reboot_behavior,
+                   u.discovered_at
             FROM node_available_updates u JOIN nodes n ON n.id = u.node_id
             WHERE n.node_id = $1 OR n.id::text = $1
             ORDER BY u.discovered_at DESC NULLS LAST, u.kb_id

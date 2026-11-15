@@ -312,7 +312,19 @@
         "schedule": "Neustart geplant",
         "force": "Neustart in einer Minute"
       },
-      "windowsOwnRestart": "Windows kann trotzdem selbst neu starten, je nach seiner Update-Richtlinie (z. B. automatische Installation mit geplantem Neustart, Nutzungszeit, Fristen). Mit „Neustart melden“ (AUOptions 7) nicht."
+      "windowsOwnRestart": "Windows kann trotzdem selbst neu starten, je nach seiner Update-Richtlinie (z. B. automatische Installation mit geplantem Neustart, Nutzungszeit, Fristen). Mit „Neustart melden“ (AUOptions 7) nicht.",
+      "rebootOutlook": {
+        "pending": "Auf diesem Node steht bereits ein Neustart aus.",
+        "needed": "Diese Updates brauchen einen Neustart: {items}.",
+        "maybe": "Diese Updates brauchen eventuell einen Neustart: {items}.",
+        "none": "Diese Updates brauchen keinen Neustart.",
+        "unknown": "Ob ein Neustart nötig ist, steht erst nach der Installation fest.",
+        "estimated": "(geschätzt anhand der Paketnamen)"
+      },
+      "rebootBadge": {
+        "always": "Braucht Neustart",
+        "can": "Evtl. Neustart"
+      }
     },
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",

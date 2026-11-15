@@ -17,6 +17,8 @@ export interface AvailableUpdate {
   category: string;
   source: string | null;
   is_reboot_required: boolean;
+  /** never / always / can (may request one), as Windows reports it; null from older agents */
+  reboot_behavior?: string | null;
   discovered_at: string | null;
   /** A Microsoft Defender signature update: offered several times a day, installed by Defender itself */
   definition: boolean;
@@ -96,7 +98,8 @@ export function AvailableUpdates({ updates, selected, onSelectedChange, actions 
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate" title={u.title}>{u.title}</span>
                       {u.definition && <Badge variant="secondary" className="shrink-0">{t("nodeDetail.definitionUpdate")}</Badge>}
-                      {u.is_reboot_required && <Badge variant="destructive" className="shrink-0">{t("nodes.updates.rebootRequired")}</Badge>}
+                      {(u.reboot_behavior === "always" || u.is_reboot_required) && <Badge variant="destructive" className="shrink-0">{t("nodes.updates.rebootBadge.always")}</Badge>}
+                      {u.reboot_behavior === "can" && <Badge variant="secondary" className="shrink-0">{t("nodes.updates.rebootBadge.can")}</Badge>}
                     </div>
                   </TableCell>
                   <TableCell>

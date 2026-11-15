@@ -299,8 +299,20 @@ public class PatchScanner : BackgroundService
                         bool autoSelectOnWebSites = false;
                         try { autoSelectOnWebSites = (bool)update.AutoSelectOnWebSites; } catch { }
 
+                        // Whether installing it needs a reboot: 0 never, 1 always, 2 can request one
+                        string rebootBehavior = "unknown";
+                        try
+                        {
+                            rebootBehavior = (int)update.InstallationBehavior.RebootBehavior switch
+                            {
+                                0 => "never", 1 => "always", 2 => "can", _ => "unknown"
+                            };
+                        }
+                        catch { }
+
                         patches.Add(new PendingPatch
                         {
+                            RebootBehavior = rebootBehavior,
                             KbId = kbId ?? $"UPDATE-{update.Identity.UpdateID?.ToString()?[..8]}",
                             Title = title,
                             Description = description,
@@ -357,6 +369,7 @@ public class PatchScanner : BackgroundService
                     source = outcome.Source,
                     server = outcome.Server,
                     duration_seconds = outcome.DurationSeconds,
+                    reboot_pending = RebootPending(),
                 },
                 patches = patches.Select(p => new
                 {
@@ -367,7 +380,8 @@ public class PatchScanner : BackgroundService
                     category = p.Category,
                     download_size_bytes = p.DownloadSizeBytes,
                     is_mandatory = p.IsMandatory,
-                    update_id = p.UpdateId
+                    update_id = p.UpdateId,
+                    reboot_behavior = p.RebootBehavior
                 }).ToArray()
             };
 
@@ -429,5 +443,23 @@ public class PatchScanner : BackgroundService
         public long DownloadSizeBytes { get; set; }
         public bool IsMandatory { get; set; }
         public string? UpdateId { get; set; }
+        /// <summary>never, always, can (may request one) or unknown</summary>
+        public string RebootBehavior { get; set; } = "unknown";
+    }
+
+    /// <summary>Whether Windows waits for a reboot (Microsoft.Update.SystemInfo); null if unknown</summary>
+    private static bool? RebootPending()
+    {
+        try
+        {
+            var type = Type.GetTypeFromProgID("Microsoft.Update.SystemInfo");
+            if (type == null) return null;
+            dynamic info = Activator.CreateInstance(type)!;
+            return (bool)info.RebootRequired;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

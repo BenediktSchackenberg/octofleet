@@ -46,6 +46,10 @@ test('Linux updates: last search, reboot flag, search and install with confirmat
   await expect(dialog.getByText('Install all updates?')).toBeVisible();
   // the reboot choice, like on Windows: no reboot by default
   await expect(dialog.getByLabel(/^Don't reboot/)).toBeChecked();
+  // openssl and systemd may need a reboot (estimated from the names); one is already pending
+  await expect(dialog).toContainText('A reboot is already pending on this node.');
+  await expect(dialog).toContainText('may need a reboot');
+  await expect(dialog).toContainText('estimated from the package names');
   await expect(dialog).toContainText('all 2 package updates with apt');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();

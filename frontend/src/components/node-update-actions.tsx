@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n-context";
 import { runNodeJob, type NodeJobResult } from "@/lib/node-jobs";
+import type { RebootBehavior } from "@/lib/update-tables";
 
 // How long the page waits for the agent. timeoutSeconds is the agent's limit, sent as the payload's
 // timeout (POST /jobs keeps the job's default of 300 s). Windows: the update search has its own
@@ -50,14 +51,19 @@ function defaultRebootTime(): string {
  * minute) - on both systems.
  * `onChanged` reloads the node's data once the agent has answered.
  */
-export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selected, allIds = [], onChanged }: {
+export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selected, allIds = [], rebootBehavior = {},
+  rebootPending = false, onChanged }: {
   os: Os;
   nodeUuid: string | undefined;
   updateCount: number;
   packageManager?: string;
   selected: string[];
-  /** Windows: the KB IDs of all available updates ("Install updates" without a selection) */
+  /** All available updates (KB IDs / package names): "Install updates" without a selection */
   allIds?: string[];
+  /** Per update: whether installing it needs a reboot (Windows reports it; Linux: from the name) */
+  rebootBehavior?: Record<string, RebootBehavior>;
+  /** A reboot is already pending on the node */
+  rebootPending?: boolean;
   onChanged: () => void | Promise<void>;
 }) {
   const { t } = useI18n();
@@ -67,12 +73,24 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
   const [reboot, setReboot] = useState<RebootPolicy>("no_reboot");
   const [rebootAt, setRebootAt] = useState(defaultRebootTime);
 
+  /** What the dialog says about a reboot for these updates, and whether it offers the reboot choice */
+  function rebootOutlook(items: string[]) {
+    const ids = items.length ? items : allIds;
+    const by = (b: RebootBehavior) => ids.filter((id) => (rebootBehavior[id] ?? "unknown") === b);
+    const always = by("always"), can = by("can"), unknown = by("unknown");
+    const kind = always.length ? "needed" : can.length ? "maybe" : unknown.length ? "unknown" : "none";
+    const list = (kind === "needed" ? always : kind === "maybe" ? can : []).join(", ");
+    return { kind, list, offer: rebootPending || kind !== "none" };
+  }
+
   function installData(items: string[], timeout: number): Record<string, unknown> {
+    // No reboot choice shown (no update needs one, none pending): never reboot
+    const policy = rebootOutlook(items).offer ? reboot : "no_reboot";
     const data: Record<string, unknown> = os === "linux"
-      ? { ...(items.length ? { packages: items } : { all: true }), reboot_policy: reboot, timeout }
-      : { kb_ids: items.length ? items : allIds, reboot_policy: reboot, timeout };
+      ? { ...(items.length ? { packages: items } : { all: true }), reboot_policy: policy, timeout }
+      : { kb_ids: items.length ? items : allIds, reboot_policy: policy, timeout };
     // The agent compares the time with the current UTC time: send it with its offset (ISO, UTC)
-    if (reboot === "schedule") data.reboot_schedule_time = new Date(rebootAt).toISOString();
+    if (policy === "schedule") data.reboot_schedule_time = new Date(rebootAt).toISOString();
     return data;
   }
 
@@ -119,6 +137,7 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
   }
 
   const manager = os === "windows" ? "Windows Update" : packageManager ?? "";
+  const outlook = rebootOutlook(confirming ?? []);
   const count = confirming?.length || updateCount;
   return (
     <div className="flex flex-wrap gap-2">
@@ -146,7 +165,15 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
                   : t("nodes.updates.installConfirmText", { count: updateCount, manager })}
             </DialogDescription>
           </DialogHeader>
-          {(
+          {/* Whether a reboot is needed - stated in any case; the choice only when it can be */}
+          <div className="space-y-1 text-sm">
+            {rebootPending && <p className="text-amber-500">{t("nodes.updates.rebootOutlook.pending")}</p>}
+            <p className={outlook.kind === "none" ? "text-muted-foreground" : "text-amber-500"}>
+              {t(`nodes.updates.rebootOutlook.${outlook.kind}`, { items: outlook.list })}
+              {os === "linux" && outlook.kind !== "unknown" && ` ${t("nodes.updates.rebootOutlook.estimated")}`}
+            </p>
+          </div>
+          {outlook.offer && (
             <fieldset className="space-y-2 text-sm">
               <legend className="font-medium mb-1">{t("nodes.updates.rebootLegend")}</legend>
               {(["no_reboot", "schedule", "force"] as RebootPolicy[]).map((policy) => (

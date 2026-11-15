@@ -312,7 +312,19 @@
         "schedule": "reboot scheduled",
         "force": "rebooting in one minute"
       },
-      "windowsOwnRestart": "Windows may still restart by itself, depending on its update policy (e.g. automatic installation with a scheduled restart, active hours, deadlines). With \"notify to restart\" (AUOptions 7) it does not."
+      "windowsOwnRestart": "Windows may still restart by itself, depending on its update policy (e.g. automatic installation with a scheduled restart, active hours, deadlines). With \"notify to restart\" (AUOptions 7) it does not.",
+      "rebootOutlook": {
+        "pending": "A reboot is already pending on this node.",
+        "needed": "These updates need a reboot: {items}.",
+        "maybe": "These updates may need a reboot: {items}.",
+        "none": "These updates do not need a reboot.",
+        "unknown": "Whether a reboot is needed is only known after the installation.",
+        "estimated": "(estimated from the package names)"
+      },
+      "rebootBadge": {
+        "always": "Needs a reboot",
+        "can": "May need a reboot"
+      }
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",

@@ -312,7 +312,19 @@
         "schedule": "reinicio programado",
         "force": "reinicio en un minuto"
       },
-      "windowsOwnRestart": "Windows puede reiniciarse por sí mismo según su directiva de actualizaciones (p. ej. instalación automática con reinicio programado, horas activas, plazos). Con «notificar el reinicio» (AUOptions 7) no lo hace."
+      "windowsOwnRestart": "Windows puede reiniciarse por sí mismo según su directiva de actualizaciones (p. ej. instalación automática con reinicio programado, horas activas, plazos). Con «notificar el reinicio» (AUOptions 7) no lo hace.",
+      "rebootOutlook": {
+        "pending": "En este nodo ya hay un reinicio pendiente.",
+        "needed": "Estas actualizaciones requieren reiniciar: {items}.",
+        "maybe": "Estas actualizaciones pueden requerir reiniciar: {items}.",
+        "none": "Estas actualizaciones no requieren reiniciar.",
+        "unknown": "Si hace falta reiniciar solo se sabe tras la instalación.",
+        "estimated": "(estimado por los nombres de los paquetes)"
+      },
+      "rebootBadge": {
+        "always": "Requiere reiniciar",
+        "can": "Puede requerir reiniciar"
+      }
     },
     "vulnerabilities": {
       "tab": "Vulnerabilidades ({count})",
