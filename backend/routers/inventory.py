@@ -185,7 +185,7 @@ async def get_hotfixes(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
         hotfix_rows = await conn.fetch('SELECT kb_id as "hotfixId", description, installed_on as "installedOn", installed_by as "installedBy" FROM hotfixes_current WHERE node_id = $1 ORDER BY installed_on DESC', node['id'])
-        update_rows = await conn.fetch('SELECT update_id as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id = $1 ORDER BY installed_on DESC', node['id'])
+        update_rows = await conn.fetch('SELECT split_part(update_id, chr(64), 1) as "updateId", kb_id as "kbId", title, description, installed_on as "installedOn", operation, result_code as "resultCode", support_url as "supportUrl", categories FROM update_history WHERE node_id = $1 ORDER BY installed_on DESC', node['id'])
         
         update_history = []
         for row in update_rows:
@@ -342,7 +342,12 @@ async def submit_hotfixes(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
         for upd in update_history:
             update_id = upd.get("updateId") or upd.get("title", "")[:100]
             if not update_id: continue
-            await conn.execute("INSERT INTO update_history (node_id, update_id, kb_id, title, description, installed_on, operation, result_code, support_url, categories, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) ON CONFLICT (node_id, update_id) DO UPDATE SET kb_id = EXCLUDED.kb_id, title = EXCLUDED.title, description = EXCLUDED.description, installed_on = EXCLUDED.installed_on, operation = EXCLUDED.operation, result_code = EXCLUDED.result_code, support_url = EXCLUDED.support_url, categories = EXCLUDED.categories, updated_at = NOW()", uuid, update_id, upd.get("kbId"), upd.get("title", "Unknown Update")[:500], upd.get("description"), parse_datetime(upd.get("installedOn")), upd.get("operation"), upd.get("resultCode"), upd.get("supportUrl"), json.dumps(upd.get("categories", [])))
+            # One row per update and result, the newest of each: an update installed again (e.g. a cumulative
+            # update after its servicing stack) has the same update ID - keyed by the ID alone, the older failed
+            # attempt overwrote the success. Repeated successes (Store apps update almost daily) stay one row.
+            if upd.get("resultCode"):
+                update_id = f"{update_id}@{upd.get('resultCode')}"
+            await conn.execute("INSERT INTO update_history (node_id, update_id, kb_id, title, description, installed_on, operation, result_code, support_url, categories, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) ON CONFLICT (node_id, update_id) DO UPDATE SET kb_id = EXCLUDED.kb_id, title = EXCLUDED.title, description = EXCLUDED.description, installed_on = EXCLUDED.installed_on, operation = EXCLUDED.operation, result_code = EXCLUDED.result_code, support_url = EXCLUDED.support_url, categories = EXCLUDED.categories, updated_at = NOW() WHERE update_history.installed_on IS NULL OR EXCLUDED.installed_on > update_history.installed_on", uuid, update_id, upd.get("kbId"), upd.get("title", "Unknown Update")[:500], upd.get("description"), parse_datetime(upd.get("installedOn")), upd.get("operation"), upd.get("resultCode"), upd.get("supportUrl"), json.dumps(upd.get("categories", [])))
     return {"status": "ok", "node_id": str(uuid), "type": "hotfixes", "hotfixCount": len(hotfixes), "updateHistoryCount": len(update_history)}
 
 @router.post("/system", dependencies=[Depends(require_permission("inventory:write"))])
