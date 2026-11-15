@@ -296,7 +296,22 @@
       "installSelectedConfirmTitle": "¿Instalar las actualizaciones seleccionadas?",
       "installSelectedConfirmText": "El agente actualiza estos paquetes con {manager}: {packages}. El gestor de paquetes puede actualizar también paquetes de los que dependen. Los servicios pueden reiniciarse; el nodo no se reinicia automáticamente.",
       "selectAll": "Seleccionar todas las actualizaciones",
-      "selectPackage": "Seleccionar {name}"
+      "selectPackage": "Seleccionar {name}",
+      "searchHintWindows": "Busca actualizaciones con Windows Update (en clientes WSUS: las aprobadas en WSUS)",
+      "installConfirmTextWindows": "El agente instala {count} actualizaciones con Windows Update: {updates}. Después vuelve a buscar actualizaciones.",
+      "rebootLegend": "Si una actualización requiere reiniciar",
+      "rebootAt": "Hora del reinicio",
+      "rebootOption": {
+        "no_reboot": "No reiniciar (más tarde, manualmente)",
+        "schedule": "Reiniciar a las",
+        "force": "Reiniciar en un minuto"
+      },
+      "windowsResult": "Instaladas: {installed} · fallidas: {failed}",
+      "windowsReboot": {
+        "no_reboot": "reinicio necesario",
+        "schedule": "reinicio programado",
+        "force": "reinicio en un minuto"
+      }
     },
     "vulnerabilities": {
       "tab": "Vulnerabilidades ({count})",
@@ -926,7 +941,8 @@
     "availableUpdatesNone": "La última búsqueda no encontró actualizaciones.",
     "availableUpdateSeverity": "Gravedad",
     "availableUpdateFound": "Detectada el",
-    "definitionUpdate": "Firmas de Defender"
+    "definitionUpdate": "Firmas de Defender",
+    "windowsUpdateHistory": "Actualizaciones instaladas e historial"
   },
   "navGroups": {
     "fleet": "Flota",

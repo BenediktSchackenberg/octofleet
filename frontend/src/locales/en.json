@@ -296,7 +296,22 @@
       "installSelectedConfirmTitle": "Install the selected updates?",
       "installSelectedConfirmText": "The agent upgrades these packages with {manager}: {packages}. The package manager may also upgrade packages they depend on. Services may restart; the node is not rebooted automatically.",
       "selectAll": "Select all updates",
-      "selectPackage": "Select {name}"
+      "selectPackage": "Select {name}",
+      "searchHintWindows": "Searches for updates with Windows Update (on WSUS clients: the updates approved in WSUS)",
+      "installConfirmTextWindows": "The agent installs {count} updates with Windows Update: {updates}. Afterwards it searches for updates again.",
+      "rebootLegend": "If an update needs a reboot",
+      "rebootAt": "Reboot time",
+      "rebootOption": {
+        "no_reboot": "Don't reboot (do it yourself later)",
+        "schedule": "Reboot at",
+        "force": "Reboot in one minute"
+      },
+      "windowsResult": "Installed: {installed} · failed: {failed}",
+      "windowsReboot": {
+        "no_reboot": "reboot required",
+        "schedule": "reboot scheduled",
+        "force": "rebooting in one minute"
+      }
     },
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",
@@ -926,7 +941,8 @@
     "availableUpdatesNone": "The last update search found no updates.",
     "availableUpdateSeverity": "Severity",
     "availableUpdateFound": "Found on",
-    "definitionUpdate": "Defender signatures"
+    "definitionUpdate": "Defender signatures",
+    "windowsUpdateHistory": "Installed updates and history"
   },
   "navGroups": {
     "fleet": "Fleet",

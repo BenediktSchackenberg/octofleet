@@ -296,7 +296,22 @@
       "installSelectedConfirmTitle": "Ausgewählte Updates installieren?",
       "installSelectedConfirmText": "Der Agent aktualisiert diese Pakete mit {manager}: {packages}. Der Paketmanager aktualisiert dabei ggf. auch Pakete, von denen sie abhängen. Dienste können neu starten; der Node wird nicht automatisch neu gestartet.",
       "selectAll": "Alle Updates auswählen",
-      "selectPackage": "{name} auswählen"
+      "selectPackage": "{name} auswählen",
+      "searchHintWindows": "Sucht mit Windows Update nach Updates (auf WSUS-Clients: die in WSUS freigegebenen)",
+      "installConfirmTextWindows": "Der Agent installiert {count} Updates mit Windows Update: {updates}. Danach sucht er erneut nach Updates.",
+      "rebootLegend": "Wenn ein Update einen Neustart braucht",
+      "rebootAt": "Neustart-Zeitpunkt",
+      "rebootOption": {
+        "no_reboot": "Nicht neu starten (später selbst)",
+        "schedule": "Neu starten um",
+        "force": "In einer Minute neu starten"
+      },
+      "windowsResult": "Installiert: {installed} · fehlgeschlagen: {failed}",
+      "windowsReboot": {
+        "no_reboot": "Neustart erforderlich",
+        "schedule": "Neustart geplant",
+        "force": "Neustart in einer Minute"
+      }
     },
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",
@@ -926,7 +941,8 @@
     "availableUpdatesNone": "Die letzte Update-Suche hat keine Updates gefunden.",
     "availableUpdateSeverity": "Schweregrad",
     "availableUpdateFound": "Gefunden am",
-    "definitionUpdate": "Defender-Signaturen"
+    "definitionUpdate": "Defender-Signaturen",
+    "windowsUpdateHistory": "Installierte Updates und Verlauf"
   },
   "navGroups": {
     "fleet": "Flotte",

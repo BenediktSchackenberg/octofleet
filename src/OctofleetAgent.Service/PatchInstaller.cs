@@ -167,9 +167,12 @@ public static class PatchInstaller
                     StartReboot(60);
                     break;
                 case "schedule" when !string.IsNullOrEmpty(rebootScheduleTime):
-                    if (DateTime.TryParse(rebootScheduleTime, out var scheduled))
+                    // DateTimeOffset keeps the time's offset ("…Z", "+01:00"); DateTime.TryParse turned it
+                    // into local time, compared with UtcNow - an hour off on a UTC+1 machine
+                    if (DateTimeOffset.TryParse(rebootScheduleTime, System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.AssumeUniversal, out var scheduled))
                     {
-                        var delay = (int)Math.Max((scheduled - DateTime.UtcNow).TotalSeconds, 60);
+                        var delay = (int)Math.Max((scheduled - DateTimeOffset.UtcNow).TotalSeconds, 60);
                         logger.LogInformation("PatchInstaller: Scheduling reboot in {Delay}s", delay);
                         StartReboot(delay);
                     }
@@ -217,12 +220,15 @@ public class PatchInstallResult
     public List<string> InstalledKBs { get; set; } = new();
     public List<string> FailedKBs { get; set; } = new();
     public string? ErrorMessage { get; set; }
+    /// <summary>Result of the update search after the installation (null: not run)</summary>
+    public string? SearchAfter { get; set; }
 
     public string ToJson() => JsonSerializer.Serialize(new
     {
         installed = InstalledKBs,
         failed = FailedKBs,
         reboot_required = RebootRequired,
-        error = ErrorMessage
+        error = ErrorMessage,
+        search_after = SearchAfter
     });
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiClient } from "@/lib/api-client";
@@ -37,13 +38,23 @@ export function relevantUpdateCount(updates: AvailableUpdate[] | undefined): num
 }
 
 /** The Windows node's available (pending) updates from its last update search */
-export function AvailableUpdates({ updates }: { updates: AvailableUpdate[] | undefined }) {
+export function AvailableUpdates({ updates, selected, onSelectedChange, actions }: {
+  updates: AvailableUpdate[] | undefined;
+  /** KB IDs selected for "Install selected"; without onSelectedChange there are no checkboxes */
+  selected?: string[];
+  onSelectedChange?: (kbIds: string[]) => void;
+  /** Buttons in the header (search, install) */
+  actions?: React.ReactNode;
+}) {
   const { t } = useI18n();
   if (updates === undefined) return null;
+  const selectable = updates.map((u) => u.kb_id).filter((kb): kb is string => !!kb);
+  const chosen = selected ?? [];
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
         <CardTitle>{t("nodeDetail.availableUpdates", { count: updates.length })}</CardTitle>
+        {actions}
       </CardHeader>
       <CardContent>
         {updates.length === 0 ? (
@@ -52,6 +63,13 @@ export function AvailableUpdates({ updates }: { updates: AvailableUpdate[] | und
           <Table>
             <TableHeader>
               <TableRow>
+                {onSelectedChange && (
+                  <TableHead className="w-8">
+                    <Checkbox aria-label={t("nodes.updates.selectAll")}
+                      checked={chosen.length > 0 && chosen.length === selectable.length}
+                      onCheckedChange={(checked) => onSelectedChange(checked ? selectable : [])} />
+                  </TableHead>
+                )}
                 <TableHead>KB{/* i18n-ignore */}</TableHead>
                 <TableHead>{t("nodeDetail.title")}</TableHead>
                 <TableHead>{t("nodeDetail.availableUpdateSeverity")}</TableHead>
@@ -61,6 +79,16 @@ export function AvailableUpdates({ updates }: { updates: AvailableUpdate[] | und
             <TableBody>
               {updates.map((u, i) => (
                 <TableRow key={`${u.kb_id ?? ""}-${i}`}>
+                  {onSelectedChange && (
+                    <TableCell>
+                      {u.kb_id && (
+                        <Checkbox aria-label={t("nodes.updates.selectPackage", { name: u.kb_id })}
+                          checked={chosen.includes(u.kb_id)}
+                          onCheckedChange={(checked) => onSelectedChange(checked
+                            ? [...chosen.filter((kb) => kb !== u.kb_id), u.kb_id!] : chosen.filter((kb) => kb !== u.kb_id))} />
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell>{u.kb_id ? <Badge variant="outline">{u.kb_id}</Badge> : "-"}</TableCell>
                   <TableCell>
                     <div className="flex max-w-[560px] items-center gap-2">

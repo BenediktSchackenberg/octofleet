@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Windows nodes: the Updates tab gets **Search for updates** and **Install updates** / **Install selected (n)** like Linux nodes, with checkboxes on the available updates; the confirmation asks what to do when an update needs a reboot (no reboot, reboot at a set time, in one minute). After an installation the Windows agent searches again and sends a fresh inventory. The tab counts the pending updates on Windows too (it counted the installed ones and the history); a scheduled reboot time is read with its offset (it was taken as local time and compared with UTC).
 - Linux nodes: **Search for updates** (`patch_scan`: refresh the package lists with apt, dnf or yum and report the updates, with the result as the node's last update search) and **Install updates** (`patch_install`: all updates, or the packages selected in the list). The inventory reports whether a reboot is required. The Updates tab of Windows nodes lists the available updates of the last search. The tab of Windows and Linux nodes turns amber while updates are pending (not counting Defender signature updates) and red when the last update search failed ([#230](https://github.com/BenediktSchackenberg/octofleet/issues/230)).
 
 ### Fixed

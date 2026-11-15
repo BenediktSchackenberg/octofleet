@@ -1078,6 +1078,25 @@ if ($svc) {{
         {
             var result = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _logger, ct);
 
+            // Search again, so the node's available updates and its last update search are current
+            // (like the Linux agent); then a fresh inventory in the background (installed updates,
+            // history). A failed search does not fail the installation.
+            try
+            {
+                await new PatchScanner(_logger, _config).RunOnDemandScanAsync(ct);
+                result.SearchAfter = "succeeded";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Update search after the installation failed");
+                result.SearchAfter = $"failed: {ex.Message}";
+            }
+            _ = Task.Run(async () =>
+            {
+                try { await InventoryPusher.CollectAndPushAllAsync(_config); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Inventory push after the installation failed"); }
+            });
+
             return new CommandResult
             {
                 ExitCode = result.Success ? 0 : 1,

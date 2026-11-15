@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test';
 import { API_URL, getAuthHeaders } from './helpers';
 
 // Windows: the Updates tab lists the available updates and turns amber while one is pending - a
-// Defender signature update alone (offered several times a day) does not count
+// Defender signature update alone (offered several times a day) does not count. Search and install
+// (selected KBs, reboot choice) like on Linux
 test('Windows Updates tab: available updates and the pending highlight without Defender signatures', async ({ page, request }) => {
   const hostname = `e2e-win-pending-${Date.now()}`;
   const headers = { ...(await getAuthHeaders()), 'Content-Type': 'application/json' };
@@ -34,4 +35,19 @@ test('Windows Updates tab: available updates and the pending highlight without D
   await expect(tab).toHaveClass(/text-amber-500/);
   await expect(tab).toHaveAttribute('title', 'Pending updates: 1');
   await expect(panel.getByText('Pending updates: 1')).toBeVisible();
+  // the tab counts the pending updates like on Linux, not the installed ones and the history
+  await expect(tab).toHaveText(/Updates \(1\)/);
+  await expect(panel.getByText('Installed updates and history')).toBeVisible();
+
+  // Search and install from the tab: a selected KB, the reboot choice in the confirmation
+  await expect(panel.getByRole('button', { name: /Search for updates/ })).toBeEnabled();
+  await panel.getByRole('checkbox', { name: 'Select KB5130001' }).check();
+  await panel.getByRole('button', { name: /Install selected \(1\)/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('KB5130001');
+  await expect(dialog.getByLabel('Don\'t reboot (do it yourself later)')).toBeChecked();
+  await dialog.getByLabel('Reboot at').check();
+  await expect(dialog.getByLabel('Reboot time')).toHaveValue(/T22:00$/);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
 });

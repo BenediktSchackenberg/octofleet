@@ -17,7 +17,7 @@ import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
-import { LinuxUpdateActions } from "@/components/linux-update-actions";
+import { UpdateActions } from "@/components/node-update-actions";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -296,6 +296,8 @@ export default function NodeDetailPage() {
   const [updateSearchKey, setUpdateSearchKey] = useState(0);
   // Linux packages selected on the Updates tab for "Install selected"
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  // Windows KB IDs selected on the Updates tab
+  const [selectedKbs, setSelectedKbs] = useState<string[]>([]);
   // The Updates tab in color: amber with pending updates (Linux: the package list; Windows: the
   // available updates without Defender signature updates - the tab's count there is the installed
   // updates), red if the last update search failed
@@ -461,7 +463,8 @@ export default function NodeDetailPage() {
                   : undefined}
               title={updatesTabState === "failed" ? t("nodeDetail.updatesTab.failed")
                 : updatesTabState === "pending" ? t("patchScan.updates", { count: pendingUpdates }) : undefined}>
-              {t("nodeDetail.tabs.updates")} ({totalUpdatesCount})
+              {/* the pending updates on both systems (Windows: not the installed ones and the history) */}
+              {t("nodeDetail.tabs.updates")} ({pendingUpdates})
             </TabsTrigger>
             <TabsTrigger value="network">{t("nodes.network")}</TabsTrigger>
             <TabsTrigger value="security">{t("nodes.security")}</TabsTrigger>
@@ -959,7 +962,17 @@ export default function NodeDetailPage() {
             <PatchScanStatus scan={patchScan} pending={pendingUpdates}
               definitions={linuxUpdates ? 0 : (availableUpdates ?? []).filter((u) => u.definition).length} />
             {/* Windows: the pending updates of the last search */}
-            {!linuxUpdates && !isLinuxNode && <AvailableUpdates updates={availableUpdates} />}
+            {!linuxUpdates && !isLinuxNode && (
+              <AvailableUpdates updates={availableUpdates}
+                selected={selectedKbs} onSelectedChange={hasPermission("jobs:create") ? setSelectedKbs : undefined}
+                actions={hasPermission("jobs:create") ? (
+                  <UpdateActions os="windows" nodeUuid={node ? String(node.id) : undefined}
+                    updateCount={(availableUpdates ?? []).filter((u) => u.kb_id).length}
+                    allIds={(availableUpdates ?? []).map((u) => u.kb_id).filter((kb): kb is string => !!kb)}
+                    selected={selectedKbs}
+                    onChanged={async () => { await refreshInventory(); setSelectedKbs([]); setUpdateSearchKey((k) => k + 1); }} />
+                ) : undefined} />
+            )}
             {linuxUpdates ? (
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
@@ -977,7 +990,7 @@ export default function NodeDetailPage() {
                   </CardDescription>
                 </div>
                 {hasPermission("jobs:create") && (
-                  <LinuxUpdateActions nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
+                  <UpdateActions os="linux" nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
                     packageManager={linuxUpdates.packageManager} selected={selectedPackages}
                     onChanged={async () => { await refreshInventory(); setSelectedPackages([]); setUpdateSearchKey((k) => k + 1); }} />
                 )}
@@ -1026,7 +1039,7 @@ export default function NodeDetailPage() {
             </Card>
             ) : (
             <Card>
-              <CardHeader><CardTitle>{t("nodeDetail.windowsUpdates", { count: totalUpdatesCount })}</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("nodeDetail.windowsUpdateHistory")}</CardTitle></CardHeader>
               <CardContent>
                 {hotfixes.hotfixes.length > 0 && (
                   <>
