@@ -39,3 +39,7 @@ jobs:
         run: bash tests/linux-agent/push-retry.test.sh
       - name: Test the dnf/yum update list, security flags and reboot check
         run: bash tests/linux-agent/dnf-updates.test.sh
+      - name: Test the logrotate configuration
+        run: |
+          sudo apt-get install -y -q logrotate >/dev/null || true
+          bash tests/linux-agent/logrotate.test.sh
