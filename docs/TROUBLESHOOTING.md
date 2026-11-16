@@ -165,7 +165,99 @@ Get-PhysicalDisk | Select-Object DeviceId, FriendlyName, MediaType, HealthStatus
 
 ---
 
+## Windows Update Installation Failed, or the Update Is Offered Again After the Restart
+
+### Symptoms
+- An **Install updates** job fails with `0x800F0823`, e.g. `KB5136489: 0x800F0823 – Windows installed a newer servicing stack first; restart the node and install this update again`.
+- After the restart, the node's update search lists the same cumulative update again.
+- The node's **Update history** shows the update twice: *Failed* and, after a second installation, *Succeeded*. The installed updates show the newest result.
+
+### Cause
+`0x800F0823` is `CBS_E_NEW_SERVICING_STACK_REQUIRED`. Some cumulative updates (e.g. on Windows Server 2025 and Windows 11 24H2) need a newer servicing stack. In the first run Windows installs that servicing stack (its own KB), which needs a restart, and the cumulative update itself fails. After the restart it is offered again.
+
+The Windows Update API can report such an update as installed while the update history records the failure. The agent therefore checks its result against the history after every installation, and reports the KB as failed with the code and a hint.
+
+### Solution
+1. Restart the node, unless the job did: with *Reboot when the installation is done* or *Reboot at*, it restarts when the installation needs it.
+2. Run **Search for updates**, then **Install updates** again. The second installation installs the cumulative update.
+3. Check the result on the node's Updates tab, or on the node itself (see [Diagnosing an installation on the node](#diagnosing-an-installation-on-the-node)).
+
+### Where installations show up
+The agent installs through the Windows Update API (`Microsoft.Update.Session`), like other management tools. Its installations appear:
+- in the API's update history (the node's **Update history** in Octofleet);
+- in `Get-HotFix` / *Installed Updates*;
+- in `dism /online /get-packages`.
+
+They do **not** appear in *Settings → Windows Update → Update history*: that page only lists what Windows' own update client installed.
+
+### Diagnosing an installation on the node
+Run these in an elevated PowerShell:
+
+```powershell
+# Windows Update history: result 2 = succeeded, 3 = with errors, 4 = failed, 5 = aborted
+$searcher = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher()
+$searcher.QueryHistory(0, 10) |
+    Select-Object Date, Operation, ResultCode, @{n='HResult'; e={'0x{0:X8}' -f $_.HResult}}, Title
+
+# Servicing events: ID 2 = package installed, 4 = a restart is needed first
+Get-WinEvent -LogName Setup -MaxEvents 20 | Format-Table TimeCreated, Id, Message -Wrap
+
+# Cumulative updates and servicing stacks in the component store
+dism /english /online /get-packages /format:table | Select-String 'RollupFix|ServicingStack'
+
+# A restart is pending
+Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+
+# Errors of the servicing stack and the Windows Update client
+Select-String -Path C:\Windows\Logs\CBS\CBS.log -Pattern 'error|failed' | Select-Object -Last 30
+Get-WindowsUpdateLog -LogPath "$env:TEMP\WindowsUpdate.log"
+```
+
+An installation that runs for a long time keeps `TrustedInstaller`, `TiWorker`, `dism` or `dismhost` busy:
+
+```powershell
+Get-Process TrustedInstaller, TiWorker, dism, dismhost -ErrorAction SilentlyContinue |
+    Select-Object Name, Id, StartTime
+```
+
+**Never stop these processes.** Stopping them during servicing can corrupt the component store. The agent does not stop them either: an installation that takes longer than the job's limit (30 minutes) is reported as still running, with these processes, and finishes in the background.
+
+---
+
+## Component Store Grows After Many Cumulative Updates (Windows)
+
+### Symptoms
+- `C:\Windows\WinSxS` keeps growing; free space on `C:` shrinks month by month.
+- `dism /english /online /get-packages /format:table` lists several `Package_for_RollupFix` (and `Package_for_DotNetRollup`) entries as **Superseded**.
+
+### Cause
+Each cumulative update keeps the components it replaced, so it can be uninstalled. Windows removes superseded components with the scheduled task `\Microsoft\Windows\Servicing\StartComponentCleanup`, but only during automatic maintenance when the machine is idle. Servers are rarely idle, so it often never runs there. This affects older servers (e.g. Windows Server 2016) most, but newer ones too.
+
+### Solution
+Check whether a cleanup is recommended:
+
+```powershell
+dism /online /cleanup-image /analyzecomponentstore
+# "Component Store Cleanup Recommended : Yes" and the reclaimable size
+```
+
+Then start the cleanup, in a maintenance window. It can take a long time and must not be interrupted:
+
+```powershell
+# the same as the scheduled task, without its time limit
+dism /online /cleanup-image /startcomponentcleanup
+
+# or start the scheduled task itself
+Start-ScheduledTask -TaskPath '\Microsoft\Windows\Servicing\' -TaskName 'StartComponentCleanup'
+```
+
+Superseded updates can no longer be uninstalled afterwards. `/ResetBase` removes all superseded versions at once and makes every installed update permanent. Use it only deliberately, not as a routine.
+
+---
+
 ## Checking Logs
+
+### Windows
 
 ```powershell
 # Application logs
@@ -179,4 +271,18 @@ Get-WinEvent -FilterHashtable @{LogName='Application'; Level=2; StartTime=(Get-D
 # Service Control Manager events
 Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Service Control Manager'; StartTime=(Get-Date).AddHours(-1)} -MaxEvents 10 |
     Format-List TimeCreated, Message
+```
+
+### Linux
+
+```bash
+# Agent log
+sudo tail -n 100 /var/log/octofleet-agent.log
+
+# The same lines in the journal, also from before a restart
+sudo journalctl -u octofleet-agent -n 100 --no-pager
+
+# Package manager logs (update searches and installations)
+sudo tail -n 50 /var/log/apt/history.log /var/log/apt/term.log   # Debian, Ubuntu
+sudo tail -n 50 /var/log/dnf.log                                   # Fedora, RHEL and derivatives
 ```
