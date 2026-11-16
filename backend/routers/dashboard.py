@@ -3,7 +3,7 @@ import asyncpg
 from fastapi import APIRouter, Depends
 
 from dependencies import get_db, verify_api_key
-from vulnerability import get_vulnerability_summary
+from vulnerability import get_vulnerability_severity_counts
 
 router = APIRouter(
     prefix="/api/v1/dashboard",
@@ -16,7 +16,7 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
     # Before acquiring a connection here: the summary acquires its own, and holding two per request
     # could exhaust the pool under concurrent dashboard requests.
-    severity_counts = (await get_vulnerability_summary(db))["severity_counts"]
+    severity_counts = await get_vulnerability_severity_counts(db)
     async with db.acquire() as conn:
         # Get node counts by status
         counts = await conn.fetchrow("""
