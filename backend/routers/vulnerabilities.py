@@ -264,8 +264,8 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
     # Create scan record
     async with get_pool().acquire() as conn:
         scan_id = await conn.fetchval("""
-            INSERT INTO vulnerability_scans (status) VALUES ('running') RETURNING id
-        """)
+            INSERT INTO vulnerability_scans (status, cache_refresh) VALUES ('running', $1) RETURNING id
+        """, scanner.refresh_osv_cache)
     
     async def create_remediation_jobs():
         # AUTO-REMEDIATION: after a complete scan, create remediation jobs

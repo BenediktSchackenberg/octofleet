@@ -657,8 +657,14 @@
       "cleared": "{count} Meldungen aus dem Cache gelöscht",
       "verified": "{checked} geprüft, {changed} korrigiert",
       "verifyResult": "Letzte Prüfung: {checked} geprüft, {same} unverändert, {changed} korrigiert, {failed} nicht erreichbar",
-      "error": "Die Cache-Aktion ist fehlgeschlagen"
-    }
+      "error": "Die Cache-Aktion ist fehlgeschlagen",
+      "lastRebuilt": "Zuletzt neu aufgebaut"
+    },
+    "osvColumn": "OSV-Meldungen",
+    "osvCounts": "{downloaded} geladen · {cached} aus dem Cache",
+    "cacheRebuilt": "Cache neu aufgebaut",
+    "withoutCache": "Ohne Cache",
+    "cacheRebuiltHint": "Dieser Scan hat alle OSV-Meldungen heruntergeladen (erster Scan, vollständiger Scan ohne Cache oder nach dem Leeren), deshalb dauerte er länger als Scans mit Cache."
   },
   "vulnerabilityScan": {
     "running": "Scan läuft seit {time} ({minutes} Min.) – {checked} von {total} Software-Versionen geprüft. Die Zahlen können bis zum Ende unvollständig sein.",

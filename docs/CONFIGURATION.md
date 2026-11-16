@@ -42,6 +42,8 @@ OSV advisories are cached in the database (table `osv_advisories`): a later scan
 - **Full scan without cache:** a scan that downloads and stores every advisory again.
 - **Clear cache:** deletes all entries; the next scan downloads everything again.
 
+The scan history shows per scan how many advisories were downloaded and how many came from the cache. A scan that downloaded everything (the first one, a full scan without cache, or the first after clearing) is marked **Cache rebuilt** or **Without cache** – it takes longer than the scans that use the cache. The cache card shows when it was last rebuilt.
+
 > ℹ️ **Note:** The backend uses `API_KEY` internally (with fallback to `INVENTORY_API_KEY` for backward compatibility). Use `API_KEY` for all new deployments. Both agent types reference this as their authentication token.
 
 ### Frontend

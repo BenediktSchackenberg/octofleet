@@ -18,6 +18,7 @@ interface CacheStatus {
   newest: string | null;
   size_bytes: number;
   max_age_days: number;
+  last_rebuilt: string | null;
 }
 
 interface VerifyResult {
@@ -80,11 +81,12 @@ export function OsvCacheCard({ scanRunning, onFullScan }: { scanRunning: boolean
       </CardHeader>
       <CardContent className="space-y-4">
         {status && (
-          <dl className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+          <dl className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
             <div><dt className="text-muted-foreground">{c("entries")}</dt><dd className="text-lg font-semibold">{status.entries}</dd></div>
             <div><dt className="text-muted-foreground">{c("outdated")}</dt><dd className="text-lg font-semibold">{status.outdated}</dd></div>
             <div><dt className="text-muted-foreground">{c("oldest")}</dt><dd>{formatDateTime(status.oldest)}</dd></div>
             <div><dt className="text-muted-foreground">{c("newest")}</dt><dd>{formatDateTime(status.newest)}</dd></div>
+            <div><dt className="text-muted-foreground">{c("lastRebuilt")}</dt><dd>{formatDateTime(status.last_rebuilt)}</dd></div>
             <div><dt className="text-muted-foreground">{c("size")}</dt><dd>{(status.size_bytes / 1024 / 1024).toFixed(1)} MB</dd></div>
           </dl>
         )}

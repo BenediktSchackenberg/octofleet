@@ -657,8 +657,14 @@
       "cleared": "{count} cached advisories deleted",
       "verified": "{checked} checked, {changed} corrected",
       "verifyResult": "Last check: {checked} checked, {same} unchanged, {changed} corrected, {failed} not reachable",
-      "error": "The cache action failed"
-    }
+      "error": "The cache action failed",
+      "lastRebuilt": "Last rebuilt"
+    },
+    "osvColumn": "OSV advisories",
+    "osvCounts": "{downloaded} downloaded · {cached} from cache",
+    "cacheRebuilt": "Cache rebuilt",
+    "withoutCache": "Without cache",
+    "cacheRebuiltHint": "This scan downloaded every OSV advisory (first scan, full scan without cache, or after clearing the cache), so it took longer than scans that use the cache."
   },
   "vulnerabilityScan": {
     "running": "Scan running since {time} ({minutes} min) – {checked} of {total} software versions checked. Numbers can be incomplete until it finishes.",

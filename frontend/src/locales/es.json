@@ -657,8 +657,14 @@
       "cleared": "{count} avisos eliminados de la caché",
       "verified": "{checked} verificados, {changed} corregidos",
       "verifyResult": "Última verificación: {checked} verificados, {same} sin cambios, {changed} corregidos, {failed} no accesibles",
-      "error": "La acción de caché ha fallado"
-    }
+      "error": "La acción de caché ha fallado",
+      "lastRebuilt": "Última reconstrucción"
+    },
+    "osvColumn": "Avisos OSV",
+    "osvCounts": "{downloaded} descargados · {cached} de la caché",
+    "cacheRebuilt": "Caché reconstruida",
+    "withoutCache": "Sin caché",
+    "cacheRebuiltHint": "Este escaneo descargó todos los avisos OSV (primer escaneo, escaneo completo sin caché o tras vaciar la caché), por eso tardó más que los escaneos que usan la caché."
   },
   "vulnerabilityScan": {
     "running": "Análisis en curso desde las {time} ({minutes} min): {checked} de {total} versiones de software comprobadas. Las cifras pueden estar incompletas hasta que termine.",

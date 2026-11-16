@@ -25,6 +25,10 @@ def test_status_clear_and_verify_on_an_empty_cache():
     assert status.status_code == 200, status.text
     body = status.json()
     assert body["entries"] == 0 and body["outdated"] == 0 and body["max_age_days"] == 30
+    assert "last_rebuilt" in body
+    scans = requests.get(f"{API}/vulnerabilities/scans?limit=1", headers=ADMIN, timeout=10).json().get("scans", [])
+    for scan in scans:  # the scan history carries the cache numbers (null for scans before the cache)
+        assert {"osv_cached", "osv_downloaded", "cache_refresh"} <= scan.keys()
     r = requests.post(f"{API}/vulnerabilities/osv-cache/verify?sample=5", headers=ADMIN, timeout=30)
     assert r.status_code == 200, r.text
     assert r.json()["checked"] == 0
