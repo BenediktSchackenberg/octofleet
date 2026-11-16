@@ -19,6 +19,8 @@ namespace OctofleetAgent.Service.Security;
 public class FileAuditCollector : BackgroundService
 {
     private readonly ILogger<FileAuditCollector> _logger;
+    private ConnectionProblems? _uploadProblems;
+    private ConnectionProblems UploadProblems => _uploadProblems ??= new ConnectionProblems(_logger, "Uploading file audit events");
     private readonly List<FileSystemWatcher> _watchers = new();
     private readonly ConcurrentQueue<FileAuditEvent> _eventQueue = new();
     private readonly ConcurrentDictionary<string, int> _aggregation = new(); // path -> count for mass ops
@@ -219,7 +221,7 @@ public class FileAuditCollector : BackgroundService
 
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             
             var payload = JsonSerializer.Serialize(new { events = batch });
@@ -227,6 +229,7 @@ public class FileAuditCollector : BackgroundService
                 $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/ingest/events/normalized",
                 new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
             
+            UploadProblems.Success();
             if (response.IsSuccessStatusCode)
             {
                 _logger.LogDebug("Flushed {Count} file audit events", batch.Count);
@@ -238,7 +241,7 @@ public class FileAuditCollector : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error flushing file audit events");
+            if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing file audit events");
         }
     }
 
@@ -246,7 +249,7 @@ public class FileAuditCollector : BackgroundService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             
             var caps = new
@@ -284,7 +287,7 @@ public class FileAuditCollector : BackgroundService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             
             var health = new
@@ -308,7 +311,7 @@ public class FileAuditCollector : BackgroundService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             
             var response = await client.GetAsync(

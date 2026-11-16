@@ -14,6 +14,7 @@ public class ServiceReconciliationPoller : BackgroundService
 {
     private readonly ILogger<ServiceReconciliationPoller> _logger;
     private readonly HttpClient _httpClient;
+    private readonly ConnectionProblems _problems;
     
     private const int PollIntervalMs = 60000;  // 1 minute
     private const int ErrorBackoffMs = 300000; // 5 minutes
@@ -30,7 +31,8 @@ public class ServiceReconciliationPoller : BackgroundService
     public ServiceReconciliationPoller(ILogger<ServiceReconciliationPoller> logger)
     {
         _logger = logger;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromMinutes(5));
+        _problems = new ConnectionProblems(logger, "Service assignment check");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -100,7 +102,8 @@ public class ServiceReconciliationPoller : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in ServiceReconciliationPoller");
+                if (!_problems.Report(ex, stoppingToken))
+                    _logger.LogError(ex, "Error in ServiceReconciliationPoller");
                 await Task.Delay(ErrorBackoffMs, stoppingToken);
             }
         }
@@ -116,6 +119,7 @@ public class ServiceReconciliationPoller : BackgroundService
         request.Headers.Add("X-API-Key", apiKey);
         
         var response = await _httpClient.SendAsync(request, ct);
+        _problems.Success();
         
         if (!response.IsSuccessStatusCode)
         {
@@ -287,7 +291,7 @@ public class ServiceReconciliationPoller : BackgroundService
         
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             var response = await client.GetAsync(url, ct);
             return response.IsSuccessStatusCode ? "healthy" : "unhealthy";
         }

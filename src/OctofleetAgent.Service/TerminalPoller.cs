@@ -14,6 +14,7 @@ public class TerminalPoller : BackgroundService
     private readonly ServiceConfig _config;
     private readonly string _nodeId;
     private readonly HttpClient _httpClient;
+    private readonly ConnectionProblems _problems;
 
     public TerminalPoller(
         ILogger<TerminalPoller> logger,
@@ -22,7 +23,8 @@ public class TerminalPoller : BackgroundService
         _logger = logger;
         _config = config;
         _nodeId = Environment.MachineName;
-        _httpClient = new HttpClient();
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(10));
+        _problems = new ConnectionProblems(logger, "Terminal command check");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -39,14 +41,17 @@ public class TerminalPoller : BackgroundService
                 if (!string.IsNullOrEmpty(_config.InventoryApiUrl))
                 {
                     await PollAndExecuteCommands(stoppingToken);
+                    _problems.Success();
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogError(ex, "Error in terminal polling");
+                if (!_problems.Report(ex, stoppingToken))
+                    _logger.LogError(ex, "Error in terminal polling");
             }
             
-            await Task.Delay(500, stoppingToken); // Poll every 500ms for responsiveness
+            // Poll every 500ms for responsiveness; while the server is not reachable up to every 30 s
+            await Task.Delay(_problems.Delay(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(30)), stoppingToken);
         }
     }
 

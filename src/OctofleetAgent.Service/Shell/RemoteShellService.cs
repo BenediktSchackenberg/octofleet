@@ -28,13 +28,15 @@ public class RemoteShellService : BackgroundService
     private bool _isSessionActive;
     
     private const int PollIntervalSeconds = 5;
+    private readonly ConnectionProblems _problems;
     
     public RemoteShellService(ILogger<RemoteShellService> logger, ServiceConfig config)
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(10));
         _nodeId = Environment.MachineName.ToUpperInvariant();
+        _problems = new ConnectionProblems(logger, "Shell session check");
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -56,7 +58,8 @@ public class RemoteShellService : BackgroundService
                     await CheckForPendingSession(stoppingToken);
                 }
                 
-                await Task.Delay(PollIntervalSeconds * 1000, stoppingToken);
+                // longer while the server is not reachable
+                await Task.Delay(_problems.Delay(TimeSpan.FromSeconds(PollIntervalSeconds), TimeSpan.FromMinutes(1)), stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -82,6 +85,7 @@ public class RemoteShellService : BackgroundService
             request.Headers.Add("X-API-Key", _config.InventoryApiKey);
             
             var response = await _httpClient.SendAsync(request, cancellationToken);
+            _problems.Success();
             if (!response.IsSuccessStatusCode) return;
             
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -98,13 +102,11 @@ public class RemoteShellService : BackgroundService
             // Start the session
             await StartSession(sessionId, shellType, cancellationToken);
         }
-        catch (HttpRequestException)
-        {
-            // Server unavailable, will retry
-        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking for pending shell session");
+            // server not reachable, connection dropped, timeout: one short warning, not a stack trace
+            if (!_problems.Report(ex, cancellationToken))
+                _logger.LogError(ex, "Error checking for pending shell session");
         }
     }
     

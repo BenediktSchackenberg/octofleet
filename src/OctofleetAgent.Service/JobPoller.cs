@@ -15,6 +15,7 @@ public class JobPoller : BackgroundService
     private readonly ILogger<JobPoller> _logger;
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
+    private readonly ConnectionProblems _problems;
     // A timed-out job leaves Windows servicing running in the background. Do not start another
     // installation until that work and the follow-up search have finished.
     private readonly SemaphoreSlim _patchInstallGate = new(1, 1);
@@ -39,10 +40,8 @@ public class JobPoller : BackgroundService
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(30));
+        _problems = new ConnectionProblems(logger, "Job check");
         
         // Add API key header if configured
         if (!string.IsNullOrEmpty(config.InventoryApiKey))
@@ -117,8 +116,11 @@ public class JobPoller : BackgroundService
                 var backoffMinutes = Math.Min(Math.Pow(2, _consecutiveErrors - 1), MaxBackoffMinutes);
                 var backoffMs = (int)(backoffMinutes * 60 * 1000);
                 
-                _logger.LogError(ex, "Job polling error (attempt {Attempt}), backing off for {Minutes} minute(s)...", 
-                    _consecutiveErrors, backoffMinutes);
+                if (_problems.Report(ex, stoppingToken))
+                    _logger.LogInformation("Job polling backs off for {Minutes} minute(s) (attempt {Attempt})", backoffMinutes, _consecutiveErrors);
+                else
+                    _logger.LogError(ex, "Job polling error (attempt {Attempt}), backing off for {Minutes} minute(s)...",
+                        _consecutiveErrors, backoffMinutes);
                     
                 await Task.Delay(backoffMs, stoppingToken);
             }
@@ -135,6 +137,7 @@ public class JobPoller : BackgroundService
         {
             var response = await _httpClient.GetAsync(url, ct);
             ConsoleUI.LastJobPoll = DateTime.Now;
+            _problems.Success();
             
             if (!response.IsSuccessStatusCode)
             {
@@ -151,7 +154,8 @@ public class JobPoller : BackgroundService
         catch (HttpRequestException ex)
         {
             ConsoleUI.AddError();
-            _logger.LogWarning("HTTP error getting pending jobs: {Message}", ex.Message);
+            if (!_problems.Report(ex, ct))
+                _logger.LogWarning("HTTP error getting pending jobs: {Message}", ex.Message);
             return new List<PendingJob>();
         }
     }
@@ -969,7 +973,7 @@ if ($svc) {{
                 {
                     try
                     {
-                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                        using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
                         var response = await client.GetAsync($"http://localhost:{port}{path}", ct);
                         
                         if ((int)response.StatusCode == expectedStatus)

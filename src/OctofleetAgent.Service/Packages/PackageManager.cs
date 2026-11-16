@@ -28,7 +28,7 @@ public class PackageManager
     {
         _apiBaseUrl = apiBaseUrl.TrimEnd('/');
         _repoResolver = repoResolver;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromMinutes(30));
         _cacheDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
             "Octofleet", "PackageCache"

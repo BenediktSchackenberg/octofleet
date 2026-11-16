@@ -12,6 +12,8 @@ namespace OctofleetAgent.Service.Security;
 public class ServiceChangeCollector : BackgroundService
 {
     private readonly ILogger<ServiceChangeCollector> _logger;
+    private ConnectionProblems? _uploadProblems;
+    private ConnectionProblems UploadProblems => _uploadProblems ??= new ConnectionProblems(_logger, "Uploading service events");
     private readonly ConcurrentQueue<Dictionary<string, object?>> _eventQueue = new();
 
     private const int FlushIntervalMs = 5000;
@@ -282,23 +284,24 @@ public class ServiceChangeCollector : BackgroundService
         if (batch.Count == 0) return;
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             var payload = JsonSerializer.Serialize(new { events = batch });
             var resp = await client.PostAsync(
                 $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/ingest/events/normalized",
                 new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
+            UploadProblems.Success();
             if (!resp.IsSuccessStatusCode)
                 _logger.LogWarning("Failed to flush service events: {Status}", resp.StatusCode);
         }
-        catch (Exception ex) { _logger.LogWarning(ex, "Error flushing service events"); }
+        catch (Exception ex) { if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing service events"); }
     }
 
     private async Task ReportHealthAsync(ServiceConfig config)
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             var health = new Dictionary<string, object?>
             {
@@ -319,7 +322,7 @@ public class ServiceChangeCollector : BackgroundService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var client = AgentHttp.Create(TimeSpan.FromSeconds(10));
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             var response = await client.GetAsync(
                 $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/monitoring/nodes/{Environment.MachineName}/effective-policy");

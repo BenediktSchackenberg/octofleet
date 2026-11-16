@@ -58,7 +58,12 @@ public class NodeWorker : BackgroundService
         
         if (!config.IsConfigured)
         {
-            _logger.LogWarning("Service not configured. Please configure via the Octofleet Agent GUI.");
+            // Only the optional gateway connection is missing when the Octofleet server is set up
+            // (inventory, jobs, updates); that is not a problem - and was logged as a warning at every start
+            if (config.IsInventoryConfigured)
+                _logger.LogInformation("Gateway connection not configured - it stays off; inventory, jobs and updates use the Octofleet server");
+            else
+                _logger.LogWarning("Service not configured. Please configure via the Octofleet Agent GUI.");
             
             // Wait until configured or stopped
             while (!stoppingToken.IsCancellationRequested)

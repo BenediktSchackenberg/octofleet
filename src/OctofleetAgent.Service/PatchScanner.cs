@@ -33,7 +33,7 @@ public class PatchScanner : BackgroundService
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromMinutes(5));
     }
 
     // Constructor for on-demand scan from JobPoller (accepts any ILogger)
@@ -41,7 +41,7 @@ public class PatchScanner : BackgroundService
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromMinutes(5));
     }
 
     /// <summary>
@@ -407,7 +407,11 @@ public class PatchScanner : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to report scan results");
+            // server not reachable or timeout: one line; the next update search reports again
+            if (AgentHttp.IsTransient(ex, ct))
+                _logger.LogWarning("Reporting the update search failed: {Reason}", AgentHttp.Reason(ex));
+            else
+                _logger.LogError(ex, "Failed to report scan results");
         }
     }
 
