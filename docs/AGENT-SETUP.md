@@ -46,7 +46,9 @@ C:\ProgramData\Octofleet\
 └── device-identity.json   # Auto-generated device identity (do not edit)
 ```
 
-The folder holds the agent key, so the installer and the service (at every start) restrict it to SYSTEM and Administrators; ordinary users cannot read or add files there. Open the logs from an elevated prompt.
+The folder holds the agent key. The installer and the service (at every start, and checked every hour) restrict it to SYSTEM and Administrators; do not widen its rules, the service restores them within an hour. The service also encrypts the key in `service-config.json` for SYSTEM (DPAPI): you can still put a new key into `InventoryApiKey` in plain text, and the service moves it into `InventoryApiKeyProtected` on its next start.
+
+The logs are in `C:\Windows\Logs\Octofleet\` (service log per day, `update.log` of the self-update), readable without elevation. Older agents wrote them to `C:\ProgramData\Octofleet\logs\`; the first start of a current agent moves them.
 
 #### `service-config.json`
 
@@ -147,7 +149,7 @@ Restart-Service OctofleetNodeAgent
    Get-Service OctofleetNodeAgent
    ```
 
-2. Check logs at `C:\ProgramData\Octofleet\logs\`
+2. Check logs at `C:\Windows\Logs\Octofleet\`
 
 3. Confirm the node appears in the web UI under **Fleet → Nodes**
 

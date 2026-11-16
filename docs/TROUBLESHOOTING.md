@@ -169,7 +169,7 @@ Get-PhysicalDisk | Select-Object DeviceId, FriendlyName, MediaType, HealthStatus
 
 ```powershell
 # Application logs
-Get-Content "C:\ProgramData\Octofleet\logs\*.log" -Tail 100
+Get-Content "C:\Windows\Logs\Octofleet\*.log" -Tail 100
 
 # Windows Event Log - Application errors
 Get-WinEvent -FilterHashtable @{LogName='Application'; Level=2; StartTime=(Get-Date).AddHours(-1)} -MaxEvents 20 | 

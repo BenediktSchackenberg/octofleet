@@ -21,6 +21,12 @@ public class ServiceConfig
     // Inventory Backend settings
     public string InventoryApiUrl { get; set; } = "";
     public string InventoryApiKey { get; set; } = "";
+    /// <summary>
+    /// The agent key as stored by the service: DPAPI-encrypted for SYSTEM (AgentKeyProtection).
+    /// Installers write InventoryApiKey in plain text; the service encrypts it on its next load
+    /// and empties InventoryApiKey in the file. In memory, InventoryApiKey always holds the key.
+    /// </summary>
+    public string? InventoryApiKeyProtected { get; set; }
     public bool AutoPushInventory { get; set; } = true;
     
     // Scheduled Inventory Push settings
@@ -58,6 +64,7 @@ public class ServiceConfig
                 var config = JsonSerializer.Deserialize<ServiceConfig>(json, LoadOptions);
                 if (config != null)
                 {
+                    config.RevealKey();
                     return config;
                 }
             }
@@ -68,12 +75,38 @@ public class ServiceConfig
         return new ServiceConfig();
     }
 
+    private static readonly object MigrationLock = new();
+
+    /// <summary>
+    /// Fills InventoryApiKey from the encrypted value. A plain-text key in the file (new install,
+    /// a support script, an older agent) wins and is encrypted right away when running as SYSTEM.
+    /// </summary>
+    private void RevealKey()
+    {
+        if (!string.IsNullOrEmpty(InventoryApiKey))
+        {
+            if (AgentKeyProtection.CanProtect)
+            {
+                lock (MigrationLock) { Save(); }
+            }
+            return;
+        }
+        InventoryApiKey = AgentKeyProtection.Unprotect(InventoryApiKeyProtected) ?? "";
+    }
+
     public void Save()
     {
         try
         {
             Directory.CreateDirectory(ConfigDir);
-            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+            var toWrite = this;
+            if (AgentKeyProtection.CanProtect && !string.IsNullOrEmpty(InventoryApiKey))
+            {
+                toWrite = (ServiceConfig)MemberwiseClone();
+                toWrite.InventoryApiKeyProtected = AgentKeyProtection.Protect(InventoryApiKey);
+                toWrite.InventoryApiKey = "";
+            }
+            var json = JsonSerializer.Serialize(toWrite, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(ConfigPath, json);
         }
         catch (Exception ex)

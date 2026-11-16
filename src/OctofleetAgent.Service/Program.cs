@@ -4,12 +4,13 @@ using Serilog.Events;
 
 // Only SYSTEM and Administrators may use C:\ProgramData\Octofleet: it holds the agent key.
 // Done before anything is read or written there; existing installations get it with the update.
+// ServiceConfig.Load() then encrypts a plain-text key (AgentKeyProtection).
 var protectionError = ConfigProtection.Restrict(ServiceConfig.GetConfigDir());
 
-// Setup log directory
-var logDir = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-    "Octofleet", "logs");
+// Logs: C:\Windows\Logs\Octofleet, readable for users by Windows' own rules (older agents
+// wrote to C:\ProgramData\Octofleet\logs; moved once).
+var logMove = AgentLogs.MoveOldLogs();
+var logDir = AgentLogs.Folder;
 Directory.CreateDirectory(logDir);
 
 // Get config first
@@ -53,6 +54,8 @@ try
         Banner.Show(version);
         Log.Information("=== Octofleet Agent Service starting ===");
         Log.Information("Log directory: {LogDir}", logDir);
+        if (logMove != null)
+            Log.Information("{LogMove}", logMove);
         if (protectionError != null)
             Log.Warning("Could not restrict {ConfigDir} to SYSTEM and Administrators: {Error}", ServiceConfig.GetConfigDir(), protectionError);
     }
@@ -73,6 +76,7 @@ try
 
     // Add our workers
     builder.Services.AddHostedService<PendingNodeRegistration>();  // Auto-registration (runs first)
+    builder.Services.AddHostedService<ConfigProtectionWatcher>();  // keeps C:\ProgramData\Octofleet restricted
     builder.Services.AddHostedService<NodeWorker>();
     builder.Services.AddHostedService<InventoryScheduler>();
     builder.Services.AddHostedService<JobPoller>();
