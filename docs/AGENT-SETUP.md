@@ -221,6 +221,18 @@ LOG_FILE="/var/log/octofleet-agent.log"
 | `PUSH_INTERVAL` | Full inventory push interval (seconds) | `1800` | No |
 | `PUSH_RETRY_INTERVAL` | First retry of a failed inventory push (seconds), e.g. while the server is still starting after a reboot; doubles with every further failure up to `PUSH_INTERVAL`, plus 0–50 % random jitter so a large fleet does not retry in lockstep | `60` | No |
 | `LOG_FILE` | Path to log file | `/var/log/octofleet-agent.log` | No |
+| `LOG_ROTATE_COUNT` | Rotated log files kept (compressed) | `8` | No |
+| `LOG_ROTATE_MAXSIZE` | Rotate earlier than weekly when the log is larger (logrotate size, e.g. `10M`) | `10M` | No |
+| `LOGROTATE_FILE` | The agent's logrotate configuration; empty turns it off | `/etc/logrotate.d/octofleet-agent` | No |
+
+### Log Rotation
+
+The agent writes `LOG_FILE` and rotates it with logrotate: `install.sh` adds `/etc/logrotate.d/octofleet-agent`, and the service checks it at every start, so also after a self-update. It rotates weekly, or earlier at `LOG_ROTATE_MAXSIZE`, keeps `LOG_ROTATE_COUNT` compressed files and uses `copytruncate`, because the agent keeps appending to the same file.
+
+- **Your own settings:** the file's first line marks it as managed by the agent, which then keeps it current. Delete that line to keep your own version: the agent no longer touches the file.
+- **logrotate not installed:** the agent logs a warning at every start and adds the file once logrotate is installed. The journal (`journalctl -u octofleet-agent`) is rotated by journald either way.
+- **Uninstalling** (`uninstall.sh` or the console) removes the log, the rotated files and the managed configuration; a configuration you took over stays.
+- **Manual setup:** run `sudo /opt/octofleet-agent/agent.sh logrotate` once.
 
 ### Systemd Service
 
