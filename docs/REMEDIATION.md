@@ -73,19 +73,19 @@ A rule decides which findings get a job and how it runs. Permission: `settings:w
 
 ## Maintenance windows
 
-Maintenance windows have no page yet; they are managed through the API (`settings:write`):
+Maintenance windows are managed under **Settings → Maintenance windows** (`/settings/maintenance-windows`; `settings:write`): name, start and end time, weekdays, time zone, and whether the window applies to all nodes, a group or a single node. The same windows are available through the API:
 
 ```bash
-curl -X POST "$API/api/v1/remediation/maintenance-windows" -H "Authorization: Bearer $TOKEN" \
+curl -X POST "$API/api/v1/maintenance-windows" -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Weeknights", "day_of_week": [1,2,3,4,5], "start_time": "22:00", "end_time": "04:00",
-       "timezone": "Europe/Berlin", "applies_to_all": true}'
+  -d '{"name": "Weeknights", "daysOfWeek": [1,2,3,4,5], "startTime": "22:00", "endTime": "04:00",
+       "timezone": "Europe/Berlin", "targetType": "all"}'
 ```
 
-- `day_of_week`: 0 = Sunday … 6 = Saturday; empty = every day. A window across midnight belongs to the day it starts.
-- `timezone`: the window's time zone (default UTC).
-- `applies_to_all: false` with `group_ids`: only nodes in these groups.
-- `GET /api/v1/remediation/maintenance-windows/active` says whether a window is open now.
+- `daysOfWeek`: ISO weekdays, 1 = Monday … 7 = Sunday (default Monday to Friday). A window across midnight belongs to the day it starts.
+- `timezone`: the window's time zone (default `Europe/Berlin`).
+- `targetType`: `all`, `group` or `node`, with `targetId` (group ID or node ID).
+- `PUT /api/v1/maintenance-windows/{id}` with `{"isActive": false}` pauses a window; `GET /api/v1/remediation/maintenance-windows/active` says whether one is open now.
 
 Jobs of rules with *Maintenance window only* wait (status *approved*) until a window is open for their node. Jobs without a rule (one-click fix) do not wait.
 
@@ -155,7 +155,6 @@ The *Dashboard* shows the counts (fixed, pending, failed), the running jobs and 
 - One job per CVE, not per application and node: an application with 20 CVEs gets 20 jobs.
 - The default winget command uses the display name, not the winget package ID, and does not choose the architecture (32-bit installations).
 - No automatic rollback; *Notify on …* in rules sends nothing yet.
-- Maintenance windows have no page yet.
 
 ## API
 
@@ -165,7 +164,7 @@ The *Dashboard* shows the counts (fixed, pending, failed), the running jobs and 
 | GET, PATCH, DELETE | `/api/v1/remediation/packages/{id}` | `packages:read`, `packages:write` |
 | GET, POST | `/api/v1/remediation/rules` | `settings:read`, `settings:write` |
 | GET, PATCH, DELETE | `/api/v1/remediation/rules/{id}` | `settings:read`, `settings:write` |
-| GET, POST | `/api/v1/remediation/maintenance-windows` | `settings:read`, `settings:write` |
+| GET | `/api/v1/remediation/maintenance-windows` | `settings:read` (list; create and change them under `/api/v1/maintenance-windows`) |
 | GET | `/api/v1/remediation/maintenance-windows/active` | `settings:read` |
 | POST | `/api/v1/remediation/scan` | `jobs:create` |
 | POST | `/api/v1/remediation/fix/{vulnerability_id}?node_id=` | `jobs:execute` |

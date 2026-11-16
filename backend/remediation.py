@@ -13,7 +13,7 @@ Epic 14 Implementation
 
 import logging
 import re
-from datetime import datetime, time, timezone
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -84,19 +84,6 @@ class RemediationRuleUpdate(BaseModel):
     notify_on_fix_failure: Optional[bool] = None
     priority: Optional[int] = None
     enabled: Optional[bool] = None
-
-
-class MaintenanceWindowCreate(BaseModel):
-    """Create a maintenance window"""
-    name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = None
-    day_of_week: Optional[list[int]] = Field(None, description="0=Sun, 6=Sat. None=every day")
-    start_time: str = Field(..., description="HH:MM format")
-    end_time: str = Field(..., description="HH:MM format")
-    timezone: str = "UTC"
-    applies_to_all: bool = True
-    group_ids: Optional[list[int]] = None
-    enabled: bool = True
 
 
 class TriggerRemediationRequest(BaseModel):
@@ -268,23 +255,6 @@ async def get_maintenance_windows(db_pool) -> list[dict]:
         return [dict(row) for row in rows]
 
 
-async def create_maintenance_window(db_pool, data: MaintenanceWindowCreate) -> dict:
-    """Create a maintenance window"""
-    async with db_pool.acquire() as conn:
-        # Parse time strings
-        start = time.fromisoformat(data.start_time)
-        end = time.fromisoformat(data.end_time)
-        
-        row = await conn.fetchrow("""
-            INSERT INTO maintenance_windows 
-            (name, description, day_of_week, start_time, end_time, timezone, applies_to_all, group_ids, enabled)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING *
-        """, data.name, data.description, data.day_of_week, start, end,
-             data.timezone, data.applies_to_all, data.group_ids, data.enabled)
-        return dict(row)
-
-
 async def is_in_maintenance_window(db_pool, node_id: Optional[UUID] = None) -> bool:
     """Check the schedule and node scope of an active maintenance window."""
     async with db_pool.acquire() as conn:
@@ -318,7 +288,11 @@ async def is_in_maintenance_window(db_pool, node_id: Optional[UUID] = None) -> b
             local_now = row['local_now']
             start, end = row['start_time'], row['end_time']
             current = local_now.time()
-            today = (local_now.weekday() + 1) % 7  # 0=Sunday
+            # The windows from Settings -> Maintenance windows (/api/v1/maintenance-windows) store
+            # days_of_week as ISO weekdays, 1 = Monday ... 7 = Sunday, like its own check
+            # (isoweekday). Older day_of_week columns count 0 = Sunday ... 6 = Saturday.
+            iso = 'days_of_week' in row
+            today = local_now.isoweekday() if iso else (local_now.weekday() + 1) % 7
             if start <= end:
                 if not start <= current <= end:
                     continue
@@ -326,10 +300,11 @@ async def is_in_maintenance_window(db_pool, node_id: Optional[UUID] = None) -> b
             elif current >= start:
                 scheduled_day = today
             elif current <= end:
-                scheduled_day = (today - 1) % 7
+                # after midnight: the window belongs to the day it started
+                scheduled_day = (today - 2) % 7 + 1 if iso else (today - 1) % 7
             else:
                 continue
-            days = row.get('day_of_week') if 'day_of_week' in row else row.get('days_of_week')
+            days = row.get('days_of_week') if iso else row.get('day_of_week')
             if days is not None and scheduled_day not in days:
                 continue
             if node_id is None:

@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A failed Windows update search no longer clears the node's available updates, and catalog entries that are no longer offered are removed after a successful search ([#250](https://github.com/BenediktSchackenberg/octofleet/pull/250)).
 - The **Start job** dialog sends the selected node or group, so the job runs there; before, it got no target ([#251](https://github.com/BenediktSchackenberg/octofleet/pull/251)).
 - Vulnerability scan: a single failed OSV request (e.g. `503 Service Unavailable` for one advisory) failed the whole scan after minutes of work. OSV requests are now retried like NVD requests (429, 5xx, connection errors); packages whose advisories still cannot be fetched keep their previous findings, and the scan ends as *Partial* with their number.
+- Auto-Fix: a maintenance window that includes Sunday was never open for remediation jobs on Sundays – the remediation check counted weekdays from 0 = Sunday, the maintenance window page and its API from 1 = Monday to 7 = Sunday. `POST /api/v1/remediation/maintenance-windows`, which wrote columns the table does not have and always failed, is removed; windows are managed under Settings → Maintenance windows (`/api/v1/maintenance-windows`). `docs/REMEDIATION.md` describes that page and API.
 
 ### Upgrade
 - The backend applies its database changes (new tables, columns and the job type constraint) at startup; no manual SQL is needed.

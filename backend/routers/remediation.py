@@ -15,7 +15,6 @@ from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import API_KEY, get_pool, verify_api_key
 from remediation import (
     ApproveRemediationRequest,
-    MaintenanceWindowCreate,
     RemediationEngine,
     RemediationPackageCreate,
     RemediationPackageUpdate,
@@ -23,7 +22,6 @@ from remediation import (
     RemediationRuleUpdate,
     TriggerRemediationRequest,
     approve_remediation_jobs,
-    create_maintenance_window,
     create_remediation_package,
     create_remediation_rule,
     delete_remediation_package,
@@ -182,16 +180,6 @@ async def list_maintenance_windows(_: str = Depends(verify_api_key)):
     """List all maintenance windows."""
     windows = await get_maintenance_windows(get_pool())
     return {"windows": windows}
-
-
-@router.post("/api/v1/remediation/maintenance-windows", status_code=201)
-async def create_maintenance_window_endpoint(
-    data: MaintenanceWindowCreate,
-    _: CurrentUser = Depends(require_user_permission("settings:write"))
-):
-    """Create a new maintenance window."""
-    window = await create_maintenance_window(get_pool(), data)
-    return window
 
 
 @router.get("/api/v1/remediation/maintenance-windows/active", dependencies=[Depends(require_permission("settings:read"))])
