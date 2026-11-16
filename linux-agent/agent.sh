@@ -719,33 +719,13 @@ collect_updates() {
         total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
         security_updates=$(echo "$updates" | jq '[.[] | select(.security)] | length' 2>/dev/null || echo 0)
         
-    elif command -v dnf &>/dev/null; then
-        package_manager="dnf"
-        updates=$(dnf check-update -q 2>/dev/null | awk '
-            BEGIN { first = 1 }
-            NF==3 {
-                printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"repository\": \"%s\", \"security\": false}",
-                    (first ? "" : ","), $1, $2, $3
-                first = 0
-            }
-        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
-        
+    elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+        # dnf needs its cache and lock file even to read: through run_package_command, outside
+        # the service's sandbox (inside it check-update failed and the node reported 0 updates)
+        command -v dnf &>/dev/null && package_manager="dnf" || package_manager="yum"
+        updates=$(dnf_updates "$package_manager")
         total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
-        security_updates=$(dnf updateinfo list security 2>/dev/null | wc -l || echo 0)
-        
-    elif command -v yum &>/dev/null; then
-        package_manager="yum"
-        updates=$(yum check-update -q 2>/dev/null | awk '
-            BEGIN { first = 1 }
-            NF==3 {
-                printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"repository\": \"%s\", \"security\": false}",
-                    (first ? "" : ","), $1, $2, $3
-                first = 0
-            }
-        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
-        
-        total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
-        security_updates=$(yum updateinfo list security 2>/dev/null | wc -l || echo 0)
+        security_updates=$(echo "$updates" | jq '[.[] | select(.security)] | length' 2>/dev/null || echo 0)
         
     elif command -v pacman &>/dev/null; then
         package_manager="pacman"
@@ -778,8 +758,8 @@ collect_updates() {
             reboot_packages=$(sort -u /var/run/reboot-required.pkgs | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null || echo '[]')
     elif [[ "$package_manager" == "apt" ]]; then
         reboot_required=false
-    elif command -v needs-restarting &>/dev/null; then
-        needs-restarting -r &>/dev/null && reboot_required=false || reboot_required=true
+    elif [[ "$package_manager" == "dnf" || "$package_manager" == "yum" ]]; then
+        reboot_required=$(dnf_reboot_required)
     fi
 
     cat << EOF
@@ -1424,19 +1404,73 @@ package_manager() {
 
 # run_package_command LIMIT COMMAND...: run the package manager, stopped after LIMIT seconds (exit 124).
 # The agent's service runs with ProtectSystem=strict: /usr, /etc and /var/lib are read-only for it,
-# so apt and dnf cannot write their lists or install anything. Under systemd (INVOCATION_ID) the
-# command therefore runs in a transient unit outside that sandbox, like the restart-agent job;
-# otherwise directly. NEEDRESTART_MODE=l: needrestart lists services with old libraries instead of
-# restarting them (the agent too, in the middle of the job).
+# so apt and dnf cannot write their lists or install anything - dnf cannot even read without its
+# lock file in /var/cache/dnf. Under systemd (INVOCATION_ID) the command therefore runs in a
+# transient unit outside that sandbox, like the restart-agent job; otherwise directly.
+# The unit writes its output to a file under /var/log (writable for the service) instead of
+# --pipe: with --pipe, systemd 252 (RHEL 9 and derivatives) refused to start the unit from the
+# service ("Connection reset by peer"). StandardOutput=file: and StandardError=inherit work from
+# systemd 236 on. --wait passes the command's exit code on.
+# LC_ALL=C: the agent parses the output (English, whatever the system language).
+# NEEDRESTART_MODE=l: needrestart lists services with old libraries instead of restarting them
+# (the agent too, in the middle of the job).
 run_package_command() {
     local limit="$1"; shift
     if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
-        systemd-run --quiet --wait --pipe --collect --unit "octofleet-packages-$(date +%s)-$$" \
-            --setenv=LANG=C --setenv=DEBIAN_FRONTEND=noninteractive --setenv=NEEDRESTART_MODE=l \
-            timeout "$limit" "$@"
+        local out rc=0
+        out=$(mktemp "${PACKAGE_OUTPUT_DIR:-/var/log}/octofleet-packages.XXXXXX") || return 1
+        systemd-run --quiet --wait --collect --unit "octofleet-packages-$(date +%s)-$$" \
+            -p "StandardOutput=file:$out" -p StandardError=inherit \
+            --setenv=LC_ALL=C --setenv=LANG=C --setenv=DEBIAN_FRONTEND=noninteractive --setenv=NEEDRESTART_MODE=l \
+            timeout "$limit" "$@" || rc=$?
+        cat "$out" 2>/dev/null
+        rm -f "$out"
+        return "$rc"
     else
-        LANG=C DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l timeout "$limit" "$@"
+        LC_ALL=C LANG=C DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l timeout "$limit" "$@"
     fi
+}
+
+# dnf_reboot_required: "true", "false" or "null" (unknown) for dnf/yum systems. needs-restarting
+# comes with yum-utils, which a minimal install lacks; dnf's own plugin (dnf-plugins-core) has
+# the same check. Without either: unknown - "dnf needs-restarting" fails without the plugin too,
+# and that must not look like a pending reboot. Through run_package_command: dnf needs its cache.
+dnf_reboot_required() {
+    local rc=0
+    if command -v needs-restarting &>/dev/null; then
+        run_package_command 120 needs-restarting -r >/dev/null 2>&1 || rc=$?
+    elif command -v dnf &>/dev/null && compgen -G "${DNF_PLUGIN_DIR:-/usr/lib/python3*/site-packages/dnf-plugins}/needs_restarting.py" >/dev/null; then
+        run_package_command 120 dnf -q needs-restarting -r >/dev/null 2>&1 || rc=$?
+    else
+        echo null; return
+    fi
+    case "$rc" in 0) echo false ;; 1) echo true ;; *) echo null ;; esac
+}
+
+# dnf_updates PM: the available updates of dnf or yum as a JSON array of {name, newVersion,
+# repository, security, severity}. name is "name.arch" as check-update prints it. The security
+# flag and severity come from the security advisories (updateinfo), matched by name and arch -
+# the distributions' errata; repositories without them (e.g. CentOS Stream) give no flags.
+dnf_updates() {
+    local pm="$1" updates advisories
+    updates=$(run_package_command 600 "$pm" -q check-update 2>/dev/null | awk '
+        /^(Obsoleting|Security:)/ { exit }
+        NF == 3 && $1 ~ /\./ { printf "%s\t%s\t%s\n", $1, $2, $3 }')
+    [[ -z "$updates" ]] && { echo '[]'; return; }
+    # "RLSA-2026:1234 Important/Sec. openssl-1:3.5.1-4.el9_8.x86_64" -> openssl.x86_64 Important
+    advisories=$(run_package_command 600 "$pm" -q updateinfo list --security 2>/dev/null | awk '
+        NF >= 3 && $2 ~ /\/Sec\.$/ {
+            nevra = $3; arch = nevra; sub(/.*\./, "", arch); sub(/\.[^.]*$/, "", nevra)
+            sub(/-[^-]*$/, "", nevra); sub(/-[^-]*$/, "", nevra)
+            severity = $2; sub(/\/Sec\.$/, "", severity)
+            printf "%s.%s\t%s\n", nevra, arch, severity }')
+    jq -Rn --arg advisories "$advisories" '
+        ($advisories | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]})
+         | sort_by({"Low": 1, "Moderate": 2, "Important": 3, "Critical": 4}[.value] // 0)
+         | from_entries) as $sec
+        | [inputs | select(length > 0) | split("\t")
+           | {name: .[0], newVersion: .[1], repository: .[2], security: ($sec[.[0]] != null),
+              severity: ($sec[.[0]] // null)}]' <<< "$updates" 2>/dev/null || echo '[]'
 }
 
 # refresh_package_lists LIMIT: download the current package lists, within LIMIT seconds. Prints the
@@ -1544,7 +1578,7 @@ run_patch_install() {
     if [[ -e "$flag" ]]; then
         reboot_needed=true
         echo "Reboot required: yes$( [[ -r "$flag.pkgs" ]] && printf ' (%s)' "$(sort -u "$flag.pkgs" | paste -sd, -)")"
-    elif [[ "$pm" != "apt" ]] && command -v needs-restarting &>/dev/null && ! needs-restarting -r &>/dev/null; then
+    elif [[ "$pm" != "apt" && "$(dnf_reboot_required)" == "true" ]]; then
         reboot_needed=true
         echo "Reboot required: yes"
     else
