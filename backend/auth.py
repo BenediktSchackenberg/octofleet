@@ -162,11 +162,14 @@ async def get_current_user(
         from dependencies import API_KEY
         # Check against centralized key
         if api_key == API_KEY:
+            # The agent key: every managed machine stores it, so it gets the agent's permissions
+            # only (inventory, job polls and results), never administrative ones.
+            from dependencies import _permissions_for_scopes
             return CurrentUser(
                 id="system",
                 username="system",
-                permissions=["*"],
-                is_superuser=True
+                permissions=_permissions_for_scopes(["agent"]),
+                is_superuser=False
             )
         # Check api_keys table in DB
         try:

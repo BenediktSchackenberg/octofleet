@@ -46,6 +46,8 @@ C:\ProgramData\Octofleet\
 └── device-identity.json   # Auto-generated device identity (do not edit)
 ```
 
+The folder holds the agent key, so the installer and the service (at every start) restrict it to SYSTEM and Administrators; ordinary users cannot read or add files there. Open the logs from an elevated prompt.
+
 #### `service-config.json`
 
 Create or edit `C:\ProgramData\Octofleet\service-config.json`:

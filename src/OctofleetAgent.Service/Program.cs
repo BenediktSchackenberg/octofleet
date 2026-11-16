@@ -2,6 +2,10 @@ using OctofleetAgent.Service;
 using Serilog;
 using Serilog.Events;
 
+// Only SYSTEM and Administrators may use C:\ProgramData\Octofleet: it holds the agent key.
+// Done before anything is read or written there; existing installations get it with the update.
+var protectionError = ConfigProtection.Restrict(ServiceConfig.GetConfigDir());
+
 // Setup log directory
 var logDir = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -49,6 +53,8 @@ try
         Banner.Show(version);
         Log.Information("=== Octofleet Agent Service starting ===");
         Log.Information("Log directory: {LogDir}", logDir);
+        if (protectionError != null)
+            Log.Warning("Could not restrict {ConfigDir} to SYSTEM and Administrators: {Error}", ServiceConfig.GetConfigDir(), protectionError);
     }
 
     var builder = Host.CreateApplicationBuilder(args);

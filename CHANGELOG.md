@@ -68,8 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - the job's timeout for an `inventory` job (300 s by default).
 - A failed Windows update search no longer clears the node's available updates, and catalog entries that are no longer offered are removed after a successful search ([#250](https://github.com/BenediktSchackenberg/octofleet/pull/250)).
 - The **Start job** dialog sends the selected node or group, so the job runs there; before, it got no target ([#251](https://github.com/BenediktSchackenberg/octofleet/pull/251)).
+- The central agent key (`API_KEY`) has the agent's permissions only (inventory, job polls and results). It counted as a full administrator, although every managed machine stores it. Windows agent: `C:\ProgramData\Octofleet` (with `service-config.json`, which holds the key) is restricted to SYSTEM and Administrators by the installer and at every service start; ProgramData let every local user read it and create files in it.
 
 ### Upgrade
+- Scripts that called administrative routes with `API_KEY` (e.g. the terminal, node deletion, the password policy) get 403 now; use a user login or an API key from **API Keys** instead. Agents are not affected. The Windows folder restriction comes with the new Windows agent release; ordinary users can no longer read the agent logs in `C:\ProgramData\Octofleet\logs`.
 - The backend applies its database changes (new tables, columns and the job type constraint) at startup; no manual SQL is needed.
 - The agent-side changes need the new agent versions. Agents with server-based updates install a newer release published on the server within 6 hours, or right away on a `restart-agent` job.
 
