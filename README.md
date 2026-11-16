@@ -268,8 +268,8 @@ Restart-Service OctofleetNodeAgent
 
 **Linux:**
 ```bash
-f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o "$f" && \
-  sudo bash "$f" --api-url http://your-server:8080 --api-key your-api-key
+curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o ~/octofleet-install.sh && \
+  sudo bash ~/octofleet-install.sh --api-url http://your-server:8080 --api-key your-api-key
 ```
 
 Then configure `/opt/octofleet-agent/config.env`:

@@ -4,8 +4,10 @@
 # Installs linux-agent/agent.sh as a systemd service.
 #
 # Usage:
-#   f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o "$f" && sudo bash "$f" \
-#     --api-url http://YOUR_SERVER:8080 --api-key YOUR_API_KEY [--node-id NAME] [--ref main]
+#   curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o ~/octofleet-install.sh && \
+#     sudo bash ~/octofleet-install.sh --api-url http://YOUR_SERVER:8080 --api-key YOUR_API_KEY [--node-id NAME] [--ref main]
+#
+#   The command works in bash, zsh, sh and fish (no variables, no $(...)).
 #
 #   Download first, then run: with "curl ... | sudo bash" a failed download
 #   still ends with success. The script body is a function called on the last
@@ -87,7 +89,11 @@ if [[ ${#missing[@]} -gt 0 ]]; then
     elif command -v yum >/dev/null 2>&1; then
         yum install -y -q "${missing[@]}"
     elif command -v pacman >/dev/null 2>&1; then
-        pacman -Sy --noconfirm "${missing[@]}"
+        # Not -Sy: new package databases with an old system is a partial upgrade, which breaks Arch
+        pacman -S --needed --noconfirm "${missing[@]}" || {
+            echo "❌ Installing ${missing[*]} failed. Update the system first (sudo pacman -Syu), then run the installer again." >&2
+            exit 1
+        }
     else
         echo "❌ Please install: ${missing[*]}" >&2
         exit 1

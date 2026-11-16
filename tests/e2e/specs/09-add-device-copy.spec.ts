@@ -19,3 +19,21 @@ test('Add Device copies the install command without navigator.clipboard', async 
   const copied = await page.evaluate(() => (window as unknown as { __clipboard: Clipboard }).__clipboard.readText());
   expect(copied).toContain('/api/v1/onboarding/install-script');
 });
+
+// The Linux command runs in any shell: bash, zsh, sh and fish (fish rejected `f=$(mktemp)`)
+test('Add Device: the Linux install command has no shell variables', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/nodes', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /add device|gerät hinzufügen/i }).first().click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('tab', { name: 'Linux' }).click();
+  await dialog.getByRole('button', { name: /^(copy|kopieren)$/i }).first().click();
+  await expect(dialog.getByRole('button', { name: /^(copied|kopiert)$/i }).first()).toBeVisible();
+
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain('/api/v1/agent/releases/linux/install.sh');
+  expect(copied).toContain('-o ~/octofleet-install.sh && sudo bash ~/octofleet-install.sh --api-url ');
+  expect(copied).not.toContain('$(');
+  expect(copied).not.toMatch(/(^|\s)\w+=/); // no variable assignment
+});
+
