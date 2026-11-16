@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 import os
 import re
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -15,7 +15,8 @@ from pydantic import BaseModel, Field
 from auth import CurrentUser, require_user_permission
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
-from vulnerability import (COUNTED, PER_NODE_CVE, SEVERITIES_SQL, VulnerabilityScanner, get_node_vulnerabilities,
+from vulnerability import (COUNTED, PER_NODE_CVE, SEVERITIES_SQL, VulnerabilityScanner, clear_osv_cache,
+                           osv_cache_status, verify_osv_cache, get_node_vulnerabilities,
                            get_node_vulnerability_groups, get_update_vulnerabilities, get_vulnerability_summary,
                            run_vulnerability_scan)
 
@@ -251,10 +252,14 @@ async def list_vulnerabilities(
 
 @router.post("/api/v1/vulnerabilities/scan")
 async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
+                                     body: Optional[Dict[str, Any]] = Body(None),
                                      _: CurrentUser = Depends(require_user_permission("settings:write"))):
-    """Trigger a full vulnerability scan of all software inventory."""
+    """Trigger a full vulnerability scan of all software inventory.
+
+    `{"refresh_cache": true}` ignores the OSV cache for this scan and stores every advisory again."""
     nvd_api_key = os.environ.get("NVD_API_KEY")
     scanner = VulnerabilityScanner(get_pool(), nvd_api_key)
+    scanner.refresh_osv_cache = bool((body or {}).get("refresh_cache"))
     
     # Create scan record
     async with get_pool().acquire() as conn:
@@ -275,6 +280,33 @@ async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
     background_tasks.add_task(run_vulnerability_scan, get_pool(), scanner, scan_id, create_remediation_jobs)
     
     return {"scan_id": scan_id, "status": "started", "message": "Vulnerability scan started in background"}
+
+
+@router.get("/api/v1/vulnerabilities/osv-cache", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def get_osv_cache_status():
+    """Entries, age and size of the OSV advisory cache."""
+    return await osv_cache_status(get_pool())
+
+
+async def _scan_running() -> bool:
+    async with get_pool().acquire() as conn:
+        return bool(await conn.fetchval("SELECT 1 FROM vulnerability_scans WHERE status = 'running' LIMIT 1"))
+
+
+@router.delete("/api/v1/vulnerabilities/osv-cache")
+async def delete_osv_cache(_: CurrentUser = Depends(require_user_permission("settings:write"))):
+    """Clear the OSV cache; the next scan downloads every advisory again."""
+    if await _scan_running():
+        raise HTTPException(status_code=409, detail="A scan is running; clear the cache after it has finished")
+    return {"deleted": await clear_osv_cache(get_pool())}
+
+
+@router.post("/api/v1/vulnerabilities/osv-cache/verify")
+async def verify_osv_cache_sample(sample: int = Query(50, ge=1, le=500),
+                                  _: CurrentUser = Depends(require_user_permission("settings:write"))):
+    """Download a random sample of cached advisories again and compare; differing entries are corrected."""
+    scanner = VulnerabilityScanner(get_pool())
+    return await verify_osv_cache(get_pool(), scanner, sample)
 
 
 @router.post("/api/v1/vulnerabilities/scans/{scan_id}/cancel")

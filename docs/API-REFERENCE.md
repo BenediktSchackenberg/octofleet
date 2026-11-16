@@ -168,7 +168,10 @@ Agents push inventory data; the frontend reads it.
 | GET | `/api/v1/vulnerabilities/summary` | API Key | Fleet vulnerability summary |
 | GET | `/api/v1/vulnerabilities` | API Key | List all vulnerabilities |
 | GET | `/api/v1/vulnerabilities/node/{node_id}` | API Key | Vulnerabilities for a node |
-| POST | `/api/v1/vulnerabilities/scan` | API Key | Trigger vulnerability scan |
+| POST | `/api/v1/vulnerabilities/scan` | JWT (`settings:write`) | Trigger vulnerability scan; `{"refresh_cache": true}` ignores the OSV cache for this scan |
+| GET | `/api/v1/vulnerabilities/osv-cache` | JWT (`vulnerabilities:read`) | OSV cache status: entries, outdated, oldest/newest, size |
+| DELETE | `/api/v1/vulnerabilities/osv-cache` | JWT (`settings:write`) | Clear the OSV cache (409 while a scan runs) |
+| POST | `/api/v1/vulnerabilities/osv-cache/verify?sample=50` | JWT (`settings:write`) | Download a random sample (1–500) again, compare, correct differing entries |
 | GET | `/api/v1/vulnerabilities/scans` | API Key | List past scans |
 | POST | `/api/v1/vulnerabilities/{cve_id}/suppress` | API Key | Suppress a CVE |
 | GET | `/api/v1/remediation/packages` | API Key | Remediation packages |

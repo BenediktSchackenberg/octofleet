@@ -4,15 +4,25 @@ a different "modified" date (or the cached finding was built by older code)."""
 import json
 import unittest
 
-from vulnerability import OSV_CACHE_VERSION, VulnerabilityScanner
+import httpx
+
+import vulnerability
+from vulnerability import OSV_CACHE_MAX_AGE_DAYS, OSV_CACHE_VERSION, VulnerabilityScanner, verify_osv_cache
 
 
 class FakeConnection:
     def __init__(self, rows):
-        self.rows, self.written = rows, []
+        self.rows, self.written, self.executed, self.max_age = rows, [], [], None
 
-    async def fetch(self, query, ids, version):
+    async def fetch(self, query, *args):
+        if "ORDER BY random()" in query:  # verify_osv_cache: (version, sample)
+            return [row for row in self.rows if row["cache_version"] == args[0]][:args[1]]
+        ids, version, self.max_age = args
         return [row for row in self.rows if row["id"] in ids and row["cache_version"] == version]
+
+    async def execute(self, query, *args):
+        self.executed.append((query.split()[0], args))
+        return "OK"
 
     async def executemany(self, query, rows):
         self.written.extend(rows)
@@ -67,7 +77,7 @@ class OsvCacheTests(unittest.IsolatedAsyncioTestCase):
         scanner = VulnerabilityScanner(pool)
         scanner._osv_modified = {"A": "2026-11-01T10:00:00Z"}
         await scanner._cache_osv_findings({"A": FINDING, "X": FINDING})  # X: no date known, not stored
-        self.assertEqual(pool.connection.written, [("A", "2026-11-01T10:00:00Z", OSV_CACHE_VERSION, json.dumps(FINDING))])
+        self.assertEqual(pool.connection.written, [("A", "2026-11-01T10:00:00Z", OSV_CACHE_VERSION, vulnerability.encode_cached_finding(FINDING))])
 
     async def test_a_scan_downloads_only_what_the_cache_lacks(self):
         scanner = VulnerabilityScanner(None)
@@ -114,6 +124,51 @@ class OsvCacheTests(unittest.IsolatedAsyncioTestCase):
         osv_id, modified, version, stored = pool.connection.written[0]
         pool.connection.rows.append({"id": osv_id, "modified": modified, "cache_version": version, "finding": stored})
         self.assertEqual(await scanner._cached_osv_findings({"A"}), {"A": finding})
+
+    async def test_entries_older_than_the_maximum_age_are_not_used(self):
+        pool = FakePool([{"id": "A", "modified": "m", "cache_version": OSV_CACHE_VERSION, "finding": "null"}])
+        scanner = VulnerabilityScanner(pool)
+        scanner._osv_modified = {"A": "m"}
+        await scanner._cached_osv_findings({"A"})
+        self.assertEqual(pool.connection.max_age, OSV_CACHE_MAX_AGE_DAYS)  # passed to the query
+
+    async def test_a_refresh_scan_ignores_the_cache(self):
+        pool = FakePool([{"id": "A", "modified": "m", "cache_version": OSV_CACHE_VERSION, "finding": "null"}])
+        scanner = VulnerabilityScanner(pool)
+        scanner._osv_modified = {"A": "m"}
+        scanner.refresh_osv_cache = True
+        self.assertEqual(await scanner._cached_osv_findings({"A"}), {})
+
+
+class VerifyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_verify_corrects_changed_entries_and_drops_removed_ones(self):
+        record = lambda osv_id, summary: {"id": osv_id, "modified": "new", "summary": summary, "aliases": [],
+                                          "severity": [], "affected": [], "references": []}
+        scanner = VulnerabilityScanner(None)
+        same = vulnerability.encode_cached_finding(scanner._osv_finding("UBUNTU-CVE-2026-0001", record("x", "old text")))
+        pool = FakePool([
+            {"id": "UBUNTU-CVE-2026-0001", "cache_version": OSV_CACHE_VERSION, "finding": same},
+            {"id": "UBUNTU-CVE-2026-0002", "cache_version": OSV_CACHE_VERSION, "finding": same},
+            {"id": "UBUNTU-CVE-2026-0003", "cache_version": OSV_CACHE_VERSION, "finding": same},
+            {"id": "UBUNTU-CVE-2026-0004", "cache_version": OSV_CACHE_VERSION, "finding": same},
+        ])
+
+        async def fetch_record(_client, osv_id):
+            if osv_id.endswith("0001"):
+                return record(osv_id, "old text")              # unchanged
+            if osv_id.endswith("0002"):
+                return record(osv_id, "new text")              # changed upstream
+            if osv_id.endswith("0003"):
+                raise httpx.HTTPStatusError("404", request=httpx.Request("GET", "x"), response=httpx.Response(404))
+            raise httpx.ConnectError("down")                   # not reachable
+
+        scanner._osv_record = fetch_record
+        result = await verify_osv_cache(pool, scanner, 50)
+        self.assertEqual((result["checked"], result["same"], result["changed"], result["failed"]), (3, 1, 2, 1))
+        self.assertEqual(result["changed_ids"], ["UBUNTU-CVE-2026-0002", "UBUNTU-CVE-2026-0003"])
+        kinds = sorted((kind, args[0]) for kind, args in pool.connection.executed)
+        self.assertEqual(kinds, [("DELETE", "UBUNTU-CVE-2026-0003"), ("UPDATE", "UBUNTU-CVE-2026-0001"),
+                                 ("UPDATE", "UBUNTU-CVE-2026-0002")])
 
 
 if __name__ == "__main__":

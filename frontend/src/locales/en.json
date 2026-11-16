@@ -641,7 +641,24 @@
     "statusCancelled": "Cancelled",
     "noScans": "No scans yet",
     "firstScan": "Start the first scan",
-    "maxCvssSource": "CVSS {version} · {vector}\nRating of the distribution: {rating}\nCVSS is the technical score of the publisher; the distribution's rating can differ."
+    "maxCvssSource": "CVSS {version} · {vector}\nRating of the distribution: {rating}\nCVSS is the technical score of the publisher; the distribution's rating can differ.",
+    "osvCache": {
+      "title": "OSV advisory cache",
+      "description": "Linux scans reuse downloaded OSV advisories until OSV reports a change or an entry is older than {days} days.",
+      "entries": "Entries",
+      "outdated": "Downloaded again on the next scan",
+      "oldest": "Oldest",
+      "newest": "Newest",
+      "size": "Size",
+      "verify": "Verify (50 random)",
+      "fullScan": "Full scan without cache",
+      "clear": "Clear cache",
+      "confirmClear": "Clear the OSV cache? The next scan downloads every advisory again.",
+      "cleared": "{count} cached advisories deleted",
+      "verified": "{checked} checked, {changed} corrected",
+      "verifyResult": "Last check: {checked} checked, {same} unchanged, {changed} corrected, {failed} not reachable",
+      "error": "The cache action failed"
+    }
   },
   "vulnerabilityScan": {
     "running": "Scan running since {time} ({minutes} min) – {checked} of {total} software versions checked. Numbers can be incomplete until it finishes.",

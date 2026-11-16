@@ -5,6 +5,7 @@ import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, node
 
 import { Fragment, useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
+import { OsvCacheCard } from "@/components/OsvCacheCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -173,6 +174,19 @@ export default function VulnerabilitiesPage() {
     setScanning(true);
     try {
       const res = await apiClient.post(`/vulnerabilities/scan`, {}, { showErrorToast: false });
+      if (res) setTimeout(fetchData, 2000);
+    } catch (err) {
+      setError(p("errorScan"));
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // A scan that ignores the OSV cache and downloads every advisory again (OsvCacheCard).
+  const triggerFullScan = async () => {
+    setScanning(true);
+    try {
+      const res = await apiClient.post(`/vulnerabilities/scan`, { refresh_cache: true }, { showErrorToast: false });
       if (res) setTimeout(fetchData, 2000);
     } catch (err) {
       setError(p("errorScan"));
@@ -641,6 +655,7 @@ export default function VulnerabilitiesPage() {
 
       {/* Scan History Tab */}
       {activeTab === 'scans' && (
+        <>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -704,6 +719,8 @@ export default function VulnerabilitiesPage() {
             )}
           </CardContent>
         </Card>
+        <OsvCacheCard scanRunning={scanRunning} onFullScan={triggerFullScan} />
+        </>
       )}
 
       {/* Last Scan Info */}

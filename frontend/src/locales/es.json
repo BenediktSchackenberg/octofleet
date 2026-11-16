@@ -641,7 +641,24 @@
     "statusCancelled": "Cancelado",
     "noScans": "Aún no hay análisis",
     "firstScan": "Iniciar el primer análisis",
-    "maxCvssSource": "CVSS {version} · {vector}\nValoración de la distribución: {rating}\nCVSS es la puntuación técnica del publicador; la valoración de la distribución puede diferir."
+    "maxCvssSource": "CVSS {version} · {vector}\nValoración de la distribución: {rating}\nCVSS es la puntuación técnica del publicador; la valoración de la distribución puede diferir.",
+    "osvCache": {
+      "title": "Caché de avisos OSV",
+      "description": "Los escaneos de Linux reutilizan los avisos OSV descargados hasta que OSV informa de un cambio o una entrada tiene más de {days} días.",
+      "entries": "Entradas",
+      "outdated": "Se descargan de nuevo en el próximo escaneo",
+      "oldest": "Más antigua",
+      "newest": "Más reciente",
+      "size": "Tamaño",
+      "verify": "Verificar (50 al azar)",
+      "fullScan": "Escaneo completo sin caché",
+      "clear": "Vaciar caché",
+      "confirmClear": "¿Vaciar la caché de OSV? El próximo escaneo descargará de nuevo todos los avisos.",
+      "cleared": "{count} avisos eliminados de la caché",
+      "verified": "{checked} verificados, {changed} corregidos",
+      "verifyResult": "Última verificación: {checked} verificados, {same} sin cambios, {changed} corregidos, {failed} no accesibles",
+      "error": "La acción de caché ha fallado"
+    }
   },
   "vulnerabilityScan": {
     "running": "Análisis en curso desde las {time} ({minutes} min): {checked} de {total} versiones de software comprobadas. Las cifras pueden estar incompletas hasta que termine.",
