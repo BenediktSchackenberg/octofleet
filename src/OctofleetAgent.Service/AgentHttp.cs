@@ -42,11 +42,15 @@ public static class AgentHttp
         return ex switch
         {
             TaskCanceledException => true, // HttpClient.Timeout
-            HttpRequestException h => h.StatusCode is null || (int)h.StatusCode >= 500,
+            HttpRequestException h => h.StatusCode is null || IsRetryable(h.StatusCode.Value),
             IOException or SocketException => true,
             _ => false,
         };
     }
+
+    /// <summary>An answer worth trying again later: the server failed (5xx) or is busy (429, 408)</summary>
+    public static bool IsRetryable(System.Net.HttpStatusCode status) =>
+        (int)status >= 500 || status is System.Net.HttpStatusCode.TooManyRequests or System.Net.HttpStatusCode.RequestTimeout;
 
     /// <summary>The outer and the innermost message, on one line and without repeating itself -
     /// enough for a connection problem</summary>
