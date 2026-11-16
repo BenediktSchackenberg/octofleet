@@ -862,6 +862,13 @@ CREATE TABLE public.software_cpe_mappings (
     updated_by text,
     PRIMARY KEY (name, publisher)
 );
+CREATE TABLE public.osv_advisories (
+    id text PRIMARY KEY,
+    modified text NOT NULL,
+    cache_version integer NOT NULL,
+    finding jsonb,
+    fetched_at timestamp with time zone DEFAULT now() NOT NULL
+);
 CREATE TABLE public.software_vulnerability_checks (
     name text NOT NULL,
     version text NOT NULL,
@@ -919,7 +926,10 @@ CREATE TABLE public.vulnerability_scans (
     medium_count integer DEFAULT 0,
     low_count integer DEFAULT 0,
     status text DEFAULT 'running'::text,
-    error_message text
+    error_message text,
+    osv_cached integer,
+    osv_downloaded integer,
+    cache_refresh boolean DEFAULT false NOT NULL
 );
 CREATE SEQUENCE public.vulnerability_scans_id_seq
     AS integer

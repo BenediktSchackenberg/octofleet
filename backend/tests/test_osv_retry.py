@@ -58,6 +58,14 @@ class OsvRetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(seen), 1)
 
 
+async def no_cache(ids):
+    return {}
+
+
+async def keep_nothing(findings):
+    return None
+
+
 def linux_row(name: str, source: str) -> dict:
     return {"name": name, "version": "1.0-1", "publisher": "Ubuntu", "os_names": ["Ubuntu"],
             "os_versions": ["26.04 LTS (Resolute Raccoon)"], "source_packages": [source], "source_versions": ["1.0-1"]}
@@ -92,6 +100,8 @@ class OsvScanKeepsPreviousResultsTests(unittest.IsolatedAsyncioTestCase):
         scanner._record_check = record_check
         scanner._check_cancelled = not_cancelled
         scanner._osv_query_batch = query_batch
+        scanner._cached_osv_findings = no_cache
+        scanner._cache_osv_findings = keep_nothing
         scanner._osv_record = record
         rows = [linux_row("curl", "curl"), linux_row("bash", "bash")]
         stats = await scanner._scan_linux_packages(rows, rows, None)
@@ -124,6 +134,8 @@ class OsvScanKeepsPreviousResultsTests(unittest.IsolatedAsyncioTestCase):
         scanner._record_check = record_check
         scanner._check_cancelled = not_cancelled
         scanner._osv_query_batch = query_batch
+        scanner._cached_osv_findings = no_cache
+        scanner._cache_osv_findings = keep_nothing
         rows = [linux_row("curl", "curl"), linux_row("bash", "bash")]
         stats = await scanner._scan_linux_packages(rows, rows, None)
         self.assertEqual(stats["errors"], 2)
