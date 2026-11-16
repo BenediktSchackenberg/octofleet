@@ -4,13 +4,17 @@ using OctofleetAgent.Service.Inventory;
 namespace OctofleetAgent.Service;
 
 /// <summary>
-/// Background worker that periodically pushes inventory data to the backend API
+/// Background worker that periodically pushes inventory data to the backend API, spread over the
+/// interval (see PushSchedule): many nodes started at the same time do not push in the same second.
 /// </summary>
 public class InventoryScheduler : BackgroundService
 {
     private readonly ILogger<InventoryScheduler> _logger;
+    private readonly Random _random = new();
     private ServiceConfig _config;
     private DateTime _lastPushTime = DateTime.MinValue;
+    private DateTime _nextPushTime = DateTime.MinValue;
+    private bool _startupPushDone;
     private int _pushCount = 0;
     private int _failCount = 0;
 
@@ -24,8 +28,10 @@ public class InventoryScheduler : BackgroundService
     {
         _logger.LogInformation("Inventory Scheduler starting...");
 
-        // Wait a bit for service to fully initialize and connect
-        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        // The push after the start (so the node does not keep showing its state from before a
+        // restart) waits a random 30-120 s, so nodes started together do not push together.
+        await Task.Delay(PushSchedule.StartupDelay(_random), stoppingToken);
+        _nextPushTime = DateTime.UtcNow;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -41,22 +47,21 @@ public class InventoryScheduler : BackgroundService
                     continue;
                 }
 
-                var intervalMinutes = Math.Max(1, _config.ScheduledPushIntervalMinutes);
-                var timeSinceLastPush = DateTime.UtcNow - _lastPushTime;
+                var intervalMinutes = PushSchedule.Interval(_config.ScheduledPushIntervalMinutes);
 
-                if (timeSinceLastPush.TotalMinutes >= intervalMinutes)
+                if (DateTime.UtcNow >= _nextPushTime)
                 {
                     _logger.LogInformation("Starting scheduled inventory push (interval: {Interval} min)...", intervalMinutes);
-                    
+                    var succeeded = false;
                     try
                     {
                         var result = await InventoryPusher.CollectAndPushAllAsync(_config);
-                        
+                        succeeded = result.Success;
                         if (result.Success)
                         {
                             _pushCount++;
                             _lastPushTime = DateTime.UtcNow;
-                            _logger.LogInformation("Scheduled inventory push #{Count} completed: {Summary}", 
+                            _logger.LogInformation("Scheduled inventory push #{Count} completed: {Summary}",
                                 _pushCount, result.Summary);
                         }
                         else
@@ -70,6 +75,13 @@ public class InventoryScheduler : BackgroundService
                         _failCount++;
                         _logger.LogError(ex, "Scheduled inventory push failed with exception");
                     }
+
+                    var delay = !succeeded ? PushSchedule.RetryDelay(intervalMinutes, _random)
+                        : _startupPushDone ? PushSchedule.NextDelay(intervalMinutes, _random)
+                        : PushSchedule.FirstDelay(intervalMinutes, _random);
+                    if (succeeded) _startupPushDone = true;
+                    _nextPushTime = DateTime.UtcNow + delay;
+                    _logger.LogInformation("Next scheduled inventory push in {Minutes:F0} min", delay.TotalMinutes);
                 }
 
                 // Check every minute
@@ -86,7 +98,7 @@ public class InventoryScheduler : BackgroundService
             }
         }
 
-        _logger.LogInformation("Inventory Scheduler stopped. Total pushes: {Count}, Failed: {Failed}", 
+        _logger.LogInformation("Inventory Scheduler stopped. Total pushes: {Count}, Failed: {Failed}",
             _pushCount, _failCount);
     }
 
@@ -96,9 +108,9 @@ public class InventoryScheduler : BackgroundService
     public async Task<FullPushResult> PushNowAsync()
     {
         _logger.LogInformation("Manual inventory push requested...");
-        
+
         var result = await InventoryPusher.CollectAndPushAllAsync(_config);
-        
+
         if (result.Success)
         {
             _pushCount++;
@@ -120,11 +132,9 @@ public class InventoryScheduler : BackgroundService
         return new SchedulerStatus
         {
             Enabled = _config.ScheduledPushEnabled,
-            IntervalMinutes = _config.ScheduledPushIntervalMinutes,
+            IntervalMinutes = PushSchedule.Interval(_config.ScheduledPushIntervalMinutes),
             LastPushTime = _lastPushTime,
-            NextPushTime = _lastPushTime == DateTime.MinValue 
-                ? DateTime.UtcNow 
-                : _lastPushTime.AddMinutes(_config.ScheduledPushIntervalMinutes),
+            NextPushTime = _nextPushTime == DateTime.MinValue ? DateTime.UtcNow : _nextPushTime,
             TotalPushes = _pushCount,
             FailedPushes = _failCount
         };

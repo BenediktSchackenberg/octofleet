@@ -18,7 +18,13 @@ check() {  # check DESCRIPTION CONDITION...
 PUSH_INTERVAL=1800 PUSH_RETRY_INTERVAL=60
 # in_range VALUE LOW HIGH
 in_range() { (( $1 >= $2 && $1 <= $3 )); }
-check "a successful push: the next one after PUSH_INTERVAL" [ "$(next_push_time 0 1000 3)" = "2800" ]
+check "a successful push: the next one after PUSH_INTERVAL +/- 10 %" in_range "$(next_push_time 0 1000 3)" 2620 2980
+check "the first push after the start: 50-150 % of PUSH_INTERVAL" in_range "$(next_push_time 0 1000 0 1)" 1900 3700
+# 200 nodes started together: their first scheduled pushes spread over a whole interval
+first=$(for _ in $(seq 200); do echo $(( ($(next_push_time 0 0 0 1) - 900) / 60 )); done | sort -u | wc -l)
+check "200 nodes started together push in more than 25 different minutes" [ "$first" -gt 25 ]
+later=$(for _ in $(seq 100); do next_push_time 0 0 0; done | sort -u | wc -l)
+check "later pushes are spread too (100 nodes -> more than 50 different seconds)" [ "$later" -gt 50 ]
 check "first failure: retry after 60-90 s" in_range "$(next_push_time 1 1000 0)" 1060 1090
 check "curl errors (exit 7, 56) count as failed" in_range "$(next_push_time 56 1000 0)" 1060 1090
 check "second failure in a row: 120-180 s" in_range "$(next_push_time 1 1000 1)" 1120 1180
@@ -32,7 +38,11 @@ check "PUSH_RETRY_INTERVAL is configurable" in_range "$(next_push_time 1 1000 0)
 
 grep -q '^PUSH_RETRY_INTERVAL="${PUSH_RETRY_INTERVAL:-60}"' "$AGENT"
 check "the default retry interval is 60 s" [ $? -eq 0 ]
-check "the initial and the periodic push use it" [ "$(grep -c 'push_due=$(next_push_time "$push_rc"' "$AGENT")" = "2" ]
+check "the push loop uses it, with the first-push flag" [ "$(grep -c 'push_due=$(next_push_time "$push_rc" "$now" "$push_failures" "$push_first")' "$AGENT")" = "1" ]
+grep -q '^PUSH_INTERVAL="${PUSH_INTERVAL:-3600}"' "$AGENT"
+check "the default push interval is 60 minutes" [ $? -eq 0 ]
+grep -q 'push_due=$(( $(date +%s) + RANDOM % 61 ))' "$AGENT"
+check "the push after the start waits a random 0-60 s" [ $? -eq 0 ]
 
 echo
 if [ "$failures" -eq 0 ]; then echo "All push retry tests passed"; else echo "$failures push retry test(s) failed"; fi

@@ -249,7 +249,7 @@ Then configure `C:\ProgramData\Octofleet\service-config.json`:
   "DisplayName": "MY-SERVER",
   "AutoPushInventory": true,
   "ScheduledPushEnabled": true,
-  "ScheduledPushIntervalMinutes": 30
+  "ScheduledPushIntervalMinutes": 60
 }
 ```
 
