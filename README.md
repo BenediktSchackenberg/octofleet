@@ -72,7 +72,7 @@
 ### 🔐 Security & Compliance
 - **Security Center** with dedicated pages for monitoring, findings, and forensics
 - Vulnerability scanning (NVD/CVE) + fleet-wide aggregation
-- Auto-remediation (winget/Chocolatey)
+- Auto-remediation of vulnerable Windows applications (winget/Chocolatey) – [docs/REMEDIATION.md](docs/REMEDIATION.md)
 - **File audit** — real-time monitoring (Windows + Linux)
 - **Behavior rules** — threshold, pattern & time-based detection
 - **Findings & risk scoring** — auto-generated, severity-weighted
@@ -325,6 +325,7 @@ API_KEY="your-api-key"
 | **API Reference** | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) • [Swagger UI](http://localhost:8080/docs) |
 | Security Center | [docs/SECURITY-CENTER.md](docs/SECURITY-CENTER.md) |
 | Patch Management | [docs/PATCH-MANAGEMENT.md](docs/PATCH-MANAGEMENT.md) |
+| Remediation (Auto-Fix) | [docs/REMEDIATION.md](docs/REMEDIATION.md) |
 | Content Lifecycle | [docs/CONTENT-LIFECYCLE.md](docs/CONTENT-LIFECYCLE.md) |
 | Query Engine | [docs/QUERY-ENGINE.md](docs/QUERY-ENGINE.md) |
 | Software Metering | [docs/SOFTWARE-METERING.md](docs/SOFTWARE-METERING.md) |
