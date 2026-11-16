@@ -654,7 +654,30 @@
     "statusCancelled": "Abgebrochen",
     "noScans": "Noch keine Scans durchgeführt",
     "firstScan": "Ersten Scan starten",
-    "maxCvssSource": "CVSS {version} · {vector}\nBewertung der Distribution: {rating}\nCVSS ist die technische Bewertung des Herausgebers; die Bewertung der Distribution kann abweichen."
+    "maxCvssSource": "CVSS {version} · {vector}\nBewertung der Distribution: {rating}\nCVSS ist die technische Bewertung des Herausgebers; die Bewertung der Distribution kann abweichen.",
+    "osvCache": {
+      "title": "OSV-Cache",
+      "description": "Linux-Scans verwenden heruntergeladene OSV-Meldungen wieder, bis OSV eine Änderung meldet oder ein Eintrag älter als {days} Tage ist.",
+      "entries": "Einträge",
+      "outdated": "Beim nächsten Scan neu geladen",
+      "oldest": "Ältester",
+      "newest": "Neuester",
+      "size": "Größe",
+      "verify": "Prüfen (50 zufällige)",
+      "fullScan": "Vollständiger Scan ohne Cache",
+      "clear": "Cache leeren",
+      "confirmClear": "OSV-Cache leeren? Der nächste Scan lädt alle Meldungen neu herunter.",
+      "cleared": "{count} Meldungen aus dem Cache gelöscht",
+      "verified": "{checked} geprüft, {changed} korrigiert",
+      "verifyResult": "Letzte Prüfung: {checked} geprüft, {same} unverändert, {changed} korrigiert, {failed} nicht erreichbar",
+      "error": "Die Cache-Aktion ist fehlgeschlagen",
+      "lastRebuilt": "Zuletzt neu aufgebaut"
+    },
+    "osvColumn": "OSV-Meldungen",
+    "osvCounts": "{downloaded} geladen · {cached} aus dem Cache",
+    "cacheRebuilt": "Cache neu aufgebaut",
+    "withoutCache": "Ohne Cache",
+    "cacheRebuiltHint": "Dieser Scan hat alle OSV-Meldungen heruntergeladen (erster Scan, vollständiger Scan ohne Cache oder nach dem Leeren), deshalb dauerte er länger als Scans mit Cache."
   },
   "vulnerabilityScan": {
     "running": "Scan läuft seit {time} ({minutes} Min.) – {checked} von {total} Software-Versionen geprüft. Die Zahlen können bis zum Ende unvollständig sein.",

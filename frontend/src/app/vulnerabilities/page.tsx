@@ -5,6 +5,7 @@ import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, node
 
 import { Fragment, useEffect, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
+import { OsvCacheCard } from "@/components/OsvCacheCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,9 @@ interface ScanHistory {
   started_at: string;
   completed_at: string | null;
   packages_scanned: number;
+  osv_cached?: number | null;
+  osv_downloaded?: number | null;
+  cache_refresh?: boolean;
   vulnerabilities_found: number;
   critical_count: number;
   high_count: number;
@@ -174,6 +178,21 @@ export default function VulnerabilitiesPage() {
     try {
       const res = await apiClient.post(`/vulnerabilities/scan`, {}, { showErrorToast: false });
       if (res) setTimeout(fetchData, 2000);
+      else setError(p("errorScan"));
+    } catch (err) {
+      setError(p("errorScan"));
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // A scan that ignores the OSV cache and downloads every advisory again (OsvCacheCard).
+  const triggerFullScan = async () => {
+    setScanning(true);
+    try {
+      const res = await apiClient.post(`/vulnerabilities/scan`, { refresh_cache: true }, { showErrorToast: false });
+      if (res) setTimeout(fetchData, 2000);
+      else setError(p("errorScan"));
     } catch (err) {
       setError(p("errorScan"));
     } finally {
@@ -641,6 +660,7 @@ export default function VulnerabilitiesPage() {
 
       {/* Scan History Tab */}
       {activeTab === 'scans' && (
+        <>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -656,6 +676,7 @@ export default function VulnerabilitiesPage() {
                       <th className="text-left py-2 px-3">{p("started")}</th>
                       <th className="text-right py-2 px-3">{p("duration")}</th>
                       <th className="text-left py-2 px-3">{p("status")}</th>
+                      <th className="text-left py-2 px-3">{p("osvColumn")}</th>
                       <th className="text-right py-2 px-3">{p("packages")}</th>
                       <th className="text-right py-2 px-3">{p("found")}</th>
                       <th className="text-right py-2 px-3">{sev("critical")}</th>
@@ -681,6 +702,16 @@ export default function VulnerabilitiesPage() {
                             {scan.status === "completed" ? `✓ ${p("statusCompleted")}` : scan.status === "running" ? `⟳ ${p("statusRunning")}` : scan.status === "partial" ? `⚠ ${p("statusPartial")}` : scan.status === "cancelled" ? `⏹ ${p("statusCancelled")}` : `✗ ${p("statusFailed")}`}
                           </span>
                         </td>
+                        <td className="py-2 px-3 text-sm whitespace-nowrap" data-testid="scan-osv">
+                          {scan.osv_downloaded != null && (
+                            <span className="text-muted-foreground">{p("osvCounts", { downloaded: scan.osv_downloaded, cached: scan.osv_cached ?? 0 })}</span>
+                          )}
+                          {(scan.cache_refresh || (scan.osv_downloaded ?? 0) > 0 && (scan.osv_cached ?? 0) === 0) && (
+                            <span className="ml-2 px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400" title={p("cacheRebuiltHint")}>
+                              {scan.cache_refresh ? p("withoutCache") : p("cacheRebuilt")}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 px-3 text-right">{scan.packages_scanned}</td>
                         <td className="py-2 px-3 text-right font-medium">{scan.vulnerabilities_found}</td>
                         <td className="py-2 px-3 text-right text-red-400 font-bold">{scan.critical_count}</td>
@@ -688,7 +719,7 @@ export default function VulnerabilitiesPage() {
                       </tr>
                       {["failed", "partial", "cancelled"].includes(scan.status) && scan.error_message && (
                         <tr className="border-b">
-                          <td colSpan={7} className={`px-3 pb-3 text-sm ${scan.status === "partial" ? "text-yellow-500" : scan.status === "cancelled" ? "text-muted-foreground" : "text-red-400"}`}>{scan.error_message}</td>
+                          <td colSpan={8} className={`px-3 pb-3 text-sm ${scan.status === "partial" ? "text-yellow-500" : scan.status === "cancelled" ? "text-muted-foreground" : "text-red-400"}`}>{scan.error_message}</td>
                         </tr>
                       )}
                       </Fragment>
@@ -704,6 +735,8 @@ export default function VulnerabilitiesPage() {
             )}
           </CardContent>
         </Card>
+        <OsvCacheCard scanRunning={scanRunning} onFullScan={triggerFullScan} />
+        </>
       )}
 
       {/* Last Scan Info */}
