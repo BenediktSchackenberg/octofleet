@@ -350,7 +350,7 @@ Both endpoints support filtering by user, action type, and date range.
 
 ## Patch Management (E30) — NEW in v0.6.0
 
-Octofleet now includes full Windows patch management. See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for the complete guide.
+Octofleet now includes full Windows patch management. See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for the complete guide, and [REMEDIATION.md](REMEDIATION.md) for fixing vulnerable applications (Auto-Fix).
 
 ### Quick Overview
 
