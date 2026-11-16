@@ -243,7 +243,8 @@ async def get_current_user(
                 from password_policy import load_policy, password_expired
                 forced = row["must_change_password"] or password_expired(row["password_changed_at"], await load_policy(conn))
                 if forced and request.url.path not in (
-                    "/api/v1/auth/me", "/api/v1/auth/me/password", "/api/v1/auth/logout"
+                    "/api/v1/auth/me", "/api/v1/auth/me/password", "/api/v1/auth/logout",
+                    "/api/v1/auth/password-rules",
                 ):
                     raise HTTPException(status_code=403, detail="Password change required")
         if not row or not row["is_active"] or row["session_version"] != payload.get("session_version", 0):

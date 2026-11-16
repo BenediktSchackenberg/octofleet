@@ -90,6 +90,8 @@ Password: Octofleet2026!
 - `POST /api/v1/auth/login` — Login
 - `POST /api/v1/auth/setup` — Initial admin setup
 - `GET /api/v1/auth/me` — Current user
+- `POST /api/v1/auth/me/password` — Change your own password
+- `GET /api/v1/auth/password-rules` — Password rules, for every signed-in user (changing them: `PUT /api/v1/security/password-policy`, `settings:write`)
 
 ### Users
 - `GET /api/v1/users` — List users

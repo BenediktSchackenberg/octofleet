@@ -23,6 +23,9 @@ import {
   Search, Filter, Download, ChevronRight, User as UserIcon, Eye, X
 } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
+import { useI18n } from "@/lib/i18n-context";
+import { PasswordRuleList } from "@/components/PasswordRuleList";
+import { checkPassword, firstBrokenRule, translatePasswordError, usePasswordRules } from "@/lib/password-rules";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -199,6 +202,8 @@ export default function UsersPage() {
 function UsersTab({ users, roles, refresh }: { users: User[]; roles: Role[]; refresh: () => void }) {
   const [showCreate, setShowCreate] = useState(false);
   const [newUser, setNewUser] = useState({ username: "", password: "", email: "", display_name: "" });
+  const rules = usePasswordRules();
+  const newUserChecks = checkPassword(rules, newUser.password, { username: newUser.username });
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<string>("username");
@@ -276,7 +281,8 @@ function UsersTab({ users, roles, refresh }: { users: User[]; roles: Role[]; ref
               </div>
               <div className="grid gap-2">
                 <Label>Password *</Label>
-                <Input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
+                <Input type="password" autoComplete="new-password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
+                <PasswordRuleList checks={newUserChecks} typed={newUser.password.length > 0} />
               </div>
               <div className="grid gap-2">
                 <Label>Email</Label>
@@ -289,7 +295,7 @@ function UsersTab({ users, roles, refresh }: { users: User[]; roles: Role[]; ref
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button onClick={createUser} disabled={!newUser.username || !newUser.password}>Create</Button>
+              <Button onClick={createUser} disabled={!newUser.username || !newUser.password || firstBrokenRule(newUserChecks) !== null}>Create</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -367,6 +373,9 @@ function UserDetailPanel({ user, roles, refresh, assignRole, removeRole }: {
   const [resetPassword, setResetPassword] = useState("");
   const [mustChangePassword, setMustChangePassword] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const { t } = useI18n();
+  const rules = usePasswordRules();
+  const resetChecks = checkPassword(rules, resetPassword, { username: user.username, history: true });
 
   async function resetAccountPassword() {
     setResetting(true);
@@ -380,7 +389,7 @@ function UserDetailPanel({ user, roles, refresh, assignRole, removeRole }: {
         setResetPassword("");
         toast.success("Password reset. Existing sessions were revoked.");
         refresh();
-      } else toast.error(result.error || "Could not reset password");
+      } else toast.error(translatePasswordError(t, result.error));
     } finally { setResetting(false); }
   }
 
@@ -410,11 +419,12 @@ function UserDetailPanel({ user, roles, refresh, assignRole, removeRole }: {
           <p className="text-xs text-muted-foreground">This revokes all existing sessions for this user. Share the temporary password through a secure channel.</p>
           <Input type="password" autoComplete="new-password" placeholder="New password" value={resetPassword}
             onChange={e => setResetPassword(e.target.value)} />
+          <PasswordRuleList checks={resetChecks} typed={resetPassword.length > 0} />
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={mustChangePassword} onCheckedChange={value => setMustChangePassword(value === true)} />
             Require change at next sign-in
           </label>
-          <Button onClick={resetAccountPassword} disabled={resetting || resetPassword.length < 12}>Reset password</Button>
+          <Button onClick={resetAccountPassword} disabled={resetting || !resetPassword || firstBrokenRule(resetChecks) !== null}>Reset password</Button>
         </div>
 
         {/* Global Roles */}

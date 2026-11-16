@@ -111,6 +111,17 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+@router.get("/password-rules")
+async def password_rules(user: CurrentUser = Depends(require_auth), db: asyncpg.Pool = Depends(get_db)):
+    """The password rules for local accounts, for every signed-in user - also during a required
+    change - so the change-password forms can show them before the server rejects a password.
+    They are not secret; changing them stays `settings:write` (PUT /api/v1/security/password-policy).
+    `max_bytes`: bcrypt uses at most 72 bytes."""
+    async with db.acquire() as conn:
+        policy = await load_policy(conn)
+    return {**policy.model_dump(), "max_bytes": 72}
+
+
 @router.post("/me/password")
 async def change_own_password(data: ChangePasswordRequest, user: CurrentUser = Depends(require_auth),
                               db: asyncpg.Pool = Depends(get_db)):

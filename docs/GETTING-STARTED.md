@@ -49,7 +49,7 @@ Log in as `admin`. The password is set on the first start:
   docker compose logs backend | grep "One-time admin password"
   ```
 
-  You are asked to choose a new password right after logging in.
+  You are asked to choose a new password right after logging in. The form lists the password rules (Settings → Security; at least 12 characters by default) and marks each one while you type.
 
 ## Step 3: Add Your First Node
 
