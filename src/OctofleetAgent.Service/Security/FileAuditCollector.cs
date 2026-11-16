@@ -20,6 +20,8 @@ public class FileAuditCollector : BackgroundService
 {
     private readonly ILogger<FileAuditCollector> _logger;
     private ConnectionProblems? _uploadProblems;
+    // A batch the server could not take (not reachable, timeout, 5xx/429): sent first next time
+    private List<object>? _pendingBatch;
     private ConnectionProblems UploadProblems => _uploadProblems ??= new ConnectionProblems(_logger, "Uploading file audit events");
     private readonly List<FileSystemWatcher> _watchers = new();
     private readonly ConcurrentQueue<FileAuditEvent> _eventQueue = new();
@@ -80,7 +82,7 @@ public class FileAuditCollector : BackgroundService
         {
             await Task.Delay(FlushIntervalMs, stoppingToken);
             
-            if (!_eventQueue.IsEmpty)
+            if (_pendingBatch is not null || !_eventQueue.IsEmpty)
             {
                 await FlushEventsAsync(config);
             }
@@ -181,10 +183,13 @@ public class FileAuditCollector : BackgroundService
 
     private async Task FlushEventsAsync(ServiceConfig config)
     {
-        var batch = new List<object>();
-        var count = 0;
+        // the batch kept after a failed upload first; check the size before taking an event out of
+        // the queue (the other order dropped one event with every full batch)
+        var batch = _pendingBatch ?? new List<object>();
+        _pendingBatch = null;
+        var count = batch.Count;
         
-        while (_eventQueue.TryDequeue(out var evt) && count < MaxBatchSize)
+        while (count < MaxBatchSize && _eventQueue.TryDequeue(out var evt))
         {
             // Check aggregation - if same event happened many times, create summary
             var dedupKey = $"{evt.Op}:{evt.Path}";
@@ -229,19 +234,25 @@ public class FileAuditCollector : BackgroundService
                 $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/ingest/events/normalized",
                 new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
             
-            UploadProblems.Success();
             if (response.IsSuccessStatusCode)
             {
+                UploadProblems.Success();
                 _logger.LogDebug("Flushed {Count} file audit events", batch.Count);
+            }
+            else if (AgentHttp.IsRetryable(response.StatusCode))
+            {
+                _pendingBatch = batch;
+                UploadProblems.Report(new HttpRequestException($"HTTP {(int)response.StatusCode} {response.StatusCode}", null, response.StatusCode));
             }
             else
             {
-                _logger.LogWarning("Failed to flush file audit events: {Status}", response.StatusCode);
+                _logger.LogWarning("Failed to flush file audit events: {Status} - {Count} events dropped", response.StatusCode, batch.Count);
             }
         }
         catch (Exception ex)
         {
-            if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing file audit events");
+            if (AgentHttp.IsTransient(ex)) _pendingBatch = batch;
+            if (!UploadProblems.Report(ex)) _logger.LogWarning(ex, "Error flushing file audit events - {Count} events dropped", batch.Count);
         }
     }
 
