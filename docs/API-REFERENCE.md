@@ -38,9 +38,13 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 | POST | `/api/v1/auth/login` | No | Login, returns JWT tokens |
 | GET | `/api/v1/auth/me` | JWT | Get current user info |
 | POST | `/api/v1/auth/setup` | No | Initial admin setup (first run only) |
+| POST | `/api/v1/auth/me/password` | JWT | Change your own password (`current_password`, `new_password`); signs out all sessions |
+| GET | `/api/v1/auth/password-rules` | JWT | The password rules for every signed-in user, also during a required password change: `min_length`, `max_bytes` (72), `require_uppercase`, `require_lowercase`, `require_digit`, `require_symbol`, `history_count` |
+| GET, PUT | `/api/v1/security/password-policy` | JWT (`settings:write`) | Read or change the password policy |
 | GET | `/api/v1/users` | JWT | List all users |
 | POST | `/api/v1/users` | JWT | Create user |
 | PUT | `/api/v1/users/{user_id}` | JWT | Update user |
+| POST | `/api/v1/users/{user_id}/password` | JWT (`users:write`) | Reset a user's password (`new_password`, `must_change_password`); revokes the user's sessions |
 | DELETE | `/api/v1/users/{user_id}` | JWT | Delete user |
 | POST | `/api/v1/users/{user_id}/roles/{role_name}` | API Key | Assign role to user |
 | DELETE | `/api/v1/users/{user_id}/roles/{role_name}` | API Key | Remove role from user |

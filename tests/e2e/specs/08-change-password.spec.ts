@@ -69,7 +69,7 @@ test.describe('Change password dialog', () => {
     await fields.nth(1).fill('short');
     await fields.nth(2).fill('short');
     await dialog.locator('button[type="submit"]').click();
-    await expect(page.getByText('Mindestens 12 Zeichen verwenden')).toBeVisible();
+    await expect(page.getByText('Regel nicht erfüllt: Mindestens 12 Zeichen')).toBeVisible();
     await page.evaluate(() => localStorage.removeItem('locale'));
   });
 });

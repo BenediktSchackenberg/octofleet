@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { PasswordRuleList } from "@/components/PasswordRuleList";
+import { checkPassword, firstBrokenRule, translatePasswordError, usePasswordRules } from "@/lib/password-rules";
 
 export function ChangePasswordDialog() {
   const { user, logout } = useAuth();
@@ -17,6 +19,8 @@ export function ChangePasswordDialog() {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
+  const rules = usePasswordRules();
+  const checks = checkPassword(rules, next, { username: user?.username, current, history: true });
 
   // Typed passwords must not survive closing the dialog (Escape, outside click, ✕ or success).
   function changeOpen(value: boolean) {
@@ -38,18 +42,10 @@ export function ChangePasswordDialog() {
       toast.error(t("account.passwordMismatch"));
       return;
     }
-    if (next.length < 12) {
-      toast.error(t("account.passwordLength"));
-      return;
-    }
-    // The server's limits (bcrypt takes at most 72 bytes) and rules, checked here so the
-    // user gets a translated message instead of the server's English one.
-    if (new TextEncoder().encode(next).length > 72) {
-      toast.error(t("account.passwordTooLong"));
-      return;
-    }
-    if (next === current || next.toLowerCase() === user?.username.toLowerCase()) {
-      toast.error(t("account.passwordNotDifferent"));
+    // The server's rules, checked here first so the user sees which one is not met.
+    const broken = firstBrokenRule(checks);
+    if (broken) {
+      toast.error(t("account.passwordRuleBroken", { rule: t(broken.key, broken.params) }));
       return;
     }
     setSaving(true);
@@ -61,7 +57,7 @@ export function ChangePasswordDialog() {
         showErrorToast: false,
       });
       if (!result.ok) {
-        toast.error(t(result.status === 403 ? "account.currentPasswordWrong" : "account.passwordError"));
+        toast.error(result.status === 403 ? t("account.currentPasswordWrong") : translatePasswordError(t, result.error));
         return;
       }
       changeOpen(false);
@@ -94,10 +90,11 @@ export function ChangePasswordDialog() {
           </label>
           <label className="block text-sm">
             {t("account.newPassword")}
-            <input type="password" autoComplete="new-password" required minLength={12} value={next}
+            <input type="password" autoComplete="new-password" required minLength={rules.min_length} value={next}
               onChange={(event) => setNext(event.target.value)}
               className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2" />
           </label>
+          <PasswordRuleList checks={checks} typed={next.length > 0} />
           <label className="block text-sm">
             {t("account.confirmPassword")}
             <input type="password" autoComplete="new-password" required value={confirm}
