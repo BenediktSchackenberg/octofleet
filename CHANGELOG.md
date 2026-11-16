@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - the Updates tab of Windows nodes shows the last update search: time, status, source (WSUS server or Windows Update) and error ([#250](https://github.com/BenediktSchackenberg/octofleet/pull/250));
   - the Updates tab lists **Installed updates** with title, type (cumulative update, servicing stack, .NET, security update, update) and status instead of "Installed hotfixes" ([#252](https://github.com/BenediktSchackenberg/octofleet/pull/252)).
 - The Linux agent runs `run`, `inventory` and `restart-agent` jobs; the database accepts `service_reconcile` jobs ([#244](https://github.com/BenediktSchackenberg/octofleet/pull/244), [#245](https://github.com/BenediktSchackenberg/octofleet/pull/245), [#246](https://github.com/BenediktSchackenberg/octofleet/pull/246)).
+- Vulnerability scan: OSV advisories are cached between scans (`osv_advisories`) and downloaded again only when OSV reports a change; a scan of 1,833 software versions downloaded 10,549 advisories every time.
 
 ### Fixed
 - Linux agent: a failed inventory push is retried after a minute (`PUSH_RETRY_INTERVAL`, doubling with every further failure up to the push interval, with random jitter), not after the full push interval. After a reboot, the first push often fails because the server is not reachable yet (on the Octofleet server itself, its containers are still starting); the node then showed the state from before the reboot, e.g. "Reboot required", for up to 30 minutes.

@@ -36,6 +36,8 @@ The NVD API key for vulnerability scanning is set in the UI under **Settings →
 
 The vulnerability scan checks Windows applications against NVD and Linux distribution packages against [OSV](https://osv.dev) (`api.osv.dev`); the backend needs outbound HTTPS to both. Short failures of either service (HTTP 429, 5xx, connection errors) are retried twice. A software version that still cannot be checked keeps its previous findings, and the scan ends as **Partial** with the number of such versions (automatic remediation is skipped for that scan) instead of failing as a whole.
 
+OSV advisories are cached in the database (table `osv_advisories`): a later scan downloads an advisory again only when OSV reports a newer change date for it, so repeated scans need a few requests instead of one per advisory. The first scan after an update fills the cache.
+
 > ℹ️ **Note:** The backend uses `API_KEY` internally (with fallback to `INVENTORY_API_KEY` for backward compatibility). Use `API_KEY` for all new deployments. Both agent types reference this as their authentication token.
 
 ### Frontend
