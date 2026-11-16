@@ -157,7 +157,7 @@ static async Task TriggerInventoryPush(ServiceConfig config)
     try
     {
         ConsoleUI.SetOperation("Pushing Full Inventory...");
-        using var client = new HttpClient();
+        using var client = AgentHttp.Create();
         client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
         
         // This would need to call the actual inventory collection

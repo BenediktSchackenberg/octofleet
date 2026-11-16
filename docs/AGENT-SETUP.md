@@ -145,7 +145,14 @@ Restart-Service OctofleetNodeAgent
    Get-Service OctofleetNodeAgent
    ```
 
-2. Check logs at `C:\ProgramData\Octofleet\logs\`
+2. Check logs at `C:\ProgramData\Octofleet\logs\` (`service-YYYYMMDD.log`, one file per day, 14 kept, rotated at 10 MB; `update.log` for self-updates). The folder is hidden in Explorer, and while the agent has the file open Explorer may show an older modified time and size.
+
+   When the server is not reachable (restart, network, DNS) or a request times out, each part of the agent logs **one warning line**, then at most one every 5 minutes with the number of failures, and one line when it works again, e.g.:
+   ```
+   [WRN] Screen session check failed: No connection could be made because the target machine actively refused it. (server:8080) (attempt 1, failing since 18:02:11)
+   [INF] Screen session check works again (failed attempts: 3, failing since 18:02:11)
+   ```
+   Meanwhile the pollers ask less often (up to once a minute). Errors with a stack trace (`[ERR]`) are real problems of the agent or answers the server rejected.
 
 3. Confirm the node appears in the web UI under **Fleet → Nodes**
 

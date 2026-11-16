@@ -14,6 +14,7 @@ public class DeploymentPoller : BackgroundService
 {
     private readonly ILogger<DeploymentPoller> _logger;
     private readonly HttpClient _httpClient;
+    private readonly ConnectionProblems _problems;
     private readonly string _cacheDir;
     
     private const int PollIntervalMs = 60000;  // 1 minute
@@ -28,7 +29,8 @@ public class DeploymentPoller : BackgroundService
     public DeploymentPoller(ILogger<DeploymentPoller> logger)
     {
         _logger = logger;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromMinutes(30));
+        _problems = new ConnectionProblems(logger, "Deployment check");
         _cacheDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
             "Octofleet", "PackageCache");
@@ -88,7 +90,8 @@ public class DeploymentPoller : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Deployment polling error, backing off...");
+                if (!_problems.Report(ex, stoppingToken))
+                    _logger.LogError(ex, "Deployment polling error, backing off...");
                 await Task.Delay(ErrorBackoffMs, stoppingToken);
             }
         }
@@ -103,6 +106,7 @@ public class DeploymentPoller : BackgroundService
         request.Headers.Add("X-API-Key", apiKey);
         
         var response = await _httpClient.SendAsync(request, ct);
+        _problems.Success();
         
         if (!response.IsSuccessStatusCode)
         {

@@ -41,7 +41,7 @@ public class EventLogPusher : BackgroundService
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(30));
         _nodeId = Environment.MachineName.ToUpperInvariant();
     }
 

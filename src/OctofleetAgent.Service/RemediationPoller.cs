@@ -14,6 +14,7 @@ public class RemediationPoller : BackgroundService
     private readonly ILogger<RemediationPoller> _logger;
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
+    private readonly ConnectionProblems _problems;
     
     // Poll every 60 seconds for remediation jobs
     private const int PollIntervalMs = 60000;
@@ -29,10 +30,8 @@ public class RemediationPoller : BackgroundService
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(30));
+        _problems = new ConnectionProblems(logger, "Remediation job check");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -91,7 +90,8 @@ public class RemediationPoller : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Remediation polling error, backing off...");
+                if (!_problems.Report(ex, stoppingToken))
+                    _logger.LogError(ex, "Remediation polling error, backing off...");
                 await Task.Delay(ErrorBackoffMs, stoppingToken);
             }
         }
@@ -107,6 +107,7 @@ public class RemediationPoller : BackgroundService
         try
         {
             var response = await _httpClient.GetAsync(url, ct);
+            _problems.Success();
             
             if (!response.IsSuccessStatusCode)
             {
@@ -124,7 +125,8 @@ public class RemediationPoller : BackgroundService
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogWarning("HTTP error getting remediation jobs: {Message}", ex.Message);
+            if (!_problems.Report(ex, ct))
+                _logger.LogWarning("HTTP error getting remediation jobs: {Message}", ex.Message);
             return new List<RemediationJob>();
         }
     }

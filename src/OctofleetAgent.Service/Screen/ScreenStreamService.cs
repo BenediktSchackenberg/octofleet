@@ -28,13 +28,15 @@ public class ScreenStreamService : BackgroundService
     private bool _isStreaming;
     
     private const int PollIntervalSeconds = 5;
+    private readonly ConnectionProblems _problems;
     
     public ScreenStreamService(ILogger<ScreenStreamService> logger, ServiceConfig config)
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(10));
         _nodeId = Environment.MachineName.ToUpperInvariant();
+        _problems = new ConnectionProblems(logger, "Screen session check");
         _helperManager = new ScreenHelperManager(logger);
     }
     
@@ -58,7 +60,8 @@ public class ScreenStreamService : BackgroundService
                     await CheckForPendingSession(stoppingToken);
                 }
                 
-                await Task.Delay(PollIntervalSeconds * 1000, stoppingToken);
+                // longer while the server is not reachable
+                await Task.Delay(_problems.Delay(TimeSpan.FromSeconds(PollIntervalSeconds), TimeSpan.FromMinutes(1)), stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -83,6 +86,7 @@ public class ScreenStreamService : BackgroundService
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("X-API-Key", _config.InventoryApiKey);
             var response = await _httpClient.SendAsync(request, cancellationToken);
+            _problems.Success();
             
             if (!response.IsSuccessStatusCode)
                 return;
@@ -107,7 +111,9 @@ public class ScreenStreamService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking for pending screen session");
+            // server not reachable, connection dropped, timeout: one short warning, not a stack trace
+            if (!_problems.Report(ex, cancellationToken))
+                _logger.LogError(ex, "Error checking for pending screen session");
         }
     }
     

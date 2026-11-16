@@ -29,7 +29,7 @@ public class PostureCollector : BackgroundService
     {
         _logger = logger;
         _config = config;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(60));
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
