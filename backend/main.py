@@ -979,9 +979,13 @@ async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-@app.get("/api/v1/jobs/pending/{node_id}")
+@app.get("/api/v1/jobs/pending/{node_id}", dependencies=[Depends(require_permission("jobs:poll"))])
 async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Agent endpoint: Get pending jobs for a specific node"""
+    """Agent endpoint: Get pending jobs for a specific node.
+
+    Needs `jobs:poll` (the agent key), like the result route: the answer contains the job
+    payloads, and every job it returns is marked queued for this caller.
+    """
     # Support both formats: "win-baltasa" and "BALTASA"
     # Agent uses win-{hostname.lower()}, DB stores HOSTNAME
     lookup_id = node_id

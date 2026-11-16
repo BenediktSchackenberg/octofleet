@@ -63,7 +63,7 @@ curl -H "Authorization: Bearer your-jwt-token" http://localhost:8080/api/v1/node
 | GET | `/api/v1/jobs` | List all jobs |
 | POST | `/api/v1/jobs` | Create new job |
 | GET | `/api/v1/jobs/{job_id}` | Get job details |
-| GET | `/api/v1/jobs/pending/{node_id}` | Get pending jobs for node |
+| GET | `/api/v1/jobs/pending/{node_id}` | Get pending jobs for node (agent key, `jobs:poll`) |
 | POST | `/api/v1/jobs/instances/{id}/result` | Submit job result (agent) |
 
 ### Packages (12 endpoints)
@@ -89,7 +89,7 @@ curl -H "Authorization: Bearer your-jwt-token" http://localhost:8080/api/v1/node
 | GET | `/api/v1/remediation/rules` | List remediation rules |
 | POST | `/api/v1/remediation/rules` | Create rule |
 | GET | `/api/v1/remediation/jobs` | List remediation jobs |
-| GET | `/api/v1/remediation/jobs/pending/{node_id}` | Pending remediation for node |
+| GET | `/api/v1/remediation/jobs/pending/{node_id}` | Pending remediation for node (agent key, `jobs:poll`) |
 | POST | `/api/v1/remediation/jobs/{id}/result` | Submit remediation result |
 
 ### Services (10 endpoints)

@@ -337,12 +337,13 @@ async def one_click_fix(
     }
 
 
-@router.get("/api/v1/remediation/jobs/pending/{node_id}")
+@router.get("/api/v1/remediation/jobs/pending/{node_id}", dependencies=[Depends(require_permission("jobs:poll"))])
 async def get_pending_remediation_jobs(node_id: str):
     """
     Agent endpoint: Get pending remediation jobs for a node.
     
-    The agent polls this endpoint and executes the fix commands.
+    The agent polls this endpoint and executes the fix commands. Needs `jobs:poll` (the agent
+    key), like the result route: every job it returns is claimed (running) for this caller.
     """
     # Resolve node_id to UUID
     async with get_pool().acquire() as conn:

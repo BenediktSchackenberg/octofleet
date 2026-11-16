@@ -68,8 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - the job's timeout for an `inventory` job (300 s by default).
 - A failed Windows update search no longer clears the node's available updates, and catalog entries that are no longer offered are removed after a successful search ([#250](https://github.com/BenediktSchackenberg/octofleet/pull/250)).
 - The **Start job** dialog sends the selected node or group, so the job runs there; before, it got no target ([#251](https://github.com/BenediktSchackenberg/octofleet/pull/251)).
+- The agent poll routes `GET /api/v1/jobs/pending/{node_id}` and `GET /api/v1/remediation/jobs/pending/{node_id}` need the agent key (`jobs:poll`), like the result routes.
 
 ### Upgrade
+- Scripts or monitoring that call `/api/v1/jobs/pending/…` or `/api/v1/remediation/jobs/pending/…` need the agent key (`X-API-Key`) now; without it they get 401. The Windows and Linux agents already send it.
 - The backend applies its database changes (new tables, columns and the job type constraint) at startup; no manual SQL is needed.
 - The agent-side changes need the new agent versions. Agents with server-based updates install a newer release published on the server within 6 hours, or right away on a `restart-agent` job.
 
