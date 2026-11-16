@@ -71,7 +71,7 @@
 
 ### 🔐 Security & Compliance
 - **Security Center** with dedicated pages for monitoring, findings, and forensics
-- Vulnerability scanning (NVD/CVE) + fleet-wide aggregation
+- Vulnerability scanning (NVD for Windows applications, OSV for Linux packages) + fleet-wide aggregation
 - Auto-remediation of vulnerable Windows applications (winget/Chocolatey) – [docs/REMEDIATION.md](docs/REMEDIATION.md)
 - **File audit** — real-time monitoring (Windows + Linux)
 - **Behavior rules** — threshold, pattern & time-based detection
