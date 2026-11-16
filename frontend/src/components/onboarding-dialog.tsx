@@ -33,10 +33,14 @@ function shellQuote(value: string): string {
 /**
  * install.sh from this server, which then takes agent.sh and the unit from the server as well.
  * Downloaded first and then run: with `curl ... | sudo bash` a failed download still ends with success.
+ * No variables and no `$(...)`, so it runs in bash, zsh, sh and fish alike (fish rejected
+ * `f=$(mktemp)`, e.g. on CachyOS, whose default shell it is): `~`, single quotes and `&&` mean
+ * the same in all of them. The home folder instead of /tmp: no other user can swap the file.
  */
+const LINUX_INSTALLER_FILE = "~/octofleet-install.sh";
 function linuxCommand(apiUrl: string, apiKey: string): string {
   const installer = `${apiUrl}/api/v1/agent/releases/linux/install.sh`;
-  return `f=$(mktemp) && curl -fsSL ${shellQuote(installer)} -o "$f" && sudo bash "$f" --api-url ${shellQuote(apiUrl)} --api-key ${shellQuote(apiKey)}`;
+  return `curl -fsSL ${shellQuote(installer)} -o ${LINUX_INSTALLER_FILE} && sudo bash ${LINUX_INSTALLER_FILE} --api-url ${shellQuote(apiUrl)} --api-key ${shellQuote(apiKey)} && rm -f ${LINUX_INSTALLER_FILE}`;
 }
 
 function Step({ n, title, children }: { n: number; title: string; children?: ReactNode }) {

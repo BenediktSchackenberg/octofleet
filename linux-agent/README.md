@@ -16,7 +16,7 @@ From your Octofleet server (the installer, the agent and its systemd unit come
 from the server; agent and unit are checked against the server's SHA256 sums):
 
 ```bash
-f=$(mktemp) && curl -fsSL http://YOUR_SERVER:8080/api/v1/agent/releases/linux/install.sh -o "$f" && sudo bash "$f" \
+curl -fsSL http://YOUR_SERVER:8080/api/v1/agent/releases/linux/install.sh -o ~/octofleet-install.sh && sudo bash ~/octofleet-install.sh \
   --api-url http://YOUR_SERVER:8080 \
   --api-key YOUR_API_KEY \
   --node-id $(hostname)
@@ -26,7 +26,7 @@ If the server does not provide the Linux agent, the installer falls back to
 GitHub; it can also be started from GitHub directly:
 
 ```bash
-f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o "$f" && sudo bash "$f" \
+curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o ~/octofleet-install.sh && sudo bash ~/octofleet-install.sh \
   --api-url http://YOUR_SERVER:8080 \
   --api-key YOUR_API_KEY \
   --node-id $(hostname)
@@ -117,7 +117,7 @@ sudo rm /etc/systemd/system/openclaw-agent.service
 sudo systemctl daemon-reload
 
 # Install new agent
-f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o "$f" && sudo bash "$f" \
+curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main/linux-agent/install.sh -o ~/octofleet-install.sh && sudo bash ~/octofleet-install.sh \
   --api-url http://YOUR_SERVER:8080 \
   --api-key YOUR_API_KEY
 ```
