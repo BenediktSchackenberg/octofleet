@@ -35,10 +35,10 @@ check() {  # check DESCRIPTION CONDITION...
 WORK=$(mktemp -d)
 TOOLS="$WORK/tools"; mkdir -p "$TOOLS"
 unset INVOCATION_ID  # not under systemd unless a test says so
-for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env date; do
+for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env date mktemp rm; do
     ln -s "$(command -v "$tool")" "$TOOLS/$tool"
 done
-export WORK
+export WORK PACKAGE_OUTPUT_DIR="$WORK"
 
 # fake NAME EXIT OUTPUT [SLEEP]: a package manager command that logs its arguments (and
 # DEBIAN_FRONTEND) to $WORK/calls, prints OUTPUT and exits with EXIT
@@ -142,23 +142,25 @@ check "apt install failed: the error is in the output" grep -q "Unable to locate
 cat > "$TOOLS/systemd-run" <<'EOF'
 #!/bin/bash
 echo "systemd-run $*" >> "$WORK/calls"
-env=()
+env=() out=/dev/stdout
 while [ $# -gt 0 ]; do
   case "$1" in
+    --pipe) echo "Failed to start transient service unit: Connection reset by peer" >&2; exit 1 ;;
     --setenv=*) env+=("${1#--setenv=}") ;;
+    -p) shift; case "$1" in StandardOutput=file:*) out="${1#StandardOutput=file:}" ;; esac ;;
     --unit) shift ;;
     --*) ;;
     *) break ;;
   esac
   shift
 done
-exec env "${env[@]}" "$@"
+env "${env[@]}" "$@" > "$out" 2>&1
 EOF
 chmod +x "$TOOLS/systemd-run"
 clear_fakes; fake apt-get 0 'Hit:1 http://archive.example/ubuntu resolute InRelease'
 INVOCATION_ID=test-invocation run_job patch_scan '{}'
-check "under systemd: apt-get update runs through systemd-run --wait --pipe" \
-    grep -q "^systemd-run --quiet --wait --pipe --collect --unit octofleet-packages-.* timeout 600 apt-get -q update" <<< "$(calls)"
+check "under systemd: apt-get update runs through systemd-run --wait, output through a file (no --pipe)" \
+    grep -q "^systemd-run --quiet --wait --collect --unit octofleet-packages-.* -p StandardOutput=file:.* -p StandardError=inherit .* timeout 600 apt-get -q update" <<< "$(calls)"
 check "under systemd: non-interactive, needrestart only lists" \
     grep -q -- "--setenv=DEBIAN_FRONTEND=noninteractive --setenv=NEEDRESTART_MODE=l" <<< "$(calls)" && \
     grep -q "^apt-get -q update .*\[DEBIAN_FRONTEND=noninteractive\]" <<< "$(calls)"
@@ -197,10 +199,12 @@ check "no package manager: install failed with a reason" [ "$(field .success)" =
 cat > "$TOOLS/systemd-run" <<'EOF'
 #!/bin/bash
 echo "systemd-run $*" >> "$WORK/calls"
-env=()
+env=() out=/dev/stdout
 while [ $# -gt 0 ]; do
   case "$1" in
+    --pipe) echo "Failed to start transient service unit: Connection reset by peer" >&2; exit 1 ;;
     --setenv=*) env+=("${1#--setenv=}") ;;
+    -p) shift; case "$1" in StandardOutput=file:*) out="${1#StandardOutput=file:}" ;; esac ;;
     --unit|--on-calendar|--on-active) shift ;;
     --*) ;;
     *) break ;;
@@ -209,7 +213,7 @@ while [ $# -gt 0 ]; do
 done
 # a reboot timer only records itself; package commands run
 [ "$1" = "/bin/systemctl" ] && exit 0
-exec env "${env[@]}" "$@"
+env "${env[@]}" "$@" > "$out" 2>&1
 EOF
 chmod +x "$TOOLS/systemd-run"
 export REBOOT_REQUIRED_FILE="$WORK/reboot-required"
