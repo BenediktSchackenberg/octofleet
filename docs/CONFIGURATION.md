@@ -34,6 +34,8 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 
 The NVD API key for vulnerability scanning is set in the UI under **Settings → NVD API Key** (get one free at [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key); without it, scanning is rate-limited). `docker-compose.yml` does not pass an `NVD_API_KEY` variable to the backend.
 
+The vulnerability scan checks Windows applications against NVD and Linux distribution packages against [OSV](https://osv.dev) (`api.osv.dev`); the backend needs outbound HTTPS to both. Short failures of either service (HTTP 429, 5xx, connection errors) are retried twice. A software version that still cannot be checked keeps its previous findings, and the scan ends as **Partial** with the number of such versions (automatic remediation is skipped for that scan) instead of failing as a whole.
+
 > ℹ️ **Note:** The backend uses `API_KEY` internally (with fallback to `INVENTORY_API_KEY` for backward compatibility). Use `API_KEY` for all new deployments. Both agent types reference this as their authentication token.
 
 ### Frontend
