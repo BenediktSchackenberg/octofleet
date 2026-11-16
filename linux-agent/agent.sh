@@ -35,6 +35,10 @@ PUSH_INTERVAL="${PUSH_INTERVAL:-1800}"
 PUSH_RETRY_INTERVAL="${PUSH_RETRY_INTERVAL:-60}"
 JOB_POLL_INTERVAL="${JOB_POLL_INTERVAL:-60}"
 LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
+# Terminal commands and screen sessions: asked for about every POLL_IDLE_INTERVAL seconds while nothing
+# happens, every second while a session is open and SESSION_ACTIVE_GRACE seconds after (see poll_pace)
+POLL_IDLE_INTERVAL="${POLL_IDLE_INTERVAL:-5}"
+SESSION_ACTIVE_GRACE="${SESSION_ACTIVE_GRACE:-60}"
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
 # logrotate for LOG_FILE (see ensure_logrotate); LOGROTATE_FILE="" turns it off
 LOGROTATE_FILE="${LOGROTATE_FILE-/etc/logrotate.d/octofleet-agent}"
@@ -1761,7 +1765,6 @@ EOF
 
 SCREEN_CAPTURE_TOOL=""
 SCREEN_SESSION_ID=""
-SCREEN_INTERVAL=1
 
 detect_screen_capture_tool() {
     if command -v gnome-screenshot &>/dev/null; then
@@ -1807,12 +1810,12 @@ capture_screenshot() {
 }
 
 check_screen_requests() {
-    # Poll for screen capture requests
+    # Poll for screen capture requests. Returns 0 while a session is pending (poll fast), else 1.
     local response=$(curl -sS -H "X-API-Key: $API_KEY" \
         "${API_URL}/api/v1/screen/pending/${NODE_ID}" 2>/dev/null)
     
     if [[ -z "$response" ]] || [[ "$response" == "null" ]]; then
-        return
+        return 1
     fi
     
     local session_id=$(echo "$response" | jq -r '.sessionId // empty')
@@ -1834,20 +1837,26 @@ check_screen_requests() {
             
             rm -f "$screenshot" 2>/dev/null
         fi
+        return 0
     fi
+    return 1
 }
 
 # ============================================================================
 # Terminal Support (E20)
 # ============================================================================
 
+# Runs pending terminal commands. Returns 0 while a terminal page for this node is open or commands
+# came (poll fast), else 1. Servers before #283 send no "active" field: then only commands count.
 poll_terminal_commands() {
     local response=$(curl -sS -H "X-API-Key: $API_KEY" \
         "${API_URL}/api/v1/terminal/pending/${NODE_ID}" 2>/dev/null)
     
     if [[ -z "$response" ]] || [[ "$response" == "null" ]]; then
-        return
+        return 1
     fi
+    local active
+    active=$(echo "$response" | jq -r 'if .active == true or ((.commands // []) | length) > 0 then 1 else 0 end' 2>/dev/null)
     
     # Parse commands
     local sessions=$(echo "$response" | jq -r '.commands // [] | .[]' 2>/dev/null)
@@ -1880,6 +1889,17 @@ poll_terminal_commands() {
             fi
         done
     done
+    [[ "$active" == 1 ]]
+}
+
+# poll_pace NOW ACTIVE_UNTIL: seconds until the next terminal or screen poll (#283). While a session is
+# open, or was until ACTIVE_UNTIL, every second (each loop); otherwise about POLL_IDLE_INTERVAL, +-1 s
+# so agents started together do not poll in the same second.
+poll_pace() {
+    if (( $1 < $2 )); then echo 1; return; fi
+    local idle=$(( POLL_IDLE_INTERVAL < 1 ? 1 : POLL_IDLE_INTERVAL ))
+    (( idle >= 3 )) && idle=$(( idle - 1 + RANDOM % 3 ))
+    echo "$idle"
 }
 
 # ============================================================================
@@ -1962,7 +1982,8 @@ run_service() {
     local push_rc
     local last_poll=0
     local last_live=0
-    local last_screen=0
+    local screen_due=0 screen_active_until=0
+    local terminal_due=0 terminal_active_until=0
     # First update check two minutes after start, then every UPDATE_CHECK_INTERVAL
     local last_self_update=$(( $(date +%s) - UPDATE_CHECK_INTERVAL + 120 ))
     
@@ -1998,14 +2019,16 @@ run_service() {
             last_poll=$now
         fi
         
-        # Check screen capture requests (every second if tool available)
-        if [[ -n "$SCREEN_CAPTURE_TOOL" ]] && (( now - last_screen >= SCREEN_INTERVAL )); then
-            check_screen_requests 2>/dev/null || true
-            last_screen=$now
+        # Screen capture requests (if a capture tool is installed) and terminal commands: every second
+        # while a session is open, otherwise about every POLL_IDLE_INTERVAL seconds (#283)
+        if [[ -n "$SCREEN_CAPTURE_TOOL" ]] && (( now >= screen_due )); then
+            check_screen_requests 2>/dev/null && screen_active_until=$(( now + SESSION_ACTIVE_GRACE ))
+            screen_due=$(( now + $(poll_pace "$now" "$screen_active_until") ))
         fi
-        
-        # Poll terminal commands (every iteration for responsiveness)
-        poll_terminal_commands 2>/dev/null || true
+        if (( now >= terminal_due )); then
+            poll_terminal_commands 2>/dev/null && terminal_active_until=$(( now + SESSION_ACTIVE_GRACE ))
+            terminal_due=$(( now + $(poll_pace "$now" "$terminal_active_until") ))
+        fi
         
         # Self-update
         if (( now - last_self_update >= UPDATE_CHECK_INTERVAL )); then

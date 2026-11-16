@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Plain net8.0: the poll pacing has no Windows dependencies, so this runs anywhere. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Compile only the poll pacing: never start the service. -->
+    <Compile Include="../../src/OctofleetAgent.Service/PollPace.cs" Link="PollPace.cs" />
+  </ItemGroup>
+</Project>

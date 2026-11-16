@@ -127,6 +127,8 @@ The agent runs multiple background services:
 | **RemediationPoller** | `InventoryApiUrl` | Polls for vulnerability remediation tasks |
 | **PatchScanner** | `InventoryApiUrl` | Scans for available Windows Updates via WUA API |
 | **PatchInstaller** | `InventoryApiUrl` | Installs Windows Updates when patch_install jobs are received |
+| **TerminalPoller** | `InventoryApiUrl` | Runs commands from the browser terminal (**Nodes → Terminal**): asks every 0.5 s while a terminal page for the node is open and 60 s after, otherwise about every 5 s – opening a session waits up to 5 s |
+| **ScreenStreamService**, **RemoteShellService** | `InventoryApiUrl` | Ask every 5 s for a screen sharing or remote shell session |
 | **GatewayConnector** | `GatewayUrl` | WebSocket connection for remote terminal/screen/shell access |
 | **AutoUpdater** | Internet | Checks GitHub Releases for agent updates and self-updates |
 
