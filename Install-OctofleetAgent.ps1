@@ -255,6 +255,16 @@ function Install-OctofleetAgent {
         $config = @{
             DisplayName = $env:COMPUTERNAME
         }
+
+        # An interval set in an existing config stays (older installers wrote 30 minutes); new
+        # installs use the agent's default (60 minutes, spread over the interval).
+        $keepInterval = $null
+        if (Test-Path $configPath) {
+            try {
+                $previous = Get-Content $configPath -Raw | ConvertFrom-Json
+                if ($previous.ScheduledPushIntervalMinutes) { $keepInterval = [int]$previous.ScheduledPushIntervalMinutes }
+            } catch { }
+        }
         
         # New: env-based config from onboarding endpoint
         if ($env:OCTOFLEET_API_URL) {
@@ -262,7 +272,7 @@ function Install-OctofleetAgent {
             $config.InventoryApiKey = if ($env:OCTOFLEET_API_KEY) { $env:OCTOFLEET_API_KEY } else { "" }
             $config.AutoPushInventory = $true
             $config.ScheduledPushEnabled = $true
-            $config.ScheduledPushIntervalMinutes = 30
+            if ($keepInterval) { $config.ScheduledPushIntervalMinutes = $keepInterval }
             $config.AutoStart = $true
         }
         # Legacy: Gateway URL based config
@@ -271,7 +281,7 @@ function Install-OctofleetAgent {
             $config.InventoryApiKey = ""
             $config.AutoPushInventory = $true
             $config.ScheduledPushEnabled = $true
-            $config.ScheduledPushIntervalMinutes = 30
+            if ($keepInterval) { $config.ScheduledPushIntervalMinutes = $keepInterval }
         }
         else {
             $config.DiscoveryUrl = if ($GatewayUrl) { $GatewayUrl } else { "" }

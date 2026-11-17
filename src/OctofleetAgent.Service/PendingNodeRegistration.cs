@@ -265,6 +265,6 @@ public class PendingNodeRegistration : BackgroundService
         public string? DisplayName { get; set; }
         public bool AutoPushInventory { get; set; } = true;
         public bool ScheduledPushEnabled { get; set; } = true;
-        public int ScheduledPushIntervalMinutes { get; set; } = 30;
+        public int ScheduledPushIntervalMinutes { get; set; } = PushSchedule.DefaultIntervalMinutes;
     }
 }

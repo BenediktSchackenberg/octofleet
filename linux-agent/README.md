@@ -47,7 +47,7 @@ Edit `/opt/octofleet-agent/config.env`:
 API_URL="http://192.168.0.5:8080"
 API_KEY="your-api-key"
 NODE_ID="linux-server-01"
-PUSH_INTERVAL=1800  # 30 minutes
+PUSH_INTERVAL=3600  # 60 minutes (default), spread over the interval
 PUSH_RETRY_INTERVAL=60  # first retry of a failed push (doubles per failure, with jitter)
 JOB_POLL_INTERVAL=60  # 1 minute
 LIVE_DATA_INTERVAL=5  # 5 seconds (for live view)

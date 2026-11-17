@@ -91,8 +91,8 @@ namespace OctofleetAgent.Installer.CustomActions
             sb.AppendLine($"  \"InventoryApiUrl\": \"{EscapeJson(inventoryUrl)}\",");
             sb.AppendLine("  \"AutoStart\": true,");
             sb.AppendLine("  \"AutoPushInventory\": true,");
-            sb.AppendLine("  \"ScheduledPushEnabled\": true,");
-            sb.AppendLine("  \"ScheduledPushIntervalMinutes\": 30");
+            // no ScheduledPushIntervalMinutes: the agent's default (60 minutes, spread) applies
+            sb.AppendLine("  \"ScheduledPushEnabled\": true");
             sb.AppendLine("}");
             return sb.ToString();
         }

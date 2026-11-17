@@ -148,13 +148,19 @@ install -m 755 "$TMP_DIR/agent.sh" "$INSTALL_DIR/agent.sh"
 # config.env contains the API key: readable by root only. agent.sh sources it and the
 # unit reads it as EnvironmentFile; %q quotes each value so that both read it back
 # exactly, even with $, `, quotes or spaces.
+# A PUSH_INTERVAL set in an existing config.env stays (older installs wrote 1800); new ones use the
+# agent's default (3600, spread over the interval).
+KEEP_PUSH_INTERVAL=""
+if [[ -f "$INSTALL_DIR/config.env" ]]; then
+    KEEP_PUSH_INTERVAL="$(sed -n 's/^PUSH_INTERVAL=\([0-9]\+\)$/\1/p' "$INSTALL_DIR/config.env" | tail -n 1)"
+fi
 (
     umask 077
     {
         printf 'API_URL=%q\n' "$API_URL"
         printf 'API_KEY=%q\n' "$API_KEY"
         printf 'NODE_ID=%q\n' "${NODE_ID:-$(hostname)}"
-        printf 'PUSH_INTERVAL=1800\n'
+        [[ -n "$KEEP_PUSH_INTERVAL" ]] && printf 'PUSH_INTERVAL=%s\n' "$KEEP_PUSH_INTERVAL"
         printf 'JOB_POLL_INTERVAL=60\n'
         printf 'LIVE_DATA_INTERVAL=5\n'
     } > "$INSTALL_DIR/config.env"

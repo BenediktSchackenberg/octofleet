@@ -25,7 +25,7 @@ public class ServiceConfig
     
     // Scheduled Inventory Push settings
     public bool ScheduledPushEnabled { get; set; } = true;
-    public int ScheduledPushIntervalMinutes { get; set; } = 30;  // Default: every 30 minutes
+    public int ScheduledPushIntervalMinutes { get; set; } = PushSchedule.DefaultIntervalMinutes;  // spread over the interval, see PushSchedule
     
     // Pending approval workflow
     public string? PendingId { get; set; }  // Set when registered, cleared when approved

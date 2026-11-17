@@ -144,7 +144,7 @@ Alternatively, agents can use **enrollment tokens** to auto-register without man
 
 ### Inventory Push Cycle
 
-Agents push inventory on a regular interval (default: 30 minutes):
+Agents push inventory on a regular interval (default: 60 minutes), spread over the interval so that many nodes started together do not push in the same second (first scheduled push at a random 50–150 % of the interval, then ±10 %); jobs and *Collect inventory* push immediately:
 
 ```
   Agent                          Backend                      Database

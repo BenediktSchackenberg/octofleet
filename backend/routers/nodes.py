@@ -518,5 +518,5 @@ async def get_pending_node_config(pending_id: str, db: asyncpg.Pool = Depends(ge
         if row['status'] == 'rejected': return {"status": "rejected"}
         if row['status'] == 'approved':
             if not row['config_fetched_at']: await conn.execute("UPDATE pending_nodes SET config_fetched_at = NOW() WHERE id = $1", uuid.UUID(pending_id))
-            return {"status": "approved", "config": {"InventoryApiUrl": "http://192.168.0.5:8080", "InventoryApiKey": row['generated_api_key'] or API_KEY, "DisplayName": row['hostname'], "AutoPushInventory": True, "ScheduledPushEnabled": True, "ScheduledPushIntervalMinutes": 30}}
+            return {"status": "approved", "config": {"InventoryApiUrl": "http://192.168.0.5:8080", "InventoryApiKey": row['generated_api_key'] or API_KEY, "DisplayName": row['hostname'], "AutoPushInventory": True, "ScheduledPushEnabled": True, "ScheduledPushIntervalMinutes": 60}}
     return {"status": "unknown"}
