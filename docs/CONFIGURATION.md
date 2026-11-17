@@ -86,6 +86,8 @@ NODE_ID=""               # Defaults to hostname if empty
 PUSH_INTERVAL=3600       # Inventory push interval in seconds (default: 60 min, spread)
 JOB_POLL_INTERVAL=60     # Job polling interval in seconds
 LIVE_DATA_INTERVAL=5     # Live metrics interval in seconds
+POLL_IDLE_INTERVAL=5     # Terminal/screen requests when idle, in seconds
+SESSION_ACTIVE_GRACE=60  # Poll every second this long after a session, in seconds
 ```
 
 | Variable | Default | Description |
@@ -96,6 +98,8 @@ LIVE_DATA_INTERVAL=5     # Live metrics interval in seconds
 | `PUSH_INTERVAL` | `3600` | How often to push full inventory (seconds); spread over the interval (see AGENT-SETUP.md) |
 | `JOB_POLL_INTERVAL` | `60` | How often to check for pending jobs (seconds) |
 | `LIVE_DATA_INTERVAL` | `5` | How often to push live metrics (seconds) |
+| `POLL_IDLE_INTERVAL` | `5` | How often to ask for terminal commands and screen sessions while none is open (seconds, ±1 s). While a terminal page for the node is open: every second. A new session waits up to this long |
+| `SESSION_ACTIVE_GRACE` | `60` | How long the agent keeps polling every second after a session (seconds) |
 
 ---
 

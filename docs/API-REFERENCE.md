@@ -297,6 +297,8 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | POST | `/api/v1/terminal/session/{session_id}/input` | API Key | Send input to session |
 | GET | `/api/v1/terminal/session/{session_id}/output` | API Key | Get session output |
 | WS | `/api/v1/terminal/ws/{session_id}` | — | WebSocket terminal stream |
+| GET | `/api/v1/terminal/pending/{node_id}` | Agent key | Agent: pending commands; `active` is true while a terminal page for the node is open (output asked for within 30 s) or commands came – the agent then polls fast, otherwise about every 5 s |
+| POST | `/api/v1/terminal/output/{session_id}` | Agent key | Agent: command output |
 
 ### Event Log (Windows)
 

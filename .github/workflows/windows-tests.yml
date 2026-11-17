@@ -12,6 +12,7 @@ on:
       - 'tests/OctofleetAgent.Patch.Tests/**'
       - 'tests/OctofleetAgent.Http.Tests/**'
       - 'tests/OctofleetAgent.Schedule.Tests/**'
+      - 'tests/OctofleetAgent.Polling.Tests/**'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
       - 'installer/Build-Release.ps1'
@@ -26,6 +27,7 @@ on:
       - 'tests/OctofleetAgent.Patch.Tests/**'
       - 'tests/OctofleetAgent.Http.Tests/**'
       - 'tests/OctofleetAgent.Schedule.Tests/**'
+      - 'tests/OctofleetAgent.Polling.Tests/**'
       - 'tests/windows/Release-Package.Tests.ps1'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
@@ -53,6 +55,8 @@ jobs:
         run: dotnet run --project tests/OctofleetAgent.Http.Tests -c Release
       - name: Test the spread of the scheduled inventory push
         run: dotnet run --project tests/OctofleetAgent.Schedule.Tests -c Release
+      - name: Test the terminal poll pacing (idle request rate, session start delay)
+        run: dotnet run --project tests/OctofleetAgent.Polling.Tests -c Release
       - name: Test isolated release packaging
         shell: pwsh
         run: ./tests/windows/Release-Package.Tests.ps1

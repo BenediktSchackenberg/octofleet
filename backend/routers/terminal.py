@@ -3,6 +3,7 @@ Octofleet API - Terminal Routes
 """
 import asyncio
 import logging
+import time
 import uuid
 from typing import Optional
 
@@ -20,6 +21,10 @@ router = APIRouter(tags=["Terminal"])
 # In-memory terminal sessions (simple polling-based terminals)
 _terminal_sessions: dict = {}
 
+# A terminal session counts as open while its page asked for output within this time (the page asks
+# every 0.5 s). The agents poll fast while a session for their node is open and slowly otherwise (#283).
+TERMINAL_VIEWER_ACTIVE_SECONDS = 30
+
 
 class TerminalSession:
     def __init__(self, session_id: str, node_id: str, shell: str):
@@ -31,6 +36,15 @@ class TerminalSession:
         self.connected = False
         from datetime import datetime
         self.created_at = datetime.utcnow()
+        self.last_viewer = time.monotonic()
+
+    def touch(self):
+        """The terminal page (or its WebSocket) is still there."""
+        self.last_viewer = time.monotonic()
+
+    def viewer_active(self, now: Optional[float] = None) -> bool:
+        now = time.monotonic() if now is None else now
+        return now - self.last_viewer < TERMINAL_VIEWER_ACTIVE_SECONDS
 
 
 async def log_audit(pool, action: str, user_id: str = None, resource_type: str = None, resource_id: str = None, details: dict = None):
@@ -681,6 +695,7 @@ async def send_terminal_input(session_id: str, request: Request, _=Depends(requi
     command = data.get('command', '')
     
     session = _terminal_sessions[session_id]
+    session.touch()
     session.pending_commands.append(command)
     
     return {"status": "queued", "command": command}
@@ -693,6 +708,7 @@ async def get_terminal_output(session_id: str, _=Depends(require_permission("ter
         raise HTTPException(404, "Session not found")
     
     session = _terminal_sessions[session_id]
+    session.touch()
     output = session.output_buffer.copy()
     session.output_buffer.clear()
     
@@ -701,17 +717,25 @@ async def get_terminal_output(session_id: str, _=Depends(require_permission("ter
 
 @router.get("/api/v1/terminal/pending/{node_id}")
 async def get_pending_terminal_commands(node_id: str, _=Depends(verify_api_key)):
-    """Agent polls this to get pending commands."""
+    """Agent polls this to get pending commands.
+
+    `active` tells the agent that a terminal page for this node is open: it then polls every 0.5-1 s,
+    otherwise every few seconds (#283). Older agents ignore the field.
+    """
     commands = []
+    active = False
     for session in _terminal_sessions.values():
-        if session.node_id == node_id and session.pending_commands:
+        if session.node_id != node_id:
+            continue
+        active = active or session.viewer_active()
+        if session.pending_commands:
             commands.append({
                 "sessionId": session.session_id,
                 "shell": session.shell,
                 "commands": session.pending_commands.copy()
             })
             session.pending_commands.clear()
-    return {"commands": commands}
+    return {"commands": commands, "active": active or bool(commands)}
 
 
 @router.post("/api/v1/terminal/output/{session_id}")
@@ -754,6 +778,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
     
     try:
         while True:
+            session.touch()
             # Send any pending output
             if session.output_buffer:
                 for output in session.output_buffer:

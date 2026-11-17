@@ -15,6 +15,8 @@ public class TerminalPoller : BackgroundService
     private readonly string _nodeId;
     private readonly HttpClient _httpClient;
     private readonly ConnectionProblems _problems;
+    // every 0.5 s while a terminal page for this node is open, otherwise about every 5 s (#283)
+    private readonly PollPace _pace = new(TimeSpan.FromMilliseconds(500));
 
     public TerminalPoller(
         ILogger<TerminalPoller> logger,
@@ -36,11 +38,12 @@ public class TerminalPoller : BackgroundService
         
         while (!stoppingToken.IsCancellationRequested)
         {
+            var active = false;
             try
             {
                 if (!string.IsNullOrEmpty(_config.InventoryApiUrl))
                 {
-                    await PollAndExecuteCommands(stoppingToken);
+                    active = await PollAndExecuteCommands(stoppingToken);
                     _problems.Success();
                 }
             }
@@ -50,12 +53,13 @@ public class TerminalPoller : BackgroundService
                     _logger.LogError(ex, "Error in terminal polling");
             }
             
-            // Poll every 500ms for responsiveness; while the server is not reachable up to every 30 s
-            await Task.Delay(_problems.Delay(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(30)), stoppingToken);
+            // Fast while a terminal session is open, slowly when idle; while the server is not reachable up to every 30 s
+            await Task.Delay(_problems.Delay(_pace.Next(active), TimeSpan.FromSeconds(30)), stoppingToken);
         }
     }
 
-    private async Task PollAndExecuteCommands(CancellationToken ct)
+    /// <summary>Runs pending commands. Returns true while a session for this node is open or commands came.</summary>
+    private async Task<bool> PollAndExecuteCommands(CancellationToken ct)
     {
         var baseUrl = _config.InventoryApiUrl.TrimEnd('/');
         var apiKey = _config.InventoryApiKey ?? "";
@@ -64,7 +68,7 @@ public class TerminalPoller : BackgroundService
         request.Headers.Add("X-API-Key", apiKey);
 
         var response = await _httpClient.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode) return;
+        if (!response.IsSuccessStatusCode) return false;
 
         var json = await response.Content.ReadAsStringAsync(ct);
         var result = JsonSerializer.Deserialize<TerminalPendingResponse>(json, new JsonSerializerOptions 
@@ -72,7 +76,7 @@ public class TerminalPoller : BackgroundService
             PropertyNameCaseInsensitive = true 
         });
 
-        if (result?.Commands == null || result.Commands.Count == 0) return;
+        if (result?.Commands == null || result.Commands.Count == 0) return result?.Active == true;
 
         foreach (var session in result.Commands)
         {
@@ -83,6 +87,7 @@ public class TerminalPoller : BackgroundService
                 await SendOutput(session.SessionId, output, ct);
             }
         }
+        return true;
     }
 
     private async Task<string> ExecuteCommand(string shell, string command, CancellationToken ct)
@@ -154,6 +159,8 @@ public class TerminalPoller : BackgroundService
     private class TerminalPendingResponse
     {
         public List<TerminalSession> Commands { get; set; } = new();
+        // a terminal page for this node is open (servers before #283 do not send it)
+        public bool Active { get; set; }
     }
 
     private class TerminalSession
