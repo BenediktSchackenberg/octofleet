@@ -25,6 +25,7 @@ from uuid import UUID
 
 import asyncpg
 
+import vulnerability_cache
 from job_types import ensure_command_types
 
 log = logging.getLogger(__name__)
@@ -209,6 +210,9 @@ async def delete_node(conn, node, user, forced: bool = False) -> dict:
     keys = list(dict.fromkeys([str(node["id"]), node["node_id"]]))
     removed = {}
     async with conn.transaction():
+        # Its packages no longer decide whether other nodes' findings count (vulnerability cache);
+        # before its software rows go. Its own cache rows go with the node.
+        await conn.execute("SELECT mark_vulnerability_node_packages($1)", node["id"])
         for table in await _node_text_tables(conn):
             result = await conn.execute(f"DELETE FROM {_ident(table)} WHERE node_id = ANY($1::text[])", keys)
             if not result.endswith(" 0"):
@@ -223,10 +227,7 @@ async def delete_node(conn, node, user, forced: bool = False) -> dict:
             "hostname": node["hostname"], "nodeId": node["node_id"], "forced": forced,
             "uninstalledAt": node["uninstalled_at"].isoformat() if node["uninstalled_at"] else None,
             "removedRows": removed})
-    # Its vulnerabilities no longer count (in the background; this module has no pool of its own)
-    import vulnerability_summary
-    from dependencies import get_pool
-    vulnerability_summary.request_refresh(get_pool())
+    vulnerability_cache.wake()
     return {"status": "deleted", "removedRows": removed}
 
 

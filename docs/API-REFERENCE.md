@@ -29,7 +29,7 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 |--------|------|------|-------------|
 | GET | `/health` | No | Basic health check |
 | GET | `/api/v1/health` | No | API health check |
-| GET | `/api/v1/dashboard/summary` | API Key | Fleet dashboard summary; the vulnerability counts come from the cached vulnerability summary (`vulnerabilities.as_of`, `vulnerabilities.scan_completed_at`) |
+| GET | `/api/v1/dashboard/summary` | API Key | Fleet dashboard summary; the vulnerability counts come from the vulnerability cache (`vulnerabilities.as_of`, `vulnerabilities.pending_nodes`, `vulnerabilities.scan_completed_at`) |
 
 ### Auth & Users
 
@@ -167,18 +167,25 @@ Agents push inventory data; the frontend reads it.
 
 ### Vulnerabilities & Remediation
 
-The vulnerability summary (severity counts, affected nodes, top CVEs, top software) is kept in the
-materialized view `vulnerability_summary_cache`, because computing it takes seconds with many
-findings. It is refreshed at the end of every scan, after findings are marked as fixed, after a node
-is deleted, at backend start, every hour (TimescaleDB job `refresh_vulnerability_summary`), and with
-`POST /api/v1/vulnerabilities/summary/refresh`. Agents' software changes reach the numbers with the
-next of these refreshes; the dashboard and the vulnerabilities page show "as of" and a refresh button.
+Vulnerability numbers are kept per node (the vulnerability cache), because computing them over
+all findings takes seconds with a few nodes and hours with 100,000: `node_vulnerability_cache`
+(one row per node, update and CVE), `node_vulnerability_counts` (one row per node) and
+`vulnerability_fleet_summary` (fleet counts, top 10 CVEs and updates, last scan). A node is
+recalculated when its software inventory changes (only if it really changed), when a scan changes
+the vulnerability data of one of its packages, when one of its findings is marked as fixed, when
+its OS or kernel changes, when another node's change decides whether its findings count, and with
+`POST /api/v1/vulnerabilities/summary/refresh`. The backend recalculates waiting nodes in the
+background; there is no timer. The fleet counts follow every node; the top lists are refreshed
+when no node is waiting (at most once a minute while many are) and checked against the cache at
+backend start, after each scan and with the refresh button.
+`backend/check_vulnerability_cache.py` compares the cache with the live queries.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/vulnerabilities/summary` | API Key | Fleet vulnerability summary, from a cache (`cache.refreshed_at`: as of when; `cache.refreshing`); the running and last finished scan are live |
-| GET | `/api/v1/vulnerabilities/summary/status` | JWT (`vulnerabilities:read`) | Cached summary: `refreshed_at`, `refreshing`, `retry_after` (seconds until a manual refresh is allowed) |
-| POST | `/api/v1/vulnerabilities/summary/refresh` | JWT (`settings:write`) | Recalculate the cached summary in the background (202); at most once a minute, else 429 with `Retry-After` |
+| GET | `/api/v1/vulnerabilities/summary` | API Key | Fleet vulnerability summary from the vulnerability cache (`cache.refreshed_at`: as of when; `cache.pending_nodes`: nodes waiting to be recalculated); the running and last finished scan are live |
+| GET | `/api/v1/vulnerabilities/by-node?limit=100&offset=0` | API Key | Nodes with findings, most first, one page (`limit` 1–1000, `total`); `severity=critical`: only nodes with critical CVEs |
+| GET | `/api/v1/vulnerabilities/summary/status` | JWT (`vulnerabilities:read`) | Vulnerability cache: `refreshed_at`, `pending_nodes`, `refreshing`, `retry_after` (seconds until a manual refresh is allowed) |
+| POST | `/api/v1/vulnerabilities/summary/refresh` | JWT (`settings:write`) | Recalculate every node in the background (202); at most once a minute, else 429 with `Retry-After` |
 | GET | `/api/v1/vulnerabilities` | API Key | List all vulnerabilities |
 | GET | `/api/v1/vulnerabilities/node/{node_id}` | API Key | Vulnerabilities for a node |
 | POST | `/api/v1/vulnerabilities/scan` | JWT (`settings:write`) | Trigger vulnerability scan; `{"refresh_cache": true}` ignores the OSV cache for this scan |

@@ -400,6 +400,7 @@ cd tests/e2e && npx playwright test
 | `DATABASE_URL` | `postgresql://octofleet:...@127.0.0.1:5432/inventory` | PostgreSQL connection string |
 | `JWT_SECRET` | Auto-generated | Secret for JWT tokens (persistent) |
 | `NVD_API_KEY` | None | NVD API key for vulnerability scanning |
+| `VULNERABILITY_CACHE_WORKERS` | `2` | Nodes whose vulnerability numbers are recalculated at the same time |
 | `OCTOFLEET_GATEWAY_URL` | `http://192.168.0.5:18789` | Octofleet gateway URL |
 | `OCTOFLEET_GATEWAY_TOKEN` | Empty | Token for gateway authentication |
 

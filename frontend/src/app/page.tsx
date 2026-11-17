@@ -116,6 +116,7 @@ interface DashboardSummary {
     /** From the cached vulnerability summary: as of when, and when the last scan finished */
     as_of?: string | null;
     refreshing?: boolean;
+    pending_nodes?: number;
     scan_completed_at?: string | null;
   };
   jobs?: {
@@ -852,6 +853,7 @@ export default function HomePage() {
                       asOf={summary?.vulnerabilities?.as_of}
                       scanCompletedAt={summary?.vulnerabilities?.scan_completed_at}
                       refreshing={summary?.vulnerabilities?.refreshing}
+                      pendingNodes={summary?.vulnerabilities?.pending_nodes}
                       onRefreshed={fetchSummary}
                       className="justify-center flex-wrap"
                     />

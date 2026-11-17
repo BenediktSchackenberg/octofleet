@@ -13,7 +13,6 @@ from starlette.responses import StreamingResponse
 
 from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import API_KEY, get_pool, verify_api_key
-import vulnerability_summary
 from remediation import (
     ApproveRemediationRequest,
     MaintenanceWindowCreate,
@@ -491,7 +490,6 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
                               AND v.software_name = $2
                               AND nv.status != 'fixed'
                         """, node_id_str, job_row["software_name"])
-            vulnerability_summary.request_refresh(get_pool())  # findings marked as fixed no longer count
         except Exception as e:
             logger.warning(f"Failed to update node_vulnerabilities after remediation: {e}")
     
