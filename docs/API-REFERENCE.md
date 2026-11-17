@@ -186,6 +186,7 @@ backend start, after each scan and with the refresh button.
 | GET | `/api/v1/vulnerabilities/by-node?limit=100&offset=0` | API Key | Nodes with findings, most first, one page (`limit` 1–1000, `total`); `severity=critical`: only nodes with critical CVEs |
 | GET | `/api/v1/vulnerabilities/summary/status` | JWT (`vulnerabilities:read`) | Vulnerability cache: `refreshed_at`, `pending_nodes`, `refreshing`, `retry_after` (seconds until a manual refresh is allowed) |
 | POST | `/api/v1/vulnerabilities/summary/refresh` | JWT (`settings:write`) | Recalculate every node in the background (202); at most once a minute, else 429 with `Retry-After` |
+| GET | `/api/v1/vulnerabilities/by-software` | API Key | The 20 updates with the most CVEs, from the vulnerability cache, with affected node names |
 | GET | `/api/v1/vulnerabilities` | API Key | List all vulnerabilities |
 | GET | `/api/v1/vulnerabilities/node/{node_id}` | API Key | Vulnerabilities for a node |
 | POST | `/api/v1/vulnerabilities/scan` | JWT (`settings:write`) | Trigger vulnerability scan; `{"refresh_cache": true}` ignores the OSV cache for this scan |
