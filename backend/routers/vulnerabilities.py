@@ -17,8 +17,8 @@ from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
 from vulnerability import (COUNTED, PER_NODE_CVE, SEVERITIES_SQL, VulnerabilityScanner, clear_osv_cache,
                            osv_cache_status, verify_osv_cache, get_node_vulnerabilities,
-                           get_node_vulnerability_groups, get_update_vulnerabilities, get_vulnerability_summary,
-                           run_vulnerability_scan)
+                           get_node_vulnerability_groups, get_update_vulnerabilities, run_vulnerability_scan)
+import vulnerability_summary
 
 SEVERITY_NAMES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
@@ -90,9 +90,30 @@ async def set_cpe_mapping(data: CpeMappingUpdate,
 
 
 @router.get("/api/v1/vulnerabilities/summary", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
-async def vulnerability_summary():
-    """Get vulnerability dashboard summary."""
-    return await get_vulnerability_summary(get_pool())
+async def vulnerability_summary_route():
+    """Vulnerability summary, from the cache (`cache.refreshed_at` says as of when); the scan status is live."""
+    return await vulnerability_summary.get_cached_summary(get_pool())
+
+
+@router.get("/api/v1/vulnerabilities/summary/status", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def vulnerability_summary_status():
+    """When the cached summary was refreshed, whether a refresh is running, and the seconds until
+    the next manual refresh is allowed."""
+    return await vulnerability_summary.get_cache_status(get_pool())
+
+
+@router.post("/api/v1/vulnerabilities/summary/refresh", status_code=202)
+async def refresh_vulnerability_summary(_: CurrentUser = Depends(require_user_permission("settings:write"))):
+    """Refresh the cached summary now (in the background), at most once a minute. Poll
+    /summary/status until `refreshing` is false."""
+    if vulnerability_summary.refreshing():
+        return {"status": "running"}
+    wait = vulnerability_summary.seconds_until_manual_refresh()
+    if wait:
+        raise HTTPException(status_code=429, detail=f"The summary was refreshed less than a minute ago; try again in {wait} s",
+                            headers={"Retry-After": str(wait)})
+    vulnerability_summary.request_refresh(get_pool())
+    return {"status": "started"}
 
 
 @router.get("/api/v1/vulnerabilities/by-node", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])

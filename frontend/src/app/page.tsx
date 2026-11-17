@@ -24,6 +24,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaCh
 import { toast } from "sonner";
 import { formatLocalDate, formatTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
+import { VulnerabilitySummaryFreshness } from "@/components/vulnerability-summary-freshness";
 import { routeLabel } from "@/lib/routes";
 
 // Skeleton Components for Loading State
@@ -112,6 +113,10 @@ interface DashboardSummary {
     high: number;
     medium: number;
     low: number;
+    /** From the cached vulnerability summary: as of when, and when the last scan finished */
+    as_of?: string | null;
+    refreshing?: boolean;
+    scan_completed_at?: string | null;
   };
   jobs?: {
     pending: number;
@@ -843,6 +848,13 @@ export default function HomePage() {
                         <div className="text-[10px] uppercase font-bold text-orange-500/70">{t("dashboard.highRisk")}</div>
                       </div>
                     </div>
+                    <VulnerabilitySummaryFreshness
+                      asOf={summary?.vulnerabilities?.as_of}
+                      scanCompletedAt={summary?.vulnerabilities?.scan_completed_at}
+                      refreshing={summary?.vulnerabilities?.refreshing}
+                      onRefreshed={fetchSummary}
+                      className="justify-center flex-wrap"
+                    />
                     <Button variant="ghost" size="sm" className="w-full text-xs hover:bg-destructive/5 text-muted-foreground" asChild>
                       <Link href="/vulnerabilities">{t("dashboard.viewSecurityReports")}</Link>
                     </Button>

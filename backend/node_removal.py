@@ -223,6 +223,10 @@ async def delete_node(conn, node, user, forced: bool = False) -> dict:
             "hostname": node["hostname"], "nodeId": node["node_id"], "forced": forced,
             "uninstalledAt": node["uninstalled_at"].isoformat() if node["uninstalled_at"] else None,
             "removedRows": removed})
+    # Its vulnerabilities no longer count (in the background; this module has no pool of its own)
+    import vulnerability_summary
+    from dependencies import get_pool
+    vulnerability_summary.request_refresh(get_pool())
     return {"status": "deleted", "removedRows": removed}
 
 

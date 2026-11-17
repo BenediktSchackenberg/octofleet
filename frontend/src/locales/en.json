@@ -1773,5 +1773,16 @@
       "restartAt": "Restart at {time}; finished once the node reports again"
     },
     "approved": "{count} approved"
+  },
+  "vulnerabilitySummary": {
+    "asOf": "As of {time}",
+    "notYet": "Being calculated",
+    "scanFinished": "scan finished {time}",
+    "noScan": "no scan yet",
+    "refresh": "Recalculate the numbers now",
+    "refreshing": "Recalculating…",
+    "refreshWait": "The numbers were recalculated less than a minute ago – try again in {seconds} s.",
+    "refreshFailed": "The numbers could not be recalculated.",
+    "hint": "The numbers are recalculated after every scan, after changes (findings fixed, node removed) and every hour."
   }
 }

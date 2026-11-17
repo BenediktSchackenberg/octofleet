@@ -53,6 +53,7 @@ import job_types
 import node_removal
 import password_policy
 import vulnerability
+import vulnerability_summary
 from auth import (
     APIKeyCreate,
     CurrentUser,
@@ -148,6 +149,8 @@ async def lifespan(app: FastAPI):
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
     await ensure_inventory_schema(db_pool)
+    # Fill or update the cached vulnerability summary (findings may have changed while stopped)
+    vulnerability_summary.request_refresh(db_pool)
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.

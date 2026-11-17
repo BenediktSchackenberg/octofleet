@@ -1,6 +1,7 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
+import { VulnerabilitySummaryFreshness } from "@/components/vulnerability-summary-freshness";
 import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
 
 import { Fragment, useEffect, useState } from "react";
@@ -50,6 +51,8 @@ interface VulnerabilitySummary {
   total_vulnerabilities: number;
   running_scan: ScanStatus["running_scan"];
   last_completed_scan: ScanStatus["last_completed_scan"];
+  /** The numbers come from the cached summary, as of refreshed_at */
+  cache?: { refreshed_at: string | null; refreshing: boolean };
 }
 
 interface NodeVulnInfo {
@@ -255,6 +258,14 @@ export default function VulnerabilitiesPage() {
       />
 
       <ScanStatusBanner status={summary} onStop={stopScan} />
+
+      <VulnerabilitySummaryFreshness
+        asOf={summary?.cache?.refreshed_at}
+        scanCompletedAt={summary?.last_completed_scan?.completed_at}
+        refreshing={summary?.cache?.refreshing}
+        onRefreshed={fetchData}
+        className="justify-end"
+      />
 
       {/* Severity Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">

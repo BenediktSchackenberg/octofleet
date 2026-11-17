@@ -1773,5 +1773,16 @@
       "restartAt": "Neustart um {time}; abgeschlossen, sobald sich der Node wieder meldet"
     },
     "approved": "{count} freigegeben"
+  },
+  "vulnerabilitySummary": {
+    "asOf": "Stand {time}",
+    "notYet": "Wird berechnet",
+    "scanFinished": "Scan beendet {time}",
+    "noScan": "noch kein Scan",
+    "refresh": "Zahlen jetzt neu berechnen",
+    "refreshing": "Wird neu berechnet…",
+    "refreshWait": "Die Zahlen wurden vor weniger als einer Minute neu berechnet – in {seconds} s erneut versuchen.",
+    "refreshFailed": "Die Zahlen konnten nicht neu berechnet werden.",
+    "hint": "Die Zahlen werden nach jedem Scan, nach Änderungen (Befunde behoben, Gerät entfernt) und stündlich neu berechnet."
   }
 }

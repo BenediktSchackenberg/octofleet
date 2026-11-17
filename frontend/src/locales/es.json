@@ -1773,5 +1773,16 @@
       "restartAt": "Reinicio a las {time}; termina cuando el nodo vuelva a informar"
     },
     "approved": "{count} aprobadas"
+  },
+  "vulnerabilitySummary": {
+    "asOf": "A las {time}",
+    "notYet": "Calculando",
+    "scanFinished": "análisis terminado {time}",
+    "noScan": "sin análisis todavía",
+    "refresh": "Recalcular las cifras ahora",
+    "refreshing": "Recalculando…",
+    "refreshWait": "Las cifras se recalcularon hace menos de un minuto; inténtelo de nuevo en {seconds} s.",
+    "refreshFailed": "No se pudieron recalcular las cifras.",
+    "hint": "Las cifras se recalculan tras cada análisis, tras cambios (hallazgos corregidos, nodo eliminado) y cada hora."
   }
 }
