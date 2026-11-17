@@ -815,7 +815,7 @@ async def download_agent_config(request: Request):
         "AutoPushInventory": True,
         "AutoStart": True,
         "ScheduledPushEnabled": True,
-        "ScheduledPushIntervalMinutes": 30
+        "ScheduledPushIntervalMinutes": 60
     }
     return JSONResponse(content=config, headers={
         "Content-Disposition": "attachment; filename=service-config.json"

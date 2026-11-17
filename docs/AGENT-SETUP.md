@@ -60,7 +60,7 @@ Create or edit `C:\ProgramData\Octofleet\service-config.json`:
   "AutoStart": true,
   "AutoPushInventory": true,
   "ScheduledPushEnabled": true,
-  "ScheduledPushIntervalMinutes": 30
+  "ScheduledPushIntervalMinutes": 60
 }
 ```
 
@@ -74,7 +74,7 @@ Create or edit `C:\ProgramData\Octofleet\service-config.json`:
 | `AutoStart` | Automatically start all agent services on launch | `true` | No |
 | `AutoPushInventory` | Push inventory data to backend on startup | `true` | No |
 | `ScheduledPushEnabled` | Enable periodic inventory push | `true` | No |
-| `ScheduledPushIntervalMinutes` | Inventory push interval in minutes | `30` | No |
+| `ScheduledPushIntervalMinutes` | Inventory push interval in minutes; pushes are spread: the first after the start comes 30–120 s after it, the first scheduled one at a random 50–150 % of the interval, then every interval ±10 %; a failed push is retried after about 5 minutes. Jobs and *Collect inventory* push immediately. Older installers wrote `30`, which stays as a local override | `60` | No |
 | `RepoUrl` | Custom URL for the software repository | Auto-detected | No |
 | `PreferRepo` | Check local repo before external download URLs | `true` | No |
 | `FallbackToSource` | Fall back to source URL if package not in repo | `true` | No |
@@ -112,7 +112,7 @@ For full functionality including remote terminal, screen sharing, and live view:
   "AutoStart": true,
   "AutoPushInventory": true,
   "ScheduledPushEnabled": true,
-  "ScheduledPushIntervalMinutes": 30
+  "ScheduledPushIntervalMinutes": 60
 }
 ```
 
@@ -213,8 +213,8 @@ API_KEY="your-api-key"
 # Optional: Override node identifier (defaults to hostname)
 NODE_ID=""
 
-# Optional: Inventory push interval in seconds (default: 30 min)
-PUSH_INTERVAL=1800
+# Optional: Inventory push interval in seconds (default: 60 min, spread over the interval)
+PUSH_INTERVAL=3600
 
 # Optional: Log file location
 LOG_FILE="/var/log/octofleet-agent.log"
@@ -225,7 +225,7 @@ LOG_FILE="/var/log/octofleet-agent.log"
 | `API_URL` | URL to the Octofleet backend API | — | **Yes** |
 | `API_KEY` | API key for authentication | — | **Yes** |
 | `NODE_ID` | Override node identifier | hostname | No |
-| `PUSH_INTERVAL` | Full inventory push interval (seconds) | `1800` | No |
+| `PUSH_INTERVAL` | Full inventory push interval (seconds). The push after the start comes a random 0–60 s after it, the first scheduled one at a random 50–150 % of the interval, then every interval ±10 %, so nodes started together do not push together. Jobs and *Collect inventory* push immediately. Older installs have `1800` in `config.env`, which stays (also when `install.sh` runs again) | `3600` | No |
 | `PUSH_RETRY_INTERVAL` | First retry of a failed inventory push (seconds), e.g. while the server is still starting after a reboot; doubles with every further failure up to `PUSH_INTERVAL`, plus 0–50 % random jitter so a large fleet does not retry in lockstep | `60` | No |
 | `LOG_FILE` | Path to log file | `/var/log/octofleet-agent.log` | No |
 | `LOG_ROTATE_COUNT` | Rotated log files kept (compressed) | `8` | No |

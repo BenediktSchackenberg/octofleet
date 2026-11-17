@@ -83,7 +83,7 @@ Configuration file: `/opt/octofleet-agent/config.env`
 API_URL="http://your-server:8080"
 API_KEY="your-api-key"
 NODE_ID=""               # Defaults to hostname if empty
-PUSH_INTERVAL=1800       # Inventory push interval in seconds (default: 30 min)
+PUSH_INTERVAL=3600       # Inventory push interval in seconds (default: 60 min, spread)
 JOB_POLL_INTERVAL=60     # Job polling interval in seconds
 LIVE_DATA_INTERVAL=5     # Live metrics interval in seconds
 ```
@@ -93,7 +93,7 @@ LIVE_DATA_INTERVAL=5     # Live metrics interval in seconds
 | `API_URL` | *(required)* | Backend API URL |
 | `API_KEY` | *(required)* | API key for authentication |
 | `NODE_ID` | hostname | Unique node identifier |
-| `PUSH_INTERVAL` | `1800` | How often to push full inventory (seconds) |
+| `PUSH_INTERVAL` | `3600` | How often to push full inventory (seconds); spread over the interval (see AGENT-SETUP.md) |
 | `JOB_POLL_INTERVAL` | `60` | How often to check for pending jobs (seconds) |
 | `LIVE_DATA_INTERVAL` | `5` | How often to push live metrics (seconds) |
 
