@@ -677,7 +677,8 @@
     "osvCounts": "{downloaded} downloaded · {cached} from cache",
     "cacheRebuilt": "Cache rebuilt",
     "withoutCache": "Without cache",
-    "cacheRebuiltHint": "This scan downloaded every OSV advisory (first scan, full scan without cache, or after clearing the cache), so it took longer than scans that use the cache."
+    "cacheRebuiltHint": "This scan downloaded every OSV advisory (first scan, full scan without cache, or after clearing the cache), so it took longer than scans that use the cache.",
+    "showMoreNodes": "Show {count} more ({remaining} left)"
   },
   "vulnerabilityScan": {
     "running": "Scan running since {time} ({minutes} min) – {checked} of {total} software versions checked. Numbers can be incomplete until it finishes.",
@@ -1773,5 +1774,18 @@
       "restartAt": "Restart at {time}; finished once the node reports again"
     },
     "approved": "{count} approved"
+  },
+  "vulnerabilitySummary": {
+    "asOf": "As of {time}",
+    "notYet": "Being calculated",
+    "scanFinished": "scan finished {time}",
+    "noScan": "no scan yet",
+    "refresh": "Recalculate the numbers of all nodes now",
+    "refreshing": "Recalculating…",
+    "refreshWait": "The numbers were recalculated less than a minute ago – try again in {seconds} s.",
+    "refreshFailed": "The numbers could not be recalculated.",
+    "hint": "The numbers are kept per node and recalculated when something changes: a scan, new software on a node, a finding fixed, a node removed.",
+    "pendingOne": "{count} node being recalculated",
+    "pendingOther": "{count} nodes being recalculated"
   }
 }

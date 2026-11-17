@@ -677,7 +677,8 @@
     "osvCounts": "{downloaded} geladen · {cached} aus dem Cache",
     "cacheRebuilt": "Cache neu aufgebaut",
     "withoutCache": "Ohne Cache",
-    "cacheRebuiltHint": "Dieser Scan hat alle OSV-Meldungen heruntergeladen (erster Scan, vollständiger Scan ohne Cache oder nach dem Leeren), deshalb dauerte er länger als Scans mit Cache."
+    "cacheRebuiltHint": "Dieser Scan hat alle OSV-Meldungen heruntergeladen (erster Scan, vollständiger Scan ohne Cache oder nach dem Leeren), deshalb dauerte er länger als Scans mit Cache.",
+    "showMoreNodes": "{count} weitere anzeigen (noch {remaining})"
   },
   "vulnerabilityScan": {
     "running": "Scan läuft seit {time} ({minutes} Min.) – {checked} von {total} Software-Versionen geprüft. Die Zahlen können bis zum Ende unvollständig sein.",
@@ -1773,5 +1774,18 @@
       "restartAt": "Neustart um {time}; abgeschlossen, sobald sich der Node wieder meldet"
     },
     "approved": "{count} freigegeben"
+  },
+  "vulnerabilitySummary": {
+    "asOf": "Stand {time}",
+    "notYet": "Wird berechnet",
+    "scanFinished": "Scan beendet {time}",
+    "noScan": "noch kein Scan",
+    "refresh": "Zahlen aller Geräte jetzt neu berechnen",
+    "refreshing": "Wird neu berechnet…",
+    "refreshWait": "Die Zahlen wurden vor weniger als einer Minute neu berechnet – in {seconds} s erneut versuchen.",
+    "refreshFailed": "Die Zahlen konnten nicht neu berechnet werden.",
+    "hint": "Die Zahlen werden pro Gerät gespeichert und neu berechnet, sobald sich etwas ändert: ein Scan, neue Software auf einem Gerät, ein behobener Befund, ein entferntes Gerät.",
+    "pendingOne": "{count} Gerät wird neu berechnet",
+    "pendingOther": "{count} Geräte werden neu berechnet"
   }
 }
