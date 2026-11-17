@@ -4296,31 +4296,6 @@ async def start_event_rollup_task():
                 await asyncio.sleep(3600)  # retry in 1h on error
     asyncio.create_task(_rollup_loop())
 
-# ============================================================================
-# E20: Remote Terminal
-# ============================================================================
-
-# Terminal sessions storage
-_terminal_sessions: dict = {}
-
-class TerminalSession:
-    def __init__(self, session_id: str, node_id: str, shell: str = "powershell"):
-        self.session_id = session_id
-        self.node_id = node_id
-        self.shell = shell
-        self.created_at = datetime.utcnow()
-        self.output_buffer = []
-        self.pending_commands = []
-        self.connected = False
-
-
-# Agent polling endpoint for terminal commands
-
-# Agent posts output here
-
-# WebSocket for real-time terminal (optional)
-
-
 # =============================================================================
 # Auto-Update Endpoint
 # =============================================================================
