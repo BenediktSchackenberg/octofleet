@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Plain net8.0: reading the sensor settings has no Windows dependencies, so this runs anywhere. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Compile only the settings reader: never start the service. -->
+    <Compile Include="../../src/OctofleetAgent.Service/Security/SensorSettings.cs" Link="SensorSettings.cs" />
+  </ItemGroup>
+</Project>
