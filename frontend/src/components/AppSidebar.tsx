@@ -107,7 +107,6 @@ const navGroups: NavGroup[] = [
       { href: "/security/file-audit", labelKey: "nav.fileAudit", icon: Shield },
       { href: "/security/audit-log", labelKey: "nav.accessAudit", icon: Shield },
       { href: "/security/evidence", labelKey: "nav.evidence", icon: Shield },
-      { href: "/security/retention", labelKey: "nav.retention", icon: Shield },
     ],
   },
   {
@@ -150,6 +149,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/agents", labelKey: "nav.agentMonitor", icon: Monitor, permission: "admin:read", adminOnly: true, roles: ["admin"] },
       { href: "/settings", labelKey: "nav.settings", icon: Settings, roles: ["admin"] },
       { href: "/settings/provisioning", labelKey: "nav.provisioning", icon: Network, roles: ["admin"] },
+      { href: "/settings/retention", labelKey: "nav.retention", icon: Shield, roles: ["admin"] },
     ],
   },
 ];

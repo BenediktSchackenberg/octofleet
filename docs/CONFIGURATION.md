@@ -235,6 +235,12 @@ To restore:
 cat backup.sql | docker exec -i octofleet-inventory-db psql -U octofleet inventory
 ```
 
+### Data Retention
+
+Security events, file audit events, performance data and hardware changes are kept for a set time and older data is compressed: by default 30 / 90 / 30 / 365 days, compressed after 7 days (hardware changes not). Change it under **Admin → Retention**; it is applied at once as TimescaleDB jobs that drop whole chunks daily. See [Security Center – Retention & Legal Hold](SECURITY-CENTER.md#retention--legal-hold).
+
+Plan disk space with this in mind: on a test installation one Windows node with the network sensor on produced about 400,000 security events (about 180 MB, 11 MB compressed) per day.
+
 ### Resource Limits
 
 For constrained environments, add resource limits:
