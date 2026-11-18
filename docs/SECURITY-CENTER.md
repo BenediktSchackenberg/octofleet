@@ -288,28 +288,35 @@ Returns all created exports with download links and metadata.
 
 ## Retention & Legal Hold
 
-Retention policies control how long different categories of security data are kept.
+**Admin → Retention** (`/settings/retention`, admins only; the old address `/security/retention` forwards there) sets how long the time-series data is kept and when it is compressed. The settings take effect at once: the backend turns them into TimescaleDB background jobs (`add_retention_policy`, `add_compression_policy`), which run daily in the database.
 
-### Configuration
+| Data type (`category`) | Table | Keep | Compress after |
+|------------------------|-------|------|----------------|
+| Security events (`security_events`) | `events_normalized` | 30 days | 7 days |
+| File audit events (`file_events`) | `file_events` | 90 days | 7 days |
+| Performance data (`performance_metrics`) | `node_metrics` | 30 days | 7 days |
+| Hardware changes (`hardware_changes`) | `hardware_changes` | 365 days | off |
+
+- **Keep (days):** older data is deleted by dropping whole chunks (one day of data per chunk for the first three tables, one week for hardware changes) – no row-by-row `DELETE`, so the cost does not grow with the amount of data. A chunk is dropped once all of its data is older than the setting, so up to one chunk more is kept.
+- **Compress after (days):** older chunks are stored compressed (TimescaleDB native compression, segmented by node and event type). Measured on one day of security events (400,000 rows): 180 MB → 11 MB. Compressed data stays searchable; late events can still be written.
+- **Legal hold:** no retention job – nothing is deleted while it is on. Compression stays on.
+
+The page shows per data type the stored size, the oldest chunk, how many chunks are compressed, and each job with its next and last run. Shortening the keep time or releasing a legal hold asks for confirmation: older data is deleted with the next daily run and cannot be restored.
 
 ```
-GET /api/v1/retention          # View current policies
-PUT /api/v1/retention/{category}  # Update a category
+GET /api/v1/retention                # settings and what is in effect (jobs, size, oldest data)
+PUT /api/v1/retention/{category}     # {"keep_days": 30, "compress_after_days": 7 | null, "legal_hold": false}
 ```
 
-### Categories
+`PUT` needs the permission `settings:write`. `keep_days` is 1–3650; `compress_after_days` must be less than `keep_days`, `null` turns compression off.
 
-| Category | Default | Description |
-|----------|---------|-------------|
-| Events | 90 days | Raw security events |
-| Findings | 365 days | Security findings |
-| Posture | 180 days | Configuration snapshots |
-| Audit | 365 days | Audit log entries |
-| Metrics | 90 days | Performance metrics |
+A retention or compression policy that already exists on a table (for example one added by hand in `psql`) is adopted: kept if it matches, replaced if not – there is never a second one. Removing a policy by hand is undone at the next backend start; change the setting on the page instead.
 
-### Legal Hold
+### Event counters
 
-When legal hold is enabled for a category, data is **never automatically deleted**, regardless of the retention setting. This is essential for compliance and legal discovery scenarios.
+The counters on Security → Events, the dashboard and the security dashboard come from hourly counts, not from counting events: two TimescaleDB continuous aggregates, `event_counts_hourly` (hour, event type, count) and `file_event_counts_hourly` (hour, count). Their size depends on the number of event types and hours (about 25 × 24 rows a day), not on nodes or events. TimescaleDB refreshes them every 30 minutes in the background (first fill right after they are created, at the first start after the update); events since the last refresh are counted at query time (real-time aggregation), so the counters are current. They keep 400 days, but count only hours still stored in the event table, so they match the lists. Counts of the last *N* days start at the full hour.
+
+`events_aggregated` and `file_events_aggregated` hold hourly counts written by the former 7-day rollup (which aggregated and then deleted events row by row; it is removed). They are still shown as history on the Events page but no longer written.
 
 ---
 

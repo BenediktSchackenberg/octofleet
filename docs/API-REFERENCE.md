@@ -252,8 +252,8 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 |--------|------|------|-------------|
 | GET | `/api/v1/evidence/exports` | API Key | List evidence exports |
 | POST | `/api/v1/evidence/export` | API Key | Create evidence export |
-| GET | `/api/v1/retention` | API Key | Get retention policies |
-| PUT | `/api/v1/retention/{category}` | API Key | Update retention for category |
+| GET | `/api/v1/retention` | API Key | Retention settings per data type with the TimescaleDB jobs, stored size and oldest data |
+| PUT | `/api/v1/retention/{category}` | `settings:write` | Change `keep_days`, `compress_after_days` (`null` = off), `legal_hold`; applied at once (see [Security Center](SECURITY-CENTER.md#retention--legal-hold)) |
 
 ### Audit Log
 
