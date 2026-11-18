@@ -259,8 +259,8 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 |--------|------|------|-------------|
 | POST | `/api/v1/ingest/events` | API Key | Ingest raw events from agent |
 | POST | `/api/v1/ingest/events/normalized` | API Key | Ingest normalized events |
-| GET | `/api/v1/events` | API Key | Query events |
-| GET | `/api/v1/events/files` | API Key | File-specific events |
+| GET | `/api/v1/events` | API Key | Query events. `node_id` is a node filter: part of the name or a pattern with `*` / `?`, not case-sensitive; a trailing `$` (Windows computer account `HOST$`) is ignored. It is matched against the registered nodes (node ID and hostname) plus the typed name. `total` counts up to 10,000 (`total_capped: true` above) |
+| GET | `/api/v1/events/files` | API Key | File-specific events (same `node_id` filter) |
 | GET | `/api/v1/findings` | API Key | List findings |
 | GET | `/api/v1/findings/{finding_id}` | API Key | Get finding details |
 | PUT | `/api/v1/findings/{finding_id}` | API Key | Update finding |

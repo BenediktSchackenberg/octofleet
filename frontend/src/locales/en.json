@@ -1850,5 +1850,11 @@
     "hint": "The numbers are kept per node and recalculated when something changes: a scan, new software on a node, a finding fixed, a node removed.",
     "pendingOne": "{count} node being recalculated",
     "pendingOther": "{count} nodes being recalculated"
+  },
+  "securityEvents": {
+    "nodeFilterPlaceholder": "Filter by node (* wildcard)...",
+    "nodeFilterHelp": "Part of the node name or a pattern with * and ?, not case-sensitive. HOST$ (the Windows computer account, e.g. in the User column) finds the node HOST.",
+    "typeFilter": "Event type",
+    "allTypes": "All event types"
   }
 }

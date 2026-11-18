@@ -1850,5 +1850,11 @@
     "hint": "Die Zahlen werden pro Gerät gespeichert und neu berechnet, sobald sich etwas ändert: ein Scan, neue Software auf einem Gerät, ein behobener Befund, ein entferntes Gerät.",
     "pendingOne": "{count} Gerät wird neu berechnet",
     "pendingOther": "{count} Geräte werden neu berechnet"
+  },
+  "securityEvents": {
+    "nodeFilterPlaceholder": "Nach Node filtern (* als Platzhalter)...",
+    "nodeFilterHelp": "Teil des Node-Namens oder ein Muster mit * und ?, ohne Groß-/Kleinschreibung. HOST$ (das Windows-Computerkonto, z. B. in der Spalte Benutzer) findet den Node HOST.",
+    "typeFilter": "Ereignistyp",
+    "allTypes": "Alle Ereignistypen"
   }
 }

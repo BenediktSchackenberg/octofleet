@@ -38,7 +38,7 @@
   "src/app/reports/page.tsx": 45,
   "src/app/security/activity/page.tsx": 20,
   "src/app/security/audit-log/page.tsx": 3,
-  "src/app/security/events/page.tsx": 75,
+  "src/app/security/events/page.tsx": 74,
   "src/app/security/evidence/page.tsx": 3,
   "src/app/security/file-audit/page.tsx": 7,
   "src/app/security/findings/page.tsx": 9,

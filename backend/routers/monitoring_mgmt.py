@@ -321,6 +321,42 @@ async def ingest_events(req: Request):
     return {"inserted": inserted}
 
 
+# ─── Node filter of the event lists ────────────────────────────────
+
+EVENT_COUNT_CAP = 10_000
+
+
+def node_filter_pattern(value: str):
+    """(name, ILIKE pattern) for a node filter as typed: case-insensitive, `*` and `?` as
+    wildcards over the whole name, otherwise a part of the name. A trailing `$` is dropped:
+    Windows shows the computer account as HOST$ (e.g. in logon events), the node is HOST."""
+    text = (value or "").strip()
+    if text.endswith("$"):
+        text = text[:-1].strip()
+    if not text:
+        return None, None
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    if "*" in text or "?" in text:
+        return text, escaped.replace("*", "%").replace("?", "_")
+    return text, f"%{escaped}%"
+
+
+async def resolve_node_filter(conn, value: str) -> list:
+    """The node names (node_id and hostname) a filter matches, looked up in the nodes table,
+    so the event query can use its (node_id, ts) index instead of a pattern over all events.
+    The typed name itself is kept for events of nodes that are not (or no longer) registered."""
+    name, pattern = node_filter_pattern(value)
+    if name is None:
+        return []
+    rows = await conn.fetch(
+        "SELECT node_id, hostname FROM nodes WHERE node_id ILIKE $1 OR hostname ILIKE $1 LIMIT 1000",
+        pattern)
+    names = {name}
+    for r in rows:
+        names.update(v for v in (r["node_id"], r["hostname"]) if v)
+    return sorted(names)
+
+
 @router.get("/api/v1/events", dependencies=[Depends(verify_api_key)])
 async def query_events(
     node_id: str = None, user_id: str = None, event_type: str = None,
@@ -333,8 +369,8 @@ async def query_events(
         params = []
         idx = 1
         if node_id:
-            conditions.append(f"node_id = ${idx}")
-            params.append(node_id); idx += 1
+            conditions.append(f"node_id = ANY(${idx}::text[])")
+            params.append(await resolve_node_filter(conn, node_id)); idx += 1
         if user_id:
             conditions.append(f"user_id = ${idx}")
             params.append(user_id); idx += 1
@@ -363,13 +399,16 @@ async def query_events(
             SELECT * FROM events_normalized {where}
             ORDER BY ts DESC LIMIT ${idx} OFFSET ${idx+1}
         """, *params)
-        count = await conn.fetchval(f"SELECT count(*) FROM events_normalized {where}", *params[:-2])
+        # Counting every match is a scan of all events (0.3-1.3 s at 8 M rows): count up to a cap
+        count = await conn.fetchval(
+            f"SELECT count(*) FROM (SELECT 1 FROM events_normalized {where} LIMIT {EVENT_COUNT_CAP + 1}) m",
+            *params[:-2])
         events = []
         for r in rows:
             d = dict(r)
             d["payload"] = _parse_json_fields({"payload": d.get("payload", {})}).get("payload", {})
             events.append(d)
-        return {"events": events, "total": count}
+        return {"events": events, "total": min(count, EVENT_COUNT_CAP), "total_capped": count > EVENT_COUNT_CAP}
 
 
 @router.get("/api/v1/events/files", dependencies=[Depends(verify_api_key)])
@@ -383,8 +422,8 @@ async def query_file_events(
         params = []
         idx = 1
         if node_id:
-            conditions.append(f"node_id = ${idx}")
-            params.append(node_id); idx += 1
+            conditions.append(f"node_id = ANY(${idx}::text[])")
+            params.append(await resolve_node_filter(conn, node_id)); idx += 1
         if user_id:
             conditions.append(f"user_id = ${idx}")
             params.append(user_id); idx += 1
