@@ -73,7 +73,7 @@ This document describes the high-level architecture of Octofleet, how its compon
 
 - **Technology:** PostgreSQL 16 with TimescaleDB extension
 - **Schema:** Defined in `backend/schema-full.sql`, seeded by `backend/ci-seed.sql`
-- **TimescaleDB hypertables** are used for time-series data (metrics, events) enabling efficient time-range queries and automatic data retention
+- **TimescaleDB hypertables** are used for time-series data (metrics, events) enabling efficient time-range queries; retention and compression are TimescaleDB jobs set from **Security → Retention** (`backend/retention.py`), which drop and compress whole chunks
 - **Connection:** Async via `asyncpg` connection pool
 
 ### Windows Agent (.NET 8)

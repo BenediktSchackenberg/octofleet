@@ -1,65 +1,191 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n-context";
+import { formatDateTime, formatNumber } from "@/lib/format";
 import { Database, Save, Lock } from "lucide-react";
 
-interface RetentionRule { id: string; category: string; hot_days: number; warm_days: number; cold_days: number; legal_hold: boolean; }
+interface RetentionJob {
+  job_id: number;
+  type: "retention" | "compression";
+  last_run_status: string | null;
+  last_successful_finish: string | null;
+  next_start: string | null;
+}
+
+interface RetentionItem {
+  category: string;
+  table: string;
+  keep_days: number;
+  compress_after_days: number | null;
+  legal_hold: boolean;
+  default_keep_days: number;
+  default_compress_after_days: number | null;
+  applied: boolean;
+  size_bytes: number | null;
+  oldest: string | null;
+  chunks?: number;
+  compressed_chunks?: number;
+  jobs: RetentionJob[];
+}
+
+interface Draft { keep: string; compress: string; compressOn: boolean; }
+
+const CATEGORIES = ["security_events", "file_events", "performance_metrics", "hardware_changes"];
+
+function formatSize(bytes: number | null): string {
+  if (bytes === null || bytes === undefined) return "-";
+  const units = ["B", "KB", "MB", "GB", "TB"]; // i18n-ignore
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+  return `${formatNumber(value, { maximumFractionDigits: unit >= 3 ? 1 : 0 })} ${units[unit]}`;
+}
+
+function draftOf(item: RetentionItem): Draft {
+  return {
+    keep: String(item.keep_days),
+    compress: String(item.compress_after_days ?? item.default_compress_after_days ?? 7),
+    compressOn: item.compress_after_days !== null,
+  };
+}
 
 export default function RetentionPage() {
-  const [rules, setRules] = useState<RetentionRule[]>([]);
+  const { t } = useI18n();
+  const { token } = useAuth();
+  const [items, setItems] = useState<RetentionItem[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const { token } = useAuth();
 
-  async function fetchRules() {
-    const data = await apiClient.get<{ retention: RetentionRule[] }>(`/retention`, { showErrorToast: false });
-    setRules(data?.retention || []);
+  async function load() {
+    const data = await apiClient.get<{ retention: RetentionItem[] }>(`/retention`, { showErrorToast: false });
+    const list = data?.retention || [];
+    setItems(list);
+    setDrafts(Object.fromEntries(list.map(i => [i.category, draftOf(i)])));
     setLoading(false);
   }
-  useEffect(() => { if (token) fetchRules(); }, [token]);
+  useEffect(() => { if (token) load(); }, [token]);
 
-  async function updateRule(category: string, field: string, value: number | boolean) {
-    setSaving(category);
-    await apiClient.put(`/retention/${category}`, { [field]: value }, { showErrorToast: false });
-    await fetchRules();
+  function setDraft(category: string, change: Partial<Draft>) {
+    setDrafts(d => ({ ...d, [category]: { ...d[category], ...change } }));
+  }
+
+  async function save(item: RetentionItem, body: Record<string, unknown>) {
+    setSaving(item.category);
+    const result = await apiClient.put<RetentionItem>(`/retention/${item.category}`, body);
+    if (result) toast.success(t("retentionPage.saved", { name: label(item.category) }));
+    await load();
     setSaving(null);
   }
 
-  const categoryLabels: Record<string, string> = { file_events: "File Audit Events", security_events: "Security Events", findings: "Findings & Alerts", evidence_exports: "Evidence Exports", ui_audit_events: "UI Access Audit" };
+  function saveDraft(item: RetentionItem) {
+    const draft = drafts[item.category];
+    const keep = Number(draft.keep);
+    if (!item.legal_hold && keep < item.keep_days
+        && !window.confirm(t("retentionPage.shortenConfirm", { name: label(item.category), days: keep }))) return;
+    save(item, {
+      keep_days: keep,
+      compress_after_days: draft.compressOn ? Number(draft.compress) : null,
+    });
+  }
+
+  function toggleHold(item: RetentionItem) {
+    if (!item.legal_hold || window.confirm(t("retentionPage.releaseHoldConfirm", { name: label(item.category), days: item.keep_days }))) {
+      save(item, { legal_hold: !item.legal_hold });
+    }
+  }
+
+  function label(category: string) {
+    return CATEGORIES.includes(category) ? t(`retentionPage.categories.${category}.title`) : category;
+  }
+
+  function jobLine(job: RetentionJob) {
+    return t("retentionPage.jobLine", {
+      type: t(`retentionPage.jobTypes.${job.type}`),
+      id: job.job_id,
+      next: formatDateTime(job.next_start),
+      last: job.last_run_status ? t("retentionPage.lastRun", { status: job.last_run_status, time: formatDateTime(job.last_successful_finish) }) : t("retentionPage.notRunYet"),
+    });
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-<div className="flex items-center gap-3 mb-6"><Database className="h-8 w-8 text-blue-400" /><div><h1 className="text-2xl font-bold">Retention & Data Lifecycle</h1><p className="text-zinc-400 text-sm">Manage data retention, archiving, and legal hold settings</p></div></div>
-        <div className="bg-zinc-900/50 border border-blue-500/20 rounded-xl p-4 mb-6 text-sm text-blue-300">
-          <strong>Hot</strong> = fast queryable · <strong>Warm</strong> = compressed, slower queries · <strong>Cold</strong> = archived, export only · <strong>Legal Hold</strong> = prevents all deletion
+        <div className="flex items-center gap-3 mb-6">
+          <Database className="h-8 w-8 text-blue-400" />
+          <div>
+            <h1 className="text-2xl font-bold">{t("retentionPage.title")}</h1>
+            <p className="text-zinc-400 text-sm">{t("retentionPage.subtitle")}</p>
+          </div>
+        </div>
+        <div className="bg-zinc-900/50 border border-blue-500/20 rounded-xl p-4 mb-6 text-sm text-blue-300 space-y-1">
+          <div><strong>{t("retentionPage.keepDays")}</strong> = {t("retentionPage.keepHelp")}</div>
+          <div><strong>{t("retentionPage.compressAfter")}</strong> = {t("retentionPage.compressHelp")}</div>
+          <div><strong>{t("retentionPage.legalHold")}</strong> = {t("retentionPage.legalHoldHelp")}</div>
         </div>
         {loading ? <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div></div> :
         <div className="space-y-4">
-          {rules.map(r => (
-            <div key={r.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">{categoryLabels[r.category] || r.category}</h3>
-                <button onClick={() => updateRule(r.category, "legal_hold", !r.legal_hold)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${r.legal_hold ? "bg-red-500/20 text-red-300 border border-red-500/30" : "bg-zinc-800 text-zinc-400 hover:text-white"}`}>
-                  <Lock className="h-3 w-3" /> {r.legal_hold ? "Legal Hold ON" : "Legal Hold Off"}
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                {[{ label: "Hot (days)", field: "hot_days", value: r.hot_days, color: "text-green-400" },
-                  { label: "Warm (days)", field: "warm_days", value: r.warm_days, color: "text-yellow-400" },
-                  { label: "Cold (days)", field: "cold_days", value: r.cold_days, color: "text-blue-400" }].map(({ label, field, value, color }) => (
-                  <div key={field}>
-                    <label className={`text-xs ${color}`}>{label}</label>
-                    <input type="number" value={value} onChange={e => updateRule(r.category, field, parseInt(e.target.value))}
-                      className="w-full mt-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm" />
+          {items.map(item => {
+            const draft = drafts[item.category] || draftOf(item);
+            const dirty = draft.keep !== String(item.keep_days)
+              || draft.compressOn !== (item.compress_after_days !== null)
+              || (draft.compressOn && draft.compress !== String(item.compress_after_days));
+            return (
+              <div key={item.category} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="font-semibold">{label(item.category)}</h3>
+                    {CATEGORIES.includes(item.category) && <p className="text-xs text-zinc-400 mt-1">{t(`retentionPage.categories.${item.category}.description`)}</p>}
                   </div>
-                ))}
+                  <button onClick={() => toggleHold(item)} disabled={saving === item.category}
+                    className={`flex shrink-0 items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${item.legal_hold ? "bg-red-500/20 text-red-300 border border-red-500/30" : "bg-zinc-800 text-zinc-400 hover:text-white"}`}>
+                    <Lock className="h-3 w-3" /> {item.legal_hold ? t("retentionPage.legalHoldOn") : t("retentionPage.legalHoldOff")}
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                  <div>
+                    <label className="text-xs text-green-400">{t("retentionPage.keepDays")}</label>
+                    <input type="number" min={1} max={3650} value={draft.keep} disabled={item.legal_hold}
+                      onChange={e => setDraft(item.category, { keep: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm disabled:opacity-50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-yellow-400 flex items-center gap-2">
+                      <input type="checkbox" checked={draft.compressOn}
+                        onChange={e => setDraft(item.category, { compressOn: e.target.checked })} />
+                      {t("retentionPage.compressAfter")}
+                    </label>
+                    <input type="number" min={1} value={draft.compress} disabled={!draft.compressOn}
+                      onChange={e => setDraft(item.category, { compress: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm disabled:opacity-50" />
+                  </div>
+                  <button onClick={() => saveDraft(item)} disabled={!dirty || saving === item.category}
+                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600">
+                    <Save className="h-4 w-4" /> {saving === item.category ? t("retentionPage.saving") : t("common.save")}
+                  </button>
+                </div>
+                <div className="mt-4 text-xs text-zinc-400 space-y-1">
+                  {!item.applied ? (
+                    <div className="text-amber-400">{t("retentionPage.notApplied", { table: item.table })}</div>
+                  ) : (
+                    <>
+                      <div>{t("retentionPage.stored", {
+                        size: formatSize(item.size_bytes),
+                        oldest: formatDateTime(item.oldest),
+                        compressed: item.compressed_chunks ?? 0,
+                        chunks: item.chunks ?? 0,
+                      })}</div>
+                      {item.legal_hold && <div className="text-red-300">{t("retentionPage.holdActive")}</div>}
+                      {item.jobs.map(job => <div key={job.job_id}>{jobLine(job)}</div>)}
+                    </>
+                  )}
+                </div>
               </div>
-              {saving === r.category && <div className="text-xs text-blue-400 mt-2 flex items-center gap-1"><Save className="h-3 w-3" /> Saving...</div>}
-            </div>
-          ))}
+            );
+          })}
         </div>}
       </div>
     </div>

@@ -52,6 +52,7 @@ from reportlab.platypus import (
 import job_types
 import node_removal
 import password_policy
+import retention
 import vulnerability
 from auth import (
     APIKeyCreate,
@@ -148,6 +149,8 @@ async def lifespan(app: FastAPI):
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
     await ensure_inventory_schema(db_pool)
+    await retention.ensure_schema(db_pool)
+    await retention.apply_on_startup(db_pool)
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
@@ -4277,24 +4280,6 @@ async def start_node_health_monitor():
     """Start the node health monitor on app startup."""
     asyncio.create_task(node_health_monitor_task())
 
-
-@app.on_event("startup")
-async def start_event_rollup_task():
-    """Run event aggregation/cleanup daily."""
-    async def _rollup_loop():
-        import logging
-        logger = logging.getLogger("event_rollup")
-        while True:
-            try:
-                await asyncio.sleep(3600)  # first run after 1 hour, then every 24h
-                from routers.monitoring_mgmt import _run_event_rollup
-                result = await _run_event_rollup()
-                logger.info(f"Event rollup completed: {result}")
-                await asyncio.sleep(82800)  # remaining 23h
-            except Exception as e:
-                logger.error(f"Event rollup error: {e}")
-                await asyncio.sleep(3600)  # retry in 1h on error
-    asyncio.create_task(_rollup_loop())
 
 # =============================================================================
 # Auto-Update Endpoint

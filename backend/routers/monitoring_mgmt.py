@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from app.db.nodes import os_build_from
 from auth import require_permission, require_user_permission
 from dependencies import get_db, get_pool, verify_api_key
+import retention
 
 router = APIRouter(tags=["Monitoring"])
 def _compute_posture_diff(baseline: dict, current: dict) -> dict:
@@ -470,28 +471,45 @@ async def update_finding(finding_id: str, req: Request):
 
 @router.get("/api/v1/retention", dependencies=[Depends(verify_api_key)])
 async def get_retention_config():
+    """Retention settings per data type and what is in effect (TimescaleDB jobs, size, oldest data)."""
     async with get_pool().acquire() as conn:
-        rows = await conn.fetch("SELECT * FROM retention_config ORDER BY category")
-        return {"retention": [dict(r) for r in rows]}
+        return {"retention": await retention.status(conn)}
 
 
-@router.put("/api/v1/retention/{category}", dependencies=[Depends(verify_api_key)])
-async def update_retention_config(category: str, req: Request):
+@router.put("/api/v1/retention/{category}")
+async def update_retention_config(category: str, req: Request,
+                                  user=Depends(require_permission("settings:write"))):
+    """Change keep_days / compress_after_days (null = off) / legal_hold and apply it at once."""
+    target = retention.TARGETS.get(category)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Category not found")
     body = await req.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON object expected")
     async with get_pool().acquire() as conn:
-        row = await conn.fetchrow("""
-            UPDATE retention_config SET
-                hot_days = COALESCE($2, hot_days),
-                warm_days = COALESCE($3, warm_days),
-                cold_days = COALESCE($4, cold_days),
-                legal_hold = COALESCE($5, legal_hold),
-                updated_at = now()
-            WHERE category = $1 RETURNING *
-        """, category, body.get("hot_days"), body.get("warm_days"),
-            body.get("cold_days"), body.get("legal_hold"))
-        if not row:
-            raise HTTPException(status_code=404, detail="Category not found")
-        return dict(row)
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT keep_days, compress_after_days, COALESCE(legal_hold, false) AS legal_hold "
+                "FROM retention_config WHERE category = $1 FOR UPDATE", category)
+            if row is None:
+                raise HTTPException(status_code=404, detail="Category not found")
+            keep = body.get("keep_days", row["keep_days"] or target.keep_days)
+            # null switches compression off, a missing key keeps the setting
+            compress = body["compress_after_days"] if "compress_after_days" in body else row["compress_after_days"]
+            hold = body.get("legal_hold", row["legal_hold"])
+            error = retention.validate(keep, compress)
+            if error is None and not isinstance(hold, bool):
+                error = "legal_hold must be true or false"
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            await conn.execute(
+                "UPDATE retention_config SET keep_days = $2, compress_after_days = $3, legal_hold = $4, "
+                "updated_at = now() WHERE category = $1", category, keep, compress, hold)
+            result = await retention.apply_retention(conn, category)
+        logger.info("retention %s changed by %s: keep %s d, compress after %s, legal hold %s",
+                    category, getattr(user, "username", "?"), keep, compress, hold)
+        items = [i for i in await retention.status(conn) if i["category"] == category]
+        return {**items[0], "changes": result[0]["changes"] if result else []}
 
 
 @router.get("/api/v1/evidence/exports", dependencies=[Depends(verify_api_key)])
@@ -922,92 +940,10 @@ async def compare_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-# ─── Event Data Retention & Aggregation ────────────────────────────
-
-RETENTION_DAYS = 7  # Keep raw events for 7 days, then aggregate
-
-
-@router.post("/api/v1/events/rollup", dependencies=[Depends(verify_api_key)])
-async def trigger_event_rollup():
-    """Manually trigger event aggregation and cleanup"""
-    result = await _run_event_rollup()
-    return result
-
-
-async def _run_event_rollup():
-    """Aggregate events older than RETENTION_DAYS into hourly buckets, then delete raw data."""
-    import logging
-    logger = logging.getLogger(__name__)
-
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        cutoff = f"NOW() - INTERVAL '{RETENTION_DAYS} days'"
-
-        # 1) Aggregate normalized events into hourly buckets
-        agg_result = await conn.execute(f"""
-            INSERT INTO events_aggregated (hour, node_id, event_type, severity, event_count, unique_users, sample_payload)
-            SELECT
-                date_trunc('hour', ts) AS hour,
-                node_id,
-                event_type,
-                severity,
-                COUNT(*) AS event_count,
-                COUNT(DISTINCT user_id) AS unique_users,
-                (array_agg(payload ORDER BY ts DESC))[1] AS sample_payload
-            FROM events_normalized
-            WHERE ts < {cutoff}
-            GROUP BY date_trunc('hour', ts), node_id, event_type, severity
-            ON CONFLICT (hour, node_id, event_type, severity)
-            DO UPDATE SET
-                event_count = events_aggregated.event_count + EXCLUDED.event_count,
-                unique_users = GREATEST(events_aggregated.unique_users, EXCLUDED.unique_users),
-                sample_payload = COALESCE(EXCLUDED.sample_payload, events_aggregated.sample_payload)
-        """)
-
-        # 2) Delete aggregated raw events
-        del_events = await conn.execute(f"""
-            DELETE FROM events_normalized WHERE ts < {cutoff}
-        """)
-
-        # 3) Aggregate file events
-        await conn.execute(f"""
-            INSERT INTO file_events_aggregated (hour, node_id, op, event_count, unique_paths, unique_users, sample_path)
-            SELECT
-                date_trunc('hour', ts) AS hour,
-                node_id,
-                op,
-                COUNT(*) AS event_count,
-                COUNT(DISTINCT path) AS unique_paths,
-                COUNT(DISTINCT user_id) AS unique_users,
-                (array_agg(path ORDER BY ts DESC))[1] AS sample_path
-            FROM file_events
-            WHERE ts < {cutoff}
-            GROUP BY date_trunc('hour', ts), node_id, op
-            ON CONFLICT (hour, node_id, op)
-            DO UPDATE SET
-                event_count = file_events_aggregated.event_count + EXCLUDED.event_count,
-                unique_paths = GREATEST(file_events_aggregated.unique_paths, EXCLUDED.unique_paths),
-                unique_users = GREATEST(file_events_aggregated.unique_users, EXCLUDED.unique_users),
-                sample_path = COALESCE(EXCLUDED.sample_path, file_events_aggregated.sample_path)
-        """)
-
-        # 4) Delete aggregated raw file events
-        del_files = await conn.execute(f"""
-            DELETE FROM file_events WHERE ts < {cutoff}
-        """)
-
-        # Parse DELETE counts
-        events_deleted = int(del_events.split()[-1]) if del_events else 0
-        files_deleted = int(del_files.split()[-1]) if del_files else 0
-
-        logger.info(f"Event rollup: {events_deleted} events aggregated+deleted, {files_deleted} file events aggregated+deleted")
-
-        return {
-            "status": "ok",
-            "retention_days": RETENTION_DAYS,
-            "events_deleted": events_deleted,
-            "file_events_deleted": files_deleted,
-        }
+# ─── Event history ─────────────────────────────────────────────────
+# Old events leave by retention (whole chunks, see retention.py). events_aggregated /
+# file_events_aggregated hold hourly counts from the former 7-day rollup; they are read
+# as history but no longer written.
 
 
 @router.get("/api/v1/events/aggregated", dependencies=[Depends(verify_api_key)])
@@ -1093,15 +1029,19 @@ async def get_event_stats_v2(days: Optional[int] = Query(None, ge=1, le=3650)):
             f"SELECT COALESCE(SUM(event_count), 0) FROM file_events_aggregated WHERE hour > {since}", *params)
         stats.append({"event_type": "file.all", "count": raw_files + agg_files})
 
-        # Retention info
+        # Retention info: catalog/statistics reads, cost does not grow with the number of events
         oldest_raw = await conn.fetchval("SELECT MIN(ts) FROM events_normalized")
-        raw_count = await conn.fetchval("SELECT COUNT(*) FROM events_normalized")
+        raw_count = await conn.fetchval("SELECT approximate_row_count('events_normalized')")
         agg_count = await conn.fetchval("SELECT COALESCE(SUM(event_count), 0) FROM events_aggregated")
+        settings = await conn.fetchrow(
+            "SELECT keep_days, COALESCE(legal_hold, false) AS legal_hold FROM retention_config "
+            "WHERE category = 'security_events'")
 
         return {
             "stats": stats,
             "retention": {
-                "retention_days": RETENTION_DAYS,
+                "retention_days": settings["keep_days"] if settings else None,
+                "legal_hold": settings["legal_hold"] if settings else False,
                 "raw_events": raw_count,
                 "aggregated_events": agg_count,
                 "oldest_raw_event": str(oldest_raw) if oldest_raw else None,
