@@ -183,7 +183,7 @@ export default function SecurityPage() {
                 </div>
               </Link>
 
-              <Link href="/security/retention" className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-blue-500/50 transition-colors group">
+              <Link href="/settings/retention" className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-blue-500/50 transition-colors group">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold flex items-center gap-2">

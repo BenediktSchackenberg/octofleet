@@ -288,7 +288,7 @@ Returns all created exports with download links and metadata.
 
 ## Retention & Legal Hold
 
-**Security → Retention** sets how long the time-series data is kept and when it is compressed. The settings take effect at once: the backend turns them into TimescaleDB background jobs (`add_retention_policy`, `add_compression_policy`), which run daily in the database.
+**Admin → Retention** (`/settings/retention`, admins only; the old address `/security/retention` forwards there) sets how long the time-series data is kept and when it is compressed. The settings take effect at once: the backend turns them into TimescaleDB background jobs (`add_retention_policy`, `add_compression_policy`), which run daily in the database.
 
 | Data type (`category`) | Table | Keep | Compress after |
 |------------------------|-------|------|----------------|

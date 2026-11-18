@@ -11,7 +11,6 @@ const securityPages = [
   { path: '/security/findings', title: 'Findings & Risk Scoring' },
   { path: '/security/activity', title: 'Activity Dashboards' },
   { path: '/security/evidence', title: 'Evidence Pack Export' },
-  { path: '/security/retention', title: 'Retention & Legal Hold' },
   { path: '/security/audit', title: 'UI Audit Logging' },
 ];
 
