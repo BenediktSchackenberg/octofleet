@@ -3,6 +3,7 @@ import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n-context";
 import {
   Activity, Monitor, Network, Key, Shield, Server, FileText, RefreshCw,
   ArrowUpDown, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Clock
@@ -198,12 +199,35 @@ export default function SecurityEventsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [nodeFilter, setNodeFilter] = useState("");
+  // What is typed; the query follows 400 ms after the last key (not one search per keystroke)
+  const [searchInput, setSearchInput] = useState("");
+  const [nodeInput, setNodeInput] = useState("");
+  const [nodeNames, setNodeNames] = useState<string[]>([]);
+  const [eventTypeFilter, setEventTypeFilter] = useState("");
   const [page, setPage] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [aggregatedEvents, setAggregatedEvents] = useState<AggregatedEvent[]>([]);
   const [retention, setRetention] = useState<RetentionInfo | null>(null);
   const { token } = useAuth();
+  const { t } = useI18n();
   const PAGE_SIZE = 50;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== search) { setSearch(searchInput); setPage(0); }
+      if (nodeInput !== nodeFilter) { setNodeFilter(nodeInput); setPage(0); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput, nodeInput, search, nodeFilter]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiClient.get<{ nodes: { hostname?: string; node_id?: string }[] }>("/nodes", { showErrorToast: false }).then(data => {
+      const names = new Set<string>();
+      (data?.nodes || []).forEach(n => { if (n.hostname) names.add(n.hostname); });
+      setNodeNames([...names].sort((a, b) => a.localeCompare(b)));
+    });
+  }, [token]);
 
   const fetchData = useCallback(async () => {
     if (!token) return;
@@ -225,7 +249,9 @@ export default function SecurityEventsPage() {
     } else {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
       const typeFilter = TABS.find(t => t.key === tab)?.filter;
+      const eventType = typeFilter === undefined || eventTypeFilter.startsWith(typeFilter) ? eventTypeFilter : "";
       if (typeFilter) params.set("type_prefix", typeFilter);
+      if (eventType) params.set("event_type", eventType);
       if (nodeFilter) params.set("node_id", nodeFilter);
       if (search) params.set("search", search);
       const data = await apiClient.get<{ events: NormalizedEvent[] }>(`/events?${params}`, { showErrorToast: false });
@@ -234,7 +260,7 @@ export default function SecurityEventsPage() {
 
     setStats(statsData?.stats || []);
     setLoading(false);
-  }, [token, tab, page, nodeFilter, search]);
+  }, [token, tab, page, nodeFilter, search, eventTypeFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -283,7 +309,7 @@ export default function SecurityEventsPage() {
             const count = totalByTab(t.key);
             const Icon = t.icon;
             return (
-              <button key={t.key} onClick={() => { setTab(t.key); setPage(0); }}
+              <button key={t.key} onClick={() => { setTab(t.key); setPage(0); setEventTypeFilter(""); }}
                 className={`p-3 rounded-xl border transition-all text-left ${
                   tab === t.key
                     ? `bg-${t.color}-500/10 border-${t.color}-500/30`
@@ -304,7 +330,7 @@ export default function SecurityEventsPage() {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
             <input
-              value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
+              value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder={tab === "file" ? "Search by path..." : "Search events..."}
               className="w-full pl-10 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm focus:border-purple-500 focus:outline-none"
             />
@@ -312,12 +338,36 @@ export default function SecurityEventsPage() {
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
             <input
-              value={nodeFilter} onChange={e => { setNodeFilter(e.target.value); setPage(0); }}
-              placeholder="Filter by node..."
+              value={nodeInput} onChange={e => setNodeInput(e.target.value)}
+              list="event-node-names" title={t("securityEvents.nodeFilterHelp")}
+              placeholder={t("securityEvents.nodeFilterPlaceholder")}
               className="w-full pl-10 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm focus:border-purple-500 focus:outline-none"
             />
           </div>
         </div>
+
+        {tab !== "file" && tab !== "history" && (() => {
+          const prefix = TABS.find(x => x.key === tab)?.filter;
+          const types = stats.filter(e => e.event_type !== "file.all" && (!prefix || e.event_type.startsWith(prefix)));
+          return (
+            <div className="flex gap-3 mb-4 -mt-1">
+              <select value={eventTypeFilter} onChange={e => { setEventTypeFilter(e.target.value); setPage(0); }}
+                aria-label={t("securityEvents.typeFilter")}
+                className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm focus:border-purple-500 focus:outline-none">
+                <option value="">{t("securityEvents.allTypes")}</option>
+                {types.map(e => (
+                  <option key={e.event_type} value={e.event_type}>
+                    {`${EVENT_TYPE_LABELS[e.event_type] || e.event_type} (${e.count.toLocaleString()})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })()}
+
+        <datalist id="event-node-names">
+          {nodeNames.map(name => <option key={name} value={name} />)}
+        </datalist>
 
         {/* Events Table */}
         {loading ? (

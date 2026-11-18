@@ -1773,5 +1773,11 @@
       "restartAt": "Reinicio a las {time}; termina cuando el nodo vuelva a informar"
     },
     "approved": "{count} aprobadas"
+  },
+  "securityEvents": {
+    "nodeFilterPlaceholder": "Filtrar por nodo (* como comodín)...",
+    "nodeFilterHelp": "Parte del nombre del nodo o un patrón con * y ?, sin distinguir mayúsculas. HOST$ (la cuenta de equipo de Windows, p. ej. en la columna Usuario) encuentra el nodo HOST.",
+    "typeFilter": "Tipo de evento",
+    "allTypes": "Todos los tipos de evento"
   }
 }
