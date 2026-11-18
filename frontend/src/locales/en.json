@@ -1773,5 +1773,19 @@
       "restartAt": "Restart at {time}; finished once the node reports again"
     },
     "approved": "{count} approved"
+  },
+  "securityEvents": {
+    "nodeFilterPlaceholder": "Filter by node (* wildcard)...",
+    "nodeFilterHelp": "Part of the node name or a pattern with * and ?, not case-sensitive. HOST$ (the Windows computer account, e.g. in the User column) finds the node HOST.",
+    "typeFilter": "Event type",
+    "allTypes": "All event types",
+    "details": {
+      "windowsEvent": "Windows event",
+      "previousValue": "Old value",
+      "newValue": "New value",
+      "drift": "found by comparison (not who changed it)",
+      "binary": "Binary",
+      "noActor": "Not known: the agent reads service and registry changes by comparing states and reports its own account, not who made the change."
+    }
   }
 }
