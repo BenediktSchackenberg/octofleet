@@ -1778,6 +1778,14 @@
     "nodeFilterPlaceholder": "Nach Node filtern (* als Platzhalter)...",
     "nodeFilterHelp": "Teil des Node-Namens oder ein Muster mit * und ?, ohne Groß-/Kleinschreibung. HOST$ (das Windows-Computerkonto, z. B. in der Spalte Benutzer) findet den Node HOST.",
     "typeFilter": "Ereignistyp",
-    "allTypes": "Alle Ereignistypen"
+    "allTypes": "Alle Ereignistypen",
+    "details": {
+      "windowsEvent": "Windows-Ereignis",
+      "previousValue": "Alter Wert",
+      "newValue": "Neuer Wert",
+      "drift": "durch Vergleich erkannt (nicht wer es geändert hat)",
+      "binary": "Programm",
+      "noActor": "Nicht bekannt: Der Agent erkennt Dienst- und Registry-Änderungen durch Vergleich der Zustände und meldet sein eigenes Konto, nicht wer die Änderung gemacht hat."
+    }
   }
 }

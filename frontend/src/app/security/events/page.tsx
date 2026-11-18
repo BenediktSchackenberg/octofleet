@@ -120,10 +120,22 @@ function relativeTime(ts: string): string {
   return `${Math.floor(diff / 86400000)}d ago`;
 }
 
-function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown>; eventType: string }) {
+// The agents send the event fields under metadata (network ones under metadata or network);
+// other senders put them at the top level. Read all three, the top level first.
+function eventFields(payload: Record<string, unknown>): Record<string, unknown> {
+  const nested = (key: string) => {
+    const value = payload[key];
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  };
+  return { ...nested("network"), ...nested("metadata"), ...payload };
+}
+
+function PayloadDetail({ payload: raw, eventType }: { payload: Record<string, unknown>; eventType: string }) {
+  const { t } = useI18n();
+  const payload = eventFields(raw);
   if (eventType.startsWith("logon")) {
     const user = payload.user as Record<string, string> | undefined;
-    const meta = payload.metadata as Record<string, unknown> | undefined;
+    const meta = payload;
     return (
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
         {user?.username && <span>User: <span className="text-zinc-200">{user.username}</span></span>}
@@ -131,6 +143,7 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
         {!!payload.logon_type && <span>Type: <span className="text-zinc-200">{String(payload.logon_type)}</span></span>}
         {!!payload.source_ip && <span>Source: <span className="text-zinc-200">{String(payload.source_ip)}</span></span>}
         {!!payload.failure_reason && <span className="text-red-400">Reason: {String(payload.failure_reason)}</span>}
+        {!!payload.event_id && <span>{t("securityEvents.details.windowsEvent")}: <span className="text-zinc-200">{String(payload.event_id)}</span></span>}
         {!!meta?.brute_force && <span className="text-red-400 font-medium">⚠ Brute force detected</span>}
       </div>
     );
@@ -148,7 +161,7 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
     );
   }
   if (eventType.startsWith("network")) {
-    const net = payload.network as Record<string, unknown> | undefined;
+    const net = payload;
     const proc = payload.process as Record<string, unknown> | undefined;
     return (
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
@@ -165,6 +178,13 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
         {!!payload.hive && <span>Hive: <span className="text-zinc-200">{String(payload.hive)}</span></span>}
         {!!payload.key_path && <span className="truncate max-w-md">Key: <span className="text-zinc-200 font-mono">{String(payload.key_path)}</span></span>}
         {!!payload.value_name && <span>Value: <span className="text-zinc-200">{String(payload.value_name)}</span></span>}
+        {payload.previous_value !== undefined && payload.previous_value !== null && (
+          <span className="truncate max-w-md" title={String(payload.previous_value)}>{t("securityEvents.details.previousValue")}: <span className="text-zinc-200 font-mono">{String(payload.previous_value)}</span></span>
+        )}
+        {payload.new_value !== undefined && payload.new_value !== null && (
+          <span className="truncate max-w-md" title={String(payload.new_value)}>{t("securityEvents.details.newValue")}: <span className="text-zinc-200 font-mono">{String(payload.new_value)}</span></span>
+        )}
+        {payload.detection === "drift" && <span className="text-amber-400">{t("securityEvents.details.drift")}</span>}
       </div>
     );
   }
@@ -176,12 +196,13 @@ function PayloadDetail({ payload, eventType }: { payload: Record<string, unknown
         {!!payload.state && <span>State: <span className="text-zinc-200">{String(payload.state)}</span></span>}
         {!!payload.previous_state && <span>Previous: <span className="text-zinc-200">{String(payload.previous_state)}</span></span>}
         {!!payload.start_type && <span>Start: <span className="text-zinc-200">{String(payload.start_type)}</span></span>}
+        {!!payload.path_name && <span className="truncate max-w-md" title={String(payload.path_name)}>{t("securityEvents.details.binary")}: <span className="text-zinc-200 font-mono">{String(payload.path_name)}</span></span>}
         {!!payload.suspicious && <span className="text-red-400 font-medium">⚠ Suspicious path</span>}
       </div>
     );
   }
   // Generic fallback
-  const keys = Object.keys(payload).filter(k => !["process","user","network","metadata","event_subtype"].includes(k));
+  const keys = Object.keys(payload).filter(k => !["process","user","network","metadata","event_subtype","success"].includes(k) && payload[k] !== null && typeof payload[k] !== "object");
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
       {keys.slice(0, 5).map(k => (
@@ -626,7 +647,11 @@ export default function SecurityEventsPage() {
                       <td className="p-3">
                         <span className="text-xs font-medium">{EVENT_TYPE_LABELS[e.event_type] || e.event_type}</span>
                       </td>
-                      <td className="p-3 text-zinc-400 text-xs">{e.user_id || "—"}</td>
+                      {e.event_type.startsWith("service") || e.event_type.startsWith("registry") ? (
+                        <td className="p-3 text-zinc-500 text-xs" title={t("securityEvents.details.noActor")}>—</td>
+                      ) : (
+                        <td className="p-3 text-zinc-400 text-xs">{e.user_id || "—"}</td>
+                      )}
                       <td className="p-3"><PayloadDetail payload={payload} eventType={e.event_type} /></td>
                     </tr>
                   );

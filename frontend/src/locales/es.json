@@ -1778,6 +1778,14 @@
     "nodeFilterPlaceholder": "Filtrar por nodo (* como comodín)...",
     "nodeFilterHelp": "Parte del nombre del nodo o un patrón con * y ?, sin distinguir mayúsculas. HOST$ (la cuenta de equipo de Windows, p. ej. en la columna Usuario) encuentra el nodo HOST.",
     "typeFilter": "Tipo de evento",
-    "allTypes": "Todos los tipos de evento"
+    "allTypes": "Todos los tipos de evento",
+    "details": {
+      "windowsEvent": "Evento de Windows",
+      "previousValue": "Valor anterior",
+      "newValue": "Valor nuevo",
+      "drift": "detectado por comparación (no quién lo cambió)",
+      "binary": "Programa",
+      "noActor": "Desconocido: el agente detecta los cambios de servicios y del registro comparando estados e informa su propia cuenta, no quién hizo el cambio."
+    }
   }
 }
