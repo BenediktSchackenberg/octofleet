@@ -14,6 +14,7 @@ from app.db.nodes import os_build_from
 from auth import require_permission, require_user_permission
 from dependencies import get_db, get_pool, verify_api_key
 import retention
+import event_counts
 
 router = APIRouter(tags=["Monitoring"])
 def _compute_posture_diff(baseline: dict, current: dict) -> dict:
@@ -998,13 +999,26 @@ async def get_event_stats_v2(days: Optional[int] = Query(None, ge=1, le=3650)):
     since = "NOW() - make_interval(days => $1)" if days else "'-infinity'::timestamptz"
     params = [days] if days else []
     async with pool.acquire() as conn:
-        # Recent raw events
-        raw_rows = await conn.fetch(f"""
-            SELECT event_type, COUNT(*) as count
-            FROM events_normalized
-            WHERE event_type NOT LIKE 'agent.%' AND ts > {since}
-            GROUP BY event_type
-        """, *params)
+        hourly = await event_counts.available(conn)
+        if hourly:
+            # Hourly counts (continuous aggregate) instead of counting every event; only the hours
+            # still stored in events_normalized, so the counters match the lists.
+            stored = await event_counts.stored_since(conn, "events_normalized")
+            raw_rows = await conn.fetch(f"""
+                SELECT event_type, SUM(events)::bigint AS count
+                FROM event_counts_hourly
+                WHERE event_type NOT LIKE 'agent.%'
+                  AND bucket >= GREATEST(time_bucket(INTERVAL '1 hour', {since}),
+                                         COALESCE(${len(params) + 1}::timestamptz, '-infinity'))
+                GROUP BY event_type
+            """, *params, stored)
+        else:
+            raw_rows = await conn.fetch(f"""
+                SELECT event_type, COUNT(*) as count
+                FROM events_normalized
+                WHERE event_type NOT LIKE 'agent.%' AND ts > {since}
+                GROUP BY event_type
+            """, *params)
 
         # Historical aggregated events
         agg_rows = await conn.fetch(f"""
@@ -1024,7 +1038,15 @@ async def get_event_stats_v2(days: Optional[int] = Query(None, ge=1, le=3650)):
         stats = [{"event_type": k, "count": v} for k, v in sorted(totals.items(), key=lambda x: -x[1])]
 
         # File events
-        raw_files = await conn.fetchval(f"SELECT COUNT(*) FROM file_events WHERE ts > {since}", *params)
+        if hourly:
+            stored_files = await event_counts.stored_since(conn, "file_events")
+            raw_files = await conn.fetchval(f"""
+                SELECT COALESCE(SUM(events), 0)::bigint FROM file_event_counts_hourly
+                WHERE bucket >= GREATEST(time_bucket(INTERVAL '1 hour', {since}),
+                                         COALESCE(${len(params) + 1}::timestamptz, '-infinity'))
+            """, *params, stored_files)
+        else:
+            raw_files = await conn.fetchval(f"SELECT COUNT(*) FROM file_events WHERE ts > {since}", *params)
         agg_files = await conn.fetchval(
             f"SELECT COALESCE(SUM(event_count), 0) FROM file_events_aggregated WHERE hour > {since}", *params)
         stats.append({"event_type": "file.all", "count": raw_files + agg_files})
