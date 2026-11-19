@@ -13,6 +13,7 @@ UPDATES = {"packageManager": "apt", "totalUpdates": 2, "securityUpdates": 1, "re
 
 async def _submit(updates):
     conn = AsyncMock()
+    conn.transaction = MagicMock()  # async context manager (transaction and savepoint)
     db = MagicMock()
     db.acquire.return_value.__aenter__.return_value = conn
     node_uuid = uuid4()

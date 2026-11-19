@@ -12,10 +12,10 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # Load only the functions under test: sourcing agent.sh would start the agent. collect_updates ends
 # at the first "}" line after its "EOF" (JSON here-document); the others at their first "}" line.
 eval "$(awk '/^collect_updates\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
-for fn in run_package_command dnf_reboot_required dnf_updates; do
+for fn in run_package_command dnf_reboot_required dnf_updates os_release_json; do
     eval "$(awk -v fn="$fn" '$0 ~ "^" fn "\\(\\) \\{" { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
 done
-for fn in collect_updates run_package_command dnf_reboot_required dnf_updates; do
+for fn in collect_updates run_package_command dnf_reboot_required dnf_updates os_release_json; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 
@@ -58,10 +58,27 @@ esac
 exit 1
 FAKE
 chmod +x "$BIN/dnf"
+# rpm -q as on Rocky Linux 9: two kernels installed (install-only), the highest counts;
+# vim-minimal with an epoch; a name that is not installed (rpm prints a line without a tab)
+cat > "$BIN/rpm" <<'FAKE'
+#!/bin/bash
+echo "rpm $* [LC_ALL=${LC_ALL:-}]" >> "$WORK/calls"
+[ -n "${RPM_FAILS:-}" ] && { echo "error: rpmdb open failed" >&2; exit 1; }
+for a in "$@"; do
+  case "$a" in
+    kernel.x86_64) printf 'kernel.x86_64\t0:5.14.0-611.10.1.el9_8\nkernel.x86_64\t0:5.14.0-611.3.1.el9_8\n' ;;
+    openssl-libs.x86_64) printf 'openssl-libs.x86_64\t1:3.5.1-3.el9_8\n' ;;
+    vim-minimal.x86_64) echo "package vim-minimal.x86_64 is not installed" ;;
+  esac
+done
+FAKE
+chmod +x "$BIN/rpm"
 # a sealed PATH: only the fakes and the tools the functions use - never a real apt-get or dnf
 for tool in bash sh env jq awk timeout mktemp cat rm date sort head tail grep sed paste wc touch chmod ls; do
     ln -s "$(command -v "$tool")" "$BIN/$tool"
 done
+export OS_RELEASE_FILE="$WORK/os-release"
+printf 'NAME="Rocky Linux"\nVERSION_ID="9.8"\nID="rocky"\nID_LIKE="rhel centos fedora"\n' > "$OS_RELEASE_FILE"
 export PATH="$BIN" DNF_PLUGIN_DIR="$WORK/plugins" PACKAGE_OUTPUT_DIR="$WORK"
 unset INVOCATION_ID
 touch "$WORK/plugins/needs_restarting.py"
@@ -78,8 +95,17 @@ check "name.arch, new version and repository" \
     [ "$(jq -c '.updates[0] | [.name, .newVersion, .repository]' <<< "$OUT")" = '["kernel.x86_64","5.14.0-611.5.1.el9_8","baseos"]' ]
 check "security flag and severity from the advisories" \
     [ "$(jq -c '[.updates[] | [.name, .security, .severity]]' <<< "$OUT")" = '[["kernel.x86_64",true,"Important"],["openssl-libs.x86_64",true,"Moderate"],["vim-minimal.x86_64",false,null]]' ]
+check "package and arch split from name.arch" \
+    [ "$(jq -c '[.updates[] | [.package, .arch]]' <<< "$OUT")" = '[["kernel","x86_64"],["openssl-libs","x86_64"],["vim-minimal","x86_64"]]' ]
+check "installed version: the highest of several kernels, epoch kept, not installed -> null" \
+    [ "$(jq -c '[.updates[].installedVersion]' <<< "$OUT")" = '["5.14.0-611.10.1.el9_8","1:3.5.1-3.el9_8",null]' ]
+check "one rpm query for all names" [ "$(grep -c '^rpm ' <<< "$(calls)")" = 1 ]
+check "release with ID_LIKE" [ "$(jq -c '.release | [.id, .versionId, .idLike]' <<< "$OUT")" = '["rocky","9.8","rhel centos fedora"]' ]
+OUT2=$(RPM_FAILS=1 collect_updates)
+check "rpm fails: updates still listed, installedVersion null" \
+    [ "$(jq -r .totalUpdates <<< "$OUT2")" = 3 ] && [ "$(jq -c '[.updates[].installedVersion] | unique' <<< "$OUT2")" = '[null]' ]
 check "security updates are counted per package, not per advisory line" [ "$(jq -r .securityUpdates <<< "$OUT")" = 2 ]
-check "dnf runs with LC_ALL=C" bash -c '! grep -v "LC_ALL=C\]" <<< "$1" | grep -q .' _ "$(calls)"
+check "dnf and rpm run with LC_ALL=C" bash -c '! grep -v "LC_ALL=C\]" <<< "$1" | grep -q .' _ "$(calls)"
 
 # --- reboot check ---
 NEEDS_RESTARTING=1 OUT=$(NEEDS_RESTARTING=1 collect_updates)
