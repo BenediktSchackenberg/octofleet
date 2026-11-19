@@ -126,6 +126,17 @@ run_job patch_install '{"packages": ["openssl", "libssl3t64"]}'
 check "apt install of named packages: only upgrades them" \
     grep -q "install --only-upgrade openssl libssl3t64 " <<< "$(calls)"
 
+run_job patch_install '{"packages": [{"name": "openssl", "version": "3.5.1-1ubuntu2.1"}, "libssl3t64"]}'
+check "apt install of exact versions: name=version (names without one: newest)" \
+    grep -q "install --only-upgrade openssl=3.5.1-1ubuntu2.1 libssl3t64 " <<< "$(calls)"
+run_job patch_install '{"packages": [{"name": "openssl", "version": "1; touch /tmp/x"}]}'
+check "invalid version: the job fails, apt-get is not called" \
+    [ "$(field .success)" = "false" ] && grep -q "Invalid version" <<< "$(field .stdout)" && [ -z "$(calls)" ]
+run_job patch_install '{"packages": [{"name": "openssl", "version": ""}]}'
+check "empty version is rejected (never 'newest' by accident)" [ "$(field .success)" = "false" ] && [ -z "$(calls)" ]
+run_job patch_install '{"packages": [{"name": "openssl"}]}'
+check "object without a version is rejected" [ "$(field .success)" = "false" ] && [ -z "$(calls)" ]
+
 run_job patch_install '{"packages": ["openssl; touch /tmp/x"]}'
 check "invalid package name: the job fails" [ "$(field .success)" = "false" ] && grep -q "Invalid package name" <<< "$(field .stdout)"
 check "invalid package name: apt-get is not called" [ -z "$(calls)" ]
@@ -177,6 +188,9 @@ check "dnf scan: dnf makecache" grep -q "^dnf -q makecache" <<< "$(calls)" && [ 
 check "dnf scan: succeeded" [ "$(scan .status)" = "succeeded" ] && [ "$(field .success)" = "true" ]
 run_job patch_install '{"packages": ["openssl"]}'
 check "dnf install: dnf -y upgrade with the packages" grep -q "^dnf -y upgrade openssl " <<< "$(calls)"
+run_job patch_install '{"packages": [{"name": "openssl-libs.x86_64", "version": "1:3.5.1-4.el9_8"}, {"name": "python3.11.noarch", "version": "3.11.9-1.el9"}]}'
+check "dnf install of exact versions: name-epoch:version-release.arch" \
+    grep -q "^dnf -y upgrade openssl-libs-1:3.5.1-4.el9_8.x86_64 python3.11-3.11.9-1.el9.noarch " <<< "$(calls)"
 fake dnf 1 'Error: Failed to download metadata for repo'
 run_job patch_scan '{}'
 check "dnf scan failed: status failed with the error" [ "$(scan .status)" = "failed" ] && grep -q "Failed to download metadata" <<< "$(scan .error)"
