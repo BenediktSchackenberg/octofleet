@@ -234,6 +234,10 @@ LOG_FILE="/var/log/octofleet-agent.log"
 | `LOG_ROTATE_MAXSIZE` | Rotate earlier than weekly when the log is larger (logrotate size, e.g. `10M`) | `10M` | No |
 | `LOGROTATE_FILE` | The agent's logrotate configuration; empty turns it off | `/etc/logrotate.d/octofleet-agent` | No |
 
+### What the Linux Agent Reports About Updates
+
+With every inventory push the agent sends its available package updates (apt, dnf, yum, pacman): package name, new and installed version, architecture, repository, security flag (and severity on dnf/yum), plus the distribution release from `/etc/os-release` (`id`, `versionId`, `idLike`, `name`). The server keys the first time it saw each package version by that release; see [Patch Management](PATCH-MANAGEMENT.md#linux-nodes). Agents without the release (older versions) still report their updates, but they are stored per package version only after the agent update.
+
 ### Log Rotation
 
 The agent writes `LOG_FILE` and rotates it with logrotate: `install.sh` adds `/etc/logrotate.d/octofleet-agent`, and the service checks it at every start, so also after a self-update. It rotates weekly, or earlier at `LOG_ROTATE_MAXSIZE`, keeps `LOG_ROTATE_COUNT` compressed files and uses `copytruncate`, because the agent keeps appending to the same file.
