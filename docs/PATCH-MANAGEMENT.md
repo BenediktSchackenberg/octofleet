@@ -113,6 +113,27 @@ The inventory reports `rebootRequired`:
 
 The Updates tab then shows **Reboot required**.
 
+### Linux Approval Rules
+
+Linux nodes have hundreds of packages and new versions several times a week, so they are not approved per version like Windows updates in the catalog, but by **rules** (API below, `packages:write` to change them; a page under Patches follows). A rule:
+
+- **approves** or **excludes** package versions;
+- applies to **all Linux nodes**, or to the nodes of chosen **deployment rings** (*Patch Rings* above: a ring's group, a ring without a group = all nodes), optionally narrowed to one **group**, and optionally to distribution **releases** (`ubuntu:24.04`, `rocky:*` – the release key from the agent, see *Linux Nodes*);
+- matches **security updates only** (with a **minimum severity** where the distribution has one – dnf/yum; apt security updates have no severity and are matched by the flag alone), and/or **package** and **repository** patterns with `*` and `?` (`linux-image-*`, `*-security`, `baseos`);
+- has a **minimum age** in hours (approval rules): a version is approved once Octofleet **first saw** it at least that long ago, **plus the delay of the node's ring** (the smallest of the rule's rings the node is in). **Expedite** skips the ring delay, e.g. for an urgent OpenSSL fix.
+
+A version is approved for a node when an enabled approval rule covers the node and matches the version, and **no enabled exclusion rule for the node matches it – an exclusion wins**, also over another rule's approval. **Nothing is approved without a rule.** A fresh installation has one example rule, *Security updates (example)*, which is **disabled** and approves nothing until it is enabled.
+
+**Staged rollout with rings**, like update rings elsewhere: a *Pilot* ring (group of test nodes, delay 0 h) and a *Broad* ring (no group, delay 168 h) and one rule *all updates, rings Pilot + Broad, minimum age 24 h*: the pilot nodes get a version a day after it appeared, all others a week later. **Pausing a ring** (`POST /patches/rings/{id}/pause`, `…/resume`) stops all approvals through it – nodes in another of the rule's rings still get theirs from that ring; exclusions keep applying. Ring changes affect only Linux rules here; Windows catalog approvals and deployments are unchanged.
+
+A deleted ring or group never widens an approval: an approval rule no longer covers those nodes, while an exclusion rule then covers all Linux nodes, until the rule is edited.
+
+**CentOS Stream and other distributions without security advisories:** their repositories carry no security data (`dnf updateinfo` lists nothing), so a security-only rule matches nothing on them. The fleet list (`linux.security_data`), the rules list (`releases`) and the preview (`nodes_without_security_data`) say so; use a rule for all updates or by repository there. pacman (Arch, CachyOS) has no security data either, and bulk installation is not supported there yet.
+
+**Bulk installation** (*Fleet Updates* below, `POST /patches/fleet/install`): for each Linux node the server recomputes the approved versions when it creates the job – it never uses a list from the browser – and sends them with their exact version (`{"packages": [{"name", "version"}]}`), so a newer, not yet approved version is not installed. If the repository no longer has an approved version, the job fails and the next search lists the newer one. The package manager may still upgrade packages the approved ones depend on. Skipped nodes: `not_approved`, `agent_too_old` (the agent does not report its release yet; update it), `unsupported` (pacman). The node page's own buttons (`jobs:create`) stay as they are and install any update.
+
+**Speed.** The rules are evaluated in SQL, set-based: rules against the distinct pending versions, then joined with the nodes' pending updates and the rule scopes. One node takes a few milliseconds (node page `GET /patches/linux-approved/{node}`, the recheck of a bulk installation: about 0.6 s for 500 nodes at 150 updates each). For the fleet list the result is kept per node (approval state per pending update, counts, and when the next version becomes old enough): a background worker re-evaluates the nodes whose update list changed, and all Linux nodes after a rule or a used ring changes, or those whose membership in a used group changed; counts whose next approval time has passed are recounted from the stored rows. With 10,000 nodes x 150 updates and 20 rules the fleet list reads them in about 20 ms; re-evaluating all nodes after a rule change takes about 16 s in the background, during which the rows say *updating* (`linux.evaluating`).
+
 ### Installed Updates
 
 Below the last search, the Updates tab lists the node's **Installed updates** from `Win32_QuickFixEngineering` (KB, installed on), together with the Windows Update history:
@@ -137,7 +158,7 @@ The node name leads to the node's Updates tab. The cards count over all nodes an
 
 **Several nodes at once** (`packages:deploy`): tick nodes (the header box ticks the nodes shown; the selection stays when the filters change), then
 - **Search for updates (n)** – one `patch_scan` job per node, like the node page's button;
-- **Install updates…** – Windows nodes install their pending updates that are **approved in the catalog** (*Patches → Catalog*, not excluded); the list shows *n approved* per Windows node. **Linux nodes are not installed in bulk** – Linux packages have no approval path yet – and are installed from their node page. A confirmation lists each node with its number of approved updates and reboot outlook; nodes without approved updates link to the catalog, Linux nodes to their Updates tab, and both are skipped. Defender signature updates are left out unless *Include Defender signature updates* is ticked (Defender usually updates itself). The reboot choice is the node page's (no reboot / at a day and time / one minute after the installation), offered when one of the nodes can need a reboot or has one pending, and applies to every node; on Windows the agent reboots only if an installed update needs it, on Linux only if `/var/run/reboot-required` exists afterwards.
+- **Install updates…** – Windows nodes install their pending updates that are **approved in the catalog** (*Patches → Catalog*, not excluded); the list shows *n approved* per Windows node. The list shows *n approved* for Linux nodes too (*Linux Approval Rules* above). Through the API (`POST /api/v1/patches/fleet/install`) Linux nodes install the versions their rules approve, with the exact version; this dialog still installs Windows nodes only until its Linux part follows – install Linux nodes from their node page meanwhile. A confirmation lists each node with its number of approved updates and reboot outlook; nodes without approved updates link to the catalog, Linux nodes to their Updates tab, and both are skipped. Defender signature updates are left out unless *Include Defender signature updates* is ticked (Defender usually updates itself). The reboot choice is the node page's (no reboot / at a day and time / one minute after the installation), offered when one of the nodes can need a reboot or has one pending, and applies to every node; on Windows the agent reboots only if an installed update needs it, on Linux only if `/var/run/reboot-required` exists afterwards.
 
 The server builds each node's job from what it stores – the KB IDs of the node's last search that are approved in the catalog – with the node page's time limit (30 minutes). Staged installations (a pilot ring first) are planned with the existing deployment rings. The rows show *Searching…* / *Installing…* until the agent answers; a failed search or installation shows as a red badge linking to the job.
 
@@ -191,6 +212,19 @@ The built-in `viewer` role can read; `operator` and `admin` can also change and 
 | POST | `/api/v1/patches/rings` | Create ring |
 | PUT | `/api/v1/patches/rings/{ring_id}` | Update ring |
 | DELETE | `/api/v1/patches/rings/{ring_id}` | Delete ring |
+| POST | `/api/v1/patches/rings/{ring_id}/pause` | Pause the ring for Linux approval rules (`paused`) |
+| POST | `/api/v1/patches/rings/{ring_id}/resume` | Resume it |
+
+### Linux Approval Rules
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/patches/linux-rules` | Rules, `totals` (approved / waiting / excluded / evaluating), `releases` with `security_data` |
+| POST | `/api/v1/patches/linux-rules` | Create a rule |
+| PUT | `/api/v1/patches/linux-rules/{rule_id}` | Change a rule (left-out fields keep their value) |
+| DELETE | `/api/v1/patches/linux-rules/{rule_id}` | Delete a rule |
+| POST | `/api/v1/patches/linux-rules/preview` | What an unsaved rule covers on its own: `nodes`, `approved`, `waiting`, `excluded`, `nodes_without_security_data` |
+| GET | `/api/v1/patches/linux-approved/{node_uuid}` | The node's pending Linux updates with `state` (approved / waiting / excluded / not_approved), `approved_at`, `rules` |
 
 ### Deployments
 

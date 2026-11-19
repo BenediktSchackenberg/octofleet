@@ -7,6 +7,7 @@ from typing import Any, Dict
 import asyncpg
 from fastapi import APIRouter, Depends
 
+import linux_rules
 import linux_updates
 import vulnerability_cache
 from alerting import update_node_health
@@ -394,6 +395,7 @@ async def ensure_schema(pool: asyncpg.Pool) -> None:
         async with conn.transaction():
             await conn.execute("ALTER TABLE security_current ADD COLUMN IF NOT EXISTS linux jsonb")
             await linux_updates.ensure_schema(conn)
+            await linux_rules.ensure_schema(conn)
             browser_pk = await conn.fetchval("""
                 SELECT pg_get_constraintdef(oid) FROM pg_constraint
                 WHERE conrelid = 'browser_current'::regclass AND contype = 'p'

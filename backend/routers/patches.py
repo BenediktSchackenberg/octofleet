@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+import linux_rules
 from auth import require_permission, require_user_permission
 from dependencies import get_pool
 
@@ -711,6 +712,7 @@ async def _fleet_rows(conn) -> list:
         LEFT JOIN linux_data_current l ON l.node_id = n.id::text
         WHERE n.removal_state IS NULL OR n.removal_state NOT IN ('removed', 'uninstalling')
     """)
+    linux_approval = await _linux_approval(conn)
     out = []
     now = datetime.now(timezone.utc)
     for r in rows:
@@ -742,6 +744,7 @@ async def _fleet_rows(conn) -> list:
                            or (u.get("severity") or "").lower() in ("critical", "important"))
             reboot = _windows_reboot(r["reboot_pending"], [u.get("reboot_behavior") for u in relevant])
             os_family = "windows"
+            linux_rules_state = None
             # approved in the catalog (Patches -> Catalog): what a bulk installation installs
             approved = sum(1 for u in relevant if u.get("approved"))
             approved_definitions = sum(1 for u in definitions if u.get("approved"))
@@ -753,13 +756,28 @@ async def _fleet_rows(conn) -> list:
             security = linux.get("securityUpdates") if isinstance(linux.get("securityUpdates"), int) else 0
             reboot = _linux_reboot(names, linux.get("rebootRequired") is True)
             os_family = "linux"
-            approved = approved_definitions = None  # no approval path for Linux packages yet
+            # Linux approval rules: approved now; waiting for the minimum age; excluded; whether the
+            # release has security data; `approval`: ok / no_rules / agent_too_old (no release reported)
+            info = linux_approval["nodes"].get(str(r["id"]))
+            approved = info["approved"] if info else 0
+            approved_definitions = None
+            linux_rules_state = {
+                "approval": "agent_too_old" if info is None or info["release"] is None
+                            else ("ok" if linux_approval["rules"] else "no_rules"),
+                # the counts are being updated (rule, ring or update list changed a moment ago)
+                "evaluating": bool(info and info["evaluating"]),
+                "waiting": info["waiting"] if info else 0, "excluded": info["excluded"] if info else 0,
+                "release": info["release"] if info else None,
+                "package_manager": info["package_manager"] if info else None,
+                "security_data": info["security_data"] if info else None,
+            }
         out.append({
             "id": str(r["id"]), "node_id": r["node_id"], "hostname": r["hostname"], "os_name": r["os_name"],
             "os_family": os_family, "online": bool(r["is_online"]),
             "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
             "pending": pending, "security": security, "definitions": len(definitions),
             "approved": approved, "approved_definitions": approved_definitions,
+            "linux": linux_rules_state,
             "reboot": reboot if (pending or reboot == "pending") else "none",
             "last_search": {
                 "at": r["scanned_at"].isoformat() if r["scanned_at"] else None,
@@ -773,6 +791,14 @@ async def _fleet_rows(conn) -> list:
             "installation": install_state(last_install, r["scanned_at"], r["reboot_pending"], now),
         })
     return out
+
+
+async def _linux_approval(conn) -> dict:
+    """Per Linux node: release, package manager, security data and the approval counts from the cache
+    (linux_rules: kept current by its worker); and whether any approval rule is enabled."""
+    rules = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM linux_update_rules WHERE enabled AND action = 'approve')")
+    nodes = {c["node_id"]: dict(c) for c in await conn.fetch(linux_rules.FLEET_STATE, None)}
+    return {"rules": rules, "nodes": nodes}
 
 
 @router.get("/api/v1/patches/fleet", dependencies=[Depends(require_user_permission("packages:read"))])
@@ -891,8 +917,9 @@ async def fleet_install(data: dict, request: Request):
     """Install the approved updates on each of the Windows nodes (patch_install job per node). The
     server builds each payload from what it stores: the KB IDs of the node's available updates that are
     approved (and not excluded) in the patch catalog; Defender signature updates only with
-    `include_definitions`. Linux nodes are skipped (`linux_not_available`): Linux packages have no
-    approval path yet, so they are installed from the node page. `reboot_policy`
+    `include_definitions`. Linux nodes install the package versions the Linux approval rules approve
+    for them (recomputed here, never taken from the request), each with its exact version; skipped:
+    `agent_too_old` (no release reported), `unsupported` (pacman), `not_approved`. `reboot_policy`
     (no_reboot / schedule with `reboot_schedule_time` / force) applies when an update needs a reboot.
     Nodes whose newest installation has not finished (`installation`: installing, restarting, awaiting
     restart) are skipped - a cumulative update stays listed until the restart; `retry: true` installs
@@ -930,7 +957,21 @@ async def fleet_install(data: dict, request: Request):
                 continue
             reboot = {"reboot_policy": policy, **({"reboot_schedule_time": schedule} if policy == "schedule" else {})}
             if row["os_family"] != "windows":
-                skipped.append({"node": node_uuid, "reason": "linux_not_available"})
+                state = row["linux"] or {}
+                if state.get("approval") == "agent_too_old":
+                    skipped.append({"node": node_uuid, "reason": "agent_too_old"})
+                    continue
+                if state.get("package_manager") not in ("apt", "dnf", "yum"):
+                    skipped.append({"node": node_uuid, "reason": "unsupported"})
+                    continue
+                details = await conn.fetch(linux_rules.NODE_DETAIL, None, None, [node_uuid])
+                packages = linux_rules.install_packages(details, datetime.now(timezone.utc))
+                if not packages:
+                    skipped.append({"node": node_uuid, "reason": "not_approved" if details else "no pending updates"})
+                    continue
+                payload = {"packages": packages, "timeout": 3600, **reboot}
+                jobs.append({"node": node_uuid, "packages": len(packages), "job_id": await _create_node_job(
+                    conn, node_uuid, "Install approved updates", "patch_install", payload, username)})
                 continue
             available = await conn.fetch("""
                 SELECT u.kb_id, u.title,
