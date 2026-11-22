@@ -1903,26 +1903,17 @@ CREATE TABLE IF NOT EXISTS public.ui_audit_events (
     details jsonb DEFAULT '{}'
 );
 
--- Retention Config
+-- Retention Config: one row per data type, applied as TimescaleDB retention/compression
+-- policies by backend/retention.py (rows and defaults are created at startup)
 CREATE TABLE IF NOT EXISTS public.retention_config (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     category text UNIQUE NOT NULL,
-    hot_days integer DEFAULT 90,
-    warm_days integer DEFAULT 365,
-    cold_days integer DEFAULT 2555,
+    keep_days integer,
+    compress_after_days integer,
+    management_enabled boolean NOT NULL DEFAULT false,
     legal_hold boolean DEFAULT false,
     updated_at timestamptz DEFAULT now()
 );
-
--- Insert default retention config
-INSERT INTO retention_config (category, hot_days, warm_days, cold_days)
-VALUES
-    ('file_events', 90, 365, 2555),
-    ('security_events', 90, 365, 2555),
-    ('findings', 180, 730, 2555),
-    ('evidence_exports', 365, 730, 2555),
-    ('ui_audit_events', 90, 365, 2555)
-ON CONFLICT (category) DO NOTHING;
 
 -- E21 Story #84: Baseline Inventory & Config Posture Snapshots
 CREATE TABLE IF NOT EXISTS config_posture_snapshots (
@@ -2241,7 +2232,7 @@ CREATE TABLE IF NOT EXISTS software_usage (
 CREATE INDEX IF NOT EXISTS idx_software_usage_node ON software_usage(node_id);
 CREATE INDEX IF NOT EXISTS idx_software_usage_catalog ON software_usage(catalog_id);
 
--- Event Data Retention: Aggregation tables for events older than 7 days
+-- Hourly event counts written by the former 7-day rollup (read as history, no longer written)
 CREATE TABLE IF NOT EXISTS events_aggregated (
     id              SERIAL PRIMARY KEY,
     hour            TIMESTAMPTZ NOT NULL,

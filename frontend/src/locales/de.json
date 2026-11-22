@@ -1773,5 +1773,52 @@
       "restartAt": "Neustart um {time}; abgeschlossen, sobald sich der Node wieder meldet"
     },
     "approved": "{count} freigegeben"
+  },
+  "retentionPage": {
+    "activate": "Aufbewahrung aktivieren",
+    "activationRequired": "Upgrade-Schutz: Bestehende Datenbankregeln bleiben unverändert. Prüfe diese Einstellungen und aktiviere sie ausdrücklich.",
+    "activateConfirm": "Aufbewahrung für {name} ({days} Tage) aktivieren? Dies ersetzt bestehende Datenbankregeln. Ältere Daten können beim nächsten Lauf unwiderruflich gelöscht werden.",
+    "title": "Aufbewahrung & Datenlebenszyklus",
+    "subtitle": "Wie lange Zeitreihendaten aufbewahrt und wann sie komprimiert werden",
+    "keepDays": "Aufbewahren (Tage)",
+    "keepHelp": "ältere Daten werden täglich gelöscht, jeweils ein ganzer Tag (Chunk)",
+    "compressAfter": "Komprimieren nach (Tagen)",
+    "compressHelp": "ältere Daten werden komprimiert gespeichert (etwa 15× kleiner) und bleiben durchsuchbar",
+    "legalHold": "Legal Hold",
+    "legalHoldHelp": "solange aktiv, wird nichts gelöscht",
+    "legalHoldOn": "Legal Hold an",
+    "legalHoldOff": "Legal Hold aus",
+    "saving": "Speichern...",
+    "saved": "{name}: Einstellungen übernommen",
+    "releaseHoldConfirm": "Legal Hold für {name} aufheben? Daten älter als {days} Tage werden beim nächsten täglichen Lauf gelöscht.",
+    "shortenConfirm": "{name} nur noch {days} Tage aufbewahren? Ältere Daten werden beim nächsten täglichen Lauf gelöscht und lassen sich nicht wiederherstellen.",
+    "notApplied": "Nicht angewendet: {table} ist keine TimescaleDB-Hypertable.",
+    "stored": "Gespeichert: {size} · älteste Daten vom {oldest} · {compressed} von {chunks} Chunks komprimiert",
+    "holdActive": "Legal Hold: Es werden keine Daten gelöscht.",
+    "jobLine": "{type} (Job {id}): nächster Lauf {next}, {last}",
+    "lastRun": "letzter Lauf {status} {time}",
+    "notRunYet": "noch nicht gelaufen",
+    "jobTypes": {
+      "retention": "Löschen",
+      "compression": "Komprimieren"
+    },
+    "categories": {
+      "security_events": {
+        "title": "Sicherheitsereignisse",
+        "description": "Ereignisse der Sicherheitssensoren der Agents (Anmeldungen, Prozesse, Dienste, Netzwerk) – Sicherheit → Ereignisse"
+      },
+      "file_events": {
+        "title": "Dateiaudit-Ereignisse",
+        "description": "Dateiänderungen vom Dateiaudit-Sensor – Sicherheit → Dateiaudit"
+      },
+      "performance_metrics": {
+        "title": "Leistungsdaten",
+        "description": "CPU-, Speicher-, Datenträger- und Netzwerkwerte der Nodes – Leistungsseiten und Diagramme"
+      },
+      "hardware_changes": {
+        "title": "Hardwareänderungen",
+        "description": "Verlauf der Hardwareänderungen je Node"
+      }
+    }
   }
 }

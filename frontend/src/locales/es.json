@@ -1773,5 +1773,52 @@
       "restartAt": "Reinicio a las {time}; termina cuando el nodo vuelva a informar"
     },
     "approved": "{count} aprobadas"
+  },
+  "retentionPage": {
+    "activate": "Activar retención",
+    "activationRequired": "Protección de actualización: las políticas existentes no cambian. Revisa estos ajustes y actívalos explícitamente.",
+    "activateConfirm": "¿Activar retención para {name} ({days} días)? Esto reemplaza las políticas existentes. Los datos antiguos podrían eliminarse permanentemente en la próxima ejecución.",
+    "title": "Retención y ciclo de vida de datos",
+    "subtitle": "Cuánto tiempo se conservan los datos de series temporales y cuándo se comprimen",
+    "keepDays": "Conservar (días)",
+    "keepHelp": "los datos más antiguos se eliminan a diario, un día completo (chunk) cada vez",
+    "compressAfter": "Comprimir después de (días)",
+    "compressHelp": "los datos más antiguos se guardan comprimidos (unas 15× menos espacio) y se pueden seguir buscando",
+    "legalHold": "Retención legal",
+    "legalHoldHelp": "mientras está activa no se elimina nada",
+    "legalHoldOn": "Retención legal activa",
+    "legalHoldOff": "Retención legal inactiva",
+    "saving": "Guardando...",
+    "saved": "{name}: configuración aplicada",
+    "releaseHoldConfirm": "¿Quitar la retención legal de {name}? Los datos con más de {days} días se eliminarán en la próxima ejecución diaria.",
+    "shortenConfirm": "¿Conservar {name} solo {days} días? Los datos más antiguos se eliminarán en la próxima ejecución diaria y no se pueden recuperar.",
+    "notApplied": "No aplicado: {table} no es una hypertable de TimescaleDB.",
+    "stored": "Almacenado: {size} · datos más antiguos del {oldest} · {compressed} de {chunks} chunks comprimidos",
+    "holdActive": "Retención legal: no se elimina ningún dato.",
+    "jobLine": "{type} (tarea {id}): próxima ejecución {next}, {last}",
+    "lastRun": "última ejecución {status} {time}",
+    "notRunYet": "aún no se ha ejecutado",
+    "jobTypes": {
+      "retention": "Eliminación",
+      "compression": "Compresión"
+    },
+    "categories": {
+      "security_events": {
+        "title": "Eventos de seguridad",
+        "description": "Eventos de los sensores de seguridad de los agentes (inicios de sesión, procesos, servicios, red) – Seguridad → Eventos"
+      },
+      "file_events": {
+        "title": "Eventos de auditoría de archivos",
+        "description": "Cambios de archivos del sensor de auditoría de archivos – Seguridad → Auditoría de archivos"
+      },
+      "performance_metrics": {
+        "title": "Datos de rendimiento",
+        "description": "Valores de CPU, memoria, disco y red de los nodos – páginas y gráficos de rendimiento"
+      },
+      "hardware_changes": {
+        "title": "Cambios de hardware",
+        "description": "Historial de cambios de hardware por nodo"
+      }
+    }
   }
 }
