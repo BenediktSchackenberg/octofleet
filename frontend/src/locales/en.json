@@ -116,7 +116,8 @@
       "alertsNotSent": "{count} alerts not sent in the last 7 days",
       "findings": "{count} security findings"
     },
-    "fleetUpdates": "Fleet updates"
+    "fleetUpdates": "Fleet updates",
+    "linuxRules": "Linux approval rules"
   },
   "auth": {
     "login": "Login",
@@ -1753,10 +1754,10 @@
       "clear": "Clear selection",
       "searchStarted": "Update search started – nodes: {count}",
       "installStarted": "Installation started – nodes: {count}",
-      "skipped": "Skipped: {count} (Linux, not approved, no pending updates or busy)",
+      "skipped": "Skipped: {count} (not approved, no pending updates, busy, or the Linux agent cannot install in bulk)",
       "failed": "Could not start the jobs",
       "confirmTitle": "Install updates on the selected nodes?",
-      "confirmText": "Each Windows node installs its pending updates that are approved in the catalog (Patches → Catalog). Linux nodes are installed from their node page for now: Linux packages have no approval yet.",
+      "confirmText": "Each Windows node installs its pending updates that are approved in the catalog (Patches → Catalog). Each Linux node installs the package versions its Linux approval rules approve, with exactly that version. The server checks the approvals again when it starts the jobs.",
       "nothing": "nothing to install",
       "updates": "Approved updates: {count} of {pending}",
       "includeDefinitions": "Include Defender signature updates (Defender usually updates itself)",
@@ -1771,8 +1772,12 @@
       "retry": "Install again on nodes whose last installation has not finished (restart)",
       "notApproved": "no approved updates – skipped",
       "toCatalog": "Approve in the catalog",
-      "linuxHeld": "Linux – no bulk installation yet",
-      "toNode": "Install on the node page"
+      "toNode": "Install on the node page",
+      "linux": {
+        "agentTooOld": "Linux agent too old for approval rules – skipped",
+        "unsupported": "no bulk installation with this package manager – skipped"
+      },
+      "toRules": "Linux approval rules"
     },
     "installation": {
       "installing": "Installing…",
@@ -1780,7 +1785,11 @@
       "awaiting_restart": "Installed – restart pending",
       "restartAt": "Restart at {time}; finished once the node reports again"
     },
-    "approved": "{count} approved"
+    "approved": "{count} approved",
+    "waiting": "{count} waiting",
+    "evaluating": "updating…",
+    "agentTooOld": "agent too old for approval rules",
+    "agentTooOldHint": "The agent does not report its distribution release yet. Update the agent (restart-agent job); until then install from the node page."
   },
   "retentionPage": {
     "activate": "Activate retention",
@@ -1850,5 +1859,138 @@
     "hint": "The numbers are kept per node and recalculated when something changes: a scan, new software on a node, a finding fixed, a node removed.",
     "pendingOne": "{count} node being recalculated",
     "pendingOther": "{count} nodes being recalculated"
+  },
+  "linuxRules": {
+    "title": "Linux approval rules",
+    "description": "Which pending Linux package versions a bulk installation may install",
+    "new": "New rule",
+    "loadFailed": "Could not load the rules",
+    "saveFailed": "Could not save the rule",
+    "deleteFailed": "Could not delete the rule",
+    "created": "Rule \"{name}\" created",
+    "saved": "Rule \"{name}\" saved",
+    "deleted": "Rule \"{name}\" deleted",
+    "confirmDelete": "Delete the rule \"{name}\"?",
+    "enable": "Enable the rule {name}",
+    "empty": "No rules yet: nothing is approved for Linux nodes.",
+    "deletedRing": "(deleted ring)",
+    "deletedGroup": "(deleted group)",
+    "days": "{count} d",
+    "hours": "{count} h",
+    "expedite": "Expedite",
+    "evaluating": "Updating the counts – nodes left: {count}",
+    "howItWorks": "A version is approved for a node when an enabled approval rule covers the node and matches it, and no enabled exclusion rule matches it – an exclusion always wins. Nothing is approved without a rule. Bulk installations install exactly the approved versions; the node page installs any update.",
+    "toFleet": "Fleet updates",
+    "exampleHint": "\"{name}\" is an example: it approves security updates on all Linux nodes once you enable it. Disabled, it approves nothing.",
+    "noSecurityData": "No security data for: {releases}. Their repositories carry no security advisories (e.g. CentOS Stream) or the package manager has none (pacman), so a security-only rule matches nothing there – use a rule for all updates or by repository.",
+    "totals": {
+      "approved": "Approved now",
+      "waiting": "Waiting for their minimum age",
+      "excluded": "Excluded",
+      "nodes": "Nodes with approved updates"
+    },
+    "totalsHint": {
+      "approved": "Pending versions that a bulk installation would install now, over all Linux nodes",
+      "waiting": "Approved by a rule, but first seen too recently (minimum age plus the ring's delay)",
+      "excluded": "Pending versions an exclusion rule keeps out",
+      "nodes": "Linux nodes with at least one approved update"
+    },
+    "col": {
+      "enabled": "On",
+      "rule": "Rule",
+      "scope": "Nodes",
+      "match": "Updates",
+      "age": "Minimum age"
+    },
+    "action": {
+      "approve": "Approves",
+      "exclude": "Excludes"
+    },
+    "scope": {
+      "all": "All Linux nodes",
+      "rings": "Rings: {rings}",
+      "group": "group {group}",
+      "releases": "releases {releases}"
+    },
+    "match": {
+      "all": "All updates",
+      "security": "Security updates",
+      "securityFrom": "Security updates from {severity}",
+      "packages": "packages {packages}",
+      "repositories": "repositories {repositories}"
+    },
+    "severity": {
+      "Low": "Low",
+      "Moderate": "Moderate",
+      "Important": "Important",
+      "Critical": "Critical"
+    },
+    "rings": {
+      "title": "Deployment rings",
+      "text": "A rule for rings covers the nodes of their groups (a ring without a group: all nodes) and adds the ring's delay to its minimum age – e.g. Pilot after 0 days, Broad after 7. A paused ring approves nothing new; exclusions still apply. Windows deployments are not affected.",
+      "manage": "Create and edit rings",
+      "none": "No rings yet.",
+      "name": "Ring",
+      "nodes": "Nodes",
+      "delay": "Delay",
+      "state": "State",
+      "allNodes": "all nodes",
+      "pausedState": "Paused",
+      "activeState": "Active",
+      "pause": "Pause",
+      "resume": "Resume",
+      "paused": "Ring \"{name}\" paused",
+      "resumed": "Ring \"{name}\" resumed",
+      "failed": "Could not change the ring"
+    },
+    "releases": {
+      "title": "Releases reported by the agents",
+      "item": "{release} · {manager} · nodes: {count}",
+      "noSecurity": "No security data: security-only rules match nothing here",
+      "noSecurityShort": "no security data"
+    },
+    "newTitle": "New Linux approval rule",
+    "editTitle": "Edit Linux approval rule",
+    "editText": "The preview shows what this rule covers on its own, before it is saved.",
+    "form": {
+      "name": "Name",
+      "description": "Description (optional)",
+      "action": "The rule",
+      "action_approve": "approves the matching updates",
+      "action_exclude": "excludes the matching updates (wins over every approval)",
+      "scope": "Nodes",
+      "rings": "Deployment rings (none: all Linux nodes)",
+      "ringItem": "{name} – {nodes}, delay {delay}",
+      "ringsHint": "A node in several of the chosen rings gets the shortest delay.",
+      "group": "Only nodes in this group",
+      "noGroup": "Any group",
+      "releases": "Only these releases (optional)",
+      "releasesPlaceholder": "ubuntu:24.04, rocky:*",
+      "match": "Updates",
+      "securityOnly": "Security updates only",
+      "minSeverity": "Minimum severity",
+      "anySeverity": "any severity",
+      "fromSeverity": "from {severity}",
+      "packages": "Packages (optional)",
+      "packagesPlaceholder": "openssl*, linux-image-*",
+      "repositories": "Repositories (optional)",
+      "repositoriesPlaceholder": "*-security, baseos",
+      "patternsHint": "Separate patterns with commas or spaces; * and ? are wildcards. Empty: all. The minimum severity exists on dnf/yum; apt security updates match by their security repository.",
+      "timing": "When",
+      "minAge": "Minimum age",
+      "unit": "Unit",
+      "unitDays": "days",
+      "unitHours": "hours",
+      "minAgeHint": "Counted from when Octofleet first saw the version on any node, plus the delay of the node's ring.",
+      "expedite": "Expedite: ignore the rings' delay (e.g. an urgent security fix)",
+      "excludeHint": "An exclusion needs package or repository patterns. Excluded updates can still be installed from the node page.",
+      "enabled": "Enabled"
+    },
+    "preview": {
+      "title": "Preview",
+      "approve": "Nodes covered: {nodes} · approved now: {approved} · waiting for their minimum age: {waiting}",
+      "exclude": "Nodes covered: {nodes} · pending versions excluded: {excluded}",
+      "noSecurity": "{count} of these nodes have no security data – a security-only rule approves nothing on them."
+    }
   }
 }

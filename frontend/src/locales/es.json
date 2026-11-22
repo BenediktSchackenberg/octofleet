@@ -116,7 +116,8 @@
       "alertsNotSent": "{count} alertas no enviadas en los últimos 7 días",
       "findings": "{count} hallazgos de seguridad"
     },
-    "fleetUpdates": "Actualizaciones de la flota"
+    "fleetUpdates": "Actualizaciones de la flota",
+    "linuxRules": "Reglas de aprobación de Linux"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -1753,10 +1754,10 @@
       "clear": "Quitar selección",
       "searchStarted": "Búsqueda iniciada – nodos: {count}",
       "installStarted": "Instalación iniciada – nodos: {count}",
-      "skipped": "Omitidos: {count} (Linux, no aprobadas, sin actualizaciones pendientes u ocupados)",
+      "skipped": "Omitidos: {count} (no aprobados, sin actualizaciones pendientes, ocupados o el agente de Linux no puede instalar en bloque)",
       "failed": "No se pudieron iniciar los trabajos",
       "confirmTitle": "¿Instalar actualizaciones en los nodos seleccionados?",
-      "confirmText": "Cada nodo Windows instala sus actualizaciones pendientes aprobadas en el catálogo (Parches → Catálogo). Los nodos Linux se instalan por ahora desde su página: los paquetes Linux aún no tienen aprobación.",
+      "confirmText": "Cada nodo Windows instala sus actualizaciones pendientes aprobadas en el catálogo (Parches → Catálogo). Cada nodo Linux instala las versiones de paquetes que aprueban sus reglas de aprobación de Linux, exactamente en esa versión. El servidor vuelve a comprobar las aprobaciones al iniciar los trabajos.",
       "nothing": "nada que instalar",
       "updates": "Actualizaciones aprobadas: {count} de {pending}",
       "includeDefinitions": "Incluir actualizaciones de firmas de Defender (Defender suele actualizarse solo)",
@@ -1771,8 +1772,12 @@
       "retry": "Instalar de nuevo en nodos cuya última instalación no ha terminado (reinicio)",
       "notApproved": "ninguna actualización aprobada – omitido",
       "toCatalog": "Aprobar en el catálogo",
-      "linuxHeld": "Linux – aún sin instalación masiva",
-      "toNode": "Instalar en la página del nodo"
+      "toNode": "Instalar en la página del nodo",
+      "linux": {
+        "agentTooOld": "Agente de Linux demasiado antiguo para las reglas de aprobación – omitido",
+        "unsupported": "sin instalación en bloque con este gestor de paquetes – omitido"
+      },
+      "toRules": "Reglas de aprobación de Linux"
     },
     "installation": {
       "installing": "Instalando…",
@@ -1780,7 +1785,11 @@
       "awaiting_restart": "Instalado – reinicio pendiente",
       "restartAt": "Reinicio a las {time}; termina cuando el nodo vuelva a informar"
     },
-    "approved": "{count} aprobadas"
+    "approved": "{count} aprobadas",
+    "waiting": "{count} en espera",
+    "evaluating": "actualizando…",
+    "agentTooOld": "agente demasiado antiguo para las reglas de aprobación",
+    "agentTooOldHint": "El agente aún no informa de la versión de su distribución. Actualiza el agente (trabajo restart-agent); mientras tanto, instala desde la página del nodo."
   },
   "retentionPage": {
     "activate": "Activar retención",
@@ -1850,5 +1859,138 @@
     "hint": "Las cifras se guardan por nodo y se recalculan cuando algo cambia: un análisis, software nuevo en un nodo, un hallazgo corregido, un nodo eliminado.",
     "pendingOne": "{count} nodo recalculándose",
     "pendingOther": "{count} nodos recalculándose"
+  },
+  "linuxRules": {
+    "title": "Reglas de aprobación de Linux",
+    "description": "Qué versiones pendientes de paquetes Linux puede instalar una instalación en bloque",
+    "new": "Nueva regla",
+    "loadFailed": "No se pudieron cargar las reglas",
+    "saveFailed": "No se pudo guardar la regla",
+    "deleteFailed": "No se pudo eliminar la regla",
+    "created": "Regla «{name}» creada",
+    "saved": "Regla «{name}» guardada",
+    "deleted": "Regla «{name}» eliminada",
+    "confirmDelete": "¿Eliminar la regla «{name}»?",
+    "enable": "Activar la regla {name}",
+    "empty": "Todavía no hay reglas: no hay nada aprobado para los nodos Linux.",
+    "deletedRing": "(anillo eliminado)",
+    "deletedGroup": "(grupo eliminado)",
+    "days": "{count} d",
+    "hours": "{count} h",
+    "expedite": "Urgente",
+    "evaluating": "Actualizando los recuentos – nodos restantes: {count}",
+    "howItWorks": "Una versión está aprobada para un nodo cuando una regla de aprobación activa cubre el nodo y coincide con ella, y ninguna regla de exclusión activa coincide con ella: una exclusión siempre gana. Sin regla no hay nada aprobado. Las instalaciones en bloque instalan exactamente las versiones aprobadas; la página del nodo instala cualquier actualización.",
+    "toFleet": "Actualizaciones de la flota",
+    "exampleHint": "«{name}» es un ejemplo: aprueba las actualizaciones de seguridad en todos los nodos Linux cuando lo activas. Desactivado, no aprueba nada.",
+    "noSecurityData": "Sin datos de seguridad para: {releases}. Sus repositorios no tienen avisos de seguridad (p. ej. CentOS Stream) o el gestor de paquetes no los tiene (pacman), así que una regla solo de seguridad no coincide con nada allí: usa una regla para todas las actualizaciones o por repositorio.",
+    "totals": {
+      "approved": "Aprobadas ahora",
+      "waiting": "Esperando su antigüedad mínima",
+      "excluded": "Excluidas",
+      "nodes": "Nodos con actualizaciones aprobadas"
+    },
+    "totalsHint": {
+      "approved": "Versiones pendientes que una instalación en bloque instalaría ahora, en todos los nodos Linux",
+      "waiting": "Aprobadas por una regla, pero vistas por primera vez hace muy poco (antigüedad mínima más el retraso del anillo)",
+      "excluded": "Versiones pendientes que una regla de exclusión deja fuera",
+      "nodes": "Nodos Linux con al menos una actualización aprobada"
+    },
+    "col": {
+      "enabled": "Activa",
+      "rule": "Regla",
+      "scope": "Nodos",
+      "match": "Actualizaciones",
+      "age": "Antigüedad mínima"
+    },
+    "action": {
+      "approve": "Aprueba",
+      "exclude": "Excluye"
+    },
+    "scope": {
+      "all": "Todos los nodos Linux",
+      "rings": "Anillos: {rings}",
+      "group": "grupo {group}",
+      "releases": "versiones {releases}"
+    },
+    "match": {
+      "all": "Todas las actualizaciones",
+      "security": "Actualizaciones de seguridad",
+      "securityFrom": "Actualizaciones de seguridad desde {severity}",
+      "packages": "paquetes {packages}",
+      "repositories": "repositorios {repositories}"
+    },
+    "severity": {
+      "Low": "Baja",
+      "Moderate": "Moderada",
+      "Important": "Importante",
+      "Critical": "Crítica"
+    },
+    "rings": {
+      "title": "Anillos de despliegue",
+      "text": "Una regla para anillos cubre los nodos de sus grupos (un anillo sin grupo: todos los nodos) y suma el retraso del anillo a su antigüedad mínima: p. ej. Piloto tras 0 días, Amplio tras 7. Un anillo en pausa no aprueba nada nuevo; las exclusiones siguen aplicándose. Los despliegues de Windows no se ven afectados.",
+      "manage": "Crear y editar anillos",
+      "none": "Todavía no hay anillos.",
+      "name": "Anillo",
+      "nodes": "Nodos",
+      "delay": "Retraso",
+      "state": "Estado",
+      "allNodes": "todos los nodos",
+      "pausedState": "En pausa",
+      "activeState": "Activo",
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "paused": "Anillo «{name}» en pausa",
+      "resumed": "Anillo «{name}» reanudado",
+      "failed": "No se pudo cambiar el anillo"
+    },
+    "releases": {
+      "title": "Versiones informadas por los agentes",
+      "item": "{release} · {manager} · nodos: {count}",
+      "noSecurity": "Sin datos de seguridad: las reglas solo de seguridad no coinciden con nada aquí",
+      "noSecurityShort": "sin datos de seguridad"
+    },
+    "newTitle": "Nueva regla de aprobación de Linux",
+    "editTitle": "Editar regla de aprobación de Linux",
+    "editText": "La vista previa muestra lo que cubre esta regla por sí sola, antes de guardarla.",
+    "form": {
+      "name": "Nombre",
+      "description": "Descripción (opcional)",
+      "action": "La regla",
+      "action_approve": "aprueba las actualizaciones que coinciden",
+      "action_exclude": "excluye las actualizaciones que coinciden (gana sobre cualquier aprobación)",
+      "scope": "Nodos",
+      "rings": "Anillos de despliegue (ninguno: todos los nodos Linux)",
+      "ringItem": "{name} – {nodes}, retraso {delay}",
+      "ringsHint": "Un nodo en varios de los anillos elegidos recibe el retraso más corto.",
+      "group": "Solo nodos de este grupo",
+      "noGroup": "Cualquier grupo",
+      "releases": "Solo estas versiones (opcional)",
+      "releasesPlaceholder": "ubuntu:24.04, rocky:*",
+      "match": "Actualizaciones",
+      "securityOnly": "Solo actualizaciones de seguridad",
+      "minSeverity": "Gravedad mínima",
+      "anySeverity": "cualquier gravedad",
+      "fromSeverity": "desde {severity}",
+      "packages": "Paquetes (opcional)",
+      "packagesPlaceholder": "openssl*, linux-image-*",
+      "repositories": "Repositorios (opcional)",
+      "repositoriesPlaceholder": "*-security, baseos",
+      "patternsHint": "Separa los patrones con comas o espacios; * y ? son comodines. Vacío: todos. La gravedad mínima existe en dnf/yum; las actualizaciones de seguridad de apt coinciden por su repositorio de seguridad.",
+      "timing": "Cuándo",
+      "minAge": "Antigüedad mínima",
+      "unit": "Unidad",
+      "unitDays": "días",
+      "unitHours": "horas",
+      "minAgeHint": "Contada desde que Octofleet vio la versión por primera vez en un nodo, más el retraso del anillo del nodo.",
+      "expedite": "Urgente: ignorar el retraso de los anillos (p. ej. una corrección de seguridad urgente)",
+      "excludeHint": "Una exclusión necesita patrones de paquetes o repositorios. Las actualizaciones excluidas se pueden seguir instalando desde la página del nodo.",
+      "enabled": "Activa"
+    },
+    "preview": {
+      "title": "Vista previa",
+      "approve": "Nodos cubiertos: {nodes} · aprobadas ahora: {approved} · esperando su antigüedad mínima: {waiting}",
+      "exclude": "Nodos cubiertos: {nodes} · versiones pendientes excluidas: {excluded}",
+      "noSecurity": "{count} de estos nodos no tienen datos de seguridad: una regla solo de seguridad no aprueba nada en ellos."
+    }
   }
 }

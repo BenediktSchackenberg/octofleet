@@ -55,6 +55,7 @@ const ROUTE_KEYS: Record<string, string> = {
   "/patches": "nav.patches",
   "/patches/explorer": "nav.patchExplorer",
   "/patches/updates": "nav.fleetUpdates",
+  "/patches/linux-rules": "nav.linuxRules",
   "/performance": "nav.performance",
   "/alerts": "nav.alerts",
   "/eventlog": "nav.eventlog",

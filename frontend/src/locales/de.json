@@ -116,7 +116,8 @@
       "alertsNotSent": "{count} nicht gesendete Alarme in den letzten 7 Tagen",
       "findings": "{count} Sicherheitsbefunde"
     },
-    "fleetUpdates": "Updates der Flotte"
+    "fleetUpdates": "Updates der Flotte",
+    "linuxRules": "Linux-Freigaberegeln"
   },
   "auth": {
     "login": "Anmelden",
@@ -1753,10 +1754,10 @@
       "clear": "Auswahl aufheben",
       "searchStarted": "Update-Suche gestartet – Nodes: {count}",
       "installStarted": "Installation gestartet – Nodes: {count}",
-      "skipped": "Übersprungen: {count} (Linux, nicht freigegeben, keine ausstehenden Updates oder beschäftigt)",
+      "skipped": "Übersprungen: {count} (nicht freigegeben, keine ausstehenden Updates, beschäftigt, oder der Linux-Agent kann nicht gesammelt installieren)",
       "failed": "Die Jobs konnten nicht gestartet werden",
       "confirmTitle": "Updates auf den ausgewählten Nodes installieren?",
-      "confirmText": "Jeder Windows-Node installiert seine ausstehenden Updates, die im Katalog freigegeben sind (Patches → Katalog). Linux-Nodes werden vorerst auf ihrer Node-Seite installiert: Linux-Pakete haben noch keine Freigabe.",
+      "confirmText": "Jeder Windows-Node installiert seine ausstehenden Updates, die im Katalog freigegeben sind (Patches → Katalog). Jeder Linux-Node installiert die Paketversionen, die seine Linux-Freigaberegeln freigeben, genau in dieser Version. Der Server prüft die Freigaben beim Starten der Jobs erneut.",
       "nothing": "nichts zu installieren",
       "updates": "Freigegebene Updates: {count} von {pending}",
       "includeDefinitions": "Defender-Signaturupdates einschließen (Defender aktualisiert sich meist selbst)",
@@ -1771,8 +1772,12 @@
       "retry": "Auch auf Nodes erneut installieren, deren letzte Installation nicht abgeschlossen ist (Neustart)",
       "notApproved": "keine freigegebenen Updates – übersprungen",
       "toCatalog": "Im Katalog freigeben",
-      "linuxHeld": "Linux – noch keine Sammelinstallation",
-      "toNode": "Auf der Node-Seite installieren"
+      "toNode": "Auf der Node-Seite installieren",
+      "linux": {
+        "agentTooOld": "Linux-Agent zu alt für Freigaberegeln – übersprungen",
+        "unsupported": "keine Sammelinstallation mit diesem Paketmanager – übersprungen"
+      },
+      "toRules": "Linux-Freigaberegeln"
     },
     "installation": {
       "installing": "Installiert…",
@@ -1780,7 +1785,11 @@
       "awaiting_restart": "Installiert – Neustart ausstehend",
       "restartAt": "Neustart um {time}; abgeschlossen, sobald sich der Node wieder meldet"
     },
-    "approved": "{count} freigegeben"
+    "approved": "{count} freigegeben",
+    "waiting": "{count} wartend",
+    "evaluating": "wird aktualisiert…",
+    "agentTooOld": "Agent zu alt für Freigaberegeln",
+    "agentTooOldHint": "Der Agent meldet seine Distributionsversion noch nicht. Aktualisiere den Agenten (Job restart-agent); bis dahin über die Node-Seite installieren."
   },
   "retentionPage": {
     "activate": "Aufbewahrung aktivieren",
@@ -1850,5 +1859,138 @@
     "hint": "Die Zahlen werden pro Gerät gespeichert und neu berechnet, sobald sich etwas ändert: ein Scan, neue Software auf einem Gerät, ein behobener Befund, ein entferntes Gerät.",
     "pendingOne": "{count} Gerät wird neu berechnet",
     "pendingOther": "{count} Geräte werden neu berechnet"
+  },
+  "linuxRules": {
+    "title": "Linux-Freigaberegeln",
+    "description": "Welche ausstehenden Linux-Paketversionen eine Sammelinstallation installieren darf",
+    "new": "Neue Regel",
+    "loadFailed": "Die Regeln konnten nicht geladen werden",
+    "saveFailed": "Die Regel konnte nicht gespeichert werden",
+    "deleteFailed": "Die Regel konnte nicht gelöscht werden",
+    "created": "Regel „{name}“ angelegt",
+    "saved": "Regel „{name}“ gespeichert",
+    "deleted": "Regel „{name}“ gelöscht",
+    "confirmDelete": "Regel „{name}“ löschen?",
+    "enable": "Regel {name} aktivieren",
+    "empty": "Noch keine Regeln: Für Linux-Nodes ist nichts freigegeben.",
+    "deletedRing": "(gelöschter Ring)",
+    "deletedGroup": "(gelöschte Gruppe)",
+    "days": "{count} T",
+    "hours": "{count} Std",
+    "expedite": "Beschleunigt",
+    "evaluating": "Die Zahlen werden aktualisiert – verbleibende Nodes: {count}",
+    "howItWorks": "Eine Version ist für einen Node freigegeben, wenn eine aktive Freigaberegel den Node abdeckt und auf sie passt und keine aktive Ausschlussregel auf sie passt – ein Ausschluss gewinnt immer. Ohne Regel ist nichts freigegeben. Sammelinstallationen installieren genau die freigegebenen Versionen; die Node-Seite installiert jedes Update.",
+    "toFleet": "Updates der Flotte",
+    "exampleHint": "„{name}“ ist ein Beispiel: Es gibt Sicherheitsupdates auf allen Linux-Nodes frei, sobald du es aktivierst. Deaktiviert gibt es nichts frei.",
+    "noSecurityData": "Keine Sicherheitsdaten für: {releases}. Ihre Repositorys enthalten keine Sicherheitshinweise (z. B. CentOS Stream) oder der Paketmanager hat keine (pacman), daher passt eine Regel nur für Sicherheitsupdates dort auf nichts – nimm eine Regel für alle Updates oder nach Repository.",
+    "totals": {
+      "approved": "Jetzt freigegeben",
+      "waiting": "Warten auf ihr Mindestalter",
+      "excluded": "Ausgeschlossen",
+      "nodes": "Nodes mit freigegebenen Updates"
+    },
+    "totalsHint": {
+      "approved": "Ausstehende Versionen, die eine Sammelinstallation jetzt installieren würde, über alle Linux-Nodes",
+      "waiting": "Von einer Regel freigegeben, aber zu kurz bekannt (Mindestalter plus Verzögerung des Rings)",
+      "excluded": "Ausstehende Versionen, die eine Ausschlussregel fernhält",
+      "nodes": "Linux-Nodes mit mindestens einem freigegebenen Update"
+    },
+    "col": {
+      "enabled": "An",
+      "rule": "Regel",
+      "scope": "Nodes",
+      "match": "Updates",
+      "age": "Mindestalter"
+    },
+    "action": {
+      "approve": "Gibt frei",
+      "exclude": "Schließt aus"
+    },
+    "scope": {
+      "all": "Alle Linux-Nodes",
+      "rings": "Ringe: {rings}",
+      "group": "Gruppe {group}",
+      "releases": "Versionen {releases}"
+    },
+    "match": {
+      "all": "Alle Updates",
+      "security": "Sicherheitsupdates",
+      "securityFrom": "Sicherheitsupdates ab {severity}",
+      "packages": "Pakete {packages}",
+      "repositories": "Repositorys {repositories}"
+    },
+    "severity": {
+      "Low": "Niedrig",
+      "Moderate": "Mittel",
+      "Important": "Wichtig",
+      "Critical": "Kritisch"
+    },
+    "rings": {
+      "title": "Bereitstellungsringe",
+      "text": "Eine Regel für Ringe deckt die Nodes ihrer Gruppen ab (ein Ring ohne Gruppe: alle Nodes) und addiert die Verzögerung des Rings zu ihrem Mindestalter – z. B. Pilot nach 0 Tagen, Breit nach 7. Ein pausierter Ring gibt nichts Neues frei; Ausschlüsse gelten weiter. Windows-Bereitstellungen sind nicht betroffen.",
+      "manage": "Ringe anlegen und bearbeiten",
+      "none": "Noch keine Ringe.",
+      "name": "Ring",
+      "nodes": "Nodes",
+      "delay": "Verzögerung",
+      "state": "Status",
+      "allNodes": "alle Nodes",
+      "pausedState": "Pausiert",
+      "activeState": "Aktiv",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "paused": "Ring „{name}“ pausiert",
+      "resumed": "Ring „{name}“ fortgesetzt",
+      "failed": "Der Ring konnte nicht geändert werden"
+    },
+    "releases": {
+      "title": "Von den Agenten gemeldete Versionen",
+      "item": "{release} · {manager} · Nodes: {count}",
+      "noSecurity": "Keine Sicherheitsdaten: Regeln nur für Sicherheitsupdates passen hier auf nichts",
+      "noSecurityShort": "keine Sicherheitsdaten"
+    },
+    "newTitle": "Neue Linux-Freigaberegel",
+    "editTitle": "Linux-Freigaberegel bearbeiten",
+    "editText": "Die Vorschau zeigt, was diese Regel für sich allein abdeckt, bevor sie gespeichert wird.",
+    "form": {
+      "name": "Name",
+      "description": "Beschreibung (optional)",
+      "action": "Die Regel",
+      "action_approve": "gibt die passenden Updates frei",
+      "action_exclude": "schließt die passenden Updates aus (gewinnt über jede Freigabe)",
+      "scope": "Nodes",
+      "rings": "Bereitstellungsringe (keine: alle Linux-Nodes)",
+      "ringItem": "{name} – {nodes}, Verzögerung {delay}",
+      "ringsHint": "Ein Node in mehreren der gewählten Ringe erhält die kürzeste Verzögerung.",
+      "group": "Nur Nodes in dieser Gruppe",
+      "noGroup": "Jede Gruppe",
+      "releases": "Nur diese Versionen (optional)",
+      "releasesPlaceholder": "ubuntu:24.04, rocky:*",
+      "match": "Updates",
+      "securityOnly": "Nur Sicherheitsupdates",
+      "minSeverity": "Mindestschweregrad",
+      "anySeverity": "jeder Schweregrad",
+      "fromSeverity": "ab {severity}",
+      "packages": "Pakete (optional)",
+      "packagesPlaceholder": "openssl*, linux-image-*",
+      "repositories": "Repositorys (optional)",
+      "repositoriesPlaceholder": "*-security, baseos",
+      "patternsHint": "Muster durch Kommas oder Leerzeichen trennen; * und ? sind Platzhalter. Leer: alle. Den Mindestschweregrad gibt es bei dnf/yum; apt-Sicherheitsupdates passen über ihr Sicherheits-Repository.",
+      "timing": "Wann",
+      "minAge": "Mindestalter",
+      "unit": "Einheit",
+      "unitDays": "Tage",
+      "unitHours": "Stunden",
+      "minAgeHint": "Gezählt ab dem Zeitpunkt, an dem Octofleet die Version zuerst auf einem Node gesehen hat, plus die Verzögerung des Rings des Nodes.",
+      "expedite": "Beschleunigt: Verzögerung der Ringe ignorieren (z. B. ein dringender Sicherheitsfix)",
+      "excludeHint": "Ein Ausschluss braucht Paket- oder Repository-Muster. Ausgeschlossene Updates lassen sich weiterhin über die Node-Seite installieren.",
+      "enabled": "Aktiv"
+    },
+    "preview": {
+      "title": "Vorschau",
+      "approve": "Abgedeckte Nodes: {nodes} · jetzt freigegeben: {approved} · warten auf ihr Mindestalter: {waiting}",
+      "exclude": "Abgedeckte Nodes: {nodes} · ausgeschlossene ausstehende Versionen: {excluded}",
+      "noSecurity": "{count} dieser Nodes haben keine Sicherheitsdaten – eine Regel nur für Sicherheitsupdates gibt dort nichts frei."
+    }
   }
 }

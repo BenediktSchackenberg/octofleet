@@ -29,9 +29,11 @@ export interface FleetNode {
   pending: number;
   security: number;
   definitions: number;
-  /** Windows: pending updates approved in the catalog (what a bulk installation installs); Linux: null */
+  /** Pending updates a bulk installation installs: Windows approved in the catalog, Linux by the Linux approval rules */
   approved: number | null;
   approved_definitions: number | null;
+  /** Linux nodes: the approval rules' state (Windows: null) */
+  linux: LinuxApproval | null;
   reboot: FleetReboot;
   /** the updates behind "will / may need a reboot" (packages or KBs, at most 20) */
   reboot_updates?: string[];
@@ -41,6 +43,21 @@ export interface FleetNode {
   /** The newest installation while it has not finished on the node */
   installation: { state: "installing" | "restarting" | "awaiting_restart"; job_id: string; restart_at?: string } | null;
 }
+
+export interface LinuxApproval {
+  /** ok; no_rules: no approval rule is enabled; agent_too_old: the agent does not report its release yet */
+  approval: "ok" | "no_rules" | "agent_too_old";
+  /** the counts are being updated (a rule, ring or update list changed a moment ago) */
+  evaluating: boolean;
+  waiting: number;
+  excluded: number;
+  release: string | null;
+  package_manager: string | null;
+  security_data: boolean | null;
+}
+
+/** Package managers whose updates the Linux agent installs */
+const LINUX_INSTALLERS = ["apt", "dnf", "yum"];
 
 /** Answer of the bulk search / install routes */
 interface BulkResult { jobs: { node: string; job_id: string }[]; skipped: { node: string; reason: string }[] }
@@ -221,9 +238,15 @@ export default function FleetUpdatesPage() {
   // A running job is never doubled; an installation that waits for (or is in) its restart only when asked
   const isBusy = (n: FleetNode) => !!n.running || n.installation?.state === "installing";
   const isUnfinished = (n: FleetNode) => n.installation?.state === "restarting" || n.installation?.state === "awaiting_restart";
-  // Bulk installation: Windows nodes, only updates approved in the catalog; Linux has no approval path yet
+  // Bulk installation: Windows nodes the updates approved in the catalog, Linux nodes the versions their approval
+  // rules approve (the server recomputes both when it creates the jobs)
   const toInstall = (n: FleetNode) => (n.approved ?? 0) + (includeDefinitions ? n.approved_definitions ?? 0 : 0);
-  const installable = chosen.filter((n) => n.os_family === "windows" && !isBusy(n) && (!isUnfinished(n) || retry)
+  /** Why a Linux node cannot install in bulk, or null */
+  const linuxHeld = (n: FleetNode) => n.os_family !== "linux" ? null
+    : !n.linux || n.linux.approval === "agent_too_old" ? "agentTooOld"
+    : !LINUX_INSTALLERS.includes(n.linux.package_manager ?? "") ? "unsupported"
+    : null;
+  const installable = chosen.filter((n) => !linuxHeld(n) && !isBusy(n) && (!isUnfinished(n) || retry)
     && toInstall(n) > 0);
   // Same rule as on the node page: the reboot choice only when a reboot can be needed or is pending
   const offerReboot = installable.some((n) => n.reboot !== "none");
@@ -384,8 +407,15 @@ export default function FleetUpdatesPage() {
                       {node.definitions > 0 && (
                         <div className="text-xs text-muted-foreground">{t("patchScan.definitions", { count: node.definitions })}</div>
                       )}
-                      {node.approved !== null && node.pending > 0 && (
-                        <div className="text-xs text-muted-foreground">{t("fleetUpdates.approved", { count: node.approved })}</div>
+                      {node.approved !== null && node.pending > 0 && (!node.linux || node.linux.approval !== "agent_too_old") && (
+                        <div className="text-xs text-muted-foreground">
+                          {t("fleetUpdates.approved", { count: node.approved })}
+                          {!!node.linux?.waiting && ` · ${t("fleetUpdates.waiting", { count: node.linux.waiting })}`}
+                          {node.linux?.evaluating && ` · ${t("fleetUpdates.evaluating")}`}
+                        </div>
+                      )}
+                      {node.linux?.approval === "agent_too_old" && node.pending > 0 && (
+                        <div className="text-xs text-muted-foreground" title={t("fleetUpdates.agentTooOldHint")}>{t("fleetUpdates.agentTooOld")}</div>
                       )}
                     </TableCell>
                     <TableCell className="whitespace-normal"><RebootBadge reboot={node.reboot} updates={node.reboot_updates} /></TableCell>
@@ -446,19 +476,22 @@ export default function FleetUpdatesPage() {
               return (
                 <li key={n.id} className={`flex flex-wrap items-center gap-2 ${nothing ? "text-muted-foreground" : ""}`}>
                   <span className="font-medium">{n.hostname}</span>
-                  <span>{n.os_family !== "windows" ? t("fleetUpdates.bulk.linuxHeld")
+                  <span>{linuxHeld(n) ? t(`fleetUpdates.bulk.linux.${linuxHeld(n)}`)
                     : isBusy(n) ? t("fleetUpdates.bulk.busy")
                     : isUnfinished(n) && !retry ? t(`fleetUpdates.bulk.unfinished.${n.installation!.state}`)
                     : nothing && n.pending + (includeDefinitions ? n.definitions : 0) > 0 ? t("fleetUpdates.bulk.notApproved")
                     : nothing ? t("fleetUpdates.bulk.nothing")
                     : t("fleetUpdates.bulk.updates", { count: toInstall(n), pending: n.pending + (includeDefinitions ? n.definitions : 0) })}</span>
                   {!nothing && <RebootBadge reboot={n.reboot} updates={n.reboot_updates} />}
-                  {!nothing || n.os_family !== "windows" ? null : (
-                    n.pending > 0 && !isBusy(n) && !isUnfinished(n) && (
-                      <Link href="/patches/catalog" className="text-blue-500 hover:underline">{t("fleetUpdates.bulk.toCatalog")}</Link>
-                    )
+                  {nothing && !linuxHeld(n) && n.pending > 0 && !isBusy(n) && !isUnfinished(n) && (
+                    n.os_family === "windows"
+                      ? <Link href="/patches/catalog" className="text-blue-500 hover:underline">{t("fleetUpdates.bulk.toCatalog")}</Link>
+                      : <Link href="/patches/linux-rules" className="text-blue-500 hover:underline">{t("fleetUpdates.bulk.toRules")}</Link>
                   )}
-                  {n.os_family !== "windows" && (
+                  {!nothing && n.os_family === "linux" && !!n.linux?.waiting && (
+                    <span className="text-muted-foreground">{t("fleetUpdates.waiting", { count: n.linux.waiting })}</span>
+                  )}
+                  {linuxHeld(n) && (
                     <Link href={`/nodes/${n.id}?tab=updates`} className="text-blue-500 hover:underline">{t("fleetUpdates.bulk.toNode")}</Link>
                   )}
                   {!n.online && <Badge variant="outline" className="text-muted-foreground">{t("fleetUpdates.offline")}</Badge>}
