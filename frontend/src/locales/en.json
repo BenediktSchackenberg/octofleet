@@ -1820,5 +1820,14 @@
         "description": "History of hardware changes per node"
       }
     }
+  },
+  "monitoringProfiles": {
+    "networkConnections": "Network connections (connect/close)",
+    "fleetDefault": {
+      "title": "Fleet default: network connection events",
+      "connectionsHelp": "Every opened and closed TCP connection as an event (network.connect / network.close) – very many events (one busy server: ~400,000 a day). Applies to all nodes whose profile does not set it; listening ports are reported either way. Agents pick up a change within an hour; the server drops these events within a minute.",
+      "connectionsOn": "Recorded",
+      "connectionsOff": "Not recorded"
+    }
   }
 }

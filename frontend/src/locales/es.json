@@ -1820,5 +1820,14 @@
         "description": "Historial de cambios de hardware por nodo"
       }
     }
+  },
+  "monitoringProfiles": {
+    "networkConnections": "Conexiones de red (apertura/cierre)",
+    "fleetDefault": {
+      "title": "Valor predeterminado de la flota: eventos de conexiones de red",
+      "connectionsHelp": "Cada conexión TCP abierta y cerrada como evento (network.connect / network.close): muchísimos eventos (un servidor con carga: ~400.000 al día). Se aplica a todos los nodos cuyo perfil no lo define; los puertos en escucha se notifican siempre. Los agentes aplican un cambio en menos de una hora; el servidor descarta estos eventos en menos de un minuto.",
+      "connectionsOn": "Se registran",
+      "connectionsOff": "No se registran"
+    }
   }
 }

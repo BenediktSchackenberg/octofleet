@@ -1820,5 +1820,14 @@
         "description": "Verlauf der Hardwareänderungen je Node"
       }
     }
+  },
+  "monitoringProfiles": {
+    "networkConnections": "Netzwerkverbindungen (Auf-/Abbau)",
+    "fleetDefault": {
+      "title": "Flottenstandard: Netzwerkverbindungs-Ereignisse",
+      "connectionsHelp": "Jede geöffnete und geschlossene TCP-Verbindung als Ereignis (network.connect / network.close) – sehr viele Ereignisse (ein ausgelasteter Server: ~400.000 am Tag). Gilt für alle Nodes, deren Profil es nicht festlegt; lauschende Ports werden in jedem Fall gemeldet. Agents übernehmen eine Änderung innerhalb einer Stunde, der Server verwirft diese Ereignisse innerhalb einer Minute.",
+      "connectionsOn": "Werden erfasst",
+      "connectionsOff": "Werden nicht erfasst"
+    }
   }
 }

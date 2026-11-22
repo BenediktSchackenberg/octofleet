@@ -13,6 +13,7 @@ on:
       - 'tests/OctofleetAgent.Http.Tests/**'
       - 'tests/OctofleetAgent.Schedule.Tests/**'
       - 'tests/OctofleetAgent.Polling.Tests/**'
+      - 'tests/OctofleetAgent.Sensors.Tests/**'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
       - 'installer/Build-Release.ps1'
@@ -28,6 +29,7 @@ on:
       - 'tests/OctofleetAgent.Http.Tests/**'
       - 'tests/OctofleetAgent.Schedule.Tests/**'
       - 'tests/OctofleetAgent.Polling.Tests/**'
+      - 'tests/OctofleetAgent.Sensors.Tests/**'
       - 'tests/windows/Release-Package.Tests.ps1'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
@@ -57,6 +59,8 @@ jobs:
         run: dotnet run --project tests/OctofleetAgent.Schedule.Tests -c Release
       - name: Test the terminal poll pacing (idle request rate, session start delay)
         run: dotnet run --project tests/OctofleetAgent.Polling.Tests -c Release
+      - name: Test reading the sensor settings (profile, fleet defaults, older servers)
+        run: dotnet run --project tests/OctofleetAgent.Sensors.Tests -c Release
       - name: Test isolated release packaging
         shell: pwsh
         run: ./tests/windows/Release-Package.Tests.ps1

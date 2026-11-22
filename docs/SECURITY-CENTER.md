@@ -53,11 +53,37 @@ Monitoring profiles define **what** gets monitored on each node. You create prof
 
 ### Effective Policy
 
-When multiple profiles apply to a node (e.g., via group membership), they are merged into an **effective policy**. Use the endpoint:
+A node gets one profile: its own assignment first, else its group's (highest priority wins). A sensor that profile does not set uses the **fleet default**, and a sensor set nowhere is on. The agent reads both:
 
 ```
-GET /api/v1/monitoring/nodes/{node_id}/effective-policy
+GET /api/v1/monitoring/nodes/{node_id}/effective-policy   # {"policy": {...} | null, "defaults": {"network_connections": false}}
 ```
+
+### Sensors
+
+| Sensor | Events |
+|--------|--------|
+| `file_audit` | File changes (`file_events`) |
+| `process_monitor` | `process.create`, `process.terminate` |
+| `network_monitor` | The network collector as a whole; `network.listen` (listening ports) |
+| `network_connections` | `network.connect`, `network.close` – **off by default** |
+| `registry_monitor` | Registry changes |
+| `logon_events` | `logon.*` |
+| `service_changes` | `service.*` |
+
+**Network connection events are off by default.** The Windows agent reports every opened and closed TCP connection – on a busy server about 400,000 events a day, 98 % of all security events on a test installation, used by no rule, finding or alert. Listening ports are still reported. Turn them on for all nodes under **Security → Profiles → Fleet default** (`settings:write`), or for some nodes or groups with a profile that sets *Network connections*.
+
+- The server drops `network.connect` / `network.close` of nodes where they are off (also from agents that do not know the setting yet). It looks the setting up per node and keeps it for 60 seconds; a change of the fleet default applies at once.
+- The Windows agent reads its settings at start and then every hour (every 5 minutes after a failed read) and stops or starts collecting without a restart.
+
+```
+GET /api/v1/monitoring/defaults        # {"sensors": {"network_connections": false}, "available": [...]}
+PUT /api/v1/monitoring/defaults        # {"sensors": {"network_connections": true}}  (settings:write)
+```
+
+### Event ingest
+
+Agents send events in batches to `POST /api/v1/ingest/events/normalized`. Each batch is written with one `COPY` per table (it was one `INSERT` per event): 200 events take about 4 ms instead of about 120 ms. The answer counts the stored and dropped events: `{"inserted": 2, "dropped": 2}` (dropped: connection events that are off, events without `node_id`).
 
 ### API Endpoints
 

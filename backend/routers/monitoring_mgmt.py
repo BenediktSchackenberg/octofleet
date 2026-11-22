@@ -3,6 +3,7 @@ Octofleet API - Monitoring Routes
 """
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ from app.db.nodes import os_build_from
 from auth import require_permission, require_user_permission
 from dependencies import get_db, get_pool, verify_api_key
 import retention
+import monitoring_defaults
 
 router = APIRouter(tags=["Monitoring"])
 def _compute_posture_diff(baseline: dict, current: dict) -> dict:
@@ -260,42 +262,35 @@ async def delete_monitoring_assignment(assignment_id: str):
 
 @router.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(verify_api_key)])
 async def get_effective_policy(node_id: str):
+    """The node's monitoring profile (node assignment, else group) plus the fleet-wide sensor
+    defaults, which apply to every sensor the profile does not set."""
     async with get_pool().acquire() as conn:
-        # Resolve hostname to UUID if needed
-        resolved_id = node_id
-        uuid_row = await conn.fetchval("SELECT id::text FROM nodes WHERE hostname = $1", node_id)
-        if uuid_row:
-            resolved_id = str(uuid_row)
-        # Also try: node_id might already be a UUID
-        if not uuid_row:
-            uuid_row2 = await conn.fetchval("SELECT id::text FROM nodes WHERE id::text = $1", node_id)
-            if uuid_row2:
-                resolved_id = str(uuid_row2)
-        # Check direct node assignment — match both hostname and UUID
-        candidates = [node_id, resolved_id]
-        logger.info(f"effective-policy: node_id={node_id}, resolved_id={resolved_id}, candidates={candidates}")
-        row = await conn.fetchrow("""
-            SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
-            FROM monitoring_assignments a
-            JOIN monitoring_profiles p ON p.id = a.profile_id
-            WHERE a.target_type = 'node' AND a.target_id = ANY($1::text[]) AND a.status = 'active'
-                AND (a.end_time IS NULL OR a.end_time > now())
-            ORDER BY a.priority DESC LIMIT 1
-        """, candidates)
+        row = await monitoring_defaults.effective_profile(conn, node_id)
+        defaults = await monitoring_defaults.get_defaults(conn)
         if not row:
-            # Fallback to group assignments
-            row = await conn.fetchrow("""
-                SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
-                FROM monitoring_assignments a
-                JOIN monitoring_profiles p ON p.id = a.profile_id
-                JOIN device_groups dg ON dg.group_id = a.target_id::uuid
-                WHERE a.target_type = 'group' AND dg.node_id::text = ANY($1::text[]) AND a.status = 'active'
-                    AND (a.end_time IS NULL OR a.end_time > now())
-                ORDER BY a.priority DESC LIMIT 1
-            """, candidates)
-        if not row:
-            return {"policy": None, "message": "No monitoring policy assigned"}
-        return {"policy": _parse_json_fields(dict(row))}
+            return {"policy": None, "defaults": defaults, "message": "No monitoring policy assigned"}
+        return {"policy": _parse_json_fields(dict(row)), "defaults": defaults}
+
+
+@router.get("/api/v1/monitoring/defaults", dependencies=[Depends(verify_api_key)])
+async def get_monitoring_defaults():
+    """Fleet-wide sensor defaults (a sensor set nowhere is on)."""
+    async with get_pool().acquire() as conn:
+        return {"sensors": await monitoring_defaults.get_defaults(conn),
+                "available": list(monitoring_defaults.SENSORS)}
+
+
+@router.put("/api/v1/monitoring/defaults")
+async def update_monitoring_defaults(req: Request, user=Depends(require_permission("settings:write"))):
+    body = await req.json()
+    sensors = body.get("sensors") if isinstance(body, dict) else None
+    error = monitoring_defaults.validate_sensors(sensors)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    async with get_pool().acquire() as conn:
+        merged = await monitoring_defaults.set_defaults(conn, sensors, getattr(user, "username", None))
+    logger.info("monitoring defaults changed by %s: %s", getattr(user, "username", "?"), sensors)
+    return {"sensors": merged, "available": list(monitoring_defaults.SENSORS)}
 
 
 @router.post("/api/v1/ingest/events", dependencies=[Depends(verify_api_key)])
@@ -655,19 +650,33 @@ async def ingest_normalized_events(req: Request):
     """
     body = await req.json()
     events = body.get("events", [body] if "event_type" in body else [])
-    inserted = 0
-    findings_created = 0
-    
+    now = datetime.now(timezone.utc)
+    file_rows = []
+    event_rows = []
+    dropped = 0
+    keep_connections: Dict[str, bool] = {}
+
     async with get_pool().acquire() as conn:
         for evt in events:
             event_type = evt.get("event_type", "unknown")
             event_subtype = evt.get("event_subtype", "")
             node_id = evt.get("node_id")
-            
+            if not node_id:
+                dropped += 1
+                continue
+
+            # network.connect / network.close only where the node's network_connections sensor is on
+            if event_type in monitoring_defaults.NETWORK_CONNECTION_EVENTS:
+                if node_id not in keep_connections:
+                    keep_connections[node_id] = await monitoring_defaults.network_connections_enabled(conn, node_id)
+                if not keep_connections[node_id]:
+                    dropped += 1
+                    continue
+
             # Extract user info
             user = evt.get("user", {})
             user_id = user.get("username") or user.get("sid") or user.get("uid") or evt.get("user_id")
-            
+
             # Build enriched payload (keep process, network, raw_event_ref)
             payload = {}
             for key in ("process", "network", "user", "raw_event_ref", "metadata"):
@@ -681,17 +690,18 @@ async def ingest_normalized_events(req: Request):
                                "timestamp", "process", "network", "user", "file", "raw_event_ref",
                                "metadata", "agent_id", "tenant_id"):
                     payload[key] = evt[key]
-            
+
             severity = evt.get("severity", "info")
+            ts = now
             ts_raw = evt.get("timestamp")
-            ts = None
             if ts_raw:
-                from datetime import datetime as _dt
                 try:
-                    ts = _dt.fromisoformat(ts_raw.replace("Z", "+00:00"))
+                    ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
                 except (ValueError, AttributeError):
-                    ts = None
-            
+                    ts = now
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+
             # Route file events to file_events table
             # Agent sends event_type like "Created", "Changed", "Deleted", "Renamed"
             file_ops = {"created", "changed", "deleted", "renamed", "modified"}
@@ -704,44 +714,29 @@ async def ingest_normalized_events(req: Request):
                 file_info = evt.get("file", {})
                 op = event_subtype or file_info.get("operation") or event_type
                 proc = evt.get("process", {})
-                
-                if ts:
-                    await conn.execute("""
-                        INSERT INTO file_events (ts, node_id, user_id, op, path, old_path, new_path,
-                            process_name, pid, hash_before, hash_after, file_size, success)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    """, ts, node_id, user_id, op,
-                        file_info.get("path") or file_info.get("normalized_path"),
-                        file_info.get("old_path"), file_info.get("new_path"),
-                        proc.get("name"), proc.get("pid"),
-                        file_info.get("hash_before"), file_info.get("hash_after"),
-                        file_info.get("size"), evt.get("success", True))
-                else:
-                    await conn.execute("""
-                        INSERT INTO file_events (node_id, user_id, op, path, old_path, new_path,
-                            process_name, pid, hash_before, hash_after, file_size, success)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                    """, node_id, user_id, op,
-                        file_info.get("path") or file_info.get("normalized_path"),
-                        file_info.get("old_path"), file_info.get("new_path"),
-                        proc.get("name"), proc.get("pid"),
-                        file_info.get("hash_before"), file_info.get("hash_after"),
-                        file_info.get("size"), evt.get("success", True))
+                file_rows.append((
+                    ts, node_id, user_id, op,
+                    file_info.get("path") or file_info.get("normalized_path"),
+                    file_info.get("old_path"), file_info.get("new_path"),
+                    proc.get("name"), proc.get("pid"),
+                    file_info.get("hash_before"), file_info.get("hash_after"),
+                    file_info.get("size"), evt.get("success", True)))
             else:
-                if ts:
-                    await conn.execute("""
-                        INSERT INTO events_normalized (ts, node_id, user_id, event_type, severity, payload)
-                        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-                    """, ts, node_id, user_id, event_type, severity, json.dumps(payload))
-                else:
-                    await conn.execute("""
-                        INSERT INTO events_normalized (node_id, user_id, event_type, severity, payload)
-                        VALUES ($1, $2, $3, $4, $5::jsonb)
-                    """, node_id, user_id, event_type, severity, json.dumps(payload))
-            
-            inserted += 1
-    
-    return {"inserted": inserted, "findings_created": findings_created}
+                event_rows.append((ts, node_id, user_id, event_type, severity, json.dumps(payload)))
+
+        # One COPY per table instead of one INSERT per event
+        async with conn.transaction():
+            if file_rows:
+                await conn.copy_records_to_table(
+                    "file_events", records=file_rows,
+                    columns=["ts", "node_id", "user_id", "op", "path", "old_path", "new_path",
+                             "process_name", "pid", "hash_before", "hash_after", "file_size", "success"])
+            if event_rows:
+                await conn.copy_records_to_table(
+                    "events_normalized", records=event_rows,
+                    columns=["ts", "node_id", "user_id", "event_type", "severity", "payload"])
+
+    return {"inserted": len(file_rows) + len(event_rows), "dropped": dropped, "findings_created": 0}
 
 
 @router.get("/api/v1/agents/{node_id}/health/history", dependencies=[Depends(verify_api_key)])

@@ -51,6 +51,7 @@ from reportlab.platypus import (
 
 import job_types
 import node_removal
+import monitoring_defaults
 import password_policy
 import retention
 import vulnerability
@@ -151,6 +152,7 @@ async def lifespan(app: FastAPI):
     await ensure_inventory_schema(db_pool)
     await retention.ensure_schema(db_pool)
     await retention.apply_on_startup(db_pool)
+    await monitoring_defaults.ensure_schema(db_pool)
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.

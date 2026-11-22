@@ -222,7 +222,9 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | POST | `/api/v1/monitoring/assignments` | API Key | Assign profile to nodes |
 | PUT | `/api/v1/monitoring/assignments/{assignment_id}` | API Key | Update assignment |
 | DELETE | `/api/v1/monitoring/assignments/{assignment_id}` | API Key | Remove assignment |
-| GET | `/api/v1/monitoring/nodes/{node_id}/effective-policy` | API Key | Get effective policy for node |
+| GET | `/api/v1/monitoring/nodes/{node_id}/effective-policy` | API Key | The node's profile and the fleet-wide sensor defaults |
+| GET | `/api/v1/monitoring/defaults` | API Key | Fleet-wide sensor defaults (`network_connections` off) |
+| PUT | `/api/v1/monitoring/defaults` | `settings:write` | Change fleet-wide sensor defaults (see [Security Center](SECURITY-CENTER.md#sensors)) |
 
 ### Posture Snapshots
 
