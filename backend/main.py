@@ -50,29 +50,29 @@ from reportlab.platypus import (
 )
 
 import job_types
-import node_removal
 import monitoring_defaults
+import node_removal
 import password_policy
 import retention
 import vulnerability
+import vulnerability_cache
 from auth import (
+    ROLE_PERMISSIONS,
     APIKeyCreate,
     CurrentUser,
     RoleCreate,
-    ROLE_PERMISSIONS,
     UserCreate,
     get_permissions_for_roles,
     hash_api_key,
     hash_password,
-    require_auth,
     require_permission,
     require_user_permission,
 )
 from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
+from routers.agent_releases import router as agent_releases_router
 from routers.alerting import router as alerting_router
-from routers.auth import router as auth_router
 from routers.auth import assert_manageable_user, users_router
-from routers.password_policy import router as password_policy_router
+from routers.auth import router as auth_router
 from routers.baselines import router as baselines_router
 from routers.content_lifecycle import router as content_lifecycle_router
 from routers.dashboard import router as dashboard_router
@@ -90,7 +90,7 @@ from routers.mssql import router as mssql_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
-from routers.agent_releases import router as agent_releases_router
+from routers.password_policy import router as password_policy_router
 from routers.patch_explorer import router as patch_explorer_router
 from routers.patches import ensure_schema as ensure_patches_schema
 from routers.patches import router as patches_router
@@ -119,6 +119,7 @@ import matplotlib.pyplot as plt
 # Centralized dependencies - single source of truth for auth and config
 from dependencies import (
     DATABASE_URL,
+    _permissions_for_scopes,
     bad_request,
     conflict,
     get_db,
@@ -128,7 +129,6 @@ from dependencies import (
     set_db_pool,
     verify_api_key,
     verify_api_key_or_query,
-    _permissions_for_scopes,
 )
 
 # Local db_pool reference (set during lifespan)
@@ -153,6 +153,8 @@ async def lifespan(app: FastAPI):
     await retention.ensure_schema(db_pool)
     await retention.apply_on_startup(db_pool)
     await monitoring_defaults.ensure_schema(db_pool)
+    # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
+    vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
@@ -214,6 +216,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     removal_task.cancel()
+    vulnerability_cache_task.cancel()
     if db_pool:
         await db_pool.close()
         print("Database pool closed")

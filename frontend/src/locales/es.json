@@ -677,7 +677,8 @@
     "osvCounts": "{downloaded} descargados · {cached} de la caché",
     "cacheRebuilt": "Caché reconstruida",
     "withoutCache": "Sin caché",
-    "cacheRebuiltHint": "Este escaneo descargó todos los avisos OSV (primer escaneo, escaneo completo sin caché o tras vaciar la caché), por eso tardó más que los escaneos que usan la caché."
+    "cacheRebuiltHint": "Este escaneo descargó todos los avisos OSV (primer escaneo, escaneo completo sin caché o tras vaciar la caché), por eso tardó más que los escaneos que usan la caché.",
+    "showMoreNodes": "Mostrar {count} más (quedan {remaining})"
   },
   "vulnerabilityScan": {
     "running": "Análisis en curso desde las {time} ({minutes} min): {checked} de {total} versiones de software comprobadas. Las cifras pueden estar incompletas hasta que termine.",
@@ -1829,5 +1830,18 @@
       "connectionsOn": "Se registran",
       "connectionsOff": "No se registran"
     }
+  },
+  "vulnerabilitySummary": {
+    "asOf": "A las {time}",
+    "notYet": "Calculando",
+    "scanFinished": "análisis terminado {time}",
+    "noScan": "sin análisis todavía",
+    "refresh": "Recalcular ahora las cifras de todos los nodos",
+    "refreshing": "Recalculando…",
+    "refreshWait": "Las cifras se recalcularon hace menos de un minuto; inténtelo de nuevo en {seconds} s.",
+    "refreshFailed": "No se pudieron recalcular las cifras.",
+    "hint": "Las cifras se guardan por nodo y se recalculan cuando algo cambia: un análisis, software nuevo en un nodo, un hallazgo corregido, un nodo eliminado.",
+    "pendingOne": "{count} nodo recalculándose",
+    "pendingOther": "{count} nodos recalculándose"
   }
 }

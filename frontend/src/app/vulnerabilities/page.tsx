@@ -1,9 +1,10 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
+import { VulnerabilitySummaryFreshness } from "@/components/vulnerability-summary-freshness";
 import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
 import { OsvCacheCard } from "@/components/OsvCacheCard";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -50,7 +51,11 @@ interface VulnerabilitySummary {
   total_vulnerabilities: number;
   running_scan: ScanStatus["running_scan"];
   last_completed_scan: ScanStatus["last_completed_scan"];
+  /** The numbers come from the vulnerability cache, as of refreshed_at */
+  cache?: { refreshed_at: string | null; refreshing: boolean; pending_nodes: number };
 }
+
+const NODE_PAGE = 100;
 
 interface NodeVulnInfo {
   id: string;
@@ -116,6 +121,9 @@ export default function VulnerabilitiesPage() {
   const formatTime = (value: string) => new Date(value).toLocaleString(locale);
   const [summary, setSummary] = useState<VulnerabilitySummary | null>(null);
   const [nodeVulns, setNodeVulns] = useState<NodeVulnInfo[]>([]);
+  // The node list comes in pages (largest first); "Show more" asks for the next page too.
+  const [nodeTotal, setNodeTotal] = useState(0);
+  const nodeLimit = useRef(NODE_PAGE);
   const [softwareVulns, setSoftwareVulns] = useState<SoftwareVulnInfo[]>([]);
   const [scans, setScans] = useState<ScanHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,13 +157,13 @@ export default function VulnerabilitiesPage() {
     try {
       const [summaryRes, nodesRes, softwareRes, scansRes] = await Promise.all([
         apiClient.get<VulnerabilitySummary>(`/vulnerabilities/summary`, { showErrorToast: false }),
-        apiClient.get<{ nodes: NodeVulnInfo[] }>(`/vulnerabilities/by-node`, { showErrorToast: false }),
+        apiClient.get<{ nodes: NodeVulnInfo[]; total: number }>(`/vulnerabilities/by-node?limit=${nodeLimit.current}`, { showErrorToast: false }),
         apiClient.get<{ software: SoftwareVulnInfo[] }>(`/vulnerabilities/by-software`, { showErrorToast: false }),
         apiClient.get<{ scans: any[] }>(`/vulnerabilities/scans?limit=5`, { showErrorToast: false }),
       ]);
 
       if (summaryRes) setSummary(summaryRes);
-      if (nodesRes) { setNodeVulns(nodesRes.nodes || []); }
+      if (nodesRes) { setNodeVulns(nodesRes.nodes || []); setNodeTotal(nodesRes.total ?? 0); }
       if (softwareRes) { setSoftwareVulns(softwareRes.software || []); }
       if (scansRes) { setScans(scansRes.scans || []); }
     } catch (err) {
@@ -172,6 +180,13 @@ export default function VulnerabilitiesPage() {
     const interval = setInterval(fetchData, scanRunning ? 10000 : 30000);
     return () => clearInterval(interval);
   }, [scanRunning]);
+
+  const showMoreNodes = async () => {
+    nodeLimit.current = Math.min(nodeLimit.current + NODE_PAGE, 1000);
+    const res = await apiClient.get<{ nodes: NodeVulnInfo[]; total: number }>(
+      `/vulnerabilities/by-node?limit=${nodeLimit.current}`, { showErrorToast: false });
+    if (res) { setNodeVulns(res.nodes || []); setNodeTotal(res.total ?? 0); }
+  };
 
   const triggerScan = async () => {
     setScanning(true);
@@ -255,6 +270,15 @@ export default function VulnerabilitiesPage() {
       />
 
       <ScanStatusBanner status={summary} onStop={stopScan} />
+
+      <VulnerabilitySummaryFreshness
+        asOf={summary?.cache?.refreshed_at}
+        scanCompletedAt={summary?.last_completed_scan?.completed_at}
+        refreshing={summary?.cache?.refreshing}
+        pendingNodes={summary?.cache?.pending_nodes}
+        onRefreshed={fetchData}
+        className="justify-end"
+      />
 
       {/* Severity Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -522,6 +546,13 @@ export default function VulnerabilitiesPage() {
                     </div>
                   );
                 })}
+                {nodeTotal > nodeVulns.length && nodeVulns.length < 1000 && (
+                  <div className="text-center">
+                    <Button variant="outline" size="sm" onClick={showMoreNodes}>
+                      {p("showMoreNodes", { count: Math.min(NODE_PAGE, nodeTotal - nodeVulns.length), remaining: nodeTotal - nodeVulns.length })}
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">

@@ -6,8 +6,8 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.rules import evaluate_dynamic_rule
+from auth import require_user_permission
 from dependencies import bad_request, conflict, get_db, not_found, verify_api_key
-from auth import require_permission, require_user_permission
 
 router = APIRouter(
     prefix="/api/v1",

@@ -95,7 +95,7 @@ async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> 
     apiClient.get<{ jobs: { job_id: string; name?: string; target_name?: string; failed: number; total_instances: number; last_failed_at?: string; last_error?: string }[]; total: number }>(
       `${FAILED_JOBS_PATH}&limit=50`, quiet),
     apiClient.get<{ severity_counts?: Record<string, number>; last_completed_scan?: { completed_at?: string } }>("/vulnerabilities/summary", quiet),
-    apiClient.get<{ nodes: { id: string; hostname?: string; critical: number; max_cvss?: number; max_cvss_cve?: string }[] }>("/vulnerabilities/by-node", quiet),
+    apiClient.get<{ nodes: { id: string; hostname?: string; critical: number; max_cvss?: number; max_cvss_cve?: string }[] }>("/vulnerabilities/by-node?severity=critical&limit=50", quiet),
     apiClient.get<{ job_counts?: Record<string, number>; recent_jobs?: { id: string; software_name?: string; software_version?: string; cve_id?: string; status?: string; error_message?: string; completed_at?: string; updated_at?: string; created_at?: string }[] }>("/remediation/summary", quiet),
     apiClient.get<{ findings: { id: string; title?: string; status?: string; nodeId?: string; closedAt?: string | null; lastSeen?: string; createdAt?: string; severity?: string }[]; total: number }>("/security/findings?severity=critical&limit=50", quiet),
     apiClient.get<{ nodes: { id: string; hostname?: string; is_online?: boolean; last_seen?: string }[] }>("/nodes", quiet),

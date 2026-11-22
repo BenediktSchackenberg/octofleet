@@ -336,7 +336,9 @@ PUT /api/v1/retention/{category}     # {"keep_days": 30, "compress_after_days": 
 
 `PUT` needs the permission `settings:write`. `keep_days` is 1–3650; `compress_after_days` must be less than `keep_days`, `null` turns compression off.
 
-A retention or compression policy that already exists on a table (for example one added by hand in `psql`) is adopted: kept if it matches, replaced if not – there is never a second one. Removing a policy by hand is undone at the next backend start; change the setting on the page instead.
+On upgrades, existing database policies (including paused jobs) are left unchanged until an admin explicitly activates each data type on this page. The API exposes `management_enabled: false`; saving other settings does not activate it. Send `management_enabled: true` to opt in after reviewing the deletion window. Activation cannot be undone through this endpoint; use Legal hold to stop deletion. Fresh installations activate the defaults automatically.
+
+Once activated, a retention or compression policy that already exists on a table (for example one added by hand in `psql`) is adopted: kept if it matches, replaced if not – there is never a second one. Removing a policy by hand is undone at the next backend start; change the setting on the page instead.
 
 `events_aggregated` and `file_events_aggregated` hold hourly counts written by the former 7-day rollup (which aggregated and then deleted events row by row; it is removed). They are still shown as history on the Events page but no longer written.
 

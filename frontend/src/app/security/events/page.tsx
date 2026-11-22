@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/lib/i18n-context";
 import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect, useCallback } from "react";
@@ -50,7 +51,9 @@ interface AggregatedEvent {
 }
 
 interface RetentionInfo {
-  retention_days: number;
+  retention_days: number | null;
+  management_enabled: boolean;
+  legal_hold: boolean | null;
   raw_events: number;
   aggregated_events: number;
   oldest_raw_event: string;
@@ -203,6 +206,7 @@ export default function SecurityEventsPage() {
   const [aggregatedEvents, setAggregatedEvents] = useState<AggregatedEvent[]>([]);
   const [retention, setRetention] = useState<RetentionInfo | null>(null);
   const { token } = useAuth();
+  const { t } = useI18n();
   const PAGE_SIZE = 50;
 
   const fetchData = useCallback(async () => {
@@ -344,7 +348,11 @@ export default function SecurityEventsPage() {
                 </div>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <div className="text-xs text-zinc-500 mb-1">Retention Policy</div>
-                  <div className="text-xl font-bold">{retention.retention_days} days</div>
+                  {!retention.management_enabled ? (
+                    <div className="text-xs text-amber-400">{t("retentionPage.activationRequired")}</div>
+                  ) : retention.legal_hold ? (
+                    <div className="text-sm text-red-300">{t("retentionPage.holdActive")}</div>
+                  ) : <div className="text-xl font-bold">{retention.retention_days} days</div>}
                 </div>
               </div>
             )}

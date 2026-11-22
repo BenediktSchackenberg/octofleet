@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+import monitoring_defaults
+import retention
 from app.db.nodes import os_build_from
 from auth import require_permission, require_user_permission
 from dependencies import get_db, get_pool, verify_api_key
-import retention
-import monitoring_defaults
 
 router = APIRouter(tags=["Monitoring"])
 def _compute_posture_diff(baseline: dict, current: dict) -> dict:
@@ -1033,14 +1033,15 @@ async def get_event_stats_v2(days: Optional[int] = Query(None, ge=1, le=3650)):
         raw_count = await conn.fetchval("SELECT approximate_row_count('events_normalized')")
         agg_count = await conn.fetchval("SELECT COALESCE(SUM(event_count), 0) FROM events_aggregated")
         settings = await conn.fetchrow(
-            "SELECT keep_days, COALESCE(legal_hold, false) AS legal_hold FROM retention_config "
+            "SELECT keep_days, management_enabled, COALESCE(legal_hold, false) AS legal_hold FROM retention_config "
             "WHERE category = 'security_events'")
 
         return {
             "stats": stats,
             "retention": {
-                "retention_days": settings["keep_days"] if settings else None,
-                "legal_hold": settings["legal_hold"] if settings else False,
+                "management_enabled": bool(settings and settings["management_enabled"]),
+                "retention_days": settings["keep_days"] if settings and settings["management_enabled"] else None,
+                "legal_hold": settings["legal_hold"] if settings and settings["management_enabled"] else None,
                 "raw_events": raw_count,
                 "aggregated_events": agg_count,
                 "oldest_raw_event": str(oldest_raw) if oldest_raw else None,

@@ -17,12 +17,16 @@ from auth import (
     get_permissions_for_roles,
     hash_password,
     require_auth,
-    require_permission,
     require_user_permission,
     verify_password,
 )
 from dependencies import get_db, not_found
-from password_policy import load_policy, password_expired, record_previous_password, validate_password
+from password_policy import (
+    load_policy,
+    password_expired,
+    record_previous_password,
+    validate_password,
+)
 
 router = APIRouter(
     prefix="/api/v1/auth",

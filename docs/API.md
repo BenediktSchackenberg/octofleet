@@ -31,7 +31,7 @@ curl -H "Authorization: Bearer your-jwt-token" http://localhost:8080/api/v1/node
 ### Dashboard
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/dashboard/summary` | Node counts, vulnerability stats, job status |
+| GET | `/api/v1/dashboard/summary` | Node counts, vulnerability stats (from the vulnerability cache, with `as_of`), job status |
 | GET | `/api/v1/health` | Health check |
 
 ### Nodes (15 endpoints)
