@@ -12,15 +12,21 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+import vulnerability_cache
 from auth import CurrentUser, require_user_permission
 from dependencies import get_pool, verify_api_key
 from remediation import RemediationEngine
-from vulnerability import (COUNTED, PER_NODE_CVE, SEVERITIES_SQL, VulnerabilityScanner, clear_osv_cache,
-                           osv_cache_status, verify_osv_cache, get_node_vulnerabilities,
-                           get_node_vulnerability_groups, get_update_vulnerabilities, get_vulnerability_summary,
-                           run_vulnerability_scan)
-
-SEVERITY_NAMES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+from vulnerability import (
+    VulnerabilityScanner,
+    clear_osv_cache,
+    get_node_vulnerabilities,
+    get_node_vulnerability_groups,
+    get_scan_status,
+    get_update_vulnerabilities,
+    osv_cache_status,
+    run_vulnerability_scan,
+    verify_osv_cache,
+)
 
 router = APIRouter(tags=["Vulnerabilities"])
 
@@ -90,87 +96,52 @@ async def set_cpe_mapping(data: CpeMappingUpdate,
 
 
 @router.get("/api/v1/vulnerabilities/summary", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
-async def vulnerability_summary():
-    """Get vulnerability dashboard summary."""
-    return await get_vulnerability_summary(get_pool())
+async def vulnerability_summary_route():
+    """Vulnerability summary from the vulnerability cache (`cache.refreshed_at`: as of when;
+    `cache.pending_nodes`: nodes waiting for a rebuild). The scan status is live."""
+    async with get_pool().acquire() as conn:
+        return {**await get_scan_status(conn), **await vulnerability_cache.fleet_summary(conn),
+                "cache": await vulnerability_cache.status(conn)}
+
+
+@router.get("/api/v1/vulnerabilities/summary/status", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def vulnerability_summary_status():
+    """As of when the cached numbers are complete, nodes waiting for a rebuild, whether the cache
+    is being rebuilt, and the seconds until the refresh button may be used again."""
+    async with get_pool().acquire() as conn:
+        return {**await vulnerability_cache.status(conn),
+                "retry_after": vulnerability_cache.seconds_until_manual_refresh()}
+
+
+@router.post("/api/v1/vulnerabilities/summary/refresh", status_code=202)
+async def refresh_vulnerability_summary(_: CurrentUser = Depends(require_user_permission("settings:write"))):
+    """Rebuild the vulnerability cache of every node (in the background), at most once a minute.
+    Poll /summary/status until `refreshing` is false."""
+    wait = vulnerability_cache.seconds_until_manual_refresh()
+    if wait:
+        raise HTTPException(status_code=429, detail=f"The vulnerability numbers were recalculated less than a minute ago; try again in {wait} s",
+                            headers={"Retry-After": str(wait)})
+    await vulnerability_cache.refresh_all(get_pool())
+    return {"status": "started"}
 
 
 @router.get("/api/v1/vulnerabilities/by-node", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
-async def vulnerabilities_by_node(_: str = Depends(verify_api_key)):
-    """Vulnerability breakdown per node: distinct CVEs by their worst severity, affected updates."""
+async def vulnerabilities_by_node(limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+                                  severity: Optional[str] = Query(None, pattern="^(critical|CRITICAL)$"),
+                                  _: str = Depends(verify_api_key)):
+    """Vulnerability breakdown per node from the vulnerability cache, most findings first, one page
+    (`total` nodes in all): distinct CVEs by their worst severity, affected updates.
+    `severity=critical`: only nodes with critical CVEs, most first."""
     async with get_pool().acquire() as conn:
-        rows = await conn.fetch(f"""
-            WITH per_cve AS ({PER_NODE_CVE}),
-            units AS (
-                SELECT f.node_id, COUNT(DISTINCT (f.fix_unit, f.fix_unit_version)) AS affected_software_count
-                FROM node_vulnerability_findings f WHERE {COUNTED} GROUP BY f.node_id
-            ),
-            -- the finding behind each node's highest CVSS score, so the page can name its source
-            top AS (
-                SELECT DISTINCT ON (f.node_id) f.node_id, f.cve_id AS max_cvss_cve,
-                    f.fix_unit AS max_cvss_unit, f.severity AS max_cvss_severity, f.cvss_vector AS max_cvss_vector
-                FROM node_vulnerability_findings f
-                WHERE {COUNTED} AND f.cvss_score IS NOT NULL
-                ORDER BY f.node_id, f.cvss_score DESC, array_position({SEVERITIES_SQL}, f.severity), f.cve_id
-            )
-            SELECT n.id, n.hostname, n.os_name, n.last_seen,
-                COUNT(*) AS total_vulns,
-                COUNT(*) FILTER (WHERE c.rank = 1) AS critical,
-                COUNT(*) FILTER (WHERE c.rank = 2) AS high,
-                COUNT(*) FILTER (WHERE c.rank = 3) AS medium,
-                COUNT(*) FILTER (WHERE c.rank = 4) AS low,
-                MAX(c.cvss_score) AS max_cvss,
-                MIN(c.rank) AS max_rank,
-                MAX(u.affected_software_count) AS affected_software_count,
-                t.max_cvss_cve, t.max_cvss_unit, t.max_cvss_severity, t.max_cvss_vector
-            FROM per_cve c
-            JOIN nodes n ON n.id = c.node_id
-            JOIN units u ON u.node_id = c.node_id
-            LEFT JOIN top t ON t.node_id = c.node_id
-            GROUP BY n.id, n.hostname, n.os_name, n.last_seen,
-                t.max_cvss_cve, t.max_cvss_unit, t.max_cvss_severity, t.max_cvss_vector
-            ORDER BY total_vulns DESC
-        """)
-        return {"nodes": [{
-            "id": str(r["id"]), "hostname": r["hostname"], "os_type": r["os_name"],
-            "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
-            "total_vulns": r["total_vulns"], "critical": r["critical"], "high": r["high"],
-            "medium": r["medium"], "low": r["low"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
-            "max_severity": SEVERITY_NAMES[r["max_rank"] - 1] if r["max_rank"] else None,
-            "affected_software_count": r["affected_software_count"],
-            "max_cvss_cve": r["max_cvss_cve"], "max_cvss_unit": r["max_cvss_unit"],
-            "max_cvss_severity": r["max_cvss_severity"], "max_cvss_vector": r["max_cvss_vector"],
-        } for r in rows]}
+        return await vulnerability_cache.nodes_page(conn, limit, offset, critical_only=bool(severity))
 
 
 @router.get("/api/v1/vulnerabilities/by-software", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
-    """Vulnerability breakdown per update (source package on Linux, product on Windows) with affected node names."""
+    """The 20 updates (source package on Linux, product on Windows) with the most CVEs, from the
+    vulnerability cache, with affected node names."""
     async with get_pool().acquire() as conn:
-        rows = await conn.fetch(f"""
-            SELECT f.fix_unit AS software_name, f.fix_unit_version AS software_version,
-                COUNT(DISTINCT f.cve_id) as vuln_count,
-                MAX(f.cvss_score) as max_cvss,
-                (array_agg(f.cvss_vector ORDER BY f.cvss_score DESC NULLS LAST))[1] as max_cvss_vector,
-                MIN(array_position({SEVERITIES_SQL}, f.severity)) as max_rank,
-                COUNT(DISTINCT f.cve_id) FILTER (WHERE f.severity = 'CRITICAL') as critical,
-                COUNT(DISTINCT f.cve_id) FILTER (WHERE f.severity = 'HIGH') as high,
-                array_agg(DISTINCT n.hostname) as affected_nodes
-            FROM node_vulnerability_findings f
-            JOIN nodes n ON n.id = f.node_id
-            WHERE {COUNTED}
-            GROUP BY f.fix_unit, f.fix_unit_version
-            ORDER BY vuln_count DESC
-            LIMIT 20
-        """)
-        return {"software": [{
-            "software_name": r["software_name"], "software_version": r["software_version"],
-            "vuln_count": r["vuln_count"], "max_cvss": float(r["max_cvss"]) if r["max_cvss"] is not None else None,
-            "max_cvss_vector": r["max_cvss_vector"],
-            "max_severity": SEVERITY_NAMES[r["max_rank"] - 1] if r["max_rank"] else None,
-            "critical": r["critical"], "high": r["high"],
-            "affected_nodes": list(r["affected_nodes"])
-        } for r in rows]}
+        return await vulnerability_cache.software_page(conn, 20)
 
 
 @router.get("/api/v1/vulnerabilities/by-software/cves", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])

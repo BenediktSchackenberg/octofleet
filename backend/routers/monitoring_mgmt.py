@@ -3,6 +3,7 @@ Octofleet API - Monitoring Routes
 """
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,8 @@ logger = logging.getLogger(__name__)
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+import monitoring_defaults
+import retention
 from app.db.nodes import os_build_from
 from auth import require_permission, require_user_permission
 from dependencies import get_db, get_pool, verify_api_key
@@ -259,42 +262,35 @@ async def delete_monitoring_assignment(assignment_id: str):
 
 @router.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(verify_api_key)])
 async def get_effective_policy(node_id: str):
+    """The node's monitoring profile (node assignment, else group) plus the fleet-wide sensor
+    defaults, which apply to every sensor the profile does not set."""
     async with get_pool().acquire() as conn:
-        # Resolve hostname to UUID if needed
-        resolved_id = node_id
-        uuid_row = await conn.fetchval("SELECT id::text FROM nodes WHERE hostname = $1", node_id)
-        if uuid_row:
-            resolved_id = str(uuid_row)
-        # Also try: node_id might already be a UUID
-        if not uuid_row:
-            uuid_row2 = await conn.fetchval("SELECT id::text FROM nodes WHERE id::text = $1", node_id)
-            if uuid_row2:
-                resolved_id = str(uuid_row2)
-        # Check direct node assignment — match both hostname and UUID
-        candidates = [node_id, resolved_id]
-        logger.info(f"effective-policy: node_id={node_id}, resolved_id={resolved_id}, candidates={candidates}")
-        row = await conn.fetchrow("""
-            SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
-            FROM monitoring_assignments a
-            JOIN monitoring_profiles p ON p.id = a.profile_id
-            WHERE a.target_type = 'node' AND a.target_id = ANY($1::text[]) AND a.status = 'active'
-                AND (a.end_time IS NULL OR a.end_time > now())
-            ORDER BY a.priority DESC LIMIT 1
-        """, candidates)
+        row = await monitoring_defaults.effective_profile(conn, node_id)
+        defaults = await monitoring_defaults.get_defaults(conn)
         if not row:
-            # Fallback to group assignments
-            row = await conn.fetchrow("""
-                SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
-                FROM monitoring_assignments a
-                JOIN monitoring_profiles p ON p.id = a.profile_id
-                JOIN device_groups dg ON dg.group_id = a.target_id::uuid
-                WHERE a.target_type = 'group' AND dg.node_id::text = ANY($1::text[]) AND a.status = 'active'
-                    AND (a.end_time IS NULL OR a.end_time > now())
-                ORDER BY a.priority DESC LIMIT 1
-            """, candidates)
-        if not row:
-            return {"policy": None, "message": "No monitoring policy assigned"}
-        return {"policy": _parse_json_fields(dict(row))}
+            return {"policy": None, "defaults": defaults, "message": "No monitoring policy assigned"}
+        return {"policy": _parse_json_fields(dict(row)), "defaults": defaults}
+
+
+@router.get("/api/v1/monitoring/defaults", dependencies=[Depends(verify_api_key)])
+async def get_monitoring_defaults():
+    """Fleet-wide sensor defaults (a sensor set nowhere is on)."""
+    async with get_pool().acquire() as conn:
+        return {"sensors": await monitoring_defaults.get_defaults(conn),
+                "available": list(monitoring_defaults.SENSORS)}
+
+
+@router.put("/api/v1/monitoring/defaults")
+async def update_monitoring_defaults(req: Request, user=Depends(require_permission("settings:write"))):
+    body = await req.json()
+    sensors = body.get("sensors") if isinstance(body, dict) else None
+    error = monitoring_defaults.validate_sensors(sensors)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    async with get_pool().acquire() as conn:
+        merged = await monitoring_defaults.set_defaults(conn, sensors, getattr(user, "username", None))
+    logger.info("monitoring defaults changed by %s: %s", getattr(user, "username", "?"), sensors)
+    return {"sensors": merged, "available": list(monitoring_defaults.SENSORS)}
 
 
 @router.post("/api/v1/ingest/events", dependencies=[Depends(verify_api_key)])
@@ -470,28 +466,49 @@ async def update_finding(finding_id: str, req: Request):
 
 @router.get("/api/v1/retention", dependencies=[Depends(verify_api_key)])
 async def get_retention_config():
+    """Retention settings per data type and what is in effect (TimescaleDB jobs, size, oldest data)."""
     async with get_pool().acquire() as conn:
-        rows = await conn.fetch("SELECT * FROM retention_config ORDER BY category")
-        return {"retention": [dict(r) for r in rows]}
+        return {"retention": await retention.status(conn)}
 
 
-@router.put("/api/v1/retention/{category}", dependencies=[Depends(verify_api_key)])
-async def update_retention_config(category: str, req: Request):
+@router.put("/api/v1/retention/{category}")
+async def update_retention_config(category: str, req: Request,
+                                  user=Depends(require_permission("settings:write"))):
+    """Change keep_days / compress_after_days (null = off) / legal_hold and apply it at once."""
+    target = retention.TARGETS.get(category)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Category not found")
     body = await req.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON object expected")
     async with get_pool().acquire() as conn:
-        row = await conn.fetchrow("""
-            UPDATE retention_config SET
-                hot_days = COALESCE($2, hot_days),
-                warm_days = COALESCE($3, warm_days),
-                cold_days = COALESCE($4, cold_days),
-                legal_hold = COALESCE($5, legal_hold),
-                updated_at = now()
-            WHERE category = $1 RETURNING *
-        """, category, body.get("hot_days"), body.get("warm_days"),
-            body.get("cold_days"), body.get("legal_hold"))
-        if not row:
-            raise HTTPException(status_code=404, detail="Category not found")
-        return dict(row)
+        async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock($1)", retention._LOCK_KEY)
+            row = await conn.fetchrow(
+                "SELECT keep_days, compress_after_days, management_enabled, COALESCE(legal_hold, false) AS legal_hold "
+                "FROM retention_config WHERE category = $1 FOR UPDATE", category)
+            if row is None:
+                raise HTTPException(status_code=404, detail="Category not found")
+            keep = body.get("keep_days", row["keep_days"] or target.keep_days)
+            # null switches compression off, a missing key keeps the setting
+            compress = body["compress_after_days"] if "compress_after_days" in body else row["compress_after_days"]
+            hold = body.get("legal_hold", row["legal_hold"])
+            enabled = body.get("management_enabled", row["management_enabled"])
+            error = retention.validate(keep, compress)
+            if error is None and (not isinstance(enabled, bool) or (row["management_enabled"] and not enabled)):
+                error = "management_enabled must be true (activation cannot be undone here)"
+            if error is None and not isinstance(hold, bool):
+                error = "legal_hold must be true or false"
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            await conn.execute(
+                "UPDATE retention_config SET keep_days = $2, compress_after_days = $3, legal_hold = $4, "
+                "management_enabled = $5, updated_at = now() WHERE category = $1", category, keep, compress, hold, enabled)
+            result = await retention.apply_retention(conn, category)
+        logger.info("retention %s changed by %s: keep %s d, compress after %s, legal hold %s",
+                    category, getattr(user, "username", "?"), keep, compress, hold)
+        items = [i for i in await retention.status(conn) if i["category"] == category]
+        return {**items[0], "changes": result[0]["changes"] if result else []}
 
 
 @router.get("/api/v1/evidence/exports", dependencies=[Depends(verify_api_key)])
@@ -633,19 +650,33 @@ async def ingest_normalized_events(req: Request):
     """
     body = await req.json()
     events = body.get("events", [body] if "event_type" in body else [])
-    inserted = 0
-    findings_created = 0
-    
+    now = datetime.now(timezone.utc)
+    file_rows = []
+    event_rows = []
+    dropped = 0
+    keep_connections: Dict[str, bool] = {}
+
     async with get_pool().acquire() as conn:
         for evt in events:
             event_type = evt.get("event_type", "unknown")
             event_subtype = evt.get("event_subtype", "")
             node_id = evt.get("node_id")
-            
+            if not node_id:
+                dropped += 1
+                continue
+
+            # network.connect / network.close only where the node's network_connections sensor is on
+            if event_type in monitoring_defaults.NETWORK_CONNECTION_EVENTS:
+                if node_id not in keep_connections:
+                    keep_connections[node_id] = await monitoring_defaults.network_connections_enabled(conn, node_id)
+                if not keep_connections[node_id]:
+                    dropped += 1
+                    continue
+
             # Extract user info
             user = evt.get("user", {})
             user_id = user.get("username") or user.get("sid") or user.get("uid") or evt.get("user_id")
-            
+
             # Build enriched payload (keep process, network, raw_event_ref)
             payload = {}
             for key in ("process", "network", "user", "raw_event_ref", "metadata"):
@@ -659,17 +690,18 @@ async def ingest_normalized_events(req: Request):
                                "timestamp", "process", "network", "user", "file", "raw_event_ref",
                                "metadata", "agent_id", "tenant_id"):
                     payload[key] = evt[key]
-            
+
             severity = evt.get("severity", "info")
+            ts = now
             ts_raw = evt.get("timestamp")
-            ts = None
             if ts_raw:
-                from datetime import datetime as _dt
                 try:
-                    ts = _dt.fromisoformat(ts_raw.replace("Z", "+00:00"))
+                    ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
                 except (ValueError, AttributeError):
-                    ts = None
-            
+                    ts = now
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+
             # Route file events to file_events table
             # Agent sends event_type like "Created", "Changed", "Deleted", "Renamed"
             file_ops = {"created", "changed", "deleted", "renamed", "modified"}
@@ -682,44 +714,29 @@ async def ingest_normalized_events(req: Request):
                 file_info = evt.get("file", {})
                 op = event_subtype or file_info.get("operation") or event_type
                 proc = evt.get("process", {})
-                
-                if ts:
-                    await conn.execute("""
-                        INSERT INTO file_events (ts, node_id, user_id, op, path, old_path, new_path,
-                            process_name, pid, hash_before, hash_after, file_size, success)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    """, ts, node_id, user_id, op,
-                        file_info.get("path") or file_info.get("normalized_path"),
-                        file_info.get("old_path"), file_info.get("new_path"),
-                        proc.get("name"), proc.get("pid"),
-                        file_info.get("hash_before"), file_info.get("hash_after"),
-                        file_info.get("size"), evt.get("success", True))
-                else:
-                    await conn.execute("""
-                        INSERT INTO file_events (node_id, user_id, op, path, old_path, new_path,
-                            process_name, pid, hash_before, hash_after, file_size, success)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                    """, node_id, user_id, op,
-                        file_info.get("path") or file_info.get("normalized_path"),
-                        file_info.get("old_path"), file_info.get("new_path"),
-                        proc.get("name"), proc.get("pid"),
-                        file_info.get("hash_before"), file_info.get("hash_after"),
-                        file_info.get("size"), evt.get("success", True))
+                file_rows.append((
+                    ts, node_id, user_id, op,
+                    file_info.get("path") or file_info.get("normalized_path"),
+                    file_info.get("old_path"), file_info.get("new_path"),
+                    proc.get("name"), proc.get("pid"),
+                    file_info.get("hash_before"), file_info.get("hash_after"),
+                    file_info.get("size"), evt.get("success", True)))
             else:
-                if ts:
-                    await conn.execute("""
-                        INSERT INTO events_normalized (ts, node_id, user_id, event_type, severity, payload)
-                        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-                    """, ts, node_id, user_id, event_type, severity, json.dumps(payload))
-                else:
-                    await conn.execute("""
-                        INSERT INTO events_normalized (node_id, user_id, event_type, severity, payload)
-                        VALUES ($1, $2, $3, $4, $5::jsonb)
-                    """, node_id, user_id, event_type, severity, json.dumps(payload))
-            
-            inserted += 1
-    
-    return {"inserted": inserted, "findings_created": findings_created}
+                event_rows.append((ts, node_id, user_id, event_type, severity, json.dumps(payload)))
+
+        # One COPY per table instead of one INSERT per event
+        async with conn.transaction():
+            if file_rows:
+                await conn.copy_records_to_table(
+                    "file_events", records=file_rows,
+                    columns=["ts", "node_id", "user_id", "op", "path", "old_path", "new_path",
+                             "process_name", "pid", "hash_before", "hash_after", "file_size", "success"])
+            if event_rows:
+                await conn.copy_records_to_table(
+                    "events_normalized", records=event_rows,
+                    columns=["ts", "node_id", "user_id", "event_type", "severity", "payload"])
+
+    return {"inserted": len(file_rows) + len(event_rows), "dropped": dropped, "findings_created": 0}
 
 
 @router.get("/api/v1/agents/{node_id}/health/history", dependencies=[Depends(verify_api_key)])
@@ -922,92 +939,10 @@ async def compare_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-# ─── Event Data Retention & Aggregation ────────────────────────────
-
-RETENTION_DAYS = 7  # Keep raw events for 7 days, then aggregate
-
-
-@router.post("/api/v1/events/rollup", dependencies=[Depends(verify_api_key)])
-async def trigger_event_rollup():
-    """Manually trigger event aggregation and cleanup"""
-    result = await _run_event_rollup()
-    return result
-
-
-async def _run_event_rollup():
-    """Aggregate events older than RETENTION_DAYS into hourly buckets, then delete raw data."""
-    import logging
-    logger = logging.getLogger(__name__)
-
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        cutoff = f"NOW() - INTERVAL '{RETENTION_DAYS} days'"
-
-        # 1) Aggregate normalized events into hourly buckets
-        agg_result = await conn.execute(f"""
-            INSERT INTO events_aggregated (hour, node_id, event_type, severity, event_count, unique_users, sample_payload)
-            SELECT
-                date_trunc('hour', ts) AS hour,
-                node_id,
-                event_type,
-                severity,
-                COUNT(*) AS event_count,
-                COUNT(DISTINCT user_id) AS unique_users,
-                (array_agg(payload ORDER BY ts DESC))[1] AS sample_payload
-            FROM events_normalized
-            WHERE ts < {cutoff}
-            GROUP BY date_trunc('hour', ts), node_id, event_type, severity
-            ON CONFLICT (hour, node_id, event_type, severity)
-            DO UPDATE SET
-                event_count = events_aggregated.event_count + EXCLUDED.event_count,
-                unique_users = GREATEST(events_aggregated.unique_users, EXCLUDED.unique_users),
-                sample_payload = COALESCE(EXCLUDED.sample_payload, events_aggregated.sample_payload)
-        """)
-
-        # 2) Delete aggregated raw events
-        del_events = await conn.execute(f"""
-            DELETE FROM events_normalized WHERE ts < {cutoff}
-        """)
-
-        # 3) Aggregate file events
-        await conn.execute(f"""
-            INSERT INTO file_events_aggregated (hour, node_id, op, event_count, unique_paths, unique_users, sample_path)
-            SELECT
-                date_trunc('hour', ts) AS hour,
-                node_id,
-                op,
-                COUNT(*) AS event_count,
-                COUNT(DISTINCT path) AS unique_paths,
-                COUNT(DISTINCT user_id) AS unique_users,
-                (array_agg(path ORDER BY ts DESC))[1] AS sample_path
-            FROM file_events
-            WHERE ts < {cutoff}
-            GROUP BY date_trunc('hour', ts), node_id, op
-            ON CONFLICT (hour, node_id, op)
-            DO UPDATE SET
-                event_count = file_events_aggregated.event_count + EXCLUDED.event_count,
-                unique_paths = GREATEST(file_events_aggregated.unique_paths, EXCLUDED.unique_paths),
-                unique_users = GREATEST(file_events_aggregated.unique_users, EXCLUDED.unique_users),
-                sample_path = COALESCE(EXCLUDED.sample_path, file_events_aggregated.sample_path)
-        """)
-
-        # 4) Delete aggregated raw file events
-        del_files = await conn.execute(f"""
-            DELETE FROM file_events WHERE ts < {cutoff}
-        """)
-
-        # Parse DELETE counts
-        events_deleted = int(del_events.split()[-1]) if del_events else 0
-        files_deleted = int(del_files.split()[-1]) if del_files else 0
-
-        logger.info(f"Event rollup: {events_deleted} events aggregated+deleted, {files_deleted} file events aggregated+deleted")
-
-        return {
-            "status": "ok",
-            "retention_days": RETENTION_DAYS,
-            "events_deleted": events_deleted,
-            "file_events_deleted": files_deleted,
-        }
+# ─── Event history ─────────────────────────────────────────────────
+# Old events leave by retention (whole chunks, see retention.py). events_aggregated /
+# file_events_aggregated hold hourly counts from the former 7-day rollup; they are read
+# as history but no longer written.
 
 
 @router.get("/api/v1/events/aggregated", dependencies=[Depends(verify_api_key)])
@@ -1093,15 +1028,20 @@ async def get_event_stats_v2(days: Optional[int] = Query(None, ge=1, le=3650)):
             f"SELECT COALESCE(SUM(event_count), 0) FROM file_events_aggregated WHERE hour > {since}", *params)
         stats.append({"event_type": "file.all", "count": raw_files + agg_files})
 
-        # Retention info
+        # Retention info: catalog/statistics reads, cost does not grow with the number of events
         oldest_raw = await conn.fetchval("SELECT MIN(ts) FROM events_normalized")
-        raw_count = await conn.fetchval("SELECT COUNT(*) FROM events_normalized")
+        raw_count = await conn.fetchval("SELECT approximate_row_count('events_normalized')")
         agg_count = await conn.fetchval("SELECT COALESCE(SUM(event_count), 0) FROM events_aggregated")
+        settings = await conn.fetchrow(
+            "SELECT keep_days, management_enabled, COALESCE(legal_hold, false) AS legal_hold FROM retention_config "
+            "WHERE category = 'security_events'")
 
         return {
             "stats": stats,
             "retention": {
-                "retention_days": RETENTION_DAYS,
+                "management_enabled": bool(settings and settings["management_enabled"]),
+                "retention_days": settings["keep_days"] if settings and settings["management_enabled"] else None,
+                "legal_hold": settings["legal_hold"] if settings and settings["management_enabled"] else None,
                 "raw_events": raw_count,
                 "aggregated_events": agg_count,
                 "oldest_raw_event": str(oldest_raw) if oldest_raw else None,

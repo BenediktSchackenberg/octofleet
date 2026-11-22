@@ -36,6 +36,8 @@ The NVD API key for vulnerability scanning is set in the UI under **Settings →
 
 The vulnerability scan checks Windows applications against NVD and Linux distribution packages against [OSV](https://osv.dev) (`api.osv.dev`); the backend needs outbound HTTPS to both. Short failures of either service (HTTP 429, 5xx, connection errors) are retried twice. A software version that still cannot be checked keeps its previous findings, and the scan ends as **Partial** with the number of such versions (automatic remediation is skipped for that scan) instead of failing as a whole.
 
+Vulnerability numbers (dashboard, vulnerabilities page, sidebar badges) come from a cache per node that the backend recalculates when a node's findings can change (see [API reference](API-REFERENCE.md#vulnerabilities--remediation)). `VULNERABILITY_CACHE_WORKERS` (default `2`) sets how many nodes are recalculated at the same time; more workers make a full recalculation (first start, the ↻ button) faster but put more load on the database. Set it in the backend's `environment:` in `docker-compose.yml` if needed.
+
 OSV advisories are cached in the database (table `osv_advisories`): a later scan downloads an advisory again only when OSV reports a different change date for it, or when the entry is older than 30 days, so repeated scans need a few requests instead of one per advisory. The first scan after an update fills the cache. **Vulnerabilities → Scan history → OSV advisory cache** shows the entries and offers (with `settings:write`):
 
 - **Verify (50 random):** downloads 50 random cached advisories again and compares them; entries that differ are corrected, removed advisories are dropped.
@@ -234,6 +236,12 @@ To restore:
 ```bash
 cat backup.sql | docker exec -i octofleet-inventory-db psql -U octofleet inventory
 ```
+
+### Data Retention
+
+Security events, file audit events, performance data and hardware changes are kept for a set time and older data is compressed: by default 30 / 90 / 30 / 365 days, compressed after 7 days (hardware changes not). Fresh installations apply these defaults immediately. Upgrades preserve existing database jobs until an admin explicitly activates each data type under **Admin → Retention**. Once activated, changes apply immediately as TimescaleDB jobs that drop whole chunks daily. See [Security Center – Retention & Legal Hold](SECURITY-CENTER.md#retention--legal-hold).
+
+Plan disk space with this in mind: on a test installation one Windows node with the network sensor on produced about 400,000 security events (about 180 MB, 11 MB compressed) per day.
 
 ### Resource Limits
 

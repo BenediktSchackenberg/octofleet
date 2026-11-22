@@ -3,6 +3,7 @@ import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n-context";
 import { Eye, Plus, Edit, Trash2, Shield, Link2, Monitor, Server, Users, X, CheckCircle } from "lucide-react";
 
 interface Profile {
@@ -43,7 +44,7 @@ function parsePaths(p: unknown): string[] {
   return p as string[];
 }
 
-const defaultSensors = ["file_audit", "process_monitor", "network_monitor", "registry_monitor", "logon_events", "service_changes"];
+const defaultSensors = ["file_audit", "process_monitor", "network_monitor", "network_connections", "registry_monitor", "logon_events", "service_changes"];
 
 const SENSOR_LABELS: Record<string, string> = {
   file_audit: "File Audit",
@@ -68,6 +69,24 @@ export default function MonitoringProfilesPage() {
   const [tab, setTab] = useTabParam<"profiles" | "assignments">("profiles", ["profiles", "assignments"]);
   const [form, setForm] = useState({ name: "", description: "", sensors: {} as Record<string, boolean>, include_paths: "", exclude_paths: "" });
   const { token } = useAuth();
+  const { t } = useI18n();
+  const [fleetDefaults, setFleetDefaults] = useState<Record<string, boolean> | null>(null);
+  const [savingDefaults, setSavingDefaults] = useState(false);
+
+  const sensorLabel = (sensor: string) =>
+    sensor === "network_connections" ? t("monitoringProfiles.networkConnections") : SENSOR_LABELS[sensor] || sensor;
+
+  async function fetchDefaults() {
+    const data = await apiClient.get<{ sensors: Record<string, boolean> }>("/monitoring/defaults", { showErrorToast: false });
+    setFleetDefaults(data?.sensors || null);
+  }
+
+  async function setConnectionsDefault(enabled: boolean) {
+    setSavingDefaults(true);
+    const data = await apiClient.put<{ sensors: Record<string, boolean> }>("/monitoring/defaults", { sensors: { network_connections: enabled } });
+    if (data) setFleetDefaults(data.sensors);
+    setSavingDefaults(false);
+  }
 
   async function fetchAll() {
     const [profData, assignData, nodeData, groupData] = await Promise.all([
@@ -83,7 +102,7 @@ export default function MonitoringProfilesPage() {
     setLoading(false);
   }
 
-  useEffect(() => { if (token) fetchAll(); }, [token]);
+  useEffect(() => { if (token) { fetchAll(); fetchDefaults(); } }, [token]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -191,6 +210,20 @@ export default function MonitoringProfilesPage() {
           </button>
         </div>
 
+        {/* Fleet-wide default for sensors a profile does not set */}
+        {tab === "profiles" && fleetDefaults && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-sm">{t("monitoringProfiles.fleetDefault.title")}</div>
+              <div className="text-xs text-zinc-400 mt-1">{t("monitoringProfiles.fleetDefault.connectionsHelp")}</div>
+            </div>
+            <button onClick={() => setConnectionsDefault(!fleetDefaults.network_connections)} disabled={savingDefaults}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 ${fleetDefaults.network_connections ? "bg-green-500/20 text-green-300 border border-green-500/30" : "bg-zinc-800 text-zinc-400 hover:text-white"}`}>
+              {fleetDefaults.network_connections ? t("monitoringProfiles.fleetDefault.connectionsOn") : t("monitoringProfiles.fleetDefault.connectionsOff")}
+            </button>
+          </div>
+        )}
+
         {/* Create/Edit Modal */}
         {showCreate && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreate(false)}>
@@ -217,7 +250,7 @@ export default function MonitoringProfilesPage() {
                         <input type="checkbox" checked={form.sensors[sensor] || false}
                           onChange={e => setForm({...form, sensors: {...form.sensors, [sensor]: e.target.checked}})}
                           className="rounded accent-green-500" />
-                        <span className="text-sm">{SENSOR_LABELS[sensor] || sensor}</span>
+                        <span className="text-sm">{sensorLabel(sensor)}</span>
                       </label>
                     ))}
                   </div>

@@ -677,7 +677,8 @@
     "osvCounts": "{downloaded} downloaded · {cached} from cache",
     "cacheRebuilt": "Cache rebuilt",
     "withoutCache": "Without cache",
-    "cacheRebuiltHint": "This scan downloaded every OSV advisory (first scan, full scan without cache, or after clearing the cache), so it took longer than scans that use the cache."
+    "cacheRebuiltHint": "This scan downloaded every OSV advisory (first scan, full scan without cache, or after clearing the cache), so it took longer than scans that use the cache.",
+    "showMoreNodes": "Show {count} more ({remaining} left)"
   },
   "vulnerabilityScan": {
     "running": "Scan running since {time} ({minutes} min) – {checked} of {total} software versions checked. Numbers can be incomplete until it finishes.",
@@ -1773,5 +1774,74 @@
       "restartAt": "Restart at {time}; finished once the node reports again"
     },
     "approved": "{count} approved"
+  },
+  "retentionPage": {
+    "activate": "Activate retention",
+    "activationRequired": "Upgrade protection: existing database policies are unchanged. Review these settings and activate them explicitly.",
+    "activateConfirm": "Activate retention for {name} ({days} days)? This replaces existing database policies. Older data may be permanently deleted by the next run.",
+    "title": "Retention & Data Lifecycle",
+    "subtitle": "How long time-series data is kept and when it is compressed",
+    "keepDays": "Keep (days)",
+    "keepHelp": "older data is deleted daily, a whole day (chunk) at a time",
+    "compressAfter": "Compress after (days)",
+    "compressHelp": "older data is stored compressed (about 15× smaller); it stays searchable",
+    "legalHold": "Legal hold",
+    "legalHoldHelp": "nothing is deleted while it is on",
+    "legalHoldOn": "Legal hold on",
+    "legalHoldOff": "Legal hold off",
+    "saving": "Saving...",
+    "saved": "{name}: settings applied",
+    "releaseHoldConfirm": "Release the legal hold for {name}? Data older than {days} days will be deleted with the next daily run.",
+    "shortenConfirm": "Keep {name} for only {days} days? Older data will be deleted with the next daily run and cannot be restored.",
+    "notApplied": "Not applied: {table} is not a TimescaleDB hypertable.",
+    "stored": "Stored: {size} · oldest data from {oldest} · {compressed} of {chunks} chunks compressed",
+    "holdActive": "Legal hold: no data is deleted.",
+    "jobLine": "{type} (job {id}): next run {next}, {last}",
+    "lastRun": "last run {status} {time}",
+    "notRunYet": "not run yet",
+    "jobTypes": {
+      "retention": "Deletion",
+      "compression": "Compression"
+    },
+    "categories": {
+      "security_events": {
+        "title": "Security Events",
+        "description": "Events from the agents' security sensors (logons, processes, services, network) – Security → Events"
+      },
+      "file_events": {
+        "title": "File Audit Events",
+        "description": "File changes from the file audit sensor – Security → File Audit"
+      },
+      "performance_metrics": {
+        "title": "Performance Data",
+        "description": "CPU, memory, disk and network values of the nodes – Performance pages and charts"
+      },
+      "hardware_changes": {
+        "title": "Hardware Changes",
+        "description": "History of hardware changes per node"
+      }
+    }
+  },
+  "monitoringProfiles": {
+    "networkConnections": "Network connections (connect/close)",
+    "fleetDefault": {
+      "title": "Fleet default: network connection events",
+      "connectionsHelp": "Every opened and closed TCP connection as an event (network.connect / network.close) – very many events (one busy server: ~400,000 a day). Applies to all nodes whose profile does not set it; listening ports are reported either way. Agents pick up a change within an hour; the server drops these events within a minute.",
+      "connectionsOn": "Recorded",
+      "connectionsOff": "Not recorded"
+    }
+  },
+  "vulnerabilitySummary": {
+    "asOf": "As of {time}",
+    "notYet": "Being calculated",
+    "scanFinished": "scan finished {time}",
+    "noScan": "no scan yet",
+    "refresh": "Recalculate the numbers of all nodes now",
+    "refreshing": "Recalculating…",
+    "refreshWait": "The numbers were recalculated less than a minute ago – try again in {seconds} s.",
+    "refreshFailed": "The numbers could not be recalculated.",
+    "hint": "The numbers are kept per node and recalculated when something changes: a scan, new software on a node, a finding fixed, a node removed.",
+    "pendingOne": "{count} node being recalculated",
+    "pendingOther": "{count} nodes being recalculated"
   }
 }

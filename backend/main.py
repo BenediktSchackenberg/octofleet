@@ -50,27 +50,29 @@ from reportlab.platypus import (
 )
 
 import job_types
+import monitoring_defaults
 import node_removal
 import password_policy
+import retention
 import vulnerability
+import vulnerability_cache
 from auth import (
+    ROLE_PERMISSIONS,
     APIKeyCreate,
     CurrentUser,
     RoleCreate,
-    ROLE_PERMISSIONS,
     UserCreate,
     get_permissions_for_roles,
     hash_api_key,
     hash_password,
-    require_auth,
     require_permission,
     require_user_permission,
 )
 from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
+from routers.agent_releases import router as agent_releases_router
 from routers.alerting import router as alerting_router
-from routers.auth import router as auth_router
 from routers.auth import assert_manageable_user, users_router
-from routers.password_policy import router as password_policy_router
+from routers.auth import router as auth_router
 from routers.baselines import router as baselines_router
 from routers.content_lifecycle import router as content_lifecycle_router
 from routers.dashboard import router as dashboard_router
@@ -88,7 +90,7 @@ from routers.mssql import router as mssql_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
-from routers.agent_releases import router as agent_releases_router
+from routers.password_policy import router as password_policy_router
 from routers.patch_explorer import router as patch_explorer_router
 from routers.patches import ensure_schema as ensure_patches_schema
 from routers.patches import router as patches_router
@@ -117,6 +119,7 @@ import matplotlib.pyplot as plt
 # Centralized dependencies - single source of truth for auth and config
 from dependencies import (
     DATABASE_URL,
+    _permissions_for_scopes,
     bad_request,
     conflict,
     get_db,
@@ -126,7 +129,6 @@ from dependencies import (
     set_db_pool,
     verify_api_key,
     verify_api_key_or_query,
-    _permissions_for_scopes,
 )
 
 # Local db_pool reference (set during lifespan)
@@ -148,6 +150,11 @@ async def lifespan(app: FastAPI):
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
     await ensure_inventory_schema(db_pool)
+    await retention.ensure_schema(db_pool)
+    await retention.apply_on_startup(db_pool)
+    await monitoring_defaults.ensure_schema(db_pool)
+    # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
+    vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
@@ -209,6 +216,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     removal_task.cancel()
+    vulnerability_cache_task.cancel()
     if db_pool:
         await db_pool.close()
         print("Database pool closed")
@@ -4277,24 +4285,6 @@ async def start_node_health_monitor():
     """Start the node health monitor on app startup."""
     asyncio.create_task(node_health_monitor_task())
 
-
-@app.on_event("startup")
-async def start_event_rollup_task():
-    """Run event aggregation/cleanup daily."""
-    async def _rollup_loop():
-        import logging
-        logger = logging.getLogger("event_rollup")
-        while True:
-            try:
-                await asyncio.sleep(3600)  # first run after 1 hour, then every 24h
-                from routers.monitoring_mgmt import _run_event_rollup
-                result = await _run_event_rollup()
-                logger.info(f"Event rollup completed: {result}")
-                await asyncio.sleep(82800)  # remaining 23h
-            except Exception as e:
-                logger.error(f"Event rollup error: {e}")
-                await asyncio.sleep(3600)  # retry in 1h on error
-    asyncio.create_task(_rollup_loop())
 
 # =============================================================================
 # Auto-Update Endpoint

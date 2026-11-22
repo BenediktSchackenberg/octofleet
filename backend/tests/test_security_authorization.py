@@ -1,14 +1,13 @@
 import unittest
-from uuid import uuid4
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from auth import CurrentUser, get_current_user, require_user_permission
+from auth import APIKeyCreate, CurrentUser, RoleCreate, get_current_user, require_user_permission
 from dependencies import get_db, verify_api_key
 from main import app, create_api_key, create_role
-from auth import APIKeyCreate, RoleCreate
 from routers.auth import assert_manageable_user
 
 

@@ -7,7 +7,12 @@ import unittest
 import httpx
 
 import vulnerability
-from vulnerability import OSV_CACHE_MAX_AGE_DAYS, OSV_CACHE_VERSION, VulnerabilityScanner, verify_osv_cache
+from vulnerability import (
+    OSV_CACHE_MAX_AGE_DAYS,
+    OSV_CACHE_VERSION,
+    VulnerabilityScanner,
+    verify_osv_cache,
+)
 
 
 class FakeConnection:
@@ -142,8 +147,9 @@ class OsvCacheTests(unittest.IsolatedAsyncioTestCase):
 
 class VerifyTests(unittest.IsolatedAsyncioTestCase):
     async def test_verify_corrects_changed_entries_and_drops_removed_ones(self):
-        record = lambda osv_id, summary: {"id": osv_id, "modified": "new", "summary": summary, "aliases": [],
-                                          "severity": [], "affected": [], "references": []}
+        def record(osv_id, summary):
+            return {"id": osv_id, "modified": "new", "summary": summary, "aliases": [],
+                    "severity": [], "affected": [], "references": []}
         scanner = VulnerabilityScanner(None)
         same = vulnerability.encode_cached_finding(scanner._osv_finding("UBUNTU-CVE-2026-0001", record("x", "old text")))
         pool = FakePool([

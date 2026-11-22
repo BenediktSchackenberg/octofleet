@@ -7,8 +7,8 @@ from datetime import datetime
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
+from auth import require_user_permission
 from dependencies import get_db, not_found, verify_api_key
-from auth import require_permission, require_user_permission
 
 router = APIRouter(tags=["Hardware"])
 

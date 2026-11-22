@@ -1,7 +1,8 @@
 """Admin-only password policy settings."""
 
-from fastapi import APIRouter, Depends
 from uuid import UUID
+
+from fastapi import APIRouter, Depends
 
 from auth import CurrentUser, require_permission
 from dependencies import get_db

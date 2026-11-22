@@ -2,8 +2,8 @@
 import asyncpg
 from fastapi import APIRouter, Depends
 
+import vulnerability_cache
 from dependencies import get_db, verify_api_key
-from vulnerability import get_vulnerability_severity_counts
 
 router = APIRouter(
     prefix="/api/v1/dashboard",
@@ -14,9 +14,6 @@ router = APIRouter(
 @router.get("/summary")
 async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
-    # Before acquiring a connection here: the summary acquires its own, and holding two per request
-    # could exhaust the pool under concurrent dashboard requests.
-    severity_counts = await get_vulnerability_severity_counts(db)
     async with db.acquire() as conn:
         # Get node counts by status
         counts = await conn.fetchrow("""
@@ -55,6 +52,16 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
             SELECT COUNT(*) FROM alerts WHERE status = 'active'
         """) or 0
         
+        # Counts from the vulnerability cache (one row), as of when
+        fleet = await conn.fetchrow("SELECT critical, high, medium, low, unknown FROM vulnerability_fleet_summary WHERE id = 1")
+        severity_counts = {"CRITICAL": fleet["critical"], "HIGH": fleet["high"], "MEDIUM": fleet["medium"],
+                           "LOW": fleet["low"], "UNKNOWN": fleet["unknown"]} if fleet else {}
+        cache = await vulnerability_cache.status(conn)
+        scan_completed_at = await conn.fetchval("""
+            SELECT MAX(completed_at) FROM vulnerability_scans
+            WHERE status IN ('completed', 'partial') AND completed_at IS NOT NULL
+        """)
+
         # Get recent events (last 10)
         events = await conn.fetch("""
             SELECT 
@@ -81,7 +88,12 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
                 "critical": severity_counts.get("CRITICAL", 0),
                 "high": severity_counts.get("HIGH", 0),
                 "medium": severity_counts.get("MEDIUM", 0),
-                "low": severity_counts.get("LOW", 0)
+                "low": severity_counts.get("LOW", 0),
+                # From the vulnerability cache: as of when, nodes waiting for a rebuild, last scan
+                "as_of": cache["refreshed_at"],
+                "refreshing": cache["refreshing"],
+                "pending_nodes": cache["pending_nodes"],
+                "scan_completed_at": scan_completed_at.isoformat() if scan_completed_at else None
             },
             "jobs": {
                 "total": job_stats["total"] if job_stats else 0,

@@ -7,10 +7,11 @@ from typing import Any, Dict
 import asyncpg
 from fastapi import APIRouter, Depends
 
+import vulnerability_cache
 from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
-from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
 from auth import require_permission, require_user_permission
+from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
 from routers.patches import record_scan, scan_info
 
 logger = logging.getLogger(__name__)
@@ -312,13 +313,18 @@ async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
     node_id_str = data.get("nodeId", hostname)
     programs = data.get("programs", [])
     uuid = await upsert_node(db, node_id_str, hostname)
-    async with db.acquire() as conn:
+    async with db.acquire() as conn, conn.transaction():
+        # Replaced in one transaction (readers never see a half-written list); if the packages
+        # changed, the node (and nodes whose findings depend on its packages) are marked for the
+        # vulnerability cache.
+        before = await vulnerability_cache.software_state(conn, uuid)
         await conn.execute("DELETE FROM software_current WHERE node_id = $1", uuid)
         for prog in programs:
             await conn.execute("""
                 INSERT INTO software_current (node_id, name, version, publisher, source_package, source_version, install_date, install_path, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
             """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, (prog.get("sourcePackage") or None), (prog.get("sourceVersion") or None), install_date_from(prog.get("installDate")), prog.get("installLocation"))
+        await vulnerability_cache.mark_software_change(conn, uuid, before, await vulnerability_cache.software_state(conn, uuid))
     return {"status": "ok", "node_id": str(uuid), "type": "software", "count": len(programs)}
 
 @router.post("/hotfixes", dependencies=[Depends(require_permission("inventory:write"))])

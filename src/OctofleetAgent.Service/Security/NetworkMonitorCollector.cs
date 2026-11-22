@@ -26,6 +26,14 @@ public class NetworkMonitorCollector : BackgroundService
     private Dictionary<string, ConnectionInfo> _previousSnapshot = new();
     private int _droppedCount;
 
+    // Sensor settings from the server, read again every hour (sooner after a failed read):
+    // network_monitor switches the collector, network_connections the connect/close events
+    // (off by default on newer servers; listening ports are reported either way).
+    private static readonly TimeSpan SettingsInterval = TimeSpan.FromHours(1);
+    private static readonly TimeSpan SettingsRetry = TimeSpan.FromMinutes(5);
+    private bool _monitorEnabled = true;
+    private bool _connectionsEnabled;
+
     public NetworkMonitorCollector(ILogger<NetworkMonitorCollector> logger)
     {
         _logger = logger;
@@ -43,14 +51,9 @@ public class NetworkMonitorCollector : BackgroundService
             return;
         }
 
-        var profile = await FetchSensorEnabledAsync(config, "network_monitor");
-        if (profile == false)
-        {
-            _logger.LogInformation("Network Monitor sensor disabled by profile.");
-            return;
-        }
-
-        _logger.LogInformation("Network Monitor Collector active.");
+        var nextSettings = DateTime.UtcNow + (await RefreshSettingsAsync(config) ? SettingsInterval : SettingsRetry);
+        _logger.LogInformation("Network Monitor Collector started (monitor {Monitor}, connection events {Connections}).",
+            _monitorEnabled ? "on" : "off", _connectionsEnabled ? "on" : "off");
 
         var lastPoll = DateTime.MinValue;
         var lastHealth = DateTime.UtcNow;
@@ -58,6 +61,10 @@ public class NetworkMonitorCollector : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(FlushIntervalMs, stoppingToken);
+
+            if (DateTime.UtcNow >= nextSettings)
+                nextSettings = DateTime.UtcNow + (await RefreshSettingsAsync(config) ? SettingsInterval : SettingsRetry);
+            if (!_monitorEnabled) continue;
 
             if ((DateTime.UtcNow - lastPoll).TotalMilliseconds >= PollIntervalMs)
             {
@@ -125,15 +132,16 @@ public class NetworkMonitorCollector : BackgroundService
             {
                 if (_eventQueue.Count >= MaxQueueSize) { Interlocked.Increment(ref _droppedCount); continue; }
 
-                var eventType = kvp.Value.State == "Listen" ? "network.listen" : "network.connect";
-                _eventQueue.Enqueue(BuildEvent(eventType, kvp.Value, now));
+                var isListen = kvp.Value.State == "Listen";
+                if (!isListen && !_connectionsEnabled) continue;
+                _eventQueue.Enqueue(BuildEvent(isListen ? "network.listen" : "network.connect", kvp.Value, now));
             }
         }
 
         // Closed connections
         foreach (var kvp in _previousSnapshot)
         {
-            if (!currentSnapshot.ContainsKey(kvp.Key) && kvp.Value.State != "Listen")
+            if (_connectionsEnabled && !currentSnapshot.ContainsKey(kvp.Key) && kvp.Value.State != "Listen")
             {
                 if (_eventQueue.Count >= MaxQueueSize) { Interlocked.Increment(ref _droppedCount); continue; }
                 _eventQueue.Enqueue(BuildEvent("network.close", kvp.Value, now));
@@ -324,7 +332,8 @@ public class NetworkMonitorCollector : BackgroundService
         catch { }
     }
 
-    private async Task<bool?> FetchSensorEnabledAsync(ServiceConfig config, string sensorName)
+    /// <summary>Reads the sensor settings; false when the server could not be asked (settings kept).</summary>
+    private async Task<bool> RefreshSettingsAsync(ServiceConfig config)
     {
         try
         {
@@ -332,15 +341,30 @@ public class NetworkMonitorCollector : BackgroundService
             client.DefaultRequestHeaders.Add("X-API-Key", config.InventoryApiKey);
             var response = await client.GetAsync(
                 $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/monitoring/nodes/{Environment.MachineName}/effective-policy");
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode) return false;
             var json = await response.Content.ReadAsStringAsync();
-            var doc = JsonDocument.Parse(json);
-            var policy = doc.RootElement.GetProperty("policy");
-            if (policy.ValueKind == JsonValueKind.Null) return null;
-            if (policy.TryGetProperty("sensors", out var sensors) && sensors.TryGetProperty(sensorName, out var val))
-                return val.GetBoolean();
-            return null;
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("policy", out var policy) ||
+                (policy.ValueKind != JsonValueKind.Null && policy.ValueKind != JsonValueKind.Object))
+                return false;
+            var monitor = SensorSettings.Resolve(root, "network_monitor") ?? true;
+            var connections = SensorSettings.Resolve(root, "network_connections") ?? true;
+            if (monitor != _monitorEnabled || connections != _connectionsEnabled)
+            {
+                _logger.LogInformation("Network Monitor settings: monitor {Monitor}, connection events {Connections}.",
+                    monitor ? "on" : "off", connections ? "on" : "off");
+                if (monitor && !_monitorEnabled) _previousSnapshot = new();  // start fresh after a pause
+            }
+            _monitorEnabled = monitor;
+            _connectionsEnabled = connections;
+            return true;
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Reading the monitoring settings failed; keeping the current ones");
+            return false;
+        }
     }
 }

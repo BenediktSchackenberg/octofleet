@@ -53,11 +53,37 @@ Monitoring profiles define **what** gets monitored on each node. You create prof
 
 ### Effective Policy
 
-When multiple profiles apply to a node (e.g., via group membership), they are merged into an **effective policy**. Use the endpoint:
+A node gets one profile: its own assignment first, else its group's (highest priority wins). A sensor that profile does not set uses the **fleet default**, and a sensor set nowhere is on. The agent reads both:
 
 ```
-GET /api/v1/monitoring/nodes/{node_id}/effective-policy
+GET /api/v1/monitoring/nodes/{node_id}/effective-policy   # {"policy": {...} | null, "defaults": {"network_connections": false}}
 ```
+
+### Sensors
+
+| Sensor | Events |
+|--------|--------|
+| `file_audit` | File changes (`file_events`) |
+| `process_monitor` | `process.create`, `process.terminate` |
+| `network_monitor` | The network collector as a whole; `network.listen` (listening ports) |
+| `network_connections` | `network.connect`, `network.close` – **off by default** |
+| `registry_monitor` | Registry changes |
+| `logon_events` | `logon.*` |
+| `service_changes` | `service.*` |
+
+**Network connection events are off by default.** The Windows agent reports every opened and closed TCP connection – on a busy server about 400,000 events a day, 98 % of all security events on a test installation, used by no rule, finding or alert. Listening ports are still reported. Turn them on for all nodes under **Security → Profiles → Fleet default** (`settings:write`), or for some nodes or groups with a profile that sets *Network connections*.
+
+- The server drops `network.connect` / `network.close` of nodes where they are off (also from agents that do not know the setting yet). It looks the setting up per node and keeps it for 60 seconds; a change of the fleet default applies at once.
+- The Windows agent reads its settings at start and then every hour (every 5 minutes after a failed read) and stops or starts collecting without a restart.
+
+```
+GET /api/v1/monitoring/defaults        # {"sensors": {"network_connections": false}, "available": [...]}
+PUT /api/v1/monitoring/defaults        # {"sensors": {"network_connections": true}}  (settings:write)
+```
+
+### Event ingest
+
+Agents send events in batches to `POST /api/v1/ingest/events/normalized`. Each batch is written with one `COPY` per table (it was one `INSERT` per event): 200 events take about 4 ms instead of about 120 ms. The answer counts the stored and dropped events: `{"inserted": 2, "dropped": 2}` (dropped: connection events that are off, events without `node_id`).
 
 ### API Endpoints
 
@@ -288,28 +314,33 @@ Returns all created exports with download links and metadata.
 
 ## Retention & Legal Hold
 
-Retention policies control how long different categories of security data are kept.
+**Admin → Retention** (`/settings/retention`, admins only; the old address `/security/retention` forwards there) sets how long the time-series data is kept and when it is compressed. The settings take effect at once: the backend turns them into TimescaleDB background jobs (`add_retention_policy`, `add_compression_policy`), which run daily in the database.
 
-### Configuration
+| Data type (`category`) | Table | Keep | Compress after |
+|------------------------|-------|------|----------------|
+| Security events (`security_events`) | `events_normalized` | 30 days | 7 days |
+| File audit events (`file_events`) | `file_events` | 90 days | 7 days |
+| Performance data (`performance_metrics`) | `node_metrics` | 30 days | 7 days |
+| Hardware changes (`hardware_changes`) | `hardware_changes` | 365 days | off |
+
+- **Keep (days):** older data is deleted by dropping whole chunks (one day of data per chunk for the first three tables, one week for hardware changes) – no row-by-row `DELETE`, so the cost does not grow with the amount of data. A chunk is dropped once all of its data is older than the setting, so up to one chunk more is kept.
+- **Compress after (days):** older chunks are stored compressed (TimescaleDB native compression, segmented by node and event type). Measured on one day of security events (400,000 rows): 180 MB → 11 MB. Compressed data stays searchable; late events can still be written.
+- **Legal hold:** no retention job – nothing is deleted while it is on. Compression stays on.
+
+The page shows per data type the stored size, the oldest chunk, how many chunks are compressed, and each job with its next and last run. Shortening the keep time or releasing a legal hold asks for confirmation: older data is deleted with the next daily run and cannot be restored.
 
 ```
-GET /api/v1/retention          # View current policies
-PUT /api/v1/retention/{category}  # Update a category
+GET /api/v1/retention                # settings and what is in effect (jobs, size, oldest data)
+PUT /api/v1/retention/{category}     # {"keep_days": 30, "compress_after_days": 7 | null, "legal_hold": false}
 ```
 
-### Categories
+`PUT` needs the permission `settings:write`. `keep_days` is 1–3650; `compress_after_days` must be less than `keep_days`, `null` turns compression off.
 
-| Category | Default | Description |
-|----------|---------|-------------|
-| Events | 90 days | Raw security events |
-| Findings | 365 days | Security findings |
-| Posture | 180 days | Configuration snapshots |
-| Audit | 365 days | Audit log entries |
-| Metrics | 90 days | Performance metrics |
+On upgrades, existing database policies (including paused jobs) are left unchanged until an admin explicitly activates each data type on this page. The API exposes `management_enabled: false`; saving other settings does not activate it. Send `management_enabled: true` to opt in after reviewing the deletion window. Activation cannot be undone through this endpoint; use Legal hold to stop deletion. Fresh installations activate the defaults automatically.
 
-### Legal Hold
+Once activated, a retention or compression policy that already exists on a table (for example one added by hand in `psql`) is adopted: kept if it matches, replaced if not – there is never a second one. Removing a policy by hand is undone at the next backend start; change the setting on the page instead.
 
-When legal hold is enabled for a category, data is **never automatically deleted**, regardless of the retention setting. This is essential for compliance and legal discovery scenarios.
+`events_aggregated` and `file_events_aggregated` hold hourly counts written by the former 7-day rollup (which aggregated and then deleted events row by row; it is removed). They are still shown as history on the Events page but no longer written.
 
 ---
 
