@@ -15,7 +15,7 @@ import { useI18n } from "@/lib/i18n-context";
 import { formatDateTime } from "@/lib/format";
 import { useTabParam } from "@/hooks/useTabParam";
 import { nodeVulnerabilitiesHref } from "@/components/node-vulnerabilities";
-import { FAILED_JOBS_PATH, withinTaskWindow } from "@/lib/tasks";
+import { JOB_FAILURES_PATH, withinTaskWindow } from "@/lib/tasks";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -27,8 +27,14 @@ interface TaskItem {
   id: string;
   priority: Priority;
   type: TaskType;
+  /** Shown instead of the type's name, e.g. the job type ("Search for updates") */
+  typeLabel?: string;
   object: string;
+  /** The object's own page (e.g. the node), if it is not `link` */
+  objectLink?: string;
   status: string;
+  /** Resolved since (a later run succeeded): shown dimmed */
+  resolved?: boolean;
   description: string;
   /** When it happened (ISO); null if the source has no time */
   at: string | null;
@@ -81,19 +87,42 @@ function firstLine(text?: string | null): string {
   return (text || "").trim().split("\n")[0].slice(0, 160);
 }
 
+/** The lines that say why a job failed: its output without the agent's progress lines */
+function lastLines(text?: string | null): string {
+  const lines = (text || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const failing = lines.filter((l) => /fail|error|denied|refused|not |cannot|unable|users/i.test(l));
+  return (failing.length ? failing : lines).slice(0, 2).join(" – ");
+}
+
 // ─── Data ────────────────────────────────────────────────────────────
 
 interface Counts { approvals: number; criticalCves: number; findings: number; failedJobs: number; offline: number; remediationFailed: number }
 
-async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> {
+interface JobFailure {
+  node_id: string; hostname?: string | null; command_type: string; job_id: string; job_name?: string | null;
+  failures: number; first_failed_at: string; last_failed_at: string; last_success_at?: string | null;
+  resolved: boolean; reason?: string | null;
+}
+
+/** Job types whose jobs differ by what they run (the server groups their failures by job name too) */
+const VARIANT_TYPES = new Set(["run", "script", "install_package", "uninstall_package", "update_package"]);
+
+/** The job type's name ("Search for updates"); the job's name for types without one */
+function jobTypeLabel(t: T, f: JobFailure): string {
+  const key = `tasksPage.jobTypes.${f.command_type}`;
+  const label = t(key);
+  return label === key ? f.job_name || f.command_type : label;
+}
+
+async function fetchTasks(t: T, showResolved: boolean): Promise<{ tasks: TaskItem[]; counts: Counts; resolvedJobs: number }> {
   const tasks: TaskItem[] = [];
   const counts: Counts = { approvals: 0, criticalCves: 0, findings: 0, failedJobs: 0, offline: 0, remediationFailed: 0 };
   const quiet = { showErrorToast: false };
 
   const [pending, jobs, vulnSummary, vulnNodes, remediation, findings, nodes, alerts] = await Promise.allSettled([
     apiClient.get<{ pending: { id: string; hostname?: string; ipAddress?: string; agentVersion?: string; createdAt?: string }[] }>("/pending-nodes", quiet),
-    apiClient.get<{ jobs: { job_id: string; name?: string; target_name?: string; failed: number; total_instances: number; last_failed_at?: string; last_error?: string }[]; total: number }>(
-      `${FAILED_JOBS_PATH}&limit=50`, quiet),
+    apiClient.get<{ failures: JobFailure[]; total: number; resolved: number }>(
+      `${JOB_FAILURES_PATH}&limit=100${showResolved ? "&include_resolved=true" : ""}`, quiet),
     apiClient.get<{ severity_counts?: Record<string, number>; last_completed_scan?: { completed_at?: string } }>("/vulnerabilities/summary", quiet),
     apiClient.get<{ nodes: { id: string; hostname?: string; critical: number; max_cvss?: number; max_cvss_cve?: string }[] }>("/vulnerabilities/by-node?severity=critical&limit=50", quiet),
     apiClient.get<{ job_counts?: Record<string, number>; recent_jobs?: { id: string; software_name?: string; software_version?: string; cve_id?: string; status?: string; error_message?: string; completed_at?: string; updated_at?: string; created_at?: string }[] }>("/remediation/summary", quiet),
@@ -117,17 +146,25 @@ async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> 
     });
   }
 
-  // Failed jobs (at least one failed node in the last 7 days), newest failure first
+  // Failed jobs of the last 7 days, one entry per node and job type (repeats counted), newest failure
+  // first; gone once a later run of the same kind succeeded on that node (shown as resolved on request)
   const jobsRes = value(jobs);
   counts.failedJobs = jobsRes?.total ?? 0;
-  for (const j of jobsRes?.jobs ?? []) {
+  for (const f of jobsRes?.failures ?? []) {
+    const repeated = f.failures > 1 ? t("tasksPage.repeatedSince", { time: formatDateTime(f.first_failed_at) }) : null;
     tasks.push({
-      id: `job-${j.job_id}`, priority: "high", type: "job_failed",
-      object: j.name || j.job_id,
-      status: t("tasksPage.status.failedOn", { failed: j.failed, total: j.total_instances }),
-      // the job list shows "—" for jobs without a target (e.g. from the Patch Explorer)
-      description: [j.target_name !== "—" ? j.target_name : null, firstLine(j.last_error)].filter(Boolean).join(" · "),
-      at: j.last_failed_at ?? null, link: `/jobs/${j.job_id}`,
+      id: `job-${f.node_id}-${f.command_type}-${f.job_id}`, priority: f.resolved ? "medium" : "high", type: "job_failed",
+      typeLabel: jobTypeLabel(t, f),
+      object: f.hostname || f.node_id,
+      objectLink: `/nodes/${f.node_id}`,
+      status: f.resolved
+        ? t("tasksPage.status.resolved", { time: formatDateTime(f.last_success_at) })
+        : f.failures > 1 ? t("tasksPage.status.failedTimes", { count: f.failures }) : t("tasksPage.status.failed"),
+      resolved: f.resolved,
+      // commands, scripts and packages: the job's name says which one
+      description: [VARIANT_TYPES.has(f.command_type) ? f.job_name : null, firstLine(lastLines(f.reason)), repeated]
+        .filter(Boolean).join(" · "),
+      at: f.last_failed_at, link: `/jobs/${f.job_id}`,
     });
   }
 
@@ -201,7 +238,7 @@ async function fetchTasks(t: T): Promise<{ tasks: TaskItem[]; counts: Counts }> 
   // Priority first, then the newest
   tasks.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
     || (b.at ? new Date(b.at).getTime() : 0) - (a.at ? new Date(a.at).getTime() : 0));
-  return { tasks, counts };
+  return { tasks, counts, resolvedJobs: jobsRes?.resolved ?? 0 };
 }
 
 // ─── Page ────────────────────────────────────────────────────────────
@@ -212,17 +249,20 @@ export default function TasksPage() {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useTabParam<Filter>("all", FILTERS);
+  const [showResolved, setShowResolved] = useState(false);
+  const [resolvedJobs, setResolvedJobs] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await fetchTasks(t);
+      const result = await fetchTasks(t, showResolved);
       setTasks(result.tasks);
       setCounts(result.counts);
+      setResolvedJobs(result.resolvedJobs);
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, showResolved]);
 
   useEffect(() => {
     load();
@@ -246,10 +286,10 @@ export default function TasksPage() {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">{t("tasksPage.title")}</h1>
+          <h1 className="text-2xl font-bold">{t("tasksPage.title")}</h1>
           <p className="text-muted-foreground text-sm">{t("tasksPage.subtitle")}</p>
         </div>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
@@ -257,7 +297,7 @@ export default function TasksPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {summaryCards.map((c) => (
           <button key={c.label} type="button" onClick={() => setFilter(c.tab)} className="text-left">
             <Card className="border-zinc-800 hover:border-zinc-600 transition-colors">
@@ -272,9 +312,15 @@ export default function TasksPage() {
           </button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground mb-4">{t("tasksPage.window")}</p>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <p className="text-xs text-muted-foreground">{t("tasksPage.window")}</p>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+          <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
+          {t("tasksPage.showResolved", { count: resolvedJobs })}
+        </label>
+      </div>
 
-      <Tabs value={filter} onValueChange={setFilter} className="mb-4">
+      <Tabs value={filter} onValueChange={setFilter}>
         <TabsList>
           <TabsTrigger value="all">{t("tasksPage.filters.all", { count: tasks.length })}</TabsTrigger>
           <TabsTrigger value="critical">{t("tasksPage.filters.critical")}</TabsTrigger>
@@ -315,14 +361,16 @@ export default function TasksPage() {
             </TableHeader>
             <TableBody>
               {filtered.map((task) => (
-                <TableRow key={task.id}>
+                <TableRow key={task.id} className={task.resolved ? "opacity-60" : ""}>
                   <TableCell>
                     <Badge className={`${PRIORITY_COLORS[task.priority]} text-xs`}>{t(`tasksPage.priority.${task.priority}`)}</Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2 text-sm">{TYPE_ICONS[task.type]} {t(`tasksPage.types.${task.type}`)}</div>
+                    <div className="flex items-center gap-2 text-sm" title={t(`tasksPage.types.${task.type}`)}>{TYPE_ICONS[task.type]} {task.typeLabel ?? t(`tasksPage.types.${task.type}`)}</div>
                   </TableCell>
-                  <TableCell className="font-medium whitespace-normal break-words max-w-[280px]">{task.object}</TableCell>
+                  <TableCell className="font-medium whitespace-normal break-words max-w-[280px]">
+                    {task.objectLink ? <Link href={task.objectLink} className="text-blue-400 hover:underline">{task.object}</Link> : task.object}
+                  </TableCell>
                   <TableCell className="text-sm">{task.status}</TableCell>
                   <TableCell className="text-muted-foreground text-sm whitespace-normal break-words max-w-[360px]">{task.description || "-"}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">

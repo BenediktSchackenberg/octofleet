@@ -1601,7 +1601,7 @@
     "title": "Tareas",
     "subtitle": "Lo que requiere atención en la flota",
     "refresh": "Actualizar",
-    "window": "Trabajos, correcciones y envíos de alertas fallidos de los últimos 7 días; vulnerabilidades del último análisis.",
+    "window": "Trabajos, correcciones y envíos de alertas fallidos de los últimos 7 días; vulnerabilidades del último análisis. Un trabajo fallido es una entrada por nodo y tipo de trabajo y desaparece cuando una ejecución posterior tiene éxito en ese nodo.",
     "open": "Abrir",
     "agentVersion": "agente {version}",
     "criticalCves": "{count} CVE críticos",
@@ -1611,11 +1611,12 @@
     "neverSeen": "nunca visto",
     "status": {
       "waitingApproval": "Esperando aprobación",
-      "failedOn": "Fallido en {failed} de {total}",
       "open": "Abierto",
       "failed": "Fallido",
       "offline": "Sin conexión",
-      "notSent": "No enviada"
+      "notSent": "No enviada",
+      "resolved": "Resuelto – correcto {time}",
+      "failedTimes": "Fallido {count}×"
     },
     "ago": {
       "minutes": "hace {count} min",
@@ -1663,6 +1664,22 @@
       "finding": "Hallazgo",
       "offline": "Sin conexión",
       "alert_failed": "Alerta no enviada"
+    },
+    "repeatedSince": "falla desde {time}",
+    "showResolved": "Mostrar fallos de trabajos resueltos ({count})",
+    "jobTypes": {
+      "run": "Ejecutar comando",
+      "script": "Script",
+      "inventory": "Recopilar inventario",
+      "install_package": "Instalar paquete",
+      "uninstall_package": "Desinstalar paquete",
+      "update_package": "Actualizar paquete",
+      "restart-agent": "Reiniciar agente",
+      "patch_install": "Instalar actualizaciones",
+      "patch_scan": "Buscar actualizaciones",
+      "uninstall-agent": "Desinstalar agente",
+      "service_reconcile": "Corregir servicios",
+      "reboot": "Reiniciar"
     }
   },
   "jobDetail": {

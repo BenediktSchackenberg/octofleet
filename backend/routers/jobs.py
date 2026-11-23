@@ -3,9 +3,10 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+import job_failures
 from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 
@@ -147,6 +148,22 @@ async def list_jobs(limit: int = 50, offset: int = 0, node: Optional[str] = None
             **dict(r),
             "target_name": r["target_name"] or (str(r["target_id"])[:8] if r["target_id"] else "—"),
         } for r in rows], "total": total, "counts": dict(count_row), "command_types": command_types}
+
+
+@router.get("/jobs/failures")
+async def list_job_failures(since_hours: int = Query(168, ge=1, le=job_failures.MAX_WINDOW_HOURS),
+                            include_resolved: bool = False,
+                            limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+                            db: asyncpg.Pool = Depends(get_db)):
+    """Failed job runs of the last `since_hours`, one entry per node and job type (and job name for
+    commands, scripts and packages), newest failure first.
+
+    Each entry counts the failures, names the last failed job and why it failed, and is
+    `resolved` when a later run of the same kind succeeded on that node. Resolved entries are left
+    out unless `include_resolved`. `total` (open) and `resolved` count all entries, not only the page.
+    """
+    async with db.acquire() as conn:
+        return await job_failures.list_failures(conn, since_hours, include_resolved, limit, offset)
 
 
 @router.get("/jobs/{job_id}")

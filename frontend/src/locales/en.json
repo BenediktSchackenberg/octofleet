@@ -1601,7 +1601,7 @@
     "title": "Tasks",
     "subtitle": "What needs attention across the fleet",
     "refresh": "Refresh",
-    "window": "Failed jobs, remediations and alert deliveries of the last 7 days; vulnerabilities from the last scan.",
+    "window": "Failed jobs, remediations and alert deliveries of the last 7 days; vulnerabilities from the last scan. A failed job is one entry per node and job type and drops out once a later run of it succeeds on that node.",
     "open": "Open",
     "agentVersion": "agent {version}",
     "criticalCves": "{count} critical CVEs",
@@ -1611,11 +1611,12 @@
     "neverSeen": "never seen",
     "status": {
       "waitingApproval": "Waiting for approval",
-      "failedOn": "Failed on {failed} of {total}",
       "open": "Open",
       "failed": "Failed",
       "offline": "Offline",
-      "notSent": "Not sent"
+      "notSent": "Not sent",
+      "resolved": "Resolved – succeeded {time}",
+      "failedTimes": "Failed {count}×"
     },
     "ago": {
       "minutes": "{count} min ago",
@@ -1663,6 +1664,22 @@
       "finding": "Finding",
       "offline": "Offline",
       "alert_failed": "Alert not sent"
+    },
+    "repeatedSince": "failing since {time}",
+    "showResolved": "Show resolved job failures ({count})",
+    "jobTypes": {
+      "run": "Run command",
+      "script": "Script",
+      "inventory": "Collect inventory",
+      "install_package": "Install package",
+      "uninstall_package": "Uninstall package",
+      "update_package": "Update package",
+      "restart-agent": "Restart agent",
+      "patch_install": "Install updates",
+      "patch_scan": "Search for updates",
+      "uninstall-agent": "Uninstall agent",
+      "service_reconcile": "Fix services",
+      "reboot": "Reboot"
     }
   },
   "jobDetail": {
