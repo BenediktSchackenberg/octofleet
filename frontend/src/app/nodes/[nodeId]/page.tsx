@@ -16,9 +16,9 @@ import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
-import { AvailableUpdates, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
+import { AvailableUpdates, UpdateRebootBadge, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
 import { UpdateActions } from "@/components/node-update-actions";
-import { UPDATE_COLS, installedUpdateType, linuxRebootBehavior, resultVariant, type RebootBehavior, latestInstallEntry } from "@/lib/update-tables";
+import { UPDATE_COLS, installedUpdateType, resultVariant, type RebootBehavior, latestInstallEntry } from "@/lib/update-tables";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -996,7 +996,7 @@ export default function NodeDetailPage() {
                   <UpdateActions os="linux" nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
                     packageManager={linuxUpdates.packageManager} selected={selectedPackages}
                     allIds={(linuxUpdates.updates ?? []).map((p) => p.name)}
-                    rebootBehavior={Object.fromEntries((linuxUpdates.updates ?? []).map((p) => [p.name, linuxRebootBehavior(p.name)]))}
+                    rebootBehavior={Object.fromEntries((linuxUpdates.updates ?? []).map((p) => [p.name, p.reboot_behavior ?? "unknown"]))}
                     rebootPending={linuxUpdates.rebootRequired === true}
                     onChanged={async () => { await refreshInventory(); setSelectedPackages([]); setUpdateSearchKey((k) => k + 1); }} />
                 )}
@@ -1030,7 +1030,11 @@ export default function NodeDetailPage() {
                             </TableCell>
                           )}
                           <TableCell className="font-mono">
-                            {pkg.name} {pkg.security && <Badge variant="destructive" className="ml-2">{t("nodes.updates.securityBadge")}</Badge>}
+                            <span className="inline-flex flex-wrap items-center gap-2">
+                              {pkg.name}
+                              {pkg.security && <Badge variant="destructive">{t("nodes.updates.securityBadge")}</Badge>}
+                              <UpdateRebootBadge behavior={pkg.reboot_behavior} />
+                            </span>
                           </TableCell>
                           <TableCell className="font-mono">{pkg.newVersion}</TableCell>
                           <TableCell className="text-muted-foreground">{pkg.repository || '-'}</TableCell>

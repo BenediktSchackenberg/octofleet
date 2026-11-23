@@ -24,18 +24,8 @@ export function installedUpdateType(title: string | undefined, description?: str
 
 export type RebootBehavior = "never" | "always" | "can" | "unknown";
 
-/**
- * Linux: whether upgrading a package usually needs a reboot, from its name - the kernel always, the C
- * library, systemd and dbus may (Debian/Ubuntu then write /var/run/reboot-required). An estimate:
- * the agent reports the real state after the installation.
- */
-export function linuxRebootBehavior(name: string): RebootBehavior {
-  if (/^(linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)/.test(name)) return "always";
-  // Arch and derivatives: the kernel package is linux, linux-lts, linux-zen, linux-cachyos, ...
-  if (/^linux(-(lts|zen|hardened|rt|rt-lts|cachyos[a-z0-9-]*))?$/.test(name)) return "always";
-  if (/^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d+(t64)?|openssl(-libs)?)(\b|-|:|$)/.test(name)) return "can";
-  return "never";
-}
+/* Linux packages: the reboot estimate comes from the server (reboot_behavior per update, linux_reboot_behavior
+   in backend/routers/patches.py), the same for the node page, the install dialog and the fleet view. */
 
 /** The newest installation entry of a KB in the Windows Update history: a failed attempt followed by a
  *  successful one (e.g. a cumulative update installed again after its servicing stack) shows the success */

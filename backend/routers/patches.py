@@ -590,23 +590,40 @@ async def submit_patch_results(data: dict):
 # update search; search / install on several nodes at once (/patches/updates in the UI)
 # ---------------------------------------------------------------------------
 
-# Linux: whether upgrading a package usually needs a reboot, from its name (like the UI's estimate)
-# Arch and derivatives name the kernel package itself linux, linux-lts, linux-zen, linux-cachyos, ...
+# Linux: whether upgrading a package usually needs a reboot, from its name (linux_reboot_behavior)
 _LINUX_REBOOT_ALWAYS = re.compile(
-    r"^((linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)"
-    r"|linux(-(lts|zen|hardened|rt|rt-lts|cachyos[a-z0-9-]*))?$)")
+    # the kernel itself: Debian/Ubuntu linux-image-* / linux-modules-*, RHEL kernel, kernel-core,
+    # kernel-modules(-core|-extra) (dnf names end in .arch) - not headers, tools or libc-dev
+    r"^((linux-(image|modules)(-|$)|kernel(-core|-modules(-core|-extra)?)?(\.|$))"
+    # Arch and derivatives name the kernel package itself linux, linux-lts, linux-zen, linux-cachyos, ...
+    r"|linux(-(lts|zen|hardened|rt|rt-lts|cachyos(-lts|-rc|-bore|-eevdf|-server)?))?$"
+    # Ubuntu's kernel metapackages pull in the new kernel: linux-generic, linux-virtual, linux-generic-hwe-24.04
+    r"|linux-(generic|virtual|lowlatency)(-hwe-[0-9.]+)?$)")
 _LINUX_REBOOT_CAN = re.compile(r"^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d+(t64)?|openssl(-libs)?)(\b|-|:|$)")
 
 FLEET_SORTS = ("hostname", "pending", "security", "reboot", "last_search", "os")
 REBOOT_ORDER = {"pending": 0, "needed": 1, "maybe": 2, "unknown": 3, "none": 4}
 
 
+def linux_reboot_behavior(name: str) -> str:
+    """Whether upgrading this Linux package usually needs a reboot, from its name, like Windows'
+    reboot_behavior: "always" (the kernel), "can" (C library, systemd, dbus, OpenSSL) or "never".
+    The one estimate for the node's update list, the install dialog and the fleet view; the agent
+    reports the real state after the installation."""
+    if _LINUX_REBOOT_ALWAYS.match(name or ""):
+        return "always"
+    if _LINUX_REBOOT_CAN.match(name or ""):
+        return "can"
+    return "never"
+
+
 def _linux_reboot(names, pending) -> str:
     if pending:
         return "pending"
-    if any(_LINUX_REBOOT_ALWAYS.match(n) for n in names):
+    behaviors = {linux_reboot_behavior(n) for n in names}
+    if "always" in behaviors:
         return "needed"
-    if any(_LINUX_REBOOT_CAN.match(n) for n in names):
+    if "can" in behaviors:
         return "maybe"
     return "none"
 
@@ -744,6 +761,8 @@ async def _fleet_rows(conn) -> list:
             security = sum(1 for u in relevant if (u.get("category") or "").lower() == "security"
                            or (u.get("severity") or "").lower() in ("critical", "important"))
             reboot = _windows_reboot(r["reboot_pending"], [u.get("reboot_behavior") for u in relevant])
+            # the updates behind "will / may need a reboot" (tooltip)
+            reboot_updates = [u.get("kb_id") or u.get("title") for u in relevant if u.get("reboot_behavior") in ("always", "can")]
             os_family = "windows"
             # approved in the catalog (Patches -> Catalog): what a bulk installation installs
             approved = sum(1 for u in relevant if u.get("approved"))
@@ -755,6 +774,7 @@ async def _fleet_rows(conn) -> list:
             pending = linux.get("totalUpdates") if isinstance(linux.get("totalUpdates"), int) else len(names)
             security = linux.get("securityUpdates") if isinstance(linux.get("securityUpdates"), int) else 0
             reboot = _linux_reboot(names, linux.get("rebootRequired") is True)
+            reboot_updates = [n for n in names if linux_reboot_behavior(n) in ("always", "can")]
             os_family = "linux"
             approved = approved_definitions = None  # no approval path for Linux packages yet
         out.append({
@@ -764,6 +784,7 @@ async def _fleet_rows(conn) -> list:
             "pending": pending, "security": security, "definitions": len(definitions),
             "approved": approved, "approved_definitions": approved_definitions,
             "reboot": reboot if (pending or reboot == "pending") else "none",
+            "reboot_updates": reboot_updates[:20] if pending else [],
             "last_search": {
                 "at": r["scanned_at"].isoformat() if r["scanned_at"] else None,
                 "status": r["search_status"], "source": r["search_source"], "server": r["search_server"],

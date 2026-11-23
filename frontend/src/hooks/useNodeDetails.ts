@@ -1,6 +1,7 @@
 "use client";
 
 import type { NodeRemovalInfo } from "@/components/node-removal";
+import type { RebootBehavior } from "@/lib/update-tables";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { runNodeJob } from "@/lib/node-jobs";
@@ -185,7 +186,8 @@ export interface LinuxData {
     rebootPackages?: string[];
     /** pacman: "arch-audit" when the security flags come from Arch's advisories, else none */
     securitySource?: string | null;
-    updates?: { name: string; newVersion: string; repository?: string; security: boolean }[];
+    /** reboot_behavior: the server's estimate from the package name (always / can / never) */
+    updates?: { name: string; newVersion: string; repository?: string; security: boolean; reboot_behavior?: RebootBehavior }[];
   };
   diskHealth?: {
     smartctlAvailable?: boolean;

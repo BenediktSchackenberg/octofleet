@@ -10,6 +10,15 @@ import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
 import { UPDATE_COLS, installedUpdateType } from "@/lib/update-tables";
 
+/** An update's reboot marker, the same on Windows (reported by Windows Update) and Linux (estimated by
+ *  the server from the package name): "Needs a reboot" / "May need a reboot", nothing otherwise */
+export function UpdateRebootBadge({ behavior }: { behavior?: string | null }) {
+  const { t } = useI18n();
+  if (behavior === "always") return <Badge variant="destructive" className="shrink-0">{t("nodes.updates.rebootBadge.always")}</Badge>;
+  if (behavior === "can") return <Badge variant="secondary" className="shrink-0">{t("nodes.updates.rebootBadge.can")}</Badge>;
+  return null;
+}
+
 export interface AvailableUpdate {
   kb_id: string | null;
   title: string;
@@ -98,8 +107,7 @@ export function AvailableUpdates({ updates, selected, onSelectedChange, actions 
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate" title={u.title}>{u.title}</span>
                       {u.definition && <Badge variant="secondary" className="shrink-0">{t("nodeDetail.definitionUpdate")}</Badge>}
-                      {(u.reboot_behavior === "always" || u.is_reboot_required) && <Badge variant="destructive" className="shrink-0">{t("nodes.updates.rebootBadge.always")}</Badge>}
-                      {u.reboot_behavior === "can" && <Badge variant="secondary" className="shrink-0">{t("nodes.updates.rebootBadge.can")}</Badge>}
+                      <UpdateRebootBadge behavior={u.is_reboot_required ? "always" : u.reboot_behavior} />
                     </div>
                   </TableCell>
                   <TableCell>

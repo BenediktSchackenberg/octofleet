@@ -33,6 +33,8 @@ export interface FleetNode {
   approved: number | null;
   approved_definitions: number | null;
   reboot: FleetReboot;
+  /** the updates behind "will / may need a reboot" (packages or KBs, at most 20) */
+  reboot_updates?: string[];
   last_search: { at: string | null; status: string | null; source: string | null; server: string | null; error: string | null };
   last_job: { id: string; type: "patch_scan" | "patch_install"; status: string; at: string | null } | null;
   running: "patch_scan" | "patch_install" | null;
@@ -88,13 +90,14 @@ function filtersToUrl(f: Filters, push: boolean) {
 }
 
 /** Badge of the reboot state: pending and needed stand out, "maybe" is quieter */
-export function RebootBadge({ reboot }: { reboot: FleetReboot }) {
+export function RebootBadge({ reboot, updates }: { reboot: FleetReboot; updates?: string[] }) {
   const { t } = useI18n();
   if (reboot === "none") return <span className="text-muted-foreground">–</span>;
+  const title = (reboot === "needed" || reboot === "maybe") && updates?.length ? updates.join(", ") : undefined;
   const cls = reboot === "pending" ? "border-red-500/50 text-red-500"
     : reboot === "needed" ? "border-amber-500/50 text-amber-500"
     : "text-muted-foreground";
-  return <Badge variant="outline" className={cls}>{t(`fleetUpdates.reboot.${reboot}`)}</Badge>;
+  return <Badge variant="outline" className={cls} title={title}>{t(`fleetUpdates.reboot.${reboot}`)}</Badge>;
 }
 
 /** The last update search: time, status, source; the error as tooltip */
@@ -385,7 +388,7 @@ export default function FleetUpdatesPage() {
                         <div className="text-xs text-muted-foreground">{t("fleetUpdates.approved", { count: node.approved })}</div>
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-normal"><RebootBadge reboot={node.reboot} /></TableCell>
+                    <TableCell className="whitespace-normal"><RebootBadge reboot={node.reboot} updates={node.reboot_updates} /></TableCell>
                     <TableCell className="whitespace-normal"><LastSearch search={node.last_search} /></TableCell>
                     <TableCell className="whitespace-normal">
                       <div className="flex flex-wrap gap-1">
@@ -449,7 +452,7 @@ export default function FleetUpdatesPage() {
                     : nothing && n.pending + (includeDefinitions ? n.definitions : 0) > 0 ? t("fleetUpdates.bulk.notApproved")
                     : nothing ? t("fleetUpdates.bulk.nothing")
                     : t("fleetUpdates.bulk.updates", { count: toInstall(n), pending: n.pending + (includeDefinitions ? n.definitions : 0) })}</span>
-                  {!nothing && <RebootBadge reboot={n.reboot} />}
+                  {!nothing && <RebootBadge reboot={n.reboot} updates={n.reboot_updates} />}
                   {!nothing || n.os_family !== "windows" ? null : (
                     n.pending > 0 && !isBusy(n) && !isUnfinished(n) && (
                       <Link href="/patches/catalog" className="text-blue-500 hover:underline">{t("fleetUpdates.bulk.toCatalog")}</Link>
