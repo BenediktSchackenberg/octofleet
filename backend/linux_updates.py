@@ -230,6 +230,8 @@ async def store_node_updates(conn, node_uuid: str, updates: Any) -> Optional[str
             REPLACE_NODE_UPDATES, node_uuid,
             [i for i, _ in stored], [v["name"] for _, v in stored], [v["installed"] for _, v in stored])
         result = "stored"
+    # the approval rules' cache re-evaluates the node (linux_rules worker)
+    await conn.execute("INSERT INTO linux_approval_dirty (node_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING", node_uuid)
     await conn.execute("UPDATE linux_data_current SET release = $2, updates_hash = $3 WHERE node_id = $1",
                        node_uuid, report["release"], report["hash"])
     return result

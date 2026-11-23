@@ -1,7 +1,7 @@
 """Fleet updates: GET /api/v1/patches/fleet lists Windows and Linux nodes with their pending updates and
 reboot state; POST /patches/fleet/search and /fleet/install create one job per node, the install payload
-built by the server from the stored updates - on Windows only the updates approved in the catalog, Linux
-not at all (no approval path yet)."""
+built by the server from the stored updates - on Windows only the updates approved in the catalog, on
+Linux the versions the Linux approval rules approve (test_linux_approval_rules.py)."""
 import json
 import os
 import random
@@ -87,7 +87,8 @@ def test_rows_for_windows_and_linux(nodes):
     assert (w["os_family"], w["pending"], w["security"], w["definitions"], w["reboot"]) == ("windows", 1, 1, 1, "needed")
     assert w["last_search"]["status"] == "succeeded" and w["last_search"]["source"] == "wsus"
     assert w["approved"] == 0  # not approved in the catalog yet
-    assert lx["approved"] is None  # no approval path for Linux
+    # Linux: approval rules; this agent reports no release (older agent), so nothing can be approved
+    assert lx["approved"] == 0 and lx["linux"]["approval"] == "agent_too_old"
     # Linux: a kernel package means a reboot will be needed
     assert (lx["os_family"], lx["pending"], lx["security"], lx["reboot"]) == ("linux", 2, 1, "needed")
     assert (i["pending"], i["reboot"]) == (0, "none")
@@ -113,12 +114,12 @@ def test_install_builds_the_payload_per_node(nodes):
     tag, win, linux, idle = nodes
     body = {"node_ids": [win, linux, idle, str(uuid.uuid4())], "reboot_policy": "schedule",
             "reboot_schedule_time": "2099-01-01T22:00:00Z"}
-    # nothing approved yet: no job; Linux is never installed in bulk (no approval path yet)
+    # nothing approved yet: no job; the Linux nodes report no release (older agent): skipped
     r = requests.post(f"{API_URL}/api/v1/patches/fleet/install", headers=HEADERS, timeout=30, json=body)
     assert r.status_code == 200, r.text
     assert r.json()["jobs"] == []
     assert {s["node"]: s["reason"] for s in r.json()["skipped"]} == {
-        win: "not_approved", linux: "linux_not_available", idle: "linux_not_available", body["node_ids"][3]: "unknown node"}
+        win: "not_approved", linux: "agent_too_old", idle: "agent_too_old", body["node_ids"][3]: "unknown node"}
 
     approve(CU_KB)
     assert row(fleet(q=tag), win)["approved"] == 1
