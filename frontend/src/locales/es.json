@@ -1450,7 +1450,37 @@
   },
   "patchesPage": {
     "openOnNode": "Pendientes en {node}",
-    "showAllPatches": "Mostrar todos los parches"
+    "showAllPatches": "Mostrar todos los parches",
+    "subtitle": "Actualizaciones de Windows: aprobarlas o excluirlas en el catálogo, anillos de implementación, implementaciones y cumplimiento",
+    "linuxHint": "Los nodos Linux no están en este catálogo; sus actualizaciones están en",
+    "cards": {
+      "catalog": "Actualizaciones en el catálogo",
+      "catalogDetail": "{approved} aprobadas · {excluded} excluidas",
+      "awaitingApproval": "Pendientes de aprobación",
+      "awaitingApprovalDetail": "necesarias en un nodo, aún sin aprobar · {required} necesarias en total",
+      "notInstalled": "No instaladas",
+      "notInstalledDetail": "nodo × actualización, aún necesarias · {failed} con error",
+      "compliance": "Cumplimiento",
+      "complianceDetail": "{installed} instaladas · {notRequired} ya no necesarias"
+    },
+    "approval": "Aprobación",
+    "approved": "Aprobada",
+    "notApproved": "No aprobada",
+    "excluded": "Excluida",
+    "nodes": "Nodos",
+    "nodesHelp": "Por nodo: aún necesaria (no instalada), instalada, con error, ya no ofrecida por la búsqueda de actualizaciones (reemplazada, rechazada o instalada antes de que el historial lo indicara)",
+    "nodesRequired": "{count} la necesitan",
+    "nodesInstalled": "{count} instalada",
+    "nodesFailed": "{count} con error",
+    "nodesNotRequired": "{count} ya no necesaria",
+    "noNodes": "ningún nodo la ha notificado",
+    "state": {
+      "installed": "Instaladas",
+      "notRequired": "Ya no necesarias",
+      "notInstalled": "No instaladas",
+      "failed": "Con error"
+    },
+    "complianceHelp": "Se cuenta por nodo y actualización (sin las excluidas). Cumple: instalada, o ya no ofrecida por la búsqueda de actualizaciones del nodo. Las instalaciones vienen del historial de actualizaciones del nodo, así que también cuenta una actualización instalada fuera de Octofleet."
   },
   "nodeServices": {
     "tab": "Servicios",

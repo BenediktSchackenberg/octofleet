@@ -1450,7 +1450,37 @@
   },
   "patchesPage": {
     "openOnNode": "Offen auf {node}",
-    "showAllPatches": "Alle Patches anzeigen"
+    "showAllPatches": "Alle Patches anzeigen",
+    "subtitle": "Windows-Updates: im Katalog freigeben oder ausschließen, Bereitstellungsringe, Bereitstellungen und Compliance",
+    "linuxHint": "Linux-Nodes sind nicht in diesem Katalog – ihre Updates stehen unter",
+    "cards": {
+      "catalog": "Updates im Katalog",
+      "catalogDetail": "{approved} freigegeben · {excluded} ausgeschlossen",
+      "awaitingApproval": "Warten auf Freigabe",
+      "awaitingApprovalDetail": "auf einem Node benötigt, noch nicht freigegeben · {required} insgesamt benötigt",
+      "notInstalled": "Nicht installiert",
+      "notInstalledDetail": "Node × Update, noch benötigt · {failed} fehlgeschlagen",
+      "compliance": "Compliance",
+      "complianceDetail": "{installed} installiert · {notRequired} nicht mehr benötigt"
+    },
+    "approval": "Freigabe",
+    "approved": "Freigegeben",
+    "notApproved": "Nicht freigegeben",
+    "excluded": "Ausgeschlossen",
+    "nodes": "Nodes",
+    "nodesHelp": "Pro Node: noch benötigt (nicht installiert), installiert, fehlgeschlagen, von der Updatesuche nicht mehr angeboten (ersetzt, abgelehnt oder installiert, bevor der Updateverlauf es meldete)",
+    "nodesRequired": "{count} benötigen es",
+    "nodesInstalled": "{count} installiert",
+    "nodesFailed": "{count} fehlgeschlagen",
+    "nodesNotRequired": "{count} nicht mehr benötigt",
+    "noNodes": "von keinem Node gemeldet",
+    "state": {
+      "installed": "Installiert",
+      "notRequired": "Nicht mehr benötigt",
+      "notInstalled": "Nicht installiert",
+      "failed": "Fehlgeschlagen"
+    },
+    "complianceHelp": "Gezählt pro Node und Update (ausgeschlossene Updates nicht). Konform: installiert oder von der Updatesuche des Nodes nicht mehr angeboten. Installationen kommen aus dem Updateverlauf des Nodes, ein außerhalb von Octofleet installiertes Update zählt also mit."
   },
   "nodeServices": {
     "tab": "Dienste",

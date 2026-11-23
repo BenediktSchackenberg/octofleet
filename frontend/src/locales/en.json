@@ -1450,7 +1450,37 @@
   },
   "patchesPage": {
     "openOnNode": "Open on {node}",
-    "showAllPatches": "Show all patches"
+    "showAllPatches": "Show all patches",
+    "subtitle": "Windows updates: approve or exclude them in the catalog, deployment rings, deployments and compliance",
+    "linuxHint": "Linux nodes are not in this catalog – their updates are on",
+    "cards": {
+      "catalog": "Updates in catalog",
+      "catalogDetail": "{approved} approved · {excluded} excluded",
+      "awaitingApproval": "Awaiting approval",
+      "awaitingApprovalDetail": "updates needed on a node, not approved yet · {required} needed in all",
+      "notInstalled": "Not installed",
+      "notInstalledDetail": "node × update, still needed · {failed} failed",
+      "compliance": "Compliance",
+      "complianceDetail": "{installed} installed · {notRequired} no longer needed"
+    },
+    "approval": "Approval",
+    "approved": "Approved",
+    "notApproved": "Not approved",
+    "excluded": "Excluded",
+    "nodes": "Nodes",
+    "nodesHelp": "Per node: still needed (not installed), installed, failed, no longer offered by the update search (superseded, declined, or installed before the update history said so)",
+    "nodesRequired": "{count} need it",
+    "nodesInstalled": "{count} installed",
+    "nodesFailed": "{count} failed",
+    "nodesNotRequired": "{count} no longer needed",
+    "noNodes": "no node reported it",
+    "state": {
+      "installed": "Installed",
+      "notRequired": "No longer needed",
+      "notInstalled": "Not installed",
+      "failed": "Failed"
+    },
+    "complianceHelp": "Counted per node and update (excluded updates left out). Compliant: installed, or no longer offered by the node's update search. Installs come from the node's update history, so an update installed outside Octofleet counts too."
   },
   "nodeServices": {
     "tab": "Services",
