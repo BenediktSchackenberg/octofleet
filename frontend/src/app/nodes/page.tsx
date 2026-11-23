@@ -11,6 +11,7 @@ import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { StandardPage } from "@/components/ui/StandardPage";
 import { NodeRemovalStatus } from "@/components/node-removal";
 import { useI18n } from "@/lib/i18n-context";
+import { DEFAULT_DIR, NODE_SORTS, sortFromSearch, sortNodes, sortToUrl, type NodeSort, type SortDir } from "@/lib/node-sort";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
@@ -41,6 +42,20 @@ interface PendingNode {
   agentVersion: string;
   machineId: string | null;
   createdAt: string;
+}
+
+/** A column header of the list that sorts by its column (again: the other direction) */
+function SortHeader({ sort, label, className = "", order, onSort }: {
+  sort: NodeSort; label: string; className?: string; order: { sort: NodeSort; dir: SortDir }; onSort: (sort: NodeSort) => void;
+}) {
+  const active = order.sort === sort;
+  return (
+    <th className={`p-4 ${className}`} aria-sort={active ? (order.dir === "asc" ? "ascending" : "descending") : "none"}>
+      <button type="button" onClick={() => onSort(sort)} className={`inline-flex items-center gap-1 hover:text-white ${active ? "text-zinc-100" : ""}`}>
+        {label}{active && <span aria-hidden>{order.dir === "asc" ? "\u25b2" : "\u25bc"}</span>}
+      </button>
+    </th>
+  );
 }
 
 function StatusDot({ online }: { online: boolean }) {
@@ -168,6 +183,21 @@ export default function NodesPage() {
     return "grid";
   });
   const router = useRouter();
+  // The order the user picked (?sort=&dir=); read after mounting, Back/Forward follow the URL
+  const [order, setOrder] = useState<{ sort: NodeSort; dir: SortDir }>({ sort: "name", dir: "asc" });
+  useEffect(() => {
+    const read = () => setOrder(sortFromSearch(window.location.search));
+    read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+  /** Sort by a column: the same column again flips the direction; each change is a history entry */
+  function sortBy(sort: NodeSort, dir?: SortDir) {
+    const next = { sort, dir: dir ?? (sort === order.sort ? (order.dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[sort]) };
+    setOrder(next);
+    const url = sortToUrl(window.location.href, next.sort, next.dir);
+    if (url !== window.location.href) window.history.pushState(window.history.state, "", url);
+  }
 
   useEffect(() => {
     fetchNodes();
@@ -238,7 +268,7 @@ export default function NodesPage() {
     }
   }
 
-  const filteredNodes = nodes.filter(
+  const filteredNodes = sortNodes(nodes.filter(
     (node) => {
       const matchesSearch = node.hostname.toLowerCase().includes(search.toLowerCase()) ||
         node.node_id.toLowerCase().includes(search.toLowerCase()) ||
@@ -249,7 +279,7 @@ export default function NodesPage() {
       
       return matchesSearch && matchesIssueFilter;
     }
-  );
+  ), order.sort, order.dir);
 
   const onlineCount = nodes.filter((n) => n.is_online).length;
   const issueCount = nodes.filter((n) => n.health_status && n.health_status !== 'healthy').length;
@@ -292,6 +322,19 @@ export default function NodesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full md:w-80 px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
           />
+          <label className="flex items-center gap-2 text-sm text-zinc-400">
+            {t("nodes.sortBy")}
+            <select value={order.sort} onChange={(e) => sortBy(e.target.value as NodeSort, DEFAULT_DIR[e.target.value as NodeSort])}
+              className="px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100">
+              {NODE_SORTS.map((s) => <option key={s} value={s}>{t(`nodes.sort.${s}`)}</option>)}
+            </select>
+            <button type="button" onClick={() => sortBy(order.sort, order.dir === "asc" ? "desc" : "asc")}
+              title={t(order.dir === "asc" ? "nodes.sortAscending" : "nodes.sortDescending")}
+              aria-label={t(order.dir === "asc" ? "nodes.sortAscending" : "nodes.sortDescending")}
+              className="px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 hover:border-zinc-500">
+              {order.dir === "asc" ? "▲" : "▼"}
+            </button>
+          </label>
           {issueCount > 0 && (
             <button
               onClick={() => setShowOnlyIssues(!showOnlyIssues)}
@@ -359,11 +402,11 @@ export default function NodesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-800 text-left text-sm text-zinc-400">
-                <th className="p-4">{t("common.status")}</th>
-                <th className="p-4">{t("nodes.hostname")}</th>
-                <th className="p-4 hidden md:table-cell">{t("nodes.os")}</th>
-                <th className="p-4 hidden lg:table-cell">{t("nodes.agent")}</th>
-                <th className="p-4">{t("nodes.lastSeen")}</th>
+                <SortHeader order={order} onSort={sortBy} sort="status" label={t("common.status")} />
+                <SortHeader order={order} onSort={sortBy} sort="name" label={t("nodes.hostname")} />
+                <SortHeader order={order} onSort={sortBy} sort="os" label={t("nodes.os")} className="hidden md:table-cell" />
+                <SortHeader order={order} onSort={sortBy} sort="agent" label={t("nodes.agent")} className="hidden lg:table-cell" />
+                <SortHeader order={order} onSort={sortBy} sort="last_seen" label={t("nodes.lastSeen")} />
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">

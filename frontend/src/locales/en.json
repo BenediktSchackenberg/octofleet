@@ -441,7 +441,17 @@
     "gridView": "Grid view",
     "onlyProblems": "Only problems ({count})",
     "noNodesYet": "No nodes yet",
-    "agent": "Agent"
+    "agent": "Agent",
+    "sortBy": "Sort by",
+    "sortAscending": "Ascending – click for descending",
+    "sortDescending": "Descending – click for ascending",
+    "sort": {
+      "name": "Name",
+      "status": "Status (online first)",
+      "os": "Operating system",
+      "agent": "Agent version",
+      "last_seen": "Last seen"
+    }
   },
   "onboarding": {
     "title": "Add New Device",

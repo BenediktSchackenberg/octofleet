@@ -73,73 +73,64 @@ def _os_product(os_name: str | None, os_version: str | None, display_version: st
         return name
     return f"{name} {version}"
 
+# The list's order: by hostname, case-insensitive, then node_id - stable across refreshes (it was by
+# last_seen, which changes with every agent report, so the rows moved on each reload)
+NODE_LIST_ORDER = "ORDER BY lower(n.hostname), n.node_id"
+
+# One query for all nodes, with their fired critical/warning alerts counted in one grouped pass
+# (it was one alerts query per node - 10,000 queries per request at 10,000 nodes)
+NODE_LIST_SQL = """
+    SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build,
+           n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
+           h.cpu->>'name' as cpu_name,
+           (h.ram->>'totalGb')::numeric as total_memory_gb,
+           COALESCE(a.critical, 0) AS critical_count, COALESCE(a.warning, 0) AS warning_count
+    FROM nodes n
+    LEFT JOIN hardware_current h ON n.id = h.node_id
+    LEFT JOIN (
+        SELECT node_id,
+               COUNT(*) FILTER (WHERE severity = 'critical') AS critical,
+               COUNT(*) FILTER (WHERE severity = 'warning') AS warning
+        FROM alerts WHERE status = 'fired' AND severity IN ('critical', 'warning')
+        GROUP BY node_id
+    ) a ON a.node_id = n.id
+    {where}
+    """ + NODE_LIST_ORDER
+
+
 @router.get("", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_nodes(
     unassigned: bool = False,
     group_id: Optional[str] = None,
     db: asyncpg.Pool = Depends(get_db)
 ):
-    """List all known nodes with summary info."""
+    """List all known nodes with summary info, ordered by hostname (case-insensitive), then node_id."""
     async with db.acquire() as conn:
         if unassigned:
-            rows = await conn.fetch("""
-                SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
-                       h.cpu->>'name' as cpu_name,
-                       (h.ram->>'totalGb')::numeric as total_memory_gb
-                FROM nodes n
-                LEFT JOIN hardware_current h ON n.id = h.node_id
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM device_groups dg WHERE dg.node_id::uuid = n.id::uuid
-                )
-                ORDER BY n.last_seen DESC
-            """)
+            rows = await conn.fetch(NODE_LIST_SQL.format(where="""
+                WHERE NOT EXISTS (SELECT 1 FROM device_groups dg WHERE dg.node_id::uuid = n.id::uuid)"""))
         elif group_id:
-            rows = await conn.fetch("""
-                SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
-                       h.cpu->>'name' as cpu_name,
-                       (h.ram->>'totalGb')::numeric as total_memory_gb
-                FROM nodes n
-                LEFT JOIN hardware_current h ON n.id = h.node_id
-                JOIN device_groups dg ON dg.node_id::uuid = n.id::uuid
-                WHERE dg.group_id = $1::uuid
-                ORDER BY n.last_seen DESC
-            """, UUID(group_id))
+            rows = await conn.fetch(NODE_LIST_SQL.format(where="""
+                WHERE EXISTS (SELECT 1 FROM device_groups dg
+                              WHERE dg.node_id::uuid = n.id::uuid AND dg.group_id = $1::uuid)"""),
+                UUID(group_id))
         else:
-            rows = await conn.fetch("""
-                SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                       n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
-                       h.cpu->>'name' as cpu_name,
-                       (h.ram->>'totalGb')::numeric as total_memory_gb
-                FROM nodes n
-                LEFT JOIN hardware_current h ON n.id = h.node_id
-                ORDER BY n.last_seen DESC
-            """)
-        
+            rows = await conn.fetch(NODE_LIST_SQL.format(where=""))
+
         nodes_list = []
         for r in rows:
             node = dict(r)
-            alert_counts = await conn.fetchrow("""
-                SELECT 
-                    COUNT(*) FILTER (WHERE severity = 'critical' AND status = 'fired') as critical_count,
-                    COUNT(*) FILTER (WHERE severity = 'warning' AND status = 'fired') as warning_count
-                FROM alerts WHERE node_id = $1::uuid
-            """, r['id'])
-            
-            critical = alert_counts['critical_count'] or 0
-            warning = alert_counts['warning_count'] or 0
-            
+            critical = node.pop("critical_count") or 0
+            warning = node.pop("warning_count") or 0
             if critical > 0:
                 node['health_status'] = 'critical'
             elif warning > 0:
                 node['health_status'] = 'warning'
             else:
                 node['health_status'] = 'healthy'
-            
             node['alert_count'] = critical + warning
             nodes_list.append(node)
-        
+
         return {"nodes": nodes_list}
 
 @router.get("/tree", dependencies=[Depends(require_user_permission("nodes:read"))])
@@ -163,7 +154,7 @@ async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
                        ARRAY[]::text[]
                    ) as group_ids
             FROM nodes n
-            ORDER BY n.hostname
+            ORDER BY lower(n.hostname), n.node_id
         """)
         
         tree = {"groups": {}, "unassigned": {}}

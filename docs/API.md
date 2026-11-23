@@ -37,7 +37,7 @@ curl -H "Authorization: Bearer your-jwt-token" http://localhost:8080/api/v1/node
 ### Nodes (15 endpoints)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/nodes` | List all nodes with pagination |
+| GET | `/api/v1/nodes` | List all nodes, ordered by hostname (case-insensitive), then node ID |
 | GET | `/api/v1/nodes/tree` | Hierarchical node tree |
 | GET | `/api/v1/nodes/search` | Search nodes by hostname, OS, etc. |
 | GET | `/api/v1/nodes/{node_id}` | Get node details |

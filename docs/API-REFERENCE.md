@@ -60,7 +60,7 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/nodes` | API Key | List all nodes |
+| GET | `/api/v1/nodes` | API Key | List all nodes (`unassigned=true`: without a group; `group_id`: of one group), ordered by hostname (case-insensitive), then node ID; each with `health_status` and `alert_count` from its fired critical/warning alerts |
 | GET | `/api/v1/nodes/tree` | API Key | Node tree view (hierarchical) |
 | GET | `/api/v1/nodes/search` | API Key | Search nodes |
 | GET | `/api/v1/nodes/os-distribution` | API Key | OS distribution summary |

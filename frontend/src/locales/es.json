@@ -441,7 +441,17 @@
     "gridView": "Vista de cuadrícula",
     "onlyProblems": "Solo problemas ({count})",
     "noNodesYet": "Aún no hay nodos",
-    "agent": "Agente"
+    "agent": "Agente",
+    "sortBy": "Ordenar por",
+    "sortAscending": "Ascendente – clic para descendente",
+    "sortDescending": "Descendente – clic para ascendente",
+    "sort": {
+      "name": "Nombre",
+      "status": "Estado (en línea primero)",
+      "os": "Sistema operativo",
+      "agent": "Versión del agente",
+      "last_seen": "Visto por última vez"
+    }
   },
   "onboarding": {
     "title": "Añadir dispositivo",
