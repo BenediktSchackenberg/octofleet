@@ -35,7 +35,7 @@ check() {  # check DESCRIPTION CONDITION...
 WORK=$(mktemp -d)
 TOOLS="$WORK/tools"; mkdir -p "$TOOLS"
 unset INVOCATION_ID  # not under systemd unless a test says so
-for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env date mktemp rm; do
+for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env date mktemp rm awk sed; do
     ln -s "$(command -v "$tool")" "$TOOLS/$tool"
 done
 export WORK PACKAGE_OUTPUT_DIR="$WORK"
@@ -148,6 +148,83 @@ run_job patch_install '{"packages": ["nosuchpackage"]}'
 check "apt install failed: the job fails with apt-get's exit code" \
     [ "$(field .success)" = "false" ] && [ "$(field .exitCode)" = "100" ]
 check "apt install failed: the error is in the output" grep -q "Unable to locate package" <<< "$(field .stdout)"
+
+# --- what an installation really changed: the pending updates before and after it ---
+# lists BEFORE AFTER: a fake apt whose "list --upgradable" answers BEFORE the first time (before the
+# installation) and AFTER from then on
+lists() {
+    printf "%s\n" "$1" > "$WORK/list-1"; printf "%s\n" "$2" > "$WORK/list-2"; rm -f "$WORK/list-n"
+    cat > "$TOOLS/apt" <<'FAKE'
+#!/bin/bash
+n=$(( $(cat "$WORK/list-n" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$WORK/list-n"
+echo "Listing..."
+cat "$WORK/list-$(( n > 2 ? 2 : n ))"
+FAKE
+    chmod +x "$TOOLS/apt"
+}
+PENDING='sos/noble-updates,noble-security 4.9.2-0ubuntu0~24.04.1 all [upgradable from: 4.8.2-0ubuntu0~24.04.2]
+distro-info/noble-updates 1.7build1.1 amd64 [upgradable from: 1.7build1]
+snapd/noble-updates 2.68.5+ubuntu24.04 amd64 [upgradable from: 2.67.1+24.04]'
+HELD='distro-info/noble-updates 1.7build1.1 amd64 [upgradable from: 1.7build1]
+snapd/noble-updates 2.68.5+ubuntu24.04 amd64 [upgradable from: 2.67.1+24.04]'
+clear_fakes; fake apt-get 0 'The following upgrades have been deferred due to phasing:
+  distro-info snapd
+The following packages will be upgraded:
+  sos
+1 upgraded, 0 newly installed, 0 to remove and 2 not upgraded.'
+lists "$PENDING" "$HELD"
+run_job patch_install '{"all": true}'
+check "install summary: counts what was really installed" grep -q "^Installed updates: 1 of 3 (sos)$" <<< "$(field .stdout)"
+check "install summary: names the ones left with apt's reason (phased updates)" \
+    grep -q "^Not installed: 2 (distro-info, snapd) - held back by apt: phased updates" <<< "$(field .stdout)"
+check "install summary: the job itself still succeeds (apt exited 0)" [ "$(field .success)" = "true" ]
+
+fake apt-get 0 'The following upgrades have been deferred due to phasing:
+  distro-info snapd
+0 upgraded, 0 newly installed, 0 to remove and 2 not upgraded.'
+lists "$HELD" "$HELD"
+run_job patch_install '{"all": true}'
+check "nothing installed: 0 of 2, no false 'installed'" grep -q "^Installed updates: 0 of 2$" <<< "$(field .stdout)"
+check "nothing installed: both named as not installed" grep -q "^Not installed: 2 (distro-info, snapd)" <<< "$(field .stdout)"
+
+fake apt-get 0 'The following packages have been kept back:
+  snapd
+0 upgraded, 0 newly installed, 0 to remove and 1 not upgraded.'
+lists "$PENDING" "$HELD"
+run_job patch_install '{"packages": ["snapd", "sos"]}'
+check "selected packages: only those count (sos installed, snapd kept back)" \
+    bash -c 'grep -q "^Installed updates: 1 of 2 (sos)$" <<< "$1" && grep -q "^Not installed: 1 (snapd) - kept back by apt$" <<< "$1"' _ "$(field .stdout)"
+lists "$PENDING" "$HELD"
+run_job patch_install '{"packages": [{"name": "sos", "version": "4.9.2-0ubuntu0~24.04.1"}]}'
+check "exact version: counted by name" grep -q "^Installed updates: 1 of 1 (sos)$" <<< "$(field .stdout)"
+lists "" ""
+run_job patch_install '{"packages": ["openssl"]}'
+check "nothing pending: said so" grep -q "^Installed updates: 0 of 0 (none of them was pending)$" <<< "$(field .stdout)"
+lists "$PENDING" ""
+run_job patch_install '{"all": true}'
+check "all installed: no 'Not installed' line" \
+    bash -c 'grep -q "^Installed updates: 3 of 3 (distro-info, snapd, sos)$" <<< "$1" && ! grep -q "^Not installed" <<< "$1"' _ "$(field .stdout)"
+rm -f "$TOOLS/apt"
+
+# dnf: a name without .arch stands for all its arches; the update list comes from dnf check-update
+clear_fakes
+printf "%s\n" "openssl-libs.x86_64  1:3.5.1-4.el9_8  baseos" "openssl-libs.i686  1:3.5.1-4.el9_8  baseos" "kernel.x86_64  5.14.0-611.el9  baseos" > "$WORK/dnf-1"
+printf "%s\n" "kernel.x86_64  5.14.0-611.el9  baseos" > "$WORK/dnf-2"
+rm -f "$WORK/dnf-n"
+cat > "$TOOLS/dnf" <<'FAKE'
+#!/bin/bash
+echo "dnf $*" >> "$WORK/calls"
+if [[ " $* " == *" check-update "* ]]; then
+    n=$(( $(cat "$WORK/dnf-n" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$WORK/dnf-n"
+    cat "$WORK/dnf-$(( n > 2 ? 2 : n ))"; exit 100
+fi
+exit 0
+FAKE
+chmod +x "$TOOLS/dnf"
+run_job patch_install '{"packages": ["openssl-libs", "kernel.x86_64"]}'
+check "dnf summary: a name without arch covers both arches; kernel still pending" \
+    bash -c 'grep -q "^Installed updates: 2 of 3 (openssl-libs.i686, openssl-libs.x86_64)$" <<< "$1" && grep -q "^Not installed: 1 (kernel.x86_64)$" <<< "$1"' _ "$(field .stdout)"
+clear_fakes
 
 # --- under systemd: the package manager runs in a transient unit, outside the service's sandbox ---
 cat > "$TOOLS/systemd-run" <<'EOF'
