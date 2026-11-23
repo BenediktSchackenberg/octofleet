@@ -122,6 +122,10 @@ curl -X POST http://localhost:8080/api/v1/jobs \
 For real-time updates:
 
 - `/api/v1/live/{node_id}` - Live node data stream (SSE)
+- `/api/v1/admin/agent-live` - Agent Monitor activity and status stream (SSE)
+- `/api/v1/remediation/live` - Remediation job updates (SSE)
+
+The SSE streams need a session token or the API key: browsers pass the session token as `?token=` (EventSource cannot send headers), other clients `Authorization: Bearer …` or `X-API-Key`. Without a valid one they answer 401.
 - `/ws/screen/{node_id}` - Screen sharing (WebSocket)
 - `/ws/terminal/{node_id}` - Remote terminal (WebSocket)
 

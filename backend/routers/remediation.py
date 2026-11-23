@@ -8,11 +8,11 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from starlette.responses import StreamingResponse
 
 from auth import CurrentUser, require_permission, require_user_permission
-from dependencies import API_KEY, get_pool, verify_api_key
+from dependencies import get_pool, verify_api_key, verify_api_key_or_query
 from remediation import (
     ApproveRemediationRequest,
     RemediationEngine,
@@ -496,15 +496,13 @@ async def remediation_dashboard(_: str = Depends(verify_api_key)):
 
 
 @router.get("/api/v1/remediation/live")
-async def remediation_live_sse(request: Request, token: str = None, api_key: str = Header(None, alias="X-API-Key")):
+async def remediation_live_sse(request: Request, _auth=Depends(verify_api_key_or_query)):
     """
     SSE endpoint for live remediation job updates.
-    Broadcasts job status changes in real-time.
+    Broadcasts job status changes in real-time. EventSource cannot send headers, so the
+    session token may come as ?token=; it is checked like on the other streams.
     """
-    # Validate auth (use centralized API_KEY from dependencies)
-    if api_key != API_KEY and not token:
-        raise HTTPException(401, "Unauthorized")
-    
+
     async def event_generator():
         # Track last seen job states
         last_states = {}
