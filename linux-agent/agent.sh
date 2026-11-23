@@ -1576,6 +1576,57 @@ run_patch_scan() {
     [[ "$status" != "failed" ]]
 }
 
+# pending_update_names PM: the pending updates as the update list names them, one per line (apt: the
+# package name; dnf/yum: name.arch). Reads the local package lists, downloads nothing.
+pending_update_names() {
+    case "$1" in
+        apt) LANG=C apt list --upgradable 2>/dev/null | awk -F/ 'NF > 1 && $1 !~ /^Listing/ { print $1 }' ;;
+        dnf|yum) dnf_updates "$1" | jq -r '.[].name' 2>/dev/null ;;
+    esac
+}
+
+# install_summary PM BEFORE AFTER OUTPUT [NAME...]: what an installation really changed, from the
+# pending updates before it (BEFORE) and after the update search that follows it (AFTER), for the
+# packages asked for (NAME..., none: all). A package manager can exit 0 without upgrading anything -
+# Ubuntu rolls out phased updates to a share of machines at a time and apt holds them back - and the
+# job then read "Updates installed". Prints "Installed updates: N of M (names)" and, for the ones
+# still pending, "Not installed: K (names)" with apt's reason.
+install_summary() {
+    local pm="$1" before="$2" after="$3" out="$4" n k reason=""; shift 4
+    local -A pending=() left=() wanted=()
+    while IFS= read -r n; do [[ -n "$n" ]] && pending[$n]=1; done <<< "$before"
+    while IFS= read -r n; do [[ -n "$n" ]] && left[$n]=1; done <<< "$after"
+    if (( $# )); then
+        # a name asks for the update of that name; on dnf/yum a name without .arch for all its arches
+        for n in "$@"; do
+            for k in "${!pending[@]}"; do
+                [[ "$k" == "$n" || ( "$pm" != apt && "${k%.*}" == "$n" ) ]] && wanted[$k]=1
+            done
+        done
+    else
+        for k in "${!pending[@]}"; do wanted[$k]=1; done
+    fi
+    local -a installed=() still=()
+    for k in "${!wanted[@]}"; do
+        if [[ -n "${left[$k]:-}" ]]; then still+=("$k"); else installed+=("$k"); fi
+    done
+    local list
+    if (( ${#wanted[@]} == 0 )); then
+        echo "Installed updates: 0 of 0 (none of them was pending)"
+        return 0
+    fi
+    list=$(printf '%s\n' "${installed[@]}" | sort | paste -sd, - | sed 's/,/, /g')
+    echo "Installed updates: ${#installed[@]} of ${#wanted[@]}${list:+ ($list)}"
+    (( ${#still[@]} )) || return 0
+    if grep -q "deferred due to phasing" <<< "$out"; then
+        reason="held back by apt: phased updates, which Ubuntu rolls out to a share of machines at a time"
+    elif grep -q "kept back" <<< "$out"; then
+        reason="kept back by apt"
+    fi
+    list=$(printf '%s\n' "${still[@]}" | sort | paste -sd, - | sed 's/,/, /g')
+    echo "Not installed: ${#still[@]} ($list)${reason:+ - $reason}"
+}
+
 # patch_install job: upgrade named packages ({"packages": [...]}) or explicitly all
 # ({"all": true}). A package is a name (its newest version) or {"name", "version"} (exactly that
 # version, as the update list reported it - bulk installs of approved updates, #271). Reject other payloads: a job with Windows KB IDs must never upgrade every Linux
@@ -1583,8 +1634,8 @@ run_patch_scan() {
 # then searches for updates again and pushes the inventory with that search, so the update list and
 # the node's last update search are both current.
 run_patch_install() {
-    local payload="$1" limit="$2" pm out="" rc=0 pkg version
-    local -a packages=() entries=()
+    local payload="$1" limit="$2" pm out="" rc=0 pkg version before
+    local -a packages=() entries=() names=()
     local selection
     # "packages": names (newest version) or {"name", "version"} objects (exactly that version: a
     # bulk installation of approved updates must not install a newer, not yet approved one)
@@ -1610,8 +1661,11 @@ run_patch_install() {
         [[ "$pkg" =~ ^[A-Za-z0-9][A-Za-z0-9+._:@-]*$ ]] || { echo "Invalid package name: $pkg"; return 1; }
         [[ -z "$version" || "$version" =~ ^[A-Za-z0-9][A-Za-z0-9+.:~_-]*$ ]] || { echo "Invalid version for $pkg: $version"; return 1; }
         packages+=("$pkg"$'\t'"$version")
+        names+=("$pkg")
     done
     pm=$(package_manager) || { echo "No supported package manager (apt, dnf, yum)"; return 1; }
+    # What was pending before, to report what the installation really changed
+    before=$(pending_update_names "$pm")
     # The package manager's notation: apt name=version; dnf/yum name-[epoch:]version-release.arch
     # (the name from the update list is name.arch)
     local i
@@ -1656,6 +1710,7 @@ run_patch_install() {
     fi
     PATCH_SCAN_JSON=$(refresh_package_lists 600)
     jq -r '"Update search afterwards: \(.status)" + (if .error then " (\(.error))" else "" end)' <<< "$PATCH_SCAN_JSON"
+    install_summary "$pm" "$before" "$(pending_update_names "$pm")" "$out" "${names[@]}"
     push_inventory >/dev/null 2>&1 || echo "Sending the inventory failed"
     PATCH_SCAN_JSON=""
     # The reboot comes last (at the earliest in a minute), after the result and the inventory

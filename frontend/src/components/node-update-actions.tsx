@@ -27,6 +27,9 @@ const LIMITS = {
 
 type Os = "linux" | "windows";
 /** The last lines of a job's output, for a toast */
+// Lines of the Linux agent's installation result shown in the toast (the rest is the package manager's output)
+const RESULT_LINES = ["Installed updates:", "Not installed:", "Reboot", "Update search afterwards:"];
+
 function tail(text?: string, lines = 4): string | undefined {
   return text?.trim().split("\n").slice(-lines).join("\n") || undefined;
 }
@@ -90,6 +93,21 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
     }
   }
 
+  /** The toast of a finished Linux installation: what was really installed. The agent ends with
+   * "Installed updates: N of M" and "Not installed: …" (apt holds back phased updates and exits 0);
+   * older agents send only the package manager's output. One line per fact. */
+  function linuxInstallToast(output?: string) {
+    const count = output?.match(/^Installed updates: (\d+) of (\d+)/m);
+    const lines = (output ?? "").split("\n").filter((line) => RESULT_LINES.some((prefix) => line.startsWith(prefix)));
+    const description = <div className="whitespace-pre-line">{(lines.length ? lines.join("\n") : tail(output, 2)) ?? ""}</div>;
+    if (!count) return toast.success(t("nodes.updates.installDone"), { description });
+    const installed = Number(count[1]), total = Number(count[2]);
+    if (total === 0) toast.info(t("nodes.updates.installNonePending"), { description });
+    else if (installed === 0) toast.warning(t("nodes.updates.installNothing", { total }), { description });
+    else if (installed < total) toast.warning(t("nodes.updates.installPartial", { installed, total }), { description });
+    else toast.success(t("nodes.updates.installDoneCount", { installed }), { description });
+  }
+
   async function run(kind: "scan" | "install", items: string[] = []) {
     if (!nodeUuid) return;
     setRunning(kind);
@@ -105,7 +123,9 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
     } finally {
       setRunning(null);
     }
-    if (result.status === "success") {
+    if (result.status === "success" && kind === "install" && os === "linux") {
+      linuxInstallToast(result.output);
+    } else if (result.status === "success") {
       toast.success(t(kind === "scan" ? "nodes.updates.searchDone" : "nodes.updates.installDone"),
         { description: kind === "install" ? (os === "windows" ? windowsSummary(result.output) : tail(result.output, 2)) : undefined });
     } else if (result.status === "failed") {
