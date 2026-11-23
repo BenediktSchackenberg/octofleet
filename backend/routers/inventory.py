@@ -5,7 +5,7 @@ from datetime import date, datetime
 from typing import Any, Dict
 
 import asyncpg
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 import linux_updates
 import vulnerability_cache
@@ -554,8 +554,9 @@ async def submit_security(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
 
 
 @router.post("/full", dependencies=[Depends(require_permission("inventory:write"))])
-async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+async def submit_full(request: Request, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit full inventory (all types at once)"""
+    request.state.agent_node = data.get("nodeId") or data.get("hostname")  # for the agent monitor
     data = sanitize_for_postgres(data)
     hostname = data.get("hostname", "unknown")
     results = {"hostname": hostname, "submitted": []}

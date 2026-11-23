@@ -56,6 +56,7 @@ import password_policy
 import retention
 import vulnerability
 import vulnerability_cache
+from agent_monitor import monitor as agent_monitor
 from auth import (
     ROLE_PERMISSIONS,
     APIKeyCreate,
@@ -69,6 +70,7 @@ from auth import (
     require_user_permission,
 )
 from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
+from routers.agent_monitor import router as agent_monitor_router
 from routers.agent_releases import router as agent_releases_router
 from routers.alerting import router as alerting_router
 from routers.auth import assert_manageable_user, users_router
@@ -156,6 +158,7 @@ async def lifespan(app: FastAPI):
     # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
     vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
+    agent_monitor_task = asyncio.create_task(agent_monitor.run(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
     async with db_pool.acquire() as conn:
@@ -216,6 +219,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     removal_task.cancel()
+    agent_monitor_task.cancel()
     vulnerability_cache_task.cancel()
     if db_pool:
         await db_pool.close()
@@ -253,27 +257,22 @@ _AGENT_PATH_PATTERN = _re.compile(
     r"/api/v1/(?:jobs/pending|terminal/pending|shell/pending|screen/pending|remediation/jobs/pending|live-data|agents)/(?:([^/]+))"
 )
 _AGENT_POST_PATTERNS = [
-    (_re.compile(r"/api/v1/live-data"), "live-data"),
+    (_re.compile(r"/api/v1/live-data$"), "live-data"),
+    (_re.compile(r"/api/v1/inventory/full$"), "inventory-push"),
     (_re.compile(r"/api/v1/agents/([^/]+)/health"), "health-report"),
     (_re.compile(r"/api/v1/remediation/jobs/(\d+)/result"), "remediation-result"),
     (_re.compile(r"/api/v1/jobs/instances/([^/]+)/result"), "job-result"),
 ]
 
 import time as _time
-from collections import deque
 
-_agent_activity_buffer = deque(maxlen=500)
+# Recent agent requests (newest last), kept by the agent monitor (agent_monitor.py)
+_agent_activity_buffer = agent_monitor.recent
+
 
 def log_agent_activity(hostname: str, action: str, detail: str = "", ip: str = "", status_code: int = 200):
-    _agent_activity_buffer.append({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "hostname": hostname,
-        "action": action,
-        "detail": detail,
-        "ip": ip,
-        "status_code": status_code,
-        "ts": _time.time()
-    })
+    agent_monitor.record(hostname, action, detail, ip, status_code)
+
 
 @app.middleware("http")
 async def agent_activity_middleware(request: Request, call_next):
@@ -294,13 +293,14 @@ async def agent_activity_middleware(request: Request, call_next):
             elif "jobs" in path: action = "job-poll"
             log_agent_activity(hostname, action, path, ip, response.status_code)
 
-    # Track POST endpoints (health, live-data, results)
+    # Track POST endpoints (health, live data, inventory, results). Live data and the inventory carry
+    # the node in the body: their handlers put it on request.state.agent_node.
     elif request.method == "POST":
         for pattern, action in _AGENT_POST_PATTERNS:
             m = pattern.search(path)
             if m:
-                hostname = m.group(1) if m.lastindex else "unknown"
-                log_agent_activity(hostname, action, path, ip, response.status_code)
+                hostname = m.group(1) if m.lastindex else (getattr(request.state, "agent_node", None) or "unknown")
+                log_agent_activity(str(hostname), action, path, ip, response.status_code)
                 break
 
     return response
@@ -358,6 +358,7 @@ app.include_router(vulnerabilities_router)
 app.include_router(rbac_router)
 app.include_router(hardware_router)
 app.include_router(patch_explorer_router)
+app.include_router(agent_monitor_router)
 
 
 # === API Endpoints ===
@@ -3771,12 +3772,13 @@ async def stop_live_session(session_id: str, _: str = Depends(verify_api_key)):
 
 
 @app.post("/api/v1/live-data", dependencies=[Depends(require_permission("inventory:write"))])
-async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+async def receive_live_data(request: Request, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """
     Receives live monitoring data from agents.
     Stores metrics in node_metrics and processes in node_processes.
     """
     node_id_text = data.get("nodeId")
+    request.state.agent_node = node_id_text  # for the agent monitor
     if not node_id_text:
         raise bad_request("nodeId is required", "nodeId")
     
@@ -6570,68 +6572,6 @@ async def export_file_activity(
         
         return {"events": [{"ts": str(r["ts"]), "nodeId": r["node_id"], "eventType": r["event_type"],
                            "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]} for r in rows]}
-
-
-@app.get("/api/v1/admin/agent-activity")
-async def get_agent_activity(limit: int = 100, _: str = Depends(verify_api_key)):
-    """Get recent agent activity from in-memory buffer."""
-    items = list(_agent_activity_buffer)[-limit:]
-    items.reverse()
-    return {"events": items, "count": len(items)}
-
-
-@app.get("/api/v1/admin/agent-status")
-async def get_agent_status(_: str = Depends(verify_api_key)):
-    """Get live status of all agents with their recent activity."""
-    async with db_pool.acquire() as conn:
-        nodes = await conn.fetch("""
-            SELECT n.id, n.hostname, n.os_name, n.agent_version, n.last_seen, n.is_online,
-                   (SELECT COUNT(*) FROM job_instances ji WHERE ji.node_id = n.id::text AND ji.status = 'running') as running_jobs,
-                   (SELECT COUNT(*) FROM job_instances ji WHERE ji.node_id = n.id::text AND ji.status = 'queued') as queued_jobs,
-                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id AND rj.status IN ('pending', 'approved')) as pending_remediation,
-                   (SELECT COUNT(*) FROM remediation_jobs rj WHERE rj.node_id = n.id AND rj.status = 'running') as running_remediation
-            FROM nodes n
-            ORDER BY n.last_seen DESC NULLS LAST
-        """)
-
-        result = []
-        for n in nodes:
-            last_seen = n["last_seen"]
-            now = datetime.now(timezone.utc)
-            if last_seen:
-                ago = (now - last_seen).total_seconds()
-                if ago < 30:
-                    status = "active"
-                elif ago < 120:
-                    status = "idle"
-                elif ago < 600:
-                    status = "stale"
-                else:
-                    status = "offline"
-            else:
-                status = "unknown"
-                ago = None
-
-            # Find recent activity from buffer
-            recent_actions = [e for e in _agent_activity_buffer if e["hostname"] == n["hostname"]][-5:]
-
-            result.append({
-                "id": str(n["id"]),
-                "hostname": n["hostname"],
-                "os_name": n["os_name"],
-                "agent_version": n["agent_version"],
-                "last_seen": last_seen.isoformat() if last_seen else None,
-                "seconds_ago": int(ago) if ago is not None else None,
-                "status": status,
-                "is_online": n["is_online"],
-                "running_jobs": n["running_jobs"],
-                "queued_jobs": n["queued_jobs"],
-                "pending_remediation": n["pending_remediation"],
-                "running_remediation": n["running_remediation"],
-                "recent_actions": recent_actions
-            })
-
-        return {"agents": result}
 
 
 @app.get("/api/v1/admin/agent-live")

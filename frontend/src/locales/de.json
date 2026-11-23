@@ -1850,5 +1850,92 @@
     "hint": "Die Zahlen werden pro Gerät gespeichert und neu berechnet, sobald sich etwas ändert: ein Scan, neue Software auf einem Gerät, ein behobener Befund, ein entferntes Gerät.",
     "pendingOne": "{count} Gerät wird neu berechnet",
     "pendingOther": "{count} Geräte werden neu berechnet"
+  },
+  "agentMonitor": {
+    "title": "Agent-Monitor",
+    "subtitle": "Was die Agents beim Server anfragen: Status je Agent und ihre letzten Anfragen",
+    "updatedAt": "Aktualisiert {time}",
+    "paused": "Angehalten",
+    "pause": "Anhalten",
+    "resume": "Fortsetzen",
+    "notReachable": "Server nicht erreichbar",
+    "cards": {
+      "active": "Aktive Agents",
+      "total": "Agents",
+      "withErrors": "Mit Fehlern",
+      "runningJobs": "Laufende Jobs",
+      "remediation": "Behebung"
+    },
+    "agents": "Agents ({count})",
+    "searchPlaceholder": "Hostname suchen (* und ? möglich)",
+    "statusFilter": "Status",
+    "sortBy": "Sortieren nach",
+    "status": {
+      "all": "Alle Status",
+      "active": "Aktiv",
+      "idle": "Untätig",
+      "stale": "Veraltet",
+      "offline": "Offline",
+      "errors": "Mit Fehlern"
+    },
+    "sort": {
+      "hostname": "Name",
+      "lastSeen": "Zuletzt gesehen",
+      "errors": "Fehler"
+    },
+    "noAgents": "Kein Agent passt zum Filter.",
+    "filterByAgent": "Nur die Anfragen dieses Agents zeigen",
+    "noVersion": "Version unbekannt",
+    "notRegistered": "nicht registriert",
+    "errorCount": "{count} Fehler",
+    "requestCount": "{count} Anfragen",
+    "alsoReportsAs": "meldet sich auch als {names}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "range": "{from}–{to} von {total}",
+    "activity": "Aktivität",
+    "clearAgentFilter": "Alle Agents zeigen",
+    "actionFilter": "Aktion",
+    "allActions": "Alle Aktionen",
+    "timeRange": "Zeitraum",
+    "ranges": {
+      "all": "Alle gespeicherten",
+      "5m": "Letzte 5 Minuten",
+      "15m": "Letzte 15 Minuten",
+      "1h": "Letzte Stunde"
+    },
+    "errorsOnly": "Nur Fehler",
+    "eventCount": "{count} Anfragen",
+    "bufferRecent": "Eine Stichprobe: Der Server behält die letzten {count} Agent-Anfragen im Speicher (seit seinem letzten Start); die Zähler je Agent umfassen alle Anfragen.",
+    "bufferErrors": "Der Server behält die letzten {count} fehlgeschlagenen Agent-Anfragen im Speicher (seit seinem letzten Start).",
+    "bufferNode": "Der Server behält je Agent die letzten {count} Anfragen im Speicher (seit seinem letzten Start).",
+    "noActivity": "Keine Agent-Anfrage passt zum Filter.",
+    "noActivityFor": "Keine Anfrage von {name} passt zum Filter.",
+    "reportedAs": "Der Agent meldet sich als {name}",
+    "columns": {
+      "time": "Zeit",
+      "agent": "Agent",
+      "action": "Aktion",
+      "ip": "IP-Adresse",
+      "status": "Status"
+    },
+    "actions": {
+      "job-poll": "Job-Abfrage",
+      "terminal-poll": "Terminal",
+      "shell-poll": "Shell",
+      "screen-poll": "Bildschirm",
+      "remediation-poll": "Behebung",
+      "live-data": "Live-Daten",
+      "inventory-push": "Inventar",
+      "health-report": "Zustand",
+      "job-result": "Job-Ergebnis",
+      "remediation-result": "Behebungsergebnis"
+    },
+    "never": "nie",
+    "justNow": "gerade eben",
+    "secondsAgo": "vor {count} s",
+    "minutesAgo": "vor {count} min",
+    "hoursAgo": "vor {count} h",
+    "daysAgo": "vor {count} Tagen"
   }
 }

@@ -1850,5 +1850,92 @@
     "hint": "Las cifras se guardan por nodo y se recalculan cuando algo cambia: un análisis, software nuevo en un nodo, un hallazgo corregido, un nodo eliminado.",
     "pendingOne": "{count} nodo recalculándose",
     "pendingOther": "{count} nodos recalculándose"
+  },
+  "agentMonitor": {
+    "title": "Monitor de agentes",
+    "subtitle": "Lo que los agentes piden al servidor: estado por agente y sus últimas solicitudes",
+    "updatedAt": "Actualizado {time}",
+    "paused": "En pausa",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "notReachable": "Servidor no disponible",
+    "cards": {
+      "active": "Agentes activos",
+      "total": "Agentes",
+      "withErrors": "Con errores",
+      "runningJobs": "Trabajos en curso",
+      "remediation": "Remediación"
+    },
+    "agents": "Agentes ({count})",
+    "searchPlaceholder": "Buscar nombre de host (se admiten * y ?)",
+    "statusFilter": "Estado",
+    "sortBy": "Ordenar por",
+    "status": {
+      "all": "Todos los estados",
+      "active": "Activo",
+      "idle": "Inactivo",
+      "stale": "Desactualizado",
+      "offline": "Sin conexión",
+      "errors": "Con errores"
+    },
+    "sort": {
+      "hostname": "Nombre",
+      "lastSeen": "Última vez visto",
+      "errors": "Errores"
+    },
+    "noAgents": "Ningún agente coincide con el filtro.",
+    "filterByAgent": "Mostrar solo las solicitudes de este agente",
+    "noVersion": "versión desconocida",
+    "notRegistered": "no registrado",
+    "errorCount": "{count} errores",
+    "requestCount": "{count} solicitudes",
+    "alsoReportsAs": "también se identifica como {names}",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "range": "{from}–{to} de {total}",
+    "activity": "Actividad",
+    "clearAgentFilter": "Mostrar todos los agentes",
+    "actionFilter": "Acción",
+    "allActions": "Todas las acciones",
+    "timeRange": "Período",
+    "ranges": {
+      "all": "Todas las guardadas",
+      "5m": "Últimos 5 minutos",
+      "15m": "Últimos 15 minutos",
+      "1h": "Última hora"
+    },
+    "errorsOnly": "Solo errores",
+    "eventCount": "{count} solicitudes",
+    "bufferRecent": "Una muestra: el servidor guarda en memoria las últimas {count} solicitudes de agentes (desde su último inicio); los contadores por agente incluyen todas las solicitudes.",
+    "bufferErrors": "El servidor guarda en memoria las últimas {count} solicitudes fallidas de agentes (desde su último inicio).",
+    "bufferNode": "El servidor guarda en memoria las últimas {count} solicitudes por agente (desde su último inicio).",
+    "noActivity": "Ninguna solicitud de agente coincide con el filtro.",
+    "noActivityFor": "Ninguna solicitud de {name} coincide con el filtro.",
+    "reportedAs": "El agente se identifica como {name}",
+    "columns": {
+      "time": "Hora",
+      "agent": "Agente",
+      "action": "Acción",
+      "ip": "Dirección IP",
+      "status": "Estado"
+    },
+    "actions": {
+      "job-poll": "Consulta de trabajos",
+      "terminal-poll": "Terminal",
+      "shell-poll": "Shell",
+      "screen-poll": "Pantalla",
+      "remediation-poll": "Remediación",
+      "live-data": "Datos en vivo",
+      "inventory-push": "Inventario",
+      "health-report": "Estado",
+      "job-result": "Resultado del trabajo",
+      "remediation-result": "Resultado de remediación"
+    },
+    "never": "nunca",
+    "justNow": "ahora mismo",
+    "secondsAgo": "hace {count} s",
+    "minutesAgo": "hace {count} min",
+    "hoursAgo": "hace {count} h",
+    "daysAgo": "hace {count} días"
   }
 }
