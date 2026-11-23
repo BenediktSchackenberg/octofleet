@@ -9,6 +9,7 @@ AGENT="${AGENT:-$REPO/linux-agent/agent.sh}"
 
 # Load only the functions under test: sourcing agent.sh would start the agent
 eval "$(awk '/^LOGROTATE_MARKER=/ { f = 1 } /^run_service\(\) \{/ { exit } f { print }' "$AGENT")"
+eval "$(awk '/^# --- systemd helpers/,/^# --- end systemd helpers ---$/' "$AGENT")"  # systemd_mode, sd_run, sd_run_wait
 for fn in logrotate_config ensure_logrotate; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done

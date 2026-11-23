@@ -43,6 +43,8 @@ jobs:
         run: bash tests/linux-agent/dnf-updates.test.sh
       - name: Test the pacman update list (installed version, repository, architecture)
         run: bash tests/linux-agent/pacman-updates.test.sh
+      - name: Test the agent without a D-Bus system bus (polled transient units, plain errors)
+        run: bash tests/linux-agent/no-dbus.test.sh
       - name: Test the logrotate configuration
         run: |
           sudo apt-get install -y -q logrotate >/dev/null || true

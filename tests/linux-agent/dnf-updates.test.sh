@@ -12,6 +12,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # Load only the functions under test: sourcing agent.sh would start the agent. collect_updates ends
 # at the first "}" line after its "EOF" (JSON here-document); the others at their first "}" line.
 eval "$(awk '/^collect_updates\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
+eval "$(awk '/^# --- systemd helpers/,/^# --- end systemd helpers ---$/' "$AGENT")"  # systemd_mode, sd_run, sd_run_wait
 for fn in run_package_command dnf_reboot_required dnf_updates os_release_json; do
     eval "$(awk -v fn="$fn" '$0 ~ "^" fn "\\(\\) \\{" { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
 done
@@ -147,7 +148,7 @@ check "under systemd: updates through the transient unit" [ "$(jq -r .totalUpdat
 check "under systemd: no --pipe" bash -c '! grep -q -- --pipe <<< "$1"' _ "$(calls)"
 check "under systemd: output file option" grep -q -- "-p StandardOutput=file:$WORK/octofleet-packages\." <<< "$(calls)"
 check "under systemd: the output files are removed" bash -c '! ls "$1"/octofleet-packages.* >/dev/null 2>&1' _ "$WORK"
-check "under systemd: the exit code comes back" [ "$(NEEDS_RESTARTING=1 INVOCATION_ID=test bash -c "$(declare -f run_package_command); run_package_command 10 dnf -q needs-restarting -r >/dev/null; echo \$?")" = 1 ]
+check "under systemd: the exit code comes back" [ "$(NEEDS_RESTARTING=1 INVOCATION_ID=test bash -c "$(declare -f systemd_mode sd_run sd_run_wait run_package_command); run_package_command 10 dnf -q needs-restarting -r >/dev/null; echo \$?")" = 1 ]
 
 rm -rf "$WORK"
 echo

@@ -1433,7 +1433,7 @@ schedule_uninstall() {
         printf 'curl -fsS --max-time 15 -X POST -H %q -H %q --data-binary %q %q >/dev/null\n' \
             'Content-Type: application/json' "X-API-Key: $API_KEY" "$payload" "$url"
     } > "$script"
-    if command -v systemd-run &>/dev/null && systemd-run --quiet --collect \
+    if [[ "$(systemd_mode)" != none ]] && sd_run --quiet --collect \
             --unit "octofleet-agent-uninstall-$(date +%s)" /bin/bash "$script"; then
         echo "Agent uninstall started; the agent will be removed in ${delay} seconds."
         return 0
@@ -1445,11 +1445,11 @@ schedule_uninstall() {
 
 schedule_restart() {
     # A transient timer runs outside this service, after the job result has been sent.
-    if ! command -v systemd-run &>/dev/null || ! systemctl cat octofleet-agent.service &>/dev/null; then
+    if [[ "$(systemd_mode)" == none ]] || ! systemctl cat octofleet-agent.service &>/dev/null; then
         echo "Cannot schedule agent restart: the systemd service is unavailable"
         return 1
     fi
-    systemd-run --quiet --collect --on-active=30s \
+    sd_run --quiet --collect --on-active=30s \
         --unit "octofleet-agent-restart-$(date +%s)-$$" \
         /bin/systemctl restart octofleet-agent.service || return 1
     echo "Agent restart scheduled in 30 seconds"
@@ -1459,6 +1459,81 @@ schedule_restart() {
 # (no "# ===" section line here: the job tests load everything from schedule_restart to the next one)
 
 # The package manager used for updates: apt, dnf, yum or pacman
+# --- systemd helpers (tests load this block) ---
+# The service runs sandboxed (ProtectSystem=strict), so system changes (package installs, the reboot
+# timer, /etc/logrotate.d, restarting itself) run as transient units through systemd-run. Minimal
+# systems (stripped-down vendor and cloud images) have no dbus daemon. As root, systemd-run still starts units
+# over systemd's private socket, but --wait fails there ("Failed to connect to bus" on systemd 249):
+# it needs the bus to follow the unit. sd_run_wait then polls the unit with systemctl instead.
+DBUS_SYSTEM_SOCKET="${DBUS_SYSTEM_SOCKET:-/run/dbus/system_bus_socket}"
+SYSTEMD_PRIVATE_SOCKET="${SYSTEMD_PRIVATE_SOCKET:-/run/systemd/private}"
+
+# systemd_mode: "bus" (the D-Bus system bus, or no way to tell), "private" (no system bus, but
+# systemd's private socket), "none" (no systemd-run)
+systemd_mode() {
+    if ! command -v systemd-run &>/dev/null; then
+        echo none
+    elif [[ -z "${DBUS_SYSTEM_BUS_ADDRESS:-}" && ! -S "$DBUS_SYSTEM_SOCKET" && -S "$SYSTEMD_PRIVATE_SOCKET" ]]; then
+        echo private
+    else
+        echo bus
+    fi
+}
+
+SYSTEMD_UNREACHABLE="systemd is not reachable: this system has no D-Bus system bus (the dbus service is not installed or not running) and systemd's own socket ($SYSTEMD_PRIVATE_SOCKET) cannot be used either. Install and start dbus (e.g. apt-get install dbus; systemctl enable --now dbus) and run the job again."
+
+# sd_run ARGS...: systemd-run ARGS, over systemd's private socket when there is no system bus.
+# A failure to reach systemd at all is explained in one sentence on stdout.
+sd_run() {
+    local err rc=0
+    if [[ "$(systemd_mode)" == private ]]; then
+        err=$(DBUS_SYSTEM_BUS_ADDRESS="unix:path=$SYSTEMD_PRIVATE_SOCKET" systemd-run "$@" 2>&1 >/dev/null) || rc=$?
+    else
+        err=$(systemd-run "$@" 2>&1 >/dev/null) || rc=$?
+    fi
+    if (( rc != 0 )); then
+        if [[ "$err" == *"Failed to connect to bus"* || "$err" == *"Transport endpoint is not connected"* ]]; then
+            echo "$SYSTEMD_UNREACHABLE"
+        elif [[ -n "$err" ]]; then
+            echo "$err"
+        fi
+    fi
+    return "$rc"
+}
+
+# sd_run_wait UNIT [systemd-run options...] COMMAND...: runs COMMAND as transient unit UNIT and waits
+# for it, like systemd-run --wait --collect; returns COMMAND's exit code. Without a system bus the
+# unit keeps its state after exit (RemainAfterExit) and is polled every second, then removed.
+sd_run_wait() {
+    local unit="$1"; shift
+    if [[ "$(systemd_mode)" != private ]]; then
+        local rc=0
+        systemd-run --quiet --wait --collect --unit "$unit" "$@" || rc=$?
+        return "$rc"
+    fi
+    sd_run --quiet --unit "$unit" -p RemainAfterExit=yes "$@" || return 1
+    local state sub status result key value
+    while :; do
+        state="" sub="" status=0 result=""
+        while IFS='=' read -r key value; do
+            case "$key" in
+                ActiveState) state="$value" ;;
+                SubState) sub="$value" ;;
+                ExecMainStatus) status="$value" ;;
+                Result) result="$value" ;;
+            esac
+        done < <(systemctl show -p ActiveState -p SubState -p ExecMainStatus -p Result "$unit.service" 2>/dev/null)
+        [[ "$state" == activating || ( "$state" == active && "$sub" != exited ) ]] || break
+        sleep "${SD_POLL_SECONDS:-1}"
+    done
+    systemctl stop "$unit.service" &>/dev/null
+    systemctl reset-failed "$unit.service" &>/dev/null
+    [[ "$status" =~ ^[0-9]+$ ]] || status=1
+    (( status == 0 )) && [[ -n "$result" && "$result" != success ]] && status=1
+    return "$status"
+}
+# --- end systemd helpers ---
+
 package_manager() {
     if command -v apt-get &>/dev/null; then echo apt
     elif command -v dnf &>/dev/null; then echo dnf
@@ -1482,10 +1557,10 @@ package_manager() {
 # (the agent too, in the middle of the job).
 run_package_command() {
     local limit="$1"; shift
-    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+    if [[ -n "${INVOCATION_ID:-}" && "$(systemd_mode)" != none ]]; then
         local out rc=0
         out=$(mktemp "${PACKAGE_OUTPUT_DIR:-/var/log}/octofleet-packages.XXXXXX") || return 1
-        systemd-run --quiet --wait --collect --unit "octofleet-packages-$(date +%s)-$$" \
+        sd_run_wait "octofleet-packages-$(date +%s)-$$" \
             -p "StandardOutput=file:$out" -p StandardError=inherit \
             --setenv=LC_ALL=C --setenv=LANG=C --setenv=DEBIAN_FRONTEND=noninteractive --setenv=NEEDRESTART_MODE=l \
             timeout "$limit" "$@" || rc=$?
@@ -1783,18 +1858,19 @@ schedule_system_reboot() {
             ;;
         *) echo "Reboot: not requested (no_reboot)"; return 0 ;;
     esac
-    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+    if [[ -n "${INVOCATION_ID:-}" && "$(systemd_mode)" != none ]]; then
         if [[ -n "$when" ]]; then
-            systemd-run --quiet --collect --unit "$unit" --on-calendar="$when UTC" /bin/systemctl reboot || return 1
+            sd_run --quiet --collect --unit "$unit" --on-calendar="$when UTC" /bin/systemctl reboot || return 1
             echo "Reboot scheduled for $when UTC"
         else
-            systemd-run --quiet --collect --unit "$unit" --on-active=60s /bin/systemctl reboot || return 1
+            sd_run --quiet --collect --unit "$unit" --on-active=60s /bin/systemctl reboot || return 1
             echo "Reboot in one minute"
         fi
     else
         local minutes=1
         [[ -n "$when" ]] && minutes=$(( ($(date -u -d "$when UTC" +%s) - $(date +%s) + 59) / 60 ))
-        shutdown -r +"$minutes" "Octofleet: reboot after updates" >/dev/null 2>&1 || return 1
+        shutdown -r +"$minutes" "Octofleet: reboot after updates" >/dev/null 2>&1 || {
+            echo "Reboot could not be scheduled: shutdown failed (it needs systemd-logind over D-Bus)"; return 1; }
         echo "Reboot in $minutes min"
     fi
 }
@@ -2115,13 +2191,13 @@ ensure_logrotate() {
         warn "logrotate is not installed - $LOG_FILE is not rotated (install logrotate; the agent then adds $LOGROTATE_FILE)"
         return 0
     fi
-    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null && [[ ! -w "$(dirname "$LOGROTATE_FILE")" ]]; then
+    if [[ -n "${INVOCATION_ID:-}" && "$(systemd_mode)" != none ]] && [[ ! -w "$(dirname "$LOGROTATE_FILE")" ]]; then
         # --pipe cannot start transient units from the service on systemd 252 (RHEL 9).
         # Stage the content in the agent's writable log directory, then install it in a unit.
         local staged
         staged=$(mktemp "${LOGROTATE_TMP_DIR:-/var/log}/octofleet-logrotate.XXXXXX") || return 1
         printf '%s\n' "$wanted" > "$staged"
-        if ! systemd-run --quiet --wait --collect --unit "octofleet-logrotate-$(date +%s)-$$" \
+        if ! sd_run_wait "octofleet-logrotate-$(date +%s)-$$" \
             /usr/bin/install -m 644 "$staged" "$LOGROTATE_FILE"; then
             rm -f "$staged"
             warn "Could not write $LOGROTATE_FILE"; return 1
@@ -2141,6 +2217,7 @@ run_service() {
     info "API URL: $API_URL"
     info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"
     info "Auto-update: ${AUTO_UPDATE} (every ${UPDATE_CHECK_INTERVAL}s from the Octofleet server)"
+    [[ "$(systemd_mode)" == private ]] && info "No D-Bus system bus on this system: updates, reboots and logrotate run through systemd's private socket"
     ensure_logrotate || true
     
     # Detect screen capture tool
