@@ -1854,7 +1854,7 @@
   },
   "loggingPage": {
     "title": "Logging",
-    "subtitle": "What the backend writes to its log (docker compose logs backend). Changes apply at once, without a restart.",
+    "subtitle": "What the backend writes to its standard output – docker compose logs backend, or the systemd journal or console without Docker. Changes apply at once, without a restart.",
     "level": "Log level",
     "levels": {
       "error": "Errors",
@@ -1872,7 +1872,7 @@
     "slowMs": "Slow request threshold in milliseconds",
     "slowMsUnit": "ms",
     "accessHint": "Each line has method, path (without the query string), status, duration and client address. Agents poll every few seconds, so with many nodes every request means many lines.",
-    "rotationHint": "Docker rotates the log files (LOG_MAX_SIZE, LOG_MAX_FILE in .env; default 5 files of 20 MB per container).",
+    "rotationHint": "With Docker Compose, Docker rotates the log files (LOG_MAX_SIZE, LOG_MAX_FILE in .env; default 5 files of 20 MB per container). Without Docker, the service manager handles it – the systemd journal rotates by its own limits (journald.conf).",
     "saved": "Logging setting saved – applied now",
     "saveFailed": "The logging setting could not be saved",
     "saving": "Saving..."

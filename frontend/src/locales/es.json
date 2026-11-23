@@ -1854,7 +1854,7 @@
   },
   "loggingPage": {
     "title": "Registro",
-    "subtitle": "Lo que el backend escribe en su registro (docker compose logs backend). Los cambios se aplican al momento, sin reiniciar.",
+    "subtitle": "Lo que el backend escribe en su salida estándar – docker compose logs backend, o sin Docker el diario de systemd o la consola. Los cambios se aplican al momento, sin reiniciar.",
     "level": "Nivel de registro",
     "levels": {
       "error": "Errores",
@@ -1872,7 +1872,7 @@
     "slowMs": "Umbral de solicitud lenta en milisegundos",
     "slowMsUnit": "ms",
     "accessHint": "Cada línea tiene método, ruta (sin la cadena de consulta), estado, duración y dirección del cliente. Los agentes consultan cada pocos segundos: con muchos nodos, cada solicitud supone muchas líneas.",
-    "rotationHint": "Docker rota los archivos de registro (LOG_MAX_SIZE, LOG_MAX_FILE en .env; por defecto 5 archivos de 20 MB por contenedor).",
+    "rotationHint": "Con Docker Compose, Docker rota los archivos de registro (LOG_MAX_SIZE, LOG_MAX_FILE en .env; por defecto 5 archivos de 20 MB por contenedor). Sin Docker se encarga el gestor de servicios – el diario de systemd rota según sus propios límites (journald.conf).",
     "saved": "Configuración de registro guardada – aplicada ya",
     "saveFailed": "No se pudo guardar la configuración de registro",
     "saving": "Guardando..."

@@ -247,7 +247,7 @@ Plan disk space with this in mind: on a test installation one Windows node with 
 
 ### Logging
 
-The backend writes its log to stdout (`docker compose logs backend`); Docker keeps it per container in JSON files that are rotated at `LOG_MAX_SIZE` with `LOG_MAX_FILE` files kept (default 20 MB × 5 per container). Before, the files had no limit and grew until the container was recreated.
+The backend writes its log to stdout. With Docker Compose (`docker compose logs backend`) Docker keeps it per container in JSON files that are rotated at `LOG_MAX_SIZE` with `LOG_MAX_FILE` files kept (default 20 MB × 5 per container); before, the files had no limit and grew until the container was recreated. Without Docker ([systemd services](DEPLOYMENT.md), or `uvicorn` started by hand) the output goes where the service manager sends it – with systemd to the journal (`journalctl --user -u <unit>`), which rotates by its own limits (`SystemMaxUse` in `journald.conf`); `LOG_MAX_SIZE`/`LOG_MAX_FILE` do not apply there. The settings below and `LOG_LEVEL` work the same either way.
 
 **Admin → Logging** (`/settings/logging`, `settings:read` to view, `settings:write` to change; changes are audited as `settings.logging`) sets, without a restart:
 - **Log level**: `error`, `warning`, `info` (default) or `debug` for the backend's own messages. Debug writes much more – switch it back after troubleshooting.

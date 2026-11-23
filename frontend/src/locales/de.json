@@ -1854,7 +1854,7 @@
   },
   "loggingPage": {
     "title": "Protokollierung",
-    "subtitle": "Was das Backend in sein Log schreibt (docker compose logs backend). Änderungen gelten sofort, ohne Neustart.",
+    "subtitle": "Was das Backend auf seine Standardausgabe schreibt – docker compose logs backend, ohne Docker das systemd-Journal oder die Konsole. Änderungen gelten sofort, ohne Neustart.",
     "level": "Log-Level",
     "levels": {
       "error": "Fehler",
@@ -1872,7 +1872,7 @@
     "slowMs": "Schwelle für langsame Anfragen in Millisekunden",
     "slowMsUnit": "ms",
     "accessHint": "Jede Zeile enthält Methode, Pfad (ohne Query-String), Status, Dauer und Client-Adresse. Agents fragen alle paar Sekunden an – bei vielen Nodes heißt jede Anfrage sehr viele Zeilen.",
-    "rotationHint": "Docker rotiert die Log-Dateien (LOG_MAX_SIZE, LOG_MAX_FILE in .env; Standard 5 Dateien à 20 MB pro Container).",
+    "rotationHint": "Mit Docker Compose rotiert Docker die Log-Dateien (LOG_MAX_SIZE, LOG_MAX_FILE in .env; Standard 5 Dateien à 20 MB pro Container). Ohne Docker übernimmt das der Dienstmanager – das systemd-Journal rotiert nach seinen eigenen Grenzen (journald.conf).",
     "saved": "Protokollierung gespeichert – gilt ab sofort",
     "saveFailed": "Die Protokollierung konnte nicht gespeichert werden",
     "saving": "Wird gespeichert..."
