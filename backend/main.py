@@ -17,6 +17,7 @@ from fastapi import (
     Depends,
     FastAPI,
     HTTPException,
+    Query,
     Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,7 +50,9 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import audit_query
 import job_types
+import json_columns
 import monitoring_defaults
 import node_removal
 import password_policy
@@ -146,6 +149,7 @@ async def lifespan(app: FastAPI):
     # Node removal (#160): schema for existing installs and the background task
     await node_removal.ensure_schema_on(db_pool)
     await job_types.ensure_schema(db_pool)
+    await audit_query.ensure_schema(db_pool)
     await ensure_patches_schema(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
@@ -156,6 +160,8 @@ async def lifespan(app: FastAPI):
     # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
     vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
+    # Repairs double-encoded JSON rows (reads decode them anyway); a full scan, so not during startup
+    json_columns_task = asyncio.create_task(json_columns.ensure_schema(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
     async with db_pool.acquire() as conn:
@@ -216,6 +222,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     removal_task.cancel()
+    json_columns_task.cancel()
     vulnerability_cache_task.cancel()
     if db_pool:
         await db_pool.close()
@@ -2720,63 +2727,22 @@ async def setup_admin(data: UserCreate):
 
 @app.get("/api/v1/audit")
 async def get_audit_log(
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    user: Optional[str] = None,
     user_id: Optional[str] = None,
     action: Optional[str] = None,
     resource_type: Optional[str] = None,
-    user: CurrentUser = Depends(require_permission("audit:read"))
+    resource_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    _user: CurrentUser = Depends(require_permission("audit:read"))
 ):
-    """Get audit log entries"""
+    """Audit log entries, newest first (filters: see audit_query.fetch_audit_log)."""
     async with db_pool.acquire() as conn:
-        query = """
-            SELECT a.id, a.timestamp, a.user_id, u.username, a.action, 
-                   a.resource_type, a.resource_id, a.details, a.ip_address
-            FROM audit_log a
-            LEFT JOIN users u ON a.user_id = u.id
-            WHERE 1=1
-        """
-        params = []
-        param_idx = 1
-        
-        if user_id:
-            query += f" AND a.user_id = ${param_idx}"
-            params.append(UUID(user_id))
-            param_idx += 1
-        if action:
-            query += f" AND a.action ILIKE ${param_idx}"
-            params.append(f"%{action}%")
-            param_idx += 1
-        if resource_type:
-            query += f" AND a.resource_type = ${param_idx}"
-            params.append(resource_type)
-            param_idx += 1
-        
-        query += f" ORDER BY a.timestamp DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
-        params.extend([limit, offset])
-        
-        rows = await conn.fetch(query, *params)
-        total = await conn.fetchval("SELECT COUNT(*) FROM audit_log")
-        
-        return {
-            "entries": [
-                {
-                    "id": r["id"],
-                    "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
-                    "user_id": str(r["user_id"]) if r["user_id"] else None,
-                    "username": r["username"],
-                    "action": r["action"],
-                    "resource_type": r["resource_type"],
-                    "resource_id": r["resource_id"],
-                    "details": r["details"],
-                    "ip_address": str(r["ip_address"]) if r["ip_address"] else None
-                }
-                for r in rows
-            ],
-            "total": total,
-            "limit": limit,
-            "offset": offset
-        }
+        return await audit_query.fetch_audit_log(
+            conn, action=action, user=user or user_id, resource_type=resource_type,
+            resource_id=resource_id, date_from=date_from, date_to=date_to, limit=limit, offset=offset)
 
 
 async def log_audit(

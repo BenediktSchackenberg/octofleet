@@ -9,6 +9,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
+from audit_query import fetch_audit_log
 from auth import CurrentUser, require_permission
 from dependencies import get_db, log_audit, verify_api_key
 
@@ -214,58 +215,27 @@ async def list_user_scopes(user_id: str, db: asyncpg.Pool = Depends(get_db), aut
 @router.get("/audit-log")
 async def get_audit_log(
     action: Optional[str] = None,
+    user: Optional[str] = None,
     user_id: Optional[str] = None,
     resource_type: Optional[str] = None,
+    resource_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    limit: int = Query(50, le=500),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: asyncpg.Pool = Depends(get_db),
-    auth=Depends(verify_api_key),
+    _user: CurrentUser = Depends(require_permission("audit:read")),
 ):
-    """Paginated audit log with filters."""
-    conditions, params, idx = [], [], 1
-    if action:
-        conditions.append(f"a.action = ${idx}"); params.append(action); idx += 1
-    if user_id:
-        conditions.append(f"a.user_id = ${idx}"); params.append(UUID(user_id)); idx += 1
-    if resource_type:
-        conditions.append(f"a.resource_type = ${idx}"); params.append(resource_type); idx += 1
-    if date_from:
-        conditions.append(f"a.timestamp >= ${idx}::timestamptz"); params.append(date_from); idx += 1
-    if date_to:
-        conditions.append(f"a.timestamp <= ${idx}::timestamptz"); params.append(date_to); idx += 1
-
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-
+    """The same audit log as GET /api/v1/audit (kept for existing callers)."""
     async with db.acquire() as conn:
-        total = await conn.fetchval(f"SELECT count(*) FROM audit_log a {where}", *params)
-        rows = await conn.fetch(
-            f"""SELECT a.id, a.timestamp, a.user_id, u.username, a.action,
-                       a.resource_type, a.resource_id, a.details, a.ip_address
-                FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
-                {where} ORDER BY a.timestamp DESC
-                LIMIT ${idx} OFFSET ${idx+1}""",
-            *params, limit, offset,
-        )
-        return {
-            "total": total,
-            "entries": [{
-                "id": str(r["id"]),
-                "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
-                "user_id": str(r["user_id"]) if r["user_id"] else None,
-                "username": r["username"],
-                "action": r["action"],
-                "resource_type": r["resource_type"],
-                "resource_id": r["resource_id"],
-                "details": r["details"],
-                "ip_address": r["ip_address"],
-            } for r in rows],
-        }
+        return await fetch_audit_log(
+            conn, action=action, user=user or user_id, resource_type=resource_type,
+            resource_id=resource_id, date_from=date_from, date_to=date_to, limit=limit, offset=offset)
 
 
 @router.get("/audit-log/stats")
-async def get_audit_stats(db: asyncpg.Pool = Depends(get_db), auth=Depends(verify_api_key)):
+async def get_audit_stats(db: asyncpg.Pool = Depends(get_db),
+                          _user: CurrentUser = Depends(require_permission("audit:read"))):
     """Audit summary stats."""
     async with db.acquire() as conn:
         per_day = await conn.fetch(

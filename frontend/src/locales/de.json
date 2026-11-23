@@ -596,7 +596,33 @@
     "timestamp": "Zeitstempel",
     "ipAddress": "IP-Adresse",
     "details": "Details",
-    "noEntries": "Keine Einträge gefunden"
+    "noEntries": "Keine Einträge gefunden",
+    "subtitle": "Wer hat was an welcher Ressource getan. Ein Klick auf einen Eintrag zeigt die Details.",
+    "system": "System",
+    "resourceType": "Ressourcentyp",
+    "from": "Von",
+    "to": "Bis",
+    "actionPlaceholder": "z. B. reboot, login, deleted",
+    "userPlaceholder": "Benutzername",
+    "onlyResource": "Nur: {name}",
+    "clearResource": "Alle Ressourcen anzeigen",
+    "entries": "{count} Einträge",
+    "entriesCapped": "Mehr als {count} Einträge",
+    "page": "Seite {page} von {pages}",
+    "exportCsv": "CSV",
+    "autoRefreshOn": "⏸ Automatisch aktualisieren",
+    "autoRefreshOff": "▶ Automatisch aktualisieren",
+    "usersAndRolesLink": "Audit-Log der Benutzer und Rollen",
+    "actionsByUser": "Audit-Log: Aktionen dieses Benutzers",
+    "resourceTypes": {
+      "node": "Node",
+      "user": "Benutzer",
+      "user_role": "Benutzer und Rollen",
+      "role": "Rolle",
+      "job": "Job",
+      "group": "Gruppe",
+      "system_settings": "Einstellungen"
+    }
   },
   "settings": {
     "title": "Einstellungen",
@@ -1687,7 +1713,8 @@
       "installPackage": "Paket installieren",
       "uninstallPackage": "Paket deinstallieren",
       "inventory": "Inventar"
-    }
+    },
+    "failureReason": "Warum es fehlschlug"
   },
   "fleetUpdates": {
     "title": "Updates der Flotte",
@@ -1850,5 +1877,27 @@
     "hint": "Die Zahlen werden pro Gerät gespeichert und neu berechnet, sobald sich etwas ändert: ein Scan, neue Software auf einem Gerät, ein behobener Befund, ein entferntes Gerät.",
     "pendingOne": "{count} Gerät wird neu berechnet",
     "pendingOther": "{count} Geräte werden neu berechnet"
+  },
+  "jsonDetails": {
+    "showRaw": "Rohdaten anzeigen",
+    "hideRaw": "Rohdaten ausblenden",
+    "keys": {
+      "at": "Zeitpunkt",
+      "action": "Aktion",
+      "message": "Nachricht",
+      "by": "Von",
+      "job_id": "Job",
+      "hostname": "Hostname",
+      "node_id": "Node",
+      "reason": "Grund",
+      "username": "Benutzername",
+      "delete_after": "Nach der Deinstallation löschen",
+      "forced": "Erzwungen",
+      "removed_rows": "Gelöschte Zeilen",
+      "uninstalled_at": "Deinstalliert am",
+      "must_change_password": "Muss Passwort ändern",
+      "when": "Wann",
+      "force": "Erzwungen"
+    }
   }
 }

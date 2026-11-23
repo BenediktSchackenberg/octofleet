@@ -37,7 +37,7 @@ Full multi-user authentication and authorization system implemented.
 - [x] Log all actions with user, timestamp, resource
 - [x] Filter by action and resource type
 - [x] Pagination
-- [x] Audit page (`/audit`)
+- [x] Audit page (`/audit`): filters for action, user, resource type and time, kept in the URL; resources by name with a link; details as fields (raw JSON on request); CSV export. Access management links to it filtered to users and roles, and per user to their actions
 
 ### Frontend Integration
 - [x] All 17 pages migrated to JWT auth
@@ -112,7 +112,7 @@ Password: Octofleet2026!
 - `DELETE /api/v1/api-keys/{id}` — Revoke key
 
 ### Audit
-- `GET /api/v1/audit` — Query audit log
+- `GET /api/v1/audit` — Query audit log (filters: see [API reference](API-REFERENCE.md#audit-log))
 
 ## Commits
 

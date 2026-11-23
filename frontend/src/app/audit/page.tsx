@@ -1,15 +1,24 @@
 "use client";
-import { apiClient } from "@/lib/api-client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { apiClient } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n-context";
+import { formatDateTime, formatNumber } from "@/lib/format";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
-import { Search, Filter, RefreshCw } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { JsonDetails, summarizeJson } from "@/components/JsonDetails";
+import { ChevronRight, Download, RefreshCw, X } from "lucide-react";
 
-
+/**
+ * The audit log (`audit_log`): who did what to which resource. One page for everything;
+ * other pages link here with filters in the URL, e.g. /audit?resource_type=user,role
+ * (Access management) or /audit?resource_type=node&resource_id=<uuid>.
+ */
 
 interface AuditEntry {
   id: number;
@@ -19,211 +28,269 @@ interface AuditEntry {
   action: string;
   resource_type: string | null;
   resource_id: string | null;
-  details: any;
+  resource_name: string | null;
+  details: unknown;
   ip_address: string | null;
 }
 
-const ACTION_COLORS: Record<string, string> = {
-  "login": "bg-green-500/20 text-green-400",
-  "logout": "bg-zinc-500/20 text-zinc-400",
-  "create": "bg-blue-500/20 text-blue-400",
-  "update": "bg-yellow-500/20 text-yellow-400",
-  "delete": "bg-red-500/20 text-red-400",
-  "deploy": "bg-purple-500/20 text-purple-400",
-  "execute": "bg-orange-500/20 text-orange-400",
-};
+interface Filters {
+  action: string;
+  user: string;
+  resource_type: string;
+  resource_id: string;
+  date_from: string;
+  date_to: string;
+}
 
-function getActionColor(action: string): string {
-  for (const [key, color] of Object.entries(ACTION_COLORS)) {
-    if (action.toLowerCase().includes(key)) return color;
+const FILTER_KEYS: (keyof Filters)[] = ["action", "user", "resource_type", "resource_id", "date_from", "date_to"];
+const EMPTY: Filters = { action: "", user: "", resource_type: "", resource_id: "", date_from: "", date_to: "" };
+const RESOURCE_TYPES = ["node", "user", "user,role", "role", "job", "group", "system_settings"];
+const LIMIT = 50;
+
+const ACTION_COLORS: [string, string][] = [
+  ["fail", "bg-red-500/20 text-red-400"],
+  ["delete", "bg-red-500/20 text-red-400"],
+  ["login", "bg-green-500/20 text-green-400"],
+  ["create", "bg-blue-500/20 text-blue-400"],
+  ["update", "bg-yellow-500/20 text-yellow-400"],
+  ["changed", "bg-yellow-500/20 text-yellow-400"],
+  ["reboot", "bg-orange-500/20 text-orange-400"],
+  ["uninstall", "bg-purple-500/20 text-purple-400"],
+];
+
+function actionColor(action: string): string {
+  const a = action.toLowerCase();
+  return ACTION_COLORS.find(([key]) => a.includes(key))?.[1] ?? "bg-zinc-500/20 text-zinc-400";
+}
+
+/** Where a resource's page is, if it has one */
+function resourceHref(type: string | null, id: string | null): string | null {
+  if (!type || !id) return null;
+  switch (type) {
+    case "node": return `/nodes/${id}`;
+    case "job": return `/jobs/${id}`;
+    case "group": return `/groups/${id}`;
+    case "user": return "/users";
+    case "role": return "/users?tab=roles";
+    default: return null;
   }
-  return "bg-zinc-500/20 text-zinc-400";
+}
+
+function readFilters(): Filters {
+  const q = new URLSearchParams(window.location.search);
+  const f = { ...EMPTY };
+  for (const k of FILTER_KEYS) f[k] = q.get(k) ?? (k === "user" ? q.get("user_id") ?? "" : "");
+  return f;
+}
+
+/** "2026-11-23" from a date input → start or end of that local day as ISO */
+function dayBound(day: string, end: boolean): string {
+  const d = new Date(`${day}T${end ? "23:59:59.999" : "00:00:00"}`);
+  return isNaN(d.getTime()) ? "" : d.toISOString();
+}
+
+function csvCell(value: unknown): string {
+  const text = value === null || value === undefined ? "" : typeof value === "string" ? value : JSON.stringify(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export default function AuditPage() {
+  const { t } = useI18n();
+  const [filters, setFilters] = useState<Filters | null>(null);
   const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-  const [filter, setFilter] = useState({ action: "", resource_type: "" });
+  const [capped, setCapped] = useState(false);
   const [page, setPage] = useState(0);
-  const limit = 50;
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
+  // Filters come from the URL (links from other pages), and go back into it
   useEffect(() => {
-    fetchAudit();
-  }, [page, filter]);
+    const read = () => { setFilters(readFilters()); setPage(0); };
+    read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
 
-  async function fetchAudit() {
-    setLoading(true);
+  const update = (change: Partial<Filters>) => {
+    const next = { ...(filters ?? EMPTY), ...change };
+    const q = new URLSearchParams();
+    for (const k of FILTER_KEYS) if (next[k]) q.set(k, next[k]);
+    window.history.replaceState(null, "", q.toString() ? `?${q}` : window.location.pathname);
+    setFilters(next);
+    setPage(0);
+  };
+
+  const load = useCallback(async () => {
+    if (!filters) return;
+    const q = new URLSearchParams({ limit: String(LIMIT), offset: String(page * LIMIT) });
+    for (const k of ["action", "user", "resource_type", "resource_id"] as const) if (filters[k]) q.set(k, filters[k]);
+    if (filters.date_from) q.set("date_from", dayBound(filters.date_from, false));
+    if (filters.date_to) q.set("date_to", dayBound(filters.date_to, true));
     try {
-      const params = new URLSearchParams({
-        limit: String(limit),
-        offset: String(page * limit),
-      });
-      if (filter.action) params.set("action", filter.action);
-      if (filter.resource_type) params.set("resource_type", filter.resource_type);
-
-      const data = await apiClient.get<{ entries: AuditEntry[]; total: number }>(`/audit?${params}`, { showErrorToast: false });
+      const data = await apiClient.get<{ entries: AuditEntry[]; total: number; total_capped?: boolean }>(
+        `/audit?${q}`, { showErrorToast: false });
       if (data) {
         setEntries(data.entries || []);
         setTotal(data.total || 0);
+        setCapped(!!data.total_capped);
       }
-    } catch (e) {
-      console.error("Failed to fetch audit log:", e);
     } finally {
       setLoading(false);
     }
+  }, [filters, page]);
+
+  useEffect(() => { setLoading(true); load(); }, [load]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const iv = setInterval(load, 10000);
+    return () => clearInterval(iv);
+  }, [autoRefresh, load]);
+
+  function exportCsv() {
+    const header = ["timestamp", "user", "action", "resource_type", "resource_id", "resource_name", "ip_address", "details"];
+    const rows = entries.map((e) => [e.timestamp, e.username || "", e.action, e.resource_type, e.resource_id,
+      e.resource_name, e.ip_address, e.details].map(csvCell).join(","));
+    const blob = new Blob([header.join(",") + "\n" + rows.join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "audit-log.csv";
+    a.click();
   }
 
-  function formatDate(dateStr: string | null) {
-    if (!dateStr) return "-";
-    return formatDateTime(dateStr, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  }
-
-  const totalPages = Math.ceil(total / limit);
+  const f = filters ?? EMPTY;
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const showIp = entries.some((e) => e.ip_address);
+  const columns = showIp ? 7 : 6;
 
   return (
-    <div className="min-h-screen bg-background p-6">
-<div className="flex items-center justify-between mb-6">
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">📜 Audit Log</h1>
-          <p className="text-muted-foreground">{total} entries</p>
+          <h1 className="text-2xl font-bold">{t("audit.title")}</h1>
+          <p className="text-muted-foreground text-sm">{t("audit.subtitle")}</p>
         </div>
-        <button
-          onClick={fetchAudit}
-          className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-secondary/80 rounded text-sm"
-        >
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setAutoRefresh(!autoRefresh)}>
+            {autoRefresh ? t("audit.autoRefreshOn") : t("audit.autoRefreshOff")}
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!entries.length}>
+            <Download className="h-4 w-4 mr-1" /> {t("audit.exportCsv")}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setLoading(true); load(); }}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} /> {t("common.refresh")}
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6">
+      <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-1 block">Action Filter</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={filter.action}
-                  onChange={(e) => setFilter({ ...filter, action: e.target.value })}
-                  placeholder="e.g. login, create, delete..."
-                  className="w-full pl-10 pr-4 py-2 bg-secondary border border-input rounded-md"
-                />
-              </div>
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">{t("audit.action")}</label>
+              <Input value={f.action} onChange={(e) => update({ action: e.target.value })} placeholder={t("audit.actionPlaceholder")} />
             </div>
-            <div className="w-48">
-              <label className="text-sm font-medium mb-1 block">Resource Type</label>
-              <select
-                value={filter.resource_type}
-                onChange={(e) => setFilter({ ...filter, resource_type: e.target.value })}
-                className="w-full px-3 py-2 bg-secondary border border-input rounded-md"
-              >
-                <option value="">All</option>
-                <option value="user">User</option>
-                <option value="node">Node</option>
-                <option value="job">Job</option>
-                <option value="package">Package</option>
-                <option value="deployment">Deployment</option>
-                <option value="group">Group</option>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">{t("audit.user")}</label>
+              <Input value={f.user} onChange={(e) => update({ user: e.target.value })} placeholder={t("audit.userPlaceholder")} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">{t("audit.resourceType")}</label>
+              <select value={f.resource_type} onChange={(e) => update({ resource_type: e.target.value, resource_id: "" })}
+                className="w-full h-9 px-3 bg-background border border-input rounded-md text-sm">
+                <option value="">{t("common.all")}</option>
+                {!RESOURCE_TYPES.includes(f.resource_type) && f.resource_type && <option value={f.resource_type}>{f.resource_type}</option>}
+                {RESOURCE_TYPES.map((rt) => <option key={rt} value={rt}>{t(`audit.resourceTypes.${rt.replace(",", "_")}`)}</option>)}
               </select>
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">{t("audit.from")}</label>
+              <Input type="date" value={f.date_from} onChange={(e) => update({ date_from: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">{t("audit.to")}</label>
+              <Input type="date" value={f.date_to} onChange={(e) => update({ date_to: e.target.value })} />
+            </div>
           </div>
+          {f.resource_id && (
+            <div className="mt-3">
+              <Badge variant="secondary" className="gap-1">
+                {t("audit.onlyResource", { name: entries[0]?.resource_id === f.resource_id && entries[0]?.resource_name ? entries[0].resource_name : f.resource_id })}
+                <button type="button" onClick={() => update({ resource_id: "" })} aria-label={t("audit.clearResource")}><X className="h-3 w-3" /></button>
+              </Badge>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Audit Table */}
       <Card>
         <CardContent className="pt-6">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <LoadingSpinner size="lg" />
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No audit entries found</p>
-              <p className="text-sm mt-2">Actions will be logged as users interact with the system</p>
-            </div>
+          {loading && !entries.length ? (
+            <div className="flex justify-center py-12"><LoadingSpinner size="lg" /></div>
+          ) : !entries.length ? (
+            <div className="text-center py-12 text-muted-foreground">{t("audit.noEntries")}</div>
           ) : (
             <>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-44">Timestamp</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>Details</TableHead>
-                    <TableHead>IP</TableHead>
+                    <TableHead className="w-48">{t("audit.timestamp")}</TableHead>
+                    <TableHead>{t("audit.user")}</TableHead>
+                    <TableHead>{t("audit.action")}</TableHead>
+                    <TableHead>{t("audit.resource")}</TableHead>
+                    <TableHead>{t("audit.details")}</TableHead>
+                    {showIp && <TableHead>{t("audit.ipAddress")}</TableHead>}
+                    <TableHead className="w-8" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {entries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {formatDate(entry.timestamp)}
-                      </TableCell>
-                      <TableCell>
-                        {entry.username || (
-                          <span className="text-muted-foreground">System</span>
+                  {entries.map((e) => {
+                    const href = resourceHref(e.resource_type, e.resource_id);
+                    const name = e.resource_name || e.resource_id?.slice(0, 8);
+                    return (
+                      <Fragment key={e.id}>
+                        <TableRow className="cursor-pointer" onClick={() => setExpanded(expanded === e.id ? null : e.id)}>
+                          <TableCell className="text-sm whitespace-nowrap">{formatDateTime(e.timestamp)}</TableCell>
+                          <TableCell className="text-sm">{e.username || <span className="text-muted-foreground">{t("audit.system")}</span>}</TableCell>
+                          <TableCell><Badge className={`${actionColor(e.action)} text-xs`}>{e.action}</Badge></TableCell>
+                          <TableCell className="text-sm">
+                            {e.resource_type && (
+                              <span title={e.resource_id ?? undefined}>
+                                <span className="text-muted-foreground">{t(`audit.resourceTypes.${e.resource_type}`) === `audit.resourceTypes.${e.resource_type}` ? e.resource_type : t(`audit.resourceTypes.${e.resource_type}`)}:</span>{" "}
+                                {href && name ? (
+                                  <Link href={href} className="text-blue-400 hover:underline" onClick={(ev) => ev.stopPropagation()}>{name}</Link>
+                                ) : (name || "–")}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-md truncate">{summarizeJson(t, e.details)}</TableCell>
+                          {showIp && <TableCell className="text-xs text-muted-foreground font-mono">{e.ip_address || "–"}</TableCell>}
+                          <TableCell><ChevronRight className={`h-4 w-4 transition-transform ${expanded === e.id ? "rotate-90" : ""}`} /></TableCell>
+                        </TableRow>
+                        {expanded === e.id && (
+                          <TableRow>
+                            <TableCell colSpan={columns} className="bg-muted/30">
+                              <JsonDetails value={e.details} />
+                            </TableCell>
+                          </TableRow>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getActionColor(entry.action)}>
-                          {entry.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {entry.resource_type && (
-                          <span className="text-sm">
-                            <span className="text-muted-foreground">{entry.resource_type}:</span>{" "}
-                            <span className="font-mono">{entry.resource_id?.slice(0, 8) || "-"}</span>
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                        {entry.details ? JSON.stringify(entry.details).slice(0, 50) : "-"}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {entry.ip_address || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <span className="text-sm text-muted-foreground">
-                    Page {page + 1} of {totalPages}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setPage(Math.max(0, page - 1))}
-                      disabled={page === 0}
-                      className="px-3 py-1 bg-secondary hover:bg-secondary/80 rounded text-sm disabled:opacity-50"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-                      disabled={page >= totalPages - 1}
-                      className="px-3 py-1 bg-secondary hover:bg-secondary/80 rounded text-sm disabled:opacity-50"
-                    >
-                      Next
-                    </button>
-                  </div>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <span className="text-sm text-muted-foreground">
+                  {capped ? t("audit.entriesCapped", { count: formatNumber(total) }) : t("audit.entries", { count: formatNumber(total) })}
+                  {" · "}{t("audit.page", { page: page + 1, pages: totalPages })}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>{t("common.previous")}</Button>
+                  <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)}>{t("common.next")}</Button>
                 </div>
-              )}
+              </div>
             </>
           )}
         </CardContent>
