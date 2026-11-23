@@ -9,6 +9,11 @@ class FleetRebootTests(unittest.TestCase):
         self.assertEqual(_linux_reboot(["vim"], True), "pending")
         self.assertEqual(_linux_reboot(["vim", "linux-image-7.0.0-44-generic"], False), "needed")
         self.assertEqual(_linux_reboot(["libssl3t64", "vim"], False), "maybe")
+        # Arch and derivatives: the kernel package is named linux, linux-lts, linux-cachyos, ...
+        for kernel in ("linux", "linux-lts", "linux-zen", "linux-cachyos", "linux-cachyos-lts"):
+            self.assertEqual(_linux_reboot(["vim", kernel], False), "needed", kernel)
+        for other in ("linux-firmware", "linux-api-headers", "util-linux"):
+            self.assertEqual(_linux_reboot([other], False), "none", other)
         self.assertEqual(_linux_reboot(["systemd-resolved"], False), "maybe")
         self.assertEqual(_linux_reboot(["vim", "linuxdoc-tools"], False), "none")
         self.assertEqual(_linux_reboot([], False), "none")

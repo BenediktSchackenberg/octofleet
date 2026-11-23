@@ -9,10 +9,10 @@ AGENT="${AGENT:-$REPO/linux-agent/agent.sh}"
 command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 
 eval "$(awk '/^collect_updates\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
-for fn in pacman_updates os_release_json; do
+for fn in pacman_updates pacman_reboot_required os_release_json; do
     eval "$(awk -v fn="$fn" '$0 ~ "^" fn "\\(\\) \\{" { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
 done
-for fn in collect_updates pacman_updates os_release_json; do
+for fn in collect_updates pacman_updates pacman_reboot_required os_release_json; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 
@@ -65,11 +65,12 @@ OUT
 esac
 FAKE
 chmod +x "$BIN/pacman"
-for tool in bash sh env jq awk cat rm date grep sed sort head tail wc; do
+for tool in bash sh env jq awk cat rm date grep sed sort head tail wc uname timeout mkdir chmod; do
     ln -s "$(command -v "$tool")" "$BIN/$tool"
 done
 export PATH="$BIN" OS_RELEASE_FILE="$WORK/os-release"
-printf 'NAME="CachyOS Linux"\nID=cachyos\nID_LIKE=arch\n' > "$OS_RELEASE_FILE"
+printf 'NAME="CachyOS Linux"\nID=cachyos\nID_LIKE=arch\nBUILD_ID=rolling\n' > "$OS_RELEASE_FILE"
+export MODULES_DIR="$WORK/modules"; mkdir -p "$MODULES_DIR/$(uname -r)"
 calls() { cat "$WORK/calls" 2>/dev/null; }
 
 OUT=$(collect_updates)
@@ -84,6 +85,29 @@ check "no security data on pacman" [ "$(jq -c '[.updates[].security] | unique' <
 check "one pacman -Si for all names, English output" \
     [ "$(grep -c '^pacman -Si linux-cachyos glibc mesa \[LC_ALL=C\]' <<< "$(calls)")" = 1 ]
 check "rolling release: id without versionId" [ "$(jq -c '.release | [.id, .versionId, .idLike]' <<< "$OUT")" = '["cachyos",null,"arch"]' ]
+
+check "rolling release: BUILD_ID is sent" [ "$(jq -r .release.buildId <<< "$OUT")" = rolling ]
+check "without arch-audit: no security source" [ "$(jq -r .securitySource <<< "$OUT")" = null ] && [ "$(jq -r .securityUpdates <<< "$OUT")" = 0 ]
+check "kernel modules of the running kernel present: no reboot required" [ "$(jq -r .rebootRequired <<< "$OUT")" = false ]
+check "without the agent's copy of the databases: the live ones" bash -c '! grep -q -- "--dbpath" <<< "$1"' _ "$(calls)"
+
+# the update search's copy of the sync databases, arch-audit, a kernel update
+export PACMAN_CHECK_DB="$WORK/pacman-sync"; mkdir -p "$PACMAN_CHECK_DB/sync"
+cat > "$BIN/arch-audit" <<'FAKE'
+#!/bin/bash
+echo "arch-audit $*" >> "$WORK/calls"
+[ "$*" = "--upgradable --quiet --quiet" ] && echo glibc
+FAKE
+chmod +x "$BIN/arch-audit"
+rm -f "$WORK/calls"; rm -rf "$MODULES_DIR/$(uname -r)"
+OUT=$(collect_updates)
+check "with the agent's copy: pacman -Qu and -Si read it" \
+    [ "$(grep -c -- "--dbpath $WORK/pacman-sync" <<< "$(calls)")" = 2 ]
+check "arch-audit: the package with a fixed advisory is a security update" \
+    [ "$(jq -c '[.updates[] | select(.security) | .name]' <<< "$OUT")" = '["glibc"]' ] && [ "$(jq -r .securityUpdates <<< "$OUT")" = 1 ]
+check "arch-audit: named as the security source" [ "$(jq -r .securitySource <<< "$OUT")" = arch-audit ]
+check "the running kernel's modules are gone: reboot required" [ "$(jq -r .rebootRequired <<< "$OUT")" = true ]
+rm -f "$BIN/arch-audit"; rm -rf "$PACMAN_CHECK_DB"; unset PACMAN_CHECK_DB; mkdir -p "$MODULES_DIR/$(uname -r)"
 
 OUT=$(SI_FAILS=1 collect_updates)
 check "pacman -Si fails: updates still listed without repository" \
