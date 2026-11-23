@@ -287,6 +287,9 @@
     "updates": {
       "packageUpdates": "Paket-Updates ({count})",
       "summary": "Paketmanager: {manager} · Sicherheitsupdates: {security}",
+      "pacmanAllAtOnce": "pacman installiert alle Updates auf einmal (Arch unterstützt keine Teil-Upgrades).",
+      "pacmanNoSecurity": "Keine Sicherheitsdaten: pacman hat keine – arch-audit auf dem Node installieren, um Updates zu markieren, die Arch-Advisories beheben.",
+      "pacmanSecurityArchAudit": "Sicherheitsmarkierungen von arch-audit (Arch-Advisories; auf Ableitungen wie CachyOS ungefähr).",
       "package": "Paket",
       "newVersion": "Neue Version",
       "source": "Quelle",

@@ -591,7 +591,10 @@ async def submit_patch_results(data: dict):
 # ---------------------------------------------------------------------------
 
 # Linux: whether upgrading a package usually needs a reboot, from its name (like the UI's estimate)
-_LINUX_REBOOT_ALWAYS = re.compile(r"^(linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)")
+# Arch and derivatives name the kernel package itself linux, linux-lts, linux-zen, linux-cachyos, ...
+_LINUX_REBOOT_ALWAYS = re.compile(
+    r"^((linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)"
+    r"|linux(-(lts|zen|hardened|rt|rt-lts|cachyos[a-z0-9-]*))?$)")
 _LINUX_REBOOT_CAN = re.compile(r"^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d+(t64)?|openssl(-libs)?)(\b|-|:|$)")
 
 FLEET_SORTS = ("hostname", "pending", "security", "reboot", "last_search", "os")

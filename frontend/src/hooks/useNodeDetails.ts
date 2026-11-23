@@ -183,6 +183,8 @@ export interface LinuxData {
     lastCheckTime?: string;
     rebootRequired?: boolean | null;
     rebootPackages?: string[];
+    /** pacman: "arch-audit" when the security flags come from Arch's advisories, else none */
+    securitySource?: string | null;
     updates?: { name: string; newVersion: string; repository?: string; security: boolean }[];
   };
   diskHealth?: {

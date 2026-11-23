@@ -11,8 +11,11 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # Load only the functions under test: sourcing agent.sh would start the agent. execute_job has a
 # JSON here-document with a "}" at the start of a line, so it ends at the first "}" after "EOF".
 eval "$(awk '/^package_manager\(\) \{/ { f = 1 } /^execute_job\(\) \{/ { exit } f { print }' "$AGENT")"
+for fn in pacman_updates pacman_reboot_required; do
+    eval "$(awk -v fn="$fn" '$0 ~ "^" fn "\\(\\) \\{" { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
+done
 eval "$(awk '/^execute_job\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
-for fn in package_manager run_package_command refresh_package_lists run_patch_scan run_patch_install schedule_system_reboot execute_job; do
+for fn in package_manager run_package_command refresh_package_lists run_patch_scan run_patch_install schedule_system_reboot execute_job pacman_updates pacman_reboot_required; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 info() { :; }; warn() { :; }
@@ -35,7 +38,7 @@ check() {  # check DESCRIPTION CONDITION...
 WORK=$(mktemp -d)
 TOOLS="$WORK/tools"; mkdir -p "$TOOLS"
 unset INVOCATION_ID  # not under systemd unless a test says so
-for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env date mktemp rm awk sed; do
+for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env date mktemp rm awk sed uname; do
     ln -s "$(command -v "$tool")" "$TOOLS/$tool"
 done
 export WORK PACKAGE_OUTPUT_DIR="$WORK"
@@ -272,14 +275,55 @@ fake dnf 1 'Error: Failed to download metadata for repo'
 run_job patch_scan '{}'
 check "dnf scan failed: status failed with the error" [ "$(scan .status)" = "failed" ] && grep -q "Failed to download metadata" <<< "$(scan .error)"
 
-# --- pacman and no package manager ---
+# --- pacman: the search refreshes a copy of the sync databases with checkupdates; install is -Syu ---
+export PACMAN_CHECK_DB="$WORK/pacman-sync" MODULES_DIR="$WORK/modules"
+mkdir -p "$MODULES_DIR/$(uname -r)"
 clear_fakes; fake pacman 0 ''
+rm -f "$TOOLS/checkupdates"
 run_job patch_scan '{}'
-check "pacman scan: not supported (no partial upgrades)" [ "$(field .success)" = "false" ] && grep -q "not supported with pacman" <<< "$(scan .error)"
-check "pacman scan: pacman is not called" [ -z "$(calls)" ]
+check "pacman scan without pacman-contrib: failed, says how to install it" \
+    [ "$(field .success)" = "false" ] && grep -q "install pacman-contrib on the node: sudo pacman -S pacman-contrib" <<< "$(scan .error)"
+check "pacman scan without pacman-contrib: pacman -Sy is never run" bash -c '! grep -q "^pacman -Sy" <<< "$1"' _ "$(calls)"
+# checkupdates CODE OUTPUT: a fake checkupdates that logs the database it was given
+checkupdates() {
+    cat > "$TOOLS/checkupdates" <<FAKE
+#!/bin/bash
+echo "checkupdates \$* [CHECKUPDATES_DB=\${CHECKUPDATES_DB:-}]" >> "\$WORK/calls"
+cat <<'OUT'
+$2
+OUT
+exit $1
+FAKE
+    chmod +x "$TOOLS/checkupdates"
+}
+checkupdates 0 'glibc 2.42+r9-1 -> 2.42+r12-1'
+run_job patch_scan '{}'
+check "pacman scan: checkupdates into the agent's copy of the databases" \
+    grep -q "^checkupdates  \[CHECKUPDATES_DB=$WORK/pacman-sync\]" <<< "$(calls)"
+check "pacman scan with updates: succeeded" [ "$(scan .status)" = "succeeded" ] && [ "$(scan .source)" = "pacman" ] && [ "$(field .success)" = "true" ]
+check "pacman scan: the live databases are not synced" bash -c '! grep -q "^pacman -Sy" <<< "$1"' _ "$(calls)"
+checkupdates 2 ''
+run_job patch_scan '{}'
+check "pacman scan without updates (exit 2): succeeded" [ "$(scan .status)" = "succeeded" ]
+checkupdates 1 '==> ERROR: Cannot fetch updates'
+run_job patch_scan '{}'
+check "pacman scan failed: status failed with checkupdates' error" \
+    [ "$(scan .status)" = "failed" ] && grep -q "Cannot fetch updates" <<< "$(scan .error)" && [ "$(field .success)" = "false" ]
+checkupdates 2 ''
 run_job patch_install '{"all": true}'
-check "pacman install: not supported" [ "$(field .success)" = "false" ] && grep -q "not supported with pacman" <<< "$(field .stdout)"
+check "pacman install: the whole system with pacman -Syu --noconfirm" grep -q "^pacman -Syu --noconfirm" <<< "$(calls)"
+check "pacman install: then the update search (checkupdates)" grep -q "^checkupdates" <<< "$(calls)"
+check "pacman install: kernel modules of the running kernel present, no reboot" grep -q "^Reboot required: no" <<< "$(field .stdout)"
+rm -rf "$MODULES_DIR/$(uname -r)"
+run_job patch_install '{"all": true}'
+check "pacman install: the running kernel's modules are gone, reboot required" \
+    grep -q "^Reboot required: yes (the kernel was updated)" <<< "$(field .stdout)"
+run_job patch_install '{"packages": ["glibc"]}'
+check "pacman install of single packages: rejected (no partial upgrades), pacman not called" \
+    [ "$(field .success)" = "false" ] && grep -q "pacman installs all updates at once" <<< "$(field .stdout)" && [ -z "$(calls)" ]
+rm -f "$TOOLS/checkupdates"; unset PACMAN_CHECK_DB MODULES_DIR
 
+# --- no package manager ---
 clear_fakes
 run_job patch_scan '{}'
 check "no package manager: scan failed with a reason" [ "$(field .success)" = "false" ] && grep -q "No supported package manager" <<< "$(scan .error)"

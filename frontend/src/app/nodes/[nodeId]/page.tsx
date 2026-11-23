@@ -295,6 +295,8 @@ export default function NodeDetailPage() {
   // updates), red if the last update search failed
   const patchScan = usePatchScan(nodeId, updateSearchKey);
   const availableUpdates = useAvailableUpdates(nodeId, updateSearchKey);
+  // pacman installs all updates at once (Arch supports no partial upgrades): no package selection
+  const canSelectPackages = hasPermission("jobs:create") && linuxUpdates?.packageManager !== "pacman";
   const pendingUpdates = linuxUpdates
     ? linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0
     : relevantUpdateCount(availableUpdates);
@@ -982,6 +984,12 @@ export default function NodeDetailPage() {
                   </CardTitle>
                   <CardDescription>
                     {t("nodes.updates.summary", { manager: linuxUpdates.packageManager ?? "", security: linuxUpdates.securityUpdates || 0 })}
+                    {linuxUpdates.packageManager === "pacman" && (
+                      <span className="block">
+                        {t("nodes.updates.pacmanAllAtOnce")}{" "}
+                        {t(linuxUpdates.securitySource === "arch-audit" ? "nodes.updates.pacmanSecurityArchAudit" : "nodes.updates.pacmanNoSecurity")}
+                      </span>
+                    )}
                   </CardDescription>
                 </div>
                 {hasPermission("jobs:create") && (
@@ -998,7 +1006,7 @@ export default function NodeDetailPage() {
                   <Table className="table-fixed">
                     <TableHeader>
                       <TableRow>
-                        {hasPermission("jobs:create") && (
+                        {canSelectPackages && (
                           <TableHead className={UPDATE_COLS.select}>
                             <Checkbox aria-label={t("nodes.updates.selectAll")}
                               checked={selectedPackages.length > 0 && selectedPackages.length === (linuxUpdates.updates?.length ?? 0)}
@@ -1013,7 +1021,7 @@ export default function NodeDetailPage() {
                     <TableBody>
                       {linuxUpdates.updates?.map((pkg, i) => (
                         <TableRow key={i}>
-                          {hasPermission("jobs:create") && (
+                          {canSelectPackages && (
                             <TableCell>
                               <Checkbox aria-label={t("nodes.updates.selectPackage", { name: pkg.name })}
                                 checked={selectedPackages.includes(pkg.name)}
