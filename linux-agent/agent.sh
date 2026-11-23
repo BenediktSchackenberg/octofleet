@@ -719,8 +719,11 @@ collect_updates() {
                 $1 ~ /\// {
                     split($1, pkg, "/")
                     security = (pkg[2] ~ /-security/) ? "true" : "false"
-                    printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"repository\": \"%s\", \"security\": %s}",
-                        (first ? "" : ","), pkg[1], $2, pkg[2], security
+                    installed = ""
+                    if ($(NF - 1) == "from:") { installed = $NF; sub(/\]$/, "", installed) }
+                    printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"repository\": \"%s\", \"security\": %s, \"arch\": \"%s\", \"installedVersion\": %s}",
+                        (first ? "" : ","), pkg[1], $2, pkg[2], security, $3,
+                        (installed == "" ? "null" : "\"" installed "\"")
                     first = 0
                 }
             ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
@@ -738,15 +741,7 @@ collect_updates() {
         
     elif command -v pacman &>/dev/null; then
         package_manager="pacman"
-        updates=$(pacman -Qu 2>/dev/null | awk '
-            BEGIN { first = 1 }
-            {
-                printf "%s{\"name\": \"%s\", \"newVersion\": \"%s\", \"security\": false}",
-                    (first ? "" : ","), $1, $4
-                first = 0
-            }
-        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
-        
+        updates=$(pacman_updates)
         total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
     fi
     
@@ -779,10 +774,43 @@ collect_updates() {
     "lastCheckTime": "$last_update_check",
     "rebootRequired": $reboot_required,
     "rebootPackages": $reboot_packages,
+    "release": $(os_release_json),
     "scan": ${PATCH_SCAN_JSON:-null},
     "updates": $updates
 }
 EOF
+}
+
+# os_release_json: the distribution release from /etc/os-release as {id, versionId, idLike, name},
+# or null. The server keys "first seen" of package versions by it (#271). The file is parsed,
+# never sourced.
+os_release_json() {
+    local file="${OS_RELEASE_FILE:-/etc/os-release}"
+    [[ -r "$file" ]] || { echo null; return; }
+    jq -cRn '[inputs | capture("^(?<k>[A-Z_]+)=(?<v>.*)$")
+             | {key: .k, value: (.v | if test("^([\"\\x27]).*\\1$") then .[1:-1] else . end)}]
+            | from_entries
+            | {id: (.ID // null), versionId: (.VERSION_ID // null), idLike: (.ID_LIKE // null),
+               name: (.NAME // null)}' < "$file" 2>/dev/null || echo null
+}
+
+# pacman_updates: the available updates of pacman as a JSON array of {name, newVersion,
+# installedVersion, repository, arch, security}. "pacman -Qu" prints "name old -> new"; one
+# "pacman -Si" for all names adds repository and architecture (the entry with the new version,
+# when several repositories have the package). pacman has no security data.
+pacman_updates() {
+    local updates info
+    updates=$(LC_ALL=C pacman -Qu 2>/dev/null | awk 'NF >= 4 && $3 == "->" { printf "%s\t%s\t%s\n", $1, $2, $4 }')
+    [[ -z "$updates" ]] && { echo '[]'; return; }
+    info=$(LC_ALL=C pacman -Si $(awk -F'\t' '{ print $1 }' <<< "$updates") 2>/dev/null | awk '
+        /^Repository / { r = $3 } /^Name / { n = $3 } /^Version / { v = $3 }
+        /^Architecture / { printf "%s\t%s\t%s\t%s\n", n, v, r, $3 }')
+    jq -Rn --arg info "$info" '
+        ($info | split("\n") | map(select(length > 0) | split("\t"))) as $info
+        | [inputs | select(length > 0) | split("\t") | . as $u
+           | ([$info[] | select(.[0] == $u[0] and .[1] == $u[2])] + [$info[] | select(.[0] == $u[0])])[0] as $i
+           | {name: $u[0], newVersion: $u[2], installedVersion: $u[1], repository: ($i[2] // null),
+              arch: ($i[3] // null), security: false}]' <<< "$updates" 2>/dev/null || echo '[]'
 }
 
 # ============================================================================
@@ -1458,12 +1486,13 @@ dnf_reboot_required() {
     case "$rc" in 0) echo false ;; 1) echo true ;; *) echo null ;; esac
 }
 
-# dnf_updates PM: the available updates of dnf or yum as a JSON array of {name, newVersion,
-# repository, security, severity}. name is "name.arch" as check-update prints it. The security
+# dnf_updates PM: the available updates of dnf or yum as a JSON array of {name, package, arch,
+# newVersion, installedVersion, repository, security, severity}. name is "name.arch" as
+# check-update prints it (and what patch_install takes); package is the name without it. The security
 # flag and severity come from the security advisories (updateinfo), matched by name and arch -
 # the distributions' errata; repositories without them (e.g. CentOS Stream) give no flags.
 dnf_updates() {
-    local pm="$1" updates advisories
+    local pm="$1" updates advisories installed
     updates=$(run_package_command 600 "$pm" -q check-update 2>/dev/null | awk '
         /^(Obsoleting|Security:)/ { exit }
         NF == 3 && $1 ~ /\./ { printf "%s\t%s\t%s\n", $1, $2, $3 }')
@@ -1475,12 +1504,22 @@ dnf_updates() {
             sub(/-[^-]*$/, "", nevra); sub(/-[^-]*$/, "", nevra)
             severity = $2; sub(/\/Sec\.$/, "", severity)
             printf "%s.%s\t%s\n", nevra, arch, severity }')
-    jq -Rn --arg advisories "$advisories" '
+    # The installed version per name.arch, from one rpm query for all names ("[epoch:]version-release"
+    # like check-update prints it). Install-only packages (kernel) have several: the highest wins.
+    local -a names
+    mapfile -t names < <(awk -F'\t' '{ print $1 }' <<< "$updates")
+    installed=$(run_package_command 120 rpm -q --qf '%{NAME}.%{ARCH}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' \
+        "${names[@]}" 2>/dev/null | awk -F'\t' 'NF == 2 { v = $2; sub(/^0:/, "", v); print $1 "\t" v }' | sort -t$'\t' -k1,1 -k2,2V)
+    jq -Rn --arg advisories "$advisories" --arg installed "$installed" '
         ($advisories | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]})
          | sort_by({"Low": 1, "Moderate": 2, "Important": 3, "Critical": 4}[.value] // 0)
          | from_entries) as $sec
+        | ($installed | split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: .[1]})
+           | from_entries) as $inst
         | [inputs | select(length > 0) | split("\t")
-           | {name: .[0], newVersion: .[1], repository: .[2], security: ($sec[.[0]] != null),
+           | (.[0] | capture("^(?<package>.+)\\.(?<arch>[^.]+)$") // {package: ., arch: null}) as $na
+           | {name: .[0], package: $na.package, arch: $na.arch, newVersion: .[1],
+              installedVersion: ($inst[.[0]] // null), repository: .[2], security: ($sec[.[0]] != null),
               severity: ($sec[.[0]] // null)}]' <<< "$updates" 2>/dev/null || echo '[]'
 }
 
@@ -1538,32 +1577,52 @@ run_patch_scan() {
 }
 
 # patch_install job: upgrade named packages ({"packages": [...]}) or explicitly all
-# ({"all": true}). Reject other payloads: a job with Windows KB IDs must never upgrade every Linux
+# ({"all": true}). A package is a name (its newest version) or {"name", "version"} (exactly that
+# version, as the update list reported it - bulk installs of approved updates, #271). Reject other payloads: a job with Windows KB IDs must never upgrade every Linux
 # package by accident. Prints the end of the package manager's output and whether a reboot is required,
 # then searches for updates again and pushes the inventory with that search, so the update list and
 # the node's last update search are both current.
 run_patch_install() {
-    local payload="$1" limit="$2" pm out="" rc=0 pkg
-    local -a packages=()
+    local payload="$1" limit="$2" pm out="" rc=0 pkg version
+    local -a packages=() entries=()
     local selection
+    # "packages": names (newest version) or {"name", "version"} objects (exactly that version: a
+    # bulk installation of approved updates must not install a newer, not yet approved one)
     selection=$(jq -r '
         if type != "object" then "invalid"
         elif .all == true and (has("packages") | not) then "all"
         elif (.all == null or .all == false) and (.packages | type) == "array"
-             and (.packages | length) > 0 and (.packages | all(.[]; type == "string"))
+             and (.packages | length) > 0
+             and (.packages | all(.[]; type == "string"
+                  or (type == "object" and (.name | type) == "string" and (.version | type) == "string"
+                      and (.version | length) > 0)))
              then "selected"
         else "invalid" end' <<< "$payload" 2>/dev/null) || selection=invalid
     if [[ "$selection" == "invalid" ]]; then
-        echo 'Invalid patch_install payload: specify {"all":true} or a nonempty string array in "packages"'
+        echo 'Invalid patch_install payload: specify {"all":true} or a nonempty array of names or {"name","version"} in "packages"'
         return 1
     fi
     if [[ "$selection" == "selected" ]]; then
-        mapfile -t packages < <(jq -r '.packages[]' <<< "$payload")
+        mapfile -t entries < <(jq -r '.packages[] | if type == "string" then [., ""] else [.name, .version] end | @tsv' <<< "$payload")
     fi
-    for pkg in "${packages[@]}"; do
+    for pkg in "${entries[@]}"; do
+        version="${pkg#*$'\t'}"; pkg="${pkg%%$'\t'*}"
         [[ "$pkg" =~ ^[A-Za-z0-9][A-Za-z0-9+._:@-]*$ ]] || { echo "Invalid package name: $pkg"; return 1; }
+        [[ -z "$version" || "$version" =~ ^[A-Za-z0-9][A-Za-z0-9+.:~_-]*$ ]] || { echo "Invalid version for $pkg: $version"; return 1; }
+        packages+=("$pkg"$'\t'"$version")
     done
     pm=$(package_manager) || { echo "No supported package manager (apt, dnf, yum)"; return 1; }
+    # The package manager's notation: apt name=version; dnf/yum name-[epoch:]version-release.arch
+    # (the name from the update list is name.arch)
+    local i
+    for i in "${!packages[@]}"; do
+        pkg="${packages[$i]%%$'\t'*}"; version="${packages[$i]#*$'\t'}"
+        if [[ -z "$version" ]]; then packages[$i]="$pkg"
+        elif [[ "$pm" == "apt" ]]; then packages[$i]="$pkg=$version"
+        elif [[ "$pkg" == *.* ]]; then packages[$i]="${pkg%.*}-$version.${pkg##*.}"
+        else packages[$i]="$pkg-$version"
+        fi
+    done
     case "$pm" in
         apt)
             local -a options=(-q -y -o DPkg::Lock::Timeout=120

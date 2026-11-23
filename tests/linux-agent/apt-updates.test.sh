@@ -12,7 +12,19 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # here-document has a "}" at the start of a line, so the function ends at the
 # first "}" line after "EOF".
 eval "$(awk '/^collect_updates\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
-declare -F collect_updates >/dev/null || { echo "collect_updates not found in $AGENT"; exit 2; }
+eval "$(awk '/^os_release_json\(\) \{/ { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
+for fn in collect_updates os_release_json; do
+    declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
+done
+OS_RELEASE_FILE=$(mktemp); export OS_RELEASE_FILE
+cat > "$OS_RELEASE_FILE" <<'REL'
+PRETTY_NAME="Ubuntu 26.04 LTS"
+NAME="Ubuntu"
+VERSION_ID="26.04"
+# a comment
+ID=ubuntu
+ID_LIKE=debian
+REL
 
 failures=0
 check() {  # check DESCRIPTION CONDITION...
@@ -44,6 +56,20 @@ check "newVersion is the version, not the suite" [ "$(field '.updates[] | select
 check "repository is the suite" [ "$(field '.updates[] | select(.name == "systemd") | .repository')" = "resolute-updates" ]
 check "systemd is not a security update" [ "$(field '.updates[] | select(.name == "systemd") | .security')" = "false" ]
 check "openssl from -security is a security update" [ "$(field '.updates[] | select(.name == "openssl") | .security')" = "true" ]
+check "architecture of each update" [ "$(field '[.updates[].arch] | join(",")')" = "amd64,amd64" ]
+check "installed version from 'upgradable from:'" [ "$(field '.updates[] | select(.name == "systemd") | .installedVersion')" = "259.2-1ubuntu3" ]
+check "release from /etc/os-release (quotes removed, comments ignored)" \
+    [ "$(field '.release | [.id, .versionId, .idLike, .name] | join("|")')" = "ubuntu|26.04|debian|Ubuntu" ]
+
+# A line without "upgradable from:" (other apt versions): no installed version, still valid
+run_case 'Listing... Done
+curl/resolute-updates 8.14.1-2ubuntu1 amd64'
+check "no 'upgradable from:': installedVersion null" [ "$(field '.updates[0].installedVersion')" = "null" ] && valid_json
+
+# Without /etc/os-release: release null, the rest unchanged
+OS_RELEASE_FILE=/nonexistent run_case 'Listing... Done
+curl/resolute-updates 8.14.1-2ubuntu1 amd64 [upgradable from: 8.14.1-2]'
+check "no os-release: release null, valid JSON" [ "$(field .release)" = "null" ] && [ "$(field .totalUpdates)" = "1" ]
 
 # Nothing to upgrade
 run_case 'Listing... Done'
@@ -60,6 +86,7 @@ run_case 'Listing... Done'
 unset PATCH_SCAN_JSON
 check "the scan block of a patch_scan job is sent with the updates" [ "$(field .scan.status)" = "partial" ] && valid_json
 
+rm -f "$OS_RELEASE_FILE"
 echo
 if [ "$failures" -eq 0 ]; then echo "All apt update tests passed"; else echo "$failures apt update test(s) failed"; fi
 exit $(( failures > 0 ))

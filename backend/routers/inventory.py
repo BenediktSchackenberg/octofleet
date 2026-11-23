@@ -7,6 +7,7 @@ from typing import Any, Dict
 import asyncpg
 from fastapi import APIRouter, Depends
 
+import linux_updates
 import vulnerability_cache
 from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
@@ -392,6 +393,7 @@ async def ensure_schema(pool: asyncpg.Pool) -> None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("ALTER TABLE security_current ADD COLUMN IF NOT EXISTS linux jsonb")
+            await linux_updates.ensure_schema(conn)
             browser_pk = await conn.fetchval("""
                 SELECT pg_get_constraintdef(oid) FROM pg_constraint
                 WHERE conrelid = 'browser_current'::regclass AND contype = 'p'
@@ -596,6 +598,17 @@ async def submit_full(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     return {"status": "ok", **results}
 
 
+async def store_linux_package_updates(conn, node_uuid: str, updates: Dict[str, Any]) -> None:
+    """The pending updates as rows per package version (approval rules, #271). In a savepoint: a
+    failure (e.g. a deadlock with another node's push) is logged and leaves the rest of the inventory
+    stored; the unchanged hash makes the next push try again."""
+    try:
+        async with conn.transaction():
+            await linux_updates.store_node_updates(conn, node_uuid, updates)
+    except (asyncpg.PostgresError, ValueError, TypeError) as exc:
+        logger.warning("Linux package updates of node %s not stored: %s", node_uuid, exc)
+
+
 async def submit_linux_data(hostname: str, node_id_str: str, data: Dict[str, Any], db: asyncpg.Pool):
     """Store the Linux agent's performance/services/updates/diskHealth for the Linux tab"""
     uuid = await upsert_node(db, node_id_str, hostname)
@@ -616,16 +629,20 @@ async def submit_linux_data(hostname: str, node_id_str: str, data: Dict[str, Any
     # /inventory/full accepts partial payloads: a key that is absent (NULL here) keeps the
     # previously stored value instead of erasing it
     async with db.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
-            ON CONFLICT (node_id) DO UPDATE SET
-                performance = COALESCE(EXCLUDED.performance, linux_data_current.performance),
-                services = COALESCE(EXCLUDED.services, linux_data_current.services),
-                updates = COALESCE(EXCLUDED.updates, linux_data_current.updates),
-                disk_health = COALESCE(EXCLUDED.disk_health, linux_data_current.disk_health),
-                updated_at = NOW()
-        """, str(uuid), as_json("performance"), as_json("services"), as_json("updates"), as_json("diskHealth"))
+        # one transaction: the stored list and its rows per package version stay in step
+        async with conn.transaction():
+            await conn.execute("""
+                INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+                ON CONFLICT (node_id) DO UPDATE SET
+                    performance = COALESCE(EXCLUDED.performance, linux_data_current.performance),
+                    services = COALESCE(EXCLUDED.services, linux_data_current.services),
+                    updates = COALESCE(EXCLUDED.updates, linux_data_current.updates),
+                    disk_health = COALESCE(EXCLUDED.disk_health, linux_data_current.disk_health),
+                    updated_at = NOW()
+            """, str(uuid), as_json("performance"), as_json("services"), as_json("updates"), as_json("diskHealth"))
+            if isinstance(updates, dict):
+                await store_linux_package_updates(conn, str(uuid), updates)
         if scan is not None:
             total = updates.get("totalUpdates")
             await record_scan(conn, str(uuid), scan, total if isinstance(total, int) else None)
