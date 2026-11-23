@@ -44,6 +44,10 @@ check run '{"command":["printf","%s","hello world"]}' 'hello world'
 check restart-agent '{}' 'Agent restart scheduled'
 grep -q -- '--on-active=30s' "$RESTART" || { echo "FAIL restart timer"; exit 1; }
 
+# reboot hands its payload to run_reboot (its own tests: reboot.test.sh)
+run_reboot() { echo "Reboot requested: $1"; }
+check reboot '{"action":"reboot"}' 'Reboot requested: {"action":"reboot"}'
+
 execute_job "$(job run '{"command":[]}')"
 jq -e '.status == "failed" and .exitCode == 1' "$RESULT" >/dev/null || {
     echo "FAIL empty run command"; exit 1;

@@ -314,7 +314,7 @@ def require_any_permission(*permissions: str):
 ROLE_PERMISSIONS = {
     "admin": ["*"],
     "operator": [
-        "nodes:read", "nodes:write", "nodes:assign",
+        "nodes:read", "nodes:write", "nodes:assign", "nodes:reboot",
         "inventory:read", "hardware:read", "vulnerabilities:read",
         "groups:read", "groups:write",
         "jobs:read", "jobs:create", "jobs:execute", "jobs:cancel",

@@ -51,6 +51,7 @@ from reportlab.platypus import (
 
 import job_types
 import monitoring_defaults
+import node_reboot
 import node_removal
 import password_policy
 import retention
@@ -87,6 +88,7 @@ from routers.jobs import router as jobs_router
 from routers.metrics import router as metrics_router
 from routers.monitoring_mgmt import router as monitoring_mgmt_router
 from routers.mssql import router as mssql_router
+from routers.node_reboot import router as node_reboot_router
 from routers.nodes import pending_router
 from routers.nodes import router as nodes_router
 from routers.packages_mgmt import router as packages_mgmt_router
@@ -322,6 +324,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 INSTALL_SCRIPT_PATH = os.getenv("INSTALL_SCRIPT_PATH", "/app/static/Install-OctofleetAgent.ps1")
 
 # Include routers
+app.include_router(node_reboot_router)
 app.include_router(nodes_router)
 app.include_router(pending_router)
 app.include_router(inventory_router)
@@ -3793,6 +3796,9 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
         
         node_uuid = node['id']
         now = dt.utcnow()
+        # Logged-on users for the reboot dialog
+        if "loggedOnUsers" in data:
+            node_reboot.remember_logged_on_users(node_uuid, data.get("loggedOnUsers"))
         
         # Update last_seen - live-data proves the node is alive
         await conn.execute("UPDATE nodes SET last_seen = NOW() WHERE id = $1", node_uuid)

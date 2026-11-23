@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Plain net8.0: parsing the reboot job needs nothing from Windows, so this runs anywhere. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/OctofleetAgent.Service/RebootRequest.cs" Link="RebootRequest.cs" />
+  </ItemGroup>
+</Project>

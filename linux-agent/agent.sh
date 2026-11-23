@@ -1058,6 +1058,7 @@ push_live_data() {
     local processes=$(collect_live_processes)
     local network=$(collect_live_network)
     local logs=$(collect_agent_logs)
+    refresh_logged_on_users
     
     local payload=$(cat << EOF
 {
@@ -1066,7 +1067,8 @@ push_live_data() {
     "metrics": $metrics,
     "processes": $processes,
     "network": $network,
-    "agentLogs": $logs
+    "agentLogs": $logs,
+    "loggedOnUsers": $LOGGED_ON_USERS
 }
 EOF
 )
@@ -1799,6 +1801,79 @@ schedule_system_reboot() {
     fi
 }
 
+# Logged-on users for the console's reboot dialog: LOGGED_ON_USERS holds JSON ([{user, session,
+# since}]) or "null" when the agent cannot tell. logind first (it also knows sessions utmp does not
+# list), else who. Read at most every LOGGED_ON_INTERVAL seconds; the live push runs every few.
+LOGGED_ON_INTERVAL=${LOGGED_ON_INTERVAL:-30}
+LOGGED_ON_USERS="null"
+LOGGED_ON_AT=0
+refresh_logged_on_users() {
+    local now; now=$(date +%s)
+    (( now - LOGGED_ON_AT >= LOGGED_ON_INTERVAL )) || return 0
+    LOGGED_ON_USERS=$(logged_on_users_now)
+    LOGGED_ON_AT=$now
+}
+
+logged_on_users_now() {
+    local out
+    # systemd's manager sessions (user@.service) and background sessions are not people at a terminal
+    if command -v loginctl &>/dev/null && out=$(LC_ALL=C timeout 5 loginctl list-sessions -o json 2>/dev/null) \
+            && jq -e 'type == "array"' >/dev/null 2>&1 <<< "$out"; then
+        jq -c '[.[] | select((.class // "user") | test("^user")) | select((.user // "") != "")
+                | {user, session: (.tty // .seat // (.session | tostring)), since: null}]
+               | unique_by([.user, .session])' <<< "$out" 2>/dev/null && return
+    fi
+    if command -v who &>/dev/null; then
+        LC_ALL=C timeout 5 who 2>/dev/null | jq -Rsc 'split("\n") | map(select(length > 0) | split(" ") | map(select(length > 0))
+            | {user: .[0], session: .[1], since: (((.[2] // "") + " " + (.[3] // "")) | ltrimstr(" ") | rtrimstr(" "))})' 2>/dev/null && return
+    fi
+    echo null
+}
+
+# run_reboot PAYLOAD: the console's `reboot` job. {"action": "reboot", "at": UTC ISO time, "message"}
+# restarts the machine at that time (at the earliest in a minute, so the result reaches the server
+# first) with shutdown -r +N, which warns logged-on users with the message and can be withdrawn;
+# {"action": "cancel"} withdraws it (and a reboot an update installation scheduled). Under systemd it
+# runs through a transient unit, outside the service's sandbox, like restart-agent.
+run_reboot() {
+    local payload="$1" action at message minutes target now
+    action=$(jq -r '.action // "reboot"' <<< "$payload" 2>/dev/null)
+    local shutdown_bin; shutdown_bin=$(command -v shutdown) || { echo "shutdown not found"; return 1; }
+    if [[ "$action" == cancel ]]; then
+        local rc=0
+        if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+            systemd-run --quiet --collect --wait --unit "octofleet-reboot-cancel-$(date +%s)-$$" /bin/sh -c \
+                "systemctl stop 'octofleet-reboot-*.timer' 2>/dev/null; $shutdown_bin -c 'Octofleet: the reboot was cancelled' 2>/dev/null; exit 0" || rc=1
+        else
+            "$shutdown_bin" -c "Octofleet: the reboot was cancelled" 2>/dev/null || rc=1
+        fi
+        (( rc == 0 )) && echo "Reboot cancelled" || echo "Cancelling the reboot failed"
+        return "$rc"
+    fi
+    [[ "$action" == reboot ]] || { echo "Unknown reboot action: $action"; return 1; }
+    at=$(jq -r '.at // empty' <<< "$payload" 2>/dev/null)
+    message=$(jq -j '.message // empty' <<< "$payload" 2>/dev/null | tr '\000-\037' ' ' | tr -s ' ' | cut -c1-200)
+    [[ -n "$message" ]] || message="Octofleet: this machine restarts"
+    now=$(date +%s)
+    target=$now
+    if [[ -n "$at" ]]; then
+        target=$(date -u -d "$at" +%s 2>/dev/null) || { echo "Reboot: invalid time '$at'"; return 1; }
+    fi
+    minutes=$(( (target - now + 59) / 60 ))
+    (( minutes >= 1 )) || minutes=1
+    refresh_logged_on_users
+    if [[ "$LOGGED_ON_USERS" != null && "$LOGGED_ON_USERS" != "[]" ]]; then
+        echo "Logged-on users: $(jq -r 'map(.user + (if .session then " (" + .session + ")" else "" end)) | join(", ")' <<< "$LOGGED_ON_USERS" 2>/dev/null)"
+    fi
+    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+        systemd-run --quiet --collect --wait --unit "octofleet-reboot-$(date +%s)-$$" \
+            "$shutdown_bin" -r "+$minutes" "$message" || { echo "Scheduling the reboot failed"; return 1; }
+    else
+        "$shutdown_bin" -r "+$minutes" "$message" >/dev/null 2>&1 || { echo "Scheduling the reboot failed"; return 1; }
+    fi
+    echo "Reboot scheduled for $(date -u -d "@$(( now + minutes * 60 ))" '+%Y-%m-%d %H:%M UTC') (in $minutes min)"
+}
+
 # next_push_time EXIT_CODE NOW FAILURES [FIRST]: when the next inventory push is due.
 # After a successful push: PUSH_INTERVAL +/- 10 %; after the first one since the start (FIRST=1)
 # a random 50-150 % of PUSH_INTERVAL, so nodes started together (agent update, power cut) spread
@@ -1893,6 +1968,9 @@ execute_job() {
             ;;
         service_reconcile)
             output=$(reconcile_service "$command_payload") || exit_code=$?
+            ;;
+        reboot)
+            output=$(run_reboot "$command_payload" 2>&1) || exit_code=$?
             ;;
         uninstall-agent)
             local delay=$(echo "$command_payload" | jq -r '.delaySeconds // 10' 2>/dev/null)

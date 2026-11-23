@@ -380,6 +380,9 @@ public class JobPoller : BackgroundService
 
             case "patch_scan":
                 return await ExecutePatchScanAsync(ct);
+
+            case "reboot":
+                return ExecuteReboot(payload);
                 
             default:
                 // Default to script/command execution
@@ -630,6 +633,75 @@ public class JobPoller : BackgroundService
             Stdout = result.Success ? result.Summary : "",
             Stderr = result.Success ? "" : result.Summary,
         };
+    }
+
+    /// <summary>
+    /// The console's reboot job (see <see cref="RebootRequest"/>): shutdown.exe schedules the restart,
+    /// so it survives an agent restart and Windows warns the logged-on users. A reboot that is already
+    /// scheduled (e.g. after an update installation) is replaced by this one.
+    /// </summary>
+    private CommandResult ExecuteReboot(JsonElement payload)
+    {
+        var request = RebootRequest.Parse(payload, DateTimeOffset.UtcNow, out var error);
+        if (request == null)
+            return new CommandResult { ExitCode = 1, Stderr = error ?? "Invalid reboot request" };
+
+        var output = new List<string>();
+        if (!request.Cancel)
+        {
+            var users = LoggedOnUsers.Get();
+            if (users is { Count: > 0 })
+                output.Add("Logged-on users: " + string.Join(", ", users.Select(u => u.session == null ? u.user : $"{u.user} ({u.session})")));
+        }
+
+        ProcessRunner.Result? Shutdown(IEnumerable<string> args)
+        {
+            var psi = new ProcessStartInfo("shutdown.exe");
+            foreach (var arg in args) psi.ArgumentList.Add(arg);
+            return ProcessRunner.Run(psi, TimeSpan.FromSeconds(30));
+        }
+
+        try
+        {
+            var result = Shutdown(request.ShutdownArguments());
+            if (request.Cancel)
+            {
+                // 1116: no shutdown was in progress - nothing to withdraw
+                var ok = result is { ExitCode: 0 or 1116 };
+                _logger.LogInformation("Reboot cancel requested by a job: exit code {ExitCode}", result?.ExitCode);
+                return new CommandResult
+                {
+                    ExitCode = ok ? 0 : 1,
+                    Stdout = result?.ExitCode == 1116 ? "No reboot was scheduled" : ok ? "Reboot cancelled" : "",
+                    Stderr = ok ? "" : $"Cancelling the reboot failed (exit code {result?.ExitCode}): {result?.Stderr.Trim()}",
+                };
+            }
+            if (result?.ExitCode == RebootRequest.AlreadyScheduled)
+            {
+                Shutdown(new[] { "/a" });
+                output.Add("Replaced the reboot that was already scheduled");
+                result = Shutdown(request.ShutdownArguments());
+            }
+            if (result is not { ExitCode: 0 })
+            {
+                _logger.LogWarning("Scheduling the reboot failed: exit code {ExitCode}", result?.ExitCode);
+                return new CommandResult
+                {
+                    ExitCode = 1,
+                    Stdout = string.Join("\n", output),
+                    Stderr = $"Scheduling the reboot failed (exit code {result?.ExitCode}): {result?.Stderr.Trim()}",
+                };
+            }
+            var at = DateTimeOffset.UtcNow.AddSeconds(request.DelaySeconds);
+            _logger.LogInformation("Reboot scheduled by a job for {At:u} (in {Seconds} s)", at, request.DelaySeconds);
+            output.Add($"Reboot scheduled for {at:yyyy-MM-dd HH:mm} UTC (in {Math.Max(1, (request.DelaySeconds + 59) / 60)} min)");
+            return new CommandResult { ExitCode = 0, Stdout = string.Join("\n", output) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Reboot job failed");
+            return new CommandResult { ExitCode = 1, Stdout = string.Join("\n", output), Stderr = ex.Message };
+        }
     }
 
     private async Task<CommandResult> ExecuteRestartAgentAsync(CancellationToken ct)
