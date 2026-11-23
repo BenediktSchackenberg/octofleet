@@ -94,6 +94,7 @@
     "repo": "Repositorio",
     "reports": "Informes",
     "retention": "Retención",
+    "logging": "Registro",
     "security": "Seguridad",
     "securityCenter": "Centro de seguridad",
     "securityEvents": "Eventos de seguridad",
@@ -1850,5 +1851,30 @@
     "hint": "Las cifras se guardan por nodo y se recalculan cuando algo cambia: un análisis, software nuevo en un nodo, un hallazgo corregido, un nodo eliminado.",
     "pendingOne": "{count} nodo recalculándose",
     "pendingOther": "{count} nodos recalculándose"
+  },
+  "loggingPage": {
+    "title": "Registro",
+    "subtitle": "Lo que el backend escribe en su registro (docker compose logs backend). Los cambios se aplican al momento, sin reiniciar.",
+    "level": "Nivel de registro",
+    "levels": {
+      "error": "Errores",
+      "warning": "Advertencias y errores",
+      "info": "Información (predeterminado)",
+      "debug": "Depuración – todo, para diagnosticar"
+    },
+    "levelHint": "La depuración escribe mucho más; vuelve a cambiarlo al terminar.",
+    "accessLog": "Una línea por solicitud HTTP",
+    "access": {
+      "all": "Cada solicitud (predeterminado, como antes)",
+      "errors_slow": "Solo errores (estado 400 o más) y solicitudes más lentas que",
+      "off": "Desactivado"
+    },
+    "slowMs": "Umbral de solicitud lenta en milisegundos",
+    "slowMsUnit": "ms",
+    "accessHint": "Cada línea tiene método, ruta (sin la cadena de consulta), estado, duración y dirección del cliente. Los agentes consultan cada pocos segundos: con muchos nodos, cada solicitud supone muchas líneas.",
+    "rotationHint": "Docker rota los archivos de registro (LOG_MAX_SIZE, LOG_MAX_FILE en .env; por defecto 5 archivos de 20 MB por contenedor).",
+    "saved": "Configuración de registro guardada – aplicada ya",
+    "saveFailed": "No se pudo guardar la configuración de registro",
+    "saving": "Guardando..."
   }
 }

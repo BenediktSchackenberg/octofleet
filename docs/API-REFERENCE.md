@@ -377,6 +377,8 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/settings` | API Key | List all settings |
+| GET | `/api/v1/settings/logging` | User: `settings:read` | Backend log level and access log as applied now: `level` (`error`/`warning`/`info`/`debug`), `access_log` (`all`/`errors_slow`/`off`), `slow_ms`, `defaults` |
+| PUT | `/api/v1/settings/logging` | User: `settings:write` | Change them (same fields; missing ones take the defaults info / all / 1000); applies at once, audited as `settings.logging`. Not through the generic `/settings/{key}` routes |
 | GET | `/api/v1/settings/{key}` | API Key | Get setting value |
 | PUT | `/api/v1/settings/{key}` | API Key | Update setting |
 | DELETE | `/api/v1/settings/{key}` | API Key | Delete setting |

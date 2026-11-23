@@ -94,6 +94,7 @@
     "repo": "Repository",
     "reports": "Berichte",
     "retention": "Aufbewahrung",
+    "logging": "Protokollierung",
     "security": "Security",
     "securityCenter": "Security Center",
     "securityEvents": "Sicherheitsereignisse",
@@ -1850,5 +1851,30 @@
     "hint": "Die Zahlen werden pro Gerät gespeichert und neu berechnet, sobald sich etwas ändert: ein Scan, neue Software auf einem Gerät, ein behobener Befund, ein entferntes Gerät.",
     "pendingOne": "{count} Gerät wird neu berechnet",
     "pendingOther": "{count} Geräte werden neu berechnet"
+  },
+  "loggingPage": {
+    "title": "Protokollierung",
+    "subtitle": "Was das Backend in sein Log schreibt (docker compose logs backend). Änderungen gelten sofort, ohne Neustart.",
+    "level": "Log-Level",
+    "levels": {
+      "error": "Fehler",
+      "warning": "Warnungen und Fehler",
+      "info": "Informationen (Standard)",
+      "debug": "Debug – alles, zur Fehlersuche"
+    },
+    "levelHint": "Debug schreibt deutlich mehr; danach wieder zurückstellen.",
+    "accessLog": "Eine Zeile pro HTTP-Anfrage",
+    "access": {
+      "all": "Jede Anfrage (Standard, wie bisher)",
+      "errors_slow": "Nur Fehler (Status ab 400) und Anfragen langsamer als",
+      "off": "Aus"
+    },
+    "slowMs": "Schwelle für langsame Anfragen in Millisekunden",
+    "slowMsUnit": "ms",
+    "accessHint": "Jede Zeile enthält Methode, Pfad (ohne Query-String), Status, Dauer und Client-Adresse. Agents fragen alle paar Sekunden an – bei vielen Nodes heißt jede Anfrage sehr viele Zeilen.",
+    "rotationHint": "Docker rotiert die Log-Dateien (LOG_MAX_SIZE, LOG_MAX_FILE in .env; Standard 5 Dateien à 20 MB pro Container).",
+    "saved": "Protokollierung gespeichert – gilt ab sofort",
+    "saveFailed": "Die Protokollierung konnte nicht gespeichert werden",
+    "saving": "Wird gespeichert..."
   }
 }
