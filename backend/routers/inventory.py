@@ -13,7 +13,7 @@ from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
 from auth import require_permission, require_user_permission
 from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
-from routers.patches import record_scan, scan_info
+from routers.patches import linux_reboot_behavior, record_scan, scan_info
 
 logger = logging.getLogger(__name__)
 
@@ -256,9 +256,15 @@ async def get_linux_data(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         if not node: raise not_found("Node", node_id)
         row = await conn.fetchrow("SELECT performance, services, updates, disk_health, updated_at FROM linux_data_current WHERE node_id = $1", str(node['id']))
         if not row: return {"data": None}
+        updates = json.loads(row['updates']) if row['updates'] else None
+        # each pending update with its reboot estimate (the same one the fleet view uses)
+        if isinstance(updates, dict) and isinstance(updates.get("updates"), list):
+            for update in updates["updates"]:
+                if isinstance(update, dict):
+                    update["reboot_behavior"] = linux_reboot_behavior(str(update.get("name") or ""))
         return {"data": {
             "performance": json.loads(row['performance']) if row['performance'] else None, "services": json.loads(row['services']) if row['services'] else None,
-            "updates": json.loads(row['updates']) if row['updates'] else None, "diskHealth": json.loads(row['disk_health']) if row['disk_health'] else None,
+            "updates": updates, "diskHealth": json.loads(row['disk_health']) if row['disk_health'] else None,
             "updatedAt": row['updated_at'].isoformat() if row['updated_at'] else None
         }}
 
