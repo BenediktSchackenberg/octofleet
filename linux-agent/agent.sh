@@ -1839,9 +1839,17 @@ run_reboot() {
     local payload="$1" action at message minutes target now
     action=$(jq -r '.action // "reboot"' <<< "$payload" 2>/dev/null)
     local shutdown_bin; shutdown_bin=$(command -v shutdown) || { echo "shutdown not found"; return 1; }
+    # No D-Bus system bus (minimal images): shutdown -r needs systemd-logind over the bus, and
+    # systemd-run --wait fails ("Failed to connect to bus"). As root, systemd-run still starts a
+    # timer over systemd's private socket, and systemctl works there too.
+    local no_bus=0
+    [[ -n "${INVOCATION_ID:-}" && ! -S "${DBUS_SYSTEM_SOCKET:-/run/dbus/system_bus_socket}" \
+        && -S "${SYSTEMD_PRIVATE_SOCKET:-/run/systemd/private}" ]] && command -v systemd-run &>/dev/null && no_bus=1
     if [[ "$action" == cancel ]]; then
         local rc=0
-        if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+        if (( no_bus )); then
+            systemctl stop 'octofleet-reboot-*.timer' 2>/dev/null || rc=1
+        elif [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
             systemd-run --quiet --collect --wait --unit "octofleet-reboot-cancel-$(date +%s)-$$" /bin/sh -c \
                 "systemctl stop 'octofleet-reboot-*.timer' 2>/dev/null; $shutdown_bin -c 'Octofleet: the reboot was cancelled' 2>/dev/null; exit 0" || rc=1
         else
@@ -1865,7 +1873,12 @@ run_reboot() {
     if [[ "$LOGGED_ON_USERS" != null && "$LOGGED_ON_USERS" != "[]" ]]; then
         echo "Logged-on users: $(jq -r 'map(.user + (if .session then " (" + .session + ")" else "" end)) | join(", ")' <<< "$LOGGED_ON_USERS" 2>/dev/null)"
     fi
-    if [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
+    if (( no_bus )); then
+        # a timer runs systemctl reboot (cancel stops it); logged-on users get no shutdown message
+        systemd-run --quiet --collect --unit "octofleet-reboot-$(date +%s)-$$" --on-active="${minutes}min" \
+            /bin/systemctl reboot || { echo "Scheduling the reboot failed"; return 1; }
+        echo "No D-Bus system bus: the reboot runs from a systemd timer, logged-on users are not warned"
+    elif [[ -n "${INVOCATION_ID:-}" ]] && command -v systemd-run &>/dev/null; then
         systemd-run --quiet --collect --wait --unit "octofleet-reboot-$(date +%s)-$$" \
             "$shutdown_bin" -r "+$minutes" "$message" || { echo "Scheduling the reboot failed"; return 1; }
     else

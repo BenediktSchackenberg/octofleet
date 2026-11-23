@@ -28,7 +28,7 @@ for tool in bash sh jq timeout tr cut date cat printf rm grep head; do
 done
 export WORK
 # Fakes: each records its arguments, one per line
-for tool in shutdown systemd-run; do
+for tool in shutdown systemd-run systemctl; do
     cat > "$TOOLS/$tool" <<EOF
 #!/bin/bash
 printf '%s\n' "\$@" > "\$WORK/$tool.args"
@@ -47,6 +47,11 @@ printf '%s' "${FAKE_WHO:-}"
 EOF
 chmod +x "$TOOLS/loginctl" "$TOOLS/who"
 ORIG_PATH=$PATH
+# A unix socket that stands in for systemd's private socket (no-D-Bus tests below)
+python3 -c 'import socket, sys, time; s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); time.sleep(600)' "$WORK/private" &
+SOCK_PID=$!
+trap 'kill $SOCK_PID 2>/dev/null; rm -rf "$WORK"' EXIT
+for _ in $(seq 50); do [[ -S "$WORK/private" ]] && break; sleep 0.1; done
 PATH="$TOOLS"
 unset INVOCATION_ID
 
@@ -119,6 +124,28 @@ fresh
 out=$(export INVOCATION_ID=x; run_reboot '{"action":"cancel"}')
 check "cancel under systemd: also stops reboot timers of update installations" \
     grep -q "systemctl stop 'octofleet-reboot-\*.timer'" "$WORK/systemd-run.args"
+
+# --- no D-Bus system bus: shutdown cannot reach logind, systemd-run --wait fails ---
+nobus() { export INVOCATION_ID=x DBUS_SYSTEM_SOCKET="$WORK/no-bus" SYSTEMD_PRIVATE_SOCKET="$WORK/private"; }
+fresh
+out=$(nobus; run_reboot '{"action":"reboot","at":"2099-01-02T21:00:00Z"}'); rc=$?
+check "no bus: a timer runs systemctl reboot" \
+    bash -c 'grep -qx -- "/bin/systemctl" "$WORK/systemd-run.args" && grep -qx reboot "$WORK/systemd-run.args"'
+check "no bus: the timer is set to the requested time" grep -q -- "^--on-active=[0-9]*min$" "$WORK/systemd-run.args"
+check "no bus: without --wait, and shutdown is not used" \
+    bash -c '! grep -qx -- --wait "$WORK/systemd-run.args" && test ! -e "$WORK/shutdown.args"'
+check "no bus: says that users are not warned" grep -q "^No D-Bus system bus: the reboot runs from a systemd timer, logged-on users are not warned$" <<< "$out"
+check "no bus: scheduled" test "$rc" -eq 0 -a -n "$(grep '^Reboot scheduled for 2099-01-02 21:00 UTC' <<< "$out")"
+fresh
+out=$(nobus; run_reboot '{"action":"cancel"}'); rc=$?
+check "no bus, cancel: stops the reboot timers with systemctl" \
+    bash -c 'test "$(cat "$WORK/systemctl.args" | tr "\n" " ")" = "stop octofleet-reboot-*.timer "'
+check "no bus, cancel: no systemd-run, no shutdown -c" test ! -e "$WORK/systemd-run.args" -a ! -e "$WORK/shutdown.args"
+check "no bus, cancel: says so" test "$rc:$out" = "0:Reboot cancelled"
+fresh
+out=$(export INVOCATION_ID=x DBUS_SYSTEM_SOCKET="$WORK/private" SYSTEMD_PRIVATE_SOCKET="$WORK/private"; run_reboot '{"action":"reboot"}')
+check "with a bus: shutdown -r through systemd-run --wait as before" \
+    bash -c 'grep -qx -- --wait "$WORK/systemd-run.args" && grep -q "/shutdown$" "$WORK/systemd-run.args"'
 
 fresh
 out=$(run_reboot '{"action":"format"}'); rc=$?
