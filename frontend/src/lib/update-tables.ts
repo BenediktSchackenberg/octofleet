@@ -31,6 +31,8 @@ export type RebootBehavior = "never" | "always" | "can" | "unknown";
  */
 export function linuxRebootBehavior(name: string): RebootBehavior {
   if (/^(linux-(image|modules|headers|base)|kernel(-core|-modules)?)(\b|-|$)/.test(name)) return "always";
+  // Arch and derivatives: the kernel package is linux, linux-lts, linux-zen, linux-cachyos, ...
+  if (/^linux(-(lts|zen|hardened|rt|rt-lts|cachyos[a-z0-9-]*))?$/.test(name)) return "always";
   if (/^(libc6|glibc|systemd|libsystemd0|dbus|dbus-broker|libssl\d+(t64)?|openssl(-libs)?)(\b|-|:|$)/.test(name)) return "can";
   return "never";
 }

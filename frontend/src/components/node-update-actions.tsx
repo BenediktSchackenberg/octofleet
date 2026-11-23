@@ -129,8 +129,9 @@ export function UpdateActions({ os, nodeUuid, updateCount, packageManager, selec
       toast.success(t(kind === "scan" ? "nodes.updates.searchDone" : "nodes.updates.installDone"),
         { description: kind === "install" ? (os === "windows" ? windowsSummary(result.output) : tail(result.output, 2)) : undefined });
     } else if (result.status === "failed") {
+      // one line per message (step, error, inventory) - they ran together without punctuation
       toast.error(t(kind === "scan" ? "nodes.updates.searchFailed" : "nodes.updates.installFailed"),
-        { description: os === "windows" && kind === "install" ? windowsSummary(result.detail) : tail(result.detail) });
+        { description: <div className="whitespace-pre-line">{(os === "windows" && kind === "install" ? windowsSummary(result.detail) : tail(result.detail)) ?? ""}</div> });
     } else if (result.status === "timeout") {
       toast.warning(t("nodes.updates.timeout"));
     } else {

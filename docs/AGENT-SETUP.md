@@ -236,7 +236,7 @@ LOG_FILE="/var/log/octofleet-agent.log"
 
 ### What the Linux Agent Reports About Updates
 
-With every inventory push the agent sends its available package updates (apt, dnf, yum, pacman): package name, new and installed version, architecture, repository, security flag (and severity on dnf/yum), plus the distribution release from `/etc/os-release` (`id`, `versionId`, `idLike`, `name`). The server keys the first time it saw each package version by that release; see [Patch Management](PATCH-MANAGEMENT.md#linux-nodes). Agents without the release (older versions) still report their updates, but they are stored per package version only after the agent update.
+With every inventory push the agent sends its available package updates (apt, dnf, yum, pacman): package name, new and installed version, architecture, repository, security flag (and severity on dnf/yum), plus the distribution release from `/etc/os-release` (`id`, `versionId`, `idLike`, `name`, `buildId`). Rolling releases without a version (Arch, CachyOS) show their `BUILD_ID` (`rolling`) as the OS version. On pacman systems the update search needs **pacman-contrib** (`checkupdates`); `arch-audit` adds security flags. The server keys the first time it saw each package version by that release; see [Patch Management](PATCH-MANAGEMENT.md#linux-nodes). Agents without the release (older versions) still report their updates, but they are stored per package version only after the agent update.
 
 ### Log Rotation
 

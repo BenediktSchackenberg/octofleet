@@ -41,6 +41,10 @@ LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
 POLL_IDLE_INTERVAL="${POLL_IDLE_INTERVAL:-5}"
 SESSION_ACTIVE_GRACE="${SESSION_ACTIVE_GRACE:-60}"
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
+# pacman: the copy of the sync databases that the update search refreshes with checkupdates
+# (pacman-contrib). The live databases stay as they are: pacman -Sy without -u would leave a partially
+# upgraded system. The inventory reads the pending updates from this copy.
+PACMAN_CHECK_DB="${PACMAN_CHECK_DB:-${SCRIPT_DIR}/pacman-sync}"
 # logrotate for LOG_FILE (see ensure_logrotate); LOGROTATE_FILE="" turns it off
 LOGROTATE_FILE="${LOGROTATE_FILE-/etc/logrotate.d/octofleet-agent}"
 LOG_ROTATE_COUNT="${LOG_ROTATE_COUNT:-8}"     # rotated files kept
@@ -386,6 +390,8 @@ collect_system() {
     local hostname=$(hostname -f 2>/dev/null || hostname)
     local os_name=$(grep -oP '(?<=^NAME=).+' /etc/os-release 2>/dev/null | tr -d '"' || echo "Linux")
     local os_version=$(grep -oP '(?<=^VERSION=).+' /etc/os-release 2>/dev/null | tr -d '"' || echo "Unknown")
+    # Rolling releases (Arch, CachyOS) have no VERSION: their BUILD_ID ("rolling")
+    [[ -z "$os_version" ]] && os_version=$(grep -oP '(?<=^BUILD_ID=).+' /etc/os-release 2>/dev/null | tr -d '"')
     local os_id=$(grep -oP '(?<=^ID=).+' /etc/os-release 2>/dev/null | tr -d '"' || echo "linux")
     local kernel=$(uname -r)
     local uptime_seconds=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
@@ -707,6 +713,7 @@ collect_updates() {
     local total_updates=0
     local security_updates=0
     local package_manager="unknown"
+    local security_source=null
     
     if command -v apt-get &>/dev/null; then
         package_manager="apt"
@@ -743,6 +750,9 @@ collect_updates() {
         package_manager="pacman"
         updates=$(pacman_updates)
         total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
+        security_updates=$(echo "$updates" | jq '[.[] | select(.security)] | length' 2>/dev/null || echo 0)
+        # pacman has no security data; arch-audit (Arch's advisories) gives an approximation
+        command -v arch-audit &>/dev/null && security_source='"arch-audit"'
     fi
     
     # Last update check time
@@ -764,6 +774,8 @@ collect_updates() {
         reboot_required=false
     elif [[ "$package_manager" == "dnf" || "$package_manager" == "yum" ]]; then
         reboot_required=$(dnf_reboot_required)
+    elif [[ "$package_manager" == "pacman" ]]; then
+        reboot_required=$(pacman_reboot_required)
     fi
 
     cat << EOF
@@ -774,6 +786,7 @@ collect_updates() {
     "lastCheckTime": "$last_update_check",
     "rebootRequired": $reboot_required,
     "rebootPackages": $reboot_packages,
+    "securitySource": $security_source,
     "release": $(os_release_json),
     "scan": ${PATCH_SCAN_JSON:-null},
     "updates": $updates
@@ -791,26 +804,39 @@ os_release_json() {
              | {key: .k, value: (.v | if test("^([\"\\x27]).*\\1$") then .[1:-1] else . end)}]
             | from_entries
             | {id: (.ID // null), versionId: (.VERSION_ID // null), idLike: (.ID_LIKE // null),
-               name: (.NAME // null)}' < "$file" 2>/dev/null || echo null
+               name: (.NAME // null), buildId: (.BUILD_ID // null)}' < "$file" 2>/dev/null || echo null
 }
 
 # pacman_updates: the available updates of pacman as a JSON array of {name, newVersion,
 # installedVersion, repository, arch, security}. "pacman -Qu" prints "name old -> new"; one
 # "pacman -Si" for all names adds repository and architecture (the entry with the new version,
-# when several repositories have the package). pacman has no security data.
+# when several repositories have the package). Both read the copy of the sync databases that the
+# update search refreshes (PACMAN_CHECK_DB, checkupdates) when there is one - the live databases
+# change only with "pacman -Syu", so they never show anything new. The security flag comes from
+# arch-audit when it is installed: packages with a fixed Arch advisory (approximate on
+# derivatives such as CachyOS, which build their own packages); pacman itself has no security data.
 pacman_updates() {
-    local updates info
-    updates=$(LC_ALL=C pacman -Qu 2>/dev/null | awk 'NF >= 4 && $3 == "->" { printf "%s\t%s\t%s\n", $1, $2, $4 }')
+    local updates info audit="" db=()
+    [[ -n "${PACMAN_CHECK_DB:-}" && -d "$PACMAN_CHECK_DB/sync" ]] && db=(--dbpath "$PACMAN_CHECK_DB")
+    updates=$(LC_ALL=C pacman -Qu "${db[@]}" 2>/dev/null | awk 'NF >= 4 && $3 == "->" { printf "%s\t%s\t%s\n", $1, $2, $4 }')
     [[ -z "$updates" ]] && { echo '[]'; return; }
-    info=$(LC_ALL=C pacman -Si $(awk -F'\t' '{ print $1 }' <<< "$updates") 2>/dev/null | awk '
+    info=$(LC_ALL=C pacman -Si "${db[@]}" $(awk -F'\t' '{ print $1 }' <<< "$updates") 2>/dev/null | awk '
         /^Repository / { r = $3 } /^Name / { n = $3 } /^Version / { v = $3 }
         /^Architecture / { printf "%s\t%s\t%s\t%s\n", n, v, r, $3 }')
-    jq -Rn --arg info "$info" '
+    command -v arch-audit &>/dev/null && audit=$(timeout 60 arch-audit --upgradable --quiet 2>/dev/null)
+    jq -Rn --arg info "$info" --arg audit "$audit" '
         ($info | split("\n") | map(select(length > 0) | split("\t"))) as $info
+        | ($audit | split("\n") | map(select(length > 0) | {key: ., value: true}) | from_entries) as $sec
         | [inputs | select(length > 0) | split("\t") | . as $u
            | ([$info[] | select(.[0] == $u[0] and .[1] == $u[2])] + [$info[] | select(.[0] == $u[0])])[0] as $i
            | {name: $u[0], newVersion: $u[2], installedVersion: $u[1], repository: ($i[2] // null),
-              arch: ($i[3] // null), security: false}]' <<< "$updates" 2>/dev/null || echo '[]'
+              arch: ($i[3] // null), security: ($sec[$u[0]] // false)}]' <<< "$updates" 2>/dev/null || echo '[]'
+}
+
+# pacman_reboot_required: "true" when the running kernel's modules are gone (a kernel update
+# replaced /usr/lib/modules/<version> - new modules cannot be loaded until a reboot), else "false"
+pacman_reboot_required() {
+    [[ -d "${MODULES_DIR:-/usr/lib/modules}/$(uname -r)" ]] && echo false || echo true
 }
 
 # ============================================================================
@@ -1544,11 +1570,19 @@ refresh_package_lists() {
             (( rc != 0 )) && { status=failed; error=$(tail -n 3 <<< "$out"); }
             ;;
         pacman)
-            # pacman -Sy without the upgrade leaves a partially updated system behind
-            status=failed; error="Refreshing the package lists is not supported with pacman"
+            # checkupdates (pacman-contrib) refreshes a copy of the sync databases (PACMAN_CHECK_DB) and
+            # leaves the live ones alone - pacman -Sy without the upgrade would leave a partially
+            # upgraded system. Exit 0: updates, 2: none, anything else: failed.
+            if ! command -v checkupdates &>/dev/null; then
+                status=failed
+                error="checkupdates is missing - install pacman-contrib on the node: sudo pacman -S pacman-contrib"
+            else
+                out=$(run_package_command "$limit" env CHECKUPDATES_DB="$PACMAN_CHECK_DB" checkupdates 2>&1) || rc=$?
+                if (( rc != 0 && rc != 2 )); then status=failed; error=$(grep -v -- ' -> ' <<< "$out" | tail -n 3); fi
+            fi
             ;;
         *)
-            status=failed; error="No supported package manager (apt, dnf, yum)"
+            status=failed; error="No supported package manager (apt, dnf, yum, pacman)"
             ;;
     esac
     (( rc == 124 )) && error="Timed out after ${limit} s"
@@ -1582,6 +1616,7 @@ pending_update_names() {
     case "$1" in
         apt) LANG=C apt list --upgradable 2>/dev/null | awk -F/ 'NF > 1 && $1 !~ /^Listing/ { print $1 }' ;;
         dnf|yum) dnf_updates "$1" | jq -r '.[].name' 2>/dev/null ;;
+        pacman) pacman_updates | jq -r '.[].name' 2>/dev/null ;;
     esac
 }
 
@@ -1692,6 +1727,14 @@ run_patch_install() {
         dnf|yum)
             out=$(run_package_command "$limit" "$pm" -y upgrade "${packages[@]}" 2>&1) || rc=$?
             ;;
+        pacman)
+            # Arch supports no partial upgrades: always the whole system (pacman -Syu)
+            if (( ${#packages[@]} )); then
+                echo "pacman installs all updates at once (pacman -Syu): Arch does not support upgrading single packages"
+                return 1
+            fi
+            out=$(run_package_command "$limit" pacman -Syu --noconfirm 2>&1) || rc=$?
+            ;;
         *)
             echo "Installing updates is not supported with $pm"; return 1
             ;;
@@ -1702,7 +1745,10 @@ run_patch_install() {
     if [[ -e "$flag" ]]; then
         reboot_needed=true
         echo "Reboot required: yes$( [[ -r "$flag.pkgs" ]] && printf ' (%s)' "$(sort -u "$flag.pkgs" | paste -sd, -)")"
-    elif [[ "$pm" != "apt" && "$(dnf_reboot_required)" == "true" ]]; then
+    elif [[ "$pm" == "pacman" && "$(pacman_reboot_required)" == "true" ]]; then
+        reboot_needed=true
+        echo "Reboot required: yes (the kernel was updated)"
+    elif [[ "$pm" == "dnf" || "$pm" == "yum" ]] && [[ "$(dnf_reboot_required)" == "true" ]]; then
         reboot_needed=true
         echo "Reboot required: yes"
     else
