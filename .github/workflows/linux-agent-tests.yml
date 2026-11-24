@@ -59,3 +59,5 @@ jobs:
         run: |
           sudo apt-get install -y -q logrotate >/dev/null || true
           bash tests/linux-agent/logrotate.test.sh
+      - name: Test the logs per component (line format, levels, size check, old log file)
+        run: bash tests/linux-agent/logging.test.sh

@@ -105,7 +105,7 @@ NODE_ID=hostname
 PUSH_INTERVAL=3600
 JOB_POLL_INTERVAL=60
 LIVE_DATA_INTERVAL=5
-LOG_FILE=/var/log/octofleet-agent.log
+LOG_LEVEL=info   # logs: /var/log/octofleet-agent/<component>.log
 ```
 
 ## Troubleshooting

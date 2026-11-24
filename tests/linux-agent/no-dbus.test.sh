@@ -18,7 +18,7 @@ for fn in systemd_mode sd_run sd_run_wait run_package_command schedule_system_re
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 info() { :; }; warn() { echo "WARN $*" >&2; }
-LOG_FILE=/var/log/octofleet-agent.log LOG_ROTATE_COUNT=8 LOG_ROTATE_MAXSIZE=10M
+LOG_DIR=/var/log/octofleet-agent LOG_ROTATE_COUNT=4 LOG_ROTATE_MAXSIZE=2M
 
 failures=0
 check() {  # check DESCRIPTION CONDITION...

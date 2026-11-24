@@ -98,6 +98,22 @@ check "restart-agent without the systemd service: systemd-run not called" \
 run_job something-else '{}'
 check "unknown type: still failed" [ "$(field .stdout)" = "Unknown command type" ]
 
+# --- the log lines (#330): start and end in Jobs.log, what an update job did in Updates.log ---
+info() { echo "INFO $*" >> "$WORK/log"; }; warn() { echo "WARN $*" >> "$WORK/log"; }
+rm -f "$WORK/log"
+run_job run '{"command": ["echo", "hello"]}'
+check "Jobs: start with name and type" grep -qx "INFO Jobs Job i-1 started: test (type run)" "$WORK/log"
+check "Jobs: success with duration" grep -Eqx "INFO Jobs Job i-1 \(run\) succeeded after [0-9]+ s" "$WORK/log"
+rm -f "$WORK/log"
+run_job run '{"command": ["sh", "-c", "echo first; echo disk full; exit 3"]}'
+check "Jobs: failure with exit code and the last output line" grep -Eqx "WARN Jobs Job i-1 \(run\) failed: exit code 3 after [0-9]+ s: disk full" "$WORK/log"
+check "Jobs: no Updates line for other jobs" bash -c '! grep -q "Updates" "$WORK/log"'
+run_patch_install() { printf '%s\n' "Setting up nginx (1.24.0-3) ..." "Reboot required: no" "Update search afterwards: succeeded" "Installed updates: 1 of 1 (nginx)"; }
+rm -f "$WORK/log"
+run_job patch_install '{"packages": ["nginx"]}'
+check "Updates: the summary lines of the job" bash -c 'diff <(grep "^INFO Updates" "$WORK/log") <(printf "%s\n" "INFO Updates job=i-1 patch_install: Reboot required: no" "INFO Updates job=i-1 patch_install: Update search afterwards: succeeded" "INFO Updates job=i-1 patch_install: Installed updates: 1 of 1 (nginx)")'
+check "Updates: not the package manager's output" bash -c '! grep -q "Setting up" "$WORK/log"'
+
 rm -rf "$WORK"
 echo
 if [ "$failures" -eq 0 ]; then echo "All job type tests passed"; else echo "$failures job type test(s) failed"; fi

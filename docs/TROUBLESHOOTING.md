@@ -276,11 +276,18 @@ Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Service Control 
 ### Linux
 
 ```bash
-# Agent log
-sudo tail -n 100 /var/log/octofleet-agent.log
+# Agent logs, one per component (Agent.log also has the warnings and errors of all components)
+sudo tail -n 100 /var/log/octofleet-agent/Agent.log
+sudo tail -n 100 /var/log/octofleet-agent/Updates.log    # update searches, installations, reboots
+sudo tail -f /var/log/octofleet-agent/*.log              # all components, live
+sudo grep -h -E ' (WARN|ERROR) ' /var/log/octofleet-agent/*.log | sort | tail -n 50
 
 # The same lines in the journal, also from before a restart
 sudo journalctl -u octofleet-agent -n 100 --no-pager
+
+# More detail for one component: in /opt/octofleet-agent/config.env set e.g.
+#   LOG_LEVEL_UPDATES=debug
+# then: sudo systemctl restart octofleet-agent  (set it back to info afterwards)
 
 # Package manager logs (update searches and installations)
 sudo tail -n 50 /var/log/apt/history.log /var/log/apt/term.log   # Debian, Ubuntu

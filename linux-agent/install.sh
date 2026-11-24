@@ -167,7 +167,8 @@ fi
 )
 chmod 600 "$INSTALL_DIR/config.env"
 
-# Rotate the agent's log (/etc/logrotate.d/octofleet-agent); the service checks it again at every start
+# Rotate the agent's logs in /var/log/octofleet-agent (/etc/logrotate.d/octofleet-agent); the service
+# checks it again at every start
 "$INSTALL_DIR/agent.sh" logrotate || true
 
 echo "⚙️  Installing systemd service..."
@@ -187,7 +188,7 @@ echo ""
 echo "Commands:"
 echo "  sudo systemctl status $SERVICE_NAME"
 echo "  sudo journalctl -u $SERVICE_NAME -f"
-echo "  sudo tail -f /var/log/octofleet-agent.log"
+echo "  sudo tail -f /var/log/octofleet-agent/Agent.log      (one log per component: /var/log/octofleet-agent/*.log)"
 }
 
 main "$@"

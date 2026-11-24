@@ -35,7 +35,8 @@ fi
 # Load the agent's settings and functions, without the command dispatch at the end (it would start it)
 eval "$(sed '/^# Main$/,$d' "$AGENT")"
 declare -F collect_performance push_inventory >/dev/null || { echo "functions not found in $AGENT"; exit 2; }
-LOG_FILE="$WORK/agent.log" DIAG_DIR="$WORK/diag" API_URL="http://server.invalid" API_KEY="test"
+LOG_DIR="$WORK/logs" DIAG_DIR="$WORK/diag" API_URL="http://server.invalid" API_KEY="test" LOGROTATE_FILE=""
+mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/Inventory.log"  # the inventory push logs there
 
 # /proc with values above 2^31 and 2^32: 4 GiB RAM, 8 GiB swap, CPU jiffies and disk sectors
 PROC_DIR="$WORK/proc"; mkdir -p "$PROC_DIR"
@@ -121,56 +122,56 @@ collect_performance() { echo '{"swap": {"usedBytes": 1}}'; }
 pos=$(collect_full_inventory 2>/dev/null | grep -bo '"services"' | head -1 | cut -d: -f1)
 echo 422 > "$WORK/code"
 printf '{"detail":[{"type":"json_invalid","loc":["body",%s],"msg":"JSON decode error","input":{},"ctx":{"error":"Expecting value"}}]}' "$pos" > "$WORK/answer"
-: > "$LOG_FILE"
+: > "$LOG"
 push_inventory >/dev/null 2>&1; rc=$?
 check "a rejected push returns 1" [ "$rc" = 1 ]
-line=$(grep ERROR "$LOG_FILE")
-check "one ERROR line" [ "$(grep -c ERROR "$LOG_FILE")" = 1 ]
+line=$(grep ERROR "$LOG")
+check "one ERROR line" [ "$(grep -c ERROR "$LOG")" = 1 ]
 check "readable: invalid JSON at character N" grep -q "Inventory push failed: the server could not read it, invalid JSON at character $pos (after \"" <<< "$line"
 check "readable: shows the text before the position" grep -qF '{"swap": {"usedBytes": 1}}, ")' <<< "$line"
 check "readable: names the saved file" grep -q "inventory is saved in $WORK/diag/last-failed-push.json" <<< "$line"
-check "no raw server JSON at info level" [ -z "$(grep -F 'json_invalid' "$LOG_FILE")" ]
+check "no raw server JSON at info level" [ -z "$(grep -F 'json_invalid' "$LOG")" ]
 check "the sent inventory is saved" jq -e '.nodeId == "test-node"' "$WORK/diag/last-failed-push.json" >/dev/null
 check "the saved inventory is root-only (600)" [ "$(stat -c %a "$WORK/diag/last-failed-push.json")" = "600" ]
 
 push_inventory >/dev/null 2>&1; push_inventory >/dev/null 2>&1
-check "the same failure again is not logged again within PUSH_FAIL_LOG_INTERVAL" [ "$(grep -c ERROR "$LOG_FILE")" = 1 ]
+check "the same failure again is not logged again within PUSH_FAIL_LOG_INTERVAL" [ "$(grep -c ERROR "$LOG")" = 1 ]
 PUSH_FAIL_LOG_INTERVAL=0
 push_inventory >/dev/null 2>&1
-check "after the interval: still failing, with count and start time" grep -q "Inventory push still failing (4 times since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')): the server could not read it" "$LOG_FILE"
+check "after the interval: still failing, with count and start time" grep -q "Inventory push still failing (4 times since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')): the server could not read it" "$LOG"
 PUSH_FAIL_LOG_INTERVAL=3600
 
-: > "$LOG_FILE"; LOG_LEVEL=debug
+: > "$LOG"; LOG_LEVEL=debug
 push_inventory >/dev/null 2>&1
-check "LOG_LEVEL=debug logs the raw server answer" grep -q 'DEBUG.*server answer: {"detail":\[{"type":"json_invalid"' "$LOG_FILE"
+check "LOG_LEVEL=debug logs the raw server answer" grep -q 'DEBUG.*server answer: {"detail":\[{"type":"json_invalid"' "$LOG"
 LOG_LEVEL=info
 
-echo 000 > "$WORK/code"; : > "$LOG_FILE"; rm -f "$WORK/diag/last-failed-push.json"
+echo 000 > "$WORK/code"; : > "$LOG"; rm -f "$WORK/diag/last-failed-push.json"
 push_inventory >/dev/null 2>&1
-check "a new reason is logged right away" grep -q 'Inventory push failed: server not reachable (Failed to connect to server.invalid port 8080: Connection refused)\.' "$LOG_FILE"
+check "a new reason is logged right away" grep -q 'Inventory push failed: server not reachable (Failed to connect to server.invalid port 8080: Connection refused)\.' "$LOG"
 check "not reachable: nothing saved" [ ! -e "$WORK/diag/last-failed-push.json" ]
 
-echo 403 > "$WORK/code"; echo '{"detail":"Invalid API key"}' > "$WORK/answer"; : > "$LOG_FILE"
+echo 403 > "$WORK/code"; echo '{"detail":"Invalid API key"}' > "$WORK/answer"; : > "$LOG"
 push_inventory >/dev/null 2>&1
-check "HTTP 403: the agent key" grep -q 'Inventory push failed: the server refused the agent key (HTTP 403)' "$LOG_FILE"
-echo 422 > "$WORK/code"; echo '{"detail":[{"type":"missing","loc":["body","nodeId"],"msg":"Field required"}]}' > "$WORK/answer"; : > "$LOG_FILE"
+check "HTTP 403: the agent key" grep -q 'Inventory push failed: the server refused the agent key (HTTP 403)' "$LOG"
+echo 422 > "$WORK/code"; echo '{"detail":[{"type":"missing","loc":["body","nodeId"],"msg":"Field required"}]}' > "$WORK/answer"; : > "$LOG"
 push_inventory >/dev/null 2>&1
-check "other 422: message and field" grep -q 'rejected by the server (HTTP 422): Field required (field body.nodeId)' "$LOG_FILE"
+check "other 422: message and field" grep -q 'rejected by the server (HTTP 422): Field required (field body.nodeId)' "$LOG"
 
-echo 200 > "$WORK/code"; echo '{"status":"ok"}' > "$WORK/answer"; : > "$LOG_FILE"
+echo 200 > "$WORK/code"; echo '{"status":"ok"}' > "$WORK/answer"; : > "$LOG"
 push_inventory >/dev/null 2>&1; rc=$?
 check "success returns 0" [ "$rc" = 0 ]
-check "success after failures says so once" grep -q 'Inventory pushed successfully again, after 8 failed attempt(s) since' "$LOG_FILE"
+check "success after failures says so once" grep -q 'Inventory pushed successfully again, after 8 failed attempt(s) since' "$LOG"
 check "success removes the saved failed push" [ ! -e "$WORK/diag/last-failed-push.json" ]
-: > "$LOG_FILE"; push_inventory >/dev/null 2>&1
-check "the next success is a normal line" grep -q 'INFO\] Inventory pushed successfully$' "$LOG_FILE"
+: > "$LOG"; push_inventory >/dev/null 2>&1
+check "the next success is a normal line" grep -q 'INFO \[Inventory\] Inventory pushed successfully$' "$LOG"
 
 # an inventory that is not JSON at all is not sent
 collect_full_inventory() { echo '{"nodeId": '; }
-rm -f "$WORK/answer"; : > "$LOG_FILE"
+rm -f "$WORK/answer"; : > "$LOG"
 push_inventory >/dev/null 2>&1; rc=$?
 check "invalid inventory: not sent, returns 1" [ "$rc" = 1 ]
-check "invalid inventory: logged and saved" grep -q "the collected inventory is not valid JSON, so it was not sent. The inventory is saved in" "$LOG_FILE"
+check "invalid inventory: logged and saved" grep -q "the collected inventory is not valid JSON, so it was not sent. The inventory is saved in" "$LOG"
 
 echo
 if [ "$failures" -eq 0 ]; then echo "All inventory push tests passed"; else echo "$failures inventory push test(s) failed"; fi
