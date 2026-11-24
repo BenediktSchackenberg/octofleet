@@ -2360,5 +2360,92 @@
       "binary": "Programa",
       "noActor": "Desconocido: el agente detecta los cambios de servicios y del registro comparando estados e informa su propia cuenta, no quién hizo el cambio."
     }
+  },
+  "groupsPage": {
+    "title": "Grupos",
+    "summary": "{groups} grupos, {tags} etiquetas",
+    "create": "Crear grupo",
+    "createTitle": "Crear un grupo nuevo",
+    "namePlaceholder": "Servidores de producción",
+    "descriptionPlaceholder": "Todos los servidores de producción",
+    "color": "Color",
+    "dynamic": "Dinámico",
+    "noDescription": "Sin descripción",
+    "members": "{count} miembros",
+    "membersOne": "{count} miembro",
+    "tags": "Etiquetas",
+    "deleteConfirm": "¿Eliminar este grupo?"
+  },
+  "groupDetail": {
+    "saveFailed": "No se pudo guardar el grupo.",
+    "deleteFailed": "No se pudo eliminar el grupo.",
+    "evaluated": "Regla evaluada de nuevo: {added} añadidos, {removed} quitados",
+    "evaluateFailed": "No se pudo evaluar la regla.",
+    "away": "Ausente",
+    "dynamicGroup": "Grupo dinámico",
+    "evaluating": "Evaluando...",
+    "evaluate": "Volver a evaluar",
+    "members": "Miembros",
+    "createdAt": "Creado el",
+    "type": "Tipo",
+    "typeDynamic": "Dinámico (basado en reglas)",
+    "typeStatic": "Estático (manual)",
+    "ruleTitle": "Definición de la regla",
+    "ruleDescription": "Esta regla determina automáticamente los miembros del grupo",
+    "membersDynamic": "La regla determina automáticamente los miembros",
+    "membersStatic": "Dispositivos asignados manualmente",
+    "columns": {
+      "hostname": "Nombre de host",
+      "os": "Sistema operativo",
+      "lastSeen": "Visto por última vez",
+      "addedAt": "Añadido el"
+    },
+    "remove": "Quitar",
+    "noMembers": "Este grupo no tiene miembros",
+    "noMembersHint": "Haga clic en «Añadir dispositivos» para añadir nodos a este grupo.",
+    "editTitle": "Editar grupo",
+    "editDescription": "Cambie los datos del grupo.",
+    "color": "Color",
+    "saving": "Guardando...",
+    "deleteTitle": "¿Eliminar el grupo?",
+    "deleteText": "¿Seguro que desea eliminar el grupo «{name}»? No se puede deshacer. Los miembros no se eliminan, solo se quitan del grupo.",
+    "deleting": "Eliminando...",
+    "rule": {
+      "none": "No hay reglas definidas",
+      "fields": {
+        "os_name": "Sistema operativo",
+        "os_version": "Versión del SO",
+        "os_build": "Compilación del SO",
+        "hostname": "Nombre de host",
+        "agent_version": "Versión del agente",
+        "domain": "Dominio",
+        "is_domain_joined": "Miembro del dominio",
+        "tags": "Tiene la etiqueta"
+      },
+      "ops": {
+        "equals": "es igual a",
+        "not_equals": "no es igual a",
+        "contains": "contiene",
+        "not_contains": "no contiene",
+        "startswith": "empieza por",
+        "endswith": "termina en",
+        "regex": "coincide con la expresión regular",
+        "has_tag": "tiene la etiqueta"
+      }
+    }
+  },
+  "addDevices": {
+    "button": "Añadir dispositivos",
+    "title": "Añadir dispositivos al grupo",
+    "description": "Seleccione los dispositivos que desea asignar a este grupo.",
+    "none": "No se encontraron dispositivos disponibles",
+    "server": "Servidor",
+    "client": "Cliente",
+    "adding": "Añadiendo...",
+    "submit": "Añadir {count} dispositivos",
+    "submitOne": "Añadir {count} dispositivo",
+    "failed": "Error: {error}",
+    "unknownError": "Error desconocido",
+    "networkError": "Error de red: {error}"
   }
 }

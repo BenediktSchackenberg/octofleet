@@ -17,6 +17,7 @@ import { RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
 import { formatDateTime } from "@/lib/format";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
+import { useI18n } from "@/lib/i18n-context";
 
 interface GroupMember {
   id: string;
@@ -50,6 +51,7 @@ function getHeaders(): Record<string, string> {
 }
 
 export default function GroupDetailPage() {
+  const { t } = useI18n();
   const params = useParams();
   const router = useRouter();
   const groupId = params.id as string;
@@ -104,11 +106,11 @@ export default function GroupDetailPage() {
         await fetchGroup();
         setShowEditDialog(false);
       } else {
-        alert("Fehler beim Speichern");
+        alert(t("groupDetail.saveFailed"));
       }
     } catch (e) {
       console.error("Failed to update group:", e);
-      alert("Fehler beim Speichern");
+      alert(t("groupDetail.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -121,11 +123,11 @@ export default function GroupDetailPage() {
       if (res) {
         router.push("/groups");
       } else {
-        alert("Fehler beim Löschen");
+        alert(t("groupDetail.deleteFailed"));
       }
     } catch (e) {
       console.error("Failed to delete group:", e);
-      alert("Fehler beim Löschen");
+      alert(t("groupDetail.deleteFailed"));
     } finally {
       setSaving(false);
     }
@@ -148,13 +150,13 @@ export default function GroupDetailPage() {
       const data = await apiClient.post<{ added: number; removed: number }>(`/groups/${groupId}/evaluate`, {}, { showErrorToast: false });
       if (data) {
         await fetchGroup();
-        alert(`Regel neu evaluiert: ${data.added} hinzugefügt, ${data.removed} entfernt`);
+        alert(t("groupDetail.evaluated", { added: data.added, removed: data.removed }));
       } else {
-        alert("Fehler bei der Evaluierung");
+        alert(t("groupDetail.evaluateFailed"));
       }
     } catch (e) {
       console.error("Failed to evaluate group:", e);
-      alert("Fehler bei der Evaluierung");
+      alert(t("groupDetail.evaluateFailed"));
     } finally {
       setEvaluating(false);
     }
@@ -166,11 +168,11 @@ export default function GroupDetailPage() {
     const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / 1000 / 60;
 
     if (diffMinutes < 5) {
-      return <Badge className="bg-green-600">Online</Badge>;
+      return <Badge className="bg-green-600">{t("common.online")}</Badge>;
     } else if (diffMinutes < 60) {
-      return <Badge className="bg-yellow-600">Away</Badge>;
+      return <Badge className="bg-yellow-600">{t("groupDetail.away")}</Badge>;
     } else {
-      return <Badge variant="secondary">Offline</Badge>;
+      return <Badge variant="secondary">{t("common.offline")}</Badge>;
     }
   }
 
@@ -217,7 +219,7 @@ export default function GroupDetailPage() {
               )}
               <h1 className="text-4xl font-bold">{group.name}</h1>
               {group.is_dynamic && (
-                <Badge variant="secondary">Dynamische Gruppe</Badge>
+                <Badge variant="secondary">{t("groupDetail.dynamicGroup")}</Badge>
               )}
             </div>
             {group.description && (
@@ -233,14 +235,14 @@ export default function GroupDetailPage() {
                 className="gap-1"
               >
                 <RefreshCw className={`h-4 w-4 ${evaluating ? 'animate-spin' : ''}`} />
-                {evaluating ? "Evaluiere..." : "Neu evaluieren"}
+                {evaluating ? t("groupDetail.evaluating") : t("groupDetail.evaluate")}
               </Button>
             )}
             <Button variant="outline" onClick={() => setShowEditDialog(true)}>
-              Bearbeiten
+              {t("common.edit")}
             </Button>
             <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-              Löschen
+              {t("common.delete")}
             </Button>
           </div>
         </div>
@@ -249,21 +251,21 @@ export default function GroupDetailPage() {
         <div className="grid gap-4 md:grid-cols-3 mb-8">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Mitglieder</CardDescription>
+              <CardDescription>{t("groupDetail.members")}</CardDescription>
               <CardTitle className="text-4xl">{group.members.length}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Erstellt am</CardDescription>
+              <CardDescription>{t("groupDetail.createdAt")}</CardDescription>
               <CardTitle className="text-lg">{formatDate(group.created_at)}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Typ</CardDescription>
+              <CardDescription>{t("groupDetail.type")}</CardDescription>
               <CardTitle className="text-lg">
-                {group.is_dynamic ? "Dynamisch (Regel-basiert)" : "Statisch (Manuell)"}
+                {group.is_dynamic ? t("groupDetail.typeDynamic") : t("groupDetail.typeStatic")}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -275,10 +277,10 @@ export default function GroupDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-purple-500" />
-                Regel-Definition
+                {t("groupDetail.ruleTitle")}
               </CardTitle>
               <CardDescription>
-                Diese Regel bestimmt die Gruppenmitgliedschaft automatisch
+                {t("groupDetail.ruleDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -292,11 +294,11 @@ export default function GroupDetailPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Mitglieder</CardTitle>
+                <CardTitle>{t("groupDetail.members")}</CardTitle>
                 <CardDescription>
                   {group.is_dynamic
-                    ? "Mitglieder werden automatisch durch die Regel bestimmt"
-                    : "Manuell zugewiesene Geräte"}
+                    ? t("groupDetail.membersDynamic")
+                    : t("groupDetail.membersStatic")}
                 </CardDescription>
               </div>
               {!group.is_dynamic && (
@@ -313,11 +315,11 @@ export default function GroupDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Hostname</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Betriebssystem</TableHead>
-                    <TableHead>Zuletzt gesehen</TableHead>
-                    <TableHead>Hinzugefügt am</TableHead>
+                    <TableHead>{t("groupDetail.columns.hostname")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                    <TableHead>{t("groupDetail.columns.os")}</TableHead>
+                    <TableHead>{t("groupDetail.columns.lastSeen")}</TableHead>
+                    <TableHead>{t("groupDetail.columns.addedAt")}</TableHead>
                     {!group.is_dynamic && <TableHead></TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -343,7 +345,7 @@ export default function GroupDetailPage() {
                             size="sm"
                             onClick={() => handleRemoveMember(member.id)}
                           >
-                            Entfernen
+                            {t("groupDetail.remove")}
                           </Button>
                         </TableCell>
                       )}
@@ -353,10 +355,10 @@ export default function GroupDetailPage() {
               </Table>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                <p>Keine Mitglieder in dieser Gruppe</p>
+                <p>{t("groupDetail.noMembers")}</p>
                 {!group.is_dynamic && (
                   <p className="text-sm mt-2">
-                    Klicken Sie auf "Geräte hinzufügen" um Nodes zu dieser Gruppe hinzuzufügen.
+                    {t("groupDetail.noMembersHint")}
                   </p>
                 )}
               </div>
@@ -369,12 +371,12 @@ export default function GroupDetailPage() {
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Gruppe bearbeiten</DialogTitle>
-            <DialogDescription>Ändern Sie die Details der Gruppe.</DialogDescription>
+            <DialogTitle>{t("groupDetail.editTitle")}</DialogTitle>
+            <DialogDescription>{t("groupDetail.editDescription")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t("common.name")}</Label>
               <Input
                 id="name"
                 value={editName}
@@ -382,7 +384,7 @@ export default function GroupDetailPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="description">Beschreibung</Label>
+              <Label htmlFor="description">{t("common.description")}</Label>
               <Textarea
                 id="description"
                 value={editDescription}
@@ -390,7 +392,7 @@ export default function GroupDetailPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="color">Farbe</Label>
+              <Label htmlFor="color">{t("groupDetail.color")}</Label>
               <div className="flex gap-2">
                 <Input
                   id="color"
@@ -410,10 +412,10 @@ export default function GroupDetailPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button onClick={handleSaveEdit} disabled={saving || !editName.trim()}>
-              {saving ? "Speichern..." : "Speichern"}
+              {saving ? t("groupDetail.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -423,19 +425,17 @@ export default function GroupDetailPage() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Gruppe löschen?</DialogTitle>
+            <DialogTitle>{t("groupDetail.deleteTitle")}</DialogTitle>
             <DialogDescription>
-              Möchten Sie die Gruppe "{group.name}" wirklich löschen? Diese Aktion kann
-              nicht rückgängig gemacht werden. Die Mitglieder werden nicht gelöscht,
-              sondern nur aus der Gruppe entfernt.
+              {t("groupDetail.deleteText", { name: group.name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={handleDelete} disabled={saving}>
-              {saving ? "Löschen..." : "Löschen"}
+              {saving ? t("groupDetail.deleting") : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -446,37 +446,38 @@ export default function GroupDetailPage() {
 
 // Helper component to display dynamic rules in a human-readable format
 function RuleDisplay({ rule }: { rule: Record<string, unknown> }) {
+  const { t } = useI18n();
   const FIELD_LABELS: Record<string, string> = {
-    os_name: "Betriebssystem",
-    os_version: "OS Version",
-    os_build: "OS Build",
-    hostname: "Hostname",
-    agent_version: "Agent Version",
-    domain: "Domain",
-    is_domain_joined: "Domain-Mitglied",
-    tags: "🏷️ Hat Tag",
+    os_name: t("groupDetail.rule.fields.os_name"),
+    os_version: t("groupDetail.rule.fields.os_version"),
+    os_build: t("groupDetail.rule.fields.os_build"),
+    hostname: t("groupDetail.rule.fields.hostname"),
+    agent_version: t("groupDetail.rule.fields.agent_version"),
+    domain: t("groupDetail.rule.fields.domain"),
+    is_domain_joined: t("groupDetail.rule.fields.is_domain_joined"),
+    tags: `🏷️ ${t("groupDetail.rule.fields.tags")}`,
   };
 
   const OP_LABELS: Record<string, string> = {
-    equals: "ist gleich",
-    not_equals: "ist nicht gleich",
-    contains: "enthält",
-    not_contains: "enthält nicht",
-    startswith: "beginnt mit",
-    endswith: "endet mit",
+    equals: t("groupDetail.rule.ops.equals"),
+    not_equals: t("groupDetail.rule.ops.not_equals"),
+    contains: t("groupDetail.rule.ops.contains"),
+    not_contains: t("groupDetail.rule.ops.not_contains"),
+    startswith: t("groupDetail.rule.ops.startswith"),
+    endswith: t("groupDetail.rule.ops.endswith"),
     gte: "≥",
     lte: "≤",
     gt: ">",
     lt: "<",
-    regex: "entspricht Regex",
-    has_tag: "hat Tag",
+    regex: t("groupDetail.rule.ops.regex"),
+    has_tag: t("groupDetail.rule.ops.has_tag"),
   };
 
   const operator = (rule.operator as string) || "AND";
   const conditions = (rule.conditions as Array<{ field: string; op: string; value: string }>) || [];
 
   if (conditions.length === 0) {
-    return <p className="text-muted-foreground">Keine Regeln definiert</p>;
+    return <p className="text-muted-foreground">{t("groupDetail.rule.none")}</p>;
   }
 
   return (

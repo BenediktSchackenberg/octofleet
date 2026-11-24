@@ -2360,5 +2360,92 @@
       "binary": "Binary",
       "noActor": "Not known: the agent reads service and registry changes by comparing states and reports its own account, not who made the change."
     }
+  },
+  "groupsPage": {
+    "title": "Groups",
+    "summary": "{groups} groups, {tags} tags",
+    "create": "Create group",
+    "createTitle": "Create a new group",
+    "namePlaceholder": "Production servers",
+    "descriptionPlaceholder": "All production servers",
+    "color": "Color",
+    "dynamic": "Dynamic",
+    "noDescription": "No description",
+    "members": "{count} members",
+    "membersOne": "{count} member",
+    "tags": "Tags",
+    "deleteConfirm": "Delete this group?"
+  },
+  "groupDetail": {
+    "saveFailed": "The group could not be saved.",
+    "deleteFailed": "The group could not be deleted.",
+    "evaluated": "Rule re-evaluated: {added} added, {removed} removed",
+    "evaluateFailed": "The rule could not be evaluated.",
+    "away": "Away",
+    "dynamicGroup": "Dynamic group",
+    "evaluating": "Evaluating...",
+    "evaluate": "Re-evaluate",
+    "members": "Members",
+    "createdAt": "Created",
+    "type": "Type",
+    "typeDynamic": "Dynamic (rule-based)",
+    "typeStatic": "Static (manual)",
+    "ruleTitle": "Rule definition",
+    "ruleDescription": "This rule determines the group's members automatically",
+    "membersDynamic": "Members are determined automatically by the rule",
+    "membersStatic": "Manually assigned devices",
+    "columns": {
+      "hostname": "Hostname",
+      "os": "Operating system",
+      "lastSeen": "Last seen",
+      "addedAt": "Added"
+    },
+    "remove": "Remove",
+    "noMembers": "This group has no members",
+    "noMembersHint": "Click \"Add devices\" to add nodes to this group.",
+    "editTitle": "Edit group",
+    "editDescription": "Change the group's details.",
+    "color": "Color",
+    "saving": "Saving...",
+    "deleteTitle": "Delete group?",
+    "deleteText": "Do you really want to delete the group \"{name}\"? This cannot be undone. The members are not deleted, only removed from the group.",
+    "deleting": "Deleting...",
+    "rule": {
+      "none": "No rules defined",
+      "fields": {
+        "os_name": "Operating system",
+        "os_version": "OS version",
+        "os_build": "OS build",
+        "hostname": "Hostname",
+        "agent_version": "Agent version",
+        "domain": "Domain",
+        "is_domain_joined": "Domain member",
+        "tags": "Has tag"
+      },
+      "ops": {
+        "equals": "equals",
+        "not_equals": "does not equal",
+        "contains": "contains",
+        "not_contains": "does not contain",
+        "startswith": "starts with",
+        "endswith": "ends with",
+        "regex": "matches regex",
+        "has_tag": "has tag"
+      }
+    }
+  },
+  "addDevices": {
+    "button": "Add devices",
+    "title": "Add devices to the group",
+    "description": "Select the devices to assign to this group.",
+    "none": "No available devices found",
+    "server": "Server",
+    "client": "Client",
+    "adding": "Adding...",
+    "submit": "Add {count} devices",
+    "submitOne": "Add {count} device",
+    "failed": "Error: {error}",
+    "unknownError": "Unknown error",
+    "networkError": "Network error: {error}"
   }
 }

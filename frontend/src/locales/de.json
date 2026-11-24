@@ -2360,5 +2360,92 @@
       "binary": "Programm",
       "noActor": "Nicht bekannt: Der Agent erkennt Dienst- und Registry-Änderungen durch Vergleich der Zustände und meldet sein eigenes Konto, nicht wer die Änderung gemacht hat."
     }
+  },
+  "groupsPage": {
+    "title": "Gruppen",
+    "summary": "{groups} Gruppen, {tags} Tags",
+    "create": "Gruppe erstellen",
+    "createTitle": "Neue Gruppe erstellen",
+    "namePlaceholder": "Produktionsserver",
+    "descriptionPlaceholder": "Alle Produktionsserver",
+    "color": "Farbe",
+    "dynamic": "Dynamisch",
+    "noDescription": "Keine Beschreibung",
+    "members": "{count} Mitglieder",
+    "membersOne": "{count} Mitglied",
+    "tags": "Tags",
+    "deleteConfirm": "Diese Gruppe löschen?"
+  },
+  "groupDetail": {
+    "saveFailed": "Die Gruppe konnte nicht gespeichert werden.",
+    "deleteFailed": "Die Gruppe konnte nicht gelöscht werden.",
+    "evaluated": "Regel neu ausgewertet: {added} hinzugefügt, {removed} entfernt",
+    "evaluateFailed": "Die Regel konnte nicht ausgewertet werden.",
+    "away": "Abwesend",
+    "dynamicGroup": "Dynamische Gruppe",
+    "evaluating": "Wird ausgewertet...",
+    "evaluate": "Neu auswerten",
+    "members": "Mitglieder",
+    "createdAt": "Erstellt am",
+    "type": "Typ",
+    "typeDynamic": "Dynamisch (regelbasiert)",
+    "typeStatic": "Statisch (manuell)",
+    "ruleTitle": "Regeldefinition",
+    "ruleDescription": "Diese Regel bestimmt die Mitglieder der Gruppe automatisch",
+    "membersDynamic": "Die Mitglieder werden automatisch durch die Regel bestimmt",
+    "membersStatic": "Manuell zugewiesene Geräte",
+    "columns": {
+      "hostname": "Hostname",
+      "os": "Betriebssystem",
+      "lastSeen": "Zuletzt gesehen",
+      "addedAt": "Hinzugefügt am"
+    },
+    "remove": "Entfernen",
+    "noMembers": "Diese Gruppe hat keine Mitglieder",
+    "noMembersHint": "Mit „Geräte hinzufügen“ fügen Sie dieser Gruppe Nodes hinzu.",
+    "editTitle": "Gruppe bearbeiten",
+    "editDescription": "Ändern Sie die Details der Gruppe.",
+    "color": "Farbe",
+    "saving": "Wird gespeichert...",
+    "deleteTitle": "Gruppe löschen?",
+    "deleteText": "Möchten Sie die Gruppe „{name}“ wirklich löschen? Das lässt sich nicht rückgängig machen. Die Mitglieder werden nicht gelöscht, sondern nur aus der Gruppe entfernt.",
+    "deleting": "Wird gelöscht...",
+    "rule": {
+      "none": "Keine Regeln definiert",
+      "fields": {
+        "os_name": "Betriebssystem",
+        "os_version": "OS-Version",
+        "os_build": "OS-Build",
+        "hostname": "Hostname",
+        "agent_version": "Agent-Version",
+        "domain": "Domäne",
+        "is_domain_joined": "Domänenmitglied",
+        "tags": "Hat Tag"
+      },
+      "ops": {
+        "equals": "ist gleich",
+        "not_equals": "ist nicht gleich",
+        "contains": "enthält",
+        "not_contains": "enthält nicht",
+        "startswith": "beginnt mit",
+        "endswith": "endet mit",
+        "regex": "entspricht Regex",
+        "has_tag": "hat Tag"
+      }
+    }
+  },
+  "addDevices": {
+    "button": "Geräte hinzufügen",
+    "title": "Geräte zur Gruppe hinzufügen",
+    "description": "Wählen Sie die Geräte aus, die dieser Gruppe zugewiesen werden sollen.",
+    "none": "Keine verfügbaren Geräte gefunden",
+    "server": "Server",
+    "client": "Client",
+    "adding": "Wird hinzugefügt...",
+    "submit": "{count} Geräte hinzufügen",
+    "submitOne": "{count} Gerät hinzufügen",
+    "failed": "Fehler: {error}",
+    "unknownError": "Unbekannter Fehler",
+    "networkError": "Netzwerkfehler: {error}"
   }
 }
