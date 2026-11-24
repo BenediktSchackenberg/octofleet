@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from audit_query import fetch_audit_log
-from auth import CurrentUser, require_permission
+from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import get_db, log_audit, verify_api_key
 
 router = APIRouter(
@@ -45,6 +45,7 @@ ALL_PERMISSIONS = sorted({
     "users:read", "users:write",
     "roles:read", "roles:write",
     "reports:read", "reports:write",
+    "query:execute",
     "audit:read",
     "security:read", "security:write",
     "terminal:access",
@@ -63,8 +64,8 @@ async def list_all_permissions(auth=Depends(verify_api_key)):
 
 # ─── Single role ──────────────────────────────────────────────────────
 
-@router.get("/roles/{role_id}")
-async def get_role(role_id: str, db: asyncpg.Pool = Depends(get_db), auth=Depends(verify_api_key)):
+@router.get("/roles/{role_id}", dependencies=[Depends(require_user_permission("users:read"))])
+async def get_role(role_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a single role with user count."""
     async with db.acquire() as conn:
         role = await conn.fetchrow(
@@ -119,8 +120,8 @@ async def update_role(
         return {"status": "updated"}
 
 
-@router.get("/roles/{role_id}/users")
-async def list_role_users(role_id: str, db: asyncpg.Pool = Depends(get_db), auth=Depends(verify_api_key)):
+@router.get("/roles/{role_id}/users", dependencies=[Depends(require_user_permission("users:read"))])
+async def list_role_users(role_id: str, db: asyncpg.Pool = Depends(get_db)):
     """List users that have this role."""
     async with db.acquire() as conn:
         rows = await conn.fetch(
@@ -186,8 +187,8 @@ async def delete_scope(
         return {"status": "deleted"}
 
 
-@router.get("/users/{user_id}/scopes")
-async def list_user_scopes(user_id: str, db: asyncpg.Pool = Depends(get_db), auth=Depends(verify_api_key)):
+@router.get("/users/{user_id}/scopes", dependencies=[Depends(require_user_permission("users:read"))])
+async def list_user_scopes(user_id: str, db: asyncpg.Pool = Depends(get_db)):
     """List all scoped role assignments for a user."""
     async with db.acquire() as conn:
         rows = await conn.fetch(

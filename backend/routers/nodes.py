@@ -433,7 +433,7 @@ class UninstallConfirmation(BaseModel):
     confirmationToken: str = Field(min_length=40, max_length=128)
 
 
-@pending_router.post("/nodes/{node_id}/uninstall/complete")
+@pending_router.post("/nodes/{node_id}/uninstall/complete", dependencies=[Depends(require_permission("inventory:write"))])
 async def confirm_node_uninstall(node_id: str, data: UninstallConfirmation,
                                  auth=Depends(verify_api_key),
                                  db: asyncpg.Pool = Depends(get_db)):

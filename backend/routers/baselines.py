@@ -372,8 +372,8 @@ async def list_config_baselines(db: asyncpg.Pool = Depends(get_db), _=Depends(ve
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/baselines")
-async def create_config_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.post("/api/v1/baselines", dependencies=[Depends(require_user_permission("settings:write"))])
+async def create_config_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     import json as _json
     rules = data.get("rules", [])
     async with db.acquire() as conn:
@@ -450,8 +450,8 @@ async def drift_summary(db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api
         }
 
 
-@router.post("/api/v1/baselines/drift/{drift_id}/acknowledge")
-async def acknowledge_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.post("/api/v1/baselines/drift/{drift_id}/acknowledge", dependencies=[Depends(require_user_permission("alerts:write"))])
+async def acknowledge_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow(
             "UPDATE config_drift_events SET status='acknowledged' WHERE id=$1::uuid RETURNING id", drift_id)
@@ -460,8 +460,8 @@ async def acknowledge_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db), _
         return {"status": "acknowledged"}
 
 
-@router.post("/api/v1/baselines/drift/{drift_id}/waive")
-async def waive_drift(drift_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.post("/api/v1/baselines/drift/{drift_id}/waive", dependencies=[Depends(require_user_permission("alerts:write"))])
+async def waive_drift(drift_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow(
             "UPDATE config_drift_events SET status='waived', waive_reason=$2 WHERE id=$1::uuid RETURNING id",
@@ -521,7 +521,7 @@ async def list_baseline_templates():
     ]
 
 
-@router.post("/api/v1/baselines/templates/{template_id}/import", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/baselines/templates/{template_id}/import", dependencies=[Depends(require_user_permission("settings:write"))])
 async def import_baseline_template(template_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Import a CIS benchmark template as a new baseline with all its rules."""
     template = CIS_TEMPLATES.get(template_id)
@@ -545,7 +545,7 @@ async def import_baseline_template(template_id: str, db: asyncpg.Pool = Depends(
         return {"id": str(row["id"]), "name": row["name"], "status": "imported", "rules_created": len(template["rules"])}
 
 
-@router.post("/api/v1/baselines/drift/{drift_id}/remediate", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/baselines/drift/{drift_id}/remediate", dependencies=[Depends(require_user_permission("jobs:create"))])
 async def remediate_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Trigger auto-remediation for a specific drift event."""
     import json as _json
@@ -609,7 +609,7 @@ async def remediate_drift(drift_id: str, db: asyncpg.Pool = Depends(get_db)):
         return {"status": "remediating", "drift_id": drift_id, "job_id": job_id, "action": remediation}
 
 
-@router.post("/api/v1/baselines/{baseline_id}/remediate-all", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/baselines/{baseline_id}/remediate-all", dependencies=[Depends(require_user_permission("jobs:create"))])
 async def remediate_all_drifts(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Remediate all open drifts for a baseline."""
     async with db.acquire() as conn:
@@ -647,8 +647,8 @@ async def get_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_d
         return result
 
 
-@router.put("/api/v1/baselines/{baseline_id}")
-async def update_config_baseline(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.put("/api/v1/baselines/{baseline_id}", dependencies=[Depends(require_user_permission("settings:write"))])
+async def update_config_baseline(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     import json as _json
     async with db.acquire() as conn:
         async with conn.transaction():
@@ -673,8 +673,8 @@ async def update_config_baseline(baseline_id: str, data: Dict[str, Any], db: asy
             return {"status": "updated"}
 
 
-@router.delete("/api/v1/baselines/{baseline_id}")
-async def delete_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.delete("/api/v1/baselines/{baseline_id}", dependencies=[Depends(require_user_permission("settings:write"))])
+async def delete_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         deleted = await conn.fetchrow("DELETE FROM config_baselines WHERE id = $1::uuid RETURNING id", baseline_id)
         if not deleted:
@@ -689,8 +689,8 @@ async def list_baseline_rules(baseline_id: str, db: asyncpg.Pool = Depends(get_d
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/baselines/{baseline_id}/rules")
-async def add_baseline_rule(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.post("/api/v1/baselines/{baseline_id}/rules", dependencies=[Depends(require_user_permission("settings:write"))])
+async def add_baseline_rule(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     import json as _json
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
@@ -702,8 +702,8 @@ async def add_baseline_rule(baseline_id: str, data: Dict[str, Any], db: asyncpg.
         return dict(row)
 
 
-@router.put("/api/v1/baselines/rules/{rule_id}")
-async def update_baseline_rule(rule_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.put("/api/v1/baselines/rules/{rule_id}", dependencies=[Depends(require_user_permission("settings:write"))])
+async def update_baseline_rule(rule_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     import json as _json
     async with db.acquire() as conn:
         sets = []
@@ -726,8 +726,8 @@ async def update_baseline_rule(rule_id: str, data: Dict[str, Any], db: asyncpg.P
         return dict(row)
 
 
-@router.delete("/api/v1/baselines/rules/{rule_id}")
-async def delete_baseline_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.delete("/api/v1/baselines/rules/{rule_id}", dependencies=[Depends(require_user_permission("settings:write"))])
+async def delete_baseline_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         deleted = await conn.fetchrow("DELETE FROM config_baseline_rules WHERE id=$1::uuid RETURNING id", rule_id)
         if not deleted:
@@ -742,8 +742,8 @@ async def list_baseline_assignments(baseline_id: str, db: asyncpg.Pool = Depends
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/baselines/{baseline_id}/assign")
-async def assign_baseline(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.post("/api/v1/baselines/{baseline_id}/assign", dependencies=[Depends(require_user_permission("settings:write"))])
+async def assign_baseline(baseline_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO config_baseline_assignments (baseline_id, target_type, target_id)
@@ -752,8 +752,8 @@ async def assign_baseline(baseline_id: str, data: Dict[str, Any], db: asyncpg.Po
         return dict(row)
 
 
-@router.delete("/api/v1/baselines/{baseline_id}/assignments/{assignment_id}")
-async def remove_baseline_assignment(baseline_id: str, assignment_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.delete("/api/v1/baselines/{baseline_id}/assignments/{assignment_id}", dependencies=[Depends(require_user_permission("settings:write"))])
+async def remove_baseline_assignment(baseline_id: str, assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         deleted = await conn.fetchrow(
             "DELETE FROM config_baseline_assignments WHERE id=$1::uuid AND baseline_id=$2::uuid RETURNING id",
@@ -763,8 +763,8 @@ async def remove_baseline_assignment(baseline_id: str, assignment_id: str, db: a
         return {"status": "deleted"}
 
 
-@router.post("/api/v1/baselines/{baseline_id}/evaluate")
-async def evaluate_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
+@router.post("/api/v1/baselines/{baseline_id}/evaluate", dependencies=[Depends(require_user_permission("settings:write"))])
+async def evaluate_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Evaluate baseline against all assigned nodes using inventory data."""
     import json as _json
     async with db.acquire() as conn:

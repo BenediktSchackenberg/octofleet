@@ -59,7 +59,7 @@ async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
         return result
 
 
-@router.post("/groups")
+@router.post("/groups", dependencies=[Depends(require_user_permission("groups:write"))])
 async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new group"""
     name = data.get("name")
@@ -86,7 +86,7 @@ async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db))
             raise conflict("Group name already exists", "Group")
 
 
-@router.put("/groups/{group_id}")
+@router.put("/groups/{group_id}", dependencies=[Depends(require_user_permission("groups:write"))])
 async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update an existing group"""
     async with db.acquire() as conn:
@@ -119,7 +119,7 @@ async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = D
         return {"status": "updated", "group": dict(row)}
 
 
-@router.delete("/groups/{group_id}")
+@router.delete("/groups/{group_id}", dependencies=[Depends(require_user_permission("groups:write"))])
 async def delete_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a group"""
     async with db.acquire() as conn:
@@ -129,7 +129,7 @@ async def delete_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
         return {"status": "deleted", "groupId": group_id}
 
 
-@router.post("/groups/preview-rule")
+@router.post("/groups/preview-rule", dependencies=[Depends(require_user_permission("groups:write"))])
 async def preview_dynamic_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """
     Preview which nodes would match a dynamic rule without creating the group.
@@ -197,7 +197,7 @@ async def preview_dynamic_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(
         }
 
 
-@router.post("/groups/{group_id}/evaluate")
+@router.post("/groups/{group_id}/evaluate", dependencies=[Depends(require_user_permission("groups:write"))])
 async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
     """
     Re-evaluate a dynamic group and update memberships.
@@ -283,7 +283,7 @@ async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_d
         }
 
 
-@router.post("/groups/{group_id}/members")
+@router.post("/groups/{group_id}/members", dependencies=[Depends(require_user_permission("groups:write"))])
 async def add_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Add devices to a group"""
     node_ids = data.get("nodeIds", [])
@@ -313,7 +313,7 @@ async def add_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Poo
         return {"status": "ok", "groupId": group_id, "added": added}
 
 
-@router.delete("/groups/{group_id}/members")
+@router.delete("/groups/{group_id}/members", dependencies=[Depends(require_user_permission("groups:write"))])
 async def remove_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Remove devices from a group"""
     node_ids = data.get("nodeIds", [])
@@ -351,7 +351,7 @@ async def list_tags(db: asyncpg.Pool = Depends(get_db)):
         return {"tags": [dict(r) for r in rows]}
 
 
-@router.post("/tags")
+@router.post("/tags", dependencies=[Depends(require_user_permission("groups:write"))])
 async def create_tag(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new tag"""
     name = data.get("name")
@@ -369,7 +369,7 @@ async def create_tag(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
             raise HTTPException(status_code=409, detail="Tag name already exists")
 
 
-@router.delete("/tags/{tag_id}")
+@router.delete("/tags/{tag_id}", dependencies=[Depends(require_user_permission("groups:write"))])
 async def delete_tag(tag_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a tag"""
     async with db.acquire() as conn:
@@ -379,7 +379,7 @@ async def delete_tag(tag_id: str, db: asyncpg.Pool = Depends(get_db)):
         return {"status": "deleted", "tagId": tag_id}
 
 
-@router.post("/devices/{node_id}/tags")
+@router.post("/devices/{node_id}/tags", dependencies=[Depends(require_user_permission("groups:write"))])
 async def add_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Add tags to a device"""
     tag_ids = data.get("tagIds", [])
@@ -408,7 +408,7 @@ async def add_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Pool =
         return {"status": "ok", "nodeId": node_id, "added": added}
 
 
-@router.delete("/devices/{node_id}/tags")
+@router.delete("/devices/{node_id}/tags", dependencies=[Depends(require_user_permission("groups:write"))])
 async def remove_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Remove tags from a device"""
     tag_ids = data.get("tagIds", [])

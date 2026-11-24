@@ -164,7 +164,7 @@ async def get_monitoring_profile(profile_id: str):
         return _parse_json_fields(dict(row))
 
 
-@router.post("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/monitoring/profiles", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_monitoring_profile(req: Request):
     body = await req.json()
     async with get_pool().acquire() as conn:
@@ -179,7 +179,7 @@ async def create_monitoring_profile(req: Request):
         return _parse_json_fields(dict(row))
 
 
-@router.put("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_monitoring_profile(profile_id: str, req: Request):
     body = await req.json()
     async with get_pool().acquire() as conn:
@@ -204,7 +204,7 @@ async def update_monitoring_profile(profile_id: str, req: Request):
         return _parse_json_fields(dict(row))
 
 
-@router.delete("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_monitoring_profile(profile_id: str):
     async with get_pool().acquire() as conn:
         await conn.execute("DELETE FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
@@ -223,7 +223,7 @@ async def list_monitoring_assignments():
         return {"assignments": [dict(r) for r in rows]}
 
 
-@router.post("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/monitoring/assignments", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_monitoring_assignment(req: Request):
     body = await req.json()
     async with get_pool().acquire() as conn:
@@ -237,7 +237,7 @@ async def create_monitoring_assignment(req: Request):
         return dict(row)
 
 
-@router.put("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_monitoring_assignment(assignment_id: str, req: Request):
     body = await req.json()
     async with get_pool().acquire() as conn:
@@ -254,7 +254,7 @@ async def update_monitoring_assignment(assignment_id: str, req: Request):
         return dict(row)
 
 
-@router.delete("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/monitoring/assignments/{assignment_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_monitoring_assignment(assignment_id: str):
     async with get_pool().acquire() as conn:
         await conn.execute("DELETE FROM monitoring_assignments WHERE id = $1::uuid", assignment_id)
@@ -294,7 +294,7 @@ async def update_monitoring_defaults(req: Request, user=Depends(require_permissi
     return {"sensors": merged, "available": list(monitoring_defaults.SENSORS)}
 
 
-@router.post("/api/v1/ingest/events", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/ingest/events", dependencies=[Depends(require_permission("inventory:write"))])
 async def ingest_events(req: Request):
     body = await req.json()
     events = body.get("events", [body] if "event_type" in body else [])
@@ -489,7 +489,7 @@ async def get_finding(finding_id: str):
         return dict(row)
 
 
-@router.put("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/findings/{finding_id}", dependencies=[Depends(require_user_permission("alerts:write"))])
 async def update_finding(finding_id: str, req: Request):
     body = await req.json()
     async with get_pool().acquire() as conn:
@@ -558,7 +558,7 @@ async def list_evidence_exports():
         return {"exports": [dict(r) for r in rows]}
 
 
-@router.post("/api/v1/evidence/export", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/evidence/export", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def create_evidence_export(req: Request):
     body = await req.json()
     async with get_pool().acquire() as conn:
@@ -576,7 +576,7 @@ async def create_evidence_export(req: Request):
         return dict(row)
 
 
-@router.get("/api/v1/audit/ui-events", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/audit/ui-events", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def query_ui_audit_events(
     actor: str = None, action: str = None, since: str = None,
     limit: int = 100, offset: int = 0
@@ -604,7 +604,7 @@ async def query_ui_audit_events(
         return {"events": [dict(r) for r in rows]}
 
 
-@router.post("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(require_permission("inventory:write"))])
 async def report_agent_capabilities(node_id: str, req: Request):
     """Agent reports its capabilities, OS info, and available sensors."""
     body = await req.json()
@@ -681,7 +681,7 @@ async def report_agent_health(node_id: str, req: Request):
         return {"status": "ok"}
 
 
-@router.post("/api/v1/ingest/events/normalized", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/ingest/events/normalized", dependencies=[Depends(require_permission("inventory:write"))])
 async def ingest_normalized_events(req: Request):
     """Batch ingest with full normalized schema support.
     
@@ -791,7 +791,7 @@ async def get_agent_health_history(node_id: str, limit: int = 50):
         return {"history": [{"ts": str(r["ts"]), **json.loads(r["payload"])} if isinstance(r["payload"], str) else {"ts": str(r["ts"]), **r["payload"]} for r in rows]}
 
 
-@router.post("/api/v1/posture/snapshots", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/posture/snapshots", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_posture_snapshot(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Agent submits a config posture snapshot"""
     node_id = data.get("nodeId") or data.get("node_id")

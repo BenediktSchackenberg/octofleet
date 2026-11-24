@@ -9,6 +9,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from auth import require_permission, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(prefix="/api/v1/metering", dependencies=[Depends(verify_api_key)])
@@ -141,7 +142,7 @@ async def list_catalog(db: asyncpg.Pool = Depends(get_db)):
         return {"catalog": result, "count": len(result)}
 
 
-@router.post("/catalog")
+@router.post("/catalog", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_catalog_entry(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         try:
@@ -155,7 +156,7 @@ async def create_catalog_entry(data: Dict[str, Any], db: asyncpg.Pool = Depends(
         return {"id": str(row["id"]), "status": "created"}
 
 
-@router.put("/catalog/{catalog_id}")
+@router.put("/catalog/{catalog_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def update_catalog_entry(catalog_id: UUID, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
@@ -174,7 +175,7 @@ async def update_catalog_entry(catalog_id: UUID, data: Dict[str, Any], db: async
         return {"status": "updated"}
 
 
-@router.delete("/catalog/{catalog_id}")
+@router.delete("/catalog/{catalog_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_catalog_entry(catalog_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("DELETE FROM software_catalog WHERE id = $1 RETURNING canonical_name", catalog_id)
@@ -183,7 +184,7 @@ async def delete_catalog_entry(catalog_id: UUID, db: asyncpg.Pool = Depends(get_
         return {"status": "deleted", "name": row["canonical_name"]}
 
 
-@router.post("/catalog/auto-discover")
+@router.post("/catalog/auto-discover", dependencies=[Depends(require_user_permission("packages:write"))])
 async def auto_discover_catalog(
     min_installs: int = Query(2, description="Minimum install count to include"),
     limit: int = Query(100, description="Max entries to create"),
@@ -236,7 +237,7 @@ async def list_rules(db: asyncpg.Pool = Depends(get_db)):
         ]}
 
 
-@router.post("/rules")
+@router.post("/rules", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
@@ -247,7 +248,7 @@ async def create_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         return {"id": row["id"], "status": "created"}
 
 
-@router.delete("/rules/{rule_id}")
+@router.delete("/rules/{rule_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_rule(rule_id: int, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("DELETE FROM software_normalization_rules WHERE id = $1 RETURNING id", rule_id)
@@ -256,7 +257,7 @@ async def delete_rule(rule_id: int, db: asyncpg.Pool = Depends(get_db)):
         return {"status": "deleted"}
 
 
-@router.post("/rules/test")
+@router.post("/rules/test", dependencies=[Depends(require_user_permission("packages:write"))])
 async def test_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Test a pattern against software_current and return matches."""
     pattern = data["pattern"]
@@ -309,7 +310,7 @@ async def list_licenses(db: asyncpg.Pool = Depends(get_db)):
         return {"licenses": result, "count": len(result)}
 
 
-@router.post("/licenses")
+@router.post("/licenses", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_license(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
@@ -323,7 +324,7 @@ async def create_license(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
         return {"id": str(row["id"]), "status": "created"}
 
 
-@router.put("/licenses/{license_id}")
+@router.put("/licenses/{license_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def update_license(license_id: UUID, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
@@ -346,7 +347,7 @@ async def update_license(license_id: UUID, data: Dict[str, Any], db: asyncpg.Poo
         return {"status": "updated"}
 
 
-@router.delete("/licenses/{license_id}")
+@router.delete("/licenses/{license_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_license(license_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("DELETE FROM software_licenses WHERE id = $1 RETURNING id", license_id)
@@ -579,7 +580,7 @@ async def list_usage(
         ]}
 
 
-@router.post("/usage/submit")
+@router.post("/usage/submit", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_usage(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Agent submits usage data: {nodeId, entries: [{softwareName, lastUsed, usageCount}]}"""
     node_id = UUID(data["nodeId"])
