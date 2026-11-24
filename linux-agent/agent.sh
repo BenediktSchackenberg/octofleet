@@ -41,6 +41,16 @@ LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
 POLL_IDLE_INTERVAL="${POLL_IDLE_INTERVAL:-5}"
 SESSION_ACTIVE_GRACE="${SESSION_ACTIVE_GRACE:-60}"
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
+# LOG_LEVEL=debug also logs the server's raw answer to a rejected inventory push
+LOG_LEVEL="${LOG_LEVEL:-info}"
+# Root-only folder for diagnosis files: the last inventory the server rejected (last-failed-push.json)
+# and the output of a collector that produced invalid JSON (invalid-section-<name>.txt). Inside the
+# install folder: the service may only write there and to /var/log (ProtectSystem=strict).
+DIAG_DIR="${DIAG_DIR:-${SCRIPT_DIR}/diagnostics}"
+# A push that keeps failing for the same reason is logged again at most every PUSH_FAIL_LOG_INTERVAL s
+PUSH_FAIL_LOG_INTERVAL="${PUSH_FAIL_LOG_INTERVAL:-3600}"
+# Where the collectors read meminfo, stat and diskstats (tests point it at fixed files)
+PROC_DIR="${PROC_DIR:-/proc}"
 # pacman: the copy of the sync databases that the update search refreshes with checkupdates
 # (pacman-contrib). The live databases stay as they are: pacman -Sy without -u would leave a partially
 # upgraded system. The inventory reads the pending updates from this copy.
@@ -98,6 +108,15 @@ log() {
 info() { log "INFO" "$@"; }
 warn() { log "WARN" "$@"; }
 error() { log "ERROR" "$@"; }
+debug() { [[ "$LOG_LEVEL" == "debug" ]] && log "DEBUG" "$@"; return 0; }
+
+# Numbers from awk: older mawk (e.g. 1.3.4 20200120 in Debian 12) prints results above 2^31 as
+# "4.29497e+09" and clamps printf "%d" to 2147483647, which breaks bash arithmetic and the JSON. Print them with "%.0f".
+# _meminfo_bytes FIELD: a /proc/meminfo value (kB) in bytes, 0 when missing
+_meminfo_bytes() {
+    awk -v k="$1:" '$1 == k { printf "%.0f", $2 * 1024; found = 1; exit } END { if (!found) printf "0" }' \
+        "$PROC_DIR/meminfo" 2>/dev/null || echo 0
+}
 
 # ============================================================================
 # Hardware Collection
@@ -546,8 +565,8 @@ collect_performance() {
     
     # CPU per core
     local cpu_cores="[]"
-    if [[ -f /proc/stat ]]; then
-        cpu_cores=$(grep '^cpu[0-9]' /proc/stat 2>/dev/null | awk '
+    if [[ -f "$PROC_DIR/stat" ]]; then
+        cpu_cores=$(grep '^cpu[0-9]' "$PROC_DIR/stat" 2>/dev/null | awk '
             BEGIN { first = 1 }
             {
                 core = substr($1, 4)
@@ -561,19 +580,19 @@ collect_performance() {
     fi
     
     # Memory detailed
-    local mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
-    local mem_free=$(grep MemFree /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
-    local mem_available=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
-    local mem_buffers=$(grep Buffers /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
-    local mem_cached=$(grep "^Cached:" /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
-    local swap_total=$(grep SwapTotal /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
-    local swap_free=$(grep SwapFree /proc/meminfo 2>/dev/null | awk '{print $2 * 1024}' || echo 0)
+    local mem_total=$(_meminfo_bytes MemTotal)
+    local mem_free=$(_meminfo_bytes MemFree)
+    local mem_available=$(_meminfo_bytes MemAvailable)
+    local mem_buffers=$(_meminfo_bytes Buffers)
+    local mem_cached=$(_meminfo_bytes Cached)
+    local swap_total=$(_meminfo_bytes SwapTotal)
+    local swap_free=$(_meminfo_bytes SwapFree)
     local swap_used=$((swap_total - swap_free))
     
     # Disk I/O (from /proc/diskstats)
     local disk_io="[]"
-    if [[ -f /proc/diskstats ]]; then
-        disk_io=$(cat /proc/diskstats 2>/dev/null | awk '
+    if [[ -f "$PROC_DIR/diskstats" ]]; then
+        disk_io=$(awk '
             BEGIN { first = 1 }
             $3 ~ /^(sd[a-z]|nvme[0-9]+n[0-9]+|vd[a-z])$/ {
                 name = $3
@@ -583,11 +602,11 @@ collect_performance() {
                 write_sectors = $10
                 read_bytes = read_sectors * 512
                 write_bytes = write_sectors * 512
-                printf "%s{\"device\": \"%s\", \"readsCompleted\": %d, \"writesCompleted\": %d, \"readBytes\": %d, \"writeBytes\": %d}", 
+                printf "%s{\"device\": \"%s\", \"readsCompleted\": %.0f, \"writesCompleted\": %.0f, \"readBytes\": %.0f, \"writeBytes\": %.0f}",
                     (first ? "" : ","), name, reads, writes, read_bytes, write_bytes
                 first = 0
             }
-        ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
+        ' "$PROC_DIR/diskstats" 2>/dev/null | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
     fi
     
     # Disk space per mount
@@ -932,15 +951,15 @@ EOF
 collect_live_metrics() {
     # CPU - average across all cores (1 second sample)
     local cpu_percent=0
-    if [[ -f /proc/stat ]]; then
-        local cpu1=$(head -1 /proc/stat)
+    if [[ -f "$PROC_DIR/stat" ]]; then
+        local cpu1=$(head -1 "$PROC_DIR/stat")
         sleep 0.5
-        local cpu2=$(head -1 /proc/stat)
+        local cpu2=$(head -1 "$PROC_DIR/stat")
         
         local idle1=$(echo "$cpu1" | awk '{print $5}')
-        local total1=$(echo "$cpu1" | awk '{sum=0; for(i=2;i<=NF;i++) sum+=$i; print sum}')
+        local total1=$(echo "$cpu1" | awk '{sum=0; for(i=2;i<=NF;i++) sum+=$i; printf "%.0f", sum}')
         local idle2=$(echo "$cpu2" | awk '{print $5}')
-        local total2=$(echo "$cpu2" | awk '{sum=0; for(i=2;i<=NF;i++) sum+=$i; print sum}')
+        local total2=$(echo "$cpu2" | awk '{sum=0; for(i=2;i<=NF;i++) sum+=$i; printf "%.0f", sum}')
         
         local idle_diff=$((idle2 - idle1))
         local total_diff=$((total2 - total1))
@@ -951,8 +970,8 @@ collect_live_metrics() {
     fi
     
     # Memory
-    local mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
-    local mem_available=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}')
+    local mem_total=$(awk '$1 == "MemTotal:" {print $2}' "$PROC_DIR/meminfo" 2>/dev/null)
+    local mem_available=$(awk '$1 == "MemAvailable:" {print $2}' "$PROC_DIR/meminfo" 2>/dev/null)
     local mem_percent=0
     if [[ -n "$mem_total" ]] && [[ "$mem_total" -gt 0 ]]; then
         mem_percent=$(awk -v a="$mem_available" -v t="$mem_total" 'BEGIN {printf "%.1f", 100 * (t - a) / t}')
@@ -1084,64 +1103,134 @@ EOF
 # Full Inventory
 # ============================================================================
 
-collect_full_inventory() {
-    local hardware=$(collect_hardware)
-    local software=$(collect_software)
-    local system=$(collect_system)
-    local network=$(collect_network)
-    local security=$(collect_security)
-    local performance=$(collect_performance)
-    local services=$(collect_services)
-    local updates=$(collect_updates)
-    local disk_health=$(collect_disk_health)
-    
-    cat << EOF
-{
-    "nodeId": "$NODE_ID",
-    "hostname": "$(hostname)",
-    "agentVersion": "$VERSION",
-    "collectedAt": "$(date -Iseconds)",
-    "hardware": $hardware,
-    "software": $software,
-    "system": $system,
-    "network": $network,
-    "security": $security,
-    "performance": $performance,
-    "services": $services,
-    "updates": $updates,
-    "diskHealth": $disk_health
+# Inventory sections in push order: JSON key and collector
+INVENTORY_SECTIONS=(hardware:collect_hardware software:collect_software system:collect_system
+    network:collect_network security:collect_security performance:collect_performance
+    services:collect_services updates:collect_updates diskHealth:collect_disk_health)
+
+# _save_diag NAME: stdin to a root-only file in DIAG_DIR (folder mode 700, file mode 600); prints its path
+_save_diag() {
+    local file="$DIAG_DIR/$1"
+    (umask 077; mkdir -p "$DIAG_DIR" && chmod 700 "$DIAG_DIR" && cat > "$file" && chmod 600 "$file") 2>/dev/null \
+        && echo "$file"
 }
-EOF
+
+# The full inventory as one JSON object. Every section is checked with jq first: a collector that
+# produced invalid JSON (e.g. an empty number) is left out with a warning and its output saved, so
+# the rest of the inventory still arrives - the server keeps a missing section's last value.
+# Warnings go to stderr, stdout is the JSON.
+collect_full_inventory() {
+    local entry key value file body="" left_out=0
+    for entry in "${INVENTORY_SECTIONS[@]}"; do
+        key=${entry%%:*}
+        value=$("${entry#*:}")
+        if jq -e 'type == "object"' >/dev/null 2>&1 <<< "$value"; then
+            body+=$',\n    "'"$key"'": '"$value"
+        else
+            left_out=1
+            file=$(_save_diag "invalid-section-$key.txt" <<< "$value")
+            warn "Inventory section \"$key\" left out: its collector produced invalid JSON${file:+ (saved to $file)}" >&2
+        fi
+    done
+    (( left_out )) || rm -f "$DIAG_DIR"/invalid-section-*.txt 2>/dev/null
+
+    printf '{\n    "nodeId": %s,\n    "hostname": %s,\n    "agentVersion": %s,\n    "collectedAt": %s%s\n}\n' \
+        "$(jq -n --arg v "$NODE_ID" '$v')" "$(jq -n --arg v "$(hostname)" '$v')" \
+        "$(jq -n --arg v "$VERSION" '$v')" "$(jq -n --arg v "$(date -Iseconds)" '$v')" "$body"
 }
 
 # ============================================================================
 # API Functions
 # ============================================================================
 
+# Failed inventory pushes in a row (see push_inventory): reason, count, first failure, last log line
+PUSH_FAIL_REASON="" PUSH_FAIL_COUNT=0 PUSH_FAIL_SINCE=0 PUSH_FAIL_LOGGED=0
+
+# push_failure_reason HTTP_CODE BODY PAYLOAD_FILE: one readable sentence for a failed push
+push_failure_reason() {
+    local code="$1" body="$2" payload="$3" detail pos context
+    case "$code" in
+        000) echo "server not reachable ($(head -c 200 <<< "$body" | tr '\n' ' ' | sed 's/^curl: ([0-9]*) //; s/ *$//'))"; return ;;
+        401|403) echo "the server refused the agent key (HTTP $code)"; return ;;
+        5??) echo "server error (HTTP $code)"; return ;;
+    esac
+    # FastAPI 422: {"detail": [{"type": "json_invalid", "loc": ["body", 150206], "msg": "..."}]}
+    detail=$(jq -r '(.detail | if type == "array" then .[0] else {msg: tostring} end) as $d
+                    | [$d.type // "", ($d.loc // [] | map(tostring) | join(".")), $d.msg // ""] | @tsv' \
+             <<< "$body" 2>/dev/null)
+    if [[ "$detail" == json_invalid$'\t'* ]]; then
+        pos=$(cut -f2 <<< "$detail"); pos=${pos##*.}
+        if [[ "$pos" =~ ^[0-9]+$ && -f "$payload" ]]; then
+            context=$(head -c "$pos" "$payload" | tail -c 40 | tr '\n\t' '  ' | tr -s ' ')
+            echo "the server could not read it, invalid JSON at character $pos (after \"$context\")"
+        else
+            echo "the server could not read it, invalid JSON (HTTP $code)"
+        fi
+    elif [[ -n "$(cut -f3 <<< "$detail")" ]]; then
+        local field=$(cut -f2 <<< "$detail")
+        echo "rejected by the server (HTTP $code): $(cut -f3 <<< "$detail" | head -c 200)${field:+ (field $field)}"
+    else
+        echo "rejected by the server (HTTP $code)"
+    fi
+}
+
+# log_push_failure REASON [SAVED_FILE]: logs a failed push once, then for the same reason at most every
+# PUSH_FAIL_LOG_INTERVAL seconds ("still failing, n times since ..."); a new reason is logged right away
+log_push_failure() {
+    local reason="$1" saved="${2:-}" now
+    now=$(date +%s)
+    (( PUSH_FAIL_COUNT == 0 )) && PUSH_FAIL_SINCE=$now
+    PUSH_FAIL_COUNT=$(( PUSH_FAIL_COUNT + 1 ))
+    if [[ "$reason" != "$PUSH_FAIL_REASON" ]]; then
+        PUSH_FAIL_REASON="$reason" PUSH_FAIL_LOGGED=$now
+        error "Inventory push failed: $reason.${saved:+ The inventory is saved in $saved.}"
+    elif (( now - PUSH_FAIL_LOGGED >= PUSH_FAIL_LOG_INTERVAL )); then
+        PUSH_FAIL_LOGGED=$now
+        error "Inventory push still failing ($PUSH_FAIL_COUNT times since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')): $reason."
+    fi
+}
+
 push_inventory() {
     info "Collecting inventory..."
-    local tmp_file=$(mktemp)
+    local tmp_file=$(mktemp) saved=""
     collect_full_inventory > "$tmp_file"
-    
+
+    # Never send a document the server cannot parse: that would lose the whole inventory
+    if ! jq -e 'type == "object"' "$tmp_file" >/dev/null 2>&1; then
+        saved=$(_save_diag last-failed-push.json < "$tmp_file")
+        rm -f "$tmp_file"
+        log_push_failure "the collected inventory is not valid JSON, so it was not sent" "$saved"
+        return 1
+    fi
+
     info "Pushing inventory to $API_URL..."
     local response=$(curl -sS -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
         -d @"$tmp_file" \
         "${API_URL}/api/v1/inventory/full" 2>&1)
-    
-    rm -f "$tmp_file"
-    
+
     local http_code=$(echo "$response" | tail -n1)
     local body=$(echo "$response" | sed '$d')
-    
+
     if [[ "$http_code" == "200" ]]; then
-        info "Inventory pushed successfully"
+        rm -f "$tmp_file" "$DIAG_DIR/last-failed-push.json" 2>/dev/null
+        if (( PUSH_FAIL_COUNT > 0 )); then
+            info "Inventory pushed successfully again, after $PUSH_FAIL_COUNT failed attempt(s) since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')"
+            PUSH_FAIL_REASON="" PUSH_FAIL_COUNT=0
+        else
+            info "Inventory pushed successfully"
+        fi
         return 0
-    else
-        error "Push failed: HTTP $http_code - $body"
-        return 1
     fi
+    [[ "$http_code" =~ ^[0-9]{3}$ ]] || http_code=000
+    local reason=$(push_failure_reason "$http_code" "$body" "$tmp_file")
+    # Rejected by the server: keep what was sent for diagnosis (not when the server was not reachable)
+    [[ "$http_code" != 000 ]] && saved=$(_save_diag last-failed-push.json < "$tmp_file")
+    rm -f "$tmp_file"
+    debug "Inventory push: HTTP $http_code, server answer: $(head -c 2000 <<< "$body")"
+    log_push_failure "$reason" "$saved"
+    return 1
 }
 
 poll_jobs() {

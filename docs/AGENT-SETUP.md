@@ -230,6 +230,9 @@ LOG_FILE="/var/log/octofleet-agent.log"
 | `PUSH_INTERVAL` | Full inventory push interval (seconds). The push after the start comes a random 0–60 s after it, the first scheduled one at a random 50–150 % of the interval, then every interval ±10 %, so nodes started together do not push together. Jobs and *Collect inventory* push immediately. Older installs have `1800` in `config.env`, which stays (also when `install.sh` runs again) | `3600` | No |
 | `PUSH_RETRY_INTERVAL` | First retry of a failed inventory push (seconds), e.g. while the server is still starting after a reboot; doubles with every further failure up to `PUSH_INTERVAL`, plus 0–50 % random jitter so a large fleet does not retry in lockstep | `60` | No |
 | `LOG_FILE` | Path to log file | `/var/log/octofleet-agent.log` | No |
+| `LOG_LEVEL` | `debug` also logs the server's raw answer to a rejected inventory push | `info` | No |
+| `DIAG_DIR` | Root-only folder for diagnosis files (see [Inventory push errors](#inventory-push-errors)) | `/opt/octofleet-agent/diagnostics` | No |
+| `PUSH_FAIL_LOG_INTERVAL` | A push that keeps failing for the same reason is logged again at most this often (seconds) | `3600` | No |
 | `LOG_ROTATE_COUNT` | Rotated log files kept (compressed) | `8` | No |
 | `LOG_ROTATE_MAXSIZE` | Rotate earlier than weekly when the log is larger (logrotate size, e.g. `10M`) | `10M` | No |
 | `LOGROTATE_FILE` | The agent's logrotate configuration; empty turns it off | `/etc/logrotate.d/octofleet-agent` | No |
@@ -246,6 +249,25 @@ The agent writes `LOG_FILE` and rotates it with logrotate: `install.sh` adds `/e
 - **logrotate not installed:** the agent logs a warning at every start and adds the file once logrotate is installed. The journal (`journalctl -u octofleet-agent`) is rotated by journald either way.
 - **Uninstalling** (`uninstall.sh` or the console) removes the log, the rotated files and the managed configuration; a configuration you took over stays.
 - **Manual setup:** run `sudo /opt/octofleet-agent/agent.sh logrotate` once.
+
+### Inventory Push Errors
+
+A failed inventory push is logged as one sentence, for example:
+
+```
+[2026-11-23 14:02:11] [ERROR] Inventory push failed: the server could not read it, invalid JSON at character 150206 (after ""usedBytes": "). The inventory is saved in /opt/octofleet-agent/diagnostics/last-failed-push.json.
+```
+
+The same failure is repeated at most every `PUSH_FAIL_LOG_INTERVAL` seconds as *Inventory push still failing (n times since …)*; a different reason is logged right away, and *Inventory pushed successfully again, after n failed attempt(s)* ends it. Other reasons: *server not reachable (…)*, *the server refused the agent key (HTTP 403)*, *server error (HTTP 500)*, *rejected by the server (HTTP 422): … (field …)*. Set `LOG_LEVEL=debug` in `config.env` to log the server's raw answer as well.
+
+Before sending, the agent checks every section of the inventory (hardware, software, performance, …) with `jq`. A section whose collector produced invalid JSON is left out – the server keeps that section's last value – and the rest is sent; the log names the section. Files in `DIAG_DIR` (`/opt/octofleet-agent/diagnostics`, mode 700, files 600, so only root can read them):
+
+| File | Content | Removed |
+|------|---------|---------|
+| `last-failed-push.json` | the inventory the server rejected (not written when the server was not reachable) | after the next successful push |
+| `invalid-section-<name>.txt` | what the collector of a left-out section produced | when all sections are valid again |
+
+The files can contain the node's inventory (installed software, users, network); share them only after checking them. The agent's numbers do not depend on the `awk` implementation (gawk, mawk, busybox): large values are printed with `printf "%.0f"`.
 
 ### Systemd Service
 
