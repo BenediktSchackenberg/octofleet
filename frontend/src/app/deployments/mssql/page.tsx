@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database, Server, HardDrive, Play, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Plus, Link, Trash2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -85,16 +86,9 @@ const statusColors: Record<string, string> = {
   failed: "bg-red-500",
 };
 
-const statusLabels: Record<string, string> = {
-  running: "Läuft",
-  pending: "Ausstehend",
-  disk_prep: "Disk-Vorbereitung",
-  installing: "Installation",
-  not_installed: "Nicht installiert",
-  failed: "Fehlgeschlagen",
-};
-
 export default function MssqlAssignmentsPage() {
+  const { t } = useI18n();
+  const statusLabel = (status: string) => (status in statusColors ? t(`mssqlDeployments.status.${status}`) : status);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [configs, setConfigs] = useState<MssqlConfig[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -169,7 +163,7 @@ export default function MssqlAssignmentsPage() {
 
   const handleCreateAssignment = async () => {
     if (!newAssignment.configId || !newAssignment.groupId || !newAssignment.saPassword) {
-      alert("Bitte alle Felder ausfüllen");
+      alert(t("mssqlDeployments.fillAllFields"));
       return;
     }
 
@@ -190,7 +184,7 @@ export default function MssqlAssignmentsPage() {
       const data = await apiClient.post<{ nodesProcessed: number }>(`/mssql/assignments/${assignmentId}/reconcile`, {}, { showErrorToast: false });
       
       if (data) {
-        alert(`${data.nodesProcessed} Jobs erstellt!`);
+        alert(t("mssqlDeployments.jobsCreated", { count: data.nodesProcessed }));
         fetchData();
         if (selectedAssignment?.id === assignmentId) {
           loadAssignmentDetail(assignmentId);
@@ -202,7 +196,7 @@ export default function MssqlAssignmentsPage() {
   };
 
   const handleDeleteAssignment = async (assignmentId: string) => {
-    if (!confirm("Assignment wirklich löschen?")) return;
+    if (!confirm(t("mssqlDeployments.deleteConfirm"))) return;
     
     await apiClient.delete(`/mssql/assignments/${assignmentId}`, { showErrorToast: false });
     
@@ -235,22 +229,22 @@ export default function MssqlAssignmentsPage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Database className="h-8 w-8" />
-            SQL Server Deployments
+            {t("mssqlDeployments.title")}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Profile erstellen und Gruppen zuweisen
+            {t("mssqlDeployments.description")}
           </p>
         </div>
         <Button variant="outline" onClick={fetchData}>
           <RefreshCw className="h-4 w-4 mr-2" />
-          Aktualisieren
+          {t("common.refresh")}
         </Button>
       </div>
 
       <Tabs defaultValue="assignments">
         <TabsList>
-          <TabsTrigger value="assignments">Zuweisungen</TabsTrigger>
-          <TabsTrigger value="configs">Profile</TabsTrigger>
+          <TabsTrigger value="assignments">{t("mssqlDeployments.tabAssignments")}</TabsTrigger>
+          <TabsTrigger value="configs">{t("mssqlDeployments.tabProfiles")}</TabsTrigger>
         </TabsList>
 
         {/* Assignments Tab */}
@@ -258,7 +252,7 @@ export default function MssqlAssignmentsPage() {
           <div className="flex justify-end">
             <Button onClick={() => setShowNewAssignment(true)}>
               <Link className="h-4 w-4 mr-2" />
-              Neue Zuweisung
+              {t("mssqlDeployments.newAssignment")}
             </Button>
           </div>
 
@@ -266,15 +260,15 @@ export default function MssqlAssignmentsPage() {
           {showNewAssignment && (
             <Card>
               <CardHeader>
-                <CardTitle>Neue Zuweisung</CardTitle>
-                <CardDescription>Profil einer Gruppe zuweisen</CardDescription>
+                <CardTitle>{t("mssqlDeployments.newAssignment")}</CardTitle>
+                <CardDescription>{t("mssqlDeployments.newAssignmentText")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label>Profil</Label>
+                    <Label>{t("mssqlDeployments.profile")}</Label>
                     <Select value={newAssignment.configId} onValueChange={v => setNewAssignment({...newAssignment, configId: v})}>
-                      <SelectTrigger><SelectValue placeholder="Profil wählen" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={t("mssqlDeployments.selectProfile")} /></SelectTrigger>
                       <SelectContent>
                         {configs.map(c => (
                           <SelectItem key={c.id} value={c.id}>
@@ -285,31 +279,31 @@ export default function MssqlAssignmentsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Gruppe</Label>
+                    <Label>{t("mssqlDeployments.group")}</Label>
                     <Select value={newAssignment.groupId} onValueChange={v => setNewAssignment({...newAssignment, groupId: v})}>
-                      <SelectTrigger><SelectValue placeholder="Gruppe wählen" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={t("mssqlDeployments.selectGroup")} /></SelectTrigger>
                       <SelectContent>
                         {groups.map(g => (
                           <SelectItem key={g.id} value={g.id}>
-                            {g.name} ({g.member_count} Server)
+                            {g.name} ({t("mssqlDeployments.servers", { count: g.member_count })})
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>SA-Passwort</Label>
+                    <Label>{t("mssqlDeployments.saPassword")}</Label>
                     <Input 
                       type="password" 
                       value={newAssignment.saPassword}
                       onChange={e => setNewAssignment({...newAssignment, saPassword: e.target.value})}
-                      placeholder="Starkes Passwort"
+                      placeholder={t("mssqlDeployments.saPasswordPlaceholder")}
                     />
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleCreateAssignment}>Zuweisen</Button>
-                  <Button variant="outline" onClick={() => setShowNewAssignment(false)}>Abbrechen</Button>
+                  <Button onClick={handleCreateAssignment}>{t("mssqlDeployments.assign")}</Button>
+                  <Button variant="outline" onClick={() => setShowNewAssignment(false)}>{t("common.cancel")}</Button>
                 </div>
               </CardContent>
             </Card>
@@ -319,13 +313,13 @@ export default function MssqlAssignmentsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Aktive Zuweisungen</CardTitle>
-                <CardDescription>{assignments.length} Zuweisungen</CardDescription>
+                <CardTitle>{t("mssqlDeployments.activeAssignments")}</CardTitle>
+                <CardDescription>{t("mssqlDeployments.assignmentCount", { count: assignments.length })}</CardDescription>
               </CardHeader>
               <CardContent>
                 {assignments.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">
-                    Keine Zuweisungen. Erstelle ein Profil und weise es einer Gruppe zu.
+                    {t("mssqlDeployments.noAssignments")}
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -341,7 +335,7 @@ export default function MssqlAssignmentsPage() {
                           <div>
                             <p className="font-medium">{a.configName}</p>
                             <p className="text-sm text-muted-foreground">
-                              → {a.groupName} ({a.memberCount} Server)
+                              → {a.groupName} ({t("mssqlDeployments.servers", { count: a.memberCount })})
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -363,10 +357,10 @@ export default function MssqlAssignmentsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>
-                  {selectedAssignment ? selectedAssignment.configName : "Details"}
+                  {selectedAssignment ? selectedAssignment.configName : t("mssqlDeployments.details")}
                 </CardTitle>
                 <CardDescription>
-                  {selectedAssignment ? `Gruppe: ${selectedAssignment.groupName}` : "Wähle eine Zuweisung"}
+                  {selectedAssignment ? t("mssqlDeployments.groupName", { name: selectedAssignment.groupName }) : t("mssqlDeployments.selectAssignment")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -376,19 +370,19 @@ export default function MssqlAssignmentsPage() {
                     <div className="grid grid-cols-4 gap-2 text-center">
                       <div className="p-2 bg-muted rounded">
                         <p className="text-2xl font-bold">{selectedAssignment.summary.total}</p>
-                        <p className="text-xs text-muted-foreground">Gesamt</p>
+                        <p className="text-xs text-muted-foreground">{t("mssqlDeployments.summary.total")}</p>
                       </div>
                       <div className="p-2 bg-green-500/10 rounded">
                         <p className="text-2xl font-bold text-green-500">{selectedAssignment.summary.installed}</p>
-                        <p className="text-xs text-muted-foreground">Installiert</p>
+                        <p className="text-xs text-muted-foreground">{t("mssqlDeployments.summary.installed")}</p>
                       </div>
                       <div className="p-2 bg-yellow-500/10 rounded">
                         <p className="text-2xl font-bold text-yellow-500">{selectedAssignment.summary.pending}</p>
-                        <p className="text-xs text-muted-foreground">Ausstehend</p>
+                        <p className="text-xs text-muted-foreground">{t("mssqlDeployments.summary.pending")}</p>
                       </div>
                       <div className="p-2 bg-muted/500/10 rounded">
                         <p className="text-2xl font-bold text-muted-foreground">{selectedAssignment.summary.notInstalled}</p>
-                        <p className="text-xs text-muted-foreground">Fehlt</p>
+                        <p className="text-xs text-muted-foreground">{t("mssqlDeployments.summary.missing")}</p>
                       </div>
                     </div>
 
@@ -396,9 +390,9 @@ export default function MssqlAssignmentsPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Server</TableHead>
-                          <TableHead>Online</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead>{t("mssqlDeployments.columns.server")}</TableHead>
+                          <TableHead>{t("common.online")}</TableHead>
+                          <TableHead>{t("common.status")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -407,14 +401,14 @@ export default function MssqlAssignmentsPage() {
                             <TableCell className="font-mono">{n.hostname}</TableCell>
                             <TableCell>
                               {n.isOnline ? (
-                                <Badge className="bg-green-500">Online</Badge>
+                                <Badge className="bg-green-500">{t("common.online")}</Badge>
                               ) : (
-                                <Badge variant="secondary">Offline</Badge>
+                                <Badge variant="secondary">{t("common.offline")}</Badge>
                               )}
                             </TableCell>
                             <TableCell>
                               <Badge className={statusColors[n.installStatus] || "bg-muted/500"}>
-                                {statusLabels[n.installStatus] || n.installStatus}
+                                {statusLabel(n.installStatus)}
                               </Badge>
                             </TableCell>
                           </TableRow>
@@ -433,7 +427,7 @@ export default function MssqlAssignmentsPage() {
                         ) : (
                           <Play className="h-4 w-4 mr-2" />
                         )}
-                        Reconcile (Fehlende deployen)
+                        {t("mssqlDeployments.reconcile")}
                       </Button>
                       <Button 
                         variant="destructive" 
@@ -446,7 +440,7 @@ export default function MssqlAssignmentsPage() {
                   </div>
                 ) : (
                   <p className="text-muted-foreground text-center py-8">
-                    Wähle links eine Zuweisung aus
+                    {t("mssqlDeployments.selectAssignmentLeft")}
                   </p>
                 )}
               </CardContent>
@@ -459,7 +453,7 @@ export default function MssqlAssignmentsPage() {
           <div className="flex justify-end">
             <Button onClick={() => setShowNewConfig(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Neues Profil
+              {t("mssqlDeployments.newProfile")}
             </Button>
           </div>
 
@@ -467,44 +461,44 @@ export default function MssqlAssignmentsPage() {
           {showNewConfig && (
             <Card>
               <CardHeader>
-                <CardTitle>Neues SQL Server Profil</CardTitle>
+                <CardTitle>{t("mssqlDeployments.newProfileTitle")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Name</Label>
+                    <Label>{t("common.name")}</Label>
                     <Input 
                       value={newConfig.name}
                       onChange={e => setNewConfig({...newConfig, name: e.target.value})}
-                      placeholder="z.B. SQL Server 2022 Developer"
+                      placeholder={t("mssqlDeployments.profileNamePlaceholder")}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Edition</Label>
+                    <Label>{t("mssqlDeployments.columns.edition")}</Label>
                     <Select value={newConfig.edition} onValueChange={v => setNewConfig({...newConfig, edition: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {editions.map(e => (
                           <SelectItem key={e.id} value={e.id}>
-                            {e.name} {e.free && "(Kostenlos)"}
+                            {e.name} {e.free && `(${t("mssqlDeployments.free")})`}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Version</Label>
+                    <Label>{t("mssqlDeployments.columns.version")}</Label>
                     <Select value={newConfig.version} onValueChange={v => setNewConfig({...newConfig, version: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="2019">SQL Server 2019</SelectItem>
-                        <SelectItem value="2022">SQL Server 2022</SelectItem>
-                        <SelectItem value="2025">SQL Server 2025</SelectItem>
+                        <SelectItem value="2019">SQL Server 2019</SelectItem>{/* i18n-ignore */}
+                        <SelectItem value="2022">SQL Server 2022</SelectItem>{/* i18n-ignore */}
+                        <SelectItem value="2025">SQL Server 2025</SelectItem>{/* i18n-ignore */}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Port</Label>
+                    <Label>{t("mssqlDeployments.columns.port")}</Label>
                     <Input 
                       type="number"
                       value={newConfig.port}
@@ -513,8 +507,8 @@ export default function MssqlAssignmentsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleCreateConfig}>Erstellen</Button>
-                  <Button variant="outline" onClick={() => setShowNewConfig(false)}>Abbrechen</Button>
+                  <Button onClick={handleCreateConfig}>{t("common.create")}</Button>
+                  <Button variant="outline" onClick={() => setShowNewConfig(false)}>{t("common.cancel")}</Button>
                 </div>
               </CardContent>
             </Card>
@@ -523,18 +517,18 @@ export default function MssqlAssignmentsPage() {
           {/* Configs List */}
           <Card>
             <CardHeader>
-              <CardTitle>SQL Server Profile</CardTitle>
-              <CardDescription>{configs.length} Profile</CardDescription>
+              <CardTitle>{t("mssqlDeployments.profilesTitle")}</CardTitle>
+              <CardDescription>{t("mssqlDeployments.profileCount", { count: configs.length })}</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Edition</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Port</TableHead>
-                    <TableHead>Disks</TableHead>
+                    <TableHead>{t("common.name")}</TableHead>
+                    <TableHead>{t("mssqlDeployments.columns.edition")}</TableHead>
+                    <TableHead>{t("mssqlDeployments.columns.version")}</TableHead>
+                    <TableHead>{t("mssqlDeployments.columns.port")}</TableHead>
+                    <TableHead>{t("mssqlDeployments.columns.disks")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

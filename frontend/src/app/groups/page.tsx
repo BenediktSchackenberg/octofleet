@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Plus, FolderTree, Tag, Users } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -31,6 +32,7 @@ interface Tag {
 }
 
 export default function GroupsPage() {
+  const { t } = useI18n();
   const [groups, setGroups] = useState<Group[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ export default function GroupsPage() {
   }
 
   async function deleteGroup(groupId: string) {
-    if (!confirm("Delete this group?")) return;
+    if (!confirm(t("groupsPage.deleteConfirm"))) return;
     try {
       await apiClient.delete(`/groups/${groupId}`, { showErrorToast: false });
       fetchData();
@@ -83,7 +85,7 @@ export default function GroupsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6">
-<h1 className="text-2xl font-bold mb-6">📁 Groups</h1>
+<h1 className="text-2xl font-bold mb-6">📁 {t("groupsPage.title")}</h1>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -95,11 +97,11 @@ export default function GroupsPage() {
     <div className="min-h-screen bg-background p-6">
 <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">📁 Groups</h1>
-          <p className="text-muted-foreground">{groups.length} groups, {tags.length} tags</p>
+          <h1 className="text-2xl font-bold">📁 {t("groupsPage.title")}</h1>
+          <p className="text-muted-foreground">{t("groupsPage.summary", { groups: groups.length, tags: tags.length })}</p>
         </div>
         <Button onClick={() => setShowCreateGroup(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Create Group
+          <Plus className="h-4 w-4 mr-2" /> {t("groupsPage.create")}
         </Button>
       </div>
 
@@ -107,32 +109,32 @@ export default function GroupsPage() {
       {showCreateGroup && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Create New Group</CardTitle>
+            <CardTitle>{t("groupsPage.createTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3">
               <div>
-                <label className="text-sm font-medium">Name *</label>
+                <label className="text-sm font-medium">{t("common.name")} *</label>
                 <input
                   type="text"
                   value={newGroup.name}
                   onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
                   className="w-full mt-1 px-3 py-2 bg-secondary border border-input rounded-md"
-                  placeholder="Production Servers"
+                  placeholder={t("groupsPage.namePlaceholder")}
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Description</label>
+                <label className="text-sm font-medium">{t("common.description")}</label>
                 <input
                   type="text"
                   value={newGroup.description}
                   onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
                   className="w-full mt-1 px-3 py-2 bg-secondary border border-input rounded-md"
-                  placeholder="All production servers"
+                  placeholder={t("groupsPage.descriptionPlaceholder")}
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Color</label>
+                <label className="text-sm font-medium">{t("groupsPage.color")}</label>
                 <input
                   type="color"
                   value={newGroup.color}
@@ -143,10 +145,10 @@ export default function GroupsPage() {
             </div>
             <div className="flex gap-2 mt-4">
               <Button onClick={createGroup} disabled={!newGroup.name}>
-                Create Group
+                {t("groupsPage.create")}
               </Button>
               <Button variant="outline" onClick={() => setShowCreateGroup(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
             </div>
           </CardContent>
@@ -168,15 +170,15 @@ export default function GroupsPage() {
                     <CardTitle className="text-lg">{group.name}</CardTitle>
                   </div>
                   {group.is_dynamic && (
-                    <Badge variant="secondary">Dynamic</Badge>
+                    <Badge variant="secondary">{t("groupsPage.dynamic")}</Badge>
                   )}
                 </div>
-                <CardDescription>{group.description || "No description"}</CardDescription>
+                <CardDescription>{group.description || t("groupsPage.noDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Users className="h-4 w-4" />
-                  <span>{group.member_count} members</span>
+                  <span>{t(group.member_count === 1 ? "groupsPage.membersOne" : "groupsPage.members", { count: group.member_count })}</span>
                 </div>
               </CardContent>
             </Card>
@@ -189,7 +191,7 @@ export default function GroupsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Tag className="h-5 w-5" /> Tags
+              <Tag className="h-5 w-5" /> {t("groupsPage.tags")}
             </CardTitle>
           </CardHeader>
           <CardContent>

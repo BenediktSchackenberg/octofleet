@@ -12,6 +12,7 @@ import { CreateDeploymentDialog } from "@/components/create-deployment-dialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StandardPage } from "@/components/ui/StandardPage";
 import { formatDate } from "@/lib/format";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -40,13 +41,11 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-500",
 };
 
-const modeLabels: Record<string, string> = {
-  required: "Pflicht",
-  available: "Verfügbar",
-  uninstall: "Deinstallation",
-};
+const MODES = ["required", "available", "uninstall"];
+const STATUSES = ["pending", "active", "paused", "completed", "cancelled"];
 
 export default function DeploymentsPage() {
+  const { t } = useI18n();
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -95,19 +94,19 @@ export default function DeploymentsPage() {
 
   return (
     <StandardPage
-      title="Deployments"
-      description="Softwareverteilung an Nodes und Gruppen"
+      title={t("deploymentsPage.title")}
+      description={t("deploymentsPage.description")}
       icon={<Rocket className="h-6 w-6" />}
       loading={loading}
       actions={
         <div className="flex gap-2">
           <Button variant="outline" onClick={fetchDeployments}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Aktualisieren
+            {t("common.refresh")}
           </Button>
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Neues Deployment
+            {t("deploymentsPage.newDeployment")}
           </Button>
         </div>
       }
@@ -117,7 +116,7 @@ export default function DeploymentsPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Gesamt</CardDescription>
+            <CardDescription>{t("deploymentsPage.cards.total")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{deployments.length}</p>
@@ -125,7 +124,7 @@ export default function DeploymentsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Aktiv</CardDescription>
+            <CardDescription>{t("deploymentsPage.cards.active")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-blue-500">
@@ -135,7 +134,7 @@ export default function DeploymentsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Erfolg (Nodes)</CardDescription>
+            <CardDescription>{t("deploymentsPage.cards.succeededNodes")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-green-500">
@@ -145,7 +144,7 @@ export default function DeploymentsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Fehlgeschlagen</CardDescription>
+            <CardDescription>{t("deploymentsPage.cards.failed")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-500">
@@ -155,7 +154,7 @@ export default function DeploymentsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Ausstehend</CardDescription>
+            <CardDescription>{t("deploymentsPage.cards.pending")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-muted-foreground">
@@ -176,9 +175,9 @@ export default function DeploymentsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <h3 className="font-semibold text-lg">SQL Server</h3>
+              <h3 className="font-semibold text-lg">SQL Server</h3>{/* i18n-ignore */}
               <p className="text-sm text-muted-foreground">
-                Express, Developer, Standard, Enterprise
+                Express, Developer, Standard, Enterprise{/* i18n-ignore */}
               </p>
               <div className="flex gap-1 mt-2">
                 <Badge variant="secondary">2019</Badge>
@@ -193,13 +192,13 @@ export default function DeploymentsPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <Package className="h-8 w-8 text-orange-500" />
-              <Badge variant="outline">Bald</Badge>
+              <Badge variant="outline">{t("deploymentsPage.special.soon")}</Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <h3 className="font-semibold text-lg">Smart Install</h3>
+            <h3 className="font-semibold text-lg">{t("deploymentsPage.special.smartInstall")}</h3>
             <p className="text-sm text-muted-foreground">
-              Software via Chocolatey deployen
+              {t("deploymentsPage.special.smartInstallText")}
             </p>
           </CardContent>
         </Card>
@@ -208,13 +207,13 @@ export default function DeploymentsPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <Rocket className="h-8 w-8 text-purple-500" />
-              <Badge variant="outline">Bald</Badge>
+              <Badge variant="outline">{t("deploymentsPage.special.soon")}</Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <h3 className="font-semibold text-lg">Custom Scripts</h3>
+            <h3 className="font-semibold text-lg">{t("deploymentsPage.special.customScripts")}</h3>
             <p className="text-sm text-muted-foreground">
-              Eigene PowerShell-Skripte ausführen
+              {t("deploymentsPage.special.customScriptsText")}
             </p>
           </CardContent>
         </Card>
@@ -222,8 +221,8 @@ export default function DeploymentsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Alle Deployments</CardTitle>
-          <CardDescription>{deployments.length} Deployments insgesamt</CardDescription>
+          <CardTitle>{t("deploymentsPage.allTitle")}</CardTitle>
+          <CardDescription>{t("deploymentsPage.allCount", { count: deployments.length })}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -233,22 +232,22 @@ export default function DeploymentsPage() {
           ) : deployments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Rocket className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Noch keine Deployments erstellt</p>
+              <p>{t("deploymentsPage.empty")}</p>
               <Button className="mt-4" onClick={() => setShowCreate(true)}>
-                Erstes Deployment erstellen
+                {t("deploymentsPage.createFirst")}
               </Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Paket</TableHead>
-                  <TableHead>Modus</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Fortschritt</TableHead>
-                  <TableHead>Nodes</TableHead>
-                  <TableHead>Erstellt</TableHead>
+                  <TableHead>{t("common.name")}</TableHead>
+                  <TableHead>{t("deploymentsPage.columns.package")}</TableHead>
+                  <TableHead>{t("deploymentsPage.columns.mode")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("deploymentsPage.columns.progress")}</TableHead>
+                  <TableHead>{t("deploymentsPage.columns.nodes")}</TableHead>
+                  <TableHead>{t("deploymentsPage.columns.created")}</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -264,10 +263,10 @@ export default function DeploymentsPage() {
                       {d.package_name} <span className="text-muted-foreground">v{d.package_version}</span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{modeLabels[d.mode] || d.mode}</Badge>
+                      <Badge variant="outline">{MODES.includes(d.mode) ? t(`deploymentsPage.mode.${d.mode}`) : d.mode}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={statusColors[d.status]}>{d.status}</Badge>
+                      <Badge className={statusColors[d.status]}>{STATUSES.includes(d.status) ? t(`deploymentsPage.status.${d.status}`) : d.status}</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

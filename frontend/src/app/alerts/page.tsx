@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Bell, Plus, Trash2, TestTube, Check, X } from "lucide-react";
 import { StandardPage } from "@/components/ui/StandardPage";
+import { useI18n } from "@/lib/i18n-context";
+import { formatDateTime } from "@/lib/format";
 
 
 
@@ -41,16 +43,26 @@ interface AlertHistoryEntry {
   created_at: string;
 }
 
+// The label is alertsPage.events.<value>
 const EVENT_TYPES = [
-  { value: 'node_offline', label: '🔴 Node Offline' },
-  { value: 'node_online', label: '🟢 Node Online' },
-  { value: 'job_failed', label: '❌ Job Failed' },
-  { value: 'job_success', label: '✅ Job Success' },
-  { value: 'disk_warning', label: '💾 Disk Warning' },
-  { value: 'vulnerability_critical', label: '🛡️ Critical Vulnerability' },
+  { value: 'node_offline', icon: '🔴' },
+  { value: 'node_online', icon: '🟢' },
+  { value: 'job_failed', icon: '❌' },
+  { value: 'job_success', icon: '✅' },
+  { value: 'disk_warning', icon: '💾' },
+  { value: 'vulnerability_critical', icon: '🛡️' },
 ];
 
+const HISTORY_STATUSES = ['sent', 'failed', 'throttled'];
+
 export default function AlertsPage() {
+  const { t } = useI18n();
+  const eventName = (type: string) =>
+    EVENT_TYPES.some(e => e.value === type) ? t(`alertsPage.events.${type}`) : type.replace('_', ' ');
+  const eventLabel = (type: string) => {
+    const et = EVENT_TYPES.find(e => e.value === type);
+    return et ? `${et.icon} ${t(`alertsPage.events.${type}`)}` : type;
+  };
   const [channels, setChannels] = useState<AlertChannel[]>([]);
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [history, setHistory] = useState<AlertHistoryEntry[]>([]);
@@ -124,14 +136,14 @@ export default function AlertsPage() {
   }
 
   async function deleteChannel(id: string) {
-    if (!confirm('Delete this channel?')) return;
+    if (!confirm(t("alertsPage.deleteChannelConfirm"))) return;
     const token = localStorage.getItem('token');
     await apiClient.delete(`/alert-channels/${id}`, { showErrorToast: false });
     fetchData();
   }
 
   async function deleteRule(id: string) {
-    if (!confirm('Delete this rule?')) return;
+    if (!confirm(t("alertsPage.deleteRuleConfirm"))) return;
     const token = localStorage.getItem('token');
     await apiClient.delete(`/alert-rules/${id}`, { showErrorToast: false });
     fetchData();
@@ -140,12 +152,12 @@ export default function AlertsPage() {
   async function testChannel(id: string) {
     const token = localStorage.getItem('token');
     const data = await apiClient.post<{ status: string }>(`/alert-channels/${id}/test`, {}, { showErrorToast: false });
-    alert(data?.status === 'sent' ? '✅ Test sent!' : '❌ Test failed');
+    alert(data?.status === 'sent' ? `✅ ${t("alertsPage.testSent")}` : `❌ ${t("alertsPage.testFailed")}`);
   }
 
   return (
     <StandardPage
-      title="Alerts"
+      title={t("alertsPage.title")}
       icon={<Bell className="h-6 w-6" />}
       loading={loading}
     >
@@ -155,11 +167,11 @@ export default function AlertsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>📡 Channels</CardTitle>
-                <CardDescription>Where alerts are sent</CardDescription>
+                <CardTitle>📡 {t("alertsPage.channels")}</CardTitle>
+                <CardDescription>{t("alertsPage.channelsText")}</CardDescription>
               </div>
               <Button size="sm" onClick={() => setShowNewChannel(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Add Discord
+                <Plus className="h-4 w-4 mr-1" /> {t("alertsPage.addDiscord")}
               </Button>
             </div>
           </CardHeader>
@@ -167,28 +179,28 @@ export default function AlertsPage() {
             {showNewChannel && (
               <div className="mb-4 p-4 border rounded-lg bg-muted/50 space-y-3">
                 <Input 
-                  placeholder="Channel Name (e.g. #alerts)" 
+                  placeholder={t("alertsPage.channelNamePlaceholder")} 
                   value={newChannelName}
                   onChange={e => setNewChannelName(e.target.value)}
                 />
                 <Input 
-                  placeholder="Discord Webhook URL" 
+                  placeholder={t("alertsPage.webhookPlaceholder")} 
                   value={newWebhookUrl}
                   onChange={e => setNewWebhookUrl(e.target.value)}
                 />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={createChannel} disabled={!newChannelName || !newWebhookUrl}>
-                    Create
+                    {t("common.create")}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setShowNewChannel(false)}>
-                    Cancel
+                    {t("common.cancel")}
                   </Button>
                 </div>
               </div>
             )}
             
             {channels.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No channels configured</p>
+              <p className="text-muted-foreground text-center py-4">{t("alertsPage.noChannels")}</p>
             ) : (
               <div className="space-y-2">
                 {channels.map(ch => (
@@ -202,7 +214,7 @@ export default function AlertsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={ch.enabled ? 'default' : 'secondary'}>
-                        {ch.enabled ? 'Active' : 'Disabled'}
+                        {ch.enabled ? t("common.active") : t("alertsPage.disabled")}
                       </Badge>
                       <Button size="icon" variant="ghost" onClick={() => testChannel(ch.id)}>
                         <TestTube className="h-4 w-4" />
@@ -223,11 +235,11 @@ export default function AlertsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>📋 Rules</CardTitle>
-                <CardDescription>When to send alerts</CardDescription>
+                <CardTitle>📋 {t("alertsPage.rules")}</CardTitle>
+                <CardDescription>{t("alertsPage.rulesText")}</CardDescription>
               </div>
               <Button size="sm" onClick={() => setShowNewRule(true)} disabled={channels.length === 0}>
-                <Plus className="h-4 w-4 mr-1" /> Add Rule
+                <Plus className="h-4 w-4 mr-1" /> {t("alertsPage.addRule")}
               </Button>
             </div>
           </CardHeader>
@@ -235,7 +247,7 @@ export default function AlertsPage() {
             {showNewRule && (
               <div className="mb-4 p-4 border rounded-lg bg-muted/50 space-y-3">
                 <Input 
-                  placeholder="Rule Name" 
+                  placeholder={t("alertsPage.ruleNamePlaceholder")} 
                   value={newRuleName}
                   onChange={e => setNewRuleName(e.target.value)}
                 />
@@ -245,7 +257,7 @@ export default function AlertsPage() {
                   onChange={e => setNewRuleEvent(e.target.value)}
                 >
                   {EVENT_TYPES.map(et => (
-                    <option key={et.value} value={et.value}>{et.label}</option>
+                    <option key={et.value} value={et.value}>{eventLabel(et.value)}</option>
                   ))}
                 </select>
                 <select 
@@ -253,24 +265,24 @@ export default function AlertsPage() {
                   value={newRuleChannel}
                   onChange={e => setNewRuleChannel(e.target.value)}
                 >
-                  <option value="">Select Channel...</option>
+                  <option value="">{t("alertsPage.selectChannel")}</option>
                   {channels.map(ch => (
                     <option key={ch.id} value={ch.id}>{ch.name}</option>
                   ))}
                 </select>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={createRule} disabled={!newRuleName || !newRuleChannel}>
-                    Create
+                    {t("common.create")}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setShowNewRule(false)}>
-                    Cancel
+                    {t("common.cancel")}
                   </Button>
                 </div>
               </div>
             )}
             
             {rules.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No rules configured</p>
+              <p className="text-muted-foreground text-center py-4">{t("alertsPage.noRules")}</p>
             ) : (
               <div className="space-y-2">
                 {rules.map(rule => (
@@ -278,13 +290,13 @@ export default function AlertsPage() {
                     <div>
                       <p className="font-medium">{rule.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {EVENT_TYPES.find(e => e.value === rule.event_type)?.label || rule.event_type}
+                        {eventLabel(rule.event_type)}
                         {' → '}{rule.channel_name}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={rule.enabled ? 'default' : 'secondary'}>
-                        {rule.enabled ? 'Active' : 'Disabled'}
+                        {rule.enabled ? t("common.active") : t("alertsPage.disabled")}
                       </Badge>
                       <Button size="icon" variant="ghost" onClick={() => deleteRule(rule.id)}>
                         <Trash2 className="h-4 w-4 text-red-500" />
@@ -301,37 +313,37 @@ export default function AlertsPage() {
       {/* History */}
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>📜 Alert History</CardTitle>
-          <CardDescription>Recent alerts sent</CardDescription>
+          <CardTitle>📜 {t("alertsPage.history")}</CardTitle>
+          <CardDescription>{t("alertsPage.historyText")}</CardDescription>
         </CardHeader>
         <CardContent>
           {history.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">No alerts sent yet</p>
+            <p className="text-muted-foreground text-center py-4">{t("alertsPage.noHistory")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Rule</TableHead>
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t("alertsPage.columns.time")}</TableHead>
+                  <TableHead>{t("alertsPage.columns.event")}</TableHead>
+                  <TableHead>{t("alertsPage.columns.rule")}</TableHead>
+                  <TableHead>{t("alertsPage.columns.channel")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {history.map(h => (
                   <TableRow key={h.id}>
                     <TableCell className="text-muted-foreground">
-                      {new Date(h.created_at).toLocaleString()}
+                      {formatDateTime(h.created_at)}
                     </TableCell>
-                    <TableCell>{h.event_type.replace('_', ' ')}</TableCell>
+                    <TableCell>{eventName(h.event_type)}</TableCell>
                     <TableCell>{h.rule_name || '-'}</TableCell>
                     <TableCell>{h.channel_name || '-'}</TableCell>
                     <TableCell>
                       <Badge variant={h.status === 'sent' ? 'default' : h.status === 'throttled' ? 'secondary' : 'destructive'}>
                         {h.status === 'sent' && <Check className="h-3 w-3 mr-1" />}
                         {h.status === 'failed' && <X className="h-3 w-3 mr-1" />}
-                        {h.status}
+                        {HISTORY_STATUSES.includes(h.status) ? t(`alertsPage.status.${h.status}`) : h.status}
                       </Badge>
                     </TableCell>
                   </TableRow>

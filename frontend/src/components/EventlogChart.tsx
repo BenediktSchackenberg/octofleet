@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api-client";
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from "recharts";
 import { formatDate } from "@/lib/format";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -20,6 +21,7 @@ interface EventlogChartProps {
 }
 
 export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProps) {
+  const { t } = useI18n();
   const [data, setData] = useState<TrendData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +45,7 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center text-muted-foreground">
-        Loading chart...
+        {t("eventlogPage.chartLoading")}
       </div>
     );
   }
@@ -51,7 +53,7 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
   if (data.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center text-muted-foreground">
-        No eventlog data available
+        {t("eventlogPage.chartEmpty")}
       </div>
     );
   }
@@ -73,8 +75,8 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
             labelStyle={{ color: "#fff" }}
           />
           <Legend />
-          <Line type="monotone" dataKey="errors" stroke="#ef4444" strokeWidth={2} name="Errors" />
-          <Line type="monotone" dataKey="warnings" stroke="#eab308" strokeWidth={2} name="Warnings" />
+          <Line type="monotone" dataKey="errors" stroke="#ef4444" strokeWidth={2} name={t("eventlogPage.errors")} />
+          <Line type="monotone" dataKey="warnings" stroke="#eab308" strokeWidth={2} name={t("eventlogPage.warnings")} />
         </LineChart>
       </ResponsiveContainer>
     );
@@ -90,8 +92,8 @@ export function EventlogChart({ days = 7, chartType = "bar" }: EventlogChartProp
           labelStyle={{ color: "#fff" }}
         />
         <Legend />
-        <Bar dataKey="errors" fill="#ef4444" name="Errors" />
-        <Bar dataKey="warnings" fill="#eab308" name="Warnings" />
+        <Bar dataKey="errors" fill="#ef4444" name={t("eventlogPage.errors")} />
+        <Bar dataKey="warnings" fill="#eab308" name={t("eventlogPage.warnings")} />
       </BarChart>
     </ResponsiveContainer>
   );

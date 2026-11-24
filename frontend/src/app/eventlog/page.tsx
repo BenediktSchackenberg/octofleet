@@ -7,6 +7,7 @@ import { LoadingSpinner } from "@/components/ui-components";
 import { EventlogChart } from "@/components/EventlogChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -35,6 +36,7 @@ interface CriticalEvent {
 }
 
 function LevelBadge({ level, name }: { level: number; name?: string }) {
+  const { t } = useI18n();
   const styles: Record<number, string> = {
     0: "bg-blue-500/20 text-blue-400",  // Audit Success
     1: "bg-red-600/20 text-red-400",    // Critical
@@ -45,17 +47,17 @@ function LevelBadge({ level, name }: { level: number; name?: string }) {
   };
   
   const labels: Record<number, string> = {
-    0: "Audit",
-    1: "Critical",
-    2: "Error",
-    3: "Warning",
-    4: "Info",
-    5: "Verbose",
+    0: t("eventlogPage.levels.audit"),
+    1: t("eventlogPage.levels.critical"),
+    2: t("eventlogPage.levels.error"),
+    3: t("eventlogPage.levels.warning"),
+    4: t("eventlogPage.levels.info"),
+    5: t("eventlogPage.levels.verbose"),
   };
 
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[level] || styles[4]}`}>
-      {name || labels[level] || `Level ${level}`}
+      {name || labels[level] || t("eventlogPage.levels.other", { level })}
     </span>
   );
 }
@@ -75,6 +77,7 @@ function EventIdBadge({ eventId }: { eventId: number }) {
 }
 
 export default function EventlogPage() {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<EventlogSummary[]>([]);
   const [criticalEvents, setCriticalEvents] = useState<CriticalEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,8 +127,8 @@ export default function EventlogPage() {
       <div className="max-w-7xl mx-auto p-6">
 <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">📋 Windows Eventlog</h1>
-            <p className="text-zinc-400 text-sm">Security, System & Application Events</p>
+            <h1 className="text-2xl font-bold">📋 {t("eventlogPage.title")}</h1>
+            <p className="text-zinc-400 text-sm">{t("eventlogPage.description")}</p>
           </div>
           
           <div className="flex items-center gap-3">
@@ -134,18 +137,18 @@ export default function EventlogPage() {
               onChange={(e) => setHours(Number(e.target.value))}
               className="px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm"
             >
-              <option value={1}>Letzte Stunde</option>
-              <option value={6}>Letzte 6 Stunden</option>
-              <option value={24}>Letzte 24 Stunden</option>
-              <option value={48}>Letzte 48 Stunden</option>
-              <option value={168}>Letzte 7 Tage</option>
+              <option value={1}>{t("eventlogPage.range.1")}</option>
+              <option value={6}>{t("eventlogPage.range.6")}</option>
+              <option value={24}>{t("eventlogPage.range.24")}</option>
+              <option value={48}>{t("eventlogPage.range.48")}</option>
+              <option value={168}>{t("eventlogPage.range.168")}</option>
             </select>
             
             <button
               onClick={fetchData}
               className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium"
             >
-              🔄 Aktualisieren
+              🔄 {t("common.refresh")}
             </button>
           </div>
         </div>
@@ -159,7 +162,7 @@ export default function EventlogPage() {
             {/* Eventlog Trend Chart */}
             <Card className="mb-8">
               <CardHeader>
-                <CardTitle className="text-lg">📈 Error & Warning Trends (Last 7 Days)</CardTitle>
+                <CardTitle className="text-lg">📈 {t("eventlogPage.trendTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <EventlogChart days={7} chartType="bar" />
@@ -182,15 +185,15 @@ export default function EventlogPage() {
                   <div className="grid grid-cols-3 gap-2 text-center text-sm">
                     <div>
                       <div className="text-red-400 font-bold">{stats.critical + stats.error}</div>
-                      <div className="text-zinc-500 text-xs">Errors</div>
+                      <div className="text-zinc-500 text-xs">{t("eventlogPage.errors")}</div>
                     </div>
                     <div>
                       <div className="text-yellow-400 font-bold">{stats.warning}</div>
-                      <div className="text-zinc-500 text-xs">Warnings</div>
+                      <div className="text-zinc-500 text-xs">{t("eventlogPage.warnings")}</div>
                     </div>
                     <div>
                       <div className="text-zinc-400 font-bold">{stats.total}</div>
-                      <div className="text-zinc-500 text-xs">Total</div>
+                      <div className="text-zinc-500 text-xs">{t("eventlogPage.total")}</div>
                     </div>
                   </div>
                   <div className="text-xs text-zinc-600 mt-2">
@@ -202,8 +205,8 @@ export default function EventlogPage() {
               {Object.keys(nodeStats).length === 0 && (
                 <div className="col-span-full text-center py-8 text-zinc-500">
                   <div className="text-4xl mb-2">📭</div>
-                  <p>Keine Eventlog-Daten vorhanden</p>
-                  <p className="text-sm mt-1">Führe einen Eventlog Collection Job aus</p>
+                  <p>{t("eventlogPage.noData")}</p>
+                  <p className="text-sm mt-1">{t("eventlogPage.noDataHint")}</p>
                 </div>
               )}
             </div>
@@ -213,7 +216,7 @@ export default function EventlogPage() {
               <div className="bg-zinc-900 rounded-lg border border-zinc-800">
                 <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
                   <h2 className="font-semibold">
-                    🚨 Kritische & Sicherheits-Events
+                    🚨 {t("eventlogPage.criticalTitle")}
                     {selectedNode && (
                       <span className="text-zinc-500 font-normal ml-2">
                         ({nodeStats[selectedNode]?.hostname})
@@ -225,7 +228,7 @@ export default function EventlogPage() {
                       onClick={() => setSelectedNode(null)}
                       className="text-sm text-blue-400 hover:text-blue-300"
                     >
-                      Filter aufheben
+                      {t("eventlogPage.clearFilter")}
                     </button>
                   )}
                 </div>

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n-context";
 
 interface Node {
   id: string;
@@ -30,6 +31,7 @@ interface AddDevicesDialogProps {
 }
 
 export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }: AddDevicesDialogProps) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -82,10 +84,10 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
         onMembersAdded?.();
         router.refresh();
       } else {
-        alert(`Fehler: ${(data as any)?.detail || 'Unbekannter Fehler'}`);
+        alert(t("addDevices.failed", { error: (data as any)?.detail || t("addDevices.unknownError") }));
       }
     } catch (err) {
-      alert(`Netzwerkfehler: ${err}`);
+      alert(t("addDevices.networkError", { error: String(err) }));
     } finally {
       setLoading(false);
     }
@@ -101,19 +103,19 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">+ Geräte hinzufügen</Button>
+        <Button variant="outline" size="sm">+ {t("addDevices.button")}</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Geräte zur Gruppe hinzufügen</DialogTitle>
+          <DialogTitle>{t("addDevices.title")}</DialogTitle>
           <DialogDescription>
-            Wähle Geräte aus, die dieser Gruppe zugewiesen werden sollen.
+            {t("addDevices.description")}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[400px] overflow-y-auto">
           {nodes.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              Keine verfügbaren Geräte gefunden
+              {t("addDevices.none")}
             </p>
           ) : (
             <div className="space-y-2">
@@ -138,7 +140,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
                     <div className="flex items-center gap-2">
                       {node.os_name && (
                         <Badge variant="outline" className="text-xs">
-                          {node.os_name.includes('Server') ? '🖥️ Server' : '💻 Client'}
+                          {node.os_name.includes('Server') ? `🖥️ ${t("addDevices.server")}` : `💻 ${t("addDevices.client")}`}
                         </Badge>
                       )}
                       {selectedIds.includes(node.id) && (
@@ -153,13 +155,13 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button 
             onClick={handleSubmit} 
             disabled={loading || selectedIds.length === 0}
           >
-            {loading ? "Füge hinzu..." : `${selectedIds.length} Gerät(e) hinzufügen`}
+            {loading ? t("addDevices.adding") : t(selectedIds.length === 1 ? "addDevices.submitOne" : "addDevices.submit", { count: selectedIds.length })}
           </Button>
         </DialogFooter>
       </DialogContent>
