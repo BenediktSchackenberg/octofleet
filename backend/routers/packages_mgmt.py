@@ -7,8 +7,8 @@ import aiofiles
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from app.core.file_utils import compute_file_sha256, detect_repo_file_type, get_repo_storage_path
-from auth import require_permission, require_user_permission
-from dependencies import get_db, get_pool, not_found, verify_api_key
+from auth import require_any_permission, require_permission, require_user_permission
+from dependencies import get_db, get_pool, not_found
 
 MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))
 import json
@@ -21,7 +21,7 @@ import asyncpg
 router = APIRouter(tags=["Packages"])
 
 
-@router.get("/api/v1/packages", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/packages", dependencies=[Depends(require_user_permission("packages:read"))])
 async def list_packages(category: str = None, search: str = None, active_only: bool = True,
                         db: asyncpg.Pool = Depends(get_db)):
     """Packages (active only unless active_only=false), optionally of one `category` or matching
@@ -104,7 +104,7 @@ async def create_package(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
         return {"id": str(row["id"]), "status": "created"}
 
 
-@router.get("/api/v1/packages/{package_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/packages/{package_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def get_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get package details with versions"""
     async with db.acquire() as conn:
@@ -257,7 +257,7 @@ async def create_package_version(package_id: str, data: Dict[str, Any], db: asyn
         return {"id": str(row["id"]), "status": "created"}
 
 
-@router.get("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def get_package_version(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a specific version with detection rules"""
     async with db.acquire() as conn:
@@ -472,7 +472,7 @@ async def delete_package_source(source_id: str, db: asyncpg.Pool = Depends(get_d
         return {"status": "deleted", "name": row["name"]}
 
 
-@router.get("/api/v1/packages/{package_id}/versions/{version_id}/detect", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/packages/{package_id}/versions/{version_id}/detect", dependencies=[Depends(require_any_permission("packages:read", "jobs:poll"))])
 async def get_detection_info(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get detection info for agent to check if package is installed"""
     async with db.acquire() as conn:
@@ -506,7 +506,7 @@ async def get_detection_info(package_id: str, version_id: str, db: asyncpg.Pool 
         }
 
 
-@router.get("/api/v1/packages/{package_id}/versions/{version_id}/download-info", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/packages/{package_id}/versions/{version_id}/download-info", dependencies=[Depends(require_any_permission("packages:read", "jobs:poll"))])
 async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get download URLs for agent"""
     async with db.acquire() as conn:
@@ -555,7 +555,7 @@ async def get_download_info(package_id: str, version_id: str, db: asyncpg.Pool =
         }
 
 
-@router.get("/api/v1/package-versions", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/package-versions", dependencies=[Depends(require_user_permission("packages:read"))])
 async def list_package_versions(limit: int = 100):
     """List package versions for deployment creation"""
     async with get_pool().acquire() as conn:
@@ -616,7 +616,7 @@ async def repo_upload_file(
     return {"id": file_id, "filename": file.filename, "sha256": sha256_hash, "size": file_size, "downloadUrl": f"/api/v1/repo/download/{file_id}"}
 
 
-@router.get("/api/v1/repo/files", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/repo/files", dependencies=[Depends(require_user_permission("packages:read"))])
 async def repo_list_files(
     category: Optional[str] = None,
     file_type: Optional[str] = None,
@@ -642,7 +642,7 @@ async def repo_list_files(
     return {"files": [{"id": str(r["id"]), "filename": r["filename"], "displayName": r["display_name"], "version": r["version"], "type": r["file_type"], "category": r["category"], "sha256": r["sha256_hash"], "size": r["file_size"], "downloads": r["download_count"], "downloadUrl": f"/api/v1/repo/download/{r['id']}"} for r in rows]}
 
 
-@router.get("/api/v1/repo/files/{file_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/repo/files/{file_id}", dependencies=[Depends(require_user_permission("packages:read"))])
 async def repo_get_file(file_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get file metadata."""
     async with db.acquire() as conn:
@@ -730,7 +730,7 @@ async def repo_cache_remote_file(
     return {"id": file_id, "filename": filename, "sha256": sha256_hash, "size": file_size, "cached": True, "downloadUrl": f"/api/v1/repo/download/{file_id}"}
 
 
-@router.get("/api/v1/repo/stats", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/repo/stats", dependencies=[Depends(require_user_permission("packages:read"))])
 async def repo_get_stats(db: asyncpg.Pool = Depends(get_db)):
     """Get repository statistics."""
     async with db.acquire() as conn:

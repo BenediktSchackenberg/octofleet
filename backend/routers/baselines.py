@@ -250,7 +250,7 @@ Write-Host "Baseline installation complete!"
         }
 
 
-@router.get("/api/v1/compliance/summary", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/compliance/summary", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get security compliance summary across all nodes"""
     async with db.acquire() as conn:
@@ -360,7 +360,7 @@ async def get_compliance_summary(db: asyncpg.Pool = Depends(get_db)):
         return compliance
 
 
-@router.get("/api/v1/baselines")
+@router.get("/api/v1/baselines", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_config_baselines(db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -396,7 +396,7 @@ async def create_config_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depend
             return dict(row)
 
 
-@router.get("/api/v1/baselines/evaluations/{eval_id}")
+@router.get("/api/v1/baselines/evaluations/{eval_id}", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_evaluation_detail(eval_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM config_baseline_evaluations WHERE id=$1::uuid", eval_id)
@@ -405,7 +405,7 @@ async def get_evaluation_detail(eval_id: str, db: asyncpg.Pool = Depends(get_db)
         return dict(row)
 
 
-@router.get("/api/v1/baselines/drift")
+@router.get("/api/v1/baselines/drift", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_drift_events(status: str = None, severity: str = None, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         query = "SELECT d.*, r.rule_name, b.name as baseline_name FROM config_drift_events d LEFT JOIN config_baseline_rules r ON r.id=d.rule_id LEFT JOIN config_baseline_evaluations e ON e.id=d.evaluation_id LEFT JOIN config_baselines b ON b.id=e.baseline_id WHERE 1=1"
@@ -424,7 +424,7 @@ async def list_drift_events(status: str = None, severity: str = None, db: asyncp
         return [dict(r) for r in rows]
 
 
-@router.get("/api/v1/baselines/drift/summary")
+@router.get("/api/v1/baselines/drift/summary", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def drift_summary(db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         total_baselines = await conn.fetchval("SELECT COUNT(*) FROM config_baselines")
@@ -471,7 +471,7 @@ async def waive_drift(drift_id: str, data: Dict[str, Any], db: asyncpg.Pool = De
         return {"status": "waived"}
 
 
-@router.get("/api/v1/baselines/compliance/trends", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/baselines/compliance/trends", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def compliance_trends(db: asyncpg.Pool = Depends(get_db)):
     """Get compliance % over time for the last 30 days."""
     async with db.acquire() as conn:
@@ -491,7 +491,7 @@ async def compliance_trends(db: asyncpg.Pool = Depends(get_db)):
         ]
 
 
-@router.get("/api/v1/baselines/compliance/{node_id}")
+@router.get("/api/v1/baselines/compliance/{node_id}", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def node_compliance(node_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         evals = await conn.fetch("""
@@ -511,7 +511,7 @@ async def node_compliance(node_id: str, db: asyncpg.Pool = Depends(get_db), _=De
         }
 
 
-@router.get("/api/v1/baselines/templates", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/baselines/templates", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_baseline_templates():
     """List available CIS benchmark templates."""
     return [
@@ -633,7 +633,7 @@ async def remediate_all_drifts(baseline_id: str, db: asyncpg.Pool = Depends(get_
         return {"baseline_id": baseline_id, "total": len(drifts), "results": results}
 
 
-@router.get("/api/v1/baselines/{baseline_id}")
+@router.get("/api/v1/baselines/{baseline_id}", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM config_baselines WHERE id = $1::uuid", baseline_id)
@@ -682,7 +682,7 @@ async def delete_config_baseline(baseline_id: str, db: asyncpg.Pool = Depends(ge
         return {"status": "deleted"}
 
 
-@router.get("/api/v1/baselines/{baseline_id}/rules")
+@router.get("/api/v1/baselines/{baseline_id}/rules", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_baseline_rules(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM config_baseline_rules WHERE baseline_id = $1::uuid ORDER BY created_at", baseline_id)
@@ -735,7 +735,7 @@ async def delete_baseline_rule(rule_id: str, db: asyncpg.Pool = Depends(get_db))
         return {"status": "deleted"}
 
 
-@router.get("/api/v1/baselines/{baseline_id}/assignments")
+@router.get("/api/v1/baselines/{baseline_id}/assignments", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_baseline_assignments(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM config_baseline_assignments WHERE baseline_id=$1::uuid", baseline_id)
@@ -911,7 +911,7 @@ async def evaluate_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)
         return {"status": "evaluated", "evaluations": evaluations}
 
 
-@router.get("/api/v1/baselines/{baseline_id}/evaluations")
+@router.get("/api/v1/baselines/{baseline_id}/evaluations", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_baseline_evaluations(baseline_id: str, db: asyncpg.Pool = Depends(get_db), _=Depends(verify_api_key)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""

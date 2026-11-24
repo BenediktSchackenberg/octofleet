@@ -46,7 +46,8 @@ PROTECTED_ENDPOINTS = [
     "/api/v1/services",
     f"/api/v1/services/{VALID_UUID}",
 ]
-USER_ONLY_ENDPOINTS = set(PROTECTED_ENDPOINTS[:7])
+# Every one of them: the agent key reads only what the agents read (terminal polls, …)
+USER_ONLY_ENDPOINTS = set(PROTECTED_ENDPOINTS)
 
 
 class TestHealth:
@@ -100,7 +101,7 @@ class TestServiceOrchestration:
         assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
             f"{API_URL}/api/v1/service-classes",
-            headers={"X-API-Key": API_KEY},
+            headers={"Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}"},
             timeout=10
         )
         assert response.status_code == 200
@@ -113,7 +114,7 @@ class TestServiceOrchestration:
         assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
             f"{API_URL}/api/v1/services",
-            headers={"X-API-Key": API_KEY},
+            headers={"Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}"},
             timeout=10
         )
         assert response.status_code == 200
@@ -176,10 +177,10 @@ class TestAPIKeyConsistency:
             f"Old API key should be rejected! Got {response.status_code}"
     
     def test_correct_api_key_accepted(self):
-        """The agent key still works on legacy agent-facing job reads."""
+        """The agent key still works on the reads of the agents (terminal poll)."""
         assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
         response = requests.get(
-            f"{API_URL}/api/v1/jobs",
+            f"{API_URL}/api/v1/terminal/pending/CI-NODE",
             headers={"X-API-Key": API_KEY},
             timeout=10
         )

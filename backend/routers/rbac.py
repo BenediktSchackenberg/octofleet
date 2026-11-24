@@ -52,7 +52,7 @@ ALL_PERMISSIONS = sorted({
 })
 
 
-@router.get("/permissions/all")
+@router.get("/permissions/all", dependencies=[Depends(require_user_permission("users:read"))])
 async def list_all_permissions(auth=Depends(verify_api_key)):
     """Return all available permission strings, grouped by category."""
     categories = {}

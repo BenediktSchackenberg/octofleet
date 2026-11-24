@@ -89,6 +89,7 @@ from auth import (
     get_permissions_for_roles,
     hash_api_key,
     hash_password,
+    require_any_permission,
     require_permission,
     require_user_permission,
 )
@@ -152,10 +153,10 @@ from dependencies import (
     get_db,
     not_found,
     parse_datetime,
+    require_permission_or_query,
     sanitize_for_postgres,
     set_db_pool,
     verify_api_key,
-    verify_api_key_or_query,
 )
 
 # Local db_pool reference (set during lifespan)
@@ -910,7 +911,7 @@ async def push_eventlog(node_id: str, request: Request, db: asyncpg.Pool = Depen
         return {"status": "ok", "inserted": inserted, "total": len(events)}
 
 
-@app.get("/api/v1/nodes/{node_id}/eventlog", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/nodes/{node_id}/eventlog", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def get_node_eventlog(
     node_id: str,
     log_name: Optional[str] = None,
@@ -1197,7 +1198,7 @@ async def push_metrics(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = De
         return {"status": "ok"}
 
 
-@app.get("/api/v1/nodes/{node_id}/metrics", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/nodes/{node_id}/metrics", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_node_metrics(node_id: str, hours: int = 24, db: asyncpg.Pool = Depends(get_db)):
     """Get metrics for a node with time series data"""
     async with db.acquire() as conn:
@@ -1245,7 +1246,7 @@ async def get_node_metrics(node_id: str, hours: int = 24, db: asyncpg.Pool = Dep
         }
 
 
-@app.get("/api/v1/metrics/fleet", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/metrics/fleet", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_fleet_performance(hours: int = 1, db: asyncpg.Pool = Depends(get_db)):
     """
     Get detailed fleet performance data for the performance overview table.
@@ -1374,7 +1375,7 @@ async def delete_deployment(deployment_id: str):
         return {"status": "deleted"}
 
 
-@app.get("/api/v1/nodes/{node_id}/deployments", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/nodes/{node_id}/deployments", dependencies=[Depends(require_any_permission("deployments:read", "jobs:poll"))])
 async def get_node_deployments(node_id: str):
     """Get pending deployments for a specific node (agent polling endpoint)"""
     async with db_pool.acquire() as conn:
@@ -1498,7 +1499,7 @@ async def update_node_deployment_status(node_id: str, deployment_id: str, data: 
 # Feature 2: Eventlog Charts - Trends over time
 # ============================================================================
 
-@app.get("/api/v1/eventlog/trends", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/eventlog/trends", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def get_eventlog_trends(days: int = 7, db: asyncpg.Pool = Depends(get_db)):
     """Get eventlog trends by day for charts"""
     async with db.acquire() as conn:
@@ -1532,7 +1533,7 @@ async def get_eventlog_trends(days: int = 7, db: asyncpg.Pool = Depends(get_db))
 # Feature 3: Software Comparison - Compare versions across nodes
 # ============================================================================
 
-@app.get("/api/v1/software/compare", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/software/compare", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def compare_software(software_name: str = None, db: asyncpg.Pool = Depends(get_db)):
     """Compare software versions across nodes"""
     async with db.acquire() as conn:
@@ -1616,7 +1617,7 @@ from fastapi.responses import StreamingResponse
 # Track gateway start time for uptime calculation
 GATEWAY_START_TIME = datetime.utcnow()
 
-@app.get("/api/v1/gateway/status", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/gateway/status", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_gateway_status():
     """Get Octofleet Gateway health status for the dashboard widget"""
     gateway_url = "http://192.168.0.5:18789"
@@ -2053,7 +2054,7 @@ async def delete_api_key(
 
 # ========== E9: Maintenance Windows ==========
 
-@app.get("/api/v1/maintenance-windows", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/maintenance-windows", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_maintenance_windows():
     """List all maintenance windows"""
     async with db_pool.acquire() as conn:
@@ -2101,7 +2102,7 @@ async def create_maintenance_window(data: dict):
         return {"id": str(window_id), "status": "created"}
 
 
-@app.get("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/maintenance-windows/{window_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_maintenance_window(window_id: str):
     """Get a specific maintenance window"""
     async with db_pool.acquire() as conn:
@@ -2143,7 +2144,7 @@ async def delete_maintenance_window(window_id: str):
         return {"status": "deleted"}
 
 
-@app.get("/api/v1/maintenance-windows/check/{node_id}", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/maintenance-windows/check/{node_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def check_maintenance_window(node_id: str):
     """Check if a node is currently in a maintenance window"""
     from datetime import datetime
@@ -2193,7 +2194,7 @@ async def check_maintenance_window(node_id: str):
 
 # ========== E9: Rollout Strategies ==========
 
-@app.get("/api/v1/rollout-strategies", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/rollout-strategies", dependencies=[Depends(require_user_permission("deployments:read"))])
 async def list_rollout_strategies():
     """List available rollout strategies"""
     return {
@@ -2266,7 +2267,7 @@ async def configure_rollout_strategy(deployment_id: str, data: dict):
         return {"status": "configured", "strategy": strategy}
 
 
-@app.get("/api/v1/deployments/{deployment_id}/rollout", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/deployments/{deployment_id}/rollout", dependencies=[Depends(require_user_permission("deployments:read"))])
 async def get_rollout_status(deployment_id: str):
     """Get rollout strategy status for a deployment"""
     async with db_pool.acquire() as conn:
@@ -2814,8 +2815,8 @@ async def live_data_generator(node_id: str, session_id: str, pool):
         yield f"event: disconnected\ndata: {json.dumps({'reason': 'session_ended'})}\n\n"
 
 
-@app.get("/api/v1/live/{node_id}")
-async def live_stream(node_id: str, _: str = Depends(verify_api_key_or_query)):
+@app.get("/api/v1/live/{node_id}", dependencies=[Depends(require_permission_or_query("nodes:read"))])
+async def live_stream(node_id: str):
     """
     SSE endpoint for live node data streaming.
     
@@ -2974,7 +2975,7 @@ async def receive_live_data(request: Request, data: Dict[str, Any], db: asyncpg.
         }
 
 
-@app.get("/api/v1/nodes/{node_id}/metrics/history", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/nodes/{node_id}/metrics/history", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_metrics_history(
     node_id: str, 
     hours: int = 24,
@@ -3150,7 +3151,7 @@ async def delete_alert_channel(channel_id: str, _=Depends(require_user_permissio
         return {"status": "deleted"}
 
 # Alert Rules CRUD
-@app.get("/api/v1/alert-rules")
+@app.get("/api/v1/alert-rules", dependencies=[Depends(require_user_permission("alerts:read"))])
 async def list_alert_rules(_: str = Depends(verify_api_key)):
     """List all alert rules."""
     async with db_pool.acquire() as conn:
@@ -3183,7 +3184,7 @@ async def delete_alert_rule(rule_id: str, _=Depends(require_user_permission("ale
         return {"status": "deleted"}
 
 # Alert History
-@app.get("/api/v1/alert-history")
+@app.get("/api/v1/alert-history", dependencies=[Depends(require_user_permission("alerts:read"))])
 async def list_alert_history(limit: int = 50, _: str = Depends(verify_api_key)):
     """Get recent alert history."""
     async with db_pool.acquire() as conn:
@@ -3530,7 +3531,7 @@ def create_status_table(data: List[List], col_widths: List[float] = None) -> Tab
 # Provisioning settings are loaded for each request from the shared configuration.
 
 
-@app.get("/api/v1/provisioning/windows-editions", tags=["Provisioning"])
+@app.get("/api/v1/provisioning/windows-editions", tags=["Provisioning"], dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_windows_editions(api_key: str = Depends(verify_api_key)):
     """List available Windows editions"""
     return {
@@ -4204,7 +4205,7 @@ autoinstall:
 
 # --- Security Policies ---
 
-@app.get("/api/v1/security/policies", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/policies", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_security_policies():
     async with db_pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM security_policies ORDER BY created_at DESC")
@@ -4260,7 +4261,7 @@ async def delete_security_policy(policy_id: str):
 
 # --- Security Dashboard Stats ---
 
-@app.get("/api/v1/security/dashboard", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/dashboard", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def security_dashboard():
     async with db_pool.acquire() as conn:
         # Findings by severity
@@ -4513,7 +4514,7 @@ async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
 # E21: Monitoring Profiles & Assignments
 # ============================================================
 
-@app.get("/api/v1/security/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/monitoring/profiles", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_monitoring_profiles(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
@@ -4558,7 +4559,7 @@ async def delete_monitoring_profile(profile_id: str, db: asyncpg.Pool = Depends(
         await conn.execute("DELETE FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
         return {"deleted": True}
 
-@app.get("/api/v1/security/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/monitoring/assignments", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_monitoring_assignments(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -4590,7 +4591,7 @@ async def delete_monitoring_assignment(assignment_id: str, db: asyncpg.Pool = De
 # E21: Posture Snapshots & Diffs
 # ============================================================
 
-@app.get("/api/v1/security/posture/snapshots", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/posture/snapshots", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_posture_snapshots(node_id: str = None, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         if node_id:
@@ -4612,7 +4613,7 @@ async def create_posture_snapshot(req: Request, db: asyncpg.Pool = Depends(get_d
             json.dumps(data.get("openPorts", [])))
         return dict(row)
 
-@app.get("/api/v1/security/posture/diffs", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/posture/diffs", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_posture_diffs(node_id: str = None, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         if node_id:
@@ -4625,7 +4626,7 @@ async def list_posture_diffs(node_id: str = None, limit: int = 50, db: asyncpg.P
 # E21: Events (normalized) & File Events
 # ============================================================
 
-@app.get("/api/v1/security/events", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/events", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def list_security_events(node_id: str = None, event_type: str = None, severity: str = None,
                                 hours: int = 24, limit: int = 100, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
@@ -4642,7 +4643,7 @@ async def list_security_events(node_id: str = None, event_type: str = None, seve
         total = await conn.fetchval(f"SELECT COUNT(*) FROM events_normalized {where}", *params)
         return {"events": [dict(r) for r in rows], "total": total}
 
-@app.get("/api/v1/security/file-events", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/file-events", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def list_file_events(node_id: str = None, op: str = None, path_filter: str = None,
                            hours: int = 24, limit: int = 100, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
@@ -4663,7 +4664,7 @@ async def list_file_events(node_id: str = None, op: str = None, path_filter: str
 # E21: Evidence Export
 # ============================================================
 
-@app.get("/api/v1/security/evidence/export", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/evidence/export", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def export_evidence(node_id: str = None, hours: int = 24, db: asyncpg.Pool = Depends(get_db)):
     """Export security evidence package (events + file events + findings) as JSON"""
     async with db.acquire() as conn:
@@ -4694,7 +4695,7 @@ async def export_evidence(node_id: str = None, hours: int = 24, db: asyncpg.Pool
 # E21: Agent Capabilities
 # ============================================================
 
-@app.get("/api/v1/security/agent/capabilities", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/agent/capabilities", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_agent_capabilities(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM agent_capabilities ORDER BY last_seen DESC NULLS LAST")
@@ -4749,7 +4750,7 @@ async def create_ui_audit_event(req: Request, db: asyncpg.Pool = Depends(get_db)
 # E21: Detection Rules
 # ============================================================
 
-@app.get("/api/v1/security/detection-rules", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/detection-rules", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_detection_rules(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM detection_rules ORDER BY rule_order, created_at DESC")
@@ -4771,7 +4772,7 @@ async def create_detection_rule(req: Request, db: asyncpg.Pool = Depends(get_db)
 # E21: Retention Policies & Legal Holds
 # ============================================================
 
-@app.get("/api/v1/security/retention/policies", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/retention/policies", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_retention_policies(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         try:
@@ -4794,7 +4795,7 @@ async def create_retention_policy(req: Request, db: asyncpg.Pool = Depends(get_d
         except Exception as e:
             return {"error": str(e), "note": "retention_policies table may not exist yet"}
 
-@app.get("/api/v1/security/retention/holds", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/retention/holds", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_legal_holds(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         try:
@@ -5271,10 +5272,10 @@ async def export_file_activity(
                            "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]} for r in rows]}
 
 
-@app.get("/api/v1/admin/agent-live", dependencies=[Depends(verify_api_key_or_query)])
+@app.get("/api/v1/admin/agent-live", dependencies=[Depends(require_permission_or_query("settings:read"))])
 async def agent_live_sse(request: Request):
     """SSE endpoint for live agent activity stream. EventSource cannot send headers, so the
-    session token may come as ?token= (verify_api_key_or_query), like on the other streams."""
+    session token may come as ?token= (require_permission_or_query), like on the other streams."""
     async def event_generator():
         last_idx = len(_agent_activity_buffer)
         last_node_check = 0
@@ -5428,11 +5429,11 @@ CIS_TEMPLATES = {
 
 # ─── Stub endpoints for frontend compatibility ───────────────────────────────
 
-@app.get("/api/v1/package-categories", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/package-categories", dependencies=[Depends(require_user_permission("packages:read"))])
 async def get_package_categories():
     return {"categories": []}
 
-@app.get("/api/v1/enrollment-tokens", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/enrollment-tokens", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_enrollment_tokens():
     return {"tokens": []}
 

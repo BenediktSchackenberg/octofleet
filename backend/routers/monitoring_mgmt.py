@@ -15,8 +15,8 @@ import event_counts
 import monitoring_defaults
 import retention
 from app.db.nodes import os_build_from
-from auth import require_permission, require_user_permission
-from dependencies import get_db, get_pool, verify_api_key
+from auth import require_any_permission, require_permission, require_user_permission
+from dependencies import get_db, get_pool
 
 router = APIRouter(tags=["Monitoring"])
 def _compute_posture_diff(baseline: dict, current: dict) -> dict:
@@ -148,14 +148,14 @@ def _parse_json_fields(d: dict, fields: tuple = ("sensors", "permissions", "samp
     return d
 
 
-@router.get("/api/v1/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/monitoring/profiles", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_monitoring_profiles():
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
         return {"profiles": [_parse_json_fields(dict(r)) for r in rows]}
 
 
-@router.get("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/monitoring/profiles/{profile_id}", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_monitoring_profile(profile_id: str):
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
@@ -211,7 +211,7 @@ async def delete_monitoring_profile(profile_id: str):
         return {"status": "deleted"}
 
 
-@router.get("/api/v1/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/monitoring/assignments", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_monitoring_assignments():
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("""
@@ -261,7 +261,7 @@ async def delete_monitoring_assignment(assignment_id: str):
         return {"status": "deleted"}
 
 
-@router.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/monitoring/nodes/{node_id}/effective-policy", dependencies=[Depends(require_any_permission("compliance:read", "jobs:poll"))])
 async def get_effective_policy(node_id: str):
     """The node's monitoring profile (node assignment, else group) plus the fleet-wide sensor
     defaults, which apply to every sensor the profile does not set."""
@@ -273,7 +273,7 @@ async def get_effective_policy(node_id: str):
         return {"policy": _parse_json_fields(dict(row)), "defaults": defaults}
 
 
-@router.get("/api/v1/monitoring/defaults", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/monitoring/defaults", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_monitoring_defaults():
     """Fleet-wide sensor defaults (a sensor set nowhere is on)."""
     async with get_pool().acquire() as conn:
@@ -358,7 +358,7 @@ async def resolve_node_filter(conn, value: str) -> list:
     return sorted(names)
 
 
-@router.get("/api/v1/events", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/events", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def query_events(
     node_id: str = None, user_id: str = None, event_type: str = None,
     type_prefix: str = None, severity: str = None, search: str = None,
@@ -412,7 +412,7 @@ async def query_events(
         return {"events": events, "total": min(count, EVENT_COUNT_CAP), "total_capped": count > EVENT_COUNT_CAP}
 
 
-@router.get("/api/v1/events/files", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/events/files", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def query_file_events(
     node_id: str = None, user_id: str = None, op: str = None,
     path: str = None, since: str = None, until: str = None,
@@ -451,7 +451,7 @@ async def query_file_events(
         return {"events": [dict(r) for r in rows], "total": count}
 
 
-@router.get("/api/v1/findings", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/findings", dependencies=[Depends(require_user_permission("alerts:read"))])
 async def list_findings(
     status: str = None, severity: str = None, node_id: str = None,
     limit: int = 50, offset: int = 0
@@ -480,7 +480,7 @@ async def list_findings(
         return {"findings": [dict(r) for r in rows], "total": count}
 
 
-@router.get("/api/v1/findings/{finding_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/findings/{finding_id}", dependencies=[Depends(require_user_permission("alerts:read"))])
 async def get_finding(finding_id: str):
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM findings WHERE id = $1::uuid", finding_id)
@@ -504,7 +504,7 @@ async def update_finding(finding_id: str, req: Request):
         return dict(row)
 
 
-@router.get("/api/v1/retention", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/retention", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_retention_config():
     """Retention settings per data type and what is in effect (TimescaleDB jobs, size, oldest data)."""
     async with get_pool().acquire() as conn:
@@ -551,7 +551,7 @@ async def update_retention_config(category: str, req: Request,
         return {**items[0], "changes": result[0]["changes"] if result else []}
 
 
-@router.get("/api/v1/evidence/exports", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/evidence/exports", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def list_evidence_exports():
     async with get_pool().acquire() as conn:
         rows = await conn.fetch("SELECT * FROM evidence_exports ORDER BY created_at DESC LIMIT 50")
@@ -627,7 +627,7 @@ async def report_agent_capabilities(node_id: str, req: Request):
         return dict(row)
 
 
-@router.get("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/agents/{node_id}/capabilities", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_agent_capabilities(node_id: str):
     async with get_pool().acquire() as conn:
         # Try by node_id directly, then resolve hostname→UUID
@@ -642,7 +642,7 @@ async def get_agent_capabilities(node_id: str):
         return _parse_json_fields(dict(row))
 
 
-@router.get("/api/v1/agents/capabilities", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/agents/capabilities", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_agent_capabilities():
     """List all agents with their capabilities and health status."""
     async with get_pool().acquire() as conn:
@@ -779,7 +779,7 @@ async def ingest_normalized_events(req: Request):
     return {"inserted": len(file_rows) + len(event_rows), "dropped": dropped, "findings_created": 0}
 
 
-@router.get("/api/v1/agents/{node_id}/health/history", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/agents/{node_id}/health/history", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_agent_health_history(node_id: str, limit: int = 50):
     """Get recent health reports for a node."""
     async with get_pool().acquire() as conn:
@@ -985,7 +985,7 @@ async def compare_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
 # as history but no longer written.
 
 
-@router.get("/api/v1/events/aggregated", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/events/aggregated", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def get_aggregated_events(
     node_id: str = None, event_type: str = None, type_prefix: str = None,
     since: str = None, until: str = None,
@@ -1026,7 +1026,7 @@ async def get_aggregated_events(
         }
 
 
-@router.get("/api/v1/events/stats", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/events/stats", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def get_event_stats_v2(days: Optional[int] = Query(None, ge=1, le=3650)):
     """Combined stats from both raw (recent) and aggregated (historical) data.
 

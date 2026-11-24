@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
 from auth import require_permission, require_user_permission
-from dependencies import get_pool, verify_api_key_or_query
+from dependencies import get_pool, require_permission_or_query
 from vulnerability import COUNTED
 
 router = APIRouter(tags=["Patch Explorer"])
@@ -578,7 +578,7 @@ async def trigger_patch_scan(data: dict, request: Request):
 # Phase 4: SSE deploy-stream
 # ---------------------------------------------------------------------------
 
-@router.get("/api/v1/patches/explorer/deploy-stream/{deployment_id}", dependencies=[Depends(verify_api_key_or_query)])
+@router.get("/api/v1/patches/explorer/deploy-stream/{deployment_id}", dependencies=[Depends(require_permission_or_query("packages:read"))])
 async def deploy_stream(deployment_id: str):
     """Server-Sent Events endpoint for live deployment progress."""
 

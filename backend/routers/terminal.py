@@ -208,7 +208,7 @@ async def stop_screen_session(
     return {"status": "stopped", "session_id": session_id}
 
 
-@router.get("/api/v1/screen/pending/{node_id}")
+@router.get("/api/v1/screen/pending/{node_id}", dependencies=[Depends(require_permission("terminal:pending"))])
 async def get_pending_screen_session(node_id: str, _=Depends(verify_api_key)):
     """
     Agent endpoint: Check if there's a pending screen session for this node.
@@ -453,7 +453,7 @@ async def stop_shell_session(
     return {"status": "stopped"}
 
 
-@router.get("/api/v1/shell/pending/{node_id}")
+@router.get("/api/v1/shell/pending/{node_id}", dependencies=[Depends(require_permission("terminal:pending"))])
 async def get_pending_shell_session(
     node_id: str, _=Depends(verify_api_key),
 ):
@@ -721,7 +721,7 @@ async def get_terminal_output(session_id: str, _=Depends(require_permission("ter
     return {"output": output}
 
 
-@router.get("/api/v1/terminal/pending/{node_id}")
+@router.get("/api/v1/terminal/pending/{node_id}", dependencies=[Depends(require_permission("terminal:pending"))])
 async def get_pending_terminal_commands(node_id: str, _=Depends(verify_api_key)):
     """Agent polls this to get pending commands.
 

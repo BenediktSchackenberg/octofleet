@@ -7,12 +7,13 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query
 
 from agent_monitor import ACTIONS, monitor
-from dependencies import get_pool, verify_api_key
+from auth import require_user_permission
+from dependencies import get_pool
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Agent Monitor"])
 
 
-@router.get("/agent-status", dependencies=[Depends(verify_api_key)])
+@router.get("/agent-status", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_agent_status(
     q: str = Query("", max_length=200, description="Part of the hostname, or a pattern with * and ?"),
     status: Literal["", "active", "idle", "stale", "offline", "unknown", "errors"] = "",
@@ -27,7 +28,7 @@ async def get_agent_status(
     return monitor.agents(counts, q=q.strip(), status=status, sort=sort, direction=dir, limit=limit, offset=offset)
 
 
-@router.get("/agent-activity", dependencies=[Depends(verify_api_key)])
+@router.get("/agent-activity", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_agent_activity(
     node: str = Query("", max_length=255, description="Node UUID, node ID or hostname"),
     action: str = Query("", max_length=40),

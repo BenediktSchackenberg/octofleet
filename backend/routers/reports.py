@@ -28,7 +28,7 @@ from app.core.report_helpers import (
     style_excel_header,
 )
 from auth import require_user_permission
-from dependencies import get_db, verify_api_key
+from dependencies import get_db
 from routers.baselines import get_compliance_summary
 
 router = APIRouter(tags=["Reports"])
@@ -64,7 +64,7 @@ def create_pdf_styles():
 
 
 
-@router.get("/api/v1/export/nodes", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/export/nodes", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def export_nodes(format: str = "json", db: asyncpg.Pool = Depends(get_db)):
     """Export all nodes as CSV or JSON"""
     async with db.acquire() as conn:
@@ -106,7 +106,7 @@ async def export_nodes(format: str = "json", db: asyncpg.Pool = Depends(get_db))
             return data
 
 
-@router.get("/api/v1/export/software", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/export/software", dependencies=[Depends(require_user_permission("inventory:read"))])
 async def export_software(format: str = "json", db: asyncpg.Pool = Depends(get_db)):
     """Export all software as CSV or JSON"""
     async with db.acquire() as conn:
@@ -150,7 +150,7 @@ async def export_software(format: str = "json", db: asyncpg.Pool = Depends(get_d
             return data
 
 
-@router.get("/api/v1/export/compliance", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/export/compliance", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def export_compliance(format: str = "json", db: asyncpg.Pool = Depends(get_db)):
     """Export compliance data as CSV or JSON"""
     summary = await get_compliance_summary(db)
@@ -173,7 +173,7 @@ async def export_compliance(format: str = "json", db: asyncpg.Pool = Depends(get
     return {"status": "checked"}
 
 
-@router.get("/api/v1/export/nodes/excel", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/export/nodes/excel", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def export_nodes_excel(db: asyncpg.Pool = Depends(get_db)):
     """Export all nodes to Excel."""
     async with db.acquire() as conn:
@@ -228,7 +228,7 @@ async def export_nodes_excel(db: asyncpg.Pool = Depends(get_db)):
     )
 
 
-@router.get("/api/v1/export/software/excel", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/export/software/excel", dependencies=[Depends(require_user_permission("inventory:read"))])
 async def export_software_excel(db: asyncpg.Pool = Depends(get_db)):
     """Export all installed software to Excel."""
     async with db.acquire() as conn:
@@ -266,7 +266,7 @@ async def export_software_excel(db: asyncpg.Pool = Depends(get_db)):
     )
 
 
-@router.get("/api/v1/export/vulnerabilities/excel", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/export/vulnerabilities/excel", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def export_vulnerabilities_excel(db: asyncpg.Pool = Depends(get_db)):
     """Export all vulnerabilities with affected nodes to Excel."""
     async with db.acquire() as conn:
@@ -334,7 +334,7 @@ async def export_vulnerabilities_excel(db: asyncpg.Pool = Depends(get_db)):
     )
 
 
-@router.get("/api/v1/export/jobs/excel", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/export/jobs/excel", dependencies=[Depends(require_user_permission("jobs:read"))])
 async def export_jobs_excel(
     days: int = 30,
     db: asyncpg.Pool = Depends(get_db)
@@ -399,7 +399,7 @@ async def export_jobs_excel(
     )
 
 
-@router.get("/api/v1/reports/fleet/pdf", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/fleet/pdf", dependencies=[Depends(require_user_permission("reports:read"))])
 async def generate_fleet_summary_pdf(db: asyncpg.Pool = Depends(get_db)):
     """E19-05: Generate Fleet Summary PDF Report"""
     
@@ -510,7 +510,7 @@ async def generate_fleet_summary_pdf(db: asyncpg.Pool = Depends(get_db)):
     )
 
 
-@router.get("/api/v1/reports/security/pdf", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/security/pdf", dependencies=[Depends(require_user_permission("reports:read"))])
 async def generate_security_report_pdf(db: asyncpg.Pool = Depends(get_db)):
     """E19-06: Generate Security Report PDF (CVEs, Compliance)"""
     
@@ -626,7 +626,7 @@ async def generate_security_report_pdf(db: asyncpg.Pool = Depends(get_db)):
     )
 
 
-@router.get("/api/v1/reports/inventory/pdf", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/inventory/pdf", dependencies=[Depends(require_user_permission("reports:read"))])
 async def generate_inventory_report_pdf(
     node_id: Optional[str] = None,
     db: asyncpg.Pool = Depends(get_db)
@@ -1162,7 +1162,7 @@ async def reports_shutdown():
 
 # --- Report Catalog ---
 
-@router.get("/api/v1/reports/catalog", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/catalog", dependencies=[Depends(require_user_permission("reports:read"))])
 async def list_report_catalog(category: Opt[str] = None, db: asyncpg.Pool = Depends(get_db)):
     if category and category.lower() != "all":
         rows = await db.fetch("SELECT * FROM report_catalog WHERE category = $1 ORDER BY name", category)
@@ -1171,7 +1171,7 @@ async def list_report_catalog(category: Opt[str] = None, db: asyncpg.Pool = Depe
     return [dict(r) for r in rows]
 
 
-@router.get("/api/v1/reports/catalog/{slug}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/catalog/{slug}", dependencies=[Depends(require_user_permission("reports:read"))])
 async def get_report_catalog(slug: str, db: asyncpg.Pool = Depends(get_db)):
     row = await db.fetchrow("SELECT * FROM report_catalog WHERE slug = $1", slug)
     if not row:
@@ -1194,7 +1194,7 @@ async def execute_report(req: ExecuteReportRequest, db: asyncpg.Pool = Depends(g
     }
 
 
-@router.get("/api/v1/reports/executions", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/executions", dependencies=[Depends(require_user_permission("reports:read"))])
 async def list_executions(
     report_id: Opt[str] = None,
     status: Opt[str] = None,
@@ -1230,7 +1230,7 @@ async def list_executions(
     return [dict(r) for r in rows]
 
 
-@router.get("/api/v1/reports/executions/{execution_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/executions/{execution_id}", dependencies=[Depends(require_user_permission("reports:read"))])
 async def get_execution(execution_id: str, db: asyncpg.Pool = Depends(get_db)):
     row = await db.fetchrow("SELECT * FROM report_executions WHERE id = $1", execution_id)
     if not row:
@@ -1241,7 +1241,7 @@ async def get_execution(execution_id: str, db: asyncpg.Pool = Depends(get_db)):
     return result
 
 
-@router.get("/api/v1/reports/executions/{execution_id}/download", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/executions/{execution_id}/download", dependencies=[Depends(require_user_permission("reports:read"))])
 async def download_execution(execution_id: str, db: asyncpg.Pool = Depends(get_db)):
     row = await db.fetchrow("SELECT file_path, output_format FROM report_executions WHERE id = $1 AND status = 'completed'", execution_id)
     if not row or not row["file_path"] or not os.path.exists(row["file_path"]):
@@ -1252,7 +1252,7 @@ async def download_execution(execution_id: str, db: asyncpg.Pool = Depends(get_d
 
 # --- Schedules ---
 
-@router.get("/api/v1/reports/schedules", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/schedules", dependencies=[Depends(require_user_permission("reports:read"))])
 async def list_schedules(db: asyncpg.Pool = Depends(get_db)):
     rows = await db.fetch(
         """SELECT s.*, rc.name as report_name, rc.slug as report_slug
@@ -1315,7 +1315,7 @@ async def run_schedule_now(schedule_id: str, db: asyncpg.Pool = Depends(get_db))
     return {"ok": True, "schedule_id": schedule_id}
 
 
-@router.get("/api/v1/reports/schedules/{schedule_id}/deliveries", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/schedules/{schedule_id}/deliveries", dependencies=[Depends(require_user_permission("reports:read"))])
 async def list_schedule_deliveries(schedule_id: str, db: asyncpg.Pool = Depends(get_db)):
     rows = await db.fetch(
         """
@@ -1340,7 +1340,7 @@ async def delete_schedule(schedule_id: str, db: asyncpg.Pool = Depends(get_db)):
     return {"deleted": "DELETE 1" in result}
 
 
-@router.get("/api/v1/reports/executive-dashboard", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/executive-dashboard", dependencies=[Depends(require_user_permission("reports:read"))])
 async def executive_dashboard(db: asyncpg.Pool = Depends(get_db)):
     kpis = await db.fetchrow(
         """
@@ -1442,7 +1442,7 @@ async def executive_dashboard(db: asyncpg.Pool = Depends(get_db)):
 
 # --- Stats ---
 
-@router.get("/api/v1/reports/stats", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/reports/stats", dependencies=[Depends(require_user_permission("reports:read"))])
 async def report_stats(db: asyncpg.Pool = Depends(get_db)):
     stats = await db.fetchrow(
         """

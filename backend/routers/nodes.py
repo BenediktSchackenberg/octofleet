@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import node_removal
-from auth import require_auth, require_permission, require_user_permission
+from auth import require_permission, require_user_permission
 from dependencies import API_KEY, get_db, not_found, verify_api_key
 from node_status import status_sql
 
@@ -552,7 +552,7 @@ async def register_pending_node(request: Request, db: asyncpg.Pool = Depends(get
         
         return {"status": "pending", "pendingId": str(pending_id), "message": f"Node {hostname} registered"}
 
-@pending_router.get("/pending-nodes", dependencies=[Depends(require_auth)])
+@pending_router.get("/pending-nodes", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_pending_nodes(db: asyncpg.Pool = Depends(get_db)):
     """List all pending nodes"""
     async with db.acquire() as conn:

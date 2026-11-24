@@ -63,7 +63,7 @@ FAILED_SINCE = ("js.job_id IN (SELECT job_id FROM job_instances WHERE status = '
                 "AND COALESCE(completed_at, updated_at) >= NOW() - make_interval(hours => {p}))")
 
 
-@router.get("/jobs")
+@router.get("/jobs", dependencies=[Depends(require_user_permission("jobs:read"))])
 async def list_jobs(limit: int = 50, offset: int = 0, node: Optional[str] = None, target_id: Optional[str] = None,
                     status: Optional[str] = None, since_hours: Optional[int] = None,
                     command_type: Optional[str] = None, q: Optional[str] = None,
@@ -160,7 +160,7 @@ async def list_jobs(limit: int = 50, offset: int = 0, node: Optional[str] = None
         } for r in rows], "total": total, "counts": dict(count_row), "command_types": command_types}
 
 
-@router.get("/jobs/failures")
+@router.get("/jobs/failures", dependencies=[Depends(require_user_permission("jobs:read"))])
 async def list_job_failures(since_hours: int = Query(168, ge=1, le=job_failures.MAX_WINDOW_HOURS),
                             include_resolved: bool = False,
                             limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
@@ -176,7 +176,7 @@ async def list_job_failures(since_hours: int = Query(168, ge=1, le=job_failures.
         return await job_failures.list_failures(conn, since_hours, include_resolved, limit, offset)
 
 
-@router.get("/jobs/{job_id}")
+@router.get("/jobs/{job_id}", dependencies=[Depends(require_user_permission("jobs:read"))])
 async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)

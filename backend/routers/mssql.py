@@ -147,11 +147,11 @@ Start-Service -Name $ServiceName
 '''
 
 # Endpoints
-@router.get("/editions")
+@router.get("/editions", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_mssql_editions():
     return {"editions": MSSQL_EDITIONS}
 
-@router.get("/downloads")
+@router.get("/downloads", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_mssql_downloads():
     return {"downloads": MSSQL_DOWNLOADS}
 
@@ -173,7 +173,7 @@ async def create_mssql_config(data: Dict[str, Any], db: asyncpg.Pool = Depends(g
             
         return {"id": config_id, "name": data.get("name"), "createdAt": row["created_at"].isoformat() if row["created_at"] else None}
 
-@router.get("/configs")
+@router.get("/configs", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_mssql_configs(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM mssql_configs ORDER BY created_at DESC")
@@ -187,7 +187,7 @@ async def list_mssql_configs(db: asyncpg.Pool = Depends(get_db)):
             configs.append(c)
         return {"configs": configs}
 
-@router.get("/configs/{config_id}")
+@router.get("/configs/{config_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_mssql_config(config_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM mssql_configs WHERE id = $1::uuid", config_id)
@@ -205,7 +205,7 @@ async def delete_mssql_config(config_id: str, db: asyncpg.Pool = Depends(get_db)
         if result == "DELETE 0": raise HTTPException(status_code=404, detail="Config not found")
         return {"status": "deleted", "id": config_id}
 
-@router.get("/assignments")
+@router.get("/assignments", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_mssql_assignments(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -259,7 +259,7 @@ async def install_mssql(request: MssqlInstallRequest, db: asyncpg.Pool = Depends
             results.append({"target": target, "status": "jobs_created", "instanceId": instance_id})
     return {"results": results, "total": len(request.targets)}
 
-@router.get("/instances")
+@router.get("/instances", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_mssql_instances(node_id: Optional[str] = None, status: Optional[str] = None, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         query = "SELECT mi.*, n.hostname FROM mssql_instances mi JOIN nodes n ON n.node_id = mi.node_id WHERE 1=1"
@@ -269,7 +269,7 @@ async def list_mssql_instances(node_id: Optional[str] = None, status: Optional[s
         rows = await conn.fetch(query, *params)
         return {"instances": [dict(r) for r in rows]}
 
-@router.get("/cumulative-updates")
+@router.get("/cumulative-updates", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_cumulative_updates(version: Optional[str] = None, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         query = "SELECT * FROM mssql_cu_catalog WHERE 1=1"
@@ -342,7 +342,7 @@ def _classify_ampel(last_full_age_h: Optional[float], last_log_age_min: Optional
     return "red"
 
 
-@router.get("/backup-ampel")
+@router.get("/backup-ampel", dependencies=[Depends(require_user_permission("reports:read"))])
 async def get_backup_ampel(db: asyncpg.Pool = Depends(get_db)):
     """Return full ampel report."""
     now = datetime.now(timezone.utc)
@@ -457,7 +457,7 @@ async def get_backup_ampel(db: asyncpg.Pool = Depends(get_db)):
     return {"summary": summary, "instances": result_instances}
 
 
-@router.get("/backup-ampel/distributions")
+@router.get("/backup-ampel/distributions", dependencies=[Depends(require_user_permission("reports:read"))])
 async def get_backup_ampel_distributions(db: asyncpg.Pool = Depends(get_db)):
     """Return histogram data for charts."""
     async with db.acquire() as conn:

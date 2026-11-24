@@ -19,6 +19,8 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 
 > The shared agent key (`API_KEY` / `INVENTORY_API_KEY`) is for agents. Protected fleet and vulnerability reads, settings, user and role management, API key management, and job creation require a user account. Use a login token or a personal API key with the required permission. The shared agent key gets `403 This action requires a user account` on these routes.
 >
+> Read routes check a permission too (`User: …`); the routes the agents read from (`Agent: jobs:poll`, `Agent: terminal:pending`) accept the shared agent key. Streams (`?token=`) take the session token as query parameter. Only the own account (`/auth/me`, `/auth/permissions`, `/auth/password-rules`) needs no permission.
+>
 > Write routes always check a permission. Routes the agents report to (`Agent: inventory:write`, `Agent: jobs:poll`) accept the shared agent key and users or personal API keys with that permission; all other write routes need a user account with the listed permission (`User: …`).
 
 ---
@@ -31,7 +33,7 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 |--------|------|------|-------------|
 | GET | `/health` | No | Basic health check |
 | GET | `/api/v1/health` | No | API health check |
-| GET | `/api/v1/dashboard/summary` | API Key | Fleet dashboard summary; the vulnerability counts come from the vulnerability cache (`vulnerabilities.as_of`, `vulnerabilities.pending_nodes`, `vulnerabilities.scan_completed_at`) |
+| GET | `/api/v1/dashboard/summary` | User: `nodes:read` | Fleet dashboard summary; the vulnerability counts come from the vulnerability cache (`vulnerabilities.as_of`, `vulnerabilities.pending_nodes`, `vulnerabilities.scan_completed_at`) |
 
 ### Auth & Users
 
@@ -73,7 +75,7 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 | GET | `/api/v1/nodes/{node_id}/reboot` | User: `nodes:read` | The newest reboot until the node has reported after it: `reboot` = `{state: scheduled \| restarting \| failed, job_id, restart_at, error}` or `null` |
 | POST | `/api/v1/nodes/register` | No | Agent self-registration |
 | POST | `/api/v1/enroll` | No | Enroll node with token |
-| GET | `/api/v1/pending-nodes` | API Key | List pending registrations |
+| GET | `/api/v1/pending-nodes` | User: `nodes:read` | List pending registrations |
 | POST | `/api/v1/pending-nodes/{pending_id}/approve` | API Key | Approve pending node |
 | DELETE | `/api/v1/pending-nodes/{pending_id}/reject` | API Key | Reject pending node |
 
@@ -82,7 +84,7 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/enrollment-tokens` | User: `settings:write` | Create enrollment token |
-| GET | `/api/v1/enrollment-tokens` | API Key | List enrollment tokens |
+| GET | `/api/v1/enrollment-tokens` | User: `settings:read` | List enrollment tokens |
 | DELETE | `/api/v1/enrollment-tokens/{token_id}` | User: `settings:write` | Delete enrollment token |
 
 ### Inventory
@@ -100,7 +102,7 @@ Agents push inventory data; the frontend reads it.
 | GET | `/api/v1/inventory/linux/{node_id}` | — | Linux-specific inventory |
 | GET | `/api/v1/inventory/browser/{node_id}` | — | Browser extensions |
 | GET | `/api/v1/inventory/browser/{node_id}/cookies` | — | Browser cookies |
-| GET | `/api/v1/inventory/browser/{node_id}/critical` | — | Critical browser findings |
+| GET | `/api/v1/inventory/browser/{node_id}/critical` | User: `inventory:read` | Critical browser findings |
 | GET | `/api/v1/hardware/fleet` | User: `hardware:read` | Fleet-wide hardware summary |
 | POST | `/api/v1/inventory/hardware` | API Key | Push hardware inventory (agent) |
 | POST | `/api/v1/inventory/software` | API Key | Push software inventory |
@@ -145,9 +147,9 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/jobs` | User: `jobs:create` | Create a job (`targetType`: `device`/`group` with `targetId` = node or group UUID, `tag` with `targetTag` = tag name, or `all`); optional `priority` (lower runs first, default 5), `scheduledAt` / `expiresAt` (ISO 8601; agents get the job only in between) and `timeoutSeconds` (default 300); 400 for anything else |
-| GET | `/api/v1/jobs` | API Key | List jobs, newest first, with `total`; `node` (node ID, UUID or hostname) returns only the jobs that run on that node (targeted at it, at its group or at all nodes); `status` = `failed` (a failed instance; newest failure first, with `last_failed_at` and `last_error`), `running`, `pending`, `success` (all instances succeeded) or `cancelled`; `since_hours` = created within that many hours (with `status=failed`: failed within them); `command_type`; `q` (part of the name); `limit`/`offset`. Also returns `counts` (`total`, `running`, `success`, `failed` for the same filters except `status`) and `command_types` |
-| GET | `/api/v1/jobs/failures` | API Key | Failed job runs of the last `since_hours` (default 168), one entry per node and job type (and job name for `run`, `script` and package jobs), newest failure first: `failures` (count), `first_failed_at`, `last_failed_at`, the last failed `job_id`/`job_name`, `reason` (error message, else error output, else the last output lines), `hostname`, `node_id`. An entry is `resolved` (with `last_success_at`) when a later run of the same kind succeeded on that node; resolved entries only with `include_resolved=true`. `total` (open) and `resolved` count all entries; `limit` (≤ 1000)/`offset` |
-| GET | `/api/v1/jobs/{job_id}` | API Key | Get job details with its instances; `command_data` is the JSON object the job was created with |
+| GET | `/api/v1/jobs` | User: `jobs:read` | List jobs, newest first, with `total`; `node` (node ID, UUID or hostname) returns only the jobs that run on that node (targeted at it, at its group or at all nodes); `status` = `failed` (a failed instance; newest failure first, with `last_failed_at` and `last_error`), `running`, `pending`, `success` (all instances succeeded) or `cancelled`; `since_hours` = created within that many hours (with `status=failed`: failed within them); `command_type`; `q` (part of the name); `limit`/`offset`. Also returns `counts` (`total`, `running`, `success`, `failed` for the same filters except `status`) and `command_types` |
+| GET | `/api/v1/jobs/failures` | User: `jobs:read` | Failed job runs of the last `since_hours` (default 168), one entry per node and job type (and job name for `run`, `script` and package jobs), newest failure first: `failures` (count), `first_failed_at`, `last_failed_at`, the last failed `job_id`/`job_name`, `reason` (error message, else error output, else the last output lines), `hostname`, `node_id`. An entry is `resolved` (with `last_success_at`) when a later run of the same kind succeeded on that node; resolved entries only with `include_resolved=true`. `total` (open) and `resolved` count all entries; `limit` (≤ 1000)/`offset` |
+| GET | `/api/v1/jobs/{job_id}` | User: `jobs:read` | Get job details with its instances; `command_data` is the JSON object the job was created with |
 | DELETE | `/api/v1/jobs/{job_id}` | API Key | Delete job |
 | GET | `/api/v1/jobs/pending/{node_id}` | API Key | Get pending jobs for a node (agent poll; newer Linux agents run it when `GET /api/v1/agent/wait/{node_id}` says so) |
 | POST | `/api/v1/jobs/instances/{instance_id}/start` | Agent: `jobs:poll` | Mark job instance as started |
@@ -161,22 +163,22 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/packages` | API Key | List packages (`displayName`, `versionCount`, `latestVersion`, …); `category`, `search` (name, display name or vendor), `active_only` (default true) |
+| GET | `/api/v1/packages` | User: `packages:read` | List packages (`displayName`, `versionCount`, `latestVersion`, …); `category`, `search` (name, display name or vendor), `active_only` (default true) |
 | POST | `/api/v1/packages` | User: `packages:write` | Create package |
-| GET | `/api/v1/packages/{package_id}` | API Key | Get package |
+| GET | `/api/v1/packages/{package_id}` | User: `packages:read` | Get package |
 | PUT | `/api/v1/packages/{package_id}` | User: `packages:write` | Update package |
 | DELETE | `/api/v1/packages/{package_id}` | User: `packages:write` | Delete package |
 | POST | `/api/v1/packages/{package_id}/versions` | User: `packages:write` | Add version, including `downloadUrl` |
-| GET | `/api/v1/packages/{package_id}/versions/{version_id}` | API Key | Get version |
+| GET | `/api/v1/packages/{package_id}/versions/{version_id}` | User: `packages:read` | Get version |
 | PUT | `/api/v1/packages/{package_id}/versions/{version_id}` | User: `packages:write` | Update version, including `downloadUrl` |
 | DELETE | `/api/v1/packages/{package_id}/versions/{version_id}` | User: `packages:write` | Delete version |
 | POST | `/api/v1/deployments` | User: `deployments:write` | Create deployment; 400 unless `targetType` is `node`/`group` (with `targetId`) or `all` and `mode` is `required`/`available`/`uninstall`, 404 for an unknown package version |
-| GET | `/api/v1/deployments` | API Key | List deployments |
-| GET | `/api/v1/deployments/{deployment_id}` | API Key | Get deployment |
+| GET | `/api/v1/deployments` | User: `deployments:read` | List deployments |
+| GET | `/api/v1/deployments/{deployment_id}` | User: `deployments:read` | Get deployment |
 | PATCH | `/api/v1/deployments/{deployment_id}` | User: `deployments:write` | Update deployment |
 | DELETE | `/api/v1/deployments/{deployment_id}` | User: `deployments:write` | Delete deployment |
 | POST | `/api/v1/deployments/{deployment_id}/rollout` | User: `deployments:write` | Start rollout |
-| GET | `/api/v1/deployments/{deployment_id}/rollout` | API Key | Get rollout status |
+| GET | `/api/v1/deployments/{deployment_id}/rollout` | User: `deployments:read` | Get rollout status |
 | POST | `/api/v1/deployments/{deployment_id}/rollout/advance` | User: `deployments:write` | Advance rollout stage |
 
 ### Vulnerabilities & Remediation
@@ -288,7 +290,7 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/security/dashboard` | API Key | Security dashboard overview |
+| GET | `/api/v1/security/dashboard` | User: `eventlog:read` | Security dashboard overview |
 | GET | `/api/v1/security/rules` | JWT (`settings:read`) | List behavior rules |
 | POST | `/api/v1/security/rules` | User: `settings:write` | Create behavior rule |
 | PUT | `/api/v1/security/rules/{rule_id}` | User: `settings:write` | Update rule |
@@ -298,7 +300,7 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | GET | `/api/v1/security/findings/summary` | JWT (`alerts:read`) | Findings summary |
 | POST | `/api/v1/security/findings` | User: `alerts:write` | Create finding manually |
 | PUT | `/api/v1/security/findings/{finding_id}` | User: `alerts:write` | Update finding status |
-| GET | `/api/v1/security/policies` | API Key | List security policies |
+| GET | `/api/v1/security/policies` | User: `compliance:read` | List security policies |
 | POST | `/api/v1/security/policies` | User: `settings:write` | Create policy |
 | PUT | `/api/v1/security/policies/{policy_id}` | User: `settings:write` | Update policy |
 | DELETE | `/api/v1/security/policies/{policy_id}` | User: `settings:write` | Delete policy |
@@ -311,17 +313,17 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/monitoring/profiles` | API Key | List monitoring profiles |
-| GET | `/api/v1/monitoring/profiles/{profile_id}` | API Key | Get profile details |
+| GET | `/api/v1/monitoring/profiles` | User: `compliance:read` | List monitoring profiles |
+| GET | `/api/v1/monitoring/profiles/{profile_id}` | User: `compliance:read` | Get profile details |
 | POST | `/api/v1/monitoring/profiles` | User: `settings:write` | Create profile |
 | PUT | `/api/v1/monitoring/profiles/{profile_id}` | User: `settings:write` | Update profile |
 | DELETE | `/api/v1/monitoring/profiles/{profile_id}` | User: `settings:write` | Delete profile |
-| GET | `/api/v1/monitoring/assignments` | API Key | List profile assignments |
+| GET | `/api/v1/monitoring/assignments` | User: `compliance:read` | List profile assignments |
 | POST | `/api/v1/monitoring/assignments` | User: `settings:write` | Assign profile to nodes |
 | PUT | `/api/v1/monitoring/assignments/{assignment_id}` | User: `settings:write` | Update assignment |
 | DELETE | `/api/v1/monitoring/assignments/{assignment_id}` | User: `settings:write` | Remove assignment |
-| GET | `/api/v1/monitoring/nodes/{node_id}/effective-policy` | API Key | The node's profile and the fleet-wide sensor defaults |
-| GET | `/api/v1/monitoring/defaults` | API Key | Fleet-wide sensor defaults (`network_connections` off) |
+| GET | `/api/v1/monitoring/nodes/{node_id}/effective-policy` | Agent: `jobs:poll`; User: `compliance:read` | The node's profile and the fleet-wide sensor defaults |
+| GET | `/api/v1/monitoring/defaults` | User: `compliance:read` | Fleet-wide sensor defaults (`network_connections` off) |
 | PUT | `/api/v1/monitoring/defaults` | `settings:write` | Change fleet-wide sensor defaults (see [Security Center](SECURITY-CENTER.md#sensors)) |
 
 ### Posture Snapshots
@@ -340,19 +342,19 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 |--------|------|------|-------------|
 | POST | `/api/v1/ingest/events` | Agent: `inventory:write` | Ingest raw events from agent |
 | POST | `/api/v1/ingest/events/normalized` | Agent: `inventory:write` | Ingest normalized events |
-| GET | `/api/v1/events` | API Key | Query events. `node_id` is a node filter: part of the name or a pattern with `*` / `?`, not case-sensitive; a trailing `$` (Windows computer account `HOST$`) is ignored. It is matched against the registered nodes (node ID and hostname) plus the typed name. `total` counts up to 10,000 (`total_capped: true` above) |
-| GET | `/api/v1/events/files` | API Key | File-specific events (same `node_id` filter) |
-| GET | `/api/v1/findings` | API Key | List findings |
-| GET | `/api/v1/findings/{finding_id}` | API Key | Get finding details |
+| GET | `/api/v1/events` | User: `eventlog:read` | Query events. `node_id` is a node filter: part of the name or a pattern with `*` / `?`, not case-sensitive; a trailing `$` (Windows computer account `HOST$`) is ignored. It is matched against the registered nodes (node ID and hostname) plus the typed name. `total` counts up to 10,000 (`total_capped: true` above) |
+| GET | `/api/v1/events/files` | User: `eventlog:read` | File-specific events (same `node_id` filter) |
+| GET | `/api/v1/findings` | User: `alerts:read` | List findings |
+| GET | `/api/v1/findings/{finding_id}` | User: `alerts:read` | Get finding details |
 | PUT | `/api/v1/findings/{finding_id}` | User: `alerts:write` | Update finding |
 
 ### Evidence & Retention
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/evidence/exports` | API Key | List evidence exports |
+| GET | `/api/v1/evidence/exports` | User: `compliance:read` | List evidence exports |
 | POST | `/api/v1/evidence/export` | User: `compliance:read` | Create evidence export |
-| GET | `/api/v1/retention` | API Key | Retention settings per data type with the TimescaleDB jobs, stored size and oldest data |
+| GET | `/api/v1/retention` | User: `compliance:read` | Retention settings per data type with the TimescaleDB jobs, stored size and oldest data |
 | PUT | `/api/v1/retention/{category}` | `settings:write` | Change `keep_days`, `compress_after_days` (`null` = off), `legal_hold`; upgrades require explicit `management_enabled: true` before policies are applied (see [Security Center](SECURITY-CENTER.md#retention--legal-hold)) |
 
 ### Audit Log
@@ -369,25 +371,25 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/nodes/{node_id}/metrics` | Agent: `inventory:write` | Push node metrics (agent) |
-| GET | `/api/v1/nodes/{node_id}/metrics` | API Key | Get node metrics |
-| GET | `/api/v1/metrics/summary` | API Key | Fleet metrics summary |
-| GET | `/api/v1/metrics/fleet` | API Key | Fleet-wide metrics |
-| GET | `/api/v1/metrics/timeseries` | API Key | Time-series metric data |
+| GET | `/api/v1/nodes/{node_id}/metrics` | User: `nodes:read` | Get node metrics |
+| GET | `/api/v1/metrics/summary` | User: `nodes:read` | Fleet metrics summary |
+| GET | `/api/v1/metrics/fleet` | User: `nodes:read` | Fleet-wide metrics |
+| GET | `/api/v1/metrics/timeseries` | User: `nodes:read` | Time-series metric data |
 
 ### Alerts
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/alerts` | API Key | List alerts |
-| GET | `/api/v1/alerts/stats` | API Key | Alert statistics |
+| GET | `/api/v1/alerts` | User: `alerts:read` | List alerts |
+| GET | `/api/v1/alerts/stats` | User: `alerts:read` | Alert statistics |
 | GET | `/api/v1/alert-channels` | User: `alerts:read` | List alert channels (Discord, etc.) |
 | POST | `/api/v1/alert-channels` | User: `alerts:write` | Create alert channel |
 | DELETE | `/api/v1/alert-channels/{channel_id}` | User: `alerts:write` | Delete alert channel |
 | POST | `/api/v1/alert-channels/{channel_id}/test` | User: `alerts:write` | Test alert channel |
-| GET | `/api/v1/alert-rules` | API Key | List alert rules |
+| GET | `/api/v1/alert-rules` | User: `alerts:read` | List alert rules |
 | POST | `/api/v1/alert-rules` | User: `alerts:write` | Create alert rule |
 | DELETE | `/api/v1/alert-rules/{rule_id}` | User: `alerts:write` | Delete alert rule |
-| GET | `/api/v1/alert-history` | API Key | Alert history |
+| GET | `/api/v1/alert-history` | User: `alerts:read` | Alert history |
 
 ### Remote Terminal
 
@@ -399,7 +401,7 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | POST | `/api/v1/terminal/session/{session_id}/input` | API Key | Send input to session |
 | GET | `/api/v1/terminal/session/{session_id}/output` | API Key | Get session output |
 | WS | `/api/v1/terminal/ws/{session_id}` | — | WebSocket terminal stream |
-| GET | `/api/v1/terminal/pending/{node_id}` | Agent key | Agent: pending commands; `active` is true while a terminal page for the node is open (output asked for within 30 s) or commands came – the agent then polls fast, otherwise about every 5 s |
+| GET | `/api/v1/terminal/pending/{node_id}` | Agent: `terminal:pending` | Agent: pending commands; `active` is true while a terminal page for the node is open (output asked for within 30 s) or commands came – the agent then polls fast, otherwise about every 5 s |
 | POST | `/api/v1/terminal/output/{session_id}` | Agent key | Agent: command output |
 
 ### Event Log (Windows)
@@ -407,22 +409,22 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/nodes/{node_id}/eventlog` | Agent: `inventory:write` | Push event log entries |
-| GET | `/api/v1/nodes/{node_id}/eventlog` | API Key | Get event log entries |
+| GET | `/api/v1/nodes/{node_id}/eventlog` | User: `eventlog:read` | Get event log entries |
 | GET | `/api/v1/eventlog/summary` | JWT (`eventlog:read`) | Event log summary |
 | GET | `/api/v1/eventlog/important-events` | JWT (`eventlog:read`) | Important events |
-| GET | `/api/v1/eventlog/trends` | API Key | Event log trends |
+| GET | `/api/v1/eventlog/trends` | User: `eventlog:read` | Event log trends |
 
 ### SQL Server Management
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/mssql/editions` | API Key | Available SQL Server editions |
-| GET | `/api/v1/mssql/downloads` | API Key | Download links |
+| GET | `/api/v1/mssql/editions` | User: `settings:read` | Available SQL Server editions |
+| GET | `/api/v1/mssql/downloads` | User: `settings:read` | Download links |
 | POST | `/api/v1/mssql/configs` | User: `settings:write` | Create install configuration |
-| GET | `/api/v1/mssql/configs` | API Key | List configurations |
+| GET | `/api/v1/mssql/configs` | User: `settings:read` | List configurations |
 | POST | `/api/v1/mssql/install` | User: `settings:write` | Trigger SQL Server installation |
-| GET | `/api/v1/mssql/instances` | API Key | List discovered instances |
-| GET | `/api/v1/mssql/cumulative-updates` | API Key | List cumulative updates |
+| GET | `/api/v1/mssql/instances` | User: `settings:read` | List discovered instances |
+| GET | `/api/v1/mssql/cumulative-updates` | User: `nodes:read` | List cumulative updates |
 | POST | `/api/v1/mssql/deploy-cu` | API Key | Deploy cumulative update |
 | GET | `/api/v1/mssql/cu-compliance` | API Key | CU compliance report |
 
@@ -446,14 +448,14 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/export/nodes` | API Key | Export nodes (JSON) |
-| GET | `/api/v1/export/nodes/excel` | API Key | Export nodes (Excel) |
-| GET | `/api/v1/export/software/excel` | API Key | Export software (Excel) |
-| GET | `/api/v1/export/vulnerabilities/excel` | API Key | Export vulnerabilities (Excel) |
-| GET | `/api/v1/export/jobs/excel` | API Key | Export jobs (Excel) |
-| GET | `/api/v1/reports/fleet/pdf` | API Key | Fleet summary PDF |
-| GET | `/api/v1/reports/security/pdf` | API Key | Security report PDF |
-| GET | `/api/v1/reports/inventory/pdf` | API Key | Inventory report PDF |
+| GET | `/api/v1/export/nodes` | User: `nodes:read` | Export nodes (JSON) |
+| GET | `/api/v1/export/nodes/excel` | User: `nodes:read` | Export nodes (Excel) |
+| GET | `/api/v1/export/software/excel` | User: `inventory:read` | Export software (Excel) |
+| GET | `/api/v1/export/vulnerabilities/excel` | User: `vulnerabilities:read` | Export vulnerabilities (Excel) |
+| GET | `/api/v1/export/jobs/excel` | User: `jobs:read` | Export jobs (Excel) |
+| GET | `/api/v1/reports/fleet/pdf` | User: `reports:read` | Fleet summary PDF |
+| GET | `/api/v1/reports/security/pdf` | User: `reports:read` | Security report PDF |
+| GET | `/api/v1/reports/inventory/pdf` | User: `reports:read` | Inventory report PDF |
 | POST | `/api/v1/reports/execute` | User: `reports:read` | Run a report from the catalog |
 | POST, PUT, DELETE | `/api/v1/reports/schedules` (`/{schedule_id}`, `/{schedule_id}/run-now`) | User: `reports:write` | Create, change, delete or run report schedules |
 
@@ -467,11 +469,11 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | GET | `/api/v1/settings/{key}` | API Key | Get setting value |
 | PUT | `/api/v1/settings/{key}` | API Key | Update setting |
 | DELETE | `/api/v1/settings/{key}` | API Key | Delete setting |
-| GET | `/api/v1/maintenance-windows` | API Key | List maintenance windows |
+| GET | `/api/v1/maintenance-windows` | User: `settings:read` | List maintenance windows |
 | POST | `/api/v1/maintenance-windows` | API Key | Create maintenance window |
 | PUT | `/api/v1/maintenance-windows/{window_id}` | API Key | Update window |
 | DELETE | `/api/v1/maintenance-windows/{window_id}` | API Key | Delete window |
-| GET | `/api/v1/maintenance-windows/check/{node_id}` | API Key | Check if node is in maintenance |
+| GET | `/api/v1/maintenance-windows/check/{node_id}` | User: `settings:read` | Check if node is in maintenance |
 | GET | `/api/v1/onboarding/config` | API Key | Get onboarding configuration |
 | PUT | `/api/v1/onboarding/config` | API Key | Update onboarding configuration |
 
@@ -482,20 +484,20 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | GET | `/api/v1/agent/version` | — | Get latest agent version |
 | GET | `/api/v1/agent/wait/{node_id}` | Agent key (`jobs:poll`) | Agent long-poll ([#283](https://github.com/BenediktSchackenberg/octofleet/issues/283)): held until there is work for the node, then `{"wake": [...]}` with the polls to run now – `jobs` (a pending job, as `jobs/pending` would return it), `remediation` (an approved remediation job not bound to a maintenance window), `terminal` (a queued command, or a terminal page just opened), `screen` / `shell` (a session just started); `{"wake": []}` after the hold time. `kinds` (comma-separated, default all) limits it to what the agent handles; `timeout` (seconds) shortens the hold, at most `AGENT_WAIT_SECONDS` (default 55, minus up to 10 % jitter). A wake-up while the agent is between two requests is kept for 2 minutes. The wake-up runs inside the (single) backend process |
 | POST | `/api/v1/agents/{node_id}/capabilities` | Agent: `inventory:write` | Report agent capabilities |
-| GET | `/api/v1/agents/{node_id}/capabilities` | API Key | Get agent capabilities |
-| GET | `/api/v1/agents/capabilities` | API Key | Fleet-wide capabilities |
+| GET | `/api/v1/agents/{node_id}/capabilities` | User: `nodes:read` | Get agent capabilities |
+| GET | `/api/v1/agents/capabilities` | User: `nodes:read` | Fleet-wide capabilities |
 | POST | `/api/v1/agents/{node_id}/health` | API Key | Report agent health |
-| GET | `/api/v1/agents/{node_id}/health/history` | API Key | Agent health history |
+| GET | `/api/v1/agents/{node_id}/health/history` | User: `nodes:read` | Agent health history |
 
 ### File Repository
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/repo/upload` | User: `packages:write` | Upload file |
-| GET | `/api/v1/repo/files` | API Key | List files |
+| GET | `/api/v1/repo/files` | User: `packages:read` | List files |
 | GET | `/api/v1/repo/download/{file_id}` | No (agents download without a key) | Download file |
 | DELETE | `/api/v1/repo/files/{file_id}` | User: `packages:write` | Delete file |
-| GET | `/api/v1/repo/stats` | API Key | Repository statistics |
+| GET | `/api/v1/repo/stats` | User: `packages:read` | Repository statistics |
 
 ---
 
@@ -545,17 +547,17 @@ See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/baselines` | API Key | List baselines |
+| GET | `/api/v1/baselines` | User: `compliance:read` | List baselines |
 | POST | `/api/v1/baselines` | User: `settings:write` | Create baseline |
-| GET | `/api/v1/baselines/{baseline_id}` | API Key | Get baseline details |
-| GET | `/api/v1/baselines/templates` | API Key | List CIS benchmark templates |
+| GET | `/api/v1/baselines/{baseline_id}` | User: `compliance:read` | Get baseline details |
+| GET | `/api/v1/baselines/templates` | User: `compliance:read` | List CIS benchmark templates |
 | POST | `/api/v1/baselines/templates/{template_id}/import` | User: `settings:write` | Import CIS template as baseline |
-| GET | `/api/v1/baselines/evaluations/{eval_id}` | API Key | Get evaluation results |
-| GET | `/api/v1/baselines/compliance/{node_id}` | API Key | Node compliance details |
-| GET | `/api/v1/baselines/compliance/trends` | API Key | Compliance trend data |
-| GET | `/api/v1/compliance/summary` | API Key | Defender, real-time protection, firewall and BitLocker per node (`nodes`: true/false/null each) and counted over all nodes (`defender`, `realTimeProtection`, `firewall`: enabled/disabled/unknown; `bitlocker`: encrypted/unencrypted/unknown), from the agents' security inventory; `GET /api/v1/export/compliance` exports the node list |
-| GET | `/api/v1/baselines/drift` | API Key | List drift events |
-| GET | `/api/v1/baselines/drift/summary` | API Key | Drift summary by category |
+| GET | `/api/v1/baselines/evaluations/{eval_id}` | User: `compliance:read` | Get evaluation results |
+| GET | `/api/v1/baselines/compliance/{node_id}` | User: `compliance:read` | Node compliance details |
+| GET | `/api/v1/baselines/compliance/trends` | User: `compliance:read` | Compliance trend data |
+| GET | `/api/v1/compliance/summary` | User: `compliance:read` | Defender, real-time protection, firewall and BitLocker per node (`nodes`: true/false/null each) and counted over all nodes (`defender`, `realTimeProtection`, `firewall`: enabled/disabled/unknown; `bitlocker`: encrypted/unencrypted/unknown), from the agents' security inventory; `GET /api/v1/export/compliance` exports the node list |
+| GET | `/api/v1/baselines/drift` | User: `compliance:read` | List drift events |
+| GET | `/api/v1/baselines/drift/summary` | User: `compliance:read` | Drift summary by category |
 | POST | `/api/v1/baselines/drift/{drift_id}/acknowledge` | User: `alerts:write` | Acknowledge drift |
 | POST | `/api/v1/baselines/drift/{drift_id}/waive` | User: `alerts:write` | Waive drift (accept deviation) |
 | POST | `/api/v1/baselines/drift/{drift_id}/remediate` | User: `jobs:create` | Auto-remediate single drift |
@@ -567,27 +569,27 @@ See [CONTENT-LIFECYCLE.md](CONTENT-LIFECYCLE.md) for detailed documentation.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/content/repositories` | API Key | List repositories |
+| GET | `/api/v1/content/repositories` | User: `settings:read` | List repositories |
 | POST | `/api/v1/content/repositories` | User: `settings:write` | Create repository |
-| GET | `/api/v1/content/repositories/{repo_id}` | API Key | Get repository details |
+| GET | `/api/v1/content/repositories/{repo_id}` | User: `settings:read` | Get repository details |
 | PUT | `/api/v1/content/repositories/{repo_id}` | User: `settings:write` | Update repository |
 | DELETE | `/api/v1/content/repositories/{repo_id}` | User: `settings:write` | Delete repository |
 | POST | `/api/v1/content/repositories/{repo_id}/sync` | User: `settings:write` | Trigger repository sync |
-| GET | `/api/v1/content/repositories/{repo_id}/items` | API Key | List items in repository |
+| GET | `/api/v1/content/repositories/{repo_id}/items` | User: `settings:read` | List items in repository |
 | POST | `/api/v1/content/repositories/{repo_id}/items` | User: `settings:write` | Add item to repository |
-| GET | `/api/v1/content/items/{item_id}` | API Key | Get item details |
+| GET | `/api/v1/content/items/{item_id}` | User: `settings:read` | Get item details |
 | DELETE | `/api/v1/content/items/{item_id}` | User: `settings:write` | Delete item |
-| GET | `/api/v1/content/snapshots` | API Key | List snapshots |
+| GET | `/api/v1/content/snapshots` | User: `settings:read` | List snapshots |
 | POST | `/api/v1/content/repositories/{repo_id}/snapshots` | User: `settings:write` | Create snapshot |
-| GET | `/api/v1/content/snapshots/{snap_id}` | API Key | Get snapshot details |
+| GET | `/api/v1/content/snapshots/{snap_id}` | User: `settings:read` | Get snapshot details |
 | DELETE | `/api/v1/content/snapshots/{snap_id}` | User: `settings:write` | Delete snapshot |
-| GET | `/api/v1/content/snapshots/{snap_id}/diff/{other_id}` | API Key | Compare two snapshots |
-| GET | `/api/v1/content/environments` | API Key | List environments |
+| GET | `/api/v1/content/snapshots/{snap_id}/diff/{other_id}` | User: `settings:read` | Compare two snapshots |
+| GET | `/api/v1/content/environments` | User: `settings:read` | List environments |
 | PUT | `/api/v1/content/environments/{env_id}` | User: `settings:write` | Update environment |
 | POST | `/api/v1/content/environments/{env_id}/promote` | User: `settings:write` | Promote snapshot to environment |
-| GET | `/api/v1/content/environments/{env_id}/history` | API Key | Promotion/rollback history |
+| GET | `/api/v1/content/environments/{env_id}/history` | User: `settings:read` | Promotion/rollback history |
 | POST | `/api/v1/content/environments/{env_id}/rollback` | User: `settings:write` | Rollback environment |
-| GET | `/api/v1/content/dashboard` | API Key | Content lifecycle dashboard |
+| GET | `/api/v1/content/dashboard` | User: `settings:read` | Content lifecycle dashboard |
 
 ### Query Engine
 
@@ -606,26 +608,26 @@ See [SOFTWARE-METERING.md](SOFTWARE-METERING.md) for detailed documentation.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/metering/catalog` | API Key | List software catalog |
+| GET | `/api/v1/metering/catalog` | User: `nodes:read` | List software catalog |
 | POST | `/api/v1/metering/catalog` | User: `packages:write` | Create catalog entry |
 | PUT | `/api/v1/metering/catalog/{id}` | User: `packages:write` | Update catalog entry |
 | DELETE | `/api/v1/metering/catalog/{id}` | User: `packages:write` | Delete catalog entry |
 | POST | `/api/v1/metering/catalog/auto-discover` | User: `packages:write` | Auto-discover from fleet |
-| GET | `/api/v1/metering/rules` | API Key | List normalization rules |
+| GET | `/api/v1/metering/rules` | User: `nodes:read` | List normalization rules |
 | POST | `/api/v1/metering/rules` | User: `packages:write` | Create normalization rule |
 | DELETE | `/api/v1/metering/rules/{id}` | User: `packages:write` | Delete rule |
 | POST | `/api/v1/metering/rules/test` | User: `packages:write` | Test pattern against fleet |
-| GET | `/api/v1/metering/licenses` | API Key | List licenses |
+| GET | `/api/v1/metering/licenses` | User: `nodes:read` | List licenses |
 | POST | `/api/v1/metering/licenses` | User: `packages:write` | Create license |
 | PUT | `/api/v1/metering/licenses/{id}` | User: `packages:write` | Update license |
 | DELETE | `/api/v1/metering/licenses/{id}` | User: `packages:write` | Delete license |
-| GET | `/api/v1/metering/compliance` | API Key | Fleet-wide compliance |
-| GET | `/api/v1/metering/compliance/{catalog_id}` | API Key | Per-software compliance |
-| GET | `/api/v1/metering/dashboard` | API Key | Metering dashboard |
-| GET | `/api/v1/metering/usage` | API Key | Usage data |
+| GET | `/api/v1/metering/compliance` | User: `nodes:read` | Fleet-wide compliance |
+| GET | `/api/v1/metering/compliance/{catalog_id}` | User: `nodes:read` | Per-software compliance |
+| GET | `/api/v1/metering/dashboard` | User: `nodes:read` | Metering dashboard |
+| GET | `/api/v1/metering/usage` | User: `nodes:read` | Usage data |
 | POST | `/api/v1/metering/usage/submit` | Agent: `inventory:write` | Submit usage data |
-| GET | `/api/v1/metering/usage/reclaim` | API Key | Reclamation candidates |
-| GET | `/api/v1/metering/reports/true-up` | API Key | True-up report |
+| GET | `/api/v1/metering/usage/reclaim` | User: `nodes:read` | Reclamation candidates |
+| GET | `/api/v1/metering/reports/true-up` | User: `nodes:read` | True-up report |
 
 ### Hardware Fleet
 

@@ -265,6 +265,32 @@ async def verify_api_key_or_query(
     )
 
 
+def require_permission_or_query(permission: str):
+    """require_user_permission for streams: EventSource cannot send headers, so the session token
+    may come as ?token= (checked like verify_api_key_or_query, revoked tokens included). The streams
+    are for the web UI: the shared agent key gets 403 even where its permissions would match."""
+    from auth import CurrentUser, get_current_user
+
+    async def permission_checker(request: Request, user: Optional[CurrentUser] = Depends(get_current_user)):
+        token = request.query_params.get("token")
+        if user is None and token:
+            if token == API_KEY:
+                user = CurrentUser("system", "system", _permissions_for_scopes(["agent"]))
+            else:
+                payload = await _active_access_token(token)
+                if payload:
+                    permissions = payload.get("permissions", [])
+                    user = CurrentUser(payload["sub"], payload.get("username", ""), permissions, "*" in permissions)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key or token")
+        if user.id == "system":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This action requires a user account")
+        if not user.has_permission(permission):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Permission denied: {permission}")
+        return user
+    return permission_checker
+
+
 # ============== API Key Scopes ==============
 
 SCOPES = {

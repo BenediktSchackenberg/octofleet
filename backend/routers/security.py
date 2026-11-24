@@ -2,6 +2,7 @@
 import asyncpg
 from fastapi import APIRouter, Depends
 
+from auth import require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(
@@ -12,7 +13,7 @@ router = APIRouter(
 
 # GET /api/v1/compliance/summary (Defender, firewall, BitLocker per node) is in routers/baselines.py.
 
-@router.get("/inventory/browser/{node_id}/critical")
+@router.get("/inventory/browser/{node_id}/critical", dependencies=[Depends(require_user_permission("inventory:read"))])
 async def get_critical_cookies(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get critical/sensitive cookies for security analysis"""
     async with db.acquire() as conn:

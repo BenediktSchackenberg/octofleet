@@ -10,10 +10,9 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from auth import require_user_permission
-from dependencies import get_db, verify_api_key
+from dependencies import get_db
 
 router = APIRouter(prefix="/api/v1/content", tags=["Content Lifecycle"])
-_auth = [Depends(verify_api_key)]
 
 
 def _repo_row(r) -> dict:
@@ -82,7 +81,7 @@ def _env_row(r) -> dict:
 
 # ── Repositories ──────────────────────────────────────────────
 
-@router.get("/repositories", dependencies=_auth)
+@router.get("/repositories", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_repositories(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -116,7 +115,7 @@ async def create_repository(body: dict, db: asyncpg.Pool = Depends(get_db)):
     return _repo_row(row)
 
 
-@router.get("/repositories/{repo_id}", dependencies=_auth)
+@router.get("/repositories/{repo_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_repository(repo_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM content_repositories WHERE id=$1", repo_id)
@@ -166,7 +165,7 @@ async def sync_repository(repo_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     return {"ok": True, "message": "Sync triggered (marked as synced)", "upstreamUrl": row["upstream_url"]}
 
 
-@router.get("/repositories/{repo_id}/items", dependencies=_auth)
+@router.get("/repositories/{repo_id}/items", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_repository_items(
     repo_id: UUID,
     search: Optional[str] = None,
@@ -220,7 +219,7 @@ async def add_item(repo_id: UUID, body: dict, db: asyncpg.Pool = Depends(get_db)
     return _item_row(row)
 
 
-@router.get("/items/{item_id}", dependencies=_auth)
+@router.get("/items/{item_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_item(item_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM content_items WHERE id=$1", item_id)
@@ -240,7 +239,7 @@ async def delete_item(item_id: UUID, db: asyncpg.Pool = Depends(get_db)):
 
 # ── Snapshots ─────────────────────────────────────────────────
 
-@router.get("/snapshots", dependencies=_auth)
+@router.get("/snapshots", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_snapshots(
     repository_id: Optional[UUID] = None,
     db: asyncpg.Pool = Depends(get_db),
@@ -283,7 +282,7 @@ async def create_snapshot(repo_id: UUID, body: dict, db: asyncpg.Pool = Depends(
     return _snap_row(snap)
 
 
-@router.get("/snapshots/{snap_id}", dependencies=_auth)
+@router.get("/snapshots/{snap_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_snapshot(snap_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM content_snapshots WHERE id=$1", snap_id)
@@ -306,7 +305,7 @@ async def delete_snapshot(snap_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     return {"ok": True}
 
 
-@router.get("/snapshots/{snap_id}/diff/{other_id}", dependencies=_auth)
+@router.get("/snapshots/{snap_id}/diff/{other_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def diff_snapshots(snap_id: UUID, other_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         for sid in (snap_id, other_id):
@@ -329,7 +328,7 @@ async def diff_snapshots(snap_id: UUID, other_id: UUID, db: asyncpg.Pool = Depen
 
 # ── Environments ──────────────────────────────────────────────
 
-@router.get("/environments", dependencies=_auth)
+@router.get("/environments", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_environments(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -391,7 +390,7 @@ async def promote_to_environment(env_id: UUID, body: dict, db: asyncpg.Pool = De
     return _env_row(row)
 
 
-@router.get("/environments/{env_id}/history", dependencies=_auth)
+@router.get("/environments/{env_id}/history", dependencies=[Depends(require_user_permission("settings:read"))])
 async def environment_history(env_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     """Returns current and prior snapshot for the environment."""
     async with db.acquire() as conn:
@@ -598,7 +597,7 @@ async def request_promotion(env_id: UUID, body: dict, db: asyncpg.Pool = Depends
         return {"autoPromoted": False, "request": _promo_req_row(req), "policyResults": policy_results}
 
 
-@router.get("/promotion-requests", dependencies=_auth)
+@router.get("/promotion-requests", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_promotion_requests(
     status: Optional[str] = None,
     environment_id: Optional[UUID] = None,
@@ -622,7 +621,7 @@ async def list_promotion_requests(
     return [_promo_req_row(r) for r in rows]
 
 
-@router.get("/promotion-requests/{req_id}", dependencies=_auth)
+@router.get("/promotion-requests/{req_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_promotion_request(req_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM content_promotion_requests WHERE id=$1", req_id)
@@ -739,7 +738,7 @@ def _rule_row(r) -> dict:
     }
 
 
-@router.get("/approval-rules", dependencies=_auth)
+@router.get("/approval-rules", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_approval_rules(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -787,7 +786,7 @@ def _policy_row(r) -> dict:
     }
 
 
-@router.get("/policies", dependencies=_auth)
+@router.get("/policies", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_policies(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM content_policies ORDER BY name")
@@ -898,7 +897,7 @@ async def validate_snapshot_policies(env_id: UUID, body: dict, db: asyncpg.Pool 
 
 # ── Promotion Log ─────────────────────────────────────────────
 
-@router.get("/promotion-log", dependencies=_auth)
+@router.get("/promotion-log", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_promotion_log(
     environment_id: Optional[UUID] = None,
     action: Optional[str] = None,
@@ -944,7 +943,7 @@ async def list_promotion_log(
 
 # ── Dashboard ─────────────────────────────────────────────────
 
-@router.get("/dashboard", dependencies=_auth)
+@router.get("/dashboard", dependencies=[Depends(require_user_permission("settings:read"))])
 async def content_dashboard(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         repo_count = await conn.fetchval("SELECT COUNT(*) FROM content_repositories")

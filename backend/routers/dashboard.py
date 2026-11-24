@@ -3,6 +3,7 @@ import asyncpg
 from fastapi import APIRouter, Depends
 
 import vulnerability_cache
+from auth import require_user_permission
 from dependencies import get_db, verify_api_key
 from node_status import status_sql
 
@@ -12,7 +13,7 @@ router = APIRouter(
     dependencies=[Depends(verify_api_key)]
 )
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
     async with db.acquire() as conn:
