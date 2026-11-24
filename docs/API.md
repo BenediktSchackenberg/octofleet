@@ -117,6 +117,13 @@ curl -X POST http://localhost:8080/api/v1/jobs \
   }'
 ```
 
+## 🛰️ Agent Monitor
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/admin/agent-status` | Agents with status, request and error counts, running jobs and remediation. `q` (part of the hostname or a pattern with `*`/`?`), `status` (`active`, `idle`, `stale`, `offline`, `unknown`, `errors`), `sort` (`hostname`, `last_seen`, `errors`), `dir`, `limit` (≤ 200), `offset`; `total` and `summary` (all agents) |
+| GET | `/api/v1/admin/agent-activity` | Sampled agent requests, newest first: `node` (UUID, node ID or hostname; that node's last 10), `errors=true` (last 1,000 errors), otherwise the last 1,000; `action`, `since` (epoch seconds), `limit` (≤ 1,000); `oldest` and `buffer` say what the sample covers |
+
 ## 🔄 WebSocket Endpoints
 
 For real-time updates:

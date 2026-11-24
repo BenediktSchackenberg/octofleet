@@ -389,13 +389,15 @@ Existing routers (`nodes`, `inventory`, `jobs`, `mssql`) were also extended with
 
 ## Agent Activity Monitor
 
-Real-time monitoring of agent polling and job execution:
+What the agents ask the server (`backend/agent_monitor.py`), sized for large fleets – every request costs a few microseconds and no database query:
 
-- **HTTP Middleware** captures all agent requests (polls, health reports, results)
-- **In-memory ring buffer** (500 events) for instant access
-- **SSE endpoint** (`/api/v1/admin/agent-live`) streams activity + node status
-- **REST endpoints** for current status and historical activity
-- **Frontend** at `/admin/agents` with node filtering and live feed
+- **HTTP middleware** records agent requests: job, terminal, shell, screen and remediation polls, live data, inventory pushes, health reports and results. Live data and inventory pushes carry the node in the body; their handlers name it for the middleware.
+- **Node directory:** node ID, hostname, `win-<hostname>` (Windows job polls) and node UUID map to one node, from a cached copy of the `nodes` table refreshed in the background every 60 s (and at most every 10 s when an unknown name shows up). Names without a node stay visible as *not registered*.
+- **Counters per node and action** (requests, errors, last time and status) instead of every request; **samples** of the raw requests: the last 10 per node, the last 1,000 overall and the last 1,000 errors. All in memory of the backend process, empty after a restart.
+- **REST endpoints:** `GET /api/v1/admin/agent-status` (agents sorted by hostname, search with `*`/`?`, status filter, paging, summary counts; running jobs and remediation per node from one grouped query cached for 10 s) and `GET /api/v1/admin/agent-activity` (sampled requests with node, action, error and time filters).
+- **Frontend** at `/admin/agents`: refreshes every 5 s while visible, with *Pause*.
+- **SSE endpoint** (`/api/v1/admin/agent-live`) streams the recent requests and node status, as before.
+- Measured with 10,000 nodes: 3.3 µs per recorded request, 49 ms for a filtered status page (`backend/tests/test_agent_monitor.py`).
 
 ## Command Palette (Ctrl+K)
 
