@@ -548,7 +548,7 @@ async def smart_install(
     }
 
 
-@app.get("/api/v1/smart-install/packages")
+@app.get("/api/v1/smart-install/packages", dependencies=[Depends(require_permission("packages:read"))])
 async def list_smart_install_packages():
     """List available package aliases for smart-install"""
     return {
@@ -1236,7 +1236,7 @@ async def get_node_eventlog(
         }
 
 
-@app.get("/api/v1/eventlog/summary")
+@app.get("/api/v1/eventlog/summary", dependencies=[Depends(require_permission("eventlog:read"))])
 async def get_eventlog_summary(hours: int = 24, db: asyncpg.Pool = Depends(get_db)):
     """Get eventlog summary across all nodes for dashboard"""
     async with db.acquire() as conn:
@@ -1298,7 +1298,7 @@ async def get_eventlog_summary(hours: int = 24, db: asyncpg.Pool = Depends(get_d
         }
 
 
-@app.get("/api/v1/eventlog/important-events")
+@app.get("/api/v1/eventlog/important-events", dependencies=[Depends(require_permission("eventlog:read"))])
 async def get_important_events(hours: int = 24, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
     """Get security-relevant events (login failures, user changes, etc.)"""
     # Important Security Event IDs
@@ -4009,7 +4009,7 @@ async def create_task_event(task_id: str, event: TaskEventCreate, db: asyncpg.Po
     }
 
 
-@app.get("/api/v1/provisioning/tasks/{task_id}/events", tags=["Provisioning"])
+@app.get("/api/v1/provisioning/tasks/{task_id}/events", tags=["Provisioning"], dependencies=[Depends(require_permission("nodes:read"))])
 async def list_task_events(task_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get all events/callbacks for a task"""
     # Verify task exists
@@ -4117,7 +4117,7 @@ def create_bar_chart(data: dict, title: str, filename: str, xlabel: str = "", yl
 # E19-06: Systems Registry API
 # ============================================
 
-@app.get("/api/v1/discovered-systems", tags=["Provisioning"])
+@app.get("/api/v1/discovered-systems", tags=["Provisioning"], dependencies=[Depends(require_permission("nodes:read"))])
 async def list_discovered_systems(
     status: Optional[str] = None,
     limit: int = 100,
@@ -4150,7 +4150,7 @@ async def list_discovered_systems(
             "offset": offset
         }
 
-@app.get("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"])
+@app.get("/api/v1/discovered-systems/{system_id}", tags=["Provisioning"], dependencies=[Depends(require_permission("nodes:read"))])
 async def get_discovered_system(system_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a specific discovered system by ID or MAC address"""
     async with db.acquire() as conn:
@@ -4782,7 +4782,7 @@ def _compute_posture_diff(baseline: dict, current: dict) -> dict:
 # E21 Story #85: Vulnerability Scan & CVE Mapping (Fleet View)
 # ============================================================
 
-@app.get("/api/v1/security/vulnerabilities/fleet")
+@app.get("/api/v1/security/vulnerabilities/fleet", dependencies=[Depends(require_permission("vulnerabilities:read"))])
 async def fleet_vulnerability_summary(db: asyncpg.Pool = Depends(get_db)):
     """Fleet-wide vulnerability aggregation"""
     async with db.acquire() as conn:
@@ -5163,7 +5163,7 @@ async def create_legal_hold(req: Request, db: asyncpg.Pool = Depends(get_db)):
 # E21 Story #89: Behavior Rules - Policy Engine (MVP)
 # ============================================================
 
-@app.get("/api/v1/security/rules")
+@app.get("/api/v1/security/rules", dependencies=[Depends(require_permission("settings:read"))])
 async def list_behavior_rules(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM behavior_rules ORDER BY created_at DESC")
@@ -5331,7 +5331,7 @@ def _calculate_risk_score(severity: str, event_count: int = 1) -> float:
 # E21 Story #90: Findings & Risk Scoring
 # ============================================================
 
-@app.get("/api/v1/security/findings")
+@app.get("/api/v1/security/findings", dependencies=[Depends(require_permission("alerts:read"))])
 async def list_findings(
     status: str = None, severity: str = None, node_id: str = None,
     limit: int = 50, offset: int = 0,
@@ -5375,7 +5375,7 @@ async def list_findings(
             "total": count
         }
 
-@app.get("/api/v1/security/findings/summary")
+@app.get("/api/v1/security/findings/summary", dependencies=[Depends(require_permission("alerts:read"))])
 async def findings_summary(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         by_status = await conn.fetch("SELECT status, COUNT(*) as count FROM security_findings GROUP BY status")
@@ -5440,7 +5440,7 @@ async def create_finding(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
 # E21 Story #91: Dashboards - File Activity & User Activity
 # ============================================================
 
-@app.get("/api/v1/security/activity/files")
+@app.get("/api/v1/security/activity/files", dependencies=[Depends(require_permission("eventlog:read"))])
 async def file_activity_dashboard(
     node_id: str = None, user: str = None, path_filter: str = None,
     hours: int = 24, limit: int = 100,
@@ -5514,7 +5514,7 @@ async def file_activity_dashboard(
             } for r in recent]
         }
 
-@app.get("/api/v1/security/activity/users")
+@app.get("/api/v1/security/activity/users", dependencies=[Depends(require_permission("eventlog:read"))])
 async def user_activity_dashboard(
     node_id: str = None, username: str = None, hours: int = 24,
     db: asyncpg.Pool = Depends(get_db)
@@ -5574,7 +5574,7 @@ async def user_activity_dashboard(
             "sensitiveAccess": [{"username": r["username"], "path": r["path"], "count": r["count"]} for r in sensitive]
         }
 
-@app.get("/api/v1/security/activity/export")
+@app.get("/api/v1/security/activity/export", dependencies=[Depends(require_permission("eventlog:read"))])
 async def export_file_activity(
     node_id: str = None, hours: int = 24, format: str = "csv",
     db: asyncpg.Pool = Depends(get_db)

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from auth import require_user_permission
+from auth import require_permission, require_user_permission
 from provisioning_config import load_config
 
 iso_router = APIRouter(prefix="/api/v1/provisioning/iso", tags=["provisioning-iso"])
@@ -132,7 +132,7 @@ def get_current_mounts() -> Dict[str, str]:
 # API Endpoints
 # ============================================
 
-@iso_router.get("/scan", response_model=ISOScanResponse)
+@iso_router.get("/scan", response_model=ISOScanResponse, dependencies=[Depends(require_permission("settings:read"))])
 async def scan_isos(path: Optional[str] = None):
     """Scan a directory for ISO files"""
     config = await current_config()
@@ -222,7 +222,7 @@ async def unmount_iso(target: str):
     return result
 
 
-@iso_router.get("/mounts")
+@iso_router.get("/mounts", dependencies=[Depends(require_permission("settings:read"))])
 async def list_mounts():
     """List current ISO mounts"""
     result = await run_iso_manager(["list"])
@@ -233,7 +233,7 @@ async def list_mounts():
     return result
 
 
-@iso_router.get("/wim-info", response_model=WIMInfoResponse)
+@iso_router.get("/wim-info", response_model=WIMInfoResponse, dependencies=[Depends(require_permission("settings:read"))])
 async def get_wim_info(wim_path: str):
     """Get WIM image information (indices and editions)"""
     if not os.path.isfile(wim_path):
@@ -434,7 +434,7 @@ class NFSMount(BaseModel):
     percent: Optional[str] = None
 
 
-@iso_router.get("/nfs/list")
+@iso_router.get("/nfs/list", dependencies=[Depends(require_permission("settings:read"))])
 async def list_nfs_mounts():
     """List current NFS mounts with disk usage"""
     result = await run_iso_manager(["nfs-list"])

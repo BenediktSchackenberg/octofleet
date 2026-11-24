@@ -4,6 +4,7 @@ import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { API_BASE } from "@/lib/api-config";
+import { getAuthHeader } from "@/lib/auth-context";
 import Link from "next/link";
 
 export default function ActivityPage() {
@@ -36,10 +37,18 @@ export default function ActivityPage() {
 
   useEffect(() => { loadData(); }, [hours, nodeFilter]);
 
-  const exportCsv = () => {
+  // A plain link would not send the session, so download through fetch with the auth header.
+  const exportCsv = async () => {
     const params = new URLSearchParams({ hours: String(hours), format: "csv" });
     if (nodeFilter) params.set("node_id", nodeFilter);
-    window.open(`${API_BASE}/security/activity/export?${params}`, "_blank");
+    const res = await fetch(`${API_BASE}/security/activity/export?${params}`, { headers: getAuthHeader() });
+    if (!res.ok) return;
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "file-activity.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (

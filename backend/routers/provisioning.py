@@ -12,7 +12,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, validator
 
-from auth import require_user_permission
+from auth import require_permission, require_user_permission
 from provisioning_config import load_config
 
 router = APIRouter(prefix="/api/v1/provisioning", tags=["provisioning"])
@@ -142,7 +142,7 @@ async def get_db():
 # API Endpoints
 # ============================================
 
-@router.get("/images", response_model=List[ProvisioningImageOut])
+@router.get("/images", response_model=List[ProvisioningImageOut], dependencies=[Depends(require_permission("settings:read"))])
 async def list_images(active_only: bool = True, conn = Depends(get_db)):
     """List available OS images for provisioning"""
     query = """
@@ -234,7 +234,7 @@ async def delete_image(image_id: str, conn = Depends(get_db)):
     return {"status": "deleted"}
 
 
-@router.get("/templates", response_model=List[ProvisioningTemplateOut])
+@router.get("/templates", response_model=List[ProvisioningTemplateOut], dependencies=[Depends(require_permission("settings:read"))])
 async def list_templates(conn = Depends(get_db)):
     """List available platform templates"""
     rows = await conn.fetch("""
@@ -326,7 +326,7 @@ async def delete_template(platform: str, conn = Depends(get_db)):
     return {"status": "deleted"}
 
 
-@router.get("/tasks", response_model=List[ProvisioningTaskOut])
+@router.get("/tasks", response_model=List[ProvisioningTaskOut], dependencies=[Depends(require_permission("nodes:read"))])
 async def list_tasks(
     status: Optional[str] = None,
     limit: int = 50,
@@ -413,7 +413,7 @@ async def create_task(task: ProvisioningTaskCreate, conn = Depends(get_db)):
     
     return _task_to_dict(row)
 
-@router.get("/tasks/{task_id}", response_model=ProvisioningTaskOut)
+@router.get("/tasks/{task_id}", response_model=ProvisioningTaskOut, dependencies=[Depends(require_permission("nodes:read"))])
 async def get_task(task_id: str, conn = Depends(get_db)):
     """Get provisioning task details"""
     row = await conn.fetchrow("""

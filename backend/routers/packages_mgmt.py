@@ -7,7 +7,7 @@ import aiofiles
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from app.core.file_utils import compute_file_sha256, detect_repo_file_type, get_repo_storage_path
-from auth import require_user_permission
+from auth import require_permission, require_user_permission
 from dependencies import get_db, get_pool, not_found, verify_api_key
 
 MAX_REPO_FILE_SIZE = int(os.environ.get("OCTOFLEET_MAX_FILE_SIZE", 5 * 1024 * 1024 * 1024))
@@ -410,7 +410,7 @@ async def create_detection_rule(package_id: str, version_id: str, data: Dict[str
         return {"id": str(row["id"]), "status": "created"}
 
 
-@router.get("/api/v1/package-sources")
+@router.get("/api/v1/package-sources", dependencies=[Depends(require_permission("packages:read"))])
 async def list_package_sources(db: asyncpg.Pool = Depends(get_db)):
     """List all package sources"""
     async with db.acquire() as conn:

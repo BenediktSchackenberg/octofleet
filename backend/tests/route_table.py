@@ -6,7 +6,7 @@ methods, endpoint and dependant (with the dependencies added when the router was
 """
 import re
 
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, APIWebSocketRoute
 
 try:
     from fastapi.routing import iter_route_contexts
@@ -24,3 +24,11 @@ def api_routes(app):
 def route_key(method, path):
     """/nodes/{node_id} and /nodes/{id} match the same requests."""
     return method, re.sub(r"\{[^}]*\}", "{}", path)
+
+
+def websocket_routes(app):
+    """The app's websocket routes, including those of included routers (see api_routes)."""
+    if iter_route_contexts is None:
+        return [route for route in app.routes if isinstance(route, APIWebSocketRoute)]
+    return [context for context in iter_route_contexts(app.routes)
+            if isinstance(context.original_route, APIWebSocketRoute)]

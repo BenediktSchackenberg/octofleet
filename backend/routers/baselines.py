@@ -9,7 +9,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.cis_templates import CHOCO_PACKAGES, CIS_TEMPLATES
-from auth import require_user_permission
+from auth import require_permission, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 
 router = APIRouter(tags=["Baselines"])
@@ -33,7 +33,7 @@ async def create_software_baseline(data: Dict[str, Any], db: asyncpg.Pool = Depe
         }
 
 
-@router.get("/api/v1/software-baselines")
+@router.get("/api/v1/software-baselines", dependencies=[Depends(require_permission("packages:read"))])
 async def list_software_baselines(db: asyncpg.Pool = Depends(get_db)):
     """List all software baselines"""
     async with db.acquire() as conn:
@@ -54,7 +54,7 @@ async def list_software_baselines(db: asyncpg.Pool = Depends(get_db)):
         return {"baselines": baselines}
 
 
-@router.get("/api/v1/software-baselines/{baseline_id}")
+@router.get("/api/v1/software-baselines/{baseline_id}", dependencies=[Depends(require_permission("packages:read"))])
 async def get_software_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a specific baseline with its assignments"""
     async with db.acquire() as conn:
