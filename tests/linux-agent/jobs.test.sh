@@ -12,6 +12,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # JSON here-document with a "}" at the start of a line, so it ends at the first "}" after "EOF".
 eval "$(awk '/^schedule_restart\(\) \{/ { f = 1 } f { print } f && /^}$/ { f = 0 }' "$AGENT")"
 eval "$(awk '/^execute_job\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
+eval "$(awk '/^# --- systemd helpers/,/^# --- end systemd helpers ---$/' "$AGENT")"  # systemd_mode, sd_run, sd_run_wait
 for fn in schedule_restart execute_job; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done

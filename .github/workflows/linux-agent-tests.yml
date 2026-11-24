@@ -53,6 +53,8 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/w" -w /w debian:bookworm-slim sh -c \
             'apt-get update -qq && apt-get install -y -qq jq >/dev/null && bash tests/linux-agent/inventory-push.test.sh'
+      - name: Test the agent without a D-Bus system bus (polled transient units, plain errors)
+        run: bash tests/linux-agent/no-dbus.test.sh
       - name: Test the logrotate configuration
         run: |
           sudo apt-get install -y -q logrotate >/dev/null || true

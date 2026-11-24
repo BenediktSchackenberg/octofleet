@@ -298,6 +298,12 @@ sudo systemctl enable octofleet-agent
 sudo systemctl start octofleet-agent
 ```
 
+### Systems Without D-Bus
+
+The service runs sandboxed (`ProtectSystem=strict`), so everything that changes the system – installing updates, refreshing package lists, writing `/etc/logrotate.d/octofleet-agent`, scheduling a reboot or the agent's own restart – runs as a short-lived systemd unit (`systemd-run`), outside the sandbox. Minimal systems (stripped-down vendor images, some cloud and container images) have no D-Bus system bus (`/run/dbus/system_bus_socket` missing). There `systemd-run --wait` fails with *Failed to connect to bus*. The agent then reaches systemd over its own socket (`/run/systemd/private`, root only), starts the unit without waiting and checks it every second until it has finished, with the same output and exit code; at the start it logs *No D-Bus system bus on this system: updates, reboots and logrotate run through systemd's private socket*. Nothing has to be installed for this.
+
+If systemd cannot be reached at all, a job fails with one sentence that says so and how to fix it (install and start `dbus`, e.g. `apt-get install dbus; systemctl enable --now dbus`). Outside systemd, `shutdown -r` needs systemd-logind over D-Bus as well; the job then says so instead of only failing.
+
 ### Verify
 
 ```bash

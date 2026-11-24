@@ -15,6 +15,7 @@ for fn in pacman_updates pacman_reboot_required; do
     eval "$(awk -v fn="$fn" '$0 ~ "^" fn "\\(\\) \\{" { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
 done
 eval "$(awk '/^execute_job\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
+eval "$(awk '/^# --- systemd helpers/,/^# --- end systemd helpers ---$/' "$AGENT")"  # systemd_mode, sd_run, sd_run_wait
 for fn in package_manager run_package_command refresh_package_lists run_patch_scan run_patch_install schedule_system_reboot execute_job pacman_updates pacman_reboot_required; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
