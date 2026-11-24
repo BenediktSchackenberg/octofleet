@@ -2678,5 +2678,119 @@
       "verbose": "Detallado",
       "other": "Nivel {level}"
     }
+  },
+  "compliance": {
+    "compliance": "Cumplimiento",
+    "back": "Volver a Cumplimiento",
+    "columns": {
+      "type": "Tipo",
+      "rules": "Reglas",
+      "assignments": "Asignaciones",
+      "version": "Versión",
+      "baseline": "Línea base",
+      "rule": "Regla",
+      "node": "Nodo",
+      "severity": "Gravedad"
+    },
+    "severity": {
+      "critical": "Crítica",
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja",
+      "info": "Información"
+    },
+    "types": {
+      "software": "Software",
+      "service": "Servicio",
+      "registry": "Registro",
+      "firewall": "Firewall",
+      "custom": "Personalizado"
+    }
+  },
+  "complianceDashboard": {
+    "title": "Panel de cumplimiento",
+    "evaluating": "Evaluando...",
+    "evaluateAll": "Evaluar todas",
+    "createBaseline": "Crear línea base",
+    "totalBaselines": "Líneas base en total",
+    "openDrifts": "Desviaciones abiertas",
+    "lastEvaluation": "Última evaluación",
+    "viewDrift": "Ver desviaciones",
+    "trend": "Evolución del cumplimiento (30 días)",
+    "baselines": "Líneas base",
+    "noBaselines": "Todavía no hay líneas base. Cree una para empezar.",
+    "evaluate": "Evaluar"
+  },
+  "complianceDrift": {
+    "title": "Desviaciones",
+    "remediateFailed": "No se pudo corregir.",
+    "allStatuses": "Todos los estados",
+    "allSeverities": "Todas las gravedades",
+    "status": {
+      "open": "Abierta",
+      "acknowledged": "Confirmada",
+      "resolved": "Resuelta",
+      "waived": "Exenta",
+      "remediating": "Corrigiendo"
+    },
+    "none": "No se encontraron desviaciones.",
+    "detected": "Detectada",
+    "remediate": "Corregir",
+    "acknowledge": "Confirmar",
+    "waive": "Eximir",
+    "waiveTitle": "Eximir la desviación",
+    "waiveReason": "Motivo de la exención..."
+  },
+  "baselineDetail": {
+    "notFound": "No se encontró la línea base",
+    "evaluating": "Evaluando...",
+    "evaluate": "Evaluar ahora",
+    "remediating": "Corrigiendo...",
+    "remediateAll": "Corregir todas las desviaciones",
+    "expected": "Esperado",
+    "history": "Historial de evaluaciones",
+    "noEvaluations": "Todavía no hay evaluaciones.",
+    "date": "Fecha",
+    "passed": "Superadas",
+    "failed": "No superadas",
+    "skipped": "Omitidas",
+    "compliant": "Conforme",
+    "nonCompliant": "No conforme"
+  },
+  "baselineNew": {
+    "title": "Crear línea base",
+    "importTitle": "Importar desde una plantilla CIS",
+    "importText": "Empiece rápido con líneas base de CIS Benchmark ya preparadas. Las reglas se pueden ajustar después de importarlas.",
+    "ruleCount": "{count} reglas",
+    "ruleCountOne": "{count} regla",
+    "importing": "Importando...",
+    "import": "Importar",
+    "orManually": "o crearla manualmente",
+    "details": "Datos de la línea base",
+    "namePlaceholder": "p. ej. línea base de seguridad de Windows Server",
+    "addRule": "Añadir regla",
+    "noRules": "Todavía no hay reglas. Añada una arriba.",
+    "ruleName": "Nombre de la regla",
+    "saving": "Guardando...",
+    "save": "Guardar línea base",
+    "fields": {
+      "package": "Nombre del paquete",
+      "installed": "Instalado",
+      "notInstalled": "No instalado",
+      "service": "Nombre del servicio",
+      "running": "En ejecución",
+      "stopped": "Detenido",
+      "disabled": "Deshabilitado",
+      "keyPath": "Ruta de la clave",
+      "valueName": "Nombre del valor",
+      "expectedValue": "Valor esperado",
+      "firewallRule": "Nombre de la regla de firewall",
+      "inbound": "Entrante",
+      "outbound": "Saliente",
+      "allow": "Permitir",
+      "block": "Bloquear",
+      "port": "Puerto",
+      "customJson": "Valor JSON propio"
+    }
   }
 }

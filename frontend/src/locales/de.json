@@ -2678,5 +2678,119 @@
       "verbose": "Ausführlich",
       "other": "Ebene {level}"
     }
+  },
+  "compliance": {
+    "compliance": "Compliance",
+    "back": "Zurück zu Compliance",
+    "columns": {
+      "type": "Typ",
+      "rules": "Regeln",
+      "assignments": "Zuweisungen",
+      "version": "Version",
+      "baseline": "Baseline",
+      "rule": "Regel",
+      "node": "Node",
+      "severity": "Schweregrad"
+    },
+    "severity": {
+      "critical": "Kritisch",
+      "high": "Hoch",
+      "medium": "Mittel",
+      "low": "Niedrig",
+      "info": "Info"
+    },
+    "types": {
+      "software": "Software",
+      "service": "Dienst",
+      "registry": "Registry",
+      "firewall": "Firewall",
+      "custom": "Benutzerdefiniert"
+    }
+  },
+  "complianceDashboard": {
+    "title": "Compliance-Übersicht",
+    "evaluating": "Wird ausgewertet...",
+    "evaluateAll": "Alle auswerten",
+    "createBaseline": "Baseline erstellen",
+    "totalBaselines": "Baselines gesamt",
+    "openDrifts": "Offene Abweichungen",
+    "lastEvaluation": "Letzte Auswertung",
+    "viewDrift": "Abweichungen anzeigen",
+    "trend": "Compliance-Verlauf (30 Tage)",
+    "baselines": "Baselines",
+    "noBaselines": "Noch keine Baselines. Erstellen Sie eine, um zu beginnen.",
+    "evaluate": "Auswerten"
+  },
+  "complianceDrift": {
+    "title": "Abweichungen",
+    "remediateFailed": "Die Behebung ist fehlgeschlagen.",
+    "allStatuses": "Alle Status",
+    "allSeverities": "Alle Schweregrade",
+    "status": {
+      "open": "Offen",
+      "acknowledged": "Bestätigt",
+      "resolved": "Behoben",
+      "waived": "Ausgenommen",
+      "remediating": "Wird behoben"
+    },
+    "none": "Keine Abweichungen gefunden.",
+    "detected": "Erkannt",
+    "remediate": "Beheben",
+    "acknowledge": "Bestätigen",
+    "waive": "Ausnehmen",
+    "waiveTitle": "Abweichung ausnehmen",
+    "waiveReason": "Begründung für die Ausnahme..."
+  },
+  "baselineDetail": {
+    "notFound": "Baseline nicht gefunden",
+    "evaluating": "Wird ausgewertet...",
+    "evaluate": "Jetzt auswerten",
+    "remediating": "Wird behoben...",
+    "remediateAll": "Alle Abweichungen beheben",
+    "expected": "Erwartet",
+    "history": "Auswertungsverlauf",
+    "noEvaluations": "Noch keine Auswertungen.",
+    "date": "Datum",
+    "passed": "Bestanden",
+    "failed": "Nicht bestanden",
+    "skipped": "Übersprungen",
+    "compliant": "Konform",
+    "nonCompliant": "Nicht konform"
+  },
+  "baselineNew": {
+    "title": "Baseline erstellen",
+    "importTitle": "Aus einer CIS-Vorlage importieren",
+    "importText": "Schnellstart mit fertigen CIS-Benchmark-Baselines. Die Regeln lassen sich nach dem Import anpassen.",
+    "ruleCount": "{count} Regeln",
+    "ruleCountOne": "{count} Regel",
+    "importing": "Wird importiert...",
+    "import": "Importieren",
+    "orManually": "oder manuell erstellen",
+    "details": "Details der Baseline",
+    "namePlaceholder": "z. B. Sicherheits-Baseline für Windows Server",
+    "addRule": "Regel hinzufügen",
+    "noRules": "Noch keine Regeln. Fügen Sie oben eine hinzu.",
+    "ruleName": "Name der Regel",
+    "saving": "Wird gespeichert...",
+    "save": "Baseline speichern",
+    "fields": {
+      "package": "Paketname",
+      "installed": "Installiert",
+      "notInstalled": "Nicht installiert",
+      "service": "Dienstname",
+      "running": "Läuft",
+      "stopped": "Beendet",
+      "disabled": "Deaktiviert",
+      "keyPath": "Schlüsselpfad",
+      "valueName": "Name des Werts",
+      "expectedValue": "Erwarteter Wert",
+      "firewallRule": "Name der Firewall-Regel",
+      "inbound": "Eingehend",
+      "outbound": "Ausgehend",
+      "allow": "Zulassen",
+      "block": "Blockieren",
+      "port": "Port",
+      "customJson": "Eigener JSON-Wert"
+    }
   }
 }

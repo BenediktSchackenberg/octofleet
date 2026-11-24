@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { LoadingSpinner } from "@/components/ui-components";
 import { Play, Trash2, ShieldCheck, ShieldAlert, Zap } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n-context";
+import { formatDateTime } from "@/lib/format";
 
 interface BaselineDetail {
   id: string; name: string; description: string; baseline_type: string; version: number;
@@ -19,7 +21,13 @@ interface Evaluation {
   total_rules: number; passed: number; failed: number; skipped: number; details: any[];
 }
 
+const SEVERITY_KEYS = ["critical", "high", "medium", "low", "info"];
+const TYPE_KEYS = ["software", "service", "registry", "firewall", "custom"];
+
 export default function BaselineDetail() {
+  const { t } = useI18n();
+  const severityLabel = (s: string) => (SEVERITY_KEYS.includes(s) ? t(`compliance.severity.${s}`) : s);
+  const typeLabel = (s: string) => (TYPE_KEYS.includes(s) ? t(`compliance.types.${s}`) : s);
   const params = useParams();
   const id = params.id as string;
   const [baseline, setBaseline] = useState<BaselineDetail | null>(null);
@@ -63,7 +71,7 @@ export default function BaselineDetail() {
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><LoadingSpinner /></div>;
-  if (!baseline) return <div className="p-6 dark:text-white">Baseline not found</div>;
+  if (!baseline) return <div className="p-6 dark:text-white">{t("baselineDetail.notFound")}</div>;
 
   const latestEvals = evaluations.slice(0, 20);
   const compliancePct = latestEvals.length > 0
@@ -73,20 +81,20 @@ export default function BaselineDetail() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/compliance" className="text-blue-500 hover:underline text-sm">← Back to Compliance</Link>
+          <Link href="/compliance" className="text-blue-500 hover:underline text-sm">← {t("compliance.back")}</Link>
           <h1 className="text-2xl font-bold dark:text-white mt-1">{baseline.name}</h1>
           <p className="text-gray-500 dark:text-gray-400">{baseline.description}</p>
         </div>
         <div className="flex gap-2 items-center">
-          <Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">{baseline.baseline_type}</Badge>
+          <Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">{typeLabel(baseline.baseline_type)}</Badge>
           <Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">v{baseline.version}</Badge>
           <button onClick={evaluate} disabled={evaluating}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            <Play className="w-4 h-4" /> {evaluating ? "Evaluating..." : "Evaluate Now"}
+            <Play className="w-4 h-4" /> {evaluating ? t("baselineDetail.evaluating") : t("baselineDetail.evaluate")}
           </button>
           <button onClick={remediateAll} disabled={remediating}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
-            <Zap className="w-4 h-4" /> {remediating ? "Remediating..." : "Remediate All Drifts"}
+            <Zap className="w-4 h-4" /> {remediating ? t("baselineDetail.remediating") : t("baselineDetail.remediateAll")}
           </button>
         </div>
       </div>
@@ -94,7 +102,7 @@ export default function BaselineDetail() {
       {/* Compliance Gauge */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-          <CardHeader className="pb-2"><CardTitle className="text-sm dark:text-gray-400">Compliance</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm dark:text-gray-400">{t("compliance.compliance")}</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-center gap-3">
               <div className="text-4xl font-bold dark:text-white">{compliancePct}%</div>
@@ -103,38 +111,38 @@ export default function BaselineDetail() {
           </CardContent>
         </Card>
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-          <CardHeader className="pb-2"><CardTitle className="text-sm dark:text-gray-400">Rules</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm dark:text-gray-400">{t("compliance.columns.rules")}</CardTitle></CardHeader>
           <CardContent><div className="text-4xl font-bold dark:text-white">{baseline.rules.length}</div></CardContent>
         </Card>
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-          <CardHeader className="pb-2"><CardTitle className="text-sm dark:text-gray-400">Assignments</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm dark:text-gray-400">{t("compliance.columns.assignments")}</CardTitle></CardHeader>
           <CardContent><div className="text-4xl font-bold dark:text-white">{baseline.assignments.length}</div></CardContent>
         </Card>
       </div>
 
       {/* Rules */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-        <CardHeader><CardTitle className="dark:text-white">Rules</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="dark:text-white">{t("compliance.columns.rules")}</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow className="dark:border-zinc-700">
-                <TableHead className="dark:text-gray-400">Name</TableHead>
-                <TableHead className="dark:text-gray-400">Type</TableHead>
-                <TableHead className="dark:text-gray-400">Expected</TableHead>
-                <TableHead className="dark:text-gray-400">Severity</TableHead>
-                <TableHead className="dark:text-gray-400">Actions</TableHead>
+                <TableHead className="dark:text-gray-400">{t("common.name")}</TableHead>
+                <TableHead className="dark:text-gray-400">{t("compliance.columns.type")}</TableHead>
+                <TableHead className="dark:text-gray-400">{t("baselineDetail.expected")}</TableHead>
+                <TableHead className="dark:text-gray-400">{t("compliance.columns.severity")}</TableHead>
+                <TableHead className="dark:text-gray-400">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {baseline.rules.map((r: any) => (
                 <TableRow key={r.id} className="dark:border-zinc-700">
                   <TableCell className="dark:text-white font-medium">{r.rule_name}</TableCell>
-                  <TableCell><Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">{r.rule_type}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">{typeLabel(r.rule_type)}</Badge></TableCell>
                   <TableCell className="dark:text-gray-300 text-xs font-mono">{JSON.stringify(r.expected_value)}</TableCell>
                   <TableCell>
                     <Badge className={`text-white text-xs ${r.severity === "critical" ? "bg-red-500" : r.severity === "high" ? "bg-orange-500" : r.severity === "medium" ? "bg-yellow-500" : "bg-blue-500"}`}>
-                      {r.severity}
+                      {severityLabel(r.severity)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -149,31 +157,31 @@ export default function BaselineDetail() {
 
       {/* Evaluation History */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-        <CardHeader><CardTitle className="dark:text-white">Evaluation History</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="dark:text-white">{t("baselineDetail.history")}</CardTitle></CardHeader>
         <CardContent>
           {evaluations.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-4">No evaluations yet.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-4">{t("baselineDetail.noEvaluations")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="dark:border-zinc-700">
-                  <TableHead className="dark:text-gray-400">Node</TableHead>
-                  <TableHead className="dark:text-gray-400">Date</TableHead>
-                  <TableHead className="dark:text-gray-400">Status</TableHead>
-                  <TableHead className="dark:text-gray-400">Passed</TableHead>
-                  <TableHead className="dark:text-gray-400">Failed</TableHead>
-                  <TableHead className="dark:text-gray-400">Skipped</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("compliance.columns.node")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("baselineDetail.date")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("common.status")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("baselineDetail.passed")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("baselineDetail.failed")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("baselineDetail.skipped")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {evaluations.map((ev) => (
                   <TableRow key={ev.id} className="dark:border-zinc-700">
                     <TableCell className="dark:text-gray-300 font-mono text-xs">{ev.node_id?.toString().slice(0, 8)}...</TableCell>
-                    <TableCell className="dark:text-gray-300">{new Date(ev.evaluated_at).toLocaleString()}</TableCell>
+                    <TableCell className="dark:text-gray-300">{formatDateTime(ev.evaluated_at)}</TableCell>
                     <TableCell>
                       {ev.compliant
-                        ? <Badge className="bg-green-500 text-white">Compliant</Badge>
-                        : <Badge className="bg-red-500 text-white">Non-Compliant</Badge>}
+                        ? <Badge className="bg-green-500 text-white">{t("baselineDetail.compliant")}</Badge>
+                        : <Badge className="bg-red-500 text-white">{t("baselineDetail.nonCompliant")}</Badge>}
                     </TableCell>
                     <TableCell className="text-green-500">{ev.passed}</TableCell>
                     <TableCell className="text-red-500">{ev.failed}</TableCell>

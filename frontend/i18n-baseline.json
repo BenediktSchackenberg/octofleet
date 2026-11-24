@@ -1,9 +1,5 @@
 {
   "src/app/api-keys/page.tsx": 30,
-  "src/app/compliance/baselines/[id]/page.tsx": 23,
-  "src/app/compliance/baselines/new/page.tsx": 36,
-  "src/app/compliance/drift/page.tsx": 29,
-  "src/app/compliance/page.tsx": 19,
   "src/app/content/page.tsx": 162,
   "src/app/discovered-systems/page.tsx": 24,
   "src/app/error.tsx": 2,

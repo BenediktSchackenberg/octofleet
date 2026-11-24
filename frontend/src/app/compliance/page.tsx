@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Plus, Play, ArrowRight, TrendingUp } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
+import { formatDateTime, formatLocalDate } from "@/lib/format";
 
 interface Baseline {
   id: string;
@@ -36,7 +38,13 @@ interface TrendPoint {
   pct: number;
 }
 
+const SEVERITY_KEYS = ["critical", "high", "medium", "low", "info"];
+const TYPE_KEYS = ["software", "service", "registry", "firewall", "custom"];
+
 export default function ComplianceDashboard() {
+  const { t } = useI18n();
+  const severityLabel = (s: string) => (SEVERITY_KEYS.includes(s) ? t(`compliance.severity.${s}`) : s);
+  const typeLabel = (s: string) => (TYPE_KEYS.includes(s) ? t(`compliance.types.${s}`) : s);
   const [baselines, setBaselines] = useState<Baseline[]>([]);
   const [summary, setSummary] = useState<DriftSummary | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
@@ -93,15 +101,15 @@ export default function ComplianceDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold dark:text-white">Compliance Dashboard</h1>
+        <h1 className="text-2xl font-bold dark:text-white">{t("complianceDashboard.title")}</h1>
         <div className="flex gap-2">
           <button onClick={evaluateAll} disabled={!!evaluating}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            <Play className="w-4 h-4" /> {evaluating === "all" ? "Evaluating..." : "Evaluate All"}
+            <Play className="w-4 h-4" /> {evaluating === "all" ? t("complianceDashboard.evaluating") : t("complianceDashboard.evaluateAll")}
           </button>
           <Link href="/compliance/baselines/new"
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-            <Plus className="w-4 h-4" /> Create Baseline
+            <Plus className="w-4 h-4" /> {t("complianceDashboard.createBaseline")}
           </Link>
         </div>
       </div>
@@ -109,11 +117,11 @@ export default function ComplianceDashboard() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Total Baselines</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">{t("complianceDashboard.totalBaselines")}</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-bold dark:text-white">{summary?.total_baselines ?? 0}</div></CardContent>
         </Card>
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Compliance</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">{t("compliance.compliance")}</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold dark:text-white flex items-center gap-2">
               {summary?.compliance_pct ?? 0}%
@@ -122,21 +130,21 @@ export default function ComplianceDashboard() {
           </CardContent>
         </Card>
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Open Drifts</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">{t("complianceDashboard.openDrifts")}</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold dark:text-white">{summary?.total_open_drifts ?? 0}</div>
             <div className="flex gap-1 mt-1">
               {summary?.drifts_by_severity && Object.entries(summary.drifts_by_severity).map(([sev, count]) => (
-                <Badge key={sev} className={`${severityColor[sev] || "bg-gray-500"} text-white text-xs`}>{sev}: {count}</Badge>
+                <Badge key={sev} className={`${severityColor[sev] || "bg-gray-500"} text-white text-xs`}>{severityLabel(sev)}: {count}</Badge>
               ))}
             </div>
           </CardContent>
         </Card>
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">Last Evaluation</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500 dark:text-gray-400">{t("complianceDashboard.lastEvaluation")}</CardTitle></CardHeader>
           <CardContent>
             <div className="text-lg dark:text-white">
-              {summary?.last_evaluation ? new Date(summary.last_evaluation).toLocaleString() : "Never"}
+              {summary?.last_evaluation ? formatDateTime(summary.last_evaluation) : t("time.never")}
             </div>
           </CardContent>
         </Card>
@@ -145,7 +153,7 @@ export default function ComplianceDashboard() {
       {/* Quick Links */}
       <div className="flex gap-2">
         <Link href="/compliance/drift" className="text-blue-500 hover:underline flex items-center gap-1">
-          <AlertTriangle className="w-4 h-4" /> View Drift Events <ArrowRight className="w-3 h-3" />
+          <AlertTriangle className="w-4 h-4" /> {t("complianceDashboard.viewDrift")} <ArrowRight className="w-3 h-3" />
         </Link>
       </div>
 
@@ -154,21 +162,21 @@ export default function ComplianceDashboard() {
         <Card className="dark:bg-zinc-900 dark:border-zinc-700">
           <CardHeader>
             <CardTitle className="dark:text-white flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-500" /> Compliance Trend (30 days)
+              <TrendingUp className="w-5 h-5 text-blue-500" /> {t("complianceDashboard.trend")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-32 flex items-end gap-1">
-              {trends.map((t, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${t.date}: ${t.pct}% (${t.compliant}/${t.total})`}>
+              {trends.map((point, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${formatLocalDate(point.date)}: ${point.pct}% (${point.compliant}/${point.total})`}>
                   <div className="w-full rounded-t"
                     style={{
-                      height: `${Math.max(4, t.pct * 1.2)}px`,
-                      backgroundColor: t.pct >= 80 ? '#22c55e' : t.pct >= 50 ? '#eab308' : '#ef4444',
+                      height: `${Math.max(4, point.pct * 1.2)}px`,
+                      backgroundColor: point.pct >= 80 ? '#22c55e' : point.pct >= 50 ? '#eab308' : '#ef4444',
                     }}
                   />
                   {i % Math.max(1, Math.floor(trends.length / 7)) === 0 && (
-                    <span className="text-[9px] text-gray-500 dark:text-gray-500">{t.date.slice(5)}</span>
+                    <span className="text-[9px] text-gray-500 dark:text-gray-500">{formatLocalDate(point.date, { month: "2-digit", day: "2-digit" })}</span>
                   )}
                 </div>
               ))}
@@ -179,20 +187,20 @@ export default function ComplianceDashboard() {
 
       {/* Baselines Table */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-700">
-        <CardHeader><CardTitle className="dark:text-white">Baselines</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="dark:text-white">{t("complianceDashboard.baselines")}</CardTitle></CardHeader>
         <CardContent>
           {baselines.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No baselines yet. Create one to get started.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">{t("complianceDashboard.noBaselines")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="dark:border-zinc-700">
-                  <TableHead className="dark:text-gray-400">Name</TableHead>
-                  <TableHead className="dark:text-gray-400">Type</TableHead>
-                  <TableHead className="dark:text-gray-400">Rules</TableHead>
-                  <TableHead className="dark:text-gray-400">Assignments</TableHead>
-                  <TableHead className="dark:text-gray-400">Version</TableHead>
-                  <TableHead className="dark:text-gray-400">Actions</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("common.name")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("compliance.columns.type")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("compliance.columns.rules")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("compliance.columns.assignments")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("compliance.columns.version")}</TableHead>
+                  <TableHead className="dark:text-gray-400">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -202,14 +210,14 @@ export default function ComplianceDashboard() {
                       <Link href={`/compliance/baselines/${b.id}`} className="text-blue-500 hover:underline font-medium">{b.name}</Link>
                       {b.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{b.description}</p>}
                     </TableCell>
-                    <TableCell><Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">{b.baseline_type}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="dark:border-zinc-600 dark:text-gray-300">{typeLabel(b.baseline_type)}</Badge></TableCell>
                     <TableCell className="dark:text-gray-300">{b.rule_count}</TableCell>
                     <TableCell className="dark:text-gray-300">{b.assignment_count}</TableCell>
                     <TableCell className="dark:text-gray-300">v{b.version}</TableCell>
                     <TableCell>
                       <button onClick={() => evaluateBaseline(b.id)} disabled={!!evaluating}
                         className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
-                        {evaluating === b.id ? "..." : "Evaluate"}
+                        {evaluating === b.id ? "..." : t("complianceDashboard.evaluate")}
                       </button>
                     </TableCell>
                   </TableRow>

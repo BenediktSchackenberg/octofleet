@@ -2678,5 +2678,119 @@
       "verbose": "Verbose",
       "other": "Level {level}"
     }
+  },
+  "compliance": {
+    "compliance": "Compliance",
+    "back": "Back to Compliance",
+    "columns": {
+      "type": "Type",
+      "rules": "Rules",
+      "assignments": "Assignments",
+      "version": "Version",
+      "baseline": "Baseline",
+      "rule": "Rule",
+      "node": "Node",
+      "severity": "Severity"
+    },
+    "severity": {
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "info": "Info"
+    },
+    "types": {
+      "software": "Software",
+      "service": "Service",
+      "registry": "Registry",
+      "firewall": "Firewall",
+      "custom": "Custom"
+    }
+  },
+  "complianceDashboard": {
+    "title": "Compliance dashboard",
+    "evaluating": "Evaluating...",
+    "evaluateAll": "Evaluate all",
+    "createBaseline": "Create baseline",
+    "totalBaselines": "Total baselines",
+    "openDrifts": "Open drifts",
+    "lastEvaluation": "Last evaluation",
+    "viewDrift": "View drift events",
+    "trend": "Compliance trend (30 days)",
+    "baselines": "Baselines",
+    "noBaselines": "No baselines yet. Create one to get started.",
+    "evaluate": "Evaluate"
+  },
+  "complianceDrift": {
+    "title": "Drift events",
+    "remediateFailed": "Remediation failed.",
+    "allStatuses": "All statuses",
+    "allSeverities": "All severities",
+    "status": {
+      "open": "Open",
+      "acknowledged": "Acknowledged",
+      "resolved": "Resolved",
+      "waived": "Waived",
+      "remediating": "Remediating"
+    },
+    "none": "No drift events found.",
+    "detected": "Detected",
+    "remediate": "Remediate",
+    "acknowledge": "Acknowledge",
+    "waive": "Waive",
+    "waiveTitle": "Waive drift event",
+    "waiveReason": "Reason for waiving..."
+  },
+  "baselineDetail": {
+    "notFound": "Baseline not found",
+    "evaluating": "Evaluating...",
+    "evaluate": "Evaluate now",
+    "remediating": "Remediating...",
+    "remediateAll": "Remediate all drifts",
+    "expected": "Expected",
+    "history": "Evaluation history",
+    "noEvaluations": "No evaluations yet.",
+    "date": "Date",
+    "passed": "Passed",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "compliant": "Compliant",
+    "nonCompliant": "Non-compliant"
+  },
+  "baselineNew": {
+    "title": "Create baseline",
+    "importTitle": "Import from a CIS template",
+    "importText": "Quick start with ready-made CIS Benchmark baselines. The rules can be adjusted after the import.",
+    "ruleCount": "{count} rules",
+    "ruleCountOne": "{count} rule",
+    "importing": "Importing...",
+    "import": "Import",
+    "orManually": "or create manually",
+    "details": "Baseline details",
+    "namePlaceholder": "e.g. Windows Server security baseline",
+    "addRule": "Add rule",
+    "noRules": "No rules yet. Add one above.",
+    "ruleName": "Rule name",
+    "saving": "Saving...",
+    "save": "Save baseline",
+    "fields": {
+      "package": "Package name",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "service": "Service name",
+      "running": "Running",
+      "stopped": "Stopped",
+      "disabled": "Disabled",
+      "keyPath": "Key path",
+      "valueName": "Value name",
+      "expectedValue": "Expected value",
+      "firewallRule": "Firewall rule name",
+      "inbound": "Inbound",
+      "outbound": "Outbound",
+      "allow": "Allow",
+      "block": "Block",
+      "port": "Port",
+      "customJson": "Custom JSON value"
+    }
   }
 }
