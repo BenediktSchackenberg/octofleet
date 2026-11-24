@@ -984,6 +984,46 @@
         "5": "Pedir consentimiento para programas que no son de Windows (predeterminado)"
       }
     },
+    "hardening": {
+      "appControl": "App Control for Business (WDAC)",
+      "kernelMode": "Modo kernel",
+      "userMode": "Modo usuario",
+      "driverBlocklist": "Lista de bloqueo de controladores vulnerables",
+      "activePolicies": "Directivas activas",
+      "systemPolicy": "Windows",
+      "base": "Base",
+      "supplemental": "Complementaria",
+      "signed": "Firmada",
+      "notEnforced": "No aplicada",
+      "policyFilesOnly": "ID de los archivos de directivas activas (CiTool no existe en esta versión de Windows).",
+      "collection": {
+        "exe": "Ejecutables",
+        "msi": "Windows Installer",
+        "script": "Scripts",
+        "dll": "DLL",
+        "appx": "Aplicaciones empaquetadas"
+      },
+      "rules": "Reglas: {count}",
+      "appIdSvc": "Servicio Identidad de aplicación",
+      "appIdSvcStopped": "AppLocker solo aplica sus reglas mientras se ejecuta el servicio Identidad de aplicación (AppIDSvc).",
+      "vbs": "Seguridad basada en virtualización",
+      "vbsStatus": "VBS",
+      "service": {
+        "credentialGuard": "Credential Guard",
+        "hvci": "Integridad de memoria (HVCI)",
+        "systemGuard": "System Guard Secure Launch"
+      },
+      "probeFailed": "No se pudo leer todo en el nodo (pase el ratón para ver detalles).",
+      "state": {
+        "enforced": "Aplicado",
+        "audit": "Auditoría",
+        "off": "Desactivado",
+        "on": "Activado",
+        "running": "En ejecución",
+        "notRunning": "Configurado, no en ejecución",
+        "unknown": "Desconocido"
+      }
+    },
     "cookieWarnings": {
       "notSecure": "Algunas cookies críticas no están marcadas como Secure (vulnerables a ataques de intermediario)",
       "notHttpOnly": "Algunas cookies críticas no son HttpOnly (legibles por scripts, vulnerables a XSS)",

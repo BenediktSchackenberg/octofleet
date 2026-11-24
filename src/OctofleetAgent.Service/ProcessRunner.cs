@@ -17,6 +17,7 @@ public static class ProcessRunner
 
     /// <summary>
     /// Runs the process and returns its output, or null if it could not be started.
+    /// Set <c>RedirectStandardInput</c> on <paramref name="psi"/> to start it with a closed stdin.
     /// Throws <see cref="TimeoutException"/> after the time limit (the process tree is killed).
     /// </summary>
     public static Result? Run(ProcessStartInfo psi, TimeSpan? timeout = null)
@@ -29,6 +30,9 @@ public static class ProcessRunner
 
         using var process = Process.Start(psi);
         if (process == null) return null;
+        // With RedirectStandardInput the caller asks for a closed stdin: a tool that waits for input
+        // (e.g. CiTool) gets end-of-file instead of hanging until the time limit.
+        if (psi.RedirectStandardInput) process.StandardInput.Close();
 
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();

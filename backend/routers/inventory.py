@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request
 
 import linux_rules
 import linux_updates
+import security_hardening
 import vulnerability_cache
 from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
@@ -226,7 +227,11 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         node = await conn.fetchrow("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if not node: raise not_found("Node", node_id)
-        row = await conn.fetchrow("SELECT antivirus, defender, firewall, tpm, uac, bitlocker, secure_boot, local_admins, linux, updated_at FROM security_current WHERE node_id = $1", node['id'])
+        row = await conn.fetchrow("""
+            SELECT antivirus, defender, firewall, tpm, uac, bitlocker, secure_boot, local_admins, linux,
+                   app_control, applocker, vbs, updated_at
+            FROM security_current WHERE node_id = $1
+        """, node['id'])
         if not row: return {"data": None}
 
         def section(column):
@@ -238,6 +243,7 @@ async def get_security(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             "firewall": section("firewall"), "tpm": section("tpm"), "uac": section("uac"),
             "bitlocker": section("bitlocker"), "secureBoot": row["secure_boot"], "localAdmins": section("local_admins"),
             "linux": section("linux"),
+            "appControl": section("app_control"), "appLocker": section("applocker"), "vbs": section("vbs"),
             "updatedAt": row["updated_at"].isoformat() if row["updated_at"] else None,
         }}
 
@@ -408,6 +414,8 @@ async def ensure_schema(pool: asyncpg.Pool) -> None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("ALTER TABLE security_current ADD COLUMN IF NOT EXISTS linux jsonb")
+            for column in ("app_control", "applocker", "vbs"):
+                await conn.execute(f"ALTER TABLE security_current ADD COLUMN IF NOT EXISTS {column} jsonb")
             await linux_updates.ensure_schema(conn)
             await linux_rules.ensure_schema(conn)
             browser_pk = await conn.fetchval("""
@@ -426,7 +434,8 @@ async def ensure_schema(pool: asyncpg.Pool) -> None:
 
 async def store_security(db: asyncpg.Pool, node_id_str: str, hostname: str, sec: Dict[str, Any]):
     """Store the security section of an agent's inventory (Windows: SecurityCollector; Linux: collect_security,
-    kept as sent in the `linux` column)."""
+    kept as sent in the `linux` column). App Control (WDAC), AppLocker and VBS are stored normalised
+    (security_hardening)."""
     uuid = await upsert_node(db, node_id_str, hostname)
     antivirus, uac, secure_boot = _dict(sec.get("antivirus")), _dict(sec.get("uac")), _dict(sec.get("secureBoot"))
     linux = sec if any(key in sec for key in LINUX_SECURITY_KEYS) else None
@@ -437,17 +446,19 @@ async def store_security(db: asyncpg.Pool, node_id_str: str, hostname: str, sec:
     async with db.acquire() as conn:
         await conn.execute("""
             INSERT INTO security_current (node_id, antivirus, defender, firewall, tpm, uac, uac_enabled, bitlocker,
-                                          secure_boot, local_admins, linux, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                                          secure_boot, local_admins, linux, app_control, applocker, vbs, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
             ON CONFLICT (node_id) DO UPDATE SET
                 antivirus = EXCLUDED.antivirus, defender = EXCLUDED.defender, firewall = EXCLUDED.firewall,
                 tpm = EXCLUDED.tpm, uac = EXCLUDED.uac, uac_enabled = EXCLUDED.uac_enabled,
                 bitlocker = EXCLUDED.bitlocker, secure_boot = EXCLUDED.secure_boot,
-                local_admins = EXCLUDED.local_admins, linux = EXCLUDED.linux, updated_at = NOW()
+                local_admins = EXCLUDED.local_admins, linux = EXCLUDED.linux, app_control = EXCLUDED.app_control,
+                applocker = EXCLUDED.applocker, vbs = EXCLUDED.vbs, updated_at = NOW()
         """, uuid, as_json(antivirus), as_json(antivirus.get("windowsDefender")), as_json(sec.get("firewall")),
             as_json(sec.get("tpm")), as_json(uac or None), uac.get("enabled") if uac else None,
             as_json(sec.get("bitlocker")), secure_boot.get("enabled") if secure_boot else None,
-            as_json(sec.get("localAdmins")), as_json(linux))
+            as_json(sec.get("localAdmins")), as_json(linux), as_json(security_hardening.app_control(sec)),
+            as_json(security_hardening.applocker(sec)), as_json(security_hardening.vbs(sec)))
     return uuid
 
 
@@ -592,7 +603,7 @@ async def submit_full(request: Request, data: Dict[str, Any], db: asyncpg.Pool =
     # Security, network and browser are stored on their own: a problem in one section must not fail
     # the whole push (the agent would then report nothing at all)
     sections = (
-        ("security", store_security, ("antivirus", "firewall", "tpm", "uac", "bitlocker", "localAdmins", "secureBoot", *LINUX_SECURITY_KEYS)),
+        ("security", store_security, ("antivirus", "firewall", "tpm", "uac", "bitlocker", "localAdmins", "secureBoot", "deviceGuard", "appControl", "appLocker", *LINUX_SECURITY_KEYS)),
         ("network", store_network, ("networkInterfaces", "connections", "openPorts")),
         ("browser", store_browser, ("users",)),
     )

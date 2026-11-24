@@ -22,6 +22,12 @@ AGENT_SECURITY = {
     "uac": {"enabled": True, "consentPromptBehavior": 5},
     "secureBoot": {"supported": True, "enabled": True},
     "localAdmins": {"count": 1, "members": [{"name": "Administrator", "isBuiltIn": True}]},
+    "deviceGuard": {"available": True, "codeIntegrityPolicyEnforcementStatus": 2,
+                    "usermodeCodeIntegrityPolicyEnforcementStatus": 1, "virtualizationBasedSecurityStatus": 2,
+                    "securityServicesConfigured": [2], "securityServicesRunning": [2]},
+    "appControl": {"policySource": "files", "policies": [{"policyId": "{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}"}],
+                   "vulnerableDriverBlocklistEnable": 1},
+    "appLocker": {"available": True, "collections": [], "appIdSvcStatus": "Stopped"},
 }
 
 # as the Linux agent sends it (collect_security in linux-agent/agent.sh)
@@ -48,7 +54,8 @@ class StoreSecurityTests(unittest.IsolatedAsyncioTestCase):
             await store_security(_pool(conn), "HOST", "HOST", AGENT_SECURITY)
         args = conn.execute.call_args.args
         self.assertIn("INSERT INTO security_current", args[0])
-        (uuid, antivirus, defender, firewall, tpm, uac, uac_enabled, bitlocker, secure_boot, local_admins, linux) = args[1:]
+        (uuid, antivirus, defender, firewall, tpm, uac, uac_enabled, bitlocker, secure_boot, local_admins, linux,
+         app_control, applocker, vbs) = args[1:]
         self.assertEqual(uuid, node_uuid)
         self.assertEqual(json.loads(defender)["signatureVersion"], "1.2.3")
         self.assertEqual(json.loads(antivirus)["products"], [])
@@ -56,6 +63,9 @@ class StoreSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((uac_enabled, secure_boot), (True, True))
         self.assertEqual(json.loads(local_admins)["count"], 1)
         self.assertIsNone(linux)
+        self.assertEqual((json.loads(app_control)["kernelMode"], json.loads(app_control)["userMode"]), ("enforced", "audit"))
+        self.assertEqual(json.loads(applocker)["appIdSvc"], "stopped")
+        self.assertEqual(json.loads(vbs)["services"]["hvci"], "running")
 
     async def test_linux_section_is_kept_as_sent(self):
         conn = AsyncMock()
@@ -66,6 +76,7 @@ class StoreSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(linux), LINUX_SECURITY)
         self.assertEqual(json.loads(firewall), {"type": "ufw", "status": "inactive"})
         self.assertEqual((tpm, uac_enabled, local_admins), (None, None, None))
+        self.assertEqual(args[12:], (None, None, None))  # no App Control, AppLocker, VBS
 
 
 class GetSecurityTests(unittest.TestCase):
@@ -82,6 +93,7 @@ class GetSecurityTests(unittest.TestCase):
              "firewall": json.dumps(AGENT_SECURITY["firewall"]), "tpm": json.dumps(AGENT_SECURITY["tpm"]),
              "uac": json.dumps(AGENT_SECURITY["uac"]), "bitlocker": json.dumps(AGENT_SECURITY["bitlocker"]),
              "secure_boot": True, "local_admins": json.dumps(AGENT_SECURITY["localAdmins"]), "linux": None,
+             "app_control": json.dumps({"kernelMode": "enforced"}), "applocker": None, "vbs": None,
              "updated_at": datetime(2026, 11, 10, tzinfo=timezone.utc)},
         ]
         app.dependency_overrides[get_db] = lambda: _pool(conn)
@@ -99,6 +111,8 @@ class GetSecurityTests(unittest.TestCase):
         self.assertEqual(data["uac"]["consentPromptBehavior"], 5)
         self.assertIs(data["secureBoot"], True)
         self.assertEqual(data["bitlocker"]["reason"], "BitLocker is not installed")
+        self.assertEqual(data["appControl"]["kernelMode"], "enforced")
+        self.assertIsNone(data["appLocker"])
 
     def test_returns_the_linux_section(self):
         node_uuid = uuid4()
@@ -107,7 +121,8 @@ class GetSecurityTests(unittest.TestCase):
             {"id": node_uuid},
             {"antivirus": json.dumps({}), "defender": None, "firewall": json.dumps(LINUX_SECURITY["firewall"]),
              "tpm": None, "uac": None, "bitlocker": None, "secure_boot": None, "local_admins": None,
-             "linux": json.dumps(LINUX_SECURITY), "updated_at": None},
+             "linux": json.dumps(LINUX_SECURITY), "app_control": None, "applocker": None, "vbs": None,
+             "updated_at": None},
         ]
         app.dependency_overrides[get_db] = lambda: _pool(conn)
         app.dependency_overrides[get_current_user] = lambda: CurrentUser(str(uuid4()), "viewer", ["inventory:read"])

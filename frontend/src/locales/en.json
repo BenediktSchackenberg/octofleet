@@ -984,6 +984,46 @@
         "5": "Ask for consent for non-Windows binaries (default)"
       }
     },
+    "hardening": {
+      "appControl": "App Control for Business (WDAC)",
+      "kernelMode": "Kernel mode",
+      "userMode": "User mode",
+      "driverBlocklist": "Vulnerable driver blocklist",
+      "activePolicies": "Active policies",
+      "systemPolicy": "Windows",
+      "base": "Base",
+      "supplemental": "Supplemental",
+      "signed": "Signed",
+      "notEnforced": "Not enforced",
+      "policyFilesOnly": "IDs of the active policy files (CiTool is not available on this Windows version).",
+      "collection": {
+        "exe": "Executables",
+        "msi": "Windows Installer",
+        "script": "Scripts",
+        "dll": "DLLs",
+        "appx": "Packaged apps"
+      },
+      "rules": "Rules: {count}",
+      "appIdSvc": "Application Identity service",
+      "appIdSvcStopped": "AppLocker applies its rules only while the Application Identity service (AppIDSvc) runs.",
+      "vbs": "Virtualization-based security",
+      "vbsStatus": "VBS",
+      "service": {
+        "credentialGuard": "Credential Guard",
+        "hvci": "Memory integrity (HVCI)",
+        "systemGuard": "System Guard Secure Launch"
+      },
+      "probeFailed": "Not everything could be read on the node (hover for details).",
+      "state": {
+        "enforced": "Enforced",
+        "audit": "Audit",
+        "off": "Off",
+        "on": "On",
+        "running": "Running",
+        "notRunning": "Configured, not running",
+        "unknown": "Unknown"
+      }
+    },
     "cookieWarnings": {
       "notSecure": "Some critical cookies are not marked Secure (vulnerable to man-in-the-middle attacks)",
       "notHttpOnly": "Some critical cookies are not HttpOnly (readable by scripts, vulnerable to XSS)",

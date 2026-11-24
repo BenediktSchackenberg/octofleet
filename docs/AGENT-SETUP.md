@@ -136,6 +136,18 @@ The agent runs multiple background services:
 | **GatewayConnector** | `GatewayUrl` | WebSocket connection for remote terminal/screen/shell access |
 | **AutoUpdater** | Internet | Checks GitHub Releases for agent updates and self-updates |
 
+### What the Windows Agent Reports About Security
+
+With every inventory push the security section has Microsoft Defender and other antivirus products, Windows Firewall per profile, TPM, BitLocker, UAC, Secure Boot and the local administrators, and the application control and hardening settings shown on the node's Security tab ([#227](https://github.com/BenediktSchackenberg/octofleet/issues/227)):
+
+| Check | What | Source |
+|-------|------|--------|
+| **App Control for Business (WDAC)** | enforcement in kernel and user mode (off / audit / enforced), the active policies (name, version, Windows / base / supplemental, signed), the Microsoft vulnerable driver blocklist | `Win32_DeviceGuard` in `root\Microsoft\Windows\DeviceGuard` (`CodeIntegrityPolicyEnforcementStatus`, `UsermodeCodeIntegrityPolicyEnforcementStatus`); `CiTool --list-policies --json` (Windows 11 22H2, Server 2025; run with closed input and a 30 s limit), otherwise only the policy IDs from `C:\Windows\System32\CodeIntegrity\CiPolicies\Active\*.cip`; `HKLM\SYSTEM\CurrentControlSet\Control\CI\Config` `VulnerableDriverBlocklistEnable` |
+| **AppLocker** | per rule collection (executables, Windows Installer, scripts, DLLs, packaged apps): enforced / audit / off and the rule count; whether the Application Identity service (`AppIDSvc`) runs | `Get-AppLockerPolicy -Effective -Xml`, service status |
+| **Virtualization-based security** | VBS status, Credential Guard, memory integrity (HVCI), System Guard Secure Launch: running / configured but not running / off | `Win32_DeviceGuard` (`VirtualizationBasedSecurityStatus`, `SecurityServicesConfigured`, `SecurityServicesRunning`) |
+
+An AppLocker collection without rules counts as off (AppLocker then allows every file of that type); one with rules and the mode *not configured* counts as enforced. AppLocker applies its rules only while `AppIDSvc` runs – the tab notes it when the service is stopped. A check that cannot be read (older Windows without the DeviceGuard class, no CiTool, no AppLocker module, no access) shows *unknown* and does not affect the rest of the inventory. The checks are shown only; they do not create security findings yet. Nodes show them after the agent update.
+
 ### Restart After Config Changes
 
 After editing `service-config.json`, restart the service:

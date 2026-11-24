@@ -9,6 +9,12 @@
   <ItemGroup>
     <!-- Compile only the collector: never start the service or inspect real profiles. -->
     <Compile Include="../../src/OctofleetAgent.Service/Inventory/BrowserCollector.cs" Link="BrowserCollector.cs" />
+    <!-- Security: only the parsers of the CiTool and AppLocker output are called. -->
+    <Compile Include="../../src/OctofleetAgent.Service/Inventory/SecurityCollector.cs" Link="SecurityCollector.cs" />
+    <Compile Include="../../src/OctofleetAgent.Service/ProcessRunner.cs" Link="ProcessRunner.cs" />
+    <Compile Include="../../src/OctofleetAgent.Service/Wmi.cs" Link="Wmi.cs" />
     <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
   </ItemGroup>
 </Project>
