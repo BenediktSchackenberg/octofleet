@@ -122,11 +122,10 @@ class TestServiceOrchestration:
         assert isinstance(data["services"], list)
     
     def test_create_service_class(self):
-        """Should create a service class template"""
-        assert API_KEY, "INVENTORY_API_KEY must be set in octofleet/.env or shell env"
+        """Should create a service class template (an admin route: the agent key gets 403)"""
         response = requests.post(
             f"{API_URL}/api/v1/service-classes",
-            headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {os.getenv('TEST_ADMIN_TOKEN', '')}", "Content-Type": "application/json"},
             json={
                 "name": f"test-template-{int(time.time())}",
                 "description": "Test template for API tests",

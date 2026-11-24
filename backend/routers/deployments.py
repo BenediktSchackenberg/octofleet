@@ -2,6 +2,7 @@
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
+from auth import require_user_permission
 from dependencies import get_db, verify_api_key
 
 router = APIRouter(
@@ -10,7 +11,7 @@ router = APIRouter(
     dependencies=[Depends(verify_api_key)]
 )
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_user_permission("deployments:write"))])
 async def create_deployment(data: dict, db: asyncpg.Pool = Depends(get_db)):
     """Create a new deployment (package version -> target)"""
     required = ["name", "packageVersionId", "targetType"]

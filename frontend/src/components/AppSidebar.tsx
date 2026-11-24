@@ -124,7 +124,7 @@ const navGroups: NavGroup[] = [
       { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read", roles: ["admin", "operator"] },
       { href: "/eventlog", labelKey: "nav.eventlog", icon: FileText, permission: "eventlog:read", roles: ["admin", "operator"] },
       { href: "/reports", labelKey: "nav.reports", icon: FileText, permission: "nodes:read", roles: ["admin", "operator", "auditor"] },
-      { href: "/query", labelKey: "nav.queryEngine", icon: Terminal, permission: "nodes:read", roles: ["admin", "operator"] },
+      { href: "/query", labelKey: "nav.queryEngine", icon: Terminal, permission: "query:execute", roles: ["admin", "operator"] },
     ],
   },
   {

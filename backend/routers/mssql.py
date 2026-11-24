@@ -8,6 +8,7 @@ import asyncpg
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
+from auth import require_permission, require_user_permission
 from dependencies import get_db, verify_api_key
 from mssql_module import EDITIONS as MSSQL_EDITIONS
 from mssql_module import MSSQL_DOWNLOADS, MssqlInstallRequest
@@ -154,7 +155,7 @@ async def list_mssql_editions():
 async def get_mssql_downloads():
     return {"downloads": MSSQL_DOWNLOADS}
 
-@router.post("/configs")
+@router.post("/configs", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_mssql_config(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         config_id = str(uuid.uuid4())
@@ -197,7 +198,7 @@ async def get_mssql_config(config_id: str, db: asyncpg.Pool = Depends(get_db)):
         res["diskConfigs"] = [dict(d) for d in disk_rows]
         return res
 
-@router.delete("/configs/{config_id}")
+@router.delete("/configs/{config_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_mssql_config(config_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         result = await conn.execute("DELETE FROM mssql_configs WHERE id = $1::uuid", config_id)
@@ -216,7 +217,7 @@ async def list_mssql_assignments(db: asyncpg.Pool = Depends(get_db)):
         """)
         return {"assignments": [dict(r) for r in rows]}
 
-@router.post("/assignments")
+@router.post("/assignments", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_mssql_assignment(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         row = await conn.fetchrow("""
@@ -226,18 +227,18 @@ async def create_mssql_assignment(data: Dict[str, Any], db: asyncpg.Pool = Depen
         """, data["config_id"], data["group_id"], data.get("sa_password", ""), data.get("license_key", ""), data.get("enabled", True))
         return dict(row)
 
-@router.delete("/assignments/{assignment_id}")
+@router.delete("/assignments/{assignment_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         result = await conn.execute("DELETE FROM mssql_group_assignments WHERE id = $1::uuid", assignment_id)
         if result == "DELETE 0": raise HTTPException(status_code=404, detail="Assignment not found")
         return {"status": "deleted"}
 
-@router.post("/assignments/{assignment_id}/reconcile")
+@router.post("/assignments/{assignment_id}/reconcile", dependencies=[Depends(require_user_permission("settings:write"))])
 async def reconcile_mssql_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
     return {"status": "reconciliation_queued", "assignmentId": assignment_id}
 
-@router.post("/install")
+@router.post("/install", dependencies=[Depends(require_user_permission("settings:write"))])
 async def install_mssql(request: MssqlInstallRequest, db: asyncpg.Pool = Depends(get_db)):
     results = []
     async with db.acquire() as conn:
@@ -277,7 +278,7 @@ async def list_cumulative_updates(version: Optional[str] = None, db: asyncpg.Poo
         rows = await conn.fetch(query, *params)
         return {"cumulativeUpdates": [dict(r) for r in rows]}
 
-@router.post("/sync-catalog")
+@router.post("/sync-catalog", dependencies=[Depends(require_user_permission("settings:write"))])
 async def sync_cu_catalog(db: asyncpg.Pool = Depends(get_db)):
     try:
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -301,7 +302,7 @@ def _parse_microsoft_updates_html(html: str):
 # Backup History & Ampel Report
 # ============================================
 
-@router.post("/backup-history")
+@router.post("/backup-history", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_backup_history(records: List[Dict[str, Any]], db: asyncpg.Pool = Depends(get_db)):
     """Agent submits backup history records."""
     inserted = 0

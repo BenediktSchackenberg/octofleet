@@ -737,7 +737,7 @@ try {{
         return {"jobs": jobs, "count": len(jobs)}
 
 
-@app.post("/api/v1/jobs/instances/{instance_id}/start", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/jobs/instances/{instance_id}/start", dependencies=[Depends(require_permission("jobs:poll"))])
 async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Agent endpoint: Mark job as started"""
     async with db.acquire() as conn:
@@ -765,7 +765,7 @@ async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
 
 
 # Legacy endpoint for old Linux agent (snake_case fields, different path)
-@app.post("/api/v1/jobs/result", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/jobs/result", dependencies=[Depends(require_permission("jobs:poll"))])
 async def submit_job_result_legacy(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Legacy agent endpoint: Submit job result (old format with instance_id in body)"""
     instance_id = data.get("instance_id")
@@ -801,7 +801,7 @@ async def submit_job_result_legacy(data: Dict[str, Any], db: asyncpg.Pool = Depe
         return {"status": "success" if success else "failed", "instanceId": instance_id}
 
 
-@app.post("/api/v1/jobs/instances/{instance_id}/retry", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/jobs/instances/{instance_id}/retry", dependencies=[Depends(require_user_permission("jobs:execute"))])
 async def retry_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Manually retry a failed or cancelled job instance"""
     async with db.acquire() as conn:
@@ -869,7 +869,7 @@ async def retry_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
 # EVENTLOG COLLECTION ENDPOINTS
 # ============================================
 
-@app.post("/api/v1/nodes/{node_id}/eventlog", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/nodes/{node_id}/eventlog", dependencies=[Depends(require_permission("inventory:write"))])
 async def push_eventlog(node_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
     """Receive eventlog entries from agent"""
     data = await request.json()
@@ -1096,7 +1096,7 @@ async def get_important_events(hours: int = 24, limit: int = 50, db: asyncpg.Poo
         }
 
 
-@app.post("/api/v1/jobs/{job_id}/parse-eventlog", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/jobs/{job_id}/parse-eventlog", dependencies=[Depends(require_user_permission("jobs:create"))])
 async def parse_eventlog_from_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Parse eventlog data from a completed job and store in eventlog_entries"""
     async with db.acquire() as conn:
@@ -1168,7 +1168,7 @@ async def parse_eventlog_from_job(job_id: str, db: asyncpg.Pool = Depends(get_db
 
 # ============== METRICS API ==============
 
-@app.post("/api/v1/nodes/{node_id}/metrics", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/nodes/{node_id}/metrics", dependencies=[Depends(require_permission("inventory:write"))])
 async def push_metrics(node_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Receive metrics from a node"""
     async with db.acquire() as conn:
@@ -1339,7 +1339,7 @@ async def get_fleet_performance(hours: int = 1, db: asyncpg.Pool = Depends(get_d
 
 # ========== E5: Deployment Engine ==========
 
-@app.patch("/api/v1/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
+@app.patch("/api/v1/deployments/{deployment_id}", dependencies=[Depends(require_user_permission("deployments:write"))])
 async def update_deployment(deployment_id: str, data: dict):
     """Update deployment (pause, resume, cancel)"""
     allowed_fields = {"status", "scheduled_start", "scheduled_end", "maintenance_window_only"}
@@ -1364,7 +1364,7 @@ async def update_deployment(deployment_id: str, data: dict):
         return {"status": "updated"}
 
 
-@app.delete("/api/v1/deployments/{deployment_id}", dependencies=[Depends(verify_api_key)])
+@app.delete("/api/v1/deployments/{deployment_id}", dependencies=[Depends(require_user_permission("deployments:write"))])
 async def delete_deployment(deployment_id: str):
     """Delete a deployment"""
     async with db_pool.acquire() as conn:
@@ -1407,7 +1407,7 @@ async def get_node_deployments(node_id: str):
         return [dict(d) for d in deployments]
 
 
-@app.post("/api/v1/nodes/{node_id}/deployments/{deployment_id}/status", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/nodes/{node_id}/deployments/{deployment_id}/status", dependencies=[Depends(require_permission("inventory:write"))])
 async def update_node_deployment_status(node_id: str, deployment_id: str, data: dict):
     """Agent reports deployment status for this node"""
     status = data.get("status")
@@ -1685,7 +1685,7 @@ def add_log_entry(level: str, message: str, node_id: str = None, job_id: str = N
 add_log_entry("info", "Gateway started", None, None)
 add_log_entry("info", "Database connection established", None, None)
 
-@app.get("/api/v1/gateway/logs", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/gateway/logs", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_gateway_logs(
     level: Optional[str] = None,
     node_id: Optional[str] = None,
@@ -2238,7 +2238,7 @@ async def list_rollout_strategies():
     }
 
 
-@app.post("/api/v1/deployments/{deployment_id}/rollout", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/deployments/{deployment_id}/rollout", dependencies=[Depends(require_user_permission("deployments:write"))])
 async def configure_rollout_strategy(deployment_id: str, data: dict):
     """Configure rollout strategy for a deployment"""
     strategy = data.get("strategy", "immediate")
@@ -2296,7 +2296,7 @@ async def get_rollout_status(deployment_id: str):
         }
 
 
-@app.post("/api/v1/deployments/{deployment_id}/rollout/advance", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/deployments/{deployment_id}/rollout/advance", dependencies=[Depends(require_user_permission("deployments:write"))])
 async def advance_rollout(deployment_id: str):
     """Manually advance a staged/canary rollout to the next phase"""
     async with db_pool.acquire() as conn:
@@ -2850,7 +2850,7 @@ async def live_stream(node_id: str, _: str = Depends(verify_api_key_or_query)):
 
 
 @app.get("/api/v1/live-sessions")
-async def list_live_sessions(_: str = Depends(verify_api_key)):
+async def list_live_sessions(_=Depends(require_user_permission("nodes:read"))):
     """List active live monitoring sessions"""
     return {
         "sessions": [
@@ -2867,7 +2867,7 @@ async def list_live_sessions(_: str = Depends(verify_api_key)):
 
 
 @app.delete("/api/v1/live/{session_id}")
-async def stop_live_session(session_id: str, _: str = Depends(verify_api_key)):
+async def stop_live_session(session_id: str, _=Depends(require_user_permission("nodes:read"))):
     """Stop a live monitoring session"""
     if session_id in live_sessions:
         del live_sessions[session_id]
@@ -3120,7 +3120,7 @@ async def trigger_alert(event_type: str, event_data: dict):
 
 # Alert Channels CRUD
 @app.get("/api/v1/alert-channels")
-async def list_alert_channels(_: str = Depends(verify_api_key)):
+async def list_alert_channels(_=Depends(require_user_permission("alerts:read"))):
     """List all alert channels."""
     async with db_pool.acquire() as conn:
         rows = await conn.fetch("""
@@ -3130,7 +3130,7 @@ async def list_alert_channels(_: str = Depends(verify_api_key)):
         return [dict(r) for r in rows]
 
 @app.post("/api/v1/alert-channels")
-async def create_alert_channel(request: Request, _: str = Depends(verify_api_key)):
+async def create_alert_channel(request: Request, _=Depends(require_user_permission("alerts:write"))):
     """Create a new alert channel."""
     data = await request.json()
     async with db_pool.acquire() as conn:
@@ -3143,7 +3143,7 @@ async def create_alert_channel(request: Request, _: str = Depends(verify_api_key
         return dict(row)
 
 @app.delete("/api/v1/alert-channels/{channel_id}")
-async def delete_alert_channel(channel_id: str, _: str = Depends(verify_api_key)):
+async def delete_alert_channel(channel_id: str, _=Depends(require_user_permission("alerts:write"))):
     """Delete an alert channel."""
     async with db_pool.acquire() as conn:
         await conn.execute("DELETE FROM alert_channels WHERE id = $1", channel_id)
@@ -3163,7 +3163,7 @@ async def list_alert_rules(_: str = Depends(verify_api_key)):
         return [dict(r) for r in rows]
 
 @app.post("/api/v1/alert-rules")
-async def create_alert_rule(request: Request, _: str = Depends(verify_api_key)):
+async def create_alert_rule(request: Request, _=Depends(require_user_permission("alerts:write"))):
     """Create a new alert rule."""
     data = await request.json()
     async with db_pool.acquire() as conn:
@@ -3176,7 +3176,7 @@ async def create_alert_rule(request: Request, _: str = Depends(verify_api_key)):
         return dict(row)
 
 @app.delete("/api/v1/alert-rules/{rule_id}")
-async def delete_alert_rule(rule_id: str, _: str = Depends(verify_api_key)):
+async def delete_alert_rule(rule_id: str, _=Depends(require_user_permission("alerts:write"))):
     """Delete an alert rule."""
     async with db_pool.acquire() as conn:
         await conn.execute("DELETE FROM alert_rules WHERE id = $1", rule_id)
@@ -3199,7 +3199,7 @@ async def list_alert_history(limit: int = 50, _: str = Depends(verify_api_key)):
 
 # Test alert endpoint
 @app.post("/api/v1/alert-channels/{channel_id}/test")
-async def test_alert_channel(channel_id: str, _: str = Depends(verify_api_key)):
+async def test_alert_channel(channel_id: str, _=Depends(require_user_permission("alerts:write"))):
     """Send a test alert to a channel."""
     async with db_pool.acquire() as conn:
         channel = await conn.fetchrow(
@@ -4210,7 +4210,7 @@ async def list_security_policies():
         rows = await conn.fetch("SELECT * FROM security_policies ORDER BY created_at DESC")
         return {"policies": [dict(r) for r in rows]}
 
-@app.post("/api/v1/security/policies", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/policies", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_security_policy(req: Request):
     body = await req.json()
     async with db_pool.acquire() as conn:
@@ -4222,7 +4222,7 @@ async def create_security_policy(req: Request):
             body.get("enabled", True), body.get("severity", "medium"), body.get("created_by"))
         return dict(row)
 
-@app.put("/api/v1/security/policies/{policy_id}", dependencies=[Depends(verify_api_key)])
+@app.put("/api/v1/security/policies/{policy_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_security_policy(policy_id: str, req: Request):
     body = await req.json()
     async with db_pool.acquire() as conn:
@@ -4243,7 +4243,7 @@ async def update_security_policy(policy_id: str, req: Request):
             raise HTTPException(status_code=404, detail="Policy not found")
         return dict(row)
 
-@app.delete("/api/v1/security/policies/{policy_id}", dependencies=[Depends(verify_api_key)])
+@app.delete("/api/v1/security/policies/{policy_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_security_policy(policy_id: str):
     async with db_pool.acquire() as conn:
         await conn.execute("DELETE FROM security_policies WHERE id = $1::uuid", policy_id)
@@ -4519,7 +4519,7 @@ async def list_monitoring_profiles(db: asyncpg.Pool = Depends(get_db)):
         rows = await conn.fetch("SELECT * FROM monitoring_profiles ORDER BY created_at DESC")
         return {"profiles": [dict(r) for r in rows]}
 
-@app.post("/api/v1/security/monitoring/profiles", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/monitoring/profiles", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_monitoring_profile(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4532,7 +4532,7 @@ async def create_monitoring_profile(req: Request, db: asyncpg.Pool = Depends(get
             data.get("createdBy"))
         return dict(row)
 
-@app.put("/api/v1/security/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+@app.put("/api/v1/security/monitoring/profiles/{profile_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_monitoring_profile(profile_id: str, req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4552,7 +4552,7 @@ async def update_monitoring_profile(profile_id: str, req: Request, db: asyncpg.P
             await conn.execute(f"UPDATE monitoring_profiles SET {', '.join(updates)} WHERE id = $1::uuid", *params)
         return {"updated": True}
 
-@app.delete("/api/v1/security/monitoring/profiles/{profile_id}", dependencies=[Depends(verify_api_key)])
+@app.delete("/api/v1/security/monitoring/profiles/{profile_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_monitoring_profile(profile_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         await conn.execute("DELETE FROM monitoring_profiles WHERE id = $1::uuid", profile_id)
@@ -4568,7 +4568,7 @@ async def list_monitoring_assignments(db: asyncpg.Pool = Depends(get_db)):
         """)
         return {"assignments": [dict(r) for r in rows]}
 
-@app.post("/api/v1/security/monitoring/assignments", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/monitoring/assignments", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_monitoring_assignment(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4580,7 +4580,7 @@ async def create_monitoring_assignment(req: Request, db: asyncpg.Pool = Depends(
             data.get("priority", 0), data.get("status", "active"))
         return dict(row)
 
-@app.delete("/api/v1/security/monitoring/assignments/{assignment_id}", dependencies=[Depends(verify_api_key)])
+@app.delete("/api/v1/security/monitoring/assignments/{assignment_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_monitoring_assignment(assignment_id: str, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         await conn.execute("DELETE FROM monitoring_assignments WHERE id = $1::uuid", assignment_id)
@@ -4599,7 +4599,7 @@ async def list_posture_snapshots(node_id: str = None, limit: int = 50, db: async
             rows = await conn.fetch("SELECT * FROM config_posture_snapshots ORDER BY created_at DESC LIMIT $1", limit)
         return {"snapshots": [dict(r) for r in rows]}
 
-@app.post("/api/v1/security/posture/snapshots", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/posture/snapshots", dependencies=[Depends(require_permission("inventory:write"))])
 async def create_posture_snapshot(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4700,7 +4700,7 @@ async def list_agent_capabilities(db: asyncpg.Pool = Depends(get_db)):
         rows = await conn.fetch("SELECT * FROM agent_capabilities ORDER BY last_seen DESC NULLS LAST")
         return {"capabilities": [dict(r) for r in rows]}
 
-@app.post("/api/v1/security/agent/capabilities", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/agent/capabilities", dependencies=[Depends(require_permission("inventory:write"))])
 async def upsert_agent_capabilities(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4720,7 +4720,7 @@ async def upsert_agent_capabilities(req: Request, db: asyncpg.Pool = Depends(get
 # E21: UI Audit Log
 # ============================================================
 
-@app.get("/api/v1/security/audit-log", dependencies=[Depends(verify_api_key)])
+@app.get("/api/v1/security/audit-log", dependencies=[Depends(require_user_permission("eventlog:read"))])
 async def list_ui_audit_events(actor: str = None, action: str = None,
                                 hours: int = 168, limit: int = 100, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
@@ -4734,7 +4734,7 @@ async def list_ui_audit_events(actor: str = None, action: str = None,
         rows = await conn.fetch(f"SELECT * FROM ui_audit_events {where} ORDER BY ts DESC LIMIT ${idx}", *params, limit)
         return {"events": [dict(r) for r in rows]}
 
-@app.post("/api/v1/security/audit-log", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/audit-log", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_ui_audit_event(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4755,7 +4755,7 @@ async def list_detection_rules(db: asyncpg.Pool = Depends(get_db)):
         rows = await conn.fetch("SELECT * FROM detection_rules ORDER BY rule_order, created_at DESC")
         return {"rules": [dict(r) for r in rows]}
 
-@app.post("/api/v1/security/detection-rules", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/detection-rules", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_detection_rule(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4780,7 +4780,7 @@ async def list_retention_policies(db: asyncpg.Pool = Depends(get_db)):
         except Exception:
             return {"policies": [], "note": "retention_policies table not yet created"}
 
-@app.post("/api/v1/security/retention/policies", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/retention/policies", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_retention_policy(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -4803,7 +4803,7 @@ async def list_legal_holds(db: asyncpg.Pool = Depends(get_db)):
         except Exception:
             return {"holds": [], "note": "legal_holds table not yet created"}
 
-@app.post("/api/v1/security/retention/holds", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/security/retention/holds", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_legal_hold(req: Request, db: asyncpg.Pool = Depends(get_db)):
     data = await req.json()
     async with db.acquire() as conn:
@@ -5436,13 +5436,13 @@ async def get_package_categories():
 async def get_enrollment_tokens():
     return {"tokens": []}
 
-@app.post("/api/v1/enrollment-tokens", dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/enrollment-tokens", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_enrollment_token(body: dict):
     import secrets
     token = secrets.token_hex(24)
     return {"token": token, "installCommand": f"irm https://your-server/install.ps1 | iex -Token {token}"}
 
-@app.delete("/api/v1/enrollment-tokens/{token_id}", dependencies=[Depends(verify_api_key)])
+@app.delete("/api/v1/enrollment-tokens/{token_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_enrollment_token(token_id: str):
     return {"status": "deleted"}
 

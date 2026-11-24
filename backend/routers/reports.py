@@ -27,6 +27,7 @@ from app.core.report_helpers import (
     create_status_table,
     style_excel_header,
 )
+from auth import require_user_permission
 from dependencies import get_db, verify_api_key
 from routers.baselines import get_compliance_summary
 
@@ -1180,7 +1181,7 @@ async def get_report_catalog(slug: str, db: asyncpg.Pool = Depends(get_db)):
 
 # --- Report Execution ---
 
-@router.post("/api/v1/reports/execute", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/reports/execute", dependencies=[Depends(require_user_permission("reports:read"))])
 async def execute_report(req: ExecuteReportRequest, db: asyncpg.Pool = Depends(get_db)):
     result = await _execute_report_internal(db, req.report_id, req.output_format, req.parameters)
     if result["status"] != "completed":
@@ -1260,7 +1261,7 @@ async def list_schedules(db: asyncpg.Pool = Depends(get_db)):
     return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/reports/schedules", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/reports/schedules", dependencies=[Depends(require_user_permission("reports:write"))])
 async def create_schedule(req: CreateScheduleRequest, db: asyncpg.Pool = Depends(get_db)):
     report = await db.fetchrow("SELECT id FROM report_catalog WHERE id = $1 OR slug = $1", req.report_id)
     if not report:
@@ -1275,7 +1276,7 @@ async def create_schedule(req: CreateScheduleRequest, db: asyncpg.Pool = Depends
     return dict(row)
 
 
-@router.put("/api/v1/reports/schedules/{schedule_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/reports/schedules/{schedule_id}", dependencies=[Depends(require_user_permission("reports:write"))])
 async def update_schedule(schedule_id: str, req: UpdateScheduleRequest, db: asyncpg.Pool = Depends(get_db)):
     existing = await db.fetchrow("SELECT * FROM report_schedules WHERE id = $1", schedule_id)
     if not existing:
@@ -1305,7 +1306,7 @@ async def update_schedule(schedule_id: str, req: UpdateScheduleRequest, db: asyn
     return dict(row)
 
 
-@router.post("/api/v1/reports/schedules/{schedule_id}/run-now", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/reports/schedules/{schedule_id}/run-now", dependencies=[Depends(require_user_permission("reports:write"))])
 async def run_schedule_now(schedule_id: str, db: asyncpg.Pool = Depends(get_db)):
     schedule = await db.fetchrow("SELECT * FROM report_schedules WHERE id = $1", schedule_id)
     if not schedule:
@@ -1330,7 +1331,7 @@ async def list_schedule_deliveries(schedule_id: str, db: asyncpg.Pool = Depends(
     return [dict(r) for r in rows]
 
 
-@router.delete("/api/v1/reports/schedules/{schedule_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/reports/schedules/{schedule_id}", dependencies=[Depends(require_user_permission("reports:write"))])
 async def delete_schedule(schedule_id: str, db: asyncpg.Pool = Depends(get_db)):
     global report_scheduler
     if report_scheduler and report_scheduler.get_job(_schedule_to_job_id(schedule_id)):

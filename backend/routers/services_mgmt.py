@@ -7,6 +7,7 @@ from typing import Any, Dict
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
+from auth import require_permission, require_user_permission
 from dependencies import bad_request, get_db, not_found, verify_api_key
 
 router = APIRouter(tags=["Services"])
@@ -25,7 +26,7 @@ async def list_service_classes(db: asyncpg.Pool = Depends(get_db)):
         return {"serviceClasses": [dict(r) for r in rows]}
 
 
-@router.post("/api/v1/service-classes", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/service-classes", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_service_class(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new service class template"""
     async with db.acquire() as conn:
@@ -65,7 +66,7 @@ async def get_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
         return dict(row)
 
 
-@router.put("/api/v1/service-classes/{class_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/service-classes/{class_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_service_class(class_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update a service class"""
     async with db.acquire() as conn:
@@ -104,7 +105,7 @@ async def update_service_class(class_id: str, data: Dict[str, Any], db: asyncpg.
         return dict(row)
 
 
-@router.delete("/api/v1/service-classes/{class_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/service-classes/{class_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a service class (only if no services use it)"""
     async with db.acquire() as conn:
@@ -161,7 +162,7 @@ async def list_services(
         return {"services": [dict(r) for r in rows]}
 
 
-@router.post("/api/v1/services", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/services", dependencies=[Depends(require_user_permission("settings:write"))])
 async def create_service(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new service instance"""
     class_id = data.get("classId")
@@ -221,7 +222,7 @@ async def get_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
         return result
 
 
-@router.put("/api/v1/services/{service_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/services/{service_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_service(service_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update a service"""
     async with db.acquire() as conn:
@@ -253,7 +254,7 @@ async def update_service(service_id: str, data: Dict[str, Any], db: asyncpg.Pool
         return dict(row)
 
 
-@router.delete("/api/v1/services/{service_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/services/{service_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a service and all its assignments"""
     async with db.acquire() as conn:
@@ -265,7 +266,7 @@ async def delete_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
         return {"status": "deleted", "id": service_id}
 
 
-@router.post("/api/v1/services/{service_id}/nodes", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/services/{service_id}/nodes", dependencies=[Depends(require_user_permission("settings:write"))])
 async def assign_node_to_service(
     service_id: str, 
     data: Dict[str, Any], 
@@ -308,7 +309,7 @@ async def assign_node_to_service(
         return dict(row)
 
 
-@router.delete("/api/v1/services/{service_id}/nodes/{node_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/services/{service_id}/nodes/{node_id}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def remove_node_from_service(
     service_id: str, 
     node_id: str, 
@@ -353,7 +354,7 @@ async def get_service_logs(
         return {"logs": [dict(r) for r in rows]}
 
 
-@router.post("/api/v1/services/{service_id}/reconcile", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/services/{service_id}/reconcile", dependencies=[Depends(require_user_permission("settings:write"))])
 async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Trigger reconciliation for a service - creates jobs for all assigned nodes"""
     async with db.acquire() as conn:
@@ -510,7 +511,7 @@ async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(
         return {"nodeId": node_id, "services": services}
 
 
-@router.post("/api/v1/services/{service_id}/nodes/{node_id}/status", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/services/{service_id}/nodes/{node_id}/status", dependencies=[Depends(require_permission("inventory:write"))])
 async def update_node_service_status(
     service_id: str,
     node_id: str,

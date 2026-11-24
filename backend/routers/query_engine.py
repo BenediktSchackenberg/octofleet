@@ -15,9 +15,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from dependencies import get_db, verify_api_key
+from auth import require_user_permission
+from dependencies import get_db
 
-router = APIRouter(prefix="/api/v1/query", dependencies=[Depends(verify_api_key)])
+# The query engine reads across the whole inventory (nodes, software, findings, event log, jobs …):
+# users with query:execute only, never the agent key.
+router = APIRouter(prefix="/api/v1/query", dependencies=[Depends(require_user_permission("query:execute"))])
 
 # ─── Allowed tables & columns ──────────────────────────────────────────────
 # Security-critical: only these tables/columns may be queried.

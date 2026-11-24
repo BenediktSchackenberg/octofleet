@@ -325,7 +325,8 @@ ROLE_PERMISSIONS = {
         "deployments:read", "deployments:write",
         "alerts:read", "alerts:write",
         "eventlog:read", "compliance:read",
-        "settings:read"
+        "settings:read",
+        "reports:read", "reports:write", "query:execute"
     ],
     "viewer": [
         "nodes:read", "groups:read", "jobs:read", "packages:read",
@@ -335,7 +336,8 @@ ROLE_PERMISSIONS = {
     ],
     "auditor": [
         "eventlog:read", "compliance:read", "nodes:read",
-        "inventory:read", "hardware:read", "vulnerabilities:read"
+        "inventory:read", "hardware:read", "vulnerabilities:read",
+        "reports:read"
     ]
 }
 

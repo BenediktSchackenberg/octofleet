@@ -77,7 +77,7 @@ async def list_packages(category: str = None, search: str = None, active_only: b
         return {"packages": packages, "count": len(packages)}
 
 
-@router.post("/api/v1/packages", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/packages", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_package(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new package"""
     async with db.acquire() as conn:
@@ -172,7 +172,7 @@ async def get_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
         return package
 
 
-@router.put("/api/v1/packages/{package_id}", dependencies=[Depends(verify_api_key)])
+@router.put("/api/v1/packages/{package_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def update_package(package_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update package details"""
     async with db.acquire() as conn:
@@ -206,7 +206,7 @@ async def update_package(package_id: str, data: Dict[str, Any], db: asyncpg.Pool
         return {"status": "updated"}
 
 
-@router.delete("/api/v1/packages/{package_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/packages/{package_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_package(package_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a package (cascades to versions)"""
     async with db.acquire() as conn:
@@ -384,7 +384,7 @@ async def update_package_version(package_id: str, version_id: str, data: Dict[st
         return {"status": "updated", "version": row["version"]}
 
 
-@router.delete("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/packages/{package_id}/versions/{version_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def delete_package_version(package_id: str, version_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a package version"""
     async with db.acquire() as conn:
@@ -399,7 +399,7 @@ async def delete_package_version(package_id: str, version_id: str, db: asyncpg.P
         return {"status": "deleted", "version": row["version"]}
 
 
-@router.post("/api/v1/packages/{package_id}/versions/{version_id}/rules", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/packages/{package_id}/versions/{version_id}/rules", dependencies=[Depends(require_user_permission("packages:write"))])
 async def create_detection_rule(package_id: str, version_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a detection rule for a version"""
     async with db.acquire() as conn:
@@ -570,7 +570,7 @@ async def list_package_versions(limit: int = 100):
         return [dict(r) for r in rows]
 
 
-@router.post("/api/v1/repo/upload", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/repo/upload", dependencies=[Depends(require_user_permission("packages:write"))])
 async def repo_upload_file(
     request: Request,
     db: asyncpg.Pool = Depends(get_db)
@@ -668,7 +668,7 @@ async def repo_download_file(file_id: str, node_id: Optional[str] = None, db: as
     return FileResponse(path=row["storage_path"], filename=row["filename"], media_type="application/octet-stream")
 
 
-@router.delete("/api/v1/repo/files/{file_id}", dependencies=[Depends(verify_api_key)])
+@router.delete("/api/v1/repo/files/{file_id}", dependencies=[Depends(require_user_permission("packages:write"))])
 async def repo_delete_file(file_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Delete a file from the repository."""
     async with db.acquire() as conn:
@@ -681,7 +681,7 @@ async def repo_delete_file(file_id: str, db: asyncpg.Pool = Depends(get_db)):
     return {"status": "deleted", "id": file_id}
 
 
-@router.post("/api/v1/repo/cache", dependencies=[Depends(verify_api_key)])
+@router.post("/api/v1/repo/cache", dependencies=[Depends(require_user_permission("packages:write"))])
 async def repo_cache_remote_file(
     data: Dict[str, Any] = Body(...),
     db: asyncpg.Pool = Depends(get_db)
