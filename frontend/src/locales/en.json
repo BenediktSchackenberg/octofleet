@@ -609,7 +609,33 @@
     "timestamp": "Timestamp",
     "ipAddress": "IP Address",
     "details": "Details",
-    "noEntries": "No entries found"
+    "noEntries": "No entries found",
+    "subtitle": "Who did what to which resource. Click an entry for its details.",
+    "system": "System",
+    "resourceType": "Resource type",
+    "from": "From",
+    "to": "To",
+    "actionPlaceholder": "e.g. reboot, login, deleted",
+    "userPlaceholder": "User name",
+    "onlyResource": "Only: {name}",
+    "clearResource": "Show all resources",
+    "entries": "{count} entries",
+    "entriesCapped": "More than {count} entries",
+    "page": "page {page} of {pages}",
+    "exportCsv": "CSV",
+    "autoRefreshOn": "⏸ Auto-refresh",
+    "autoRefreshOff": "▶ Auto-refresh",
+    "usersAndRolesLink": "Audit log of users and roles",
+    "actionsByUser": "Audit log: actions by this user",
+    "resourceTypes": {
+      "node": "Node",
+      "user": "User",
+      "user_role": "Users and roles",
+      "role": "Role",
+      "job": "Job",
+      "group": "Group",
+      "system_settings": "Settings"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -1730,7 +1756,8 @@
       "installPackage": "Install package",
       "uninstallPackage": "Uninstall package",
       "inventory": "Inventory"
-    }
+    },
+    "failureReason": "Why it failed"
   },
   "fleetUpdates": {
     "title": "Fleet updates",
@@ -1901,6 +1928,28 @@
     "hint": "The numbers are kept per node and recalculated when something changes: a scan, new software on a node, a finding fixed, a node removed.",
     "pendingOne": "{count} node being recalculated",
     "pendingOther": "{count} nodes being recalculated"
+  },
+  "jsonDetails": {
+    "showRaw": "Show raw",
+    "hideRaw": "Hide raw",
+    "keys": {
+      "at": "At",
+      "action": "Action",
+      "message": "Message",
+      "by": "By",
+      "job_id": "Job",
+      "hostname": "Hostname",
+      "node_id": "Node",
+      "reason": "Reason",
+      "username": "User name",
+      "delete_after": "Delete after uninstall",
+      "forced": "Forced",
+      "removed_rows": "Removed rows",
+      "uninstalled_at": "Uninstalled at",
+      "must_change_password": "Must change password",
+      "when": "When",
+      "force": "Forced"
+    }
   },
   "agentMonitor": {
     "title": "Agent Monitor",

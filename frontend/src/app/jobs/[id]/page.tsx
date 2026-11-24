@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
 import { formatDateTime } from "@/lib/format";
+import { JsonDetails, parseJsonValue } from "@/components/JsonDetails";
 
 
 
@@ -33,7 +34,7 @@ interface JobDetail {
   targetId: string;
   targetTag: string | null;
   commandType: string;
-  commandData: Record<string, unknown>;
+  commandData: unknown;
   priority: number;
   scheduledAt: string | null;
   expiresAt: string | null;
@@ -41,6 +42,15 @@ interface JobDetail {
   createdAt: string;
   timeoutSeconds: number;
   instances: JobInstance[];
+}
+
+/** Why an instance failed: the error message, else stderr, else the agent's output (last lines) */
+function failureReason(instance: JobInstance): string | null {
+  const text = [instance.errorMessage, instance.stderr, instance.stdout]
+    .map((x) => (x || "").trim()).find((x) => x.length > 0);
+  if (!text) return null;
+  const lines = text.split("\n");
+  return lines.length > 8 ? ["…", ...lines.slice(-8)].join("\n") : text;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -145,7 +155,7 @@ export default function JobDetailPage() {
       const mapped = {
         ...data,
         commandType: data.commandType || data.command_type,
-        commandData: data.commandData || data.command_data,
+        commandData: parseJsonValue(data.commandData ?? data.command_data),
         targetId: data.targetId || data.target_id,
         targetType: data.targetType || data.target_type,
         targetName: data.targetName || data.target_name,
@@ -278,7 +288,10 @@ export default function JobDetailPage() {
             </div>
             <div>
               <span className="text-zinc-500">{t("jobsPage.columns.target")}:</span>
-              <div>{job.targetType === "all" ? t("jobsPage.create.targetAll") : ((job as unknown as { targetName?: string }).targetName || job.targetType)}</div>
+              <div>{job.targetType === "all" ? t("jobsPage.create.targetAll")
+                : job.targetType === "device" && nodeNames.has(job.targetId)
+                  ? <Link href={`/nodes/${job.targetId}`} className="text-blue-400 hover:text-blue-300">{nodeNames.get(job.targetId)}</Link>
+                  : ((job as unknown as { targetName?: string }).targetName || job.targetType)}</div>
             </div>
             <div>
               <span className="text-zinc-500">{t("jobDetail.timeout")}:</span>
@@ -289,12 +302,10 @@ export default function JobDetailPage() {
               <div>{job.priority}</div>
             </div>
           </div>
-          {Object.keys(job.commandData).length > 0 && (
+          {job.commandData !== null && job.commandData !== undefined && (
             <div className="mt-4 pt-4 border-t border-zinc-800">
-              <span className="text-zinc-500 text-sm">{t("jobDetail.commandData")}:</span>
-              <pre className="mt-2 bg-zinc-950 rounded p-3 text-xs overflow-x-auto">
-                {JSON.stringify(job.commandData, null, 2)}
-              </pre>
+              <div className="text-zinc-500 text-sm mb-2">{t("jobDetail.commandData")}:</div>
+              <JsonDetails value={job.commandData} />
             </div>
           )}
         </div>
@@ -362,6 +373,15 @@ export default function JobDetailPage() {
                     </span>
                   </div>
                 </div>
+
+                {instance.status === "failed" && expandedInstance !== instance.id && failureReason(instance) && (
+                  <div className="mt-3">
+                    <div className="text-sm text-zinc-500 mb-1">{t("jobDetail.failureReason")}:</div>
+                    <pre className="bg-red-950/40 border border-red-500/30 rounded p-3 text-xs text-red-300 overflow-x-auto whitespace-pre-wrap">
+                      {failureReason(instance)}
+                    </pre>
+                  </div>
+                )}
 
                 {expandedInstance === instance.id && (
                   <div className="mt-4 space-y-3">

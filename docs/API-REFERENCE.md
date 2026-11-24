@@ -136,7 +136,7 @@ Agents push inventory data; the frontend reads it.
 |--------|------|------|-------------|
 | POST | `/api/v1/jobs` | API Key | Create a job (`targetType`: `device`/`group` with `targetId` = node or group UUID, or `all`) |
 | GET | `/api/v1/jobs` | API Key | List jobs, newest first, with `total`; `node` (node ID, UUID or hostname) returns only the jobs that run on that node (targeted at it, at its group or at all nodes); `status` = `failed` (a failed instance; newest failure first, with `last_failed_at` and `last_error`), `running`, `pending`, `success` (all instances succeeded) or `cancelled`; `since_hours` = created within that many hours (with `status=failed`: failed within them); `command_type`; `q` (part of the name); `limit`/`offset`. Also returns `counts` (`total`, `running`, `success`, `failed` for the same filters except `status`) and `command_types` |
-| GET | `/api/v1/jobs/{job_id}` | API Key | Get job details |
+| GET | `/api/v1/jobs/{job_id}` | API Key | Get job details with its instances; `command_data` is the JSON object the job was created with |
 | DELETE | `/api/v1/jobs/{job_id}` | API Key | Delete job |
 | GET | `/api/v1/jobs/pending/{node_id}` | API Key | Get pending jobs for a node (agent poll) |
 | POST | `/api/v1/jobs/instances/{instance_id}/start` | API Key | Mark job instance as started |
@@ -281,7 +281,9 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/audit` | API Key | Backend audit log |
+| GET | `/api/v1/audit` | `audit:read` | Audit log (`audit_log`), newest first. Filters: `action` (part of it, any case), `user` (user ID or name; `user_id` is accepted too), `resource_type` (one or several, comma-separated, e.g. `user,role`), `resource_id`, `date_from`/`date_to` (ISO 8601), `limit` (≤ 500)/`offset`. Each entry has `details` as a JSON object and `resource_name` (node hostname, user, job, group or role name; for deleted nodes and users the name the entry recorded). `total` follows the filters and is counted up to 10,000 (`total_capped: true` above) |
+| GET | `/api/v1/audit-log` | `audit:read` | The same as `/api/v1/audit` (older path) |
+| GET | `/api/v1/audit-log/stats` | `audit:read` | Entries per day (30 days), top users, resource types and actions |
 | GET | `/api/v1/audit/ui-events` | API Key | UI interaction audit log |
 
 ### Metrics & Performance

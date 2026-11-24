@@ -609,7 +609,33 @@
     "timestamp": "Marca de tiempo",
     "ipAddress": "Dirección IP",
     "details": "Detalles",
-    "noEntries": "No se encontraron entradas"
+    "noEntries": "No se encontraron entradas",
+    "subtitle": "Quién hizo qué con qué recurso. Haga clic en una entrada para ver los detalles.",
+    "system": "Sistema",
+    "resourceType": "Tipo de recurso",
+    "from": "Desde",
+    "to": "Hasta",
+    "actionPlaceholder": "p. ej. reboot, login, deleted",
+    "userPlaceholder": "Nombre de usuario",
+    "onlyResource": "Solo: {name}",
+    "clearResource": "Mostrar todos los recursos",
+    "entries": "{count} entradas",
+    "entriesCapped": "Más de {count} entradas",
+    "page": "página {page} de {pages}",
+    "exportCsv": "CSV",
+    "autoRefreshOn": "⏸ Actualización automática",
+    "autoRefreshOff": "▶ Actualización automática",
+    "usersAndRolesLink": "Registro de auditoría de usuarios y roles",
+    "actionsByUser": "Registro de auditoría: acciones de este usuario",
+    "resourceTypes": {
+      "node": "Nodo",
+      "user": "Usuario",
+      "user_role": "Usuarios y roles",
+      "role": "Rol",
+      "job": "Trabajo",
+      "group": "Grupo",
+      "system_settings": "Configuración"
+    }
   },
   "settings": {
     "title": "Configuración",
@@ -1730,7 +1756,8 @@
       "installPackage": "Instalar paquete",
       "uninstallPackage": "Desinstalar paquete",
       "inventory": "Inventario"
-    }
+    },
+    "failureReason": "Por qué falló"
   },
   "fleetUpdates": {
     "title": "Actualizaciones de la flota",
@@ -1901,6 +1928,28 @@
     "hint": "Las cifras se guardan por nodo y se recalculan cuando algo cambia: un análisis, software nuevo en un nodo, un hallazgo corregido, un nodo eliminado.",
     "pendingOne": "{count} nodo recalculándose",
     "pendingOther": "{count} nodos recalculándose"
+  },
+  "jsonDetails": {
+    "showRaw": "Mostrar datos sin procesar",
+    "hideRaw": "Ocultar datos sin procesar",
+    "keys": {
+      "at": "Momento",
+      "action": "Acción",
+      "message": "Mensaje",
+      "by": "Por",
+      "job_id": "Trabajo",
+      "hostname": "Nombre de host",
+      "node_id": "Nodo",
+      "reason": "Motivo",
+      "username": "Nombre de usuario",
+      "delete_after": "Eliminar tras desinstalar",
+      "forced": "Forzado",
+      "removed_rows": "Filas eliminadas",
+      "uninstalled_at": "Desinstalado el",
+      "must_change_password": "Debe cambiar la contraseña",
+      "when": "Cuándo",
+      "force": "Forzado"
+    }
   },
   "agentMonitor": {
     "title": "Monitor de agentes",

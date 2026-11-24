@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTabParam } from "@/hooks/useTabParam";
 import { apiClient } from "@/lib/api-client";
 import { PERMISSION_CATEGORIES } from "@/lib/permissions";
@@ -20,12 +21,15 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Users, ScrollText, Lock, Unlock, Plus, Pencil, Trash2,
-  Search, Filter, Download, ChevronRight, User as UserIcon, Eye, X
+  Search, Filter, User as UserIcon, Eye, X
 } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
 import { PasswordRuleList } from "@/components/PasswordRuleList";
 import { checkPassword, firstBrokenRule, translatePasswordError, usePasswordRules } from "@/lib/password-rules";
+
+/** The audit log page, filtered to users and roles */
+const USERS_AUDIT_HREF = "/audit?resource_type=user,role";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -48,18 +52,6 @@ interface Role {
   permissions: string[];
   isSystem: boolean;
   userCount?: number;
-}
-
-interface AuditEntry {
-  id: string;
-  timestamp: string;
-  userId: string | null;
-  username: string | null;
-  action: string;
-  resourceType: string;
-  resourceId: string | null;
-  details: Record<string, unknown> | null;
-  ipAddress: string | null;
 }
 
 interface ScopeEntry {
@@ -132,7 +124,13 @@ function PermissionPicker({ selected, onChange }: { selected: string[]; onChange
 // ═════════════════════════════════════════════════════════════════════
 
 export default function UsersPage() {
-  const [tab, setTab] = useTabParam<"users" | "roles" | "audit">("users", ["users", "roles", "audit"]);
+  const [tab, setTab] = useTabParam<"users" | "roles">("users", ["users", "roles"]);
+  const { t } = useI18n();
+
+  // The audit log has its own page; old links to ?tab=audit open it with the users and roles filter
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "audit") window.location.replace(USERS_AUDIT_HREF);
+  }, []);
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,8 +172,10 @@ export default function UsersPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Users</TabsTrigger>
           <TabsTrigger value="roles" className="gap-2"><Shield className="h-4 w-4" /> Roles</TabsTrigger>
-          <TabsTrigger value="audit" className="gap-2"><ScrollText className="h-4 w-4" /> Audit Log</TabsTrigger>
         </TabsList>
+        <Button variant="outline" size="sm" asChild className="ml-2 mb-4 align-top">
+          <Link href={USERS_AUDIT_HREF}><ScrollText className="h-4 w-4 mr-2" /> {t("audit.usersAndRolesLink")}</Link>
+        </Button>
 
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
@@ -184,9 +184,6 @@ export default function UsersPage() {
             </TabsContent>
             <TabsContent value="roles" forceMount={tab === "roles" ? true : undefined} className={tab !== "roles" ? "hidden" : ""}>
               <RolesTab roles={roles} refresh={fetchData} />
-            </TabsContent>
-            <TabsContent value="audit" forceMount={tab === "audit" ? true : undefined} className={tab !== "audit" ? "hidden" : ""}>
-              <AuditTab />
             </TabsContent>
           </motion.div>
         </AnimatePresence>
@@ -200,6 +197,7 @@ export default function UsersPage() {
 // ═════════════════════════════════════════════════════════════════════
 
 function UsersTab({ users, roles, refresh }: { users: User[]; roles: Role[]; refresh: () => void }) {
+  const { t } = useI18n();
   const [showCreate, setShowCreate] = useState(false);
   const [newUser, setNewUser] = useState({ username: "", password: "", email: "", display_name: "" });
   const rules = usePasswordRules();
@@ -343,6 +341,9 @@ function UsersTab({ users, roles, refresh }: { users: User[]; roles: Role[]; ref
                   <TableCell className="text-muted-foreground text-sm">{formatDate(user.lastLogin)}</TableCell>
                   <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                     <Button variant="ghost" size="sm" onClick={() => setSelectedUser(user)}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" asChild title={t("audit.actionsByUser")}>
+                      <Link href={`/audit?user=${user.id}`}><ScrollText className="h-4 w-4" /></Link>
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => deleteUser(user.id)} className="text-red-500 hover:text-red-400"><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>
                 </TableRow>
@@ -610,127 +611,6 @@ function RolesTab({ roles, refresh }: { roles: Role[]; refresh: () => void }) {
           )}
         </SheetContent>
       </Sheet>
-    </>
-  );
-}
-
-// ═════════════════════════════════════════════════════════════════════
-// Tab 3: Audit Log
-// ═════════════════════════════════════════════════════════════════════
-
-function AuditTab() {
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
-  const [actionFilter, setActionFilter] = useState("");
-  const [resourceFilter, setResourceFilter] = useState("");
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const limit = 50;
-
-  const fetchAudit = useCallback(async () => {
-    const params = new URLSearchParams();
-    params.set("limit", String(limit));
-    params.set("offset", String(page * limit));
-    if (actionFilter) params.set("action", actionFilter);
-    if (resourceFilter) params.set("resource_type", resourceFilter);
-
-    const res = await apiClient.get<{ total: number; entries: AuditEntry[] }>(`/audit-log?${params}`, { camelCase: true, showErrorToast: false });
-    if (res) {
-      setEntries(res.entries || []);
-      setTotal(res.total || 0);
-    }
-    setLoading(false);
-  }, [page, actionFilter, resourceFilter]);
-
-  useEffect(() => { fetchAudit(); }, [fetchAudit]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const iv = setInterval(fetchAudit, 10000);
-    return () => clearInterval(iv);
-  }, [autoRefresh, fetchAudit]);
-
-  function exportCsv() {
-    const header = "Timestamp,User,Action,Resource Type,Resource ID,IP\n";
-    const rows = entries.map(e => `${e.timestamp},${e.username || ""},${e.action},${e.resourceType},${e.resourceId || ""},${e.ipAddress || ""}`).join("\n");
-    const blob = new Blob([header + rows], { type: "text/csv" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "audit-log.csv"; a.click();
-  }
-
-  return (
-    <>
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Input placeholder="Filter action..." value={actionFilter} onChange={e => { setActionFilter(e.target.value); setPage(0); }} className="w-48" />
-          <Input placeholder="Filter resource type..." value={resourceFilter} onChange={e => { setResourceFilter(e.target.value); setPage(0); }} className="w-48" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setAutoRefresh(!autoRefresh)}>
-            {autoRefresh ? "⏸ Auto" : "▶ Auto"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportCsv}>
-            <Download className="h-4 w-4 mr-1" /> CSV
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          {loading ? (
-            <div className="flex justify-center py-8"><LoadingSpinner size="lg" /></div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>Resource ID</TableHead>
-                    <TableHead>IP</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map(e => (
-                    <>
-                      <TableRow key={e.id} className="cursor-pointer" onClick={() => setExpanded(expanded === e.id ? null : e.id)}>
-                        <TableCell className="text-sm whitespace-nowrap">{formatDate(e.timestamp)}</TableCell>
-                        <TableCell className="text-sm">{e.username || "system"}</TableCell>
-                        <TableCell><Badge variant="secondary" className="text-xs">{e.action}</Badge></TableCell>
-                        <TableCell className="text-sm">{e.resourceType}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-mono truncate max-w-[120px]">{e.resourceId || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{e.ipAddress || "—"}</TableCell>
-                        <TableCell><ChevronRight className={`h-4 w-4 transition-transform ${expanded === e.id ? "rotate-90" : ""}`} /></TableCell>
-                      </TableRow>
-                      {expanded === e.id && e.details && (
-                        <TableRow key={`${e.id}-detail`}>
-                          <TableCell colSpan={7}>
-                            <pre className="text-xs bg-secondary p-3 rounded-md overflow-x-auto max-h-48">{JSON.stringify(e.details, null, 2)}</pre>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  ))}
-                  {entries.length === 0 && (
-                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No audit entries found</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">{total} total entries</p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                  <Button variant="outline" size="sm" disabled={(page + 1) * limit >= total} onClick={() => setPage(p => p + 1)}>Next</Button>
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
     </>
   );
 }

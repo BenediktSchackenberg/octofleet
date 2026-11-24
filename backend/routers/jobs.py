@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
+from json_columns import decode_json
 
 router = APIRouter(
     prefix="/api/v1",
@@ -156,6 +157,8 @@ async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
         if not job: raise not_found("Job", job_id)
         instances = await conn.fetch("SELECT * FROM job_instances WHERE job_id = $1 ORDER BY queued_at", job_id)
         res = dict(job)
+        # the object itself, not JSON text inside the JSON response
+        res["command_data"] = decode_json(res.get("command_data"))
         res["instances"] = [dict(i) for i in instances]
         return res
 
