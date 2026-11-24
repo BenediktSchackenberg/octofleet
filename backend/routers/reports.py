@@ -28,7 +28,7 @@ from app.core.report_helpers import (
     style_excel_header,
 )
 from dependencies import get_db, verify_api_key
-from routers.security import get_compliance_summary
+from routers.baselines import get_compliance_summary
 
 router = APIRouter(tags=["Reports"])
 

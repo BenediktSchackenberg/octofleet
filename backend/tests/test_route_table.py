@@ -10,19 +10,8 @@ from route_table import api_routes, route_key
 
 from main import app
 
-# Registered twice on purpose until someone decides which version stays: the copy that never runs
-# does more than the one that does (#298).
-KNOWN_DUPLICATES = {
-    # routers/jobs.py returns {"status": "ok"} without creating jobs; main.py has the implementation
-    ("POST", "/api/v1/smart-install"),
-    # routers/jobs.py only stores the status; main.py also logs, alerts, retries and evaluates
-    # patch_install results
-    ("POST", "/api/v1/jobs/instances/{}/result"),
-    # routers/jobs.py returns the raw rows; routers/packages_mgmt.py has filters and version info
-    ("GET", "/api/v1/packages"),
-    # routers/security.py returns zero counts; routers/baselines.py counts the nodes
-    ("GET", "/api/v1/compliance/summary"),
-}
+# Registered twice on purpose (none left: #298 merged the richer copies into the routes that run).
+KNOWN_DUPLICATES: set = set()
 
 
 def _duplicates():

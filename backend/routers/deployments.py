@@ -21,8 +21,16 @@ async def create_deployment(data: dict, db: asyncpg.Pool = Depends(get_db)):
     target_type = data["targetType"]
     target_id = data.get("targetId")
     mode = data.get("mode", "required")
-    
+    if target_type not in ("node", "group", "all"):
+        raise HTTPException(400, "targetType must be node, group, or all")
+    if mode not in ("required", "available", "uninstall"):
+        raise HTTPException(400, "mode must be required, available, or uninstall")
+    if target_type in ("node", "group") and not target_id:
+        raise HTTPException(400, f"targetId required for targetType={target_type}")
+
     async with db.acquire() as conn:
+        if not await conn.fetchval("SELECT 1 FROM package_versions WHERE id::text = $1", str(pv_id)):
+            raise HTTPException(404, "Package version not found")
         dep_id = await conn.fetchval("""
             INSERT INTO deployments (name, description, package_version_id, target_type, target_id, mode, status, scheduled_start, scheduled_end, maintenance_window_only, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
