@@ -52,6 +52,7 @@ from reportlab.platypus import (
 
 import audit_query
 import event_counts
+import job_failures
 import job_types
 import json_columns
 import linux_rules
@@ -159,6 +160,7 @@ async def lifespan(app: FastAPI):
     await node_removal.ensure_schema_on(db_pool)
     await job_types.ensure_schema(db_pool)
     await audit_query.ensure_schema(db_pool)
+    await job_failures.ensure_schema(db_pool)
     await ensure_patches_schema(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
@@ -177,6 +179,8 @@ async def lifespan(app: FastAPI):
     agent_monitor_task = asyncio.create_task(agent_monitor.run(db_pool))
     # Repairs double-encoded JSON rows (reads decode them anyway); a full scan, so not during startup
     json_columns_task = asyncio.create_task(json_columns.ensure_schema(db_pool))
+    # Older job instances get their run kind (the Tasks page's failed jobs) in the background
+    run_kind_task = asyncio.create_task(job_failures.backfill_run_kind(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
     async with db_pool.acquire() as conn:
@@ -239,6 +243,7 @@ async def lifespan(app: FastAPI):
     removal_task.cancel()
     agent_monitor_task.cancel()
     json_columns_task.cancel()
+    run_kind_task.cancel()
     vulnerability_cache_task.cancel()
     linux_approval_task.cancel()
     if db_pool:
