@@ -48,8 +48,14 @@ LONG_POLL_SECONDS="${LONG_POLL_SECONDS:-55}"      # hold time asked for; keep be
 LONG_POLL_FALLBACK_INTERVAL="${LONG_POLL_FALLBACK_INTERVAL:-600}"
 LONG_POLL_RETRY_INTERVAL="${LONG_POLL_RETRY_INTERVAL:-15}"  # after an error, doubled per failure, jitter
 LONG_POLL_RECHECK_INTERVAL="${LONG_POLL_RECHECK_INTERVAL:-3600}"  # asks a server without the route again
+# Logs (#330): one file per component in LOG_DIR (Agent.log, Inventory.log, Jobs.log, Updates.log, ...,
+# see log); Agent.log also gets the warnings and errors of all components. Every line also goes to
+# stdout (the journal under systemd).
+LOG_DIR="${LOG_DIR:-/var/log/octofleet-agent}"
+# The single log file of agents before #330: moved into LOG_DIR at the service's start (migrate_legacy_log)
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
-# LOG_LEVEL=debug also logs the server's raw answer to a rejected inventory push
+# Level of all components: debug, info, warn or error. LOG_LEVEL_<COMPONENT> sets one component, e.g.
+# LOG_LEVEL_UPDATES=debug. debug also logs e.g. the server's raw answer to a rejected inventory push.
 LOG_LEVEL="${LOG_LEVEL:-info}"
 # Root-only folder for diagnosis files: the last inventory the server rejected (last-failed-push.json)
 # and the output of a collector that produced invalid JSON (invalid-section-<name>.txt). Inside the
@@ -63,10 +69,10 @@ PROC_DIR="${PROC_DIR:-/proc}"
 # (pacman-contrib). The live databases stay as they are: pacman -Sy without -u would leave a partially
 # upgraded system. The inventory reads the pending updates from this copy.
 PACMAN_CHECK_DB="${PACMAN_CHECK_DB:-${SCRIPT_DIR}/pacman-sync}"
-# logrotate for LOG_FILE (see ensure_logrotate); LOGROTATE_FILE="" turns it off
+# logrotate for LOG_DIR/*.log (see ensure_logrotate); LOGROTATE_FILE="" turns it off
 LOGROTATE_FILE="${LOGROTATE_FILE-/etc/logrotate.d/octofleet-agent}"
-LOG_ROTATE_COUNT="${LOG_ROTATE_COUNT:-8}"     # rotated files kept
-LOG_ROTATE_MAXSIZE="${LOG_ROTATE_MAXSIZE:-10M}"  # rotated earlier than weekly when larger
+LOG_ROTATE_COUNT="${LOG_ROTATE_COUNT:-4}"     # rotated files kept per component
+LOG_ROTATE_MAXSIZE="${LOG_ROTATE_MAXSIZE:-2M}"  # rotated earlier than weekly when larger
 AUTO_UPDATE="${AUTO_UPDATE:-true}"
 UPDATE_CHECK_INTERVAL="${UPDATE_CHECK_INTERVAL:-21600}"  # 6 hours
 
@@ -105,18 +111,63 @@ BANNER
     echo ""
 }
 
+# log LEVEL COMPONENT MESSAGE...: one line "2026-11-15T16:26:04.561+01:00 INFO [Updates] message" to
+# stdout and to LOG_DIR/COMPONENT.log; warnings and errors also to Agent.log. LEVEL: DEBUG, INFO, WARN
+# or ERROR; it is written when it reaches LOG_LEVEL_<COMPONENT> (default LOG_LEVEL). Components, with
+# the Windows agent's names: Agent (start, configuration, long-poll, logrotate), Inventory, Jobs,
+# Updates (update search and install, reboot), Remediation (service reconciliation), Security (file
+# audit), LiveData, RemoteTools (terminal, screen), SelfUpdate.
+# Bash built-ins only, no process per line. Milliseconds need bash 5 (EPOCHREALTIME); older bash
+# writes whole seconds.
+LOG_WRITTEN_BYTES=0
 log() {
-    local level="$1"
-    shift
-    local msg="$*"
-    local ts=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$ts] [$level] $msg" | tee -a "$LOG_FILE" 2>/dev/null || echo "[$ts] [$level] $msg"
+    local level="$1" comp="$2" n min var ts t line; shift 2
+    case "$level" in DEBUG) n=0 ;; INFO) n=1 ;; WARN) n=2 ;; *) n=3 ;; esac
+    var="LOG_LEVEL_${comp^^}"
+    case "${!var:-$LOG_LEVEL}" in [Dd]ebug|DEBUG) min=0 ;; [Ww]arn*|WARN*) min=2 ;; [Ee]rror|ERROR) min=3 ;; *) min=1 ;; esac
+    (( n >= min )) || return 0
+    t=${EPOCHREALTIME:-}
+    if [[ -n "$t" ]]; then
+        t=${t/[.,]/}  # microseconds since the epoch (the separator follows the locale)
+        printf -v ts '%(%Y-%m-%dT%H:%M:%S)T.%s%(%z)T' "${t:0:-6}" "${t: -6:3}" "${t:0:-6}"
+    else
+        printf -v ts '%(%Y-%m-%dT%H:%M:%S%z)T' -1
+    fi
+    line="${ts:0:${#ts}-2}:${ts:${#ts}-2} $level [$comp] $*"  # +0100 -> +01:00
+    printf '%s\n' "$line"
+    [[ -n "$LOG_DIR" ]] || return 0
+    { printf '%s\n' "$line" >> "$LOG_DIR/$comp.log"
+      (( n < 2 )) || [[ "$comp" == Agent ]] || printf '%s\n' "$line" >> "$LOG_DIR/Agent.log"; } 2>/dev/null
+    # logrotate runs once a day: after LOG_ROTATE_MAXSIZE written by this process it runs now, so a
+    # file stays below twice that size even with debug on
+    LOG_WRITTEN_BYTES=$(( LOG_WRITTEN_BYTES + ${#line} + 1 ))
+    if (( LOG_WRITTEN_BYTES >= LOG_MAX_BYTES )); then
+        LOG_WRITTEN_BYTES=0
+        rotate_logs_now
+    fi
+    return 0
 }
 
-info() { log "INFO" "$@"; }
-warn() { log "WARN" "$@"; }
-error() { log "ERROR" "$@"; }
-debug() { [[ "$LOG_LEVEL" == "debug" ]] && log "DEBUG" "$@"; return 0; }
+info() { log INFO "$@"; }
+warn() { log WARN "$@"; }
+error() { log ERROR "$@"; }
+debug() { log DEBUG "$@"; }
+
+# LOG_ROTATE_MAXSIZE in bytes (logrotate's notation: 2M, 500k, 1G or bytes)
+LOG_MAX_BYTES=${LOG_ROTATE_MAXSIZE//[!0-9]/}
+case "$LOG_ROTATE_MAXSIZE" in
+    *[kK]) LOG_MAX_BYTES=$(( ${LOG_MAX_BYTES:-0} * 1024 )) ;;
+    *[mM]) LOG_MAX_BYTES=$(( ${LOG_MAX_BYTES:-0} * 1048576 )) ;;
+    *[gG]) LOG_MAX_BYTES=$(( ${LOG_MAX_BYTES:-0} * 1073741824 )) ;;
+esac
+(( ${LOG_MAX_BYTES:-0} >= 4096 )) || LOG_MAX_BYTES=2097152
+
+# Runs logrotate on the agent's configuration now (only files above maxsize are rotated). Its own
+# state file in LOG_DIR: the service cannot write logrotate's (ProtectSystem=strict).
+rotate_logs_now() {
+    [[ -n "$LOGROTATE_FILE" && -f "$LOGROTATE_FILE" ]] && command -v logrotate &>/dev/null || return 0
+    logrotate -s "$LOG_DIR/.logrotate.status" "$LOGROTATE_FILE" >/dev/null 2>&1 || true
+}
 
 # Numbers from awk: older mawk (e.g. 1.3.4 20200120 in Debian 12) prints results above 2^31 as
 # "4.29497e+09" and clamps printf "%d" to 2147483647, which breaks bash arithmetic and the JSON. Print them with "%.0f".
@@ -1067,11 +1118,11 @@ collect_agent_logs() {
                 source: "octofleet-agent",
                 message: .MESSAGE[0:500]
             }]' 2>/dev/null || echo '[]')
-    elif [[ -f "$LOG_FILE" ]]; then
-        logs=$(tail -20 "$LOG_FILE" 2>/dev/null | \
+    elif [[ -f "$LOG_DIR/Agent.log" ]]; then
+        logs=$(tail -20 "$LOG_DIR/Agent.log" 2>/dev/null | \
             jq -R -s 'split("\n") | map(select(. != "") | {
-                timestamp: (capture("^\\[(?<ts>[^\\]]+)\\]") | .ts // ""),
-                level: (capture("\\[(?<lvl>INFO|WARN|ERROR)\\]") | .lvl // "INFO"),
+                timestamp: ((capture("^(?<ts>[^ ]+) ") | .ts) // ""),
+                level: ((capture("^[^ ]+ (?<lvl>DEBUG|INFO|WARN|ERROR) ") | .lvl) // "INFO"),
                 source: "octofleet-agent",
                 message: .
             })' 2>/dev/null || echo '[]')
@@ -1104,7 +1155,7 @@ EOF
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
         -d "$payload" \
-        "${API_URL}/api/v1/live-data" >/dev/null 2>&1 || true
+        "${API_URL}/api/v1/live-data" >/dev/null 2>&1 || debug LiveData "Live data push failed (curl exit $?)"
 }
 
 # ============================================================================
@@ -1137,7 +1188,7 @@ collect_full_inventory() {
         else
             left_out=1
             file=$(_save_diag "invalid-section-$key.txt" <<< "$value")
-            warn "Inventory section \"$key\" left out: its collector produced invalid JSON${file:+ (saved to $file)}" >&2
+            warn Inventory "Inventory section \"$key\" left out: its collector produced invalid JSON${file:+ (saved to $file)}" >&2
         fi
     done
     (( left_out )) || rm -f "$DIAG_DIR"/invalid-section-*.txt 2>/dev/null
@@ -1191,15 +1242,15 @@ log_push_failure() {
     PUSH_FAIL_COUNT=$(( PUSH_FAIL_COUNT + 1 ))
     if [[ "$reason" != "$PUSH_FAIL_REASON" ]]; then
         PUSH_FAIL_REASON="$reason" PUSH_FAIL_LOGGED=$now
-        error "Inventory push failed: $reason.${saved:+ The inventory is saved in $saved.}"
+        error Inventory "Inventory push failed: $reason.${saved:+ The inventory is saved in $saved.}"
     elif (( now - PUSH_FAIL_LOGGED >= PUSH_FAIL_LOG_INTERVAL )); then
         PUSH_FAIL_LOGGED=$now
-        error "Inventory push still failing ($PUSH_FAIL_COUNT times since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')): $reason."
+        error Inventory "Inventory push still failing ($PUSH_FAIL_COUNT times since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')): $reason."
     fi
 }
 
 push_inventory() {
-    info "Collecting inventory..."
+    info Inventory "Collecting inventory..."
     local tmp_file=$(mktemp) saved=""
     collect_full_inventory > "$tmp_file"
 
@@ -1211,7 +1262,7 @@ push_inventory() {
         return 1
     fi
 
-    info "Pushing inventory to $API_URL..."
+    info Inventory "Pushing inventory to $API_URL..."
     local response=$(curl -sS -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
@@ -1224,10 +1275,10 @@ push_inventory() {
     if [[ "$http_code" == "200" ]]; then
         rm -f "$tmp_file" "$DIAG_DIR/last-failed-push.json" 2>/dev/null
         if (( PUSH_FAIL_COUNT > 0 )); then
-            info "Inventory pushed successfully again, after $PUSH_FAIL_COUNT failed attempt(s) since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')"
+            info Inventory "Inventory pushed successfully again, after $PUSH_FAIL_COUNT failed attempt(s) since $(date -d "@$PUSH_FAIL_SINCE" '+%Y-%m-%d %H:%M')"
             PUSH_FAIL_REASON="" PUSH_FAIL_COUNT=0
         else
-            info "Inventory pushed successfully"
+            info Inventory "Inventory pushed successfully"
         fi
         return 0
     fi
@@ -1236,7 +1287,7 @@ push_inventory() {
     # Rejected by the server: keep what was sent for diagnosis (not when the server was not reachable)
     [[ "$http_code" != 000 ]] && saved=$(_save_diag last-failed-push.json < "$tmp_file")
     rm -f "$tmp_file"
-    debug "Inventory push: HTTP $http_code, server answer: $(head -c 2000 <<< "$body")"
+    debug Inventory "Inventory push: HTTP $http_code, server answer: $(head -c 2000 <<< "$body")"
     log_push_failure "$reason" "$saved"
     return 1
 }
@@ -1250,7 +1301,7 @@ poll_jobs() {
     local body=$(echo "$response" | sed '$d')
     
     if [[ "$http_code" != "200" ]]; then
-        warn "Job poll failed: HTTP $http_code"
+        warn Jobs "Job poll failed: HTTP $http_code"
         return 1
     fi
     
@@ -1258,7 +1309,7 @@ poll_jobs() {
     local job_count=$(echo "$jobs" | jq 'length')
     
     if [[ "$job_count" -gt 0 ]]; then
-        info "Found $job_count pending jobs"
+        info Jobs "Found $job_count pending jobs"
         echo "$jobs" | jq -c '.[]' | while read -r job; do
             execute_job "$job"
         done
@@ -1285,7 +1336,7 @@ install_package() {
     local pkg="$1"
     local distro=$(detect_distro)
     
-    info "Installing package: $pkg (distro: $distro)"
+    info Remediation "Installing package: $pkg (distro: $distro)"
     
     case "$distro" in
         debian)
@@ -1492,7 +1543,7 @@ EOF
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
         -d "$payload" \
-        "${API_URL}/api/v1/services/${service_id}/nodes/${NODE_ID}/status" >/dev/null 2>&1 || warn "Failed to report service status"
+        "${API_URL}/api/v1/services/${service_id}/nodes/${NODE_ID}/status" >/dev/null 2>&1 || warn Remediation "Failed to report service status"
 }
 
 # Removes the agent from this machine (#160) - the same steps as linux-agent/uninstall.sh.
@@ -1526,6 +1577,7 @@ schedule_uninstall() {
         printf '%s\n' 'systemctl daemon-reload'
         printf 'rm -rf -- %q\n' "$SCRIPT_DIR"
         printf 'rm -f -- %q %q.*\n' "$LOG_FILE" "$LOG_FILE"
+        [[ "$LOG_DIR" == /?*/?* ]] && printf 'rm -rf -- %q\n' "$LOG_DIR"
         [[ -n "$LOGROTATE_FILE" ]] && printf 'grep -qF %q %q 2>/dev/null && rm -f -- %q || true\n' \
             "$LOGROTATE_MARKER" "$LOGROTATE_FILE" "$LOGROTATE_FILE"
         printf 'test ! -e %q\n' "$SCRIPT_DIR"
@@ -2088,7 +2140,7 @@ execute_job() {
     local command_type=$(echo "$job" | jq -r '.commandType // .command_type')
     local command_payload=$(echo "$job" | jq -r '.commandPayload // .command_payload')
     
-    info "Executing job: $job_name ($instance_id)"
+    info Jobs "Job $instance_id started: $job_name (type $command_type)"
     
     # Mark job as started
     curl -sS -X POST \
@@ -2165,7 +2217,7 @@ execute_job() {
             output=$(schedule_uninstall "$delay" "$confirmation_node_id" "$confirmation_token" 2>&1) || exit_code=$?
             ;;
         *)
-            warn "Unknown command type: $command_type"
+            warn Jobs "Unknown command type: $command_type"
             exit_code=1
             output="Unknown command type"
             ;;
@@ -2190,9 +2242,21 @@ EOF
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
         -d "$result" \
-        "${API_URL}/api/v1/jobs/instances/${instance_id}/result" >/dev/null 2>&1 || warn "Failed to report job result"
+        "${API_URL}/api/v1/jobs/instances/${instance_id}/result" >/dev/null 2>&1 || warn Jobs "Job $instance_id: reporting the result failed"
     
-    info "Job $instance_id completed: exit_code=$exit_code, duration=${duration}s"
+    if (( exit_code == 0 )); then
+        info Jobs "Job $instance_id ($command_type) succeeded after ${duration} s"
+    else
+        warn Jobs "Job $instance_id ($command_type) failed: exit code $exit_code after ${duration} s: $(tail -n 1 <<< "$output" | head -c 300)"
+    fi
+    # Update searches, installations and reboots: what happened, in Updates.log
+    if [[ "$command_type" == patch_scan || "$command_type" == patch_install || "$command_type" == reboot ]]; then
+        local line
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && info Updates "job=$instance_id $command_type: $line"
+        done < <(grep -E '^(Package lists refreshed|Update search afterwards|Installed updates|Not installed|Reboot|Scheduling the reboot|Cancelling the reboot|Sending the inventory failed|Logged-on users|No D-Bus|Invalid|Timed out|No supported)' <<< "$output")
+        (( exit_code == 0 )) || warn Updates "job=$instance_id $command_type failed: exit code $exit_code after ${duration} s"
+    fi
 }
 
 # ============================================================================
@@ -2303,7 +2367,7 @@ poll_terminal_commands() {
         
         echo "$session" | jq -r '.commands[]?' 2>/dev/null | while read -r cmd; do
             if [[ -n "$cmd" && "$cmd" != "null" ]]; then
-                info "Executing terminal command: $cmd"
+                info RemoteTools "Executing terminal command: $cmd"
                 
                 # Execute command
                 local output
@@ -2391,7 +2455,7 @@ long_poll_loop() {
             0)
                 if [[ ! -e "$dir/active" ]]; then
                     touch "$dir/active"
-                    info "Long-poll active: the server wakes the agent for $(long_poll_kinds); idle polls every ${LONG_POLL_FALLBACK_INTERVAL}s"
+                    info Agent "Long-poll active: the server wakes the agent for $(long_poll_kinds); idle polls every ${LONG_POLL_FALLBACK_INTERVAL}s"
                 fi
                 failures=0
                 for kind in $out; do touch "$dir/$kind"; done
@@ -2404,7 +2468,7 @@ long_poll_loop() {
                 (( SECONDS - started < 1 )) && sleep 1
                 ;;
             2)
-                [[ -e "$dir/active" || $round == 1 ]] && info "The server has no long-poll (older version): polling every few seconds, asking again in ${LONG_POLL_RECHECK_INTERVAL}s"
+                [[ -e "$dir/active" || $round == 1 ]] && info Agent "The server has no long-poll (older version): polling every few seconds, asking again in ${LONG_POLL_RECHECK_INTERVAL}s"
                 rm -f "$dir/active"
                 failures=0
                 sleep "$LONG_POLL_RECHECK_INTERVAL"
@@ -2413,7 +2477,7 @@ long_poll_loop() {
                 failures=$(( failures + 1 ))
                 if [[ -e "$dir/active" ]]; then
                     rm -f "$dir/active"
-                    warn "Long-poll failed ($out): polling every few seconds until it answers again"
+                    warn Agent "Long-poll failed ($out): polling every few seconds until it answers again"
                 fi
                 sleep "$(long_poll_retry_delay "$failures")"
                 ;;
@@ -2431,7 +2495,7 @@ LOGROTATE_MARKER="# octofleet-agent: managed"
 logrotate_config() {
     cat <<EOF
 $LOGROTATE_MARKER - delete this line to keep your own changes
-$LOG_FILE {
+$LOG_DIR/*.log {
     weekly
     maxsize $LOG_ROTATE_MAXSIZE
     rotate $LOG_ROTATE_COUNT
@@ -2445,13 +2509,13 @@ $LOG_FILE {
 EOF
 }
 
-# Install the logrotate configuration for LOG_FILE if there is none, or update one the agent installed
+# Install the logrotate configuration for LOG_DIR/*.log if there is none, or update one the agent installed
 # (marker line). A file without the marker belongs to the administrator and is left alone. At the
 # service's start (so also after a self-update) and from install.sh. The service runs with
 # ProtectSystem=strict and cannot write /etc: it writes through a transient unit, like the package
-# manager. copytruncate: the agent appends with tee -a, so the file keeps its name.
+# manager. copytruncate: background parts of the agent keep appending to the same name.
 ensure_logrotate() {
-    [[ -n "$LOGROTATE_FILE" && "$LOG_FILE" == /* ]] || return 0
+    [[ -n "$LOGROTATE_FILE" && "$LOG_DIR" == /* ]] || return 0
     if [[ -e "$LOGROTATE_FILE" ]] && ! grep -qF "$LOGROTATE_MARKER" "$LOGROTATE_FILE" 2>/dev/null; then
         return 0
     fi
@@ -2459,7 +2523,7 @@ ensure_logrotate() {
     wanted=$(logrotate_config)
     [[ -f "$LOGROTATE_FILE" && "$(cat "$LOGROTATE_FILE")" == "$wanted" ]] && return 0
     if ! command -v logrotate &>/dev/null; then
-        warn "logrotate is not installed - $LOG_FILE is not rotated (install logrotate; the agent then adds $LOGROTATE_FILE)"
+        warn Agent "logrotate is not installed - $LOG_DIR/*.log are not rotated (install logrotate; the agent then adds $LOGROTATE_FILE)"
         return 0
     fi
     if [[ -n "${INVOCATION_ID:-}" && "$(systemd_mode)" != none ]] && [[ ! -w "$(dirname "$LOGROTATE_FILE")" ]]; then
@@ -2471,30 +2535,49 @@ ensure_logrotate() {
         if ! sd_run_wait "octofleet-logrotate-$(date +%s)-$$" \
             /usr/bin/install -m 644 "$staged" "$LOGROTATE_FILE"; then
             rm -f "$staged"
-            warn "Could not write $LOGROTATE_FILE"; return 1
+            warn Agent "Could not write $LOGROTATE_FILE"; return 1
         fi
         rm -f "$staged"
     else
         { printf '%s\n' "$wanted" > "$LOGROTATE_FILE" && chmod 644 "$LOGROTATE_FILE"; } 2>/dev/null || {
-            warn "Could not write $LOGROTATE_FILE"; return 1; }
+            warn Agent "Could not write $LOGROTATE_FILE"; return 1; }
     fi
-    info "logrotate: $LOGROTATE_FILE for $LOG_FILE (weekly or at $LOG_ROTATE_MAXSIZE, $LOG_ROTATE_COUNT files kept)"
+    info Agent "logrotate: $LOGROTATE_FILE for $LOG_DIR/*.log (weekly or at $LOG_ROTATE_MAXSIZE, $LOG_ROTATE_COUNT files kept)"
+}
+
+# Agents before #330 wrote one file, LOG_FILE (/var/log/octofleet-agent.log). At the service's start
+# it moves into LOG_DIR as octofleet-agent.log.0, its rotated copies keep their names there (.1,
+# .2.gz, ...; not rotated any more, removed on uninstall), and LOG_FILE becomes a link to Agent.log for
+# commands and scripts that still read it.
+migrate_legacy_log() {
+    [[ -f "$LOG_FILE" && ! -L "$LOG_FILE" && "$LOG_FILE" == /* && -d "$LOG_DIR" ]] || return 0
+    local old name="${LOG_FILE##*/}"
+    for old in "$LOG_FILE".*; do
+        [[ -f "$old" ]] && mv -f "$old" "$LOG_DIR/${old##*/}" 2>/dev/null
+    done
+    mv -f "$LOG_FILE" "$LOG_DIR/$name.0" 2>/dev/null || return 0
+    ln -s "$LOG_DIR/Agent.log" "$LOG_FILE" 2>/dev/null
+    info Agent "Logs are now one file per component in $LOG_DIR; the previous log $LOG_FILE moved there as $name.0"
 }
 
 run_service() {
     show_banner
-    info "Octofleet Linux Agent v$VERSION starting..."
-    info "Node ID: $NODE_ID"
-    info "API URL: $API_URL"
-    info "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"
-    info "Auto-update: ${AUTO_UPDATE} (every ${UPDATE_CHECK_INTERVAL}s from the Octofleet server)"
-    [[ "$(systemd_mode)" == private ]] && info "No D-Bus system bus on this system: updates, reboots and logrotate run through systemd's private socket"
+    migrate_legacy_log
+    info Agent "Octofleet Linux Agent v$VERSION starting..."
+    info Agent "Node ID: $NODE_ID"
+    info Agent "API URL: $API_URL"
+    info Agent "Push interval: ${PUSH_INTERVAL}s, Job poll: ${JOB_POLL_INTERVAL}s, Live data: ${LIVE_DATA_INTERVAL}s"
+    info Agent "Auto-update: ${AUTO_UPDATE} (every ${UPDATE_CHECK_INTERVAL}s from the Octofleet server)"
+    local level_var levels=""
+    for level_var in $(compgen -v LOG_LEVEL_); do levels+=", ${level_var#LOG_LEVEL_} ${!level_var}"; done
+    info Agent "Logs: $LOG_DIR, level $LOG_LEVEL$levels"
+    [[ "$(systemd_mode)" == private ]] && info Agent "No D-Bus system bus on this system: updates, reboots and logrotate run through systemd's private socket"
     ensure_logrotate || true
     
     # Detect screen capture tool
     detect_screen_capture_tool
     if [[ -n "$SCREEN_CAPTURE_TOOL" ]]; then
-        info "Screen capture available via: $SCREEN_CAPTURE_TOOL"
+        info RemoteTools "Screen capture available via: $SCREEN_CAPTURE_TOOL"
     fi
     
     local push_due=0
@@ -2612,47 +2695,47 @@ check_for_update() {
     [[ "$latest" != "$VERSION" ]] || return 0
     [[ "$(printf '%s\n%s\n' "$VERSION" "$latest" | sort -V | tail -1)" == "$latest" ]] || return 0
 
-    info "Update available: v$VERSION -> v$latest"
+    info SelfUpdate "Update available: v$VERSION -> v$latest"
     local self="${SCRIPT_DIR}/agent.sh"
     local tmp="${SCRIPT_DIR}/agent.sh.new"
     if ! curl -sf --max-time 120 -o "$tmp" "$url"; then
-        warn "Update download failed, keeping v$VERSION"
+        warn SelfUpdate "Update download failed, keeping v$VERSION"
         rm -f "$tmp"; return 1
     fi
     local actual
     actual=$(sha256sum "$tmp" | cut -d' ' -f1)
     if [[ "${actual,,}" != "${sha,,}" ]]; then
-        warn "Update rejected: SHA256 mismatch (expected $sha, got $actual)"
+        warn SelfUpdate "Update rejected: SHA256 mismatch (expected $sha, got $actual)"
         rm -f "$tmp"; return 1
     fi
     if ! bash -n "$tmp" 2>/dev/null || ! grep -q "^VERSION=\"$latest\"" "$tmp"; then
-        warn "Update rejected: downloaded agent.sh is invalid or has the wrong version"
+        warn SelfUpdate "Update rejected: downloaded agent.sh is invalid or has the wrong version"
         rm -f "$tmp"; return 1
     fi
 
     # set -e is not active and this function runs in an if/|| context: check
     # each step, so a failed replacement never reports success or exits.
     if ! chmod 755 "$tmp"; then
-        warn "Update to v$latest failed: cannot make the new agent.sh executable, keeping v$VERSION"
+        warn SelfUpdate "Update to v$latest failed: cannot make the new agent.sh executable, keeping v$VERSION"
         rm -f "$tmp"; return 1
     fi
     if ! mv -f "$tmp" "$self"; then
-        warn "Update to v$latest failed: cannot replace $self, keeping v$VERSION"
+        warn SelfUpdate "Update to v$latest failed: cannot replace $self, keeping v$VERSION"
         rm -f "$tmp"; return 1
     fi
 
     if [[ "${MANUAL_UPDATE:-false}" == "true" ]]; then
-        info "Updated to v$latest"
+        info SelfUpdate "Updated to v$latest"
         if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet octofleet-agent; then
             if systemctl restart octofleet-agent; then
-                info "Service octofleet-agent restarted with v$latest"
+                info SelfUpdate "Service octofleet-agent restarted with v$latest"
             else
-                warn "Updated to v$latest, but restarting octofleet-agent failed; restart it to use the new version"
+                warn SelfUpdate "Updated to v$latest, but restarting octofleet-agent failed; restart it to use the new version"
             fi
         fi
         exit 0
     fi
-    info "Updated to v$latest, restarting"
+    info SelfUpdate "Updated to v$latest, restarting"
     exit 0
 }
 
@@ -2670,16 +2753,16 @@ declare -a FILE_AUDIT_BUFFER=()
 
 start_file_audit() {
     if [[ "$FILE_AUDIT_ENABLED" != "true" ]]; then
-        log "INFO" "File audit disabled"
+        log INFO Security "File audit disabled"
         return
     fi
     
     if ! command -v inotifywait &>/dev/null; then
-        log "WARN" "inotifywait not found. Install inotify-tools for file audit."
+        log WARN Security "inotifywait not found. Install inotify-tools for file audit."
         return
     fi
     
-    log "INFO" "Starting file audit on: $FILE_AUDIT_PATHS"
+    log INFO Security "Starting file audit on: $FILE_AUDIT_PATHS"
     
     # Start inotifywait in background
     inotifywait -m -r \
@@ -2745,7 +2828,7 @@ EOF
         fi
     done &
     FILE_AUDIT_PID=$!
-    log "INFO" "File audit started (PID: $FILE_AUDIT_PID)"
+    log INFO Security "File audit started (PID: $FILE_AUDIT_PID)"
     
     # Start periodic flush
     while true; do
@@ -2782,22 +2865,24 @@ flush_file_audit_buffer() {
     
     local http_code=$(echo "$response" | tail -1)
     if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
-        log "INFO" "Flushed $count file audit events"
+        log INFO Security "Flushed $count file audit events"
     else
-        log "WARN" "Failed to flush file audit events (HTTP $http_code)"
+        log WARN Security "Failed to flush file audit events (HTTP $http_code)"
     fi
 }
 
 stop_file_audit() {
     if [[ -n "$FILE_AUDIT_PID" ]]; then
         kill "$FILE_AUDIT_PID" 2>/dev/null || true
-        log "INFO" "File audit stopped"
+        log INFO Security "File audit stopped"
     fi
 }
 
 # ============================================================================
 # Main
 # ============================================================================
+
+[[ -d "$LOG_DIR" ]] || mkdir -p -m 750 "$LOG_DIR" 2>/dev/null
 
 case "${1:-service}" in
     push)

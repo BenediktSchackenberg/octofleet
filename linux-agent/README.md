@@ -50,7 +50,8 @@ NODE_ID="linux-server-01"
 PUSH_INTERVAL=3600  # 60 minutes (default), spread over the interval
 PUSH_RETRY_INTERVAL=60  # first retry of a failed push (doubles per failure, with jitter)
 PUSH_FAIL_LOG_INTERVAL=3600  # a push failing for the same reason is logged again at most hourly
-LOG_LEVEL=info  # debug: also log the server's raw answer to a rejected push
+LOG_LEVEL=info  # debug, info, warn, error; debug also logs the server's raw answer to a rejected push
+#LOG_LEVEL_UPDATES=debug  # the level of one component (LOG_LEVEL_<COMPONENT>, see Logs)
 JOB_POLL_INTERVAL=60  # 1 minute
 LIVE_DATA_INTERVAL=5  # 5 seconds (for live view)
 POLL_IDLE_INTERVAL=5  # terminal and screen requests when idle; every second while a session is open
@@ -94,7 +95,8 @@ sudo /opt/octofleet-agent/agent.sh update
 # Check status
 systemctl status octofleet-agent
 
-# View logs
+# View logs (one file per component, see Logs)
+sudo tail -f /var/log/octofleet-agent/*.log
 journalctl -u octofleet-agent -f
 
 # Manual inventory push
@@ -106,6 +108,12 @@ journalctl -u octofleet-agent -f
 # Check for and install an update from the server
 /opt/octofleet-agent/agent.sh update
 ```
+
+## Logs
+
+One file per component in `/var/log/octofleet-agent/`, with the Windows agent's component names: `Agent.log` (start, configuration, long-poll – and every warning and error of all components), `Inventory.log`, `Jobs.log`, `Updates.log` (update searches, installations, reboots), `Remediation.log`, `Security.log` (file audit), `LiveData.log`, `RemoteTools.log` (terminal, screen) and `SelfUpdate.log`. Each line: ISO 8601 time with offset, level, component, message – e.g. `2026-11-15T16:26:04.561+01:00 WARN [Jobs] Job 8f2c… (run) failed: exit code 3 after 2 s: disk full`. Every line also goes to the journal.
+
+The level is `info`; `LOG_LEVEL` in `config.env` sets all components, `LOG_LEVEL_<COMPONENT>` one (`LOG_LEVEL_UPDATES=debug`, `LOG_LEVEL_REMOTETOOLS=warn`, …); restart the service after a change. logrotate rotates each file weekly or at 2 MB and keeps 4 (`LOG_ROTATE_MAXSIZE`, `LOG_ROTATE_COUNT`); the agent also runs logrotate itself after writing 2 MB. An older agent's `/var/log/octofleet-agent.log` moves into the folder as `octofleet-agent.log.0` and becomes a link to `Agent.log`. Details: [docs/AGENT-SETUP.md](../docs/AGENT-SETUP.md#logs).
 
 ## Migration from OpenClaw Agent
 
@@ -129,7 +137,7 @@ curl -fsSL https://raw.githubusercontent.com/BenediktSchackenberg/octofleet/main
 
 ## Uninstall
 
-Use **Remove node…** in the Octofleet console, or run `sudo ./uninstall.sh` on the machine and then delete the node in the console. Both stop and disable the service and remove the unit, `/opt/octofleet-agent` and the log.
+Use **Remove node…** in the Octofleet console, or run `sudo ./uninstall.sh` on the machine and then delete the node in the console. Both stop and disable the service and remove the unit, `/opt/octofleet-agent` and the logs (`/var/log/octofleet-agent`).
 
 ## Requirements
 

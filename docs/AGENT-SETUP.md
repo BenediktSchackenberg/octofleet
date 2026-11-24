@@ -288,8 +288,9 @@ NODE_ID=""
 # Optional: Inventory push interval in seconds (default: 60 min, spread over the interval)
 PUSH_INTERVAL=3600
 
-# Optional: Log file location
-LOG_FILE="/var/log/octofleet-agent.log"
+# Optional: log level of all components (debug, info, warn, error), and of one component
+LOG_LEVEL=info
+#LOG_LEVEL_UPDATES=debug
 ```
 
 | Variable | Description | Default | Required |
@@ -299,12 +300,14 @@ LOG_FILE="/var/log/octofleet-agent.log"
 | `NODE_ID` | Override node identifier | hostname | No |
 | `PUSH_INTERVAL` | Full inventory push interval (seconds). The push after the start comes a random 0–60 s after it, the first scheduled one at a random 50–150 % of the interval, then every interval ±10 %, so nodes started together do not push together. Jobs and *Collect inventory* push immediately. Older installs have `1800` in `config.env`, which stays (also when `install.sh` runs again) | `3600` | No |
 | `PUSH_RETRY_INTERVAL` | First retry of a failed inventory push (seconds), e.g. while the server is still starting after a reboot; doubles with every further failure up to `PUSH_INTERVAL`, plus 0–50 % random jitter so a large fleet does not retry in lockstep | `60` | No |
-| `LOG_FILE` | Path to log file | `/var/log/octofleet-agent.log` | No |
-| `LOG_LEVEL` | `debug` also logs the server's raw answer to a rejected inventory push | `info` | No |
+| `LOG_DIR` | Folder of the [logs](#logs), one file per component | `/var/log/octofleet-agent` | No |
+| `LOG_LEVEL` | Level of all components: `debug`, `info`, `warn` or `error`. `debug` logs more, e.g. the server's raw answer to a rejected inventory push | `info` | No |
+| `LOG_LEVEL_<COMPONENT>` | Level of one component, the name in capitals: `LOG_LEVEL_AGENT`, `_INVENTORY`, `_JOBS`, `_UPDATES`, `_REMEDIATION`, `_SECURITY`, `_LIVEDATA`, `_REMOTETOOLS`, `_SELFUPDATE` | `LOG_LEVEL` | No |
+| `LOG_FILE` | The single log file of earlier agents; moved into `LOG_DIR` at the first start (see [Logs](#logs)) | `/var/log/octofleet-agent.log` | No |
 | `DIAG_DIR` | Root-only folder for diagnosis files (see [Inventory push errors](#inventory-push-errors)) | `/opt/octofleet-agent/diagnostics` | No |
 | `PUSH_FAIL_LOG_INTERVAL` | A push that keeps failing for the same reason is logged again at most this often (seconds) | `3600` | No |
-| `LOG_ROTATE_COUNT` | Rotated log files kept (compressed) | `8` | No |
-| `LOG_ROTATE_MAXSIZE` | Rotate earlier than weekly when the log is larger (logrotate size, e.g. `10M`) | `10M` | No |
+| `LOG_ROTATE_COUNT` | Rotated files kept per component (compressed) | `4` | No |
+| `LOG_ROTATE_MAXSIZE` | Rotate earlier than weekly when a file is larger (logrotate size, e.g. `2M`) | `2M` | No |
 | `LOGROTATE_FILE` | The agent's logrotate configuration; empty turns it off | `/etc/logrotate.d/octofleet-agent` | No |
 | `LONG_POLL` | `false` turns the [long-poll](#long-poll) off: the agent then polls on its timers as before | `true` | No |
 | `LONG_POLL_SECONDS` | How long the server may hold a long-poll (seconds; the server caps it at its `AGENT_WAIT_SECONDS`). Lower it behind a proxy that closes idle requests sooner | `55` | No |
@@ -335,24 +338,57 @@ The live data push (every 5 s) and the inventory push are not polls and stay as 
 
 With every inventory push the agent sends its available package updates (apt, dnf, yum, pacman): package name, new and installed version, architecture, repository, security flag (and severity on dnf/yum), plus the distribution release from `/etc/os-release` (`id`, `versionId`, `idLike`, `name`, `buildId`). Rolling releases without a version (Arch, CachyOS) show their `BUILD_ID` (`rolling`) as the OS version. On pacman systems the update search needs **pacman-contrib** (`checkupdates`); `arch-audit` adds security flags. The server keys the first time it saw each package version by that release; see [Patch Management](PATCH-MANAGEMENT.md#linux-nodes). Agents without the release (older versions) still report their updates, but they are stored per package version only after the agent update.
 
+### Logs
+
+The agent writes one log per component to `/var/log/octofleet-agent/` (`LOG_DIR`), with the same component names as the Windows agent ([#330](https://github.com/BenediktSchackenberg/octofleet/issues/330)):
+
+| File | What it logs |
+|---|---|
+| `Agent.log` | Start and configuration, long-poll, logrotate – and **every warning and error of all components**: look here first |
+| `Inventory.log` | Inventory collection and push, rejected pushes |
+| `Jobs.log` | Job polling, each job's start (name, type) and end (result, exit code, duration, last output line on failure) |
+| `Updates.log` | Update searches, installations and reboots: per job what was refreshed, installed, not installed, and the reboot |
+| `Remediation.log` | Service reconciliation |
+| `Security.log` | File audit |
+| `LiveData.log` | Live data (debug only) |
+| `RemoteTools.log` | Terminal commands, screen capture |
+| `SelfUpdate.log` | Self-update from the Octofleet server |
+
+A file appears with its first line. Each line has the time in ISO 8601 with milliseconds and the time zone offset, the level and the component:
+
+```
+2026-11-15T16:26:04.561+01:00 INFO [Updates] job=8f2c… patch_install: Installed updates: 1 of 1 (nginx)
+```
+
+```bash
+sudo tail -f /var/log/octofleet-agent/Updates.log   # one component
+sudo tail -f /var/log/octofleet-agent/*.log         # all at once
+sudo grep -h ' ERROR ' /var/log/octofleet-agent/*.log
+```
+
+- **Level:** `info` by default. `LOG_LEVEL` sets all components, `LOG_LEVEL_<COMPONENT>` one of them (e.g. `LOG_LEVEL_UPDATES=debug` in `config.env`, then `sudo systemctl restart octofleet-agent`). The start line in `Agent.log` names the levels in use.
+- **Journal:** every line also goes to the journal (`journalctl -u octofleet-agent`), with its component tag, so `systemctl status` still shows the last lines.
+- **Cost:** a line is written with bash built-ins, without starting a process (the old log started `date` and `tee` for each line).
+- **Upgrade:** at the first start the old single file `/var/log/octofleet-agent.log` moves into the folder as `octofleet-agent.log.0` (its rotated copies keep their names there), and the old path becomes a link to `Agent.log`, so scripts that read it keep working. The moved files are not rotated any more and are removed on uninstall.
+
 ### Log Rotation
 
-The agent writes `LOG_FILE` and rotates it with logrotate: `install.sh` adds `/etc/logrotate.d/octofleet-agent`, and the service checks it at every start, so also after a self-update. It rotates weekly, or earlier at `LOG_ROTATE_MAXSIZE`, keeps `LOG_ROTATE_COUNT` compressed files and uses `copytruncate`, because the agent keeps appending to the same file.
+The agent rotates its logs with logrotate: `install.sh` adds `/etc/logrotate.d/octofleet-agent` for `/var/log/octofleet-agent/*.log`, and the service checks it at every start, so also after a self-update (an older agent's configuration for the single file is replaced). Each component's file rotates weekly, or earlier at `LOG_ROTATE_MAXSIZE` (2 MB), and keeps `LOG_ROTATE_COUNT` (4) compressed files – at most about 10 MB per component, most stay far below. It uses `copytruncate`, because background parts of the agent keep appending to the same file. logrotate runs only once a day; after writing `LOG_ROTATE_MAXSIZE` the agent runs it itself (with its own state file `/var/log/octofleet-agent/.logrotate.status`), so a file stays below twice that size even with debug on.
 
 - **Your own settings:** the file's first line marks it as managed by the agent, which then keeps it current. Delete that line to keep your own version: the agent no longer touches the file.
 - **logrotate not installed:** the agent logs a warning at every start and adds the file once logrotate is installed. The journal (`journalctl -u octofleet-agent`) is rotated by journald either way.
-- **Uninstalling** (`uninstall.sh` or the console) removes the log, the rotated files and the managed configuration; a configuration you took over stays.
+- **Uninstalling** (`uninstall.sh` or the console) removes the log folder, the old log path and the managed configuration; a configuration you took over stays.
 - **Manual setup:** run `sudo /opt/octofleet-agent/agent.sh logrotate` once.
 
 ### Inventory Push Errors
 
-A failed inventory push is logged as one sentence, for example:
+A failed inventory push is logged as one sentence in `Inventory.log` (and, as an error, in `Agent.log`), for example:
 
 ```
-[2026-11-23 14:02:11] [ERROR] Inventory push failed: the server could not read it, invalid JSON at character 150206 (after ""usedBytes": "). The inventory is saved in /opt/octofleet-agent/diagnostics/last-failed-push.json.
+2026-11-23T14:02:11.204+01:00 ERROR [Inventory] Inventory push failed: the server could not read it, invalid JSON at character 150206 (after ""usedBytes": "). The inventory is saved in /opt/octofleet-agent/diagnostics/last-failed-push.json.
 ```
 
-The same failure is repeated at most every `PUSH_FAIL_LOG_INTERVAL` seconds as *Inventory push still failing (n times since …)*; a different reason is logged right away, and *Inventory pushed successfully again, after n failed attempt(s)* ends it. Other reasons: *server not reachable (…)*, *the server refused the agent key (HTTP 403)*, *server error (HTTP 500)*, *rejected by the server (HTTP 422): … (field …)*. Set `LOG_LEVEL=debug` in `config.env` to log the server's raw answer as well.
+The same failure is repeated at most every `PUSH_FAIL_LOG_INTERVAL` seconds as *Inventory push still failing (n times since …)*; a different reason is logged right away, and *Inventory pushed successfully again, after n failed attempt(s)* ends it. Other reasons: *server not reachable (…)*, *the server refused the agent key (HTTP 403)*, *server error (HTTP 500)*, *rejected by the server (HTTP 422): … (field …)*. Set `LOG_LEVEL_INVENTORY=debug` (or `LOG_LEVEL=debug`) in `config.env` to log the server's raw answer as well.
 
 Before sending, the agent checks every section of the inventory (hardware, software, performance, …) with `jq`. A section whose collector produced invalid JSON is left out – the server keeps that section's last value – and the rest is sent; the log names the section. Files in `DIAG_DIR` (`/opt/octofleet-agent/diagnostics`, mode 700, files 600, so only root can read them):
 

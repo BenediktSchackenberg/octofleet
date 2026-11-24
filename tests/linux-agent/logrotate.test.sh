@@ -13,8 +13,8 @@ eval "$(awk '/^# --- systemd helpers/,/^# --- end systemd helpers ---$/' "$AGENT
 for fn in logrotate_config ensure_logrotate; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
-info() { printf 'INFO %s\n' "$*" >> "$WORK/log"; }
-warn() { printf 'WARN %s\n' "$*" >> "$WORK/log"; }
+info() { shift; printf 'INFO %s\n' "$*" >> "$WORK/log"; }  # info COMPONENT MESSAGE
+warn() { shift; printf 'WARN %s\n' "$*" >> "$WORK/log"; }
 
 failures=0
 check() {  # check DESCRIPTION CONDITION...
@@ -25,36 +25,37 @@ check() {  # check DESCRIPTION CONDITION...
 WORK=$(mktemp -d); export WORK
 TOOLS="$WORK/tools"; mkdir -p "$TOOLS" "$WORK/etc"
 REAL_LOGROTATE=$(command -v logrotate || true)
-for tool in bash sh cat grep chmod dirname date printf stat rm mv sed head mktemp ls; do ln -s "$(command -v "$tool")" "$TOOLS/$tool"; done
+for tool in bash sh cat grep chmod dirname date printf stat rm mv sed head mktemp ls mkdir tr gzip; do ln -s "$(command -v "$tool")" "$TOOLS/$tool"; done
 printf '#!/bin/sh\nexit 0\n' > "$TOOLS/logrotate"; chmod +x "$TOOLS/logrotate"
 PATH="$TOOLS"
 unset INVOCATION_ID
-LOG_FILE=/var/log/octofleet-agent.log
+LOG_DIR=/var/log/octofleet-agent
 LOGROTATE_FILE="$WORK/etc/octofleet-agent"
-LOG_ROTATE_COUNT=8
-LOG_ROTATE_MAXSIZE=10M
+eval "$(grep -E '^LOG_ROTATE_(COUNT|MAXSIZE)=' "$AGENT")"  # the defaults
 reset() { rm -f "$LOGROTATE_FILE" "$WORK/log" "$WORK/calls"; }
 
-# No configuration yet: installed for LOG_FILE, readable for logrotate
+check "defaults: 4 files of 2 MB per component" test "$LOG_ROTATE_COUNT:$LOG_ROTATE_MAXSIZE" = 4:2M
+
+# No configuration yet: installed for LOG_DIR/*.log, readable for logrotate
 reset
 ensure_logrotate
 check "installed when missing" test -f "$LOGROTATE_FILE"
 check "first line is the marker" bash -c 'head -1 "$1" | grep -q "^# octofleet-agent: managed"' _ "$LOGROTATE_FILE"
-check "rotates LOG_FILE" grep -q "^/var/log/octofleet-agent.log {" "$LOGROTATE_FILE"
-check "weekly, maxsize, rotate count, copytruncate" bash -c 'grep -q "weekly" "$1" && grep -q "maxsize 10M" "$1" && grep -q "rotate 8" "$1" && grep -q "copytruncate" "$1"' _ "$LOGROTATE_FILE"
+check "rotates every component's file (wildcard)" grep -qxF "/var/log/octofleet-agent/*.log {" "$LOGROTATE_FILE"
+check "not the old single file" bash -c '! grep -q "octofleet-agent.log {" "$1"' _ "$LOGROTATE_FILE"
+check "weekly, maxsize, rotate count, copytruncate" bash -c 'grep -q "weekly" "$1" && grep -q "maxsize 2M" "$1" && grep -q "rotate 4" "$1" && grep -q "copytruncate" "$1"' _ "$LOGROTATE_FILE"
 check "mode 644" test "$(stat -c %a "$LOGROTATE_FILE")" = 644
-check "logged" grep -q "INFO logrotate: .*(weekly or at 10M, 8 files kept)" "$WORK/log"
+check "logged" grep -qF "INFO logrotate: $LOGROTATE_FILE for /var/log/octofleet-agent/*.log (weekly or at 2M, 4 files kept)" "$WORK/log"
 
 # Unchanged: not written again
 rm -f "$WORK/log"
 ensure_logrotate
 check "unchanged: nothing logged" test ! -e "$WORK/log"
 
-# Managed file with other settings (e.g. an older agent): updated
-LOG_ROTATE_COUNT=4
+# Managed file of an older agent (the single file /var/log/octofleet-agent.log): updated to the wildcard
+printf '# octofleet-agent: managed - delete this line to keep your own changes\n/var/log/octofleet-agent.log {\n    weekly\n    maxsize 10M\n    rotate 8\n}\n' > "$LOGROTATE_FILE"
 ensure_logrotate
-check "managed file updated" grep -q "rotate 4" "$LOGROTATE_FILE"
-LOG_ROTATE_COUNT=8
+check "older agent's file updated" bash -c 'grep -qxF "/var/log/octofleet-agent/*.log {" "$1" && grep -q "rotate 4" "$1"' _ "$LOGROTATE_FILE"
 
 # The administrator's own file (marker line deleted): left alone
 reset
@@ -94,9 +95,17 @@ check "systemd: staged file removed after failure" bash -c '! ls "$1"/octofleet-
 if [ -n "$REAL_LOGROTATE" ]; then
     reset
     ensure_logrotate
-    sed -i "s|^/var/log/octofleet-agent.log {|$WORK/agent.log {|; s/^    su root root$//" "$LOGROTATE_FILE"
-    : > "$WORK/agent.log"
+    mkdir -p "$WORK/logs"
+    sed -i "s|^/var/log/octofleet-agent/\*.log {|$WORK/logs/*.log {|; s/^    su root root$//" "$LOGROTATE_FILE"
+    : > "$WORK/logs/Agent.log"
     check "logrotate accepts the configuration" bash -c '"$1" -d -s "$2" "$3" >/dev/null 2>&1' _ "$REAL_LOGROTATE" "$WORK/state" "$LOGROTATE_FILE"
+    # each component on its own: only the file above maxsize is rotated, the others stay
+    head -c 3000000 /dev/zero | tr '\0' 'x' > "$WORK/logs/Updates.log"
+    echo "small" > "$WORK/logs/Jobs.log"
+    "$REAL_LOGROTATE" -s "$WORK/state" "$LOGROTATE_FILE" >/dev/null 2>&1
+    check "the large file is rotated at maxsize" bash -c '[ -f "$1/Updates.log.1" ] && [ ! -s "$1/Updates.log" ]' _ "$WORK/logs"
+    check "the small files stay" bash -c '[ "$(cat "$1/Jobs.log")" = small ] && [ ! -e "$1/Jobs.log.1" ]' _ "$WORK/logs"
+    check "logrotate leaves the moved old log alone" bash -c 'echo old > "$1/octofleet-agent.log.0"; "$2" -f -s "$3" "$4" >/dev/null 2>&1; [ "$(cat "$1/octofleet-agent.log.0")" = old ] && [ ! -e "$1/octofleet-agent.log.0.1" ]' _ "$WORK/logs" "$REAL_LOGROTATE" "$WORK/state" "$LOGROTATE_FILE"
 else
     echo "SKIP  logrotate not installed: configuration not validated"
 fi
