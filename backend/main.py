@@ -74,6 +74,7 @@ import msrc
 import node_reboot
 import node_removal
 import password_policy
+import pending_registration
 import remediation
 import retention
 import vulnerability
@@ -185,6 +186,7 @@ async def lifespan(app: FastAPI):
     await retention.apply_on_startup(db_pool)
     await monitoring_defaults.ensure_schema(db_pool)
     await event_counts.ensure_schema(db_pool)
+    await pending_registration.ensure_schema(db_pool)
     # the stored log level and access log (defaults: info, every request)
     await logging_config.load(db_pool)
     # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)

@@ -39,36 +39,70 @@ public class PendingNodeRegistration : BackgroundService
 
         // Determine backend URL
         var backendUrl = config.DiscoveryUrl ?? "http://192.168.0.5:8080";
-        
-        // If we already have a pending ID, skip registration and just poll
-        if (!string.IsNullOrEmpty(config.PendingId))
+
+        while (!stoppingToken.IsCancellationRequested)
         {
-            _logger.LogInformation("Already registered as pending (ID: {PendingId}), polling for approval...", 
-                config.PendingId);
-            await PollForApprovalAsync(backendUrl, config.PendingId, stoppingToken);
-            return;
+            config = ServiceConfig.Load();
+            var pendingId = config.PendingId;
+            var secret = RevealSecret(config.PendingSecret);
+
+            // A pending ID without secret comes from an older agent version: the server no longer
+            // hands out its configuration, so register again.
+            if (!PendingRegistrationProtocol.CanPoll(pendingId, secret))
+            {
+                var registration = await RegisterAsPendingAsync(backendUrl, stoppingToken);
+                if (registration == null)
+                {
+                    _logger.LogError("Failed to register as pending node. Manual configuration required.");
+                    return;
+                }
+                if (!PendingRegistrationProtocol.CanPoll(registration.PendingId, registration.RegistrationSecret))
+                {
+                    // The secret goes only to the first registration of a machine
+                    _logger.LogWarning("This machine is already registered and waiting for approval (ID: {PendingId}), " +
+                        "but not by this installation. Reject that entry in the web UI; registering again in 5 minutes.",
+                        registration.PendingId);
+                    ConsoleUI.SetStatus("Pending", "Already registered by another installation");
+                    await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                    continue;
+                }
+
+                // Save pending ID and secret so we can resume after restart
+                pendingId = registration.PendingId!;
+                secret = registration.RegistrationSecret!;
+                config.PendingId = pendingId;
+                config.PendingSecret = ProtectSecret(secret);
+                config.Save();
+                _logger.LogInformation("Registered as pending node (ID: {PendingId}). Waiting for admin approval...", pendingId);
+            }
+            else
+            {
+                _logger.LogInformation("Already registered as pending (ID: {PendingId}), polling for approval...", pendingId);
+            }
+            ConsoleUI.SetStatus("Pending", "Awaiting admin approval in web UI");
+
+            if (!await PollForApprovalAsync(backendUrl, pendingId!, secret!, stoppingToken))
+                return;
+
+            // The registration is lost (unknown ID, secret used or invalid): register again
+            _logger.LogWarning("Registration {PendingId} is no longer valid, registering again", pendingId);
+            config = ServiceConfig.Load();
+            config.PendingId = null;
+            config.PendingSecret = null;
+            config.Save();
+            await Task.Delay(PollIntervalMs, stoppingToken);
         }
-
-        // Register as pending
-        var pendingId = await RegisterAsPendingAsync(backendUrl, stoppingToken);
-        if (string.IsNullOrEmpty(pendingId))
-        {
-            _logger.LogError("Failed to register as pending node. Manual configuration required.");
-            return;
-        }
-
-        // Save pending ID so we can resume after restart
-        config.PendingId = pendingId;
-        config.Save();
-
-        _logger.LogInformation("Registered as pending node (ID: {PendingId}). Waiting for admin approval...", pendingId);
-        ConsoleUI.SetStatus("Pending", "Awaiting admin approval in web UI");
-
-        // Poll for approval
-        await PollForApprovalAsync(backendUrl, pendingId, stoppingToken);
     }
 
-    private async Task<string?> RegisterAsPendingAsync(string backendUrl, CancellationToken ct)
+    private static string? RevealSecret(string? stored) =>
+        stored != null && stored.StartsWith(AgentKeyProtection.Prefix, StringComparison.Ordinal)
+            ? AgentKeyProtection.Unprotect(stored)
+            : stored;
+
+    private static string ProtectSecret(string secret) =>
+        AgentKeyProtection.CanProtect ? AgentKeyProtection.Protect(secret) : secret;
+
+    private async Task<RegistrationResponse?> RegisterAsPendingAsync(string backendUrl, CancellationToken ct)
     {
         try
         {
@@ -90,8 +124,7 @@ public class PendingNodeRegistration : BackgroundService
 
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<RegistrationResponse>(cancellationToken: ct);
-                return result?.PendingId;
+                return await response.Content.ReadFromJsonAsync<RegistrationResponse>(cancellationToken: ct);
             }
             else
             {
@@ -107,47 +140,49 @@ public class PendingNodeRegistration : BackgroundService
         return null;
     }
 
-    private async Task PollForApprovalAsync(string backendUrl, string pendingId, CancellationToken ct)
+    /// <summary>Polls until approved or rejected (false: done) or the registration is lost (true:
+    /// register again).</summary>
+    private async Task<bool> PollForApprovalAsync(string backendUrl, string pendingId, string secret, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var response = await _httpClient.GetAsync(
-                    $"{backendUrl}/api/v1/pending-nodes/{pendingId}/config",
-                    ct);
-
+                using var request = PendingRegistrationProtocol.ConfigRequest(backendUrl, pendingId, secret);
+                using var response = await _httpClient.SendAsync(request, ct);
+                ConfigResponse? result = null;
                 if (response.IsSuccessStatusCode)
+                    result = await response.Content.ReadFromJsonAsync<ConfigResponse>(cancellationToken: ct);
+
+                switch (PendingRegistrationProtocol.Classify(response.StatusCode, result?.Status, result?.Config != null))
                 {
-                    var result = await response.Content.ReadFromJsonAsync<ConfigResponse>(cancellationToken: ct);
-                    
-                    if (result?.Status == "approved" && result.Config != null)
-                    {
+                    case PendingRegistrationProtocol.PollOutcome.Approved:
                         _logger.LogInformation("Node approved! Applying configuration...");
-                        await ApplyConfigurationAsync(result.Config);
-                        return;
-                    }
-                    else if (result?.Status == "rejected")
-                    {
+                        await ApplyConfigurationAsync(result!.Config!);
+                        return false;
+                    case PendingRegistrationProtocol.PollOutcome.Rejected:
                         _logger.LogWarning("Node was rejected by admin. Manual configuration required.");
                         ConsoleUI.SetStatus("Rejected", "Node was rejected by admin");
-                        
+
                         // Clear pending ID
                         var config = ServiceConfig.Load();
                         config.PendingId = null;
+                        config.PendingSecret = null;
                         config.Save();
-                        return;
-                    }
-                    // else: still pending, continue polling
+                        return false;
+                    case PendingRegistrationProtocol.PollOutcome.RegisterAgain:
+                        return true;
+                    // Pending or Retry: continue polling
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 _logger.LogDebug("Error polling for approval: {Message}", ex.Message);
             }
 
             await Task.Delay(PollIntervalMs, ct);
         }
+        return false;
     }
 
     private async Task ApplyConfigurationAsync(ConfigData config)
@@ -166,6 +201,7 @@ public class PendingNodeRegistration : BackgroundService
             
             // Clear pending ID since we're now approved
             serviceConfig.PendingId = null;
+            serviceConfig.PendingSecret = null;
             
             serviceConfig.Save();
             
@@ -248,6 +284,7 @@ public class PendingNodeRegistration : BackgroundService
     {
         public string? Status { get; set; }
         public string? PendingId { get; set; }
+        public string? RegistrationSecret { get; set; }
         public string? Message { get; set; }
     }
 

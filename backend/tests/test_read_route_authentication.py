@@ -35,8 +35,9 @@ PUBLIC_READ_ROUTES = {
     ("GET", "/api/v1/pxe/autoinstall/{mac}/meta-data"),
     ("GET", "/api/v1/provisioning/linux-agent"),
     ("GET", "/api/v1/provisioning/autoinstall/{hostname}"),
-    # A node that registered itself polls here until an admin approves it; it only knows its
-    # pending ID (PendingNodeRegistration.cs)
+    # A node that registered itself polls here until an admin approves it; it has no key yet, only
+    # its pending ID and the one-time registration secret, which the route checks
+    # (PendingNodeRegistration.cs, pending_registration.py)
     ("GET", "/api/v1/pending-nodes/{pending_id}/config"),
     # The Windows agent downloads repository files without a key (PackageManager.cs); the file ID
     # is part of the package source URL
