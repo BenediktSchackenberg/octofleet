@@ -35,6 +35,8 @@ public class CategoryInventoryResult
 /// </summary>
 public static class InventoryCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(InventoryCollector));
+
     /// <summary>
     /// Collect all inventory data
     /// </summary>
@@ -50,6 +52,7 @@ public static class InventoryCollector
         // Run all collectors in parallel, each with a time limit: one that hangs or fails must not
         // hold back (or lose) the others
         var incomplete = new List<string>();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         var hardware = Limited("hardware", HardwareCollector.CollectAsync, incomplete);
         var software = Limited("software", SoftwareCollector.CollectAsync, incomplete);
         var hotfixes = Limited("hotfixes", HotfixCollector.CollectAsync, incomplete);
@@ -66,7 +69,16 @@ public static class InventoryCollector
         result.Security = security.Result;
         result.Browser = browser.Result;
         result.Network = network.Result;
-        if (incomplete.Count > 0) result.IncompleteSections = incomplete;
+        if (incomplete.Count > 0)
+        {
+            result.IncompleteSections = incomplete;
+            Log.Warning("Inventory collected in {Seconds:0.0} s without {Count} section(s), the server keeps their last data: {Sections}",
+                watch.Elapsed.TotalSeconds, incomplete.Count, string.Join("; ", incomplete));
+        }
+        else
+        {
+            Log.Information("Inventory collected in {Seconds:0.0} s", watch.Elapsed.TotalSeconds);
+        }
         return result;
     }
 
@@ -80,6 +92,7 @@ public static class InventoryCollector
     /// </summary>
     private static async Task<T?> Limited<T>(string section, Func<Task<T>> collect, List<string> incomplete) where T : class
     {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         var task = Task.Run(collect);
         if (await Task.WhenAny(task, Task.Delay(CollectorTimeout)) != task)
         {
@@ -89,10 +102,13 @@ public static class InventoryCollector
         }
         try
         {
-            return await task;
+            var data = await task;
+            Log.Debug("Inventory section {Section} collected in {Ms} ms", section, watch.ElapsedMilliseconds);
+            return data;
         }
         catch (Exception ex)
         {
+            Log.Debug(ex, "Inventory section {Section} failed", section);  // the summary in CollectFullAsync is a warning
             lock (incomplete) incomplete.Add($"{section}: {ex.GetType().Name}: {ex.Message}");
             return null;
         }
@@ -140,9 +156,11 @@ public static class InventoryCollector
                 data = await NetworkCollector.CollectAsync();
                 break;
             default:
+                Log.Warning("Unknown inventory category {Category}", category);
                 throw new ArgumentException($"Unknown inventory category: {category}");
         }
 
+        Log.Debug("Inventory category {Category} collected in {Ms:0} ms", category, (DateTimeOffset.UtcNow - timestamp).TotalMilliseconds);
         return new CategoryInventoryResult
         {
             Timestamp = timestamp.ToString("o"),

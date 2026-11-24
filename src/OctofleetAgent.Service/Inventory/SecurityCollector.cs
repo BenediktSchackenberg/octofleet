@@ -192,6 +192,8 @@ public class SecurityResult
 /// </summary>
 public static class SecurityCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(SecurityCollector));
+
     public static async Task<SecurityResult> CollectAsync()
     {
         var result = new SecurityResult();
@@ -245,9 +247,10 @@ public static class SecurityCollector
             // Also try Windows Defender specific
             result.WindowsDefender = GetDefenderStatus();
         }
-        catch
+        catch (Exception ex)
         {
-            // Security Center not available
+            // Security Center not available (e.g. Windows Server)
+            Log.Debug("Antivirus: Security Center (SecurityCenter2) not available: {Error}", ex.Message);
         }
 
         return result;
@@ -296,6 +299,7 @@ public static class SecurityCollector
         }
         catch (Exception ex)
         {
+            Log.Debug("Defender status not available: {Error}", ex.Message);
             return new DefenderStatus { Error = ex.Message };
         }
     }
@@ -348,9 +352,9 @@ public static class SecurityCollector
                 });
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore errors
+            Log.Warning("Firewall profiles not readable: {Error}", ex.Message);
         }
 
         return result;
@@ -418,9 +422,9 @@ public static class SecurityCollector
                 });
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore errors
+            Log.Warning("BitLocker volumes not readable: {Error}", ex.Message);
         }
 
         return result;
@@ -459,8 +463,9 @@ public static class SecurityCollector
                 });
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug("BitLocker WMI provider not available: {Error}", ex.Message);
             result.Available = false;
             result.Reason = "BitLocker is not installed";
         }
@@ -513,6 +518,7 @@ public static class SecurityCollector
         }
         catch (Exception ex)
         {
+            Log.Debug("TPM not readable: {Error}", ex.Message);
             return new TpmInfo { Error = ex.Message };
         }
     }
@@ -539,6 +545,7 @@ public static class SecurityCollector
         }
         catch (Exception ex)
         {
+            Log.Warning("UAC settings not readable: {Error}", ex.Message);
             return new UacInfo { Error = ex.Message };
         }
     }
@@ -577,8 +584,9 @@ public static class SecurityCollector
                 Enabled = output.Equals("True", StringComparison.OrdinalIgnoreCase)
             };
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug("Secure Boot not supported or not readable: {Error}", ex.Message);
             return new SecureBootInfo { Supported = false };
         }
     }
@@ -606,6 +614,7 @@ public static class SecurityCollector
         }
         catch (Exception ex)
         {
+            Log.Debug("Device Guard (Win32_DeviceGuard) not readable: {Error}", ex.Message);
             return new DeviceGuardInfo { Error = ex.Message };
         }
     }
@@ -631,9 +640,10 @@ public static class SecurityCollector
             if (key?.GetValue("VulnerableDriverBlocklistEnable") is int blocklist)
                 result.VulnerableDriverBlocklistEnable = blocklist;
         }
-        catch
+        catch (Exception ex)
         {
             // not readable: stays unknown
+            Log.Debug("App Control: VulnerableDriverBlocklistEnable not readable: {Error}", ex.Message);
         }
 
         string? ciToolError = null;
@@ -650,6 +660,7 @@ public static class SecurityCollector
         catch (Exception ex)
         {
             ciToolError = $"CiTool: {ex.Message}";  // e.g. timed out - fall back to the policy files
+            Log.Debug("App Control: {Error}; reading the policy files", ciToolError);
         }
 
         try
@@ -671,6 +682,7 @@ public static class SecurityCollector
         }
         catch (Exception ex)
         {
+            Log.Warning("App Control policies not readable: {Error}", ciToolError ?? ex.Message);
             result.Error = ciToolError ?? ex.Message;
         }
         return result;
@@ -741,6 +753,7 @@ public static class SecurityCollector
         }
         catch (Exception ex)
         {
+            Log.Warning("AppLocker policy not readable: {Error}", ex.Message);
             result.Error = ex.Message;
         }
         return result;
@@ -882,6 +895,7 @@ public static class SecurityCollector
         }
         catch (Exception ex)
         {
+            Log.Debug("Local admins via WMI failed, trying net localgroup: {Error}", ex.Message);
             result.Error = ex.Message;
             
             // Fallback: Try net localgroup command
@@ -928,7 +942,10 @@ public static class SecurityCollector
                     result.Error = null; // Clear error if fallback worked
                 }
             }
-            catch { }
+            catch (Exception fallbackEx)
+            {
+                Log.Warning("Local admins not readable (WMI: {Error}; net localgroup: {FallbackError})", ex.Message, fallbackEx.Message);
+            }
         }
 
         return result;

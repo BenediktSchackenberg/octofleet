@@ -110,5 +110,5 @@ Run the migration script to cleanly remove old "OpenClaw" agents:
 ## Troubleshooting
 
 - **Installation fails (1603)**: search the `/l*v` log for `WriteConfigFile` (invalid property) and `Return value 3` (the failing action).
-- **Service not starting**: `Get-Content "C:\Windows\Logs\Octofleet\service-*.log" -Tail 50`.
+- **Service not starting**: `Get-Content "C:\Windows\Logs\Octofleet\Agent.log" -Tail 50` (one log per component, see [AGENT-SETUP.md](../docs/AGENT-SETUP.md#logs)).
 - **Node does not appear**: check `SERVER_URL` and the key in *Add Device*; the server must be reachable from the machine (`Invoke-WebRequest https://octofleet.example.com/health`).

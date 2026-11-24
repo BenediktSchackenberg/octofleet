@@ -241,7 +241,7 @@ public class PatchScanner : BackgroundService
                         string title = update.Title?.ToString() ?? "Unknown Update";
                         string? kbId = ExtractKbId(title);
                         string? description = null;
-                        try { description = update.Description?.ToString(); } catch { }
+                        try { description = update.Description?.ToString(); } catch (Exception ex) { _logger.LogDebug("Update {Title}: Description not readable: {Error}", title, ex.Message); }
 
                         // Determine severity from MsrcSeverity
                         string severity = "moderate";
@@ -260,7 +260,7 @@ public class PatchScanner : BackgroundService
                                 };
                             }
                         }
-                        catch { }
+                        catch (Exception ex) { _logger.LogDebug("Update {Title}: MsrcSeverity not readable: {Error}", title, ex.Message); }
 
                         // Get categories
                         string category = "security";
@@ -286,18 +286,18 @@ public class PatchScanner : BackgroundService
                                 }
                             }
                         }
-                        catch { }
+                        catch (Exception ex) { _logger.LogDebug("Update {Title}: categories not readable: {Error}", title, ex.Message); }
 
                         // Get download size
                         long downloadSize = 0;
-                        try { downloadSize = (long)update.MaxDownloadSize; } catch { }
+                        try { downloadSize = (long)update.MaxDownloadSize; } catch (Exception ex) { _logger.LogDebug("Update {Title}: MaxDownloadSize not readable: {Error}", title, ex.Message); }
 
                         // Check if it's mandatory/auto-select
                         bool isMandatory = false;
-                        try { isMandatory = (bool)update.IsMandatory; } catch { }
+                        try { isMandatory = (bool)update.IsMandatory; } catch (Exception ex) { _logger.LogDebug("Update {Title}: IsMandatory not readable: {Error}", title, ex.Message); }
 
                         bool autoSelectOnWebSites = false;
-                        try { autoSelectOnWebSites = (bool)update.AutoSelectOnWebSites; } catch { }
+                        try { autoSelectOnWebSites = (bool)update.AutoSelectOnWebSites; } catch (Exception ex) { _logger.LogDebug("Update {Title}: AutoSelectOnWebSites not readable: {Error}", title, ex.Message); }
 
                         // Whether installing it needs a reboot: 0 never, 1 always, 2 can request one
                         string rebootBehavior = "unknown";
@@ -308,7 +308,7 @@ public class PatchScanner : BackgroundService
                                 0 => "never", 1 => "always", 2 => "can", _ => "unknown"
                             };
                         }
-                        catch { }
+                        catch (Exception ex) { _logger.LogDebug("Update {Title}: RebootBehavior not readable: {Error}", title, ex.Message); }
 
                         patches.Add(new PendingPatch
                         {
@@ -341,7 +341,7 @@ public class PatchScanner : BackgroundService
             {
                 if (session != null)
                 {
-                    try { Marshal.ReleaseComObject(session); } catch { }
+                    try { Marshal.ReleaseComObject(session); } catch (Exception ex) { _logger.LogDebug("Update session not released: {Error}", ex.Message); }
                 }
             }
 

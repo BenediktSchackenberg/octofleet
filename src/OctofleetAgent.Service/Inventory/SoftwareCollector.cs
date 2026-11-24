@@ -28,6 +28,8 @@ public class SoftwareResult
 /// </summary>
 public static class SoftwareCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(SoftwareCollector));
+
     private static readonly string[] UninstallKeys = new[]
     {
         @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -48,6 +50,7 @@ public static class SoftwareCollector
 
             // Also check HKCU for user-installed apps
             CollectFromKey(RegistryHive.CurrentUser, UninstallKeys[0], software, seen);
+            Log.Debug("Software: {Count} programs", software.Count);
 
             return new SoftwareResult
             {
@@ -125,15 +128,17 @@ public static class SoftwareCollector
                         ProductCode = productCode
                     });
                 }
-                catch
+                catch (Exception ex)
                 {
                     // Skip entries we can't read
+                    Log.Debug("Software entry {Key} skipped: {Error}", $"{hive}\\{keyPath}\\{subKeyName}", ex.Message);
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Skip keys we can't access
+            Log.Warning("Software: {Key} not readable: {Error}", $"{hive}\\{keyPath}", ex.Message);
         }
     }
     

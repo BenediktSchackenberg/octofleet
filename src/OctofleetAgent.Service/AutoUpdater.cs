@@ -174,8 +174,9 @@ public class AutoUpdater : BackgroundService
             
             return latestParts.Length > currentParts.Length;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning("Version {Latest} or {Current} is not a version number, no update: {Error}", latest, current, ex.Message);
             return false;
         }
     }
@@ -251,7 +252,8 @@ public class AutoUpdater : BackgroundService
             ConsoleUI.Log("ERR", $"Update failed: {ex.Message}");
             
             // Cleanup on failure
-            try { Directory.Delete(tempDir, true); } catch { }
+            try { Directory.Delete(tempDir, true); }
+            catch (Exception cleanupEx) { _logger.LogDebug("Update folder {Folder} not deleted: {Error}", tempDir, cleanupEx.Message); }
         }
     }
     

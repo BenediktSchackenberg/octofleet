@@ -46,6 +46,9 @@ public class ServiceConfig
     public bool UpdateFromServer { get; set; } = true;  // Check InventoryApiUrl for agent releases first
     public bool UpdateFallbackToGitHub { get; set; } = true;  // Use GitHub if the server has no release
 
+    // Logs per component in C:\Windows\Logs\Octofleet (format, level per component, rotation); see LogSettings
+    public LogSettings Logging { get; set; } = new();
+
     private static readonly JsonSerializerOptions LoadOptions = new()
     {
         PropertyNameCaseInsensitive = true

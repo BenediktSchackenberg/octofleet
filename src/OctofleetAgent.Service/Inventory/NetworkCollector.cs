@@ -74,6 +74,8 @@ public class NetworkResult
 /// </summary>
 public static class NetworkCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(NetworkCollector));
+
     public static async Task<NetworkResult> CollectAsync()
     {
         return await Task.Run(() =>
@@ -119,8 +121,9 @@ public static class NetworkCollector
 
             return listeners.OrderBy(l => l.Port).ToList();
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Open ports query failed: {Error}", ex.Message);
             return listeners;
         }
     }
@@ -157,8 +160,9 @@ public static class NetworkCollector
 
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Active connections query failed: {Error}", ex.Message);
             return result;
         }
     }
@@ -211,7 +215,11 @@ public static class NetworkCollector
                 {
                     niInfo.DhcpEnabled = ipProps.GetIPv4Properties()?.IsDhcpEnabled;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // Interfaces without IPv4 throw here
+                    Log.Debug("Network interface {Name}: no IPv4 properties: {Error}", ni.Name, ex.Message);
+                }
 
                 if (ni.OperationalStatus == OperationalStatus.Up)
                 {
@@ -226,7 +234,10 @@ public static class NetworkCollector
                             PacketsSent = stats.UnicastPacketsSent
                         };
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("Network interface {Name}: no IPv4 statistics: {Error}", ni.Name, ex.Message);
+                    }
                 }
 
                 interfaces.Add(niInfo);
@@ -234,8 +245,9 @@ public static class NetworkCollector
 
             return interfaces;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Network interfaces query failed after {Count} interface(s): {Error}", interfaces.Count, ex.Message);
             return interfaces;
         }
     }

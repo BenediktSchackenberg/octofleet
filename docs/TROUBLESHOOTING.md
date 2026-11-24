@@ -125,7 +125,7 @@ Get-Service OctofleetNodeAgent
 
 ### Symptoms
 - **Collect inventory** on the node page reports a failed job: `Inventory collection did not finish within 300 s (a WMI query or PowerShell call may hang on this machine)`
-- Some sections of the node (e.g. hardware or security) are not updated, and the agent log names them: `Scheduled inventory push #12 completed: Successfully pushed inventory (HTTP 200); left out: security: timed out after 180 s`
+- Some sections of the node (e.g. hardware or security) are not updated, and `Inventory.log` (and `Agent.log`) names them: `Inventory collected in 181.4 s without 1 section(s), the server keeps their last data: security: timed out after 180 s`
 
 ### Cause
 A WMI provider or a helper process (PowerShell, `net`, `netsh`) does not answer, for example because of a damaged WMI repository or a stuck provider host. The agent limits the time it waits:
@@ -140,7 +140,7 @@ A WMI provider or a helper process (PowerShell, `net`, `netsh`) does not answer,
 A collector that times out or fails is left out of the push, and the other sections are still pushed. A timed-out collection cannot be cancelled. It ends in the background, and the agent keeps running its other jobs.
 
 ### Solution
-1. Find the section in the agent log (see [Checking Logs](#checking-logs)) or in the job's output.
+1. Find the section in `Inventory.log` (see [Checking Logs](#checking-logs)) or in the job's output. With the `Inventory` component on `Debug`, the log has each section's duration and every WMI query or registry key that failed.
 2. Check WMI on the machine:
 
    ```powershell
@@ -259,9 +259,28 @@ Superseded updates can no longer be uninstalled afterwards. `/ResetBase` removes
 
 ### Windows
 
+The agent writes one log per component to `C:\Windows\Logs\Octofleet\` (`Agent.log`, `Inventory.log`, `Jobs.log`, `Updates.log`, `SelfUpdate.log`, ...; list and settings in [AGENT-SETUP.md](AGENT-SETUP.md#logs)). Start with `Agent.log`: it has every warning and error of all components. Open the files with **CMTrace** or **OneTrace** (warnings and errors highlighted, several logs merged by time); for more detail, set the component to `Debug` in `service-config.json` and restart the service:
+
+```json
+"Logging": { "Levels": { "Updates": "Debug" } }
+```
+
 ```powershell
-# Application logs
-Get-Content "C:\Windows\Logs\Octofleet\*.log" -Tail 100
+# Warnings and errors of all components
+Get-Content "C:\Windows\Logs\Octofleet\Agent.log" -Tail 100
+
+# Follow one component live
+Get-Content "C:\Windows\Logs\Octofleet\Updates.log" -Tail 20 -Wait
+
+# CMTrace lines as "date time [component] level message", without CMTrace
+Get-Content "C:\Windows\Logs\Octofleet\Inventory.log" -Tail 100 | ForEach-Object {
+    if ($_ -match '^<!\[LOG\[(.*)\]LOG\]!><time="([^"]+)" date="([^"]+)" component="([^"]+)".*type="(\d)"') {
+        '{0} {1} [{2}] {3} {4}' -f $Matches[3], $Matches[2].Substring(0, 12), $Matches[4], @('', 'INF', 'WRN', 'ERR')[[int]$Matches[5]], $Matches[1]
+    } else { $_ }
+}
+
+# Self-update script
+Get-Content "C:\Windows\Logs\Octofleet\update.log" -Tail 50
 
 # Windows Event Log - Application errors
 Get-WinEvent -FilterHashtable @{LogName='Application'; Level=2; StartTime=(Get-Date).AddHours(-1)} -MaxEvents 20 | 

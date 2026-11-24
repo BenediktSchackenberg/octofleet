@@ -160,6 +160,8 @@ public class HardwareResult
 /// </summary>
 public static class HardwareCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(HardwareCollector));
+
     public static async Task<HardwareResult> CollectAsync()
     {
         return await Task.Run(() =>
@@ -206,6 +208,7 @@ public static class HardwareCollector
         }
         catch (Exception ex)
         {
+            Log.Warning("CPU query (Win32_Processor) failed: {Error}", ex.Message);
             return new { error = ex.Message };
         }
     }
@@ -257,8 +260,9 @@ public static class HardwareCollector
                 Modules = modules
             };
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("RAM query (Win32_PhysicalMemory) failed: {Error}", ex.Message);
             return new RamInfo();
         }
     }
@@ -362,8 +366,10 @@ public static class HardwareCollector
 
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Disk query failed after {Disks} disk(s) and {Volumes} volume(s): {Error}",
+                result.Physical.Count, result.Volumes.Count, ex.Message);
             return result;
         }
     }
@@ -409,9 +415,10 @@ public static class HardwareCollector
                 if (count > 1) healthData.Remove(ModelKey(model));
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Storage WMI provider not available (older Windows, minimal installs)
+            Log.Debug("Disk health (MSFT_PhysicalDisk) not available: {Error}", ex.Message);
         }
         
         // Try to get temperature from MSFT_StorageReliabilityCounter
@@ -439,9 +446,10 @@ public static class HardwareCollector
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Reliability counters not available
+            Log.Debug("Disk reliability counters not available: {Error}", ex.Message);
         }
         
         return healthData;
@@ -540,6 +548,7 @@ public static class HardwareCollector
         }
         catch (Exception ex)
         {
+            Log.Warning("Mainboard query (Win32_BaseBoard) failed: {Error}", ex.Message);
             return new MainboardInfo { Error = ex.Message };
         }
     }
@@ -598,15 +607,17 @@ public static class HardwareCollector
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // Can't determine UEFI status
+                Log.Debug("UEFI status not readable: {Error}", ex.Message);
             }
             
             return result;
         }
         catch (Exception ex)
         {
+            Log.Warning("BIOS query (Win32_BIOS) failed: {Error}", ex.Message);
             return new BiosInfo { Error = ex.Message };
         }
     }
@@ -680,6 +691,7 @@ public static class HardwareCollector
         }
         catch (Exception ex)
         {
+            Log.Warning("Virtualization query failed: {Error}", ex.Message);
             return new VirtualizationInfo { Error = ex.Message };
         }
     }
@@ -726,8 +738,9 @@ public static class HardwareCollector
 
             return gpus;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("GPU query (Win32_VideoController) failed: {Error}", ex.Message);
             return gpus;
         }
     }
@@ -780,8 +793,9 @@ public static class HardwareCollector
 
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Network adapter query (Win32_NetworkAdapter) failed: {Error}", ex.Message);
             return result;
         }
     }
