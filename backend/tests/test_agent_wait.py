@@ -49,6 +49,18 @@ class HubTest(unittest.TestCase):
         self.assertLess(took, 1)
         self.assertEqual(hub.waiting(), 0)
 
+    def test_notify_from_a_worker_thread(self):
+        import threading
+        hub = AgentWaitHub()
+
+        async def scenario():
+            threading.Timer(0.1, lambda: hub.notify("NODE-A", "jobs")).start()  # a sync route
+            started = time.monotonic()
+            return await hub.wait(["NODE-A"], ALL, 10), time.monotonic() - started
+        answer, took = run(scenario())
+        self.assertEqual(answer, ["jobs"])
+        self.assertLess(took, 1)
+
     def test_not_for_another_node(self):
         hub = AgentWaitHub()
         answer, took = run(wait_and_notify(hub, ["NODE-A"], ALL, [("NODE-B", "jobs")], timeout=0.3))

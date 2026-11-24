@@ -49,13 +49,25 @@ def hold_seconds(requested: Optional[float] = None, limit: Optional[float] = Non
 
 
 class _Waiter:
-    __slots__ = ("keys", "kinds", "reasons", "event")
+    __slots__ = ("keys", "kinds", "reasons", "event", "loop")
 
     def __init__(self, keys: set, kinds: set):
         self.keys = keys
         self.kinds = kinds
         self.reasons: set = set()
         self.event = asyncio.Event()
+        self.loop = asyncio.get_running_loop()
+
+    def wake(self) -> None:
+        # notify may come from a worker thread (a sync route): the event belongs to the loop
+        try:
+            same_loop = asyncio.get_running_loop() is self.loop
+        except RuntimeError:
+            same_loop = False
+        if same_loop:
+            self.event.set()
+        else:
+            self.loop.call_soon_threadsafe(self.event.set)
 
 
 class AgentWaitHub:
@@ -78,7 +90,7 @@ class AgentWaitHub:
         self._closing = True
         for waiters in self._waiters.values():
             for waiter in waiters:
-                waiter.event.set()
+                waiter.wake()
 
     def notify(self, nodes, kind: str) -> None:
         """There is work of KIND for NODES (one id or a list of ids, any form a node is known by)."""
@@ -90,7 +102,7 @@ class AgentWaitHub:
             for waiter in self._waiters.get(key, ()):
                 if kind in waiter.kinds:
                     waiter.reasons.add(kind)
-                    waiter.event.set()
+                    waiter.wake()
                     delivered = True
             if not delivered:
                 self._pending.setdefault(key, {})[kind] = now
