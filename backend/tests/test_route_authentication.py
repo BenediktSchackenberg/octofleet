@@ -6,8 +6,8 @@ noticing; this test fails as soon as a write route has no authentication depende
 import unittest
 from uuid import uuid4
 
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from route_table import api_routes
 
 from auth import CurrentUser, get_current_user
 from dependencies import verify_api_key
@@ -97,7 +97,7 @@ class RouteAuthenticationTests(unittest.TestCase):
     def test_every_write_route_needs_credentials(self):
         open_routes = sorted(
             (method, route.path)
-            for route in app.routes if isinstance(route, APIRoute)
+            for route in api_routes(app)  # with the routes of the included routers
             for method in route.methods & {"POST", "PUT", "PATCH", "DELETE"}
             if not (_dependency_names(route.dependant, set()) & AUTH_DEPENDENCIES)
             and (method, route.path) not in OPEN_BY_DESIGN
