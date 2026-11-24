@@ -1,6 +1,7 @@
 'use client';
 import { useI18n } from "@/lib/i18n-context";
 import { apiClient } from "@/lib/api-client";
+import { apiWebSocketUrl } from "@/lib/api-config";
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -63,8 +64,7 @@ export default function ScreenViewerPage() {
   };
   
   const connectWebSocket = (sid: string, token: string) => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname.includes('localhost') ? 'localhost' : window.location.hostname}:8080/api/v1/screen/ws/${sid}?token=${token}`;
+    const wsUrl = apiWebSocketUrl(`/screen/ws/${sid}?token=${token}`);
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

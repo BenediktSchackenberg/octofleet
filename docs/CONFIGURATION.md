@@ -54,10 +54,16 @@ The scan history shows per scan how many advisories were downloaded and how many
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | *(empty)* | Backend API URL as seen by the **browser** (public/external URL). Empty: the browser uses the host it opened the UI on, port 8080. |
+| `BROWSER_API_URL` | *(empty)* | Backend URL as seen by the **browser**, without `/api` (e.g. `https://api.example.com`). Read when the page loads, so changing it needs only a container restart, not a rebuild. |
 | `API_URL` | `http://backend:8080` | Backend API URL for server-side rendering (Docker internal) |
 
-> **Note:** `NEXT_PUBLIC_API_URL` must be reachable from the user's browser. If you access Octofleet at `https://octofleet.example.com`, set this to `https://octofleet.example.com:8080` (or route through your reverse proxy).
+Where the browser sends API requests and WebSockets:
+
+1. `BROWSER_API_URL`, if set (or `NEXT_PUBLIC_API_URL`, if it was set when the image was **built** – at runtime it has no effect).
+2. UI opened on port **3000** (default `docker-compose.yml` without a reverse proxy): the same host on port **8080**, as before.
+3. Otherwise – UI opened through a reverse proxy, e.g. `https://octofleet.example.com` – the page's own address: `/api/v1/...` and `wss://octofleet.example.com/api/v1/.../ws/...`. The proxy forwards `/api/` to the backend (see [Reverse Proxy](#reverse-proxy-nginx-example)); no second port is needed.
+
+`BROWSER_API_URL` must be reachable from the user's browser. *Settings → System → API URL* shows the address in use.
 
 ---
 
@@ -150,8 +156,8 @@ API_KEY=your-production-api-key-here
 CORS_ORIGINS=https://octofleet.example.com
 NVD_API_KEY=your-nvd-api-key
 
-# Frontend
-NEXT_PUBLIC_API_URL=https://octofleet.example.com/api
+# Frontend: leave BROWSER_API_URL empty behind the reverse proxy below
+# (the UI then calls the API on its own address)
 ```
 
 ### Reverse Proxy (nginx example)
@@ -171,22 +177,30 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    # Backend API
+    # Backend API – no path after the port, so /api/v1/... reaches the backend unchanged
     location /api/ {
         proxy_pass http://localhost:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;          # live data and progress streams (server-sent events)
+        proxy_read_timeout 1h;
+        client_max_body_size 5g;      # package uploads (OCTOFLEET_MAX_FILE_SIZE)
     }
 
-    # WebSocket (terminal, screen sharing)
-    location /api/v1/terminal/ws/ {
+    # WebSockets: remote shell, screen sharing, terminal (browser and agent side)
+    location ~ ^/api/v1/(shell|screen|terminal)/ws/ {
         proxy_pass http://localhost:8080;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 1h;
     }
 }
 ```
+
+Open the UI at `https://octofleet.example.com` (not on port 3000) and leave `BROWSER_API_URL` empty: the UI then calls `https://octofleet.example.com/api/v1/...` and opens its WebSockets with `wss://` on the same address. Set `CORS_ORIGINS=https://octofleet.example.com`. Agents can keep using `http://<server>:8080` as long as that port stays reachable, or use `https://octofleet.example.com` as their API URL (with a certificate the node trusts).
 
 ---
 

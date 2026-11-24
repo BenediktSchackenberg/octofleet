@@ -4,7 +4,7 @@ import { useI18n } from "@/lib/i18n-context";
 import { useParams } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { API_URL } from '@/lib/api-config';
+import { API_URL, apiWebSocketUrl } from '@/lib/api-config';
 
 interface ShellMessage {
   type: 'info' | 'output' | 'error' | 'closed' | 'exit' | 'ping' | 'pong';
@@ -151,8 +151,7 @@ export default function ShellPage() {
   
   // Connect WebSocket
   const connectWebSocket = (sid: string, token: string) => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:8080/api/v1/shell/ws/${sid}`;
+    const wsUrl = apiWebSocketUrl(`/shell/ws/${sid}`);
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
