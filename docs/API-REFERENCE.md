@@ -177,7 +177,8 @@ all findings takes seconds with a few nodes and hours with 100,000: `node_vulner
 `vulnerability_fleet_summary` (fleet counts, top 10 CVEs and updates, last scan). A node is
 recalculated when its software inventory changes (only if it really changed), when a scan changes
 the vulnerability data of one of its packages, when one of its findings is marked as fixed, when
-its OS or kernel changes, when another node's change decides whether its findings count, and with
+its OS, OS build or kernel changes, when the MSRC sync changes the fixes of its Windows release,
+when another node's change decides whether its findings count, and with
 `POST /api/v1/vulnerabilities/summary/refresh`. The backend recalculates waiting nodes in the
 background; there is no timer. The fleet counts follow every node; the top lists are refreshed
 when no node is waiting (at most once a minute while many are) and checked against the cache at
@@ -200,10 +201,40 @@ backend start, after each scan and with the refresh button.
 | DELETE | `/api/v1/vulnerabilities/osv-cache` | JWT (`settings:write`) | Clear the OSV cache (409 while a scan runs) |
 | POST | `/api/v1/vulnerabilities/osv-cache/verify?sample=50` | JWT (`settings:write`) | Download a random sample (1–500) again, compare, correct differing entries |
 | GET | `/api/v1/vulnerabilities/scans` | API Key | List past scans |
+| GET | `/api/v1/vulnerabilities/msrc` | JWT (`vulnerabilities:read`) | Microsoft's Security Update Guide for Windows itself (see below): sync state, mapped releases, Windows nodes checked or not |
+| POST | `/api/v1/vulnerabilities/msrc/documents` | JWT (`settings:write`) | Import one monthly CVRF document (body: the JSON from `api.msrc.microsoft.com/cvrf/v3.0/cvrf/<id>`); replaces an earlier version of the month; 400 if it is no monthly document |
+
+**Windows itself (MSRC)**: findings from Microsoft's Security Update Guide have `match_source`
+`msrc`; their *package* is the Windows release (e.g. `Windows 11 Version 24H2 for x64-based
+Systems`) at the node's build, `fixed_version` the build with the fix, and the update
+(`fix_unit` / `software_name` in the per-node lists) the release's newest cumulative update, e.g.
+`KB5132061` / `10.0.26100.9974`. The per-node and per-update CVE lists have `exploited` (Microsoft
+reports the CVE as exploited) and list exploited CVEs first; `/node/{node_id}/groups` has
+`exploited_count` per update (groups with exploited CVEs first) and `windows_updates`:
+
+```json
+{"status": "checked", "reason": null, "os_build": "26100.9445",
+ "product": "Windows 11 Version 24H2 for x64-based Systems",
+ "latest_kb": "KB5132061", "latest_build": "10.0.26100.9974", "up_to_date": false}
+```
+
+`status` is `unknown` with `reason` `no_build` (no build with update revision reported),
+`unsupported_release` (no mapped release for this build and edition) or `no_data` (nothing synced
+for the release); `windows_updates` is `null` for other nodes. `GET /api/v1/vulnerabilities/msrc`:
+
+```json
+{"enabled": true, "history_months": 24, "checked_at": "…", "succeeded_at": "…", "error": null,
+ "documents": 24, "fixes": 254000, "newest_document": "2026-11-10T08:00:00+00:00",
+ "releases": [{"build": 26100, "server": false, "product_id": "12390",
+               "product": "Windows 11 Version 24H2 for x64-based Systems"}, …],
+ "windows_nodes": {"checked": 412, "unknown": {"no_build": 3, "unsupported_release": 1, "no_data": 0}}}
+```
 
 **CVE lookup** (`GET /api/v1/vulnerabilities/cves/{cve_id}`, any case) uses only what the scans
-stored. A CVE is *known* when a scan matched it to an installed software version at some point
-(legacy keyword hits do not count); an unknown CVE is `404 CVE unknown to Octofleet`. A known CVE
+and the MSRC sync stored. A CVE is *known* when a scan matched it to an installed software version
+at some point (legacy keyword hits do not count) or Microsoft lists a fix for a mapped Windows
+release; an unknown CVE is `404 CVE unknown to Octofleet`. `exploited` is true when Microsoft
+reports the CVE as exploited. A known CVE
 that affects no node now (e.g. every affected version was updated) has `affected_nodes: 0` and an
 empty `nodes` list. Affected nodes are counted like everywhere else: findings marked as fixed and
 packages of older, not running kernels are left out.

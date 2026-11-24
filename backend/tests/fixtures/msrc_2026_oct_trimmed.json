@@ -1,0 +1,1134 @@
+{
+ "DocumentTitle": {
+  "Value": "October 2026 Security Updates"
+ },
+ "DocumentType": {
+  "Value": "Security Update"
+ },
+ "DocumentTracking": {
+  "Identification": {
+   "ID": {
+    "Value": "2026-Oct"
+   },
+   "Alias": {
+    "Value": "2026-Oct"
+   }
+  },
+  "Status": 2,
+  "Version": "1.0",
+  "RevisionHistory": [
+   {
+    "Number": "5538",
+    "Date": "2026-11-24T01:27:08",
+    "Description": {
+     "Value": "October 2026 Security Updates"
+    }
+   }
+  ],
+  "InitialReleaseDate": "2026-10-13T07:00:00",
+  "CurrentReleaseDate": "2026-11-24T01:27:08"
+ },
+ "ProductTree": {
+  "FullProductName": [
+   {
+    "ProductID": "11923",
+    "CPE": "cpe:2.3:o:microsoft:windows_server_2022:*:*:*:*:*:*:*:*",
+    "Value": "Windows Server 2022"
+   },
+   {
+    "ProductID": "12390",
+    "CPE": "cpe:2.3:o:microsoft:windows_11_24H2:*:*:*:*:*:*:x64:*",
+    "Value": "Windows 11 Version 24H2 for x64-based Systems"
+   },
+   {
+    "ProductID": "12436",
+    "CPE": "cpe:2.3:o:microsoft:windows_server_2025:*:*:*:*:*:*:*:*",
+    "Value": "Windows Server 2025"
+   }
+  ]
+ },
+ "Vulnerability": [
+  {
+   "Title": {
+    "Value": "Windows Update Service Elevation of Privilege Vulnerability"
+   },
+   "Notes": [
+    {
+     "Title": "Description",
+     "Type": 2,
+     "Ordinal": "0",
+     "Value": "<p>Use after free in Windows Update Service allows an authorized attacker to elevate privileges locally.</p>\n"
+    }
+   ],
+   "DiscoveryDate": "0001-01-01T00:00:00",
+   "DiscoveryDateSpecified": false,
+   "ReleaseDate": "0001-01-01T00:00:00",
+   "ReleaseDateSpecified": false,
+   "CVE": "CVE-2026-100200",
+   "ProductStatuses": [
+    {
+     "ProductID": [
+      "12390",
+      "12436"
+     ],
+     "Type": 3
+    }
+   ],
+   "Threats": [
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"
+     },
+     "Type": 1,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    }
+   ],
+   "CVSSScoreSets": [
+    {
+     "BaseScore": 7.0,
+     "TemporalScore": 6.1,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12390"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 7.0,
+     "TemporalScore": 6.1,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12436"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    }
+   ],
+   "Remediations": [
+    {
+     "Description": {
+      "Value": "5127648"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+     "Supercedence": "5124008",
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.9711"
+    },
+    {
+     "Description": {
+      "Value": "5126646"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126646",
+     "Supercedence": "5122871",
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.33650"
+    }
+   ],
+   "Ordinal": "1587",
+   "RevisionHistory": [
+    {
+     "Number": "1.0",
+     "Date": "2026-10-13T07:00:00",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    }
+   ]
+  },
+  {
+   "Title": {
+    "Value": "Windows Error Reporting Elevation of Privilege Vulnerability"
+   },
+   "Notes": [
+    {
+     "Title": "Description",
+     "Type": 2,
+     "Ordinal": "0",
+     "Value": "<p>Heap-based buffer overflow in Windows Error Reporting allows an authorized attacker to elevate privileges locally.</p>\n"
+    }
+   ],
+   "DiscoveryDate": "0001-01-01T00:00:00",
+   "DiscoveryDateSpecified": false,
+   "ReleaseDate": "0001-01-01T00:00:00",
+   "ReleaseDateSpecified": false,
+   "CVE": "CVE-2026-69354",
+   "ProductStatuses": [
+    {
+     "ProductID": [
+      "11923",
+      "12390",
+      "12436"
+     ],
+     "Type": 3
+    }
+   ],
+   "Threats": [
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"
+     },
+     "Type": 1,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    }
+   ],
+   "CVSSScoreSets": [
+    {
+     "BaseScore": 7.8,
+     "TemporalScore": 6.8,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "11923"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 7.8,
+     "TemporalScore": 6.8,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12390"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 7.8,
+     "TemporalScore": 6.8,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12436"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    }
+   ],
+   "Remediations": [
+    {
+     "Description": {
+      "Value": "5122882"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122882",
+     "Supercedence": "5120242",
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.20348.5622"
+    },
+    {
+     "Description": {
+      "Value": "5122871"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122871",
+     "Supercedence": "5120233",
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.33438"
+    },
+    {
+     "Description": {
+      "Value": "5124008"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5124008",
+     "Supercedence": "5121003",
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.9445"
+    }
+   ],
+   "Ordinal": "2536",
+   "RevisionHistory": [
+    {
+     "Number": "1.0",
+     "Date": "2026-10-13T07:00:00",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    }
+   ]
+  },
+  {
+   "Title": {
+    "Value": "Windows Shell Security Feature Bypass Vulnerability"
+   },
+   "Notes": [
+    {
+     "Title": "Description",
+     "Type": 2,
+     "Ordinal": "0",
+     "Value": "<p>Improper neutralization of special elements used in a command ('command injection') in Windows Shell allows an unauthorized attacker to bypass a security feature over a network.</p>\n"
+    }
+   ],
+   "DiscoveryDate": "0001-01-01T00:00:00",
+   "DiscoveryDateSpecified": false,
+   "ReleaseDate": "0001-01-01T00:00:00",
+   "ReleaseDateSpecified": false,
+   "CVE": "CVE-2026-96951",
+   "ProductStatuses": [
+    {
+     "ProductID": [
+      "11923",
+      "12390",
+      "12436"
+     ],
+     "Type": 3
+    }
+   ],
+   "Threats": [
+    {
+     "Description": {
+      "Value": "Security Feature Bypass"
+     },
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Security Feature Bypass"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Security Feature Bypass"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Publicly Disclosed:No;Exploited:Yes;Latest Software Release:Exploitation Detected"
+     },
+     "Type": 1,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    }
+   ],
+   "CVSSScoreSets": [
+    {
+     "BaseScore": 8.8,
+     "TemporalScore": 8.2,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+     "ProductID": [
+      "11923"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 8.8,
+     "TemporalScore": 8.2,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+     "ProductID": [
+      "12390"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 8.8,
+     "TemporalScore": 8.2,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+     "ProductID": [
+      "12436"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    }
+   ],
+   "Remediations": [
+    {
+     "Description": {
+      "Value": "5126655"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126655",
+     "Supercedence": "5122882",
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.20348.5761"
+    },
+    {
+     "Description": {
+      "Value": "5127648"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+     "Supercedence": "5124008",
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.9711"
+    },
+    {
+     "Description": {
+      "Value": "5126646"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126646",
+     "Supercedence": "5122871",
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.33650"
+    }
+   ],
+   "Ordinal": "3681",
+   "RevisionHistory": [
+    {
+     "Number": "1.0",
+     "Date": "2026-10-13T07:00:00",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "2.0",
+     "Date": "2026-10-26T07:00:00",
+     "Description": {
+      "Value": "<p>Added Edge software to the Security Updates table.  Customers that are running supported version of Edge are encouraged to update to the indicated version to be protected from this vulnerability.</p>\n"
+     }
+    }
+   ]
+  },
+  {
+   "Title": {
+    "Value": "Google: CVE-2026-111497 Buffer overflow vulnerability in the Brotli decoder"
+   },
+   "Notes": [
+    {
+     "Title": "Description",
+     "Type": 2,
+     "Ordinal": "0",
+     "Value": "<p>Out-of-bounds write in .NET allows an unauthorized attacker to elevate privileges over a network.</p>\n"
+    }
+   ],
+   "DiscoveryDate": "0001-01-01T00:00:00",
+   "DiscoveryDateSpecified": false,
+   "ReleaseDate": "0001-01-01T00:00:00",
+   "ReleaseDateSpecified": false,
+   "CVE": "CVE-2026-111497",
+   "ProductStatuses": [
+    {
+     "ProductID": [
+      "11923",
+      "12390",
+      "12436"
+     ],
+     "Type": 3
+    }
+   ],
+   "Threats": [
+    {
+     "Description": {},
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {},
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {},
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {},
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {},
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {},
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Publicly Disclosed:Yes;Exploited:No;Latest Software Release:Exploitation More Likely"
+     },
+     "Type": 1,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    }
+   ],
+   "CVSSScoreSets": [
+    {
+     "BaseScore": 8.1,
+     "TemporalScore": 7.1,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "11923"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 8.1,
+     "TemporalScore": 7.1,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12390"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 8.1,
+     "TemporalScore": 7.1,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12436"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    }
+   ],
+   "Remediations": [
+    {
+     "Description": {
+      "Value": "5131090"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5131090",
+     "Supercedence": "5126655",
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.20348.5870"
+    },
+    {
+     "Description": {
+      "Value": "5131080"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5131080",
+     "Supercedence": "5126646",
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.33822"
+    },
+    {
+     "Description": {
+      "Value": "5131077"
+     },
+     "URL": "",
+     "Supercedence": "5126646",
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "No"
+     },
+     "SubType": "Security Hotpatch Update",
+     "FixedBuild": "10.0.26100.33730"
+    },
+    {
+     "Description": {
+      "Value": "5132061"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5132061",
+     "Supercedence": "5127648",
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.9974"
+    },
+    {
+     "Description": {
+      "Value": "5132043"
+     },
+     "URL": "",
+     "Supercedence": "5127648",
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "No"
+     },
+     "SubType": "Security Hotpatch Update",
+     "FixedBuild": "10.0.26100.9911"
+    }
+   ],
+   "Ordinal": "2113",
+   "RevisionHistory": [
+    {
+     "Number": "1.0",
+     "Date": "2026-10-25T07:00:00",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "6.0",
+     "Date": "2026-11-04T01:45:49",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "8.0",
+     "Date": "2026-11-13T20:42:11",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "7.0",
+     "Date": "2026-11-12T08:00:00",
+     "Description": {
+      "Value": "<p>Updated the Security Updates table to include affected Windows versions and the applicable November 2026 security updates. Microsoft recommends that customers install the applicable updates to be protected from this vulnerability.</p>\n"
+     }
+    },
+    {
+     "Number": "3.0",
+     "Date": "2026-10-30T01:02:42",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "1.1",
+     "Date": "2026-10-26T07:00:00",
+     "Description": {
+      "Value": "<p>Acknowledgement Updated</p>\n"
+     }
+    },
+    {
+     "Number": "9.0",
+     "Date": "2026-11-14T01:10:54",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "5.0",
+     "Date": "2026-11-01T14:59:32",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "10.0",
+     "Date": "2026-11-16T22:39:28",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "11.0",
+     "Date": "2026-11-19T08:00:00",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    },
+    {
+     "Number": "4.0",
+     "Date": "2026-10-31T01:13:53",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    }
+   ]
+  },
+  {
+   "Title": {
+    "Value": "Windows Error Reporting Elevation of Privilege Vulnerability"
+   },
+   "Notes": [
+    {
+     "Title": "Description",
+     "Type": 2,
+     "Ordinal": "0",
+     "Value": "<p>Heap-based buffer overflow in Windows Error Reporting allows an authorized attacker to elevate privileges over a network.</p>\n"
+    }
+   ],
+   "DiscoveryDate": "0001-01-01T00:00:00",
+   "DiscoveryDateSpecified": false,
+   "ReleaseDate": "0001-01-01T00:00:00",
+   "ReleaseDateSpecified": false,
+   "CVE": "CVE-2026-69363",
+   "ProductStatuses": [],
+   "Threats": [
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Elevation of Privilege"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 0,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Important"
+     },
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 3,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    },
+    {
+     "Description": {
+      "Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"
+     },
+     "Type": 1,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false
+    }
+   ],
+   "CVSSScoreSets": [
+    {
+     "BaseScore": 8.0,
+     "TemporalScore": 7.0,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "11923"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 8.0,
+     "TemporalScore": 7.0,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12390"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    },
+    {
+     "BaseScore": 8.0,
+     "TemporalScore": 7.0,
+     "EnvironmentalScore": 0,
+     "Vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+     "ProductID": [
+      "12436"
+     ],
+     "IsTemporalScoreFieldSpecified": false
+    }
+   ],
+   "Remediations": [
+    {
+     "Description": {
+      "Value": "5122882"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122882",
+     "Supercedence": "5120242",
+     "ProductID": [
+      "11923"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.20348.5622"
+    },
+    {
+     "Description": {
+      "Value": "5122871"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122871",
+     "Supercedence": "5120233",
+     "ProductID": [
+      "12436"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.33438"
+    },
+    {
+     "Description": {
+      "Value": "5124008"
+     },
+     "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5124008",
+     "Supercedence": "5121003",
+     "ProductID": [
+      "12390"
+     ],
+     "Type": 2,
+     "Date": "0001-01-01T00:00:00",
+     "DateSpecified": false,
+     "RestartRequired": {
+      "Value": "Yes"
+     },
+     "SubType": "Security Update",
+     "FixedBuild": "10.0.26100.9445"
+    }
+   ],
+   "Ordinal": "2537",
+   "RevisionHistory": [
+    {
+     "Number": "1.0",
+     "Date": "2026-10-13T07:00:00",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    }
+   ]
+  },
+  {
+   "Title": {
+    "Value": "smb: client: validate absolute native symlink targets before NT fixups"
+   },
+   "Notes": [
+    {
+     "Title": "Description",
+     "Type": 2,
+     "Ordinal": "0"
+    }
+   ],
+   "DiscoveryDate": "0001-01-01T00:00:00",
+   "DiscoveryDateSpecified": false,
+   "ReleaseDate": "0001-01-01T00:00:00",
+   "ReleaseDateSpecified": false,
+   "CVE": "CVE-2026-98318",
+   "ProductStatuses": [],
+   "Threats": [],
+   "CVSSScoreSets": [],
+   "Remediations": [],
+   "Ordinal": "3853",
+   "RevisionHistory": [
+    {
+     "Number": "1.0",
+     "Date": "2026-10-20T22:23:22",
+     "Description": {
+      "Value": "<p>Information published.</p>\n"
+     }
+    }
+   ]
+  }
+ ]
+}

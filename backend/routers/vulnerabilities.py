@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+import msrc
 import vulnerability_cache
 from auth import CurrentUser, require_user_permission
 from dependencies import get_pool, verify_api_key
@@ -127,6 +128,27 @@ async def refresh_vulnerability_summary(_: CurrentUser = Depends(require_user_pe
                             headers={"Retry-After": str(wait)})
     await vulnerability_cache.refresh_all(get_pool())
     return {"status": "started"}
+
+
+@router.get("/api/v1/vulnerabilities/msrc", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def msrc_status():
+    """Microsoft's Security Update Guide as the source for Windows itself: the background sync
+    (documents, stored fixes, last check, error), the mapped Windows releases, and how many
+    Windows nodes were checked or are unknown (no build, release not mapped, no data yet)."""
+    async with get_pool().acquire() as conn:
+        return await msrc.status(conn)
+
+
+@router.post("/api/v1/vulnerabilities/msrc/documents")
+async def import_msrc_document(document: Dict[str, Any] = Body(...),
+                               _: CurrentUser = Depends(require_user_permission("settings:write"))):
+    """Store one monthly CVRF document (as downloaded from api.msrc.microsoft.com/cvrf/v3.0/cvrf/<id>),
+    for installations without access to the API. It replaces an earlier version of the same month."""
+    try:
+        async with get_pool().acquire() as conn:
+            return await msrc.import_document(conn, document)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/api/v1/vulnerabilities/by-node", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])

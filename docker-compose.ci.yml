@@ -30,6 +30,8 @@ services:
       API_KEY: ci-test-api-key
       INVENTORY_API_KEY: ci-test-api-key
       NODE_REMOVAL_PROCESS_INTERVAL: "2"
+      # no downloads from Microsoft's Security Update Guide (tests import their own document)
+      MSRC_SYNC: "off"
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     volumes:
       # As in docker-compose.yml: the Linux agent the server offers for installs and updates

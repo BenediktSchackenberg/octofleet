@@ -36,7 +36,33 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 
 The NVD API key for vulnerability scanning is set in the UI under **Settings → NVD API Key** (get one free at [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key); without it, scanning is rate-limited). `docker-compose.yml` does not pass an `NVD_API_KEY` variable to the backend.
 
-The vulnerability scan checks Windows applications against NVD and Linux distribution packages against [OSV](https://osv.dev) (`api.osv.dev`); the backend needs outbound HTTPS to both. Short failures of either service (HTTP 429, 5xx, connection errors) are retried twice. A software version that still cannot be checked keeps its previous findings, and the scan ends as **Partial** with the number of such versions (automatic remediation is skipped for that scan) instead of failing as a whole.
+The vulnerability scan checks Windows applications against NVD and Linux distribution packages against [OSV](https://osv.dev) (`api.osv.dev`); the backend needs outbound HTTPS to both. Windows itself is checked against Microsoft's Security Update Guide (see below). Short failures of either service (HTTP 429, 5xx, connection errors) are retried twice. A software version that still cannot be checked keeps its previous findings, and the scan ends as **Partial** with the number of such versions (automatic remediation is skipped for that scan) instead of failing as a whole.
+
+#### Windows itself: Microsoft's Security Update Guide (MSRC)
+
+For Windows itself (not the applications on it, which NVD covers) the backend uses Microsoft's Security Update Guide ([CVRF API](https://api.msrc.microsoft.com/cvrf/v3.0/), public, no key; outbound HTTPS to `api.msrc.microsoft.com`). Microsoft lists there per CVE and Windows release the security update (KB) that fixes it and the build that contains the fix – usually on Patch Tuesday, weeks before NVD can match the CVE.
+
+- **Sync:** a background task, a minute after the backend starts and then every 6 hours, reads the list of monthly documents. It downloads the documents of the last `MSRC_HISTORY_MONTHS` months (default `24`) that are new, and revised ones (Microsoft revises them almost daily) at most once a day for the last two months and once a week for older ones; each document is about 30 MB. It does not run during the vulnerability scan. Only one backend process syncs at a time. `MSRC_SYNC=off` disables it (installations without internet access, CI); a document can then be imported with `POST /api/v1/vulnerabilities/msrc/documents`.
+- **What is stored:** per document, CVE, Windows release and KB the fixed build, severity (from the CVSS base score like NVD, else Microsoft's rating), CVSS score and vector, and whether the CVE is exploited or publicly disclosed (tables `msrc_documents`, `msrc_windows_fixes`; per release and CVE the first fixed build in `msrc_windows_cves`). Only *Security Update* fixes count; hotpatches and servicing stack updates have builds of their own. A revised document replaces its rows: a fix Microsoft changed or withdrew (a CVE or release no longer listed as affected) changes or disappears with the next download, and the nodes concerned are recalculated.
+- **Releases:** the mapping from a node's build number and edition (client or server, from the OS name) to Microsoft's product is explicit (`WINDOWS_RELEASES` in `backend/msrc.py`, table `msrc_windows_products`):
+
+  | Build | Client | Server |
+  |-------|--------|--------|
+  | 14393 | Windows 10 Version 1607 | Windows Server 2016 |
+  | 17763 | Windows 10 Version 1809 | Windows Server 2019 |
+  | 19044 | Windows 10 Version 21H2 | – |
+  | 19045 | Windows 10 Version 22H2 | – |
+  | 20348 | – | Windows Server 2022 |
+  | 22631 | Windows 11 Version 23H2 | – |
+  | 26100 | Windows 11 Version 24H2 | Windows Server 2025 |
+  | 26200 | Windows 11 Version 25H2 | – |
+  | 26300 | Windows 11 Version 26H2 | – |
+  | 28000 | Windows 11 Version 26H1 | – |
+
+  Microsoft lists the same KB and fixed build for x64, ARM64 and 32-bit and for Server Core, so the x64 (full installation) product stands for each release. Releases without security updates are not mapped.
+- **Matching:** a Windows node is affected by a CVE when its build (`os_build`, e.g. `26100.9445`, from the inventory or the daily security snapshot) has the release's build number and a lower update revision than the fixed build. Cumulative updates contain every earlier fix, so the update to install is the release's newest one: the node page groups all these CVEs under that KB ("KB… – N CVEs"), with the fixed build per CVE. CVEs Microsoft reports as exploited are marked and listed first. The findings count like the others (node page, vulnerability counts, top lists, CVE lookup; source `msrc`).
+- **Not checked:** a Windows node is never silently "not affected". The node page says when it could not be checked: no build with update revision reported yet (older agents report it with the next daily security snapshot), a build of a release that is not mapped, or no synced data for its release yet. `GET /api/v1/vulnerabilities/msrc` counts these nodes.
+- **Limits:** nodes that receive hotpatches are compared with the cumulative updates' builds. Microsoft applications (Edge, Office, .NET, SQL Server) still come from NVD.
 
 Vulnerability numbers (dashboard, vulnerabilities page, sidebar badges) come from a cache per node that the backend recalculates when a node's findings can change (see [API reference](API-REFERENCE.md#vulnerabilities--remediation)). `VULNERABILITY_CACHE_WORKERS` (default `2`) sets how many nodes are recalculated at the same time; more workers make a full recalculation (first start, the ↻ button) faster but put more load on the database. Set it in the backend's `environment:` in `docker-compose.yml` if needed.
 
