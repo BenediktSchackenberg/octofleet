@@ -442,7 +442,17 @@
     "gridView": "Kachelansicht",
     "onlyProblems": "Nur Probleme ({count})",
     "noNodesYet": "Keine Nodes vorhanden",
-    "agent": "Agent"
+    "agent": "Agent",
+    "sortBy": "Sortieren nach",
+    "sortAscending": "Aufsteigend – klicken für absteigend",
+    "sortDescending": "Absteigend – klicken für aufsteigend",
+    "sort": {
+      "name": "Name",
+      "status": "Status (online zuerst)",
+      "os": "Betriebssystem",
+      "agent": "Agent-Version",
+      "last_seen": "Zuletzt gesehen"
+    }
   },
   "onboarding": {
     "title": "Neues Gerät hinzufügen",
