@@ -25,7 +25,7 @@ class OsProductTests(unittest.TestCase):
 
 
 def _row(node_id, os_name, os_version, online=True, groups=(), display_version=None):
-    return {"node_id": node_id, "os_name": os_name, "os_version": os_version, "is_online": online,
+    return {"node_id": node_id, "os_name": os_name, "os_version": os_version, "status": "online" if online else "away",
             "display_version": display_version,
             "group_ids": [g[0] for g in groups], "group_names": [g[1] for g in groups]}
 

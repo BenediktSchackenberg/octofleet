@@ -261,7 +261,8 @@
       "afternoon": "Guten Tag",
       "evening": "Guten Abend",
       "night": "Gute Nacht"
-    }
+    },
+    "showNodes": "Nodes anzeigen →"
   },
   "nodes": {
     "osBuild": "OS-Build {build}",
@@ -1871,6 +1872,7 @@
     "unknownGroup": "Gruppe nicht gefunden",
     "showAll": "Alle Nodes anzeigen",
     "emptyBranch": "Keine Nodes in diesem Zweig",
-    "toggle": "{name} auf- oder zuklappen"
+    "toggle": "{name} auf- oder zuklappen",
+    "anyStatus": "Jeden Status anzeigen"
   }
 }

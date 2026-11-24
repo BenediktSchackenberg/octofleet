@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 import vulnerability_cache
 from dependencies import get_db, verify_api_key
+from node_status import status_sql
 
 router = APIRouter(
     prefix="/api/v1/dashboard",
@@ -16,15 +17,13 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get dashboard summary with counts and recent events"""
     async with db.acquire() as conn:
         # Get node counts by status
-        counts = await conn.fetchrow("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '5 minutes') as online,
-                COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '60 minutes' 
-                                   AND last_seen <= NOW() - INTERVAL '5 minutes') as away,
-                COUNT(*) FILTER (WHERE last_seen <= NOW() - INTERVAL '60 minutes' 
-                                   OR last_seen IS NULL) as offline
-            FROM nodes
+        # (the same status as the Nodes list and the Fleet tree, which the card links to)
+        counts = await conn.fetchrow(f"""
+            SELECT COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE status = 'online') AS online,
+                   COUNT(*) FILTER (WHERE status = 'away') AS away,
+                   COUNT(*) FILTER (WHERE status = 'offline') AS offline
+            FROM (SELECT {status_sql("n")} AS status FROM nodes n) s
         """)
         
         # Get unassigned count

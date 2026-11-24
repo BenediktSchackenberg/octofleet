@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 import node_removal
 from auth import require_auth, require_permission, require_user_permission
 from dependencies import API_KEY, get_db, not_found, verify_api_key
+from node_status import status_sql
 
 # Use the JWT secret from auth module
 try:
@@ -82,6 +83,7 @@ NODE_LIST_ORDER = "ORDER BY lower(n.hostname), n.node_id"
 NODE_LIST_SQL = """
     SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build,
            n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
+           """ + status_sql("n") + """ AS status,
            h.cpu->>'name' as cpu_name,
            (h.ram->>'totalGb')::numeric as total_memory_gb,
            COALESCE(a.critical, 0) AS critical_count, COALESCE(a.warning, 0) AS warning_count
@@ -137,7 +139,7 @@ async def list_nodes(
 # grouped pass over device_groups, hash-joined) and, for Windows, the feature version from the newest
 # posture snapshot (one index lookup per Windows node via idx_config_posture_node; Linux skips it)
 NODE_TREE_SUMMARY_SQL = """
-    SELECT n.node_id, n.os_name, n.os_version, n.is_online, p.display_version,
+    SELECT n.node_id, n.os_name, n.os_version, """ + status_sql("n") + """ AS status, p.display_version,
            COALESCE(g.ids, ARRAY[]::text[]) AS group_ids, COALESCE(g.names, ARRAY[]::text[]) AS group_names
     FROM nodes n
     LEFT JOIN LATERAL (
@@ -167,7 +169,8 @@ def _tree_summary(rows) -> dict:
 
     Each release lists its node IDs, so the Nodes list can show a branch without a request per
     click; nodes are not listed by name (10,000 leaves are no tree). A node in two groups counts
-    in both; the totals at the top count each node once. Online is the nodes list's `is_online`.
+    in both; the totals at the top count each node once. Online: contact within 5 minutes
+    (node_status, as on the dashboard and in the list).
     """
     def branch():
         return {"total": 0, "online": 0, "os": {}}
@@ -187,7 +190,7 @@ def _tree_summary(rows) -> dict:
     unassigned = branch()
     total = online_total = 0
     for row in rows:
-        online = bool(row["is_online"])
+        online = row["status"] == "online"
         total += 1
         online_total += online
         family = _get_os_family(row["os_name"])

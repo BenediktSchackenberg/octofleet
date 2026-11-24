@@ -14,12 +14,19 @@ export interface SortableNode {
   hostname: string;
   node_id: string;
   is_online: boolean;
+  status?: "online" | "away" | "offline";
   os_name?: string | null;
   agent_version?: string | null;
   last_seen?: string | null;
 }
 
 const text = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+
+// online, away, offline (by last contact; is_online only for callers without status)
+const STATUS_RANK = { online: 0, away: 1, offline: 2 } as const;
+function statusRank(n: SortableNode): number {
+  return n.status ? STATUS_RANK[n.status] : n.is_online ? 0 : 2;
+}
 
 function byName(a: SortableNode, b: SortableNode): number {
   return text.compare(a.hostname, b.hostname) || (a.node_id < b.node_id ? -1 : a.node_id > b.node_id ? 1 : 0);
@@ -29,7 +36,7 @@ function byName(a: SortableNode, b: SortableNode): number {
 function byColumn(sort: NodeSort, a: SortableNode, b: SortableNode): number | null {
   switch (sort) {
     case "name": return 0;
-    case "status": return (a.is_online ? 0 : 1) - (b.is_online ? 0 : 1);
+    case "status": return statusRank(a) - statusRank(b);
     case "os": return a.os_name && b.os_name ? text.compare(a.os_name, b.os_name) : null;
     case "agent": return a.agent_version && b.agent_version ? text.compare(a.agent_version, b.agent_version) : null;
     case "last_seen": {

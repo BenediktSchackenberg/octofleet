@@ -22,11 +22,24 @@ test('Fleet tree: a branch scopes the Nodes list, kept in the URL', async ({ pag
   expect([...branch.node_ids].sort()).toEqual([`${tag}-a`, `${tag}-b`]);
   expect((await request.get(`${API_URL}/api/v1/nodes/tree?view=other`, { headers })).status()).toBe(422);
 
-  // The dashboard carries no tree any more
+  // The list reports the status by last contact (is_online stays true once a node reported)
+  const list = (await (await request.get(`${API_URL}/api/v1/nodes`, { headers })).json()).nodes as { hostname: string; status: string }[];
+  expect(list.filter((n) => n.hostname.startsWith(tag)).map((n) => n.status)).toEqual(['online', 'online']);
+
+  // The dashboard carries no tree any more; its Fleet status card links into the list by status
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => { localStorage.setItem('locale', 'en'); localStorage.setItem('octofleet-nodes-view', 'list'); });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('navigation', { name: 'Fleet' })).toHaveCount(0);
+  await page.getByRole('link', { name: /^Offline\s*\d/ }).click();
+  await expect(page).toHaveURL(/\/nodes\?status=offline/);
+  await page.getByPlaceholder('Search...').fill(tag);
+  await expect(page.getByText('No nodes found')).toBeVisible();
+  await page.goto('/nodes?status=online', { waitUntil: 'domcontentloaded' });
+  await page.getByPlaceholder('Search...').fill(tag);
+  await expect(page.locator('tbody tr td:nth-child(2) a')).toHaveText([`${tag}-a`, `${tag}-b`]);
+  await page.getByRole('button', { name: 'Show every status' }).click();
+  await expect(page).not.toHaveURL(/status=/);
 
   // Picking the release in the tree lists exactly its nodes; the branch is in the URL
   await page.goto('/nodes', { waitUntil: 'domcontentloaded' });

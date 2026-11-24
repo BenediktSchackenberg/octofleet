@@ -387,30 +387,36 @@ export default function HomePage() {
               {/* Bento Grid */}
               <div className="grid grid-cols-12 gap-6">
                 
-                {/* Fleet Status - 3 cols */}
+                {/* Fleet Status - 3 cols: links into Fleet -> Nodes, filtered by the same status */}
                 <Card className="col-span-12 md:col-span-3 border-primary/10 bg-gradient-to-br from-card to-primary/5 shadow-md">
                   <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
+                    <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-primary">
                       {t("dashboard.fleetStatus")}
+                      <Link href="/nodes" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">{t("dashboard.showNodes")}</Link>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="text-6xl font-black mb-4 tracking-tighter">{summary?.counts.total || 0}</div>
+                    <Link href="/nodes" className="block text-6xl font-black mb-4 tracking-tighter hover:text-primary transition-colors" title={t("dashboard.showNodes")}>
+                      {summary?.counts.total || 0}
+                    </Link>
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          <span className="text-muted-foreground">{t("common.online")}</span>
-                        </div>
-                        <span className="font-bold">{summary?.counts.online || 0}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-zinc-500" />
-                          <span className="text-muted-foreground">{t("common.offline")}</span>
-                        </div>
-                        <span className="font-bold">{summary?.counts.offline || 0}</span>
-                      </div>
+                      {([
+                        ["online", "common.online", "bg-green-500 animate-pulse"],
+                        ["away", "nodeDetail.away", "bg-yellow-500"],
+                        ["offline", "common.offline", "bg-zinc-500"],
+                      ] as const).filter(([status]) => status !== "away" || (summary?.counts.away ?? 0) > 0).map(([status, label, dot]) => (
+                        <Link
+                          key={status}
+                          href={`/nodes?status=${status}`}
+                          className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${dot}`} />
+                            <span className="text-muted-foreground">{t(label)}</span>
+                          </div>
+                          <span className="font-bold">{summary?.counts[status] || 0}</span>
+                        </Link>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
