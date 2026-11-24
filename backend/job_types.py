@@ -13,6 +13,8 @@ JOB_COMMAND_TYPES = (
     "restart-agent", "patch_install", "patch_scan", "uninstall-agent",
     # the Services module (services_mgmt.py) creates it; both agents handle it
     "service_reconcile",
+    # Reboot from the node page and Fleet updates (node_reboot.py); both agents handle it
+    "reboot",
 )
 
 

@@ -43,6 +43,8 @@ jobs:
         run: bash tests/linux-agent/dnf-updates.test.sh
       - name: Test the pacman update list (installed version, repository, architecture)
         run: bash tests/linux-agent/pacman-updates.test.sh
+      - name: Test the reboot job and the logged-on users
+        run: bash tests/linux-agent/reboot.test.sh
       - name: Test the logrotate configuration
         run: |
           sudo apt-get install -y -q logrotate >/dev/null || true

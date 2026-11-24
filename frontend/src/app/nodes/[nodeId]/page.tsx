@@ -17,6 +17,7 @@ import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, UpdateRebootBadge, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
+import { RebootButton } from "@/components/reboot-dialog";
 import { UpdateActions } from "@/components/node-update-actions";
 import { UPDATE_COLS, installedUpdateType, resultVariant, type RebootBehavior, latestInstallEntry } from "@/lib/update-tables";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
@@ -427,6 +428,7 @@ export default function NodeDetailPage() {
                 <FileText className="h-4 w-4 mr-1" /> {t("nodeDetail.generateReport")}
               </Button>
             </Link>
+            {node && !node.removalState && <RebootButton nodeId={String(node.id)} hostname={node.hostname || nodeId} />}
             {node && hasPermission("nodes:delete") && !node.removalState && (
               <RemoveNodeButton nodeId={nodeId} hostname={node.hostname || nodeId} removal={node} onChanged={fetchNodeDetails} />
             )}
@@ -955,6 +957,13 @@ export default function NodeDetailPage() {
             {/* The agent's last update search: WSUS / Windows Update, or the package lists on Linux */}
             <PatchScanStatus scan={patchScan} pending={pendingUpdates}
               definitions={linuxUpdates ? 0 : (availableUpdates ?? []).filter((u) => u.definition).length} />
+            {/* Windows waits for a reboot (last update search): reboot from here */}
+            {!linuxUpdates && !isLinuxNode && patchScan?.reboot_pending === true && node && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="destructive">{t("nodes.updates.rebootRequired")}</Badge>
+                <RebootButton size="sm" nodeId={String(node.id)} hostname={node.hostname || nodeId} />
+              </div>
+            )}
             {/* Windows: the pending updates of the last search */}
             {!linuxUpdates && !isLinuxNode && (
               <AvailableUpdates updates={availableUpdates}
@@ -980,6 +989,9 @@ export default function NodeDetailPage() {
                       <Badge variant="destructive" title={linuxUpdates.rebootPackages?.join(", ") || undefined}>
                         {t("nodes.updates.rebootRequired")}
                       </Badge>
+                    )}
+                    {linuxUpdates.rebootRequired && node && (
+                      <RebootButton size="sm" nodeId={String(node.id)} hostname={node.hostname || nodeId} />
                     )}
                   </CardTitle>
                   <CardDescription>

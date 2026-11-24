@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 import linux_rules
+import node_reboot
 from auth import require_permission, require_user_permission
 from dependencies import get_pool
 
@@ -833,6 +834,13 @@ async def _fleet_rows(conn) -> list:
                s.scanned_at, s.status AS search_status, s.source AS search_source, s.server AS search_server,
                s.error AS search_error, s.reboot_pending,
                l.node_id AS linux_node_id, l.updates AS linux_updates,
+               GREATEST(s.scanned_at, l.updated_at) AS reported_at,
+               (SELECT json_build_object('id', j.id, 'status', ji.status, 'completed_at', ji.completed_at,
+                                         'payload', j.command_data,
+                                         'error', COALESCE(NULLIF(ji.error_message, ''), left(ji.stderr, 300), left(ji.stdout, 300)))
+                  FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
+                 WHERE ji.node_id IN (n.id::text, n.node_id) AND j.command_type = 'reboot'
+                 ORDER BY ji.queued_at DESC LIMIT 1) AS last_reboot,
                (SELECT json_agg(json_build_object('kb_id', u.kb_id, 'title', u.title, 'severity', u.severity, 'category', u.category,
                                                   'reboot_behavior', u.reboot_behavior,
                                                   'approved', EXISTS (SELECT 1 FROM patch_catalog c WHERE c.kb_id = u.kb_id
@@ -872,6 +880,11 @@ async def _fleet_rows(conn) -> list:
         last_install = r["last_install"]
         if isinstance(last_install, str):
             last_install = json.loads(last_install)
+        last_reboot = r["last_reboot"]
+        if isinstance(last_reboot, str):
+            last_reboot = json.loads(last_reboot)
+        if last_reboot and isinstance(last_reboot.get("payload"), str):
+            last_reboot["payload"] = json.loads(last_reboot["payload"])
         os_name = (r["os_name"] or "").lower()
         is_windows = "windows" in os_name
         is_linux = r["linux_node_id"] is not None or any(name in os_name for name in
@@ -937,6 +950,8 @@ async def _fleet_rows(conn) -> list:
             "running": last_job["type"] if last_job and last_job["status"] in ("pending", "queued", "running") else None,
             # an installation that has not finished on the node yet (job running, restarting, awaiting restart)
             "installation": install_state(last_install, r["scanned_at"], r["reboot_pending"], now),
+            # a reboot from the console (Reboot button) until the node reports after it
+            "reboot_job": node_reboot.reboot_state(last_reboot, r["reported_at"], now),
         })
     return out
 

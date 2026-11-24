@@ -146,7 +146,7 @@ The inventory reports `rebootRequired`:
 - Debian/Ubuntu: `/var/run/reboot-required`, with the packages from `reboot-required.pkgs`;
 - dnf/yum: `needs-restarting -r` (yum-utils) or, on minimal installs without it, `dnf needs-restarting -r` (dnf-plugins-core); without either, the value stays unknown.
 
-The Updates tab then shows **Reboot required**.
+The Updates tab then shows **Reboot required** (Windows: when the last update search reports a pending reboot), with a **Reboot** button next to it – see [Rebooting nodes](#rebooting-nodes).
 
 ### Linux Approval Rules
 
@@ -206,6 +206,22 @@ The server builds each node's job from what it stores – the KB IDs of the node
 
 *Install again on nodes whose last installation has not finished* overrides the last two, never a running job. The API reports this as `installation` (`state`, `job_id`, `restart_at`); `POST …/fleet/install` skips such nodes (`busy`, `restarting`, `awaiting_restart`) unless `retry: true`.
 
+### Rebooting nodes
+
+A node that waits for a reboot can be restarted from the console, Windows and Linux alike: **Reboot** next to *Reboot required* on the node's Updates tab, in the node's header (always), and in **Patches → Fleet updates** – per row for nodes whose reboot is pending or needed, and for the ticked nodes (*Reboot: n*). It needs the `nodes:reboot` permission (built-in roles `operator` and `admin`).
+
+The dialog names each node and shows what a reboot interrupts, so nobody restarts the wrong machine by accident:
+- **logged-on users** – both agents report them with their live data (Windows: console and Remote Desktop sessions, also disconnected ones; Linux: logind sessions, else `who`); *unknown* for agents that do not send them yet or have not reported in the last two minutes;
+- **jobs that have not finished** on the node (with links);
+- **open terminal, screen and shell sessions** from the console;
+- a reboot that is **already scheduled** (the new one replaces it).
+
+It offers **now** (in about a minute, so the agent can report the job first), **in** 5–120 minutes or **at** a day and time (at most 7 days ahead), and an optional **message** for logged-on users (one line, at most 200 characters). Any of the warnings above must be acknowledged with a checkbox; several nodes are confirmed by typing their number.
+
+The server creates one `reboot` job per node and writes `node.reboot` to the audit log (who, node, time, message). The agents restart with the system's own tool, so the restart does not depend on the agent and users are warned: Windows `shutdown /r /t <seconds> /d p:0:0 /c <message>` (a reboot that is already scheduled – e.g. after an update installation – is replaced), Linux `shutdown -r +<minutes> <message>` through a transient systemd unit (logind warns logged-on users and blocks new logins in the last minutes). The job's output names the logged-on users and the reboot time. **Cancel reboot** (shown while a reboot is scheduled) sends a cancel job: `shutdown /a` on Windows; `shutdown -c` on Linux, which also stops reboot timers an update installation scheduled. Linux systems without a D-Bus system bus (minimal images without the `dbus` package) have no way to reach logind, so `shutdown -r` fails there: the agent schedules a transient systemd timer that runs `systemctl reboot` at the same time instead, and says in the job output that logged-on users are not warned; cancel stops that timer.
+
+**"Reboot required" disappears only when the node reports after the reboot**, never when the button is pressed: Windows searches for updates after every agent start, Linux pushes its update list right after the start. Until then the node shows *Reboot requested* (the agent has not taken the job yet) or *Reboot at <time>*; after two hours past the reboot time a node that has not reported shows as offline instead. A reboot the agent could not schedule shows *Reboot failed* (with the job's output) until the node reports again.
+
 ---
 
 ## API Reference
@@ -218,9 +234,10 @@ The server builds each node's job from what it stores – the KB IDs of the node
 | Compliance views | `compliance:read` |
 | Create, import, approve or exclude patches; manage rings | `packages:write` |
 | Start, pause, resume or cancel deployments; Patch Explorer deploy, scan and verify; search and install on several nodes from the fleet updates | `packages:deploy` |
+| Reboot nodes or cancel a scheduled reboot (node page, fleet updates; `POST /api/v1/nodes/reboot`, `/reboot/preview`) | `nodes:reboot` |
 | Agent routes (`scan-results`, `pending/{node_id}`, `results`, `explorer/agent-updates`) | agent key |
 
-The built-in `viewer` role can read; `operator` and `admin` can also change and deploy. The shared agent key cannot use the user routes.
+The built-in `viewer` role can read; `operator` and `admin` can also change, deploy and reboot. The shared agent key cannot use the user routes. Custom roles get `nodes:reboot` only when an administrator adds it.
 
 ### Catalog
 

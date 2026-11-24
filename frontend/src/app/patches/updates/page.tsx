@@ -16,6 +16,8 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { RebootChoice, useRebootChoice } from "@/components/reboot-choice";
+import { RebootDialog, type RebootJobState } from "@/components/reboot-dialog";
+import { useAuth } from "@/lib/auth-context";
 
 export type FleetReboot = "pending" | "needed" | "maybe" | "unknown" | "none";
 
@@ -37,6 +39,8 @@ export interface FleetNode {
   reboot: FleetReboot;
   /** the updates behind "will / may need a reboot" (packages or KBs, at most 20) */
   reboot_updates?: string[];
+  /** a reboot from the console (Reboot button) until the node has reported after it */
+  reboot_job?: RebootJobState | null;
   last_search: { at: string | null; status: string | null; source: string | null; server: string | null; error: string | null };
   last_job: { id: string; type: "patch_scan" | "patch_install"; status: string; at: string | null } | null;
   running: "patch_scan" | "patch_install" | null;
@@ -157,6 +161,10 @@ export default function FleetUpdatesPage() {
   const [error, setError] = useState<string | undefined>();
   // Ticked nodes, kept across filter changes (the rows as seen when ticked)
   const [selected, setSelected] = useState<Map<string, FleetNode>>(new Map());
+  const { hasPermission } = useAuth();
+  const canReboot = hasPermission("nodes:reboot");
+  // nodes the reboot dialog is open for (one row or the ticked ones)
+  const [rebootNodes, setRebootNodes] = useState<FleetNode[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [includeDefinitions, setIncludeDefinitions] = useState(false);
   const [retry, setRetry] = useState(false);
@@ -356,6 +364,12 @@ export default function FleetUpdatesPage() {
             <Button size="sm" variant="outline" disabled={busy} onClick={() => { setIncludeDefinitions(false); setRetry(false); setConfirming(true); }}>
               ⬇️ {t("fleetUpdates.bulk.install")}
             </Button>
+            {canReboot && (
+              <Button size="sm" variant="outline" disabled={busy} className="border-red-500/60 text-red-500"
+                onClick={() => setRebootNodes([...selected.values()])}>
+                🔄 {t("reboot.bulk", { count: selected.size })}
+              </Button>
+            )}
             <button type="button" className="text-muted-foreground underline hover:text-foreground" onClick={() => setSelected(new Map())}>
               {t("fleetUpdates.bulk.clear")}
             </button>
@@ -418,7 +432,31 @@ export default function FleetUpdatesPage() {
                         <div className="text-xs text-muted-foreground" title={t("fleetUpdates.agentTooOldHint")}>{t("fleetUpdates.agentTooOld")}</div>
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-normal"><RebootBadge reboot={node.reboot} updates={node.reboot_updates} /></TableCell>
+                    <TableCell className="whitespace-normal">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <RebootBadge reboot={node.reboot} updates={node.reboot_updates} />
+                        {node.reboot_job && node.reboot_job.state !== "failed" ? (
+                          <Link href={`/jobs/${node.reboot_job.job_id}`}>
+                            <Badge variant="outline" className="border-amber-500/50 text-amber-500">
+                              🔄 {node.reboot_job.restart_at
+                                ? t(`reboot.state.${node.reboot_job.state}`, { time: formatDateTime(node.reboot_job.restart_at) })
+                                : t("reboot.state.pending")}
+                            </Badge>
+                          </Link>
+                        ) : canReboot && (node.reboot === "pending" || node.reboot === "needed") && (
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-red-500"
+                            aria-label={t("reboot.rowButton", { name: node.hostname })} title={t("reboot.rowButton", { name: node.hostname })}
+                            onClick={() => setRebootNodes([node])}>
+                            🔄 {t("reboot.button")}
+                          </Button>
+                        )}
+                        {node.reboot_job?.state === "failed" && (
+                          <Link href={`/jobs/${node.reboot_job.job_id}`} title={node.reboot_job.error ?? undefined}>
+                            <Badge variant="destructive">{t("reboot.state.failed")}</Badge>
+                          </Link>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="whitespace-normal"><LastSearch search={node.last_search} /></TableCell>
                     <TableCell className="whitespace-normal">
                       <div className="flex flex-wrap gap-1">
@@ -523,6 +561,9 @@ export default function FleetUpdatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <RebootDialog nodes={(rebootNodes ?? []).map((n) => ({ id: n.id, hostname: n.hostname }))}
+        open={rebootNodes !== null} onOpenChange={(open) => { if (!open) setRebootNodes(null); }}
+        onDone={() => { setSelected(new Map()); load(); }} />
     </StandardPage>
   );
 }

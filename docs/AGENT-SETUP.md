@@ -288,6 +288,11 @@ sudo journalctl -u octofleet-agent -f
 
 ---
 
+
+## Rebooting a node from the console
+
+**Reboot** on the node page and in *Patches → Fleet updates* sends a `reboot` job (permission `nodes:reboot`); see [Rebooting nodes](PATCH-MANAGEMENT.md#rebooting-nodes). The agent restarts the machine with the system's tool – Windows `shutdown /r /t <seconds>`, Linux `shutdown -r +<minutes>` (through a transient systemd unit, outside the service's sandbox; on systems without a D-Bus system bus a systemd timer that runs `systemctl reboot`, without a message to logged-on users) – so the reboot happens even if the agent stops, and logged-on users see the message. For the dialog's warning both agents add `loggedOnUsers` to their live data (Windows: Terminal Services sessions with a user; Linux: `loginctl list-sessions`, else `who`), read at most every 30 seconds. Agents older than this release show *logged-on users: unknown* and do not know the `reboot` job (it fails as an unknown command type on Linux and as a script without a command on Windows); update them first.
+
 ## Removing an Agent
 
 Use **Remove node…** on the node's page in the console (requires the `nodes:delete` permission):

@@ -14,6 +14,7 @@ on:
       - 'tests/OctofleetAgent.Schedule.Tests/**'
       - 'tests/OctofleetAgent.Polling.Tests/**'
       - 'tests/OctofleetAgent.Sensors.Tests/**'
+      - 'tests/OctofleetAgent.Reboot.Tests/**'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
       - 'installer/Build-Release.ps1'
@@ -30,6 +31,7 @@ on:
       - 'tests/OctofleetAgent.Schedule.Tests/**'
       - 'tests/OctofleetAgent.Polling.Tests/**'
       - 'tests/OctofleetAgent.Sensors.Tests/**'
+      - 'tests/OctofleetAgent.Reboot.Tests/**'
       - 'tests/windows/Release-Package.Tests.ps1'
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
@@ -61,6 +63,8 @@ jobs:
         run: dotnet run --project tests/OctofleetAgent.Polling.Tests -c Release
       - name: Test reading the sensor settings (profile, fleet defaults, older servers)
         run: dotnet run --project tests/OctofleetAgent.Sensors.Tests -c Release
+      - name: Test the reboot job (payload, shutdown.exe arguments)
+        run: dotnet run --project tests/OctofleetAgent.Reboot.Tests -c Release
       - name: Test isolated release packaging
         shell: pwsh
         run: ./tests/windows/Release-Package.Tests.ps1

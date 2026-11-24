@@ -212,7 +212,9 @@ public class LiveDataPoller : BackgroundService
             }),
             network = networkInterfaces,
             agentLogs = agentLogs,
-            eventLogs = eventLogs
+            eventLogs = eventLogs,
+            // for the console's reboot dialog; null when Windows does not answer
+            loggedOnUsers = LoggedOnUsers.Get()
         };
 
         var json = JsonSerializer.Serialize(payload);

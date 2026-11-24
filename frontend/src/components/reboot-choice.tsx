@@ -10,7 +10,7 @@ export type RebootPolicy = "no_reboot" | "schedule" | "force";
 // The reboot time is chosen from two lists (day, time in 30-minute steps) labelled with the user's
 // language, date and time format - a native datetime-local field uses the browser's instead.
 const REBOOT_DAYS = 14;
-const REBOOT_TIMES = Array.from({ length: 48 }, (_, i) => i * 30); // minutes after midnight
+export const REBOOT_TIMES = Array.from({ length: 48 }, (_, i) => i * 30); // minutes after midnight
 
 /** The day (0 = today) and minute of the default reboot: today 22:00, or tomorrow if that has passed */
 function defaultReboot(): { day: number; minute: number } {
@@ -20,7 +20,7 @@ function defaultReboot(): { day: number; minute: number } {
 }
 
 /** Local date of day `day` (0 = today) at `minute` after midnight */
-function rebootDate(day: number, minute: number): Date {
+export function rebootDate(day: number, minute: number): Date {
   const d = new Date();
   d.setDate(d.getDate() + day);
   d.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
