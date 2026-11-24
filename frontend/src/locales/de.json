@@ -1860,5 +1860,17 @@
     "hint": "Die Zahlen werden pro Gerät gespeichert und neu berechnet, sobald sich etwas ändert: ein Scan, neue Software auf einem Gerät, ein behobener Befund, ein entferntes Gerät.",
     "pendingOne": "{count} Gerät wird neu berechnet",
     "pendingOther": "{count} Geräte werden neu berechnet"
+  },
+  "fleetTree": {
+    "title": "Flotte",
+    "allNodes": "Alle Nodes",
+    "manageGroups": "Gruppen verwalten",
+    "manageGroup": "{name} verwalten",
+    "noGroups": "Noch keine Gruppen",
+    "unassigned": "In keiner Gruppe",
+    "unknownGroup": "Gruppe nicht gefunden",
+    "showAll": "Alle Nodes anzeigen",
+    "emptyBranch": "Keine Nodes in diesem Zweig",
+    "toggle": "{name} auf- oder zuklappen"
   }
 }

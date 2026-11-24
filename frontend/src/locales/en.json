@@ -1860,5 +1860,17 @@
     "hint": "The numbers are kept per node and recalculated when something changes: a scan, new software on a node, a finding fixed, a node removed.",
     "pendingOne": "{count} node being recalculated",
     "pendingOther": "{count} nodes being recalculated"
+  },
+  "fleetTree": {
+    "title": "Fleet",
+    "allNodes": "All nodes",
+    "manageGroups": "Manage groups",
+    "manageGroup": "Manage {name}",
+    "noGroups": "No groups yet",
+    "unassigned": "Not in a group",
+    "unknownGroup": "Group not found",
+    "showAll": "Show all nodes",
+    "emptyBranch": "No nodes in this branch",
+    "toggle": "Open or close {name}"
   }
 }

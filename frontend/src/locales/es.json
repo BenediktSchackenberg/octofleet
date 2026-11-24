@@ -1860,5 +1860,17 @@
     "hint": "Las cifras se guardan por nodo y se recalculan cuando algo cambia: un análisis, software nuevo en un nodo, un hallazgo corregido, un nodo eliminado.",
     "pendingOne": "{count} nodo recalculándose",
     "pendingOther": "{count} nodos recalculándose"
+  },
+  "fleetTree": {
+    "title": "Flota",
+    "allNodes": "Todos los nodos",
+    "manageGroups": "Gestionar grupos",
+    "manageGroup": "Gestionar {name}",
+    "noGroups": "Aún no hay grupos",
+    "unassigned": "Sin grupo",
+    "unknownGroup": "Grupo no encontrado",
+    "showAll": "Mostrar todos los nodos",
+    "emptyBranch": "No hay nodos en esta rama",
+    "toggle": "Abrir o cerrar {name}"
   }
 }
