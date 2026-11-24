@@ -49,6 +49,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import event_counts
 import job_types
 import monitoring_defaults
 import node_removal
@@ -153,6 +154,7 @@ async def lifespan(app: FastAPI):
     await retention.ensure_schema(db_pool)
     await retention.apply_on_startup(db_pool)
     await monitoring_defaults.ensure_schema(db_pool)
+    await event_counts.ensure_schema(db_pool)
     # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
     vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
@@ -5587,19 +5589,36 @@ async def security_dashboard():
             FROM findings
             GROUP BY severity, status
         """)
-        # Recent events count (24h)
-        event_count_24h = await conn.fetchval("""
-            SELECT count(*) FROM events_normalized WHERE ts > now() - interval '24 hours'
-        """)
-        file_event_count_24h = await conn.fetchval("""
-            SELECT count(*) FROM file_events WHERE ts > now() - interval '24 hours'
-        """)
+        # Event counts of the last 24 hours: from the hourly counts (24 full hours plus the
+        # current one), not by counting every event
+        hourly = await event_counts.available(conn)
+        if hourly:
+            event_count_24h = await conn.fetchval("""
+                SELECT COALESCE(SUM(events), 0)::bigint FROM event_counts_hourly
+                WHERE bucket >= time_bucket(INTERVAL '1 hour', now() - interval '24 hours')
+            """)
+            file_event_count_24h = await conn.fetchval("""
+                SELECT COALESCE(SUM(events), 0)::bigint FROM file_event_counts_hourly
+                WHERE bucket >= time_bucket(INTERVAL '1 hour', now() - interval '24 hours')
+            """)
+        else:
+            event_count_24h = await conn.fetchval("""
+                SELECT count(*) FROM events_normalized WHERE ts > now() - interval '24 hours'
+            """)
+            file_event_count_24h = await conn.fetchval("""
+                SELECT count(*) FROM file_events WHERE ts > now() - interval '24 hours'
+            """)
         # Active monitoring assignments
         active_assignments = await conn.fetchval("""
             SELECT count(*) FROM monitoring_assignments WHERE status = 'active'
         """)
         # Top event types (24h)
         top_event_types = await conn.fetch("""
+            SELECT event_type, SUM(events)::bigint as count
+            FROM event_counts_hourly
+            WHERE bucket >= time_bucket(INTERVAL '1 hour', now() - interval '24 hours')
+            GROUP BY event_type ORDER BY count DESC LIMIT 10
+        """ if hourly else """
             SELECT event_type, count(*) as count
             FROM events_normalized WHERE ts > now() - interval '24 hours'
             GROUP BY event_type ORDER BY count DESC LIMIT 10

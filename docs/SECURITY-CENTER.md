@@ -340,6 +340,10 @@ On upgrades, existing database policies (including paused jobs) are left unchang
 
 Once activated, a retention or compression policy that already exists on a table (for example one added by hand in `psql`) is adopted: kept if it matches, replaced if not – there is never a second one. Removing a policy by hand is undone at the next backend start; change the setting on the page instead.
 
+### Event counters
+
+The counters on Security → Events, the dashboard and the security dashboard come from hourly counts, not from counting events: two TimescaleDB continuous aggregates, `event_counts_hourly` (hour, event type, count) and `file_event_counts_hourly` (hour, count). Their size depends on the number of event types and hours (about 25 × 24 rows a day), not on nodes or events. TimescaleDB refreshes them every 30 minutes in the background (first fill right after they are created, at the first start after the update); events since the last refresh are counted at query time (real-time aggregation), so the counters are current. They keep 400 days, but count only hours still stored in the event table, so they match the lists. Counts of the last *N* days start at the full hour.
+
 `events_aggregated` and `file_events_aggregated` hold hourly counts written by the former 7-day rollup (which aggregated and then deleted events row by row; it is removed). They are still shown as history on the Events page but no longer written.
 
 ---
