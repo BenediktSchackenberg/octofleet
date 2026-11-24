@@ -6,7 +6,10 @@ param(
     [string]$Version,
     
     [switch]$CreateRelease,
-    
+
+    # Also build OctofleetAgent-v<Version>.msi (installer/) from the same files as the ZIP
+    [switch]$Msi,
+
     [string]$OutputPath = ".\release",
 
     [string]$SigningThumbprint,
@@ -116,9 +119,36 @@ Write-Host "SHA256: $hash" -ForegroundColor Green
 # Save hash to file
 $hash | Out-File "$OutputPath\OctofleetAgent-v$Version.sha256" -NoNewline
 
+if ($Msi) {
+    # Same (validated, signed) files as the ZIP. The checksum file must not end in ".sha256":
+    # agents and Install-OctofleetAgent.ps1 take a release's .sha256 asset as the ZIP's checksum.
+    Write-Host "Building MSI..." -ForegroundColor Yellow
+    $msiProject = "$PSScriptRoot\..\installer\OctofleetAgent.Installer.wixproj"
+    $msiBuildPath = Join-Path $OutputPath ("msi-" + [guid]::NewGuid().ToString('N'))
+    $agentFiles = (Resolve-Path -LiteralPath $publishPath).Path
+    dotnet build $msiProject -c Release "-p:Version=$Version" "-p:AgentPublishDir=$agentFiles\" -o $msiBuildPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "MSI build failed"
+    }
+    $msiPath = "$OutputPath\OctofleetAgent-v$Version.msi"
+    Copy-Item -LiteralPath (Join-Path $msiBuildPath "OctofleetAgent-v$Version.msi") -Destination $msiPath -Force
+
+    if ($SigningThumbprint) {
+        & $signtool sign /sha1 $SigningThumbprint /fd SHA256 /tr $TimestampServer /td SHA256 $msiPath
+        if ($LASTEXITCODE -ne 0) { throw 'Code signing of the MSI failed' }
+    }
+
+    $msiHash = (Get-FileHash $msiPath -Algorithm SHA256).Hash
+    $msiHash | Out-File "$OutputPath\OctofleetAgent-v$Version.msi.sha256.txt" -NoNewline
+}
+
 Write-Host "`nBuild complete!" -ForegroundColor Green
 Write-Host "  ZIP: $zipPath"
 Write-Host "  Hash: $hash"
+if ($Msi) {
+    Write-Host "  MSI: $msiPath"
+    Write-Host "  MSI hash: $msiHash"
+}
 
 # Create GitHub release if requested
 if ($CreateRelease) {

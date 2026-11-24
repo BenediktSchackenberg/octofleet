@@ -6,7 +6,8 @@
     Stops and deletes the agent service (found by its executable, whatever its name, so
     both "OctofleetNodeAgent" and older "Octofleet Agent" installs are covered), ends
     remaining agent processes, removes the screen helper task, the program and data
-    folders and the DOTNET_BUNDLE_EXTRACT_BASE_DIR machine variable.
+    folders and the DOTNET_BUNDLE_EXTRACT_BASE_DIR machine variable. An agent installed by the
+    MSI is uninstalled with msiexec first.
 
     The Octofleet console runs this script through the "uninstall-agent" job (Remove node).
     Run it by hand, as Administrator, on machines the console can no longer reach; then
@@ -40,6 +41,16 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 if ($DelaySeconds -gt 0) {
     Write-Log "Uninstalling the Octofleet agent in $DelaySeconds seconds..."
     Start-Sleep -Seconds $DelaySeconds
+}
+
+# Installed by the MSI: uninstall the package first, so Programs and Features and the detection
+# rules of GPO/Intune/ConfigMgr do not keep a stale entry. The steps below remove what the MSI
+# leaves behind (config, logs).
+$msiInstall = Get-ItemProperty -Path "HKLM:\SOFTWARE\Octofleet\Agent" -ErrorAction SilentlyContinue
+if ($msiInstall.InstallSource -eq "msi" -and $msiInstall.ProductCode -match '^\{[0-9A-Fa-f-]{36}\}$') {
+    Write-Log "Uninstalling the MSI package $($msiInstall.ProductCode)"
+    $msiexec = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $($msiInstall.ProductCode) /qn /norestart" -Wait -PassThru
+    Write-Log "msiexec finished with exit code $($msiexec.ExitCode)"
 }
 
 # Services that run the agent executable

@@ -40,7 +40,9 @@ jobs:
           ./tests/windows/Release-Package.Tests.ps1
           dotnet run --project tests/OctofleetAgent.Inventory.Tests -c Release
           if ($LASTEXITCODE -ne 0) { throw 'Browser inventory regression tests failed' }
-          ./scripts/Build-Release.ps1 -Version $env:RELEASE_VERSION -OutputPath ./release
+          dotnet run --project tests/OctofleetAgent.Installer.Tests -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'MSI config tests failed' }
+          ./scripts/Build-Release.ps1 -Version $env:RELEASE_VERSION -OutputPath ./release -Msi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -49,6 +51,8 @@ jobs:
           files: |
             ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
             ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.msi
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.msi.sha256.txt
             ./Install-OctofleetAgent.ps1
           body: |
             ## Octofleet Windows Agent v${{ steps.version.outputs.VERSION }}
@@ -60,7 +64,13 @@ jobs:
             irm https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/Install-OctofleetAgent.ps1 | iex
             ```
 
-            The SHA256 checksum is included in the attached `.sha256` file.
+            ### MSI (GPO, Intune, ConfigMgr)
+            ```powershell
+            msiexec /i OctofleetAgent-v${{ steps.version.outputs.VERSION }}.msi SERVER_URL=https://octofleet.example.com API_KEY=<agent key> /qn /l*v C:\Windows\Temp\octofleet-install.log
+            ```
+            See [installer/README.md](https://github.com/${{ github.repository }}/blob/main/installer/README.md) for all properties and deployment examples.
+
+            The SHA256 checksum of the ZIP is in the attached `.sha256` file, the MSI's in `.msi.sha256.txt`.
 
       - name: Upload Artifact (manual trigger)
         if: github.event_name == 'workflow_dispatch'
@@ -70,4 +80,6 @@ jobs:
           path: |
             ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.zip
             ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.sha256
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.msi
+            ./release/OctofleetAgent-v${{ steps.version.outputs.VERSION }}.msi.sha256.txt
             ./Install-OctofleetAgent.ps1

@@ -1,152 +1,143 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Octofleet Agent MSI (WiX v5). Properties and deployment: installer/README.md.
+
+  - Same folder and service as Install-OctofleetAgent.ps1 (C:\Program Files\Octofleet,
+    service OctofleetNodeAgent), so the MSI installs over a script install and keeps its config.
+  - The config in C:\ProgramData\Octofleet is not part of the package: upgrade, repair and
+    uninstall leave it alone; the custom action only writes the properties that are passed.
+  - The registry key SOFTWARE\Octofleet\Agent (InstallSource=msi) tells the agent that the MSI
+    owns its files: self-update is off, a new version comes as a new MSI.
+-->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-  <!-- Product Definition -->
-  <Package Name="Octofleet Node Agent"
+  <Package Name="Octofleet Agent"
            Manufacturer="Octofleet"
-           Version="0.5.1"
+           Version="$(var.Version)"
            UpgradeCode="E8F9D4A2-7B3C-4E5F-9A1D-2C6B8F0E3D7A"
            Scope="perMachine">
 
-    <!-- Media Definition -->
-    <MediaTemplate EmbedCab="yes" />
+    <SummaryInformation Description="Octofleet Agent $(var.Version)" />
 
-    <!-- Major Upgrade: Remove older versions -->
-    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."
-                  Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <!-- Custom Properties (can be set via command line) -->
-    <Property Id="GATEWAY_URL" Value="" />
-    <Property Id="GATEWAY_TOKEN" Value="" Secure="yes" />
-    <Property Id="INVENTORY_URL" Value="" />
-    <Property Id="DISPLAY_NAME" Value="" />
-    <Property Id="AUTOSTART_HELPER" Value="1" />
+    <!-- One entry in Programs and Features: the old version is removed before the new one is
+         installed; a rebuild of the same version replaces the installed one; downgrades fail (1603) -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
 
-    <!-- Installation Directory -->
+    <Icon Id="OctofleetIcon" SourceFile="..\src\OctofleetAgent.Service\Assets\octofleet.ico" />
+    <Property Id="ARPPRODUCTICON" Value="OctofleetIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/BenediktSchackenberg/octofleet" />
+
+    <!-- Public properties. Secure: kept in managed installs (GPO, Intune, ConfigMgr).
+         API_KEY is hidden: msiexec /l*v does not log it. -->
+    <Property Id="SERVER_URL" Secure="yes" />
+    <Property Id="API_KEY" Secure="yes" Hidden="yes" />
+    <Property Id="DISPLAY_NAME" Secure="yes" />
+    <Property Id="PUSH_INTERVAL" Secure="yes" />
+    <Property Id="SCREEN_HELPER" Secure="yes" />
+
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Octofleet">
-        <Directory Id="AGENTFOLDER" Name="Agent" />
-      </Directory>
+      <Directory Id="INSTALLFOLDER" Name="Octofleet" />
     </StandardDirectory>
 
-    <!-- CommonAppData for Config -->
     <StandardDirectory Id="CommonAppDataFolder">
       <Directory Id="CONFIGDIR" Name="Octofleet" />
     </StandardDirectory>
 
-    <!-- Feature: Main Agent -->
-    <Feature Id="MainFeature" Title="Octofleet Node Agent" Level="1">
-      <ComponentGroupRef Id="ServiceComponents" />
-      <ComponentGroupRef Id="ScreenHelperComponents" />
-      <ComponentGroupRef Id="ConfigComponents" />
+    <Feature Id="Agent" Title="Octofleet Agent" Description="The agent service (OctofleetNodeAgent)."
+             Level="1" AllowAbsent="no" Display="expand">
+      <ComponentGroupRef Id="AgentComponents" />
+
+      <!-- Off by default; SCREEN_HELPER=1 or ADDLOCAL=ScreenHelper installs it. An upgrade keeps
+           the choice of the installed version. -->
+      <Feature Id="ScreenHelper" Title="Screen helper"
+               Description="Remote screen view and control from the console. The agent starts it in the user's session when a screen session is opened."
+               Level="1000">
+        <Level Value="1" Condition="SCREEN_HELPER = &quot;1&quot;" />
+        <ComponentRef Id="ScreenHelperExe" />
+      </Feature>
     </Feature>
+
+    <CustomActionRef Id="WriteConfigFile" />
 
   </Package>
 
-  <!-- Service Components -->
   <Fragment>
-    <ComponentGroup Id="ServiceComponents" Directory="AGENTFOLDER">
-      
-      <!-- Main Service Executable -->
-      <Component Id="ServiceExe" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
-        <File Id="OctofleetAgentServiceExe"
-              Source="$(var.OctofleetAgent.Service.TargetDir)OctofleetAgent.Service.exe"
-              KeyPath="yes" />
-        
-        <!-- Install as Windows Service -->
-        <ServiceInstall Id="ServiceInstaller"
+    <ComponentGroup Id="AgentComponents" Directory="INSTALLFOLDER">
+
+      <Component Id="ServiceExe">
+        <File Id="ServiceExe" Source="$(var.AgentFilesDir)OctofleetAgent.Service.exe" KeyPath="yes" />
+
+        <ServiceInstall Id="AgentService"
                         Name="OctofleetNodeAgent"
-                        DisplayName="Octofleet Node Agent"
-                        Description="Octofleet endpoint management agent - connects to Gateway for remote management and inventory collection"
+                        DisplayName="Octofleet Agent"
+                        Description="Octofleet endpoint management agent"
                         Type="ownProcess"
                         Start="auto"
                         ErrorControl="normal"
-                        Account="LocalSystem" />
-        
-        <!-- Service Control: Start after install, Stop before uninstall -->
-        <ServiceControl Id="ServiceControl"
-                        Name="OctofleetNodeAgent"
-                        Start="install"
-                        Stop="both"
-                        Remove="uninstall"
-                        Wait="yes" />
+                        Account="LocalSystem"
+                        Vital="yes">
+          <!-- Like the install script's sc.exe failure: restart the service after a failure (three times),
+               reset the count after a day. util:ServiceConfig has one delay for all restarts. -->
+          <util:ServiceConfig FirstFailureActionType="restart"
+                              SecondFailureActionType="restart"
+                              ThirdFailureActionType="restart"
+                              RestartServiceDelayInSeconds="10"
+                              ResetPeriodInDays="1" />
+        </ServiceInstall>
+
+        <!-- Remove on install too: takes over the service of a script install (same name) -->
+        <ServiceControl Id="AgentService" Name="OctofleetNodeAgent" Start="install" Stop="both" Remove="both" Wait="yes" />
+        <!-- Service name of older script installs -->
+        <ServiceControl Id="OlderAgentService" Name="Octofleet Agent" Stop="install" Remove="install" Wait="yes" />
+
+        <!-- As the install script and the self-update set it: .NET extracts its native files there -->
+        <RegistryValue Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\OctofleetNodeAgent" Name="Environment" Type="multiString">
+          <MultiStringValue Value="DOTNET_BUNDLE_EXTRACT_BASE_DIR=[CONFIGDIR]extract" />
+        </RegistryValue>
+
+        <!-- Files a script install left in the folder (symbols, install script) go on uninstall -->
+        <RemoveFile Id="LeftoverFiles" Name="*" On="uninstall" />
       </Component>
 
-      <!-- All other DLLs and dependencies -->
-      <Component Id="ServiceDependencies" Guid="B2C3D4E5-F6A7-8901-BCDE-F23456789012">
-        <File Source="$(var.OctofleetAgent.Service.TargetDir)*.dll" />
-        <File Source="$(var.OctofleetAgent.Service.TargetDir)*.json" />
-      </Component>
-
-    </ComponentGroup>
-  </Fragment>
-
-  <!-- Screen Helper Components -->
-  <Fragment>
-    <ComponentGroup Id="ScreenHelperComponents" Directory="AGENTFOLDER">
-      
-      <!-- Screen Helper Executable -->
-      <Component Id="ScreenHelperExe" Guid="F1E2D3C4-B5A6-9807-6543-210FEDCBA987">
-        <File Id="OctofleetScreenHelperExe"
-              Source="$(var.OctofleetScreenHelper.TargetDir)OctofleetScreenHelper.exe"
-              KeyPath="yes" />
-      </Component>
-
-      <!-- Auto-Start Registry Entry (per-user, runs at login) -->
-      <Component Id="ScreenHelperAutoStart" Guid="A9B8C7D6-E5F4-3210-9876-543210FEDCBA">
-        <Condition>AUTOSTART_HELPER = "1"</Condition>
-        <RegistryValue Root="HKLM"
-                       Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-                       Name="OctofleetScreenHelper"
-                       Type="string"
-                       Value="&quot;[AGENTFOLDER]OctofleetScreenHelper.exe&quot;"
-                       KeyPath="yes" />
+      <Component Id="InstallSource">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Octofleet\Agent">
+          <RegistryValue Name="InstallSource" Type="string" Value="msi" KeyPath="yes" />
+          <RegistryValue Name="ProductCode" Type="string" Value="[ProductCode]" />
+          <RegistryValue Name="Version" Type="string" Value="[ProductVersion]" />
+        </RegistryKey>
       </Component>
 
     </ComponentGroup>
+
+    <Component Id="ScreenHelperExe" Directory="INSTALLFOLDER">
+      <File Id="ScreenHelperExe" Source="$(var.AgentFilesDir)OctofleetScreenHelper.exe" KeyPath="yes" />
+    </Component>
   </Fragment>
 
-  <!-- Config Components -->
   <Fragment>
-    <ComponentGroup Id="ConfigComponents" Directory="CONFIGDIR">
-      
-      <!-- Create config directory -->
-      <Component Id="ConfigDirectory" Guid="C3D4E5F6-A7B8-9012-CDEF-345678901234">
-        <CreateFolder />
-      </Component>
+    <Binary Id="CustomActionsDll" SourceFile="$(var.CustomActions.TargetDir)CustomActions.CA.dll" />
 
-      <!-- Create logs subdirectory -->
-      <Component Id="LogsDirectory" Guid="D4E5F6A7-B8C9-0123-DEF0-456789012345">
-        <CreateFolder Directory="CONFIGDIR">
-          <util:PermissionEx User="Everyone" GenericAll="yes" />
-        </CreateFolder>
-      </Component>
-
-    </ComponentGroup>
-  </Fragment>
-
-  <!-- Custom Action for Config File Creation -->
-  <Fragment>
-    <Binary Id="CustomActionDll" SourceFile="CustomActions.CA.dll" />
-    
+    <!-- HideTarget: the CustomActionData (with API_KEY) is not logged -->
     <CustomAction Id="WriteConfigFile"
-                  BinaryRef="CustomActionDll"
+                  BinaryRef="CustomActionsDll"
                   DllEntry="WriteConfigFile"
                   Execute="deferred"
-                  Impersonate="no" />
-    
-    <CustomAction Id="SetConfigProperties"
-                  Property="WriteConfigFile"
-                  Value="GATEWAY_URL=[GATEWAY_URL];GATEWAY_TOKEN=[GATEWAY_TOKEN];INVENTORY_URL=[INVENTORY_URL];DISPLAY_NAME=[DISPLAY_NAME];CONFIGDIR=[CONFIGDIR]" />
+                  Impersonate="no"
+                  Return="check"
+                  HideTarget="yes" />
+
+    <SetProperty Id="WriteConfigFile"
+                 Value="SERVER_URL=[SERVER_URL];API_KEY=[API_KEY];DISPLAY_NAME=[DISPLAY_NAME];PUSH_INTERVAL=[PUSH_INTERVAL];CONFIGDIR=[CONFIGDIR]"
+                 Before="WriteConfigFile"
+                 Sequence="execute"
+                 Condition="NOT REMOVE~=&quot;ALL&quot;" />
 
     <InstallExecuteSequence>
-      <Custom Action="SetConfigProperties" Before="WriteConfigFile">
-        GATEWAY_URL &lt;&gt; "" OR GATEWAY_TOKEN &lt;&gt; ""
-      </Custom>
-      <Custom Action="WriteConfigFile" Before="StartServices">
-        GATEWAY_URL &lt;&gt; "" OR GATEWAY_TOKEN &lt;&gt; ""
-      </Custom>
+      <Custom Action="WriteConfigFile" Before="StartServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
     </InstallExecuteSequence>
   </Fragment>
 

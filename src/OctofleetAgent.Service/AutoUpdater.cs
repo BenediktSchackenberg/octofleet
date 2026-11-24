@@ -57,7 +57,19 @@ public class AutoUpdater : BackgroundService
     {
         // Wait a bit before first check (let agent fully start)
         await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
-        
+
+        // Installed by the MSI: Windows Installer owns the files. Replacing them here would leave
+        // Programs and Features and the detection rules of GPO/Intune/ConfigMgr on the old version,
+        // and the next repair would restore it. A new version comes as a new MSI.
+        var msiProductCode = MsiProductCode();
+        if (msiProductCode != null)
+        {
+            _logger.LogInformation(
+                "Self-update is off: the agent was installed by the Octofleet Agent MSI ({ProductCode}). " +
+                "Upgrade it by installing the new MSI (msiexec, GPO, Intune, ConfigMgr)", msiProductCode);
+            return;
+        }
+
         _logger.LogInformation("AutoUpdater started. Current version: {Version}, checking Octofleet server/GitHub every {Hours}h",
             _currentVersion, _checkInterval.TotalHours);
         
@@ -76,6 +88,24 @@ public class AutoUpdater : BackgroundService
         }
     }
     
+    /// <summary>
+    /// The MSI's product code if the MSI installed the agent (registry key written by the MSI,
+    /// removed when it is uninstalled), otherwise null.
+    /// </summary>
+    private static string? MsiProductCode()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Octofleet\Agent");
+            if (key?.GetValue("InstallSource") is string source && source.Equals("msi", StringComparison.OrdinalIgnoreCase))
+                return key.GetValue("ProductCode") as string ?? "unknown product code";
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+        }
+        return null;
+    }
+
     private async Task CheckForUpdate(CancellationToken ct)
     {
         // Ask the Octofleet server first: if it offers a complete release, that release
