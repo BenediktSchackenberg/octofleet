@@ -775,7 +775,9 @@
       "command": "Comando",
       "scriptWarning": "El script se ejecuta como SYSTEM en cada nodo que una regla asigne a este paquete. Usa solo comandos de confianza.",
       "packageId": "ID del paquete de despliegue",
-      "minFixedVersion": "Corregido desde la versión (opcional)"
+      "minFixedVersion": "Corregido desde la versión (opcional)",
+      "wingetId": "ID de paquete de winget (opcional)",
+      "wingetIdHelp": "Con un ID y sin comando, winget actualiza exactamente este paquete (winget upgrade --id … --exact); las instalaciones de 32 bits reciben --architecture x86. Sin ID se usa el nombre del software instalado. winget search muestra el ID, p. ej. 7zip.7zip."
     },
     "rule": {
       "createTitle": "Nueva regla de remediación",
@@ -796,7 +798,10 @@
       "approved": "Aprobado",
       "approveSelected": "Aprobar selección ({count})",
       "select": "Seleccionar trabajo",
-      "selectAll": "Seleccionar todos los trabajos pendientes de aprobación"
+      "selectAll": "Seleccionar todos los trabajos pendientes de aprobación",
+      "moreCves": "+{count} más",
+      "cveList": "Todas las CVE que cierra esta actualización",
+      "x86": "32 bits"
     }
   },
   "nodeDetail": {

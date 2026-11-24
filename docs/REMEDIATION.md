@@ -1,6 +1,6 @@
 # Remediation (Auto-Fix)
 
-Remediation turns vulnerability findings into fix jobs: it matches a vulnerable application to a **fix package** (how to update it), checks the **rules** (whether and when to fix it), creates a **remediation job** per node and CVE, and the Windows agent runs the fix command. Jobs can wait for an approval and for a maintenance window.
+Remediation turns vulnerability findings into fix jobs: it matches a vulnerable application to a **fix package** (how to update it), checks the **rules** (whether and when to fix it), creates a **remediation job** per node and update – one job per installed application version, listing all CVEs the update closes – and the Windows agent runs the fix command. Jobs can wait for an approval and for a maintenance window.
 
 **Windows only for now.** Remediation uses the findings of the NVD/CPE match (`match_source = nvd_cpe`), i.e. installed Windows applications. Findings of Linux distribution packages (`osv_distro`) never create remediation jobs; Linux packages are updated with **Install updates** on the node's Updates tab instead (see [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md)).
 
@@ -10,6 +10,7 @@ The page: **Secure → Auto-Fix** (`/remediation`), with the tabs *Dashboard*, *
 
 ```
 vulnerability scan ──► finding (node, application, version, CVE, severity)
+                          │  grouped per node and application version (= one update)
                           │
                           ▼
    fix package matches the application and the version is below "fixed in"?  ── no ──► nothing
@@ -18,10 +19,11 @@ vulnerability scan ──► finding (node, application, version, CVE, severity)
    a rule matches (severity, name pattern)?                                    ── no ──► "no rule"
                           │ yes
                           ▼
-   a job for this node and CVE exists already (not failed / rolled back)?      ── yes ─► "skipped (existing)"
+   a job for this node and application version exists (not failed / rolled back)?
+                          │ yes ─► "skipped (existing)"; new CVEs are added to the job while it still waits
                           │ no
                           ▼
-   remediation job: pending (rule requires approval) or approved
+   remediation job (all CVEs of the update): pending (rule requires approval) or approved
                           │  approve (jobs:execute)
                           ▼
    agent polls (every 60 s) ─ maintenance window open, if the rule needs one ─► running ─► success / failed / skipped
@@ -37,7 +39,8 @@ A fix package says how to update one application. Permission: `packages:write` (
 | Target software | Matched against the application's display name, case-insensitive; it matches when one contains the other (`7-Zip` matches `7-Zip 23.01 (x64)`). |
 | Min. fixed version | Optional. Applications at this version or newer are not fixed. Versions are compared by their numbers (`23.01` < `24.08`). |
 | Fix method | `winget`, `choco`, `script` or `package`. |
-| Fix command | The command the agent runs. Empty: a default command (below). |
+| winget package ID | Optional, `winget` only: the winget package (e.g. `7zip.7zip`, `Notepad++.Notepad++`; `winget search <name>` shows it). Letters, digits and `. + _ -` only. |
+| Fix command | The command the agent runs. Empty: a default command (below); with method `winget` a winget package ID is enough. |
 | Enabled | Disabled packages are ignored. |
 
 If several enabled packages match, the first one by *target software*, then *name* wins.
@@ -46,11 +49,14 @@ If several enabled packages match, the first one by *target software*, then *nam
 
 | Method | Command |
 |---|---|
-| `winget` | `winget upgrade --name "<application name>" --silent --accept-source-agreements` |
-| `choco` | `choco upgrade <application name> -y` |
+| `winget` with a winget package ID | `winget upgrade --id <ID> --exact --silent --accept-source-agreements` |
+| `winget` without one | `winget upgrade --name '<application name>' --silent --accept-source-agreements` |
+| `choco` | `choco upgrade '<application name>' -y` |
 | `script`, `package` | none – the agent only reports "No fix command"; enter a command |
 
-The default winget command finds the application by its display name, which does not always match the winget package. A fix command with the package ID is more reliable, e.g. `winget upgrade --id 7zip.7zip --silent --accept-source-agreements`.
+Both winget commands get `--architecture x86` when the application is a **32-bit installation** on the node (e.g. Notepad++ installed as 32-bit); otherwise winget may pick the 64-bit package. The Windows agent's inventory reports where each program is registered: an uninstall entry under `WOW6432Node` (or an install path under `Program Files (x86)`) counts as 32-bit. A job keeps the architecture it was created with (`architecture`: `x86` or empty); after the server update, a node's 32-bit programs are known with its next inventory push.
+
+The display name does not always match the winget package and can match several; set the **winget package ID** for reliable updates. Packages without an ID keep working as before. Application names come from the node's inventory and are passed to PowerShell as a quoted string. A *Fix command* is run as it is: winget ID and architecture are not added to it.
 
 A package that jobs still refer to cannot be deleted (409); disable it instead, so the job history stays complete.
 
@@ -103,11 +109,11 @@ Jobs of rules with *Maintenance window only* wait (status *approved*) until a wi
 {"severity_filter": ["CRITICAL", "HIGH"], "software_filter": "7-Zip", "node_ids": ["<node uuid>"], "dry_run": true}
 ```
 
-The answer lists each job (`details`) with node, application, version, CVE, package, rule and whether it needs an approval; `jobs_created` or, for a dry run, `would_create`; `jobs_skipped_existing` and `jobs_skipped_no_rule`. One scan looks at up to 500 findings, highest CVSS first.
+The answer lists each job (`details`) with node, application, version, architecture, the most severe CVE (`cve`), all CVEs of the update (`cves`, `cve_count`), package, rule and whether it needs an approval; `jobs_created` or, for a dry run, `would_create` (jobs, not CVEs); `with_fix_available` (findings); `jobs_skipped_existing`, `jobs_skipped_no_rule` and `cves_added` (below). One scan looks at up to 500 findings, highest CVSS first.
 
-**One job per node and CVE:** a scan creates no second job while one exists that has not failed or been rolled back. An application with many CVEs gets one job per CVE; once one of them has updated the application, winget usually has nothing left to do for the others, and they end as *skipped*.
+**One job per node and update:** all findings of one application version on one node (e.g. 7-Zip 15.14 with 21 CVEs) give one job, which lists the CVEs it closes (`cve_ids`); `cve_id` is the most severe one. The rule is chosen by the highest severity among them. A scan creates no second job for the node and application version while one exists that has not failed or been rolled back – also not when it runs again while the job waits for its approval. A CVE found since then is added to the job if it still waits (*pending* or *approved*; counted as `cves_added`). Another version of the application (after an update that did not close everything) gets its own job. Jobs from before this change keep their one CVE each and also count as existing jobs.
 
-**One-click fix**, `POST /api/v1/remediation/fix/{vulnerability_id}?node_id=<node uuid>` (`jobs:execute`): one job for one finding on one node, approved at once, without a rule.
+**One-click fix**, `POST /api/v1/remediation/fix/{vulnerability_id}?node_id=<node uuid>` (`jobs:execute`): one job for one application version on one node with all its CVEs, approved at once, without a rule.
 
 ## Approval
 
@@ -117,7 +123,7 @@ An agent never receives a pending job.
 
 ## On the node
 
-The Windows agent asks for jobs every 60 seconds and takes up to 5 per poll; a job taken by one poll is not handed out again. It runs the fix command with PowerShell (10 minutes at most) and reports the exit code and output.
+The Windows agent asks for jobs every 60 seconds and takes up to 5 per poll; a job taken by one poll is not handed out again. Each job comes with its command (`fixCommand`, built by the server as above), the most severe CVE (`cveId`) and all CVEs of the update (`cveIds`). The agent runs the command with PowerShell (10 minutes at most) and reports the exit code and output.
 
 If a winget command finds no installed package, the agent tries the same update with Chocolatey; when Chocolatey is missing, it installs it first from `community.chocolatey.org`. Keep that in mind on nodes without internet access or where Chocolatey is not wanted, and use a fix command that does not need it.
 
@@ -128,8 +134,8 @@ If a winget command finds no installed package, the agent tries the same update 
 | `pending` | Waits for an approval. |
 | `approved` | Approved (or no approval needed); waits for the agent and, if the rule needs one, a maintenance window. |
 | `running` | The agent has taken the job. |
-| `success` | Exit code 0. The node's findings for this application are marked fixed (`fixed_by = remediation`); the next inventory and scan confirm it. |
-| `failed` | Any other exit code; the output and error are kept with the job. A scan may create a new job for the same CVE. |
+| `success` | Exit code 0. The node's findings for this application – all CVEs of the job – are marked fixed (`fixed_by = remediation`); the next inventory and scan confirm it. |
+| `failed` | Any other exit code; the output and error are kept with the job. A scan may create a new job for the same application version. |
 | `skipped` | winget had nothing to upgrade (exit code 1 with "No applicable upgrade found", English or German output): neither fixed nor failed. The findings stay; the next inventory and scan show whether the application is still affected. |
 | `rolled_back` | Set by hand only; there is no automatic rollback. |
 
@@ -151,9 +157,7 @@ The *Dashboard* shows the counts (fixed, pending, failed), the running jobs and 
 
 ## Limits
 
-- Windows applications only (see above).
-- One job per CVE, not per application and node: an application with 20 CVEs gets 20 jobs.
-- The default winget command uses the display name, not the winget package ID, and does not choose the architecture (32-bit installations).
+- Windows applications only (see above); Linux remediation (apt/dnf) is a separate topic.
 - No automatic rollback; *Notify on …* in rules sends nothing yet.
 
 ## API

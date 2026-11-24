@@ -28,6 +28,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# A winget package identifier (`7zip.7zip`, `Notepad++.Notepad++`). It is put into a PowerShell
+# command line unquoted, so only these characters are accepted.
+WINGET_ID_PATTERN = r'^[A-Za-z0-9][A-Za-z0-9.+_-]{0,127}$'
+
 
 class RemediationPackageCreate(BaseModel):
     """Create a new remediation package (fix mapping)"""
@@ -37,6 +41,8 @@ class RemediationPackageCreate(BaseModel):
     min_fixed_version: Optional[str] = Field(None, description="Minimum version that's safe")
     fix_method: Literal['winget', 'choco', 'package', 'script']
     fix_command: Optional[str] = Field(None, description="Command to run for winget/choco/script")
+    winget_id: Optional[str] = Field(None, pattern=WINGET_ID_PATTERN,
+                                     description="winget package ID for the default winget command")
     package_id: Optional[UUID] = Field(None, description="Package ID for package method")
     enabled: bool = True
 
@@ -49,6 +55,7 @@ class RemediationPackageUpdate(BaseModel):
     min_fixed_version: Optional[str] = None
     fix_method: Optional[Literal['winget', 'choco', 'package', 'script']] = None
     fix_command: Optional[str] = None
+    winget_id: Optional[str] = Field(None, pattern=WINGET_ID_PATTERN)
     package_id: Optional[UUID] = None
     enabled: Optional[bool] = None
 
@@ -101,6 +108,93 @@ class ApproveRemediationRequest(BaseModel):
 
 
 # ============================================
+# Schema, grouping and fix commands
+# ============================================
+
+async def ensure_schema(db_pool) -> None:
+    """Columns added after the initial schema (existing installations)."""
+    async with db_pool.acquire() as conn:
+        await conn.execute("ALTER TABLE remediation_packages ADD COLUMN IF NOT EXISTS winget_id TEXT")
+        # One job per node and update (#197): the CVEs and findings the update closes.
+        await conn.execute("ALTER TABLE remediation_jobs ADD COLUMN IF NOT EXISTS cve_ids TEXT[]")
+        await conn.execute("ALTER TABLE remediation_jobs ADD COLUMN IF NOT EXISTS vulnerability_ids INTEGER[]")
+        # 'x86' for a 32-bit installation on the node (winget --architecture x86), else NULL
+        await conn.execute("ALTER TABLE remediation_jobs ADD COLUMN IF NOT EXISTS architecture TEXT")
+        # Jobs from before: one CVE each
+        await conn.execute("""UPDATE remediation_jobs SET cve_ids = ARRAY[cve_id],
+            vulnerability_ids = CASE WHEN vulnerability_id IS NULL THEN '{}'::integer[] ELSE ARRAY[vulnerability_id] END
+            WHERE cve_ids IS NULL""")
+        await conn.execute("""CREATE INDEX IF NOT EXISTS idx_remediation_jobs_node_software
+            ON remediation_jobs (node_id, software_name, software_version)""")
+
+
+# Jobs that still run or wait: a scan adds new CVEs of the same update to them instead of a new job.
+WAITING_JOB_STATUSES = ('pending', 'approved')
+# Jobs that block a new job for the same node and update (failed / rolled back ones do not).
+OPEN_OR_DONE_JOB_STATUSES = ('pending', 'approved', 'running', 'success', 'skipped')
+
+_SEVERITY_RANK = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
+
+
+def group_findings(rows: list[dict]) -> list[dict]:
+    """One group per node and installed application version (= one update), in the order of the
+    rows (highest CVSS first): the update closes all of the group's CVEs. The first finding stays
+    the job's main CVE (`cve_id`, `vulnerability_id`); `severity` is the group's highest."""
+    groups: dict[tuple, dict] = {}
+    for row in rows:
+        key = (str(row['node_id']), row['software_name'], row['software_version'])
+        group = groups.get(key)
+        if group is None:
+            group = groups[key] = {
+                'node_id': row['node_id'],
+                'software_name': row['software_name'],
+                'software_version': row['software_version'],
+                'architecture': row.get('architecture'),
+                'vulnerability_id': row['vulnerability_id'],
+                'cve_id': row['cve_id'],
+                'severity': row.get('severity'),
+                'cve_ids': [],
+                'vulnerability_ids': [],
+            }
+        if row['cve_id'] not in group['cve_ids']:
+            group['cve_ids'].append(row['cve_id'])
+            group['vulnerability_ids'].append(row['vulnerability_id'])
+        if _SEVERITY_RANK.get(row.get('severity'), 999) < _SEVERITY_RANK.get(group['severity'], 999):
+            group['severity'] = row.get('severity')
+        if not group['architecture'] and row.get('architecture'):
+            group['architecture'] = row['architecture']
+    return list(groups.values())
+
+
+# PowerShell also takes the typographic single quotes (U+2018, U+2019, U+201A, U+201B) as quotes
+_PS_QUOTES = re.compile("['" + "".join(map(chr, (0x2018, 0x2019, 0x201A, 0x201B))) + "]")
+
+
+def _ps_quote(value: str) -> str:
+    """A PowerShell single-quoted string literal. Application names come from the node's inventory
+    (any local user can write one under HKCU), so they must never end up in the command unquoted.
+    Each quote inside is doubled."""
+    return "'" + _PS_QUOTES.sub(lambda m: m.group(0) * 2, value or '') + "'"
+
+
+def build_fix_command(fix_method: Optional[str], fix_command: Optional[str], winget_id: Optional[str],
+                      software_name: str, architecture: Optional[str] = None) -> str:
+    """The command the agent runs for a job. A fix command of the package is used as it is.
+    Without one, winget updates the package by its winget ID (exact match) or, for packages
+    without an ID, by the application's display name; a 32-bit installation gets
+    `--architecture x86`, so winget does not pick the 64-bit package."""
+    if fix_command:
+        return fix_command
+    if fix_method == 'winget':
+        target = f'--id {winget_id} --exact' if winget_id else f'--name {_ps_quote(software_name)}'
+        arch = ' --architecture x86' if architecture == 'x86' else ''
+        return f'winget upgrade {target}{arch} --silent --accept-source-agreements'
+    if fix_method == 'choco':
+        return f'choco upgrade {_ps_quote(software_name)} -y'
+    return f'echo {_ps_quote("No fix command for " + (software_name or ""))}'
+
+
+# ============================================
 # Database Functions
 # ============================================
 
@@ -129,11 +223,12 @@ async def create_remediation_package(db_pool, data: RemediationPackageCreate) ->
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow("""
             INSERT INTO remediation_packages 
-            (name, description, target_software, min_fixed_version, fix_method, fix_command, package_id, enabled)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            (name, description, target_software, min_fixed_version, fix_method, fix_command, winget_id,
+             package_id, enabled)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
         """, data.name, data.description, data.target_software, data.min_fixed_version,
-             data.fix_method, data.fix_command, data.package_id, data.enabled)
+             data.fix_method, data.fix_command, data.winget_id, data.package_id, data.enabled)
         return dict(row)
 
 
@@ -367,20 +462,30 @@ async def create_remediation_job(
     software_name: str,
     software_version: str,
     cve_id: str,
-    requires_approval: bool = True
+    requires_approval: bool = True,
+    cve_ids: Optional[list[str]] = None,
+    vulnerability_ids: Optional[list[int]] = None,
+    architecture: Optional[str] = None,
+    conn=None,
 ) -> dict:
-    """Create a remediation job"""
+    """Create a remediation job for one node and update; `cve_ids` lists all CVEs it closes
+    (default: just `cve_id`). `conn`: insert on this connection (inside its transaction)."""
+    status = 'pending' if requires_approval else 'approved'
+    args = (vulnerability_id, remediation_package_id, rule_id, node_id, software_name, software_version,
+            cve_id, status, requires_approval, cve_ids or [cve_id],
+            vulnerability_ids if vulnerability_ids is not None else [vulnerability_id], architecture)
+    sql = """
+        INSERT INTO remediation_jobs
+        (vulnerability_id, remediation_package_id, rule_id, node_id,
+         software_name, software_version, cve_id, status, requires_approval,
+         cve_ids, vulnerability_ids, architecture)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *
+    """
+    if conn is not None:
+        return dict(await conn.fetchrow(sql, *args))
     async with db_pool.acquire() as conn:
-        status = 'pending' if requires_approval else 'approved'
-        row = await conn.fetchrow("""
-            INSERT INTO remediation_jobs 
-            (vulnerability_id, remediation_package_id, rule_id, node_id,
-             software_name, software_version, cve_id, status, requires_approval)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING *
-        """, vulnerability_id, remediation_package_id, rule_id, node_id,
-             software_name, software_version, cve_id, status, requires_approval)
-        return dict(row)
+        return dict(await conn.fetchrow(sql, *args))
 
 
 async def approve_remediation_jobs(db_pool, job_ids: list[int], approved_by: str) -> int:
@@ -561,7 +666,8 @@ class RemediationEngine:
                     v.cve_id,
                     v.cvss_score,
                     v.severity,
-                    sc.node_id
+                    sc.node_id,
+                    sc.architecture
                 FROM verified_vulnerabilities v
                 JOIN software_current sc ON sc.name = v.software_name AND sc.version = v.software_version
                 WHERE v.severity IS NOT NULL AND v.match_source = 'nvd_cpe'
@@ -588,6 +694,9 @@ class RemediationEngine:
             
             rows = await conn.fetch(query, *params)
         
+        # One job per node and update (#197): the findings of one installed application version
+        # are fixed by the same update, so they share a job that lists their CVEs.
+        groups = group_findings([dict(row) for row in rows])
         results = {
             'scanned': len(rows),
             'with_fix_available': 0,
@@ -596,111 +705,102 @@ class RemediationEngine:
             'would_create': 0,
             'jobs_skipped_existing': 0,
             'jobs_skipped_no_rule': 0,
+            'cves_added': 0,
             'details': []
         }
-        
-        for row in rows:
-            vuln = dict(row)
-            
-            # Find fix package
-            fix_pkg = await self.find_fix_for_vulnerability(vuln)
+
+        for group in groups:
+            fix_pkg = await self.find_fix_for_vulnerability(group)
             if not fix_pkg:
                 continue
-            
-            results['with_fix_available'] += 1
-            
-            # Find matching rule
-            rule = await self.get_matching_rule(vuln, auto_only=auto_only)
+
+            results['with_fix_available'] += len(group['cve_ids'])
+
+            # The group's highest severity decides, like for its most severe CVE alone
+            rule = await self.get_matching_rule(group, auto_only=auto_only)
             if not rule:
                 results['jobs_skipped_no_rule'] += 1
                 continue
-            
-            # Check if job already exists
-            async with self.db_pool.acquire() as conn:
-                existing = await conn.fetchrow("""
-                    SELECT id FROM remediation_jobs 
-                    WHERE node_id = $1 AND cve_id = $2 AND status NOT IN ('failed', 'rolled_back')
-                """, vuln['node_id'], vuln['cve_id'])
-                
+
+            async with self.db_pool.acquire() as conn, conn.transaction():
+                # Two scans at once (e.g. the automatic one after a vulnerability scan and one from
+                # the page) must not both create a job for the same node and update.
+                await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))",
+                                   f"remediation:{group['node_id']}:{group['software_name']}:{group['software_version']}")
+                existing = await conn.fetch("""
+                    SELECT id, status, COALESCE(cve_ids, ARRAY[cve_id]) AS cve_ids FROM remediation_jobs
+                    WHERE node_id = $1 AND software_name = $2 AND software_version = $3
+                      AND status = ANY($4::text[])
+                    ORDER BY (status = 'pending') DESC, created_at DESC
+                """, group['node_id'], group['software_name'], group['software_version'],
+                    list(OPEN_OR_DONE_JOB_STATUSES))
+
                 if existing:
+                    # Also covers the jobs from before, one per CVE.
                     results['jobs_skipped_existing'] += 1
+                    known = {cve for job in existing for cve in (job['cve_ids'] or [])}
+                    new = [(cve, vid) for cve, vid in zip(group['cve_ids'], group['vulnerability_ids'])
+                           if cve not in known]
+                    waiting = next((job for job in existing if job['status'] in WAITING_JOB_STATUSES), None)
+                    if waiting and new:
+                        # A CVE found since the job was created: the waiting job closes it too.
+                        results['cves_added'] += len(new)
+                        if not dry_run:
+                            await conn.execute("""
+                                UPDATE remediation_jobs
+                                SET cve_ids = COALESCE(cve_ids, ARRAY[cve_id]) || $2::text[],
+                                    vulnerability_ids = COALESCE(vulnerability_ids, '{}'::integer[]) || $3::integer[],
+                                    updated_at = NOW()
+                                WHERE id = $1
+                            """, waiting['id'], [cve for cve, _ in new], [vid for _, vid in new])
                     continue
-            
-            detail = {
-                'vulnerability_id': vuln['vulnerability_id'],
-                'node_id': str(vuln['node_id']),
-                'software': vuln['software_name'],
-                'version': vuln['software_version'],
-                'cve': vuln['cve_id'],
-                'severity': vuln['severity'],
-                'fix_package': fix_pkg['name'],
-                'fix_method': fix_pkg['fix_method'],
-                'rule': rule['name'],
-                'requires_approval': rule['require_approval']
-            }
-            
-            if not dry_run:
-                job = await create_remediation_job(
-                    self.db_pool,
-                    vulnerability_id=vuln['vulnerability_id'],
-                    remediation_package_id=fix_pkg['id'],
-                    rule_id=rule['id'],
-                    node_id=vuln['node_id'],
-                    software_name=vuln['software_name'],
-                    software_version=vuln['software_version'],
-                    cve_id=vuln['cve_id'],
-                    requires_approval=rule['require_approval']
-                )
-                detail['job_id'] = job['id']
-                results['jobs_created'] += 1
-            else:
-                detail['job_id'] = None  # Dry run: nothing is written
-                results['would_create'] += 1
-            
+
+                detail = {
+                    'vulnerability_id': group['vulnerability_id'],
+                    'node_id': str(group['node_id']),
+                    'software': group['software_name'],
+                    'version': group['software_version'],
+                    'architecture': group['architecture'],
+                    'cve': group['cve_id'],
+                    'cves': group['cve_ids'],
+                    'cve_count': len(group['cve_ids']),
+                    'severity': group['severity'],
+                    'fix_package': fix_pkg['name'],
+                    'fix_method': fix_pkg['fix_method'],
+                    'rule': rule['name'],
+                    'requires_approval': rule['require_approval']
+                }
+
+                if not dry_run:
+                    job = await create_remediation_job(
+                        self.db_pool,
+                        vulnerability_id=group['vulnerability_id'],
+                        remediation_package_id=fix_pkg['id'],
+                        rule_id=rule['id'],
+                        node_id=group['node_id'],
+                        software_name=group['software_name'],
+                        software_version=group['software_version'],
+                        cve_id=group['cve_id'],
+                        requires_approval=rule['require_approval'],
+                        cve_ids=group['cve_ids'],
+                        vulnerability_ids=group['vulnerability_ids'],
+                        architecture=group['architecture'],
+                        conn=conn,
+                    )
+                    detail['job_id'] = job['id']
+                    results['jobs_created'] += 1
+                else:
+                    detail['job_id'] = None  # Dry run: nothing is written
+                    results['would_create'] += 1
+
             results['details'].append(detail)
-        
+
         return results
     
     async def generate_fix_command(self, job: dict, fix_pkg: dict) -> str:
-        """
-        Generate the command to execute for a remediation job.
-        """
-        method = fix_pkg['fix_method']
-        
-        if method == 'winget':
-            cmd = fix_pkg.get('fix_command')
-            if not cmd:
-                # Auto-generate winget command
-                # Try to find winget package ID from software name
-                software = job['software_name'].lower()
-                if '7-zip' in software or '7zip' in software:
-                    cmd = 'winget upgrade 7zip.7zip --silent --accept-source-agreements'
-                elif 'chrome' in software:
-                    cmd = 'winget upgrade Google.Chrome --silent --accept-source-agreements'
-                elif 'firefox' in software:
-                    cmd = 'winget upgrade Mozilla.Firefox --silent --accept-source-agreements'
-                else:
-                    cmd = f'winget upgrade --name "{job["software_name"]}" --silent --accept-source-agreements'
-            return cmd
-        
-        elif method == 'choco':
-            cmd = fix_pkg.get('fix_command')
-            if not cmd:
-                software = job['software_name'].lower()
-                if '7-zip' in software or '7zip' in software:
-                    cmd = 'choco upgrade 7zip -y'
-                else:
-                    cmd = f'choco upgrade {job["software_name"]} -y'
-            return cmd
-        
-        elif method == 'script':
-            return fix_pkg.get('fix_command', 'echo "No script defined"')
-        
-        elif method == 'package':
-            # This would trigger a package deployment
-            return f'DEPLOY_PACKAGE:{fix_pkg["package_id"]}'
-        
-        return 'echo "Unknown fix method"'
+        """The command the agent runs for this job (the same one the agent poll hands out)."""
+        return build_fix_command(fix_pkg.get('fix_method'), fix_pkg.get('fix_command'), fix_pkg.get('winget_id'),
+                                 job['software_name'], job.get('architecture'))
 
 
 # ============================================

@@ -61,6 +61,7 @@ import monitoring_defaults
 import node_reboot
 import node_removal
 import password_policy
+import remediation
 import retention
 import vulnerability
 import vulnerability_cache
@@ -164,6 +165,7 @@ async def lifespan(app: FastAPI):
     await ensure_patches_schema(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
+    await remediation.ensure_schema(db_pool)
     await ensure_inventory_schema(db_pool)
     await retention.ensure_schema(db_pool)
     await retention.apply_on_startup(db_pool)

@@ -22,6 +22,8 @@ from remediation import (
     RemediationRuleUpdate,
     TriggerRemediationRequest,
     approve_remediation_jobs,
+    build_fix_command,
+    create_remediation_job,
     create_remediation_package,
     create_remediation_rule,
     delete_remediation_package,
@@ -300,8 +302,24 @@ async def one_click_fix(
             detail=f"No fix package available for {vuln['software_name']}"
         )
     
+    # The update closes every CVE of this application version on the node; the job lists them,
+    # and a 32-bit installation is updated as one (winget --architecture x86).
+    async with get_pool().acquire() as conn:
+        others = await conn.fetch("""
+            SELECT id, cve_id FROM verified_vulnerabilities
+            WHERE software_name = $1 AND software_version = $2 AND match_source = 'nvd_cpe' AND id != $3
+            ORDER BY cvss_score DESC NULLS LAST, cve_id
+        """, vuln['software_name'], vuln['software_version'], vulnerability_id)
+        architecture = await conn.fetchval("""
+            SELECT architecture FROM software_current
+            WHERE node_id = $1 AND name = $2 AND version = $3 AND architecture IS NOT NULL LIMIT 1
+        """, node_id, vuln['software_name'], vuln['software_version'])
+
+    cves = {vuln['cve_id']: vulnerability_id}
+    for row in others:
+        cves.setdefault(row['cve_id'], row['id'])
+
     # Create job without approval requirement
-    from remediation import create_remediation_job
     job = await create_remediation_job(
         get_pool(),
         vulnerability_id=vulnerability_id,
@@ -311,7 +329,10 @@ async def one_click_fix(
         software_name=vuln['software_name'],
         software_version=vuln['software_version'],
         cve_id=vuln['cve_id'],
-        requires_approval=False
+        requires_approval=False,
+        cve_ids=list(cves),
+        vulnerability_ids=list(cves.values()),
+        architecture=architecture,
     )
     
     # Generate the fix command
@@ -352,7 +373,7 @@ async def get_pending_remediation_jobs(node_id: str):
         
         # Approval is a hard gate: an agent must never receive a pending job.
         jobs = await conn.fetch("""
-            SELECT rj.*, rp.name as package_name, rp.fix_method, rp.fix_command,
+            SELECT rj.*, rp.name as package_name, rp.fix_method, rp.fix_command, rp.winget_id,
                    COALESCE(rr.maintenance_window_only, FALSE) AS maintenance_window_only
             FROM remediation_jobs rj
             LEFT JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
@@ -378,21 +399,14 @@ async def get_pending_remediation_jobs(node_id: str):
             if not claimed:
                 continue
             
-            # Generate the command based on fix method
-            fix_cmd = job['fix_command']
-            if not fix_cmd:
-                method = job['fix_method']
-                software = job['software_name']
-                if method == 'winget':
-                    fix_cmd = f'winget upgrade --name "{software}" --silent --accept-source-agreements'
-                elif method == 'choco':
-                    fix_cmd = f'choco upgrade {software} -y'
-                else:
-                    fix_cmd = f'echo "No fix command for {software}"'
+            fix_cmd = build_fix_command(job['fix_method'], job['fix_command'], job['winget_id'],
+                                        job['software_name'], job['architecture'])
             
             result.append({
                 "jobId": job['id'],
                 "cveId": job['cve_id'],
+                # all CVEs the update closes (cveId: the most severe one, for older agents)
+                "cveIds": list(job['cve_ids'] or [job['cve_id']]),
                 "softwareName": job['software_name'],
                 "softwareVersion": job['software_version'],
                 "fixMethod": job['fix_method'],
@@ -515,8 +529,8 @@ async def remediation_live_sse(request: Request, _auth=Depends(verify_api_key_or
             try:
                 async with get_pool().acquire() as conn:
                     rows = await conn.fetch("""
-                        SELECT id, status, exit_code, software_name, cve_id, node_id,
-                               created_at, completed_at, error_message
+                        SELECT id, status, exit_code, software_name, software_version, cve_id, cve_ids,
+                               node_id, created_at, completed_at, error_message
                         FROM remediation_jobs
                         WHERE updated_at > NOW() - INTERVAL '30 seconds'
                         ORDER BY updated_at DESC
@@ -525,7 +539,7 @@ async def remediation_live_sse(request: Request, _auth=Depends(verify_api_key_or
                     
                     for row in rows:
                         job_id = row['id']
-                        current_state = f"{row['status']}:{row['exit_code']}"
+                        current_state = f"{row['status']}:{row['exit_code']}:{len(row['cve_ids'] or [])}"
                         
                         if last_states.get(job_id) != current_state:
                             last_states[job_id] = current_state
@@ -536,7 +550,9 @@ async def remediation_live_sse(request: Request, _auth=Depends(verify_api_key_or
                                     "status": row['status'],
                                     "exit_code": row['exit_code'],
                                     "software_name": row['software_name'],
+                                    "software_version": row['software_version'],
                                     "cve_id": row['cve_id'],
+                                    "cve_ids": list(row['cve_ids'] or [row['cve_id']]),
                                     "node_id": str(row['node_id']),
                                     "created_at": row['created_at'].isoformat() if row['created_at'] else None,
                                     "completed_at": row['completed_at'].isoformat() if row['completed_at'] else None,
