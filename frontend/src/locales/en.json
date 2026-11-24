@@ -273,7 +273,8 @@
     },
     "showAllCount": "Show all ({count})",
     "showLess": "Show less",
-    "runningCount": "{count} running"
+    "runningCount": "{count} running",
+    "showJobs": "Show jobs →"
   },
   "nodes": {
     "osBuild": "OS build {build}",

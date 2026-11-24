@@ -616,8 +616,9 @@ export default function HomePage() {
                 {/* Jobs 24h - 3 cols */}
                 <Card className="col-span-6 md:col-span-3 border-green-500/10 bg-gradient-to-br from-card to-green-500/5 shadow-md hover:shadow-green-500/5 transition-all">
                   <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-green-600">
-                      <Briefcase className="h-3.5 w-3.5" /> {t("dashboard.jobs24h")}
+                    <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-green-600">
+                      <span className="flex items-center gap-2"><Briefcase className="h-3.5 w-3.5" /> {t("dashboard.jobs24h")}</span>
+                      <Link href="/jobs?range=24h" className="text-[10px] font-bold text-green-600 hover:underline uppercase tracking-tighter">{t("dashboard.showJobs")}</Link>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">

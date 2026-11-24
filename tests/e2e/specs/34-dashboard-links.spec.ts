@@ -17,6 +17,9 @@ test('Dashboard: Jobs (24h) counts like the Jobs page and links to it', async ({
   await expect(success).toContainText(String(counts.success));
   await expect(failed).toContainText(String(counts.failed));
 
+  // The card's header opens all jobs of the last 24 hours (no status filter)
+  await expect(page.getByRole('link', { name: 'Show jobs →' })).toHaveAttribute('href', '/jobs?range=24h');
+
   await failed.click();
   await expect(page).toHaveURL(/\/jobs\?status=failed&range=24h/);
 });

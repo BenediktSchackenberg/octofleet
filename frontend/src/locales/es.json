@@ -273,7 +273,8 @@
     },
     "showAllCount": "Mostrar todos ({count})",
     "showLess": "Mostrar menos",
-    "runningCount": "{count} en ejecución"
+    "runningCount": "{count} en ejecución",
+    "showJobs": "Ver trabajos →"
   },
   "nodes": {
     "osBuild": "Compilación del SO {build}",

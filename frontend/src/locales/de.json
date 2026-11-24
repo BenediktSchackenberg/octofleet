@@ -273,7 +273,8 @@
     },
     "showAllCount": "Alle anzeigen ({count})",
     "showLess": "Weniger anzeigen",
-    "runningCount": "{count} laufen"
+    "runningCount": "{count} laufen",
+    "showJobs": "Jobs anzeigen →"
   },
   "nodes": {
     "osBuild": "OS-Build {build}",
