@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { Rocket, CheckCircle, XCircle, Clock, Loader2, RefreshCw, Pause, Play, Trash2, ArrowLeft, Download, Package } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -69,6 +70,9 @@ const statusIcons: Record<string, any> = {
 
 export default function DeploymentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { t } = useI18n();
+  // Deployment and node states; unknown values are shown as sent by the server
+  const statusLabel = (status: string) => (status in statusColors ? t(`deploymentsPage.status.${status}`) : status);
   const router = useRouter();
   const [deployment, setDeployment] = useState<Deployment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,7 +104,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
   }
 
   async function deleteDeployment() {
-    if (!confirm("Deployment wirklich löschen?")) return;
+    if (!confirm(t("deploymentDetail.deleteConfirm"))) return;
     await apiClient.delete(`/deployments/${id}`, { showErrorToast: false });
     router.push("/deployments");
   }
@@ -126,9 +130,9 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
   if (!deployment) {
     return (
       <div className="container mx-auto p-6">
-        <p>Deployment nicht gefunden</p>
+        <p>{t("deploymentDetail.notFound")}</p>
         <Button asChild className="mt-4">
-          <Link href="/deployments">Zurück</Link>
+          <Link href="/deployments">{t("common.back")}</Link>
         </Button>
       </div>
     );
@@ -154,7 +158,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
               label={deployment.name}
               href={`/deployments/${deployment.id}`}
             />
-            <Badge className={statusColors[deployment.status]}>{deployment.status}</Badge>
+            <Badge className={statusColors[deployment.status]}>{statusLabel(deployment.status)}</Badge>
           </div>
           {deployment.description && (
             <p className="text-muted-foreground mt-1 ml-12">{deployment.description}</p>
@@ -163,23 +167,23 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
         <div className="flex gap-2">
           <Button variant="outline" onClick={fetchDeployment}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Aktualisieren
+            {t("common.refresh")}
           </Button>
           {(deployment.status === "active" || deployment.status === "paused") && (
             <Button variant="outline" onClick={toggleStatus}>
               {deployment.status === "active" ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-              {deployment.status === "active" ? "Pausieren" : "Fortsetzen"}
+              {deployment.status === "active" ? t("deploymentDetail.pause") : t("deploymentDetail.resume")}
             </Button>
           )}
           {deployment.status === "active" && (
             <Button variant="outline" onClick={cancelDeployment}>
               <XCircle className="h-4 w-4 mr-2" />
-              Abbrechen
+              {t("deploymentDetail.cancel")}
             </Button>
           )}
           <Button variant="destructive" onClick={deleteDeployment}>
             <Trash2 className="h-4 w-4 mr-2" />
-            Löschen
+            {t("common.delete")}
           </Button>
         </div>
       </div>
@@ -187,7 +191,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Paket</CardDescription>
+            <CardDescription>{t("deploymentsPage.columns.package")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-lg font-medium">{deployment.package_name}</p>
@@ -196,16 +200,16 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Erfolg</CardDescription>
+            <CardDescription>{t("deploymentDetail.succeeded")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-green-500">{successCount}</p>
-            <p className="text-sm text-muted-foreground">von {deployment.nodes.length} Nodes</p>
+            <p className="text-sm text-muted-foreground">{t("deploymentDetail.ofNodes", { count: deployment.nodes.length })}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Fehlgeschlagen</CardDescription>
+            <CardDescription>{t("deploymentsPage.cards.failed")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-500">{failedCount}</p>
@@ -213,12 +217,12 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Ausstehend</CardDescription>
+            <CardDescription>{t("deploymentsPage.cards.pending")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-muted-foreground">{pendingCount + inProgressCount}</p>
             {inProgressCount > 0 && (
-              <p className="text-sm text-blue-500">{inProgressCount} in Bearbeitung</p>
+              <p className="text-sm text-blue-500">{t("deploymentDetail.inProgress", { count: inProgressCount })}</p>
             )}
           </CardContent>
         </Card>
@@ -226,20 +230,20 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
 
       <Card>
         <CardHeader>
-          <CardTitle>Node Status</CardTitle>
-          <CardDescription>Status pro Gerät</CardDescription>
+          <CardTitle>{t("deploymentDetail.nodeStatus")}</CardTitle>
+          <CardDescription>{t("deploymentDetail.nodeStatusText")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Hostname</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Versuche</TableHead>
-                <TableHead>Gestartet</TableHead>
-                <TableHead>Abgeschlossen</TableHead>
-                <TableHead>Exit Code</TableHead>
-                <TableHead>Fehler</TableHead>
+                <TableHead>{t("deploymentDetail.columns.hostname")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("deploymentDetail.columns.attempts")}</TableHead>
+                <TableHead>{t("deploymentDetail.columns.started")}</TableHead>
+                <TableHead>{t("deploymentDetail.columns.completed")}</TableHead>
+                <TableHead>{t("deploymentDetail.columns.exitCode")}</TableHead>
+                <TableHead>{t("deploymentDetail.columns.error")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -255,7 +259,7 @@ export default function DeploymentDetailPage({ params }: { params: Promise<{ id:
                     <TableCell>
                       <Badge className={statusColors[n.status]}>
                         <Icon className="h-3 w-3 mr-1" />
-                        {n.status}
+                        {statusLabel(n.status)}
                       </Badge>
                     </TableCell>
                     <TableCell>{n.attempts}</TableCell>

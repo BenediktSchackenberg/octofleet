@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
 
 
 
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props) {
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [packageVersionId, setPackageVersionId] = useState("");
@@ -124,36 +126,36 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Neues Deployment erstellen</DialogTitle>
-          <DialogDescription>Software an Nodes oder Gruppen verteilen</DialogDescription>
+          <DialogTitle>{t("createDeployment.title")}</DialogTitle>
+          <DialogDescription>{t("createDeployment.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
+            <Label htmlFor="name">{t("common.name")} *</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="z.B. Chrome Update Q1"
+              placeholder={t("createDeployment.namePlaceholder")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Beschreibung</Label>
+            <Label htmlFor="description">{t("common.description")}</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional"
+              placeholder={t("createDeployment.optional")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="package">Paket *</Label>
+            <Label htmlFor="package">{t("createDeployment.package")} *</Label>
             <Select value={packageVersionId} onValueChange={setPackageVersionId}>
               <SelectTrigger>
-                <SelectValue placeholder="Paket auswählen..." />
+                <SelectValue placeholder={t("createDeployment.selectPackage")} />
               </SelectTrigger>
               <SelectContent>
                 {packageVersions.map((pv) => (
@@ -166,25 +168,25 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           </div>
 
           <div className="space-y-2">
-            <Label>Ziel</Label>
+            <Label>{t("createDeployment.target")}</Label>
             <Select value={targetType} onValueChange={(v) => { setTargetType(v as any); setTargetId(""); }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Alle Nodes</SelectItem>
-                <SelectItem value="group">Gruppe</SelectItem>
-                <SelectItem value="node">Einzelner Node</SelectItem>
+                <SelectItem value="all">{t("createDeployment.targetAll")}</SelectItem>
+                <SelectItem value="group">{t("createDeployment.targetGroup")}</SelectItem>
+                <SelectItem value="node">{t("createDeployment.targetNode")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {targetType === "group" && (
             <div className="space-y-2">
-              <Label>Gruppe</Label>
+              <Label>{t("createDeployment.group")}</Label>
               <Select value={targetId} onValueChange={setTargetId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Gruppe auswählen..." />
+                  <SelectValue placeholder={t("createDeployment.selectGroup")} />
                 </SelectTrigger>
                 <SelectContent>
                   {groups.map((g) => (
@@ -199,10 +201,10 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
           {targetType === "node" && (
             <div className="space-y-2">
-              <Label>Node</Label>
+              <Label>{t("createDeployment.node")}</Label>
               <Select value={targetId} onValueChange={setTargetId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Node auswählen..." />
+                  <SelectValue placeholder={t("createDeployment.selectNode")} />
                 </SelectTrigger>
                 <SelectContent>
                   {nodes.map((n) => (
@@ -216,15 +218,15 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           )}
 
           <div className="space-y-2">
-            <Label>Modus</Label>
+            <Label>{t("createDeployment.mode")}</Label>
             <Select value={mode} onValueChange={(v) => setMode(v as any)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="required">Pflicht (automatische Installation)</SelectItem>
-                <SelectItem value="available">Verfügbar (Self-Service)</SelectItem>
-                <SelectItem value="uninstall">Deinstallation</SelectItem>
+                <SelectItem value="required">{t("createDeployment.modeRequired")}</SelectItem>
+                <SelectItem value="available">{t("createDeployment.modeAvailable")}</SelectItem>
+                <SelectItem value="uninstall">{t("createDeployment.modeUninstall")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -232,7 +234,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           {/* E5-05: Scheduling (optional) */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="scheduledStart">Startzeit (optional)</Label>
+              <Label htmlFor="scheduledStart">{t("createDeployment.scheduledStart")}</Label>
               <Input
                 id="scheduledStart"
                 type="datetime-local"
@@ -241,7 +243,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="scheduledEnd">Endzeit (optional)</Label>
+              <Label htmlFor="scheduledEnd">{t("createDeployment.scheduledEnd")}</Label>
               <Input
                 id="scheduledEnd"
                 type="datetime-local"
@@ -261,22 +263,22 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
               className="rounded"
             />
             <Label htmlFor="maintenanceWindowOnly" className="text-sm font-normal">
-              🕐 Nur in Wartungsfenstern ausführen
+              🕐 {t("createDeployment.maintenanceWindowOnly")}
             </Label>
           </div>
 
           {/* E9: Rollout Strategy */}
           <div className="space-y-2">
-            <Label>Rollout-Strategie</Label>
+            <Label>{t("createDeployment.strategy")}</Label>
             <Select value={rolloutStrategy} onValueChange={(v) => { setRolloutStrategy(v as any); setRolloutConfig({}); }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="immediate">⚡ Sofort (alle gleichzeitig)</SelectItem>
-                <SelectItem value="staged">📊 Gestaffelt (in Wellen)</SelectItem>
-                <SelectItem value="canary">🐤 Canary (erst testen, dann alle)</SelectItem>
-                <SelectItem value="percentage">📈 Prozentual (schrittweise erhöhen)</SelectItem>
+                <SelectItem value="immediate">⚡ {t("createDeployment.strategyImmediate")}</SelectItem>
+                <SelectItem value="staged">📊 {t("createDeployment.strategyStaged")}</SelectItem>
+                <SelectItem value="canary">🐤 {t("createDeployment.strategyCanary")}</SelectItem>
+                <SelectItem value="percentage">📈 {t("createDeployment.strategyPercentage")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -285,7 +287,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           {rolloutStrategy === "staged" && (
             <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-blue-500/30">
               <div className="space-y-2">
-                <Label>Geräte pro Welle</Label>
+                <Label>{t("createDeployment.waveSize")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.wave_size || 10}
@@ -294,7 +296,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
                 />
               </div>
               <div className="space-y-2">
-                <Label>Wartezeit (Min.)</Label>
+                <Label>{t("createDeployment.waveDelay")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.wave_delay_minutes || 60}
@@ -303,7 +305,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
                 />
               </div>
               <div className="space-y-2 col-span-2">
-                <Label>Min. Erfolgsrate (%)</Label>
+                <Label>{t("createDeployment.successThreshold")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.success_threshold_percent || 90}
@@ -318,7 +320,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           {rolloutStrategy === "canary" && (
             <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-yellow-500/30">
               <div className="space-y-2">
-                <Label>Canary-Geräte</Label>
+                <Label>{t("createDeployment.canaryCount")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.canary_count || 1}
@@ -327,7 +329,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
                 />
               </div>
               <div className="space-y-2">
-                <Label>Beobachtungszeit (Std.)</Label>
+                <Label>{t("createDeployment.canaryDuration")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.canary_duration_hours || 24}
@@ -344,7 +346,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
                   className="rounded"
                 />
                 <Label htmlFor="autoProceed" className="text-sm font-normal">
-                  Automatisch fortfahren wenn Canary erfolgreich
+                  {t("createDeployment.autoProceed")}
                 </Label>
               </div>
             </div>
@@ -353,7 +355,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
           {rolloutStrategy === "percentage" && (
             <div className="grid grid-cols-3 gap-4 pl-4 border-l-2 border-green-500/30">
               <div className="space-y-2">
-                <Label>Start (%)</Label>
+                <Label>{t("createDeployment.initialPercent")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.initial_percent || 10}
@@ -363,7 +365,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
                 />
               </div>
               <div className="space-y-2">
-                <Label>Erhöhung (%)</Label>
+                <Label>{t("createDeployment.incrementPercent")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.increment_percent || 20}
@@ -373,7 +375,7 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
                 />
               </div>
               <div className="space-y-2">
-                <Label>Wartezeit (Std.)</Label>
+                <Label>{t("createDeployment.stepDelay")}</Label>
                 <Input
                   type="number"
                   value={rolloutConfig.step_delay_hours || 4}
@@ -387,11 +389,11 @@ export function CreateDeploymentDialog({ open, onOpenChange, onCreated }: Props)
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={loading || !name || !packageVersionId}>
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Deployment erstellen
+            {t("createDeployment.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>
