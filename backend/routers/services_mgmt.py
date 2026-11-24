@@ -7,13 +7,13 @@ from typing import Any, Dict
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
-from auth import require_permission, require_user_permission
-from dependencies import bad_request, get_db, not_found, verify_api_key
+from auth import require_any_permission, require_permission, require_user_permission
+from dependencies import bad_request, get_db, not_found
 
 router = APIRouter(tags=["Services"])
 
 
-@router.get("/api/v1/service-classes", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/service-classes", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_service_classes(db: asyncpg.Pool = Depends(get_db)):
     """List all service class templates"""
     async with db.acquire() as conn:
@@ -54,7 +54,7 @@ async def create_service_class(data: Dict[str, Any], db: asyncpg.Pool = Depends(
         return dict(row)
 
 
-@router.get("/api/v1/service-classes/{class_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/service-classes/{class_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a service class by ID"""
     async with db.acquire() as conn:
@@ -127,7 +127,7 @@ async def delete_service_class(class_id: str, db: asyncpg.Pool = Depends(get_db)
         return {"status": "deleted", "id": class_id}
 
 
-@router.get("/api/v1/services", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/services", dependencies=[Depends(require_user_permission("settings:read"))])
 async def list_services(
     status: str = None,
     class_id: str = None,
@@ -193,7 +193,7 @@ async def create_service(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db
         return dict(row)
 
 
-@router.get("/api/v1/services/{service_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/services/{service_id}", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_service(service_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get a service with its node assignments"""
     async with db.acquire() as conn:
@@ -335,7 +335,7 @@ async def remove_node_from_service(
         return {"status": "removed", "serviceId": service_id, "nodeId": node_id}
 
 
-@router.get("/api/v1/services/{service_id}/logs", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/services/{service_id}/logs", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_service_logs(
     service_id: str,
     limit: int = 50,
@@ -446,7 +446,7 @@ async def trigger_reconciliation(service_id: str, db: asyncpg.Pool = Depends(get
         }
 
 
-@router.get("/api/v1/nodes/{node_id}/service-assignments", dependencies=[Depends(verify_api_key)])
+@router.get("/api/v1/nodes/{node_id}/service-assignments", dependencies=[Depends(require_any_permission("settings:read", "jobs:poll"))])
 async def get_node_service_assignments(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get all services assigned to a node - for agent polling.
     node_id can be the database ID or the hostname (case-insensitive).

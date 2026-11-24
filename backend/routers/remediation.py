@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from starlette.responses import StreamingResponse
 
 from auth import CurrentUser, require_permission, require_user_permission
-from dependencies import get_pool, verify_api_key, verify_api_key_or_query
+from dependencies import get_pool, require_permission_or_query, verify_api_key
 from remediation import (
     ApproveRemediationRequest,
     RemediationEngine,
@@ -510,15 +510,15 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     }
 
 
-@router.get("/api/v1/remediation/summary")
+@router.get("/api/v1/remediation/summary", dependencies=[Depends(require_user_permission("jobs:read"))])
 async def remediation_dashboard(_: str = Depends(verify_api_key)):
     """Get remediation dashboard summary."""
     summary = await get_remediation_summary(get_pool())
     return summary
 
 
-@router.get("/api/v1/remediation/live")
-async def remediation_live_sse(request: Request, _auth=Depends(verify_api_key_or_query)):
+@router.get("/api/v1/remediation/live", dependencies=[Depends(require_permission_or_query("jobs:read"))])
+async def remediation_live_sse(request: Request):
     """
     SSE endpoint for live remediation job updates.
     Broadcasts job status changes in real-time. EventSource cannot send headers, so the

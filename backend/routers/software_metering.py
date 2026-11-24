@@ -98,7 +98,7 @@ def _compliance_status(total_licenses: Optional[int], installed: int) -> str:
 
 # ─── CATALOG ───────────────────────────────────────────────────────────────────
 
-@router.get("/catalog")
+@router.get("/catalog", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_catalog(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -218,7 +218,7 @@ async def auto_discover_catalog(
 
 # ─── NORMALIZATION RULES ───────────────────────────────────────────────────────
 
-@router.get("/rules")
+@router.get("/rules", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_rules(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -281,7 +281,7 @@ async def test_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
 
 # ─── LICENSES ──────────────────────────────────────────────────────────────────
 
-@router.get("/licenses")
+@router.get("/licenses", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_licenses(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         rows = await conn.fetch("""
@@ -358,7 +358,7 @@ async def delete_license(license_id: UUID, db: asyncpg.Pool = Depends(get_db)):
 
 # ─── COMPLIANCE ────────────────────────────────────────────────────────────────
 
-@router.get("/compliance")
+@router.get("/compliance", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def compliance_summary(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         cats = await conn.fetch("SELECT id, canonical_name FROM software_catalog WHERE is_tracked = true")
@@ -409,7 +409,7 @@ async def compliance_summary(db: asyncpg.Pool = Depends(get_db)):
         }
 
 
-@router.get("/compliance/{catalog_id}")
+@router.get("/compliance/{catalog_id}", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def compliance_detail(catalog_id: UUID, db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         cat = await conn.fetchrow("SELECT * FROM software_catalog WHERE id = $1", catalog_id)
@@ -459,7 +459,7 @@ async def compliance_detail(catalog_id: UUID, db: asyncpg.Pool = Depends(get_db)
 
 # ─── DASHBOARD ─────────────────────────────────────────────────────────────────
 
-@router.get("/dashboard")
+@router.get("/dashboard", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def dashboard(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
         # top installed software
@@ -535,7 +535,7 @@ async def dashboard(db: asyncpg.Pool = Depends(get_db)):
 
 # ─── USAGE ─────────────────────────────────────────────────────────────────────
 
-@router.get("/usage")
+@router.get("/usage", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_usage(
     node_id: Optional[UUID] = None,
     catalog_id: Optional[UUID] = None,
@@ -611,7 +611,7 @@ async def submit_usage(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db))
         return {"status": "ok", "upserted": upserted}
 
 
-@router.get("/usage/reclaim")
+@router.get("/usage/reclaim", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def reclaim_candidates(db: asyncpg.Pool = Depends(get_db)):
     """Software unused >90 days that has active licenses — reclamation candidates."""
     async with db.acquire() as conn:
@@ -638,7 +638,7 @@ async def reclaim_candidates(db: asyncpg.Pool = Depends(get_db)):
 
 # ─── REPORTS ───────────────────────────────────────────────────────────────────
 
-@router.get("/reports/true-up")
+@router.get("/reports/true-up", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def true_up_report(db: asyncpg.Pool = Depends(get_db)):
     """True-up report: for each licensed software, purchased vs installed vs used."""
     async with db.acquire() as conn:

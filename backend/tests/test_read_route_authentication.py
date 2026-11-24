@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from route_table import api_routes, websocket_routes
 from starlette.websockets import WebSocketDisconnect
 from test_route_authentication import AUTH_DEPENDENCIES, _dependency_names
+from test_write_route_permissions import PERMISSION_CHECKS
 
 from auth import CurrentUser, get_current_user
 from main import app
@@ -34,12 +35,20 @@ PUBLIC_READ_ROUTES = {
     ("GET", "/api/v1/pxe/autoinstall/{mac}/meta-data"),
     ("GET", "/api/v1/provisioning/linux-agent"),
     ("GET", "/api/v1/provisioning/autoinstall/{hostname}"),
-    # A node that registered itself polls here until an admin approves it; it only knows its
-    # pending ID (PendingNodeRegistration.cs)
+    # A node that registered itself polls here until an admin approves it; it has no key yet, only
+    # its pending ID and the one-time registration secret, which the route checks
+    # (PendingNodeRegistration.cs, pending_registration.py)
     ("GET", "/api/v1/pending-nodes/{pending_id}/config"),
     # The Windows agent downloads repository files without a key (PackageManager.cs); the file ID
     # is part of the package source URL
     ("GET", "/api/v1/repo/download/{file_id}"),
+}
+
+# Any signed-in user, for their own account only (the frontend asks before it knows the permissions)
+OWN_ACCOUNT_READ_ROUTES = {
+    ("GET", "/api/v1/auth/me"),
+    ("GET", "/api/v1/auth/permissions"),
+    ("GET", "/api/v1/auth/password-rules"),
 }
 
 # Websockets check credentials in the handler: viewers send the session token as ?token=, agents
@@ -109,6 +118,21 @@ class ReadRouteAuthenticationTests(unittest.TestCase):
             and ("GET", route.path) not in PUBLIC_READ_ROUTES
         )
         self.assertEqual(open_routes, [], "read routes without authentication")
+
+    def test_every_read_route_checks_a_permission(self):
+        # verify_api_key alone accepts the shared agent key (on every managed machine) and any user
+        unchecked = sorted(
+            ("GET", route.path)
+            for route in api_routes(app)  # with the routes of the included routers
+            if "GET" in route.methods
+            and not (_dependency_names(route.dependant, set()) & PERMISSION_CHECKS)
+            and ("GET", route.path) not in PUBLIC_READ_ROUTES | OWN_ACCOUNT_READ_ROUTES
+        )
+        self.assertEqual(unchecked, [], "read routes that only check for a key or a session")
+
+    def test_own_account_read_routes_exist(self):
+        paths = {("GET", route.path) for route in api_routes(app) if "GET" in route.methods}
+        self.assertEqual(OWN_ACCOUNT_READ_ROUTES - paths, set(), "stale entries in OWN_ACCOUNT_READ_ROUTES")
 
     def test_public_read_routes_exist(self):
         paths = {("GET", route.path) for route in api_routes(app) if "GET" in route.methods}

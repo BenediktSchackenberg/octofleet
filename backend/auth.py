@@ -337,7 +337,7 @@ ROLE_PERMISSIONS = {
     "auditor": [
         "eventlog:read", "compliance:read", "nodes:read",
         "inventory:read", "hardware:read", "vulnerabilities:read",
-        "reports:read"
+        "reports:read", "alerts:read", "jobs:read"
     ]
 }
 

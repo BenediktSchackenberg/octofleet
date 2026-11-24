@@ -35,6 +35,9 @@ public class ServiceConfig
     
     // Pending approval workflow
     public string? PendingId { get; set; }  // Set when registered, cleared when approved
+    /// <summary>The one-time secret of the registration (PendingRegistrationProtocol), DPAPI-encrypted
+    /// like the agent key when running as SYSTEM. Cleared with PendingId.</summary>
+    public string? PendingSecret { get; set; }
     public string? DiscoveryUrl { get; set; } = null;  // Discovery URL - must be configured
 
     // Software Repository settings (Epic #57 Issue #62)

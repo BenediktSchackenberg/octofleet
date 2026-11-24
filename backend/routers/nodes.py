@@ -1,20 +1,20 @@
 import json
 import re
-import secrets
-import uuid
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
 import asyncpg
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import node_removal
-from auth import require_auth, require_permission, require_user_permission
+import pending_registration
+from auth import require_permission, require_user_permission
 from dependencies import API_KEY, get_db, not_found, verify_api_key
 from node_status import status_sql
+from provisioning_config import server_url
 
 # Use the JWT secret from auth module
 try:
@@ -535,24 +535,30 @@ async def register_pending_node(request: Request, db: asyncpg.Pool = Depends(get
     ip_address = request.client.host if request.client else None
     
     async with db.acquire() as conn:
+        # A registration waiting for approval belongs to whoever registered first: a second one for
+        # the same machine gets no secret. Registrations of older agents (no secret) do not count;
+        # approved or rejected ones neither, a reinstalled machine registers again.
         existing = None
+        open_registration = "status = 'pending' AND secret_hash IS NOT NULL"
         if machine_id:
-            existing = await conn.fetchrow("SELECT id, status FROM pending_nodes WHERE machine_id = $1", machine_id)
+            existing = await conn.fetchrow(f"SELECT id, status FROM pending_nodes WHERE machine_id = $1 AND {open_registration}", machine_id)
         if not existing:
-            existing = await conn.fetchrow("SELECT id, status FROM pending_nodes WHERE hostname = $1 AND ip_address = $2", hostname, ip_address)
-        
+            existing = await conn.fetchrow(f"SELECT id, status FROM pending_nodes WHERE hostname = $1 AND ip_address = $2 AND {open_registration}", hostname, ip_address)
+
         if existing:
             return {"status": existing['status'], "pendingId": str(existing['id']), "message": "Node already registered"}
-        
-        pending_id = await conn.fetchval("""
-            INSERT INTO pending_nodes (hostname, os_name, os_version, ip_address, agent_version, machine_id)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id
-        """, hostname, os_name, os_version, ip_address, agent_version, machine_id)
-        
-        return {"status": "pending", "pendingId": str(pending_id), "message": f"Node {hostname} registered"}
 
-@pending_router.get("/pending-nodes", dependencies=[Depends(require_auth)])
+        secret = pending_registration.new_secret()
+        pending_id = await conn.fetchval("""
+            INSERT INTO pending_nodes (hostname, os_name, os_version, ip_address, agent_version, machine_id, secret_hash)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
+        """, hostname, os_name, os_version, ip_address, agent_version, machine_id, pending_registration.hash_secret(secret))
+
+        return {"status": "pending", "pendingId": str(pending_id), "registrationSecret": secret,
+                "message": f"Node {hostname} registered"}
+
+@pending_router.get("/pending-nodes", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def list_pending_nodes(db: asyncpg.Pool = Depends(get_db)):
     """List all pending nodes"""
     async with db.acquire() as conn:
@@ -563,10 +569,9 @@ async def list_pending_nodes(db: asyncpg.Pool = Depends(get_db)):
 async def approve_pending_node(pending_id: str, request: Request, db: asyncpg.Pool = Depends(get_db)):
     """Approve a pending node"""
     async with db.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM pending_nodes WHERE id = $1 AND status = 'pending'", uuid.UUID(pending_id))
+        row = await conn.fetchrow("SELECT id, hostname FROM pending_nodes WHERE id::text = $1 AND status = 'pending'", pending_id)
         if not row: raise HTTPException(status_code=404, detail="Pending node not found")
-        
-        node_api_key = secrets.token_urlsafe(32)
+
         approver = "admin"
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
@@ -575,7 +580,7 @@ async def approve_pending_node(pending_id: str, request: Request, db: asyncpg.Po
                 approver = payload.get("sub", "admin")
             except Exception: pass
         
-        await conn.execute("UPDATE pending_nodes SET status = 'approved', approved_at = NOW(), approved_by = $2, generated_api_key = $3 WHERE id = $1", uuid.UUID(pending_id), approver, node_api_key)
+        await conn.execute("UPDATE pending_nodes SET status = 'approved', approved_at = NOW(), approved_by = $2 WHERE id = $1", row['id'], approver)
         return {"status": "approved", "nodeId": pending_id, "hostname": row['hostname']}
 
 @pending_router.delete("/pending-nodes/{pending_id}/reject", dependencies=[Depends(require_permission("nodes:write"))])
@@ -590,19 +595,28 @@ async def reject_pending_node(pending_id: str, request: Request, db: asyncpg.Poo
                 rejecter = payload.get("sub", "admin")
             except Exception: pass
         
-        result = await conn.execute("UPDATE pending_nodes SET status = 'rejected', rejected_at = NOW(), rejected_by = $2 WHERE id = $1 AND status = 'pending'", uuid.UUID(pending_id), rejecter)
+        result = await conn.execute("UPDATE pending_nodes SET status = 'rejected', rejected_at = NOW(), rejected_by = $2 WHERE id::text = $1 AND status = 'pending'", pending_id, rejecter)
         if result == "UPDATE 0": raise HTTPException(status_code=404, detail="Pending node not found")
         return {"status": "rejected"}
 
 @pending_router.get("/pending-nodes/{pending_id}/config")
-async def get_pending_node_config(pending_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Agent polls this for config"""
+async def get_pending_node_config(pending_id: str, request: Request, db: asyncpg.Pool = Depends(get_db),
+                                  secret: Optional[str] = Header(None, alias=pending_registration.SECRET_HEADER)):
+    """The registered agent polls here with the secret it got from POST /nodes/register. After
+    approval the configuration is handed out once; the secret is invalid afterwards."""
     async with db.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM pending_nodes WHERE id = $1", uuid.UUID(pending_id))
+        row = await conn.fetchrow("SELECT id, hostname, status, secret_hash FROM pending_nodes WHERE id::text = $1", pending_id)
         if not row: raise HTTPException(status_code=404, detail="Unknown pending ID")
+        if not pending_registration.secret_matches(row['secret_hash'], secret):
+            raise HTTPException(status_code=403, detail="Registration secret missing or invalid")
         if row['status'] == 'pending': return {"status": "pending"}
         if row['status'] == 'rejected': return {"status": "rejected"}
         if row['status'] == 'approved':
-            if not row['config_fetched_at']: await conn.execute("UPDATE pending_nodes SET config_fetched_at = NOW() WHERE id = $1", uuid.UUID(pending_id))
-            return {"status": "approved", "config": {"InventoryApiUrl": "http://192.168.0.5:8080", "InventoryApiKey": row['generated_api_key'] or API_KEY, "DisplayName": row['hostname'], "AutoPushInventory": True, "ScheduledPushEnabled": True, "ScheduledPushIntervalMinutes": 60}}
+            api_url = await server_url(conn, request)
+            handed_out = await conn.fetchval(
+                "UPDATE pending_nodes SET config_fetched_at = NOW(), secret_hash = NULL WHERE id = $1 AND secret_hash = $2 RETURNING id",
+                row['id'], row['secret_hash'])
+            if not handed_out:
+                raise HTTPException(status_code=403, detail="Registration secret missing or invalid")
+            return {"status": "approved", "config": {"InventoryApiUrl": api_url, "InventoryApiKey": API_KEY, "DisplayName": row['hostname'], "AutoPushInventory": True, "ScheduledPushEnabled": True, "ScheduledPushIntervalMinutes": 60}}
     return {"status": "unknown"}

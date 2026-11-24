@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import asyncpg
 from fastapi import APIRouter, Depends
 
+from auth import require_user_permission
 from dependencies import get_db, verify_api_key
 
 router = APIRouter(
@@ -11,7 +12,7 @@ router = APIRouter(
     dependencies=[Depends(verify_api_key)]
 )
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_metrics_summary(db: asyncpg.Pool = Depends(get_db)):
     """Get summary metrics for dashboard with per-node data"""
     async with db.acquire() as conn:
@@ -56,7 +57,7 @@ async def get_metrics_summary(db: asyncpg.Pool = Depends(get_db)):
             "nodes": nodes
         }
 
-@router.get("/timeseries")
+@router.get("/timeseries", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def get_metrics_timeseries(hours: int = 24, bucket_minutes: int = 30, group_id: str = None, db: asyncpg.Pool = Depends(get_db)):
     """Get aggregated timeseries metrics for charts"""
     async with db.acquire() as conn:

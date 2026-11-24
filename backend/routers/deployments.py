@@ -46,7 +46,7 @@ async def create_deployment(data: dict, db: asyncpg.Pool = Depends(get_db)):
         
         return {"id": str(dep_id), "status": "created"}
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_user_permission("deployments:read"))])
 async def list_deployments(status: str = None, limit: int = 50, db: asyncpg.Pool = Depends(get_db)):
     """List all deployments with aggregated status"""
     async with db.acquire() as conn:
@@ -69,7 +69,7 @@ async def list_deployments(status: str = None, limit: int = 50, db: asyncpg.Pool
         rows = await conn.fetch(query, *params)
         return [dict(r) for r in rows]
 
-@router.get("/{deployment_id}")
+@router.get("/{deployment_id}", dependencies=[Depends(require_user_permission("deployments:read"))])
 async def get_deployment(deployment_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get deployment details with per-node status"""
     async with db.acquire() as conn:
