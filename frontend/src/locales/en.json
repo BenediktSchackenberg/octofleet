@@ -2606,5 +2606,47 @@
     "incrementPercent": "Increase (%)",
     "stepDelay": "Wait time (h)",
     "submit": "Create deployment"
+  },
+  "alertsPage": {
+    "title": "Alerts",
+    "deleteChannelConfirm": "Delete this channel?",
+    "deleteRuleConfirm": "Delete this rule?",
+    "testSent": "Test message sent.",
+    "testFailed": "The test message could not be sent.",
+    "channels": "Channels",
+    "channelsText": "Where alerts are sent",
+    "addDiscord": "Add Discord",
+    "channelNamePlaceholder": "Channel name (e.g. #alerts)",
+    "webhookPlaceholder": "Discord webhook URL",
+    "noChannels": "No channels configured",
+    "disabled": "Disabled",
+    "rules": "Rules",
+    "rulesText": "When alerts are sent",
+    "addRule": "Add rule",
+    "ruleNamePlaceholder": "Rule name",
+    "selectChannel": "Select a channel...",
+    "noRules": "No rules configured",
+    "history": "Alert history",
+    "historyText": "Recently sent alerts",
+    "noHistory": "No alerts sent yet",
+    "columns": {
+      "time": "Time",
+      "event": "Event",
+      "rule": "Rule",
+      "channel": "Channel"
+    },
+    "events": {
+      "node_offline": "Node offline",
+      "node_online": "Node online",
+      "job_failed": "Job failed",
+      "job_success": "Job succeeded",
+      "disk_warning": "Disk warning",
+      "vulnerability_critical": "Critical vulnerability"
+    },
+    "status": {
+      "sent": "Sent",
+      "failed": "Failed",
+      "throttled": "Throttled"
+    }
   }
 }

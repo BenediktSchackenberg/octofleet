@@ -2606,5 +2606,47 @@
     "incrementPercent": "Incremento (%)",
     "stepDelay": "Tiempo de espera (h)",
     "submit": "Crear despliegue"
+  },
+  "alertsPage": {
+    "title": "Alertas",
+    "deleteChannelConfirm": "¿Eliminar este canal?",
+    "deleteRuleConfirm": "¿Eliminar esta regla?",
+    "testSent": "Mensaje de prueba enviado.",
+    "testFailed": "No se pudo enviar el mensaje de prueba.",
+    "channels": "Canales",
+    "channelsText": "Adónde se envían las alertas",
+    "addDiscord": "Añadir Discord",
+    "channelNamePlaceholder": "Nombre del canal (p. ej. #alerts)",
+    "webhookPlaceholder": "URL del webhook de Discord",
+    "noChannels": "No hay canales configurados",
+    "disabled": "Desactivado",
+    "rules": "Reglas",
+    "rulesText": "Cuándo se envían las alertas",
+    "addRule": "Añadir regla",
+    "ruleNamePlaceholder": "Nombre de la regla",
+    "selectChannel": "Seleccione un canal...",
+    "noRules": "No hay reglas configuradas",
+    "history": "Historial de alertas",
+    "historyText": "Alertas enviadas recientemente",
+    "noHistory": "Todavía no se ha enviado ninguna alerta",
+    "columns": {
+      "time": "Hora",
+      "event": "Evento",
+      "rule": "Regla",
+      "channel": "Canal"
+    },
+    "events": {
+      "node_offline": "Nodo sin conexión",
+      "node_online": "Nodo en línea",
+      "job_failed": "Trabajo fallido",
+      "job_success": "Trabajo correcto",
+      "disk_warning": "Aviso de disco",
+      "vulnerability_critical": "Vulnerabilidad crítica"
+    },
+    "status": {
+      "sent": "Enviada",
+      "failed": "Fallida",
+      "throttled": "Limitada"
+    }
   }
 }

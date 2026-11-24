@@ -2606,5 +2606,47 @@
     "incrementPercent": "Erhöhung (%)",
     "stepDelay": "Wartezeit (Std.)",
     "submit": "Deployment erstellen"
+  },
+  "alertsPage": {
+    "title": "Alarme",
+    "deleteChannelConfirm": "Diesen Kanal löschen?",
+    "deleteRuleConfirm": "Diese Regel löschen?",
+    "testSent": "Testnachricht gesendet.",
+    "testFailed": "Die Testnachricht konnte nicht gesendet werden.",
+    "channels": "Kanäle",
+    "channelsText": "Wohin Alarme gesendet werden",
+    "addDiscord": "Discord hinzufügen",
+    "channelNamePlaceholder": "Kanalname (z. B. #alerts)",
+    "webhookPlaceholder": "Discord-Webhook-URL",
+    "noChannels": "Keine Kanäle eingerichtet",
+    "disabled": "Deaktiviert",
+    "rules": "Regeln",
+    "rulesText": "Wann Alarme gesendet werden",
+    "addRule": "Regel hinzufügen",
+    "ruleNamePlaceholder": "Name der Regel",
+    "selectChannel": "Kanal auswählen...",
+    "noRules": "Keine Regeln eingerichtet",
+    "history": "Alarmverlauf",
+    "historyText": "Zuletzt gesendete Alarme",
+    "noHistory": "Noch keine Alarme gesendet",
+    "columns": {
+      "time": "Zeit",
+      "event": "Ereignis",
+      "rule": "Regel",
+      "channel": "Kanal"
+    },
+    "events": {
+      "node_offline": "Node offline",
+      "node_online": "Node online",
+      "job_failed": "Job fehlgeschlagen",
+      "job_success": "Job erfolgreich",
+      "disk_warning": "Speicherplatz-Warnung",
+      "vulnerability_critical": "Kritische Schwachstelle"
+    },
+    "status": {
+      "sent": "Gesendet",
+      "failed": "Fehlgeschlagen",
+      "throttled": "Gedrosselt"
+    }
   }
 }
