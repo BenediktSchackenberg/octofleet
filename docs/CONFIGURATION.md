@@ -294,9 +294,33 @@ The backend writes its log to stdout. With Docker Compose (`docker compose logs 
 
 **Admin → Logging** (`/settings/logging`, `settings:read` to view, `settings:write` to change; changes are audited as `settings.logging`) sets, without a restart:
 - **Log level**: `error`, `warning`, `info` (default) or `debug` for the backend's own messages. Debug writes much more – switch it back after troubleshooting.
+- **Level per component**: every line names its component (below); a component can have its own level, e.g. `debug` for `Jobs` only while you follow a job. Components without one follow the log level.
 - **One line per HTTP request**: every request (default, as before), only errors (status ≥ 400) and requests slower than a threshold (default 1,000 ms), or off. A line holds method, path without the query string (tokens in URLs no longer reach the log), status, duration and client address: `GET /api/v1/jobs/pending/<node> 200 2.4 ms 10.0.0.5`. It replaces uvicorn's access line, which had no duration.
 
-Lines are formatted and written by a background thread, so a request does not wait for the log. API: `GET`/`PUT /api/v1/settings/logging` with `{"level", "access_log": "all" | "errors_slow" | "off", "slow_ms"}`.
+Lines are formatted and written by a background thread, so a request does not wait for the log. API: `GET`/`PUT /api/v1/settings/logging` with `{"level", "access_log": "all" | "errors_slow" | "off", "slow_ms", "components": {"Jobs": "debug", …}}` (`components` holds only the components with their own level; `GET` also lists `component_names`).
+
+**Components.** A line looks like `2026-11-24T10:15:02+0000 INFO [Jobs] Job instance 7add… (job 705c…, script, attempt 1/3) handed out to web01`; lines of a module logger also name the module (`[Remediation] routers.remediation: …`). One component's lines: `docker compose logs backend | grep '\[Jobs\]'`. The names the agents use for their log files ([#330](https://github.com/BenediktSchackenberg/octofleet/issues/330)) mean the same here:
+
+| Component | What |
+|---|---|
+| `Api` | everything not listed below: rejected requests, unhandled errors, uvicorn, libraries |
+| `Access` | one line per HTTP request (switched by the access log setting, not by a level) |
+| `Agent` | agent registration, health, the agents' long-poll (`/api/v1/agent/wait`) |
+| `Alerts` | alerts, notifications, monitoring |
+| `Auth` | sign-in, users, roles, password policy |
+| `Inventory` | inventory and live data from the agents |
+| `Jobs` | jobs handed out to agents (info: instance, job, command type, attempt, node; debug: every poll), started, results (info; failed: warning), queued jobs set back after their timeout |
+| `Remediation` | Auto-Fix jobs handed out and their results |
+| `RemoteTools` | terminal, shell and screen sessions |
+| `Retention` | data retention and compression |
+| `Security` | security events, hardening, event counters |
+| `SelfUpdate` | agent releases for the self-update |
+| `Updates` | patches, Windows and Linux updates, approval rules, reboots |
+| `Vulnerabilities` | vulnerability matching, CVE data (NVD, OSV, MSRC) |
+
+**Rejected requests.** A request the backend rejects before the route runs (HTTP 422: a field of the wrong type, broken JSON) gets one warning with the route, the node if the path or body names it, the client address, the size and the first reason – never the body or the rejected value:
+`WARNING [Inventory] Rejected POST /api/v1/inventory/full from 10.0.0.5 (48213 bytes): 422 body.1234: JSON decode error (Expecting ',' delimiter)`.
+At most one line per node (or client address), route and reason in 10 minutes; the next line after that counts the ones left out (`[37 more like this since the last line]`), so a fleet-wide agent bug cannot flood the log. The answer to the agent is FastAPI's as before. An unhandled error writes `ERROR [Api] Unhandled <type> on <method> <path>: <message>`, followed by uvicorn's traceback.
 
 **What a line per request costs** (measured on a test installation, 8 vCPU, simulated agents polling `GET /api/v1/terminal/pending/<node>`):
 

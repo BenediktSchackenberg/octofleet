@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -20,6 +21,7 @@ router = APIRouter(
 
 # Separate router for agent endpoints; each endpoint declares its permission.
 agent_router = APIRouter(prefix="/api/v1", tags=["jobs-agent"])
+logger = logging.getLogger(__name__)
 
 CHOCO_PACKAGES = {
     "notepad++": "notepadplusplus", "notepadplusplus": "notepadplusplus", "7zip": "7zip", "7-zip": "7zip", "vlc": "vlc", "git": "git",
@@ -247,10 +249,17 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
     async with db.acquire() as conn:
         success = job_result_succeeded(data)
         status = "success" if success else "failed"
-        await conn.execute("""
+        node = await conn.fetchval("""
             UPDATE job_instances SET status = $1, completed_at = NOW(), exit_code = $2, stdout = $3, stderr = $4
             WHERE id = $5
+            RETURNING node_id
         """, status, data.get("exitCode"), data.get("stdout"), data.get("stderr"), instance_id)
+        if node is None:
+            logger.warning("Result for unknown job instance %s", instance_id)
+        else:
+            (logger.info if success else logger.warning)(
+                "Job instance %s on node %s: %s, exit code %s%s", instance_id, node, status, data.get("exitCode"),
+                f", {data['durationMs']} ms" if data.get("durationMs") is not None else "")
         return {"status": status}
 
 # --- Packages ---

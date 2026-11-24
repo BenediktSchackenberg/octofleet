@@ -2148,6 +2148,30 @@
       "debug": "Debug – alles, zur Fehlersuche"
     },
     "levelHint": "Debug schreibt deutlich mehr; danach wieder zurückstellen.",
+    "components": "Level pro Komponente",
+    "componentsHint": "Jede Zeile nennt ihre Komponente in Klammern, z. B. [Jobs], so lässt sich das Log einer Komponente mit grep herausfiltern. Eine Komponente kann mehr oder weniger schreiben als das Log-Level oben – z. B. Debug nur für Jobs, während Sie einen Job verfolgen.",
+    "sameAsLevel": "Wie das Log-Level",
+    "componentLevels": {
+      "error": "Fehler",
+      "warning": "Warnungen und Fehler",
+      "info": "Information",
+      "debug": "Debug"
+    },
+    "componentInfo": {
+      "Api": "Alles Übrige: vom Server abgelehnte Anfragen (ungültige Daten von Agents, mit Node und Grund), unbehandelte Fehler, der Webserver",
+      "Agent": "Agent-Registrierung, Zustand und Long-Poll der Agents",
+      "Alerts": "Alarme, Benachrichtigungen und Monitoring",
+      "Auth": "Anmeldung, Benutzer, Rollen und Passwortrichtlinie",
+      "Inventory": "Inventar und Live-Daten der Agents",
+      "Jobs": "An die Agents ausgegebene Jobs und ihre Ergebnisse, Verteilungen, Pakete",
+      "Remediation": "Auto-Fix: ausgegebene Remediation-Jobs und ihre Ergebnisse",
+      "RemoteTools": "Remote-Terminal, Shell- und Bildschirmsitzungen",
+      "Retention": "Aufbewahrung und Komprimierung der Daten",
+      "Security": "Sicherheitsereignisse, Härtung und Ereigniszähler",
+      "SelfUpdate": "Agent-Versionen für das Selbst-Update der Agents",
+      "Updates": "Patches, Windows- und Linux-Updates, Freigaberegeln, Neustarts",
+      "Vulnerabilities": "Schwachstellenabgleich und CVE-Daten (NVD, OSV, Microsoft MSRC)"
+    },
     "accessLog": "Eine Zeile pro HTTP-Anfrage",
     "access": {
       "all": "Jede Anfrage (Standard, wie bisher)",
