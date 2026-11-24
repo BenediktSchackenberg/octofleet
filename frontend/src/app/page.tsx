@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { OsDistributionChart } from "@/components/OsDistributionChart";
 import { getAuthHeader } from "@/lib/auth-context";
 import { apiClient } from "@/lib/api-client";
@@ -21,6 +20,7 @@ import { formatLocalDate, formatTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
 import { VulnerabilitySummaryFreshness } from "@/components/vulnerability-summary-freshness";
 import { routeLabel } from "@/lib/routes";
+import { CRIT_PERCENT, WARN_PERCENT, performanceHref, worstMetric } from "@/lib/node-health";
 
 // Skeleton Components for Loading State
 function Skeleton({ className = "" }: { className?: string }) {
@@ -141,7 +141,6 @@ interface MetricsSummary {
 }
 
 export default function HomePage() {
-  const router = useRouter();
   const { isAdmin, user } = useAuth();
   const { t } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -151,6 +150,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  // Jobs of the last 24 h, counted like the Jobs page the card links to (jobs, failed by failure time)
+  const [jobCounts, setJobCounts] = useState<{ total: number; running: number; success: number; failed: number } | null>(null);
+  const [showAllPerf, setShowAllPerf] = useState(false);
   const [taskCounts, setTaskCounts] = useState<{ approvals: number; findings: number; failedJobs: number; offline: number } | null>(null);
   const [eventStats, setEventStats] = useState<{ stats: Array<{ event_type: string; count: number }>; retention: any } | null>(null);
   const { favorites } = useFavorites();
@@ -179,6 +181,7 @@ export default function HomePage() {
     fetchSystemHealth();
     fetchRecentAlerts();
     fetchTaskCounts();
+    fetchJobCounts();
     fetchEventStats();
   }, []);
 
@@ -204,6 +207,11 @@ export default function HomePage() {
     if (data) setRecentAlerts(data);
   }
 
+  async function fetchJobCounts() {
+    const data = await apiClient.get<{ counts?: { total: number; running: number; success: number; failed: number } }>("/jobs?since_hours=24&limit=1", { showErrorToast: false });
+    if (data?.counts) setJobCounts(data.counts);
+  }
+
   async function fetchTaskCounts() {
     const c = { approvals: 0, findings: 0, failedJobs: 0, offline: 0 };
     const results = await Promise.allSettled([
@@ -217,12 +225,8 @@ export default function HomePage() {
     // Open job failures of the last 7 days - the same number as on the Tasks page the widget links to
     if (results[2].status === "fulfilled") c.failedJobs = results[2].value?.total || 0;
     if (results[3].status === "fulfilled" && results[3].value?.nodes) {
-      const TEN_MINUTES = 10 * 60 * 1000;
-      c.offline = results[3].value.nodes.filter((n: any) => {
-        if (n.status === "online") return false;
-        if (n.last_seen && (Date.now() - new Date(n.last_seen).getTime()) < TEN_MINUTES) return false;
-        return true;
-      }).length;
+      // Offline by the server's node status (no contact for an hour) - the Fleet status card's number
+      c.offline = results[3].value.nodes.filter((n: any) => n.status === "offline").length;
     }
     setTaskCounts(c);
   }
@@ -528,17 +532,25 @@ export default function HomePage() {
                             <span className="text-center">{t("dashboard.disk")}</span>
                             <span className="text-right">{t("common.status")}</span>
                           </div>
-                          <div className="max-h-[280px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                            {(Array.isArray(metrics?.nodes) ? metrics.nodes : [])
+                          {/* No inner scroll: the busiest rows first, the rest behind "Show all" (the card grows) */}
+                          {(() => {
+                            const perfNodes = (Array.isArray(metrics?.nodes) ? metrics.nodes : [])
                               .filter((n: any) => n.cpuPercent !== null || n.ramPercent !== null)
-                              .sort((a: any, b: any) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0))
-                              .slice(0, 12)
+                              .sort((a: any, b: any) => Math.max(b.cpuPercent || 0, b.ramPercent || 0, b.diskPercent || 0) - Math.max(a.cpuPercent || 0, a.ramPercent || 0, a.diskPercent || 0));
+                            const PERF_ROWS = 8;
+                            return (<>
+                          <div className="space-y-1">
+                            {(showAllPerf ? perfNodes : perfNodes.slice(0, PERF_ROWS))
                               .map((node: any, i: number) => {
                                 const cpu = node.cpuPercent || 0;
                                 const ram = node.ramPercent || 0;
                                 const disk = node.diskPercent || 0;
-                                const worst = Math.max(cpu, ram, disk);
-                                const status = worst > 85 ? 'crit' : worst > 70 ? 'warn' : 'ok';
+                                const worst = worstMetric({ cpu, ram, disk });
+                                const status = worst.level;
+                                const why = status === "ok" ? undefined : t("dashboard.perfWhy", {
+                                  metric: t(`dashboard.perfMetric.${worst.metric}`), value: Math.round(worst.value),
+                                  threshold: status === "crit" ? CRIT_PERCENT : WARN_PERCENT,
+                                });
                                 
                                 const HeatBar = ({ value, colorClass }: { value: number; colorClass: string }) => (
                                   <div className="flex items-center justify-center gap-1.5">
@@ -559,10 +571,11 @@ export default function HomePage() {
                                 );
                                 
                                 return (
-                                  <div 
-                                    key={i} 
+                                  <Link
+                                    key={i}
+                                    href={performanceHref(node.nodeId, worst)}
+                                    title={why}
                                     className="grid grid-cols-[1fr_75px_75px_75px_80px] gap-2 items-center py-2 px-2 hover:bg-primary/5 rounded-lg border border-transparent hover:border-primary/10 transition-all cursor-pointer group"
-                                    onClick={() => router.push(`/nodes/${node.nodeId}`)}
                                   >
                                     <span className="font-bold text-xs truncate group-hover:text-primary transition-colors">{node.hostname}</span>
                                     <HeatBar value={cpu} colorClass="bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
@@ -577,10 +590,18 @@ export default function HomePage() {
                                         <span className="text-[10px] font-bold text-muted-foreground/50 uppercase">{t("dashboard.healthy")}</span>
                                       )}
                                     </div>
-                                  </div>
+                                  </Link>
                                 );
                               })}
                           </div>
+                          {perfNodes.length > PERF_ROWS && (
+                            <button type="button" onClick={() => setShowAllPerf((v) => !v)}
+                              className="mt-2 w-full text-center text-xs font-semibold text-primary hover:underline">
+                              {showAllPerf ? t("dashboard.showLess") : t("dashboard.showAllCount", { count: perfNodes.length })}
+                            </button>
+                          )}
+                            </>);
+                          })()}
                         </div>
                       </div>
                     ) : (
@@ -601,19 +622,19 @@ export default function HomePage() {
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="flex items-end gap-6 mb-4">
-                      <Link href="/jobs" className="group">
-                        <div className="text-4xl font-black text-green-500 group-hover:scale-110 transition-transform origin-left">{summary?.jobs?.success || 0}</div>
+                      <Link href="/jobs?status=success&range=24h" className="group">
+                        <div className="text-4xl font-black text-green-500 group-hover:scale-110 transition-transform origin-left">{jobCounts?.success ?? 0}</div>
                         <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">{t("common.success")}</div>
                       </Link>
-                      <Link href="/jobs" className="group">
-                        <div className="text-3xl font-bold text-red-500 group-hover:scale-110 transition-transform origin-left">{summary?.jobs?.failed || 0}</div>
+                      <Link href="/jobs?status=failed&range=24h" className="group">
+                        <div className="text-3xl font-bold text-red-500 group-hover:scale-110 transition-transform origin-left">{jobCounts?.failed ?? 0}</div>
                         <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">{t("dashboard.failed")}</div>
                       </Link>
                     </div>
-                    {(summary?.jobs?.pending || 0) > 0 && (
-                      <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 text-yellow-600 rounded-md text-[10px] font-bold uppercase border border-yellow-500/20">
-                        <Activity className="h-3 w-3 animate-spin" /> {t("dashboard.pendingCount", { count: summary?.jobs?.pending ?? 0 })}
-                      </div>
+                    {(jobCounts?.running ?? 0) > 0 && (
+                      <Link href="/jobs?status=running" className="inline-flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 text-yellow-600 rounded-md text-[10px] font-bold uppercase border border-yellow-500/20 hover:bg-yellow-500/20">
+                        <Activity className="h-3 w-3 animate-spin" /> {t("dashboard.runningCount", { count: jobCounts?.running ?? 0 })}
+                      </Link>
                     )}
                   </CardContent>
                 </Card>

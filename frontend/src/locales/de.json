@@ -264,7 +264,16 @@
       "evening": "Guten Abend",
       "night": "Gute Nacht"
     },
-    "showNodes": "Nodes anzeigen →"
+    "showNodes": "Nodes anzeigen →",
+    "perfWhy": "{metric} {value} % liegt über {threshold} %",
+    "perfMetric": {
+      "cpu": "CPU",
+      "ram": "RAM",
+      "disk": "Datenträger"
+    },
+    "showAllCount": "Alle anzeigen ({count})",
+    "showLess": "Weniger anzeigen",
+    "runningCount": "{count} laufen"
   },
   "nodes": {
     "osBuild": "OS-Build {build}",
@@ -1494,7 +1503,8 @@
       "range14d": "Letzte 14 Tage (6-Stunden-Intervall)",
       "range30d": "Letzte 30 Tage (Tagesdurchschnitt)",
       "recentEvents": "Letzte Ereignisse",
-      "windowsEventLogs": "Windows-Ereignisprotokolle"
+      "windowsEventLogs": "Windows-Ereignisprotokolle",
+      "flagged": "Auf dem Dashboard markiert: Warnung über {warn} %, kritisch über {crit} %"
     },
     "livePage": {
       "title": "Live-Ansicht",

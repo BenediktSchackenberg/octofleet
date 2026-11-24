@@ -100,7 +100,7 @@ The job will be picked up by the agent on its next poll cycle (default: 60 secon
 
 Now that you have a node reporting in, explore these features:
 
-- **📊 Dashboard** — Fleet overview with health status and hotspot matrix
+- **📊 Dashboard** — Fleet overview with health status and hotspot matrix; its cards link to the pages they count (Fleet status → Nodes by status, Jobs (24h) → Jobs filtered, Fleet performance rows → the node's Performance tab with the flagged metric marked)
 - **✅ Tasks** — What needs attention: agents waiting for approval, failed jobs, remediations and alert deliveries (last 7 days), nodes with critical CVEs, critical security findings and offline devices – each with its status, time and a link to it. Failed jobs are one entry per node and job type ("Search for updates failed 6× on app-server-01", with the reason and since when); an entry drops out once a later run of the same kind succeeds on that node (*Show resolved job failures* shows them). The dashboard's "Open tasks" counts like the page and links to the matching filter. The sidebar badge next to Jobs counts failed jobs of the last 7 days (with a tooltip) and leads to the jobs page, which shows only failed jobs with `?status=failed`.
 - **🗂️ Fleet → Nodes** — The tree on the left groups the nodes by group, OS and release (and those in no group); pick a branch to list its nodes. The tree stays next to a node's page, so you keep your place.
 - **🖥️ Node Details** — Click any node for deep hardware/software inventory
