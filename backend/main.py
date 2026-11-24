@@ -59,6 +59,7 @@ import json_columns
 import linux_rules
 import logging_config
 import monitoring_defaults
+import msrc
 import node_reboot
 import node_removal
 import password_policy
@@ -175,6 +176,8 @@ async def lifespan(app: FastAPI):
     await logging_config.load(db_pool)
     # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
     vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
+    # Windows fixes from Microsoft's Security Update Guide (#192): first sync a minute after startup
+    msrc_task = asyncio.create_task(msrc.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
     # Linux approval rules (#271): keeps the per-node approval counts current
     linux_approval_task = asyncio.create_task(linux_rules.approval_loop(db_pool))
@@ -249,6 +252,7 @@ async def lifespan(app: FastAPI):
     json_columns_task.cancel()
     run_kind_task.cancel()
     vulnerability_cache_task.cancel()
+    msrc_task.cancel()
     linux_approval_task.cancel()
     if db_pool:
         await db_pool.close()

@@ -73,6 +73,7 @@ ADMIN_ROUTES = (
     ("POST", "/api/v1/provisioning/vm/create", "nodes:write"),
     ("POST", "/api/v1/patches/fleet/search", "packages:deploy"),
     ("POST", "/api/v1/patches/fleet/install", "packages:deploy"),
+    ("POST", "/api/v1/vulnerabilities/msrc/documents", "settings:write"),
 )
 
 
