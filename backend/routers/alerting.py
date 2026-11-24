@@ -18,8 +18,3 @@ async def list_alerts_legacy():
 async def get_alert_stats_legacy():
     """Legacy: Alert statistics placeholder"""
     return {"message": "Use new E19 alert system"}
-
-@router.get("/test-legacy")
-async def test_legacy_endpoint():
-    """Placeholder to maintain route prefix"""
-    return {"message": "Use /api/v1/alert-channels and /api/v1/alert-rules instead"}
