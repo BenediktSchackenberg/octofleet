@@ -9,7 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="WixToolset.Dtf.CustomAction" Version="5.0.0" />
-    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="5.0.0" />
+    <PackageReference Include="WixToolset.Dtf.CustomAction" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="5.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- JavaScriptSerializer: part of .NET Framework, so the custom action needs no extra DLL -->
+    <Reference Include="System.Web.Extensions" />
   </ItemGroup>
 </Project>

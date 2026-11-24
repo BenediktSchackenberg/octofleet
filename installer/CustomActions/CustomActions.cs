@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using WixToolset.Dtf.WindowsInstaller;
 
@@ -8,108 +11,78 @@ namespace OctofleetAgent.Installer.CustomActions
     public class CustomActions
     {
         /// <summary>
-        /// Writes the service-config.json file with provided MSI properties.
-        /// Called as a deferred custom action.
+        /// Deferred, as SYSTEM, before the service starts: restricts C:\ProgramData\Octofleet to
+        /// SYSTEM and Administrators (as the install script and the service do) and writes the
+        /// passed properties into service-config.json. Without properties the config stays as it
+        /// is (upgrade, repair). The agent key is never logged.
         /// </summary>
         [CustomAction]
         public static ActionResult WriteConfigFile(Session session)
         {
             try
             {
-                // Parse CustomActionData (format: KEY=VALUE;KEY2=VALUE2;...)
-                var customData = session.CustomActionData;
-                
-                var gatewayUrl = customData.ContainsKey("GATEWAY_URL") ? customData["GATEWAY_URL"] : "";
-                var gatewayToken = customData.ContainsKey("GATEWAY_TOKEN") ? customData["GATEWAY_TOKEN"] : "";
-                var inventoryUrl = customData.ContainsKey("INVENTORY_URL") ? customData["INVENTORY_URL"] : "";
-                var displayName = customData.ContainsKey("DISPLAY_NAME") ? customData["DISPLAY_NAME"] : "";
-                var configDir = customData.ContainsKey("CONFIGDIR") ? customData["CONFIGDIR"] : @"C:\ProgramData\Octofleet";
+                var data = session.CustomActionData;
+                Func<string, string> get = key => data.ContainsKey(key) ? data[key] : "";
 
-                // Skip if no gateway URL provided
-                if (string.IsNullOrWhiteSpace(gatewayUrl))
+                var configDir = get("CONFIGDIR");
+                if (string.IsNullOrWhiteSpace(configDir))
+                    configDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Octofleet");
+
+                Directory.CreateDirectory(configDir);
+                Directory.SetAccessControl(configDir, FolderSecurity());
+
+                var passed = new List<string>();
+                foreach (var name in new[] { "SERVER_URL", "API_KEY", "DISPLAY_NAME", "PUSH_INTERVAL" })
+                    if (!string.IsNullOrWhiteSpace(get(name))) passed.Add(name);
+
+                var configPath = Path.Combine(configDir, ConfigFile.FileName);
+                if (passed.Count == 0)
                 {
-                    session.Log("WriteConfigFile: No GATEWAY_URL provided, skipping config creation.");
+                    session.Log("WriteConfigFile: no SERVER_URL, API_KEY, DISPLAY_NAME or PUSH_INTERVAL passed; " +
+                                (File.Exists(configPath) ? "keeping " + configPath : "no config written"));
                     return ActionResult.Success;
                 }
 
-                // Use hostname as default display name
-                if (string.IsNullOrWhiteSpace(displayName))
-                {
-                    displayName = Environment.MachineName;
-                }
+                var existing = File.Exists(configPath) ? File.ReadAllText(configPath) : null;
+                bool replacedInvalid;
+                var json = ConfigFile.Merge(existing, get("SERVER_URL"), get("API_KEY"), get("DISPLAY_NAME"),
+                    get("PUSH_INTERVAL"), out replacedInvalid);
+                if (replacedInvalid)
+                    session.Log("WriteConfigFile: " + configPath + " was not valid JSON and is replaced");
 
-                // Use default inventory URL if not provided
-                if (string.IsNullOrWhiteSpace(inventoryUrl))
-                {
-                    // Extract base from gateway URL and use port 8080
-                    try
-                    {
-                        var uri = new Uri(gatewayUrl);
-                        inventoryUrl = $"{uri.Scheme}://{uri.Host}:8080";
-                    }
-                    catch
-                    {
-                        inventoryUrl = "http://localhost:8080";
-                    }
-                }
-
-                // Build JSON manually (no external dependencies)
-                var json = BuildConfigJson(gatewayUrl, gatewayToken, displayName, inventoryUrl);
-
-                // Ensure directory exists
-                Directory.CreateDirectory(configDir);
-
-                // Write config file (UTF-8 without BOM)
-                var configPath = Path.Combine(configDir, "service-config.json");
                 File.WriteAllText(configPath, json, new UTF8Encoding(false));
+                // Rules from the folder only (a file from an older install may have its own)
+                var inherit = new FileSecurity();
+                inherit.SetAccessRuleProtection(false, false);
+                File.SetAccessControl(configPath, inherit);
 
-                session.Log($"WriteConfigFile: Successfully wrote config to {configPath}");
-                session.Log($"WriteConfigFile: GatewayUrl={gatewayUrl}, DisplayName={displayName}");
-
+                session.Log("WriteConfigFile: " + (existing == null ? "created " : "updated ") + configPath +
+                            " with " + string.Join(", ", passed));
                 return ActionResult.Success;
+            }
+            catch (ArgumentException ex)
+            {
+                // Invalid property value: fail the installation (1603) instead of an unconfigured agent
+                session.Log("WriteConfigFile ERROR: " + ex.Message);
+                return ActionResult.Failure;
             }
             catch (Exception ex)
             {
-                session.Log($"WriteConfigFile ERROR: {ex.Message}");
-                session.Log($"WriteConfigFile Stack: {ex.StackTrace}");
-                
-                // Don't fail the installation, just log the error
-                return ActionResult.Success;
+                session.Log("WriteConfigFile ERROR: " + ex);
+                return ActionResult.Failure;
             }
         }
 
-        /// <summary>
-        /// Builds JSON config string manually to avoid System.Text.Json dependency
-        /// </summary>
-        private static string BuildConfigJson(string gatewayUrl, string gatewayToken, string displayName, string inventoryUrl)
+        /// <summary>Same rules as ConfigProtection.FolderSecurity in the service.</summary>
+        private static DirectorySecurity FolderSecurity()
         {
-            var sb = new StringBuilder();
-            sb.AppendLine("{");
-            sb.AppendLine($"  \"GatewayUrl\": \"{EscapeJson(gatewayUrl)}\",");
-            sb.AppendLine($"  \"GatewayToken\": \"{EscapeJson(gatewayToken)}\",");
-            sb.AppendLine($"  \"DisplayName\": \"{EscapeJson(displayName)}\",");
-            sb.AppendLine($"  \"InventoryApiUrl\": \"{EscapeJson(inventoryUrl)}\",");
-            sb.AppendLine("  \"AutoStart\": true,");
-            sb.AppendLine("  \"AutoPushInventory\": true,");
-            // no ScheduledPushIntervalMinutes: the agent's default (60 minutes, spread) applies
-            sb.AppendLine("  \"ScheduledPushEnabled\": true");
-            sb.AppendLine("}");
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Escapes special characters for JSON strings
-        /// </summary>
-        private static string EscapeJson(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return "";
-            
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\n", "\\n")
-                .Replace("\r", "\\r")
-                .Replace("\t", "\\t");
+            const InheritanceFlags all = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
+            foreach (var sid in new[] { WellKnownSidType.LocalSystemSid, WellKnownSidType.BuiltinAdministratorsSid })
+                security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid, null),
+                    FileSystemRights.FullControl, all, PropagationFlags.None, AccessControlType.Allow));
+            return security;
         }
     }
 }

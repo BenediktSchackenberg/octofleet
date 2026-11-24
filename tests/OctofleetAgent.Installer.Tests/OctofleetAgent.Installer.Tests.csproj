@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Same framework as the MSI custom action (net48, runs inside Windows Installer). -->
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Compile only the config merge: no Windows Installer session, nothing is installed. -->
+    <Compile Include="../../installer/CustomActions/ConfigFile.cs" Link="ConfigFile.cs" />
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+</Project>

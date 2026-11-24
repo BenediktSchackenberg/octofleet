@@ -22,6 +22,14 @@ function dotnet {
     $project = [string]$args[1]
     $destination = [string]$args[[Array]::IndexOf($args, '-o') + 1]
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
+    if ($project -like '*.wixproj') {
+        # MSI build: record which files it was given, write a synthetic MSI
+        $version = ([string]($args | Where-Object { "$_" -like '-p:Version=*' })).Substring(11)
+        $failureState.MsiFiles = ([string]($args | Where-Object { "$_" -like '-p:AgentPublishDir=*' })).Substring(19)
+        $global:LASTEXITCODE = 0
+        Set-Content -LiteralPath (Join-Path $destination "OctofleetAgent-v$version.msi") -Value 'Synthetic MSI fixture; never run'
+        return
+    }
     $name = if ($project -like '*OctofleetScreenHelper*') { 'OctofleetScreenHelper' } else { 'OctofleetAgent.Service' }
     $global:LASTEXITCODE = 0
     if ($failureState.Project -eq $name) {
@@ -81,6 +89,18 @@ try {
     Remove-Item -LiteralPath $nestedExe
     Remove-Item -LiteralPath (Join-Path $staging 'OctofleetScreenHelper.exe')
     Assert-Throws { & $validator -Path $staging -RequireScreenHelper } 'Validator rejects missing required helper'
+
+    # -Msi: the MSI is built from the validated files of the ZIP and gets its own checksum file,
+    # which must not end in .sha256 (agents take a release's .sha256 asset as the ZIP checksum)
+    $msiOutput = Join-Path $testRoot 'msi'
+    & $builder -Version '1.2.5' -OutputPath $msiOutput -Msi
+    $msiPath = Join-Path $msiOutput 'OctofleetAgent-v1.2.5.msi'
+    Assert-True (Test-Path -LiteralPath $msiPath) 'MSI is built next to the ZIP'
+    Assert-True (Test-Path -LiteralPath (Join-Path $failureState.MsiFiles 'OctofleetAgent.Service.exe')) 'MSI is built from the validated publish folder'
+    $msiChecksum = (Get-Content -LiteralPath (Join-Path $msiOutput 'OctofleetAgent-v1.2.5.msi.sha256.txt') -Raw).Trim()
+    Assert-True ($msiChecksum -eq (Get-FileHash -LiteralPath $msiPath -Algorithm SHA256).Hash) 'MSI checksum matches the MSI'
+    $shaFiles = @(Get-ChildItem -LiteralPath $msiOutput -Filter '*.sha256' -File)
+    Assert-True ($shaFiles.Count -eq 1 -and $shaFiles[0].Name -eq 'OctofleetAgent-v1.2.5.sha256') 'The only .sha256 file is the ZIP checksum'
 
     foreach ($failed in @('OctofleetAgent.Service', 'OctofleetScreenHelper')) {
         $failureState.Project = $failed

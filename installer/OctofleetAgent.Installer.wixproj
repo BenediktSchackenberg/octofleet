@@ -1,12 +1,32 @@
-<Project Sdk="WixToolset.Sdk/5.0.0">
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    Builds OctofleetAgent-v<Version>.msi from the published agent (self-contained single-file EXEs).
+    scripts/Build-Release.ps1 -Msi publishes, validates (and signs) the files first, then runs:
+      dotnet build installer/OctofleetAgent.Installer.wixproj -c Release -p:Version=0.8.2 -p:AgentPublishDir=<publish folder>
+    Stay on WiX v5: v6 and later add the Open Source Maintenance Fee (see #332).
+  -->
   <PropertyGroup>
     <OutputType>Package</OutputType>
     <InstallerPlatform>x64</InstallerPlatform>
+    <OutputName>OctofleetAgent-v$(Version)</OutputName>
+    <!-- Full path with a trailing slash; a relative AgentPublishDir is relative to the current directory -->
+    <AgentFilesDir Condition="'$(AgentPublishDir)' != ''">$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath('$(AgentPublishDir)'))))</AgentFilesDir>
+    <!-- ICE61: AllowSameVersionUpgrades, so a rebuild of the same version does not add a second entry -->
+    <SuppressIces>ICE61</SuppressIces>
+    <DefineConstants>$(DefineConstants);Version=$(Version);AgentFilesDir=$(AgentFilesDir)</DefineConstants>
   </PropertyGroup>
-  
-  <!-- Reference the Service and ScreenHelper project outputs -->
+
   <ItemGroup>
-    <ProjectReference Include="..\src\OctofleetAgent.Service\OctofleetAgent.Service.csproj" />
-    <ProjectReference Include="..\src\OctofleetScreenHelper\OctofleetScreenHelper.csproj" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="CustomActions\CustomActions.csproj" />
+  </ItemGroup>
+
+  <Target Name="CheckAgentMsiInputs" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(Version)' == ''" Text="Pass the release version: -p:Version=X.Y.Z" />
+    <Error Condition="'$(AgentFilesDir)' == '' or !Exists('$(AgentFilesDir)OctofleetAgent.Service.exe')"
+           Text="OctofleetAgent.Service.exe not found in AgentPublishDir '$(AgentPublishDir)'; publish the agent first (scripts/Build-Release.ps1 -Msi)" />
+  </Target>
 </Project>

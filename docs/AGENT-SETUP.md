@@ -22,6 +22,16 @@ irm https://github.com/BenediktSchackenberg/octofleet/releases/latest/download/I
 
 The installer will prompt you for the server URL and API key interactively.
 
+### MSI (GPO, Intune, ConfigMgr)
+
+Each release also has `OctofleetAgent-vX.Y.Z.msi`: a Windows Installer package that shows up in *Programs and Features* and installs silently with the server URL and agent key as properties:
+
+```powershell
+msiexec /i OctofleetAgent-v0.8.2.msi SERVER_URL=https://octofleet.example.com API_KEY=<agent key> /qn /l*v C:\Windows\Temp\octofleet-install.log
+```
+
+Optional: `DISPLAY_NAME`, `PUSH_INTERVAL` (minutes), `SCREEN_HELPER=1` (the screen helper is off by default). Upgrades (install the new MSI), repair (`msiexec /fa`) and uninstall (`msiexec /x`) keep `C:\ProgramData\Octofleet\service-config.json`; properties passed to `msiexec` replace only their own values. The MSI installs over a script install without re-enrolment. An agent installed by the MSI does **not** update itself: deploy the new MSI. Properties, return codes and step-by-step examples for **Intune** (LOB or Win32 app with product code detection), **ConfigMgr** and **GPO** (transform with the properties): [installer/README.md](../installer/README.md).
+
 ### Manual Install
 
 1. Download `OctofleetAgent-vX.Y.Z.zip` from [GitHub Releases](https://github.com/BenediktSchackenberg/octofleet/releases)
@@ -382,7 +392,7 @@ For machines the console cannot reach, run the uninstall script on the machine a
 sudo ./linux-agent/uninstall.sh
 ```
 
-Both remove the service, the program and data directories and the logs; on Windows also the screen helper task and the `DOTNET_BUNDLE_EXTRACT_BASE_DIR` machine variable.
+Both remove the service, the program and data directories and the logs; on Windows also the screen helper task and the `DOTNET_BUNDLE_EXTRACT_BASE_DIR` machine variable. An agent installed by the MSI is uninstalled with `msiexec /x` first, so *Programs and Features* has no stale entry. `msiexec /x` alone (or your deployment tool) keeps the config and logs.
 
 ---
 
@@ -394,6 +404,8 @@ The Windows agent includes an **AutoUpdater** that checks GitHub Releases period
 2. Extracts to a staging directory
 3. Schedules a deferred update (service restart required)
 4. On next restart, the new version takes over
+
+An agent installed by the MSI skips this: Windows Installer owns its files, and the service log says *"Self-update is off: the agent was installed by the Octofleet Agent MSI"*. Upgrade it by deploying the new MSI.
 
 You can also trigger an update manually via a **restart-agent** job from the web UI. The Linux agent handles **restart-agent** too (through `systemd-run`, so the job reports its result before the service restarts) and updates itself at the next start.
 

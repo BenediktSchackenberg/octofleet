@@ -18,6 +18,9 @@ on:
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
       - 'installer/Build-Release.ps1'
+      - 'installer/**'
+      - 'tests/OctofleetAgent.Installer.Tests/**'
+      - 'scripts/Uninstall-OctofleetAgent.ps1'
       - '.github/workflows/*release.yml'
       - '.github/workflows/windows-tests.yml'
   pull_request:
@@ -36,6 +39,9 @@ on:
       - 'scripts/Build-Release.ps1'
       - 'scripts/Test-AgentPackage.ps1'
       - 'installer/Build-Release.ps1'
+      - 'installer/**'
+      - 'tests/OctofleetAgent.Installer.Tests/**'
+      - 'scripts/Uninstall-OctofleetAgent.ps1'
       - '.github/workflows/*release.yml'
       - '.github/workflows/windows-tests.yml'
   workflow_dispatch:
@@ -65,9 +71,14 @@ jobs:
         run: dotnet run --project tests/OctofleetAgent.Sensors.Tests -c Release
       - name: Test the reboot job (payload, shutdown.exe arguments)
         run: dotnet run --project tests/OctofleetAgent.Reboot.Tests -c Release
+      - name: Test the MSI's config handling (keep the config, write only passed properties)
+        run: dotnet run --project tests/OctofleetAgent.Installer.Tests -c Release
       - name: Test isolated release packaging
         shell: pwsh
         run: ./tests/windows/Release-Package.Tests.ps1
+      - name: Build the agent and the MSI (WiX v5) like a release
+        shell: pwsh
+        run: ./scripts/Build-Release.ps1 -Version 0.0.1 -OutputPath ./release -Msi
 
   pester-tests:
     name: Pester Tests
