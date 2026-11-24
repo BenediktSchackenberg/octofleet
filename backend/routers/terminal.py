@@ -10,8 +10,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 import agent_wait
-from auth import decode_token, require_permission
-from dependencies import API_KEY, db_pool, require_scope, verify_api_key
+from auth import require_permission
+from dependencies import API_KEY, _active_access_token, db_pool, require_scope, verify_api_key
 from screen_session import ScreenSessionState, screen_session_manager
 from shell_session import ShellSessionState, shell_session_manager
 
@@ -70,7 +70,8 @@ async def _validate_ws_token(websocket: WebSocket, session_id: str = None) -> Op
     
     Checks:
     - Token must be present
-    - Token must be a valid access token (not refresh)
+    - Token must be an access token (not refresh) of an active user, not revoked by a logout or
+      password change (session_version) and without a pending password change - as on HTTP requests
     - If session_id is provided, validates session ownership
     """
     token = websocket.query_params.get("token")
@@ -78,15 +79,13 @@ async def _validate_ws_token(websocket: WebSocket, session_id: str = None) -> Op
         await websocket.close(code=1008, reason="Authentication required")
         return None
     try:
-        payload = decode_token(token)
-        # Only allow access tokens, not refresh tokens
-        if payload.get("type") != "access":
-            await websocket.close(code=1008, reason="Invalid token type")
-            return None
-        return payload
-    except Exception:
+        payload = await _active_access_token(token)
+    except HTTPException:  # password change required
+        payload = None
+    if payload is None:
         await websocket.close(code=1008, reason="Invalid token")
         return None
+    return payload
 
 
 async def _validate_ws_token_with_ownership(

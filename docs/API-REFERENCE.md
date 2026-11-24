@@ -401,7 +401,7 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | DELETE | `/api/v1/terminal/session/{session_id}` | API Key | End session |
 | POST | `/api/v1/terminal/session/{session_id}/input` | API Key | Send input to session |
 | GET | `/api/v1/terminal/session/{session_id}/output` | API Key | Get session output |
-| WS | `/api/v1/terminal/ws/{session_id}` | — | WebSocket terminal stream |
+| WS | `/api/v1/terminal/ws/{session_id}` | Session token (`?token=`) | WebSocket terminal stream; the token is checked like on HTTP requests (revoked by logout or password change, inactive user, pending password change: rejected) |
 | GET | `/api/v1/terminal/pending/{node_id}` | Agent: `terminal:pending` | Agent: pending commands; `active` is true while a terminal page for the node is open (output asked for within 30 s) or commands came – the agent then polls fast, otherwise about every 5 s |
 | POST | `/api/v1/terminal/output/{session_id}` | Agent key | Agent: command output |
 
