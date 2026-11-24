@@ -856,7 +856,7 @@ async def submit_posture_snapshot(data: Dict[str, Any], db: asyncpg.Pool = Depen
         return {"id": snapshot_id, "createdAt": str(row["created_at"]), "type": snapshot_type}
 
 
-@router.get("/api/v1/posture/snapshots/{node_id}")
+@router.get("/api/v1/posture/snapshots/{node_id}", dependencies=[Depends(require_permission("compliance:read"))])
 async def get_posture_snapshots(node_id: str, limit: int = 10, db: asyncpg.Pool = Depends(get_db)):
     """Get posture snapshots for a node"""
     async with db.acquire() as conn:
@@ -884,7 +884,7 @@ async def get_posture_snapshots(node_id: str, limit: int = 10, db: asyncpg.Pool 
         return {"snapshots": snapshots}
 
 
-@router.get("/api/v1/posture/snapshots/{node_id}/latest")
+@router.get("/api/v1/posture/snapshots/{node_id}/latest", dependencies=[Depends(require_permission("compliance:read"))])
 async def get_latest_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get latest posture snapshot for a node"""
     async with db.acquire() as conn:
@@ -912,7 +912,7 @@ async def get_latest_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
         }}
 
 
-@router.get("/api/v1/posture/diffs/{node_id}")
+@router.get("/api/v1/posture/diffs/{node_id}", dependencies=[Depends(require_permission("compliance:read"))])
 async def get_posture_diffs(node_id: str, limit: int = 20, db: asyncpg.Pool = Depends(get_db)):
     """Get config posture diffs for a node"""
     async with db.acquire() as conn:
@@ -934,7 +934,7 @@ async def get_posture_diffs(node_id: str, limit: int = 20, db: asyncpg.Pool = De
         } for r in rows]}
 
 
-@router.get("/api/v1/posture/compare/{node_id}")
+@router.get("/api/v1/posture/compare/{node_id}", dependencies=[Depends(require_permission("compliance:read"))])
 async def compare_posture(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Compare baseline (oldest) vs current (latest) snapshot for a node"""
     async with db.acquire() as conn:

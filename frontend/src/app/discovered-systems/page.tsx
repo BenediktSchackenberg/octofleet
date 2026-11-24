@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { formatDateTime } from "@/lib/format";
+import { apiClient } from "@/lib/api-client";
 interface DiscoveredSystem {
   id: string;
   mac_address: string;
@@ -30,13 +31,9 @@ export default function DiscoveredSystemsPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
       
-      const res = await fetch(`/api/v1/discovered-systems?${params}`, {
-        headers: { 'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '' }
-      });
-      
-      if (!res.ok) throw new Error('Failed to fetch systems');
-      const data: { systems?: DiscoveredSystem[] } = await res.json();
-      setSystems(data.systems || []);
+      const res = await apiClient.request<{ systems?: DiscoveredSystem[] }>(`/discovered-systems?${params}`, { showErrorToast: false });
+      if (!res.ok) throw new Error(res.error || 'Failed to fetch systems');
+      setSystems(res.data?.systems || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -52,14 +49,7 @@ export default function DiscoveredSystemsPage() {
 
   const updateStatus = async (id: string, status: string) => {
     try {
-      await fetch(`/api/v1/discovered-systems/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || ''
-        },
-        body: JSON.stringify({ status })
-      });
+      await apiClient.patch(`/discovered-systems/${id}`, { status });
       fetchSystems();
     } catch (err) {
       console.error('Failed to update status:', err);
@@ -69,10 +59,7 @@ export default function DiscoveredSystemsPage() {
   const deleteSystem = async (id: string) => {
     if (!confirm('Delete this system from the registry?')) return;
     try {
-      await fetch(`/api/v1/discovered-systems/${id}`, {
-        method: 'DELETE',
-        headers: { 'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '' }
-      });
+      await apiClient.delete(`/discovered-systems/${id}`);
       fetchSystems();
     } catch (err) {
       console.error('Failed to delete:', err);

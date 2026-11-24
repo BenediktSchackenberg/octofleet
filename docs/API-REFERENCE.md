@@ -153,7 +153,7 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 | POST | `/api/v1/jobs/result` | API Key | Submit job result (alt) |
 | POST | `/api/v1/jobs/instances/{instance_id}/retry` | API Key | Retry failed job instance |
 | POST | `/api/v1/smart-install` | User: `jobs:create` | Smart install (auto-detect package manager) |
-| GET | `/api/v1/smart-install/packages` | API Key | List available smart-install packages |
+| GET | `/api/v1/smart-install/packages` | JWT (`packages:read`) | List available smart-install packages |
 
 ### Packages & Deployments
 
@@ -256,23 +256,23 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/security/dashboard` | API Key | Security dashboard overview |
-| GET | `/api/v1/security/rules` | API Key | List behavior rules |
+| GET | `/api/v1/security/rules` | JWT (`settings:read`) | List behavior rules |
 | POST | `/api/v1/security/rules` | User: `settings:write` | Create behavior rule |
 | PUT | `/api/v1/security/rules/{rule_id}` | User: `settings:write` | Update rule |
 | DELETE | `/api/v1/security/rules/{rule_id}` | User: `settings:write` | Delete rule |
 | POST | `/api/v1/security/rules/evaluate` | User: `settings:write` | Evaluate rules against events |
-| GET | `/api/v1/security/findings` | API Key | List security findings |
-| GET | `/api/v1/security/findings/summary` | API Key | Findings summary |
+| GET | `/api/v1/security/findings` | JWT (`alerts:read`) | List security findings |
+| GET | `/api/v1/security/findings/summary` | JWT (`alerts:read`) | Findings summary |
 | POST | `/api/v1/security/findings` | User: `alerts:write` | Create finding manually |
 | PUT | `/api/v1/security/findings/{finding_id}` | User: `alerts:write` | Update finding status |
 | GET | `/api/v1/security/policies` | API Key | List security policies |
 | POST | `/api/v1/security/policies` | API Key | Create policy |
 | PUT | `/api/v1/security/policies/{policy_id}` | API Key | Update policy |
 | DELETE | `/api/v1/security/policies/{policy_id}` | API Key | Delete policy |
-| GET | `/api/v1/security/activity/files` | API Key | File activity log |
-| GET | `/api/v1/security/activity/users` | API Key | User activity log |
-| GET | `/api/v1/security/activity/export` | API Key | Export activity data |
-| GET | `/api/v1/security/vulnerabilities/fleet` | — | Fleet vulnerability overview |
+| GET | `/api/v1/security/activity/files` | JWT (`eventlog:read`) | File activity log |
+| GET | `/api/v1/security/activity/users` | JWT (`eventlog:read`) | User activity log |
+| GET | `/api/v1/security/activity/export` | JWT (`eventlog:read`) | Export activity data |
+| GET | `/api/v1/security/vulnerabilities/fleet` | JWT (`vulnerabilities:read`) | Fleet vulnerability overview |
 
 ### Monitoring Profiles
 
@@ -296,10 +296,10 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/posture/snapshots` | API Key | Create posture snapshot |
-| GET | `/api/v1/posture/snapshots/{node_id}` | — | List snapshots for node |
-| GET | `/api/v1/posture/snapshots/{node_id}/latest` | — | Get latest snapshot |
-| GET | `/api/v1/posture/diffs/{node_id}` | — | Get posture diffs (changes over time) |
-| GET | `/api/v1/posture/compare/{node_id}` | — | Compare two snapshots |
+| GET | `/api/v1/posture/snapshots/{node_id}` | JWT (`compliance:read`) | List snapshots for node |
+| GET | `/api/v1/posture/snapshots/{node_id}/latest` | JWT (`compliance:read`) | Get latest snapshot |
+| GET | `/api/v1/posture/diffs/{node_id}` | JWT (`compliance:read`) | Get posture diffs (changes over time) |
+| GET | `/api/v1/posture/compare/{node_id}` | JWT (`compliance:read`) | Compare two snapshots |
 
 ### Events & Findings
 
@@ -375,8 +375,8 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 |--------|------|------|-------------|
 | POST | `/api/v1/nodes/{node_id}/eventlog` | API Key | Push event log entries |
 | GET | `/api/v1/nodes/{node_id}/eventlog` | API Key | Get event log entries |
-| GET | `/api/v1/eventlog/summary` | API Key | Event log summary |
-| GET | `/api/v1/eventlog/important-events` | API Key | Important events |
+| GET | `/api/v1/eventlog/summary` | JWT (`eventlog:read`) | Event log summary |
+| GET | `/api/v1/eventlog/important-events` | JWT (`eventlog:read`) | Important events |
 | GET | `/api/v1/eventlog/trends` | API Key | Event log trends |
 
 ### SQL Server Management
@@ -397,16 +397,16 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/provisioning/images` | API Key | List OS images |
+| GET | `/api/v1/provisioning/images` | JWT (`settings:read`) | List OS images |
 | POST | `/api/v1/provisioning/images` | User: `settings:write` | Add OS image |
-| GET | `/api/v1/provisioning/tasks` | — | List provisioning tasks |
+| GET | `/api/v1/provisioning/tasks` | JWT (`nodes:read`) | List provisioning tasks |
 | POST | `/api/v1/provisioning/tasks` | User: `nodes:write` | Create provisioning task |
 | DELETE | `/api/v1/provisioning/tasks/{task_id}` | User: `nodes:write` | Delete task |
 | GET | `/api/v1/pxe/{mac}` | No | PXE boot script for MAC address |
-| GET | `/api/v1/provisioning/iso/scan` | API Key | Scan for ISOs |
+| GET | `/api/v1/provisioning/iso/scan` | JWT (`settings:read`) | Scan for ISOs |
 | POST | `/api/v1/provisioning/iso/mount` | User: `settings:write` | Mount ISO |
 | POST | `/api/v1/provisioning/vm/create` | User: `nodes:write` | Create VM |
-| GET | `/api/v1/discovered-systems` | — | List discovered systems |
+| GET | `/api/v1/discovered-systems` | JWT (`nodes:read`) | List discovered systems |
 | POST | `/api/v1/discovered-systems/{system_id}/provision` | User: `nodes:write` | Provision discovered system |
 
 ### Exports & Reports
@@ -458,7 +458,7 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 |--------|------|------|-------------|
 | POST | `/api/v1/repo/upload` | API Key | Upload file |
 | GET | `/api/v1/repo/files` | API Key | List files |
-| GET | `/api/v1/repo/download/{file_id}` | API Key | Download file |
+| GET | `/api/v1/repo/download/{file_id}` | No (agents download without a key) | Download file |
 | DELETE | `/api/v1/repo/files/{file_id}` | API Key | Delete file |
 | GET | `/api/v1/repo/stats` | API Key | Repository statistics |
 
