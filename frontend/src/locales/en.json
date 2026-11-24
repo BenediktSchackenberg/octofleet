@@ -1873,6 +1873,11 @@
     "showAll": "Show all nodes",
     "emptyBranch": "No nodes in this branch",
     "toggle": "Open or close {name}",
-    "anyStatus": "Show every status"
+    "anyStatus": "Show every status",
+    "noneWithStatus": {
+      "online": "No nodes online",
+      "away": "No nodes away",
+      "offline": "No nodes offline"
+    }
   }
 }

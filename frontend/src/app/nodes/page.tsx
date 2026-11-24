@@ -431,7 +431,7 @@ export default function NodesPage() {
             })}
             {filteredNodes.length === 0 && (
               <div className="col-span-full text-center py-8 text-zinc-500">
-                {search ? t("nodes.noNodes") : scopeLabel ? t("fleetTree.emptyBranch") : t("nodes.noNodesYet")}
+                {search ? t("nodes.noNodes") : statusFilter ? t(`fleetTree.noneWithStatus.${statusFilter}`) : scopeLabel ? t("fleetTree.emptyBranch") : t("nodes.noNodesYet")}
               </div>
             )}
           </div>
@@ -483,7 +483,7 @@ export default function NodesPage() {
               {filteredNodes.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-zinc-500">
-                    {search ? t("nodes.noNodes") : scopeLabel ? t("fleetTree.emptyBranch") : t("nodes.noNodesYet")}
+                    {search ? t("nodes.noNodes") : statusFilter ? t(`fleetTree.noneWithStatus.${statusFilter}`) : scopeLabel ? t("fleetTree.emptyBranch") : t("nodes.noNodesYet")}
                   </td>
                 </tr>
               )}

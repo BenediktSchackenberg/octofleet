@@ -1873,6 +1873,11 @@
     "showAll": "Alle Nodes anzeigen",
     "emptyBranch": "Keine Nodes in diesem Zweig",
     "toggle": "{name} auf- oder zuklappen",
-    "anyStatus": "Jeden Status anzeigen"
+    "anyStatus": "Jeden Status anzeigen",
+    "noneWithStatus": {
+      "online": "Keine Nodes online",
+      "away": "Keine Nodes abwesend",
+      "offline": "Keine Nodes offline"
+    }
   }
 }

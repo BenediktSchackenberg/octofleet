@@ -1873,6 +1873,11 @@
     "showAll": "Mostrar todos los nodos",
     "emptyBranch": "No hay nodos en esta rama",
     "toggle": "Abrir o cerrar {name}",
-    "anyStatus": "Mostrar todos los estados"
+    "anyStatus": "Mostrar todos los estados",
+    "noneWithStatus": {
+      "online": "No hay nodos en línea",
+      "away": "No hay nodos ausentes",
+      "offline": "No hay nodos sin conexión"
+    }
   }
 }
