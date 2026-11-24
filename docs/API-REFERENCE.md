@@ -242,11 +242,12 @@ is one page by hostname (`limit` 1–5000). `fix_status`: `fixed` (a newer versi
 a reboot), `null` (not a kernel package). `link` is the node page's vulnerability list filtered
 to the CVE. `scan.last_completed_scan` is the last finished scan the answer is based on.
 | POST | `/api/v1/vulnerabilities/{cve_id}/suppress` | API Key | Suppress a CVE |
-| GET | `/api/v1/remediation/packages` | API Key | Remediation packages |
-| POST | `/api/v1/remediation/scan` | API Key | Scan for remediable vulns |
-| POST | `/api/v1/remediation/fix/{vulnerability_id}` | API Key | Auto-fix vulnerability |
-| GET | `/api/v1/remediation/jobs` | API Key | List remediation jobs |
-| POST | `/api/v1/remediation/jobs/approve` | API Key | Approve remediation job |
+| GET | `/api/v1/remediation/packages` | API Key | Remediation packages (fix packages; `winget_id`: winget package ID for the default winget command, see [REMEDIATION.md](REMEDIATION.md)) |
+| POST | `/api/v1/remediation/scan` | JWT (`jobs:create`) | Create remediation jobs: one per node and update, with all CVEs it closes (`details[].cves`); `cves_added`: CVEs added to jobs that still wait |
+| POST | `/api/v1/remediation/fix/{vulnerability_id}` | JWT (`jobs:execute`) | One-click fix: one approved job for the application version on the node, with all its CVEs |
+| GET | `/api/v1/remediation/jobs` | API Key | List remediation jobs (`cve_ids`: the CVEs the update closes, `cve_id`: the most severe one; `architecture`: `x86` for 32-bit installations) |
+| POST | `/api/v1/remediation/jobs/approve` | JWT (`jobs:execute`) | Approve remediation jobs |
+| GET | `/api/v1/remediation/jobs/pending/{node_id}` | Agent key (`jobs:poll`) | Agent poll: approved jobs with `fixCommand`, `cveId` and `cveIds` |
 
 ### Security Center
 

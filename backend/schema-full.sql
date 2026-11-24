@@ -565,6 +565,9 @@ CREATE TABLE public.remediation_jobs (
     software_name text NOT NULL,
     software_version text NOT NULL,
     cve_id text NOT NULL,
+    cve_ids text[],
+    vulnerability_ids integer[],
+    architecture text,
     status text DEFAULT 'pending'::text NOT NULL,
     requires_approval boolean DEFAULT false,
     approved_by text,
@@ -598,6 +601,7 @@ CREATE TABLE public.remediation_packages (
     min_fixed_version text,
     fix_method text NOT NULL,
     fix_command text,
+    winget_id text,
     package_id uuid,
     enabled boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
@@ -695,6 +699,7 @@ CREATE TABLE public.software_current (
     install_date date,
     install_path text,
     size_mb integer,
+    architecture text,
     updated_at timestamp with time zone DEFAULT now()
 );
 CREATE SEQUENCE public.software_current_id_seq
@@ -1151,6 +1156,7 @@ CREATE INDEX idx_packages_category ON public.packages USING btree (category);
 CREATE INDEX idx_packages_name ON public.packages USING btree (name);
 CREATE INDEX idx_remediation_jobs_cve ON public.remediation_jobs USING btree (cve_id);
 CREATE INDEX idx_remediation_jobs_node ON public.remediation_jobs USING btree (node_id);
+CREATE INDEX idx_remediation_jobs_node_software ON public.remediation_jobs USING btree (node_id, software_name, software_version);
 CREATE INDEX idx_remediation_jobs_status ON public.remediation_jobs USING btree (status);
 CREATE INDEX idx_remediation_packages_software ON public.remediation_packages USING btree (target_software);
 CREATE INDEX idx_sessions_expires ON public.sessions USING btree (expires_at);

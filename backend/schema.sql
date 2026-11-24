@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS remediation_packages (
     -- How to fix
     fix_method TEXT NOT NULL CHECK (fix_method IN ('winget', 'choco', 'package', 'script')),
     fix_command TEXT,                      -- e.g. "winget upgrade 7zip.7zip --silent"
+    winget_id TEXT,                        -- e.g. "7zip.7zip": default winget command by ID
     package_id UUID REFERENCES packages(id),  -- if fix_method = 'package'
     
     -- Metadata
@@ -152,7 +153,10 @@ CREATE TABLE IF NOT EXISTS remediation_jobs (
     node_id UUID REFERENCES nodes(id),
     software_name TEXT NOT NULL,
     software_version TEXT NOT NULL,
-    cve_id TEXT NOT NULL,
+    cve_id TEXT NOT NULL,                  -- the most severe CVE of the update
+    cve_ids TEXT[],                        -- all CVEs the update closes (one job per node and update)
+    vulnerability_ids INTEGER[],
+    architecture TEXT,                     -- 'x86': 32-bit installation (winget --architecture x86)
     
     -- Execution
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (

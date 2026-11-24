@@ -23,6 +23,10 @@ interface RemediationJob {
   software_name: string;
   software_version: string;
   cve_id: string;
+  /** All CVEs the update closes (one job per node and update, #197); older jobs: just cve_id */
+  cve_ids?: string[] | null;
+  /** 'x86': a 32-bit installation, updated with winget --architecture x86 */
+  architecture?: string | null;
   status: string;
   requires_approval: boolean;
   approved_at?: string | null;
@@ -39,6 +43,7 @@ interface RemediationPackage {
   min_fixed_version: string | null;
   fix_method: string;
   fix_command: string;
+  winget_id?: string | null;
   package_id?: string | null;
   enabled: boolean;
 }
@@ -68,6 +73,8 @@ type SortField = 'id' | 'software_name' | 'cve_id' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
 const STATUS_OPTIONS = ['all', 'success', 'failed', 'pending', 'approved', 'running', 'skipped', 'rolled_back'] as const;
+
+const jobCves = (job: RemediationJob) => (job.cve_ids?.length ? job.cve_ids : [job.cve_id]);
 
 export default function RemediationPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -156,7 +163,7 @@ export default function RemediationPage() {
         if (data.type === 'job_update') {
           setJobs(prev => {
             const idx = prev.findIndex(j => j.id === data.job.id);
-            if (idx >= 0) { const u = [...prev]; u[idx] = data.job; return u; }
+            if (idx >= 0) { const u = [...prev]; u[idx] = { ...prev[idx], ...data.job }; return u; }
             return [data.job, ...prev];
           });
           fetchSummary();
@@ -190,7 +197,7 @@ export default function RemediationPage() {
       const q = searchQuery.toLowerCase();
       result = result.filter(j =>
         j.software_name?.toLowerCase().includes(q) ||
-        j.cve_id?.toLowerCase().includes(q) ||
+        jobCves(j).some(cve => cve?.toLowerCase().includes(q)) ||
         String(j.id).includes(q) ||
         j.fix_method?.toLowerCase().includes(q) ||
         j.node_id?.toLowerCase().includes(q)
@@ -351,7 +358,9 @@ export default function RemediationPage() {
                       <span className="text-xs font-mono text-purple-400">#{j.id}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-zinc-500 font-mono">{j.cve_id}</span>
+                      <span className="text-xs text-zinc-500 font-mono" title={jobCves(j).join(', ')}>
+                        {j.cve_id}{jobCves(j).length > 1 && ` ${t("remediation.jobs.moreCves", { count: jobCves(j).length - 1 })}`}
+                      </span>
                       {j.fix_method && getMethodBadge(j.fix_method)}
                     </div>
                   </div>
@@ -478,14 +487,32 @@ export default function RemediationPage() {
                         <td className="p-3 font-mono text-sm">{job.id}</td>
                         <td className="p-3">
                           <div className="font-medium">{job.software_name}</div>
-                          <div className="text-zinc-500 text-xs">{job.software_version}</div>
+                          <div className="text-zinc-500 text-xs">
+                            {job.software_version}
+                            {job.architecture === 'x86' && <span className="ml-2 px-1.5 rounded bg-zinc-800 text-zinc-400">{t("remediation.jobs.x86")}</span>}
+                          </div>
                         </td>
                         <td className="p-3">
-                          <a href={`https://nvd.nist.gov/vuln/detail/${job.cve_id}`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="text-blue-400 hover:underline font-mono text-sm">
-                            {job.cve_id}
-                          </a>
+                          {jobCves(job).length > 1 ? (
+                            <details>
+                              <summary className="cursor-pointer font-mono text-sm text-blue-400" title={t("remediation.jobs.cveList")}>
+                                {job.cve_id} {t("remediation.jobs.moreCves", { count: jobCves(job).length - 1 })}
+                              </summary>
+                              <div className="mt-1 flex flex-col gap-0.5">
+                                {jobCves(job).map(cve => (
+                                  <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="text-blue-400 hover:underline font-mono text-xs">{cve}</a>
+                                ))}
+                              </div>
+                            </details>
+                          ) : (
+                            <a href={`https://nvd.nist.gov/vuln/detail/${job.cve_id}`}
+                              target="_blank" rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline font-mono text-sm">
+                              {job.cve_id}
+                            </a>
+                          )}
                         </td>
                         <td className="p-3">{getStatusBadge(job.status)}</td>
                         <td className="p-3 text-zinc-400 text-sm whitespace-nowrap">
@@ -540,13 +567,16 @@ export default function RemediationPage() {
                       <td className="p-3 font-medium">{pkg.name}</td>
                       <td className="p-3">{pkg.target_software}</td>
                       <td className="p-3">{getMethodBadge(pkg.fix_method)}</td>
-                      <td className="p-3"><code className="bg-zinc-800 px-2 py-1 rounded text-xs">{pkg.fix_command}</code></td>
+                      <td className="p-3">
+                        {pkg.fix_command ? <code className="bg-zinc-800 px-2 py-1 rounded text-xs">{pkg.fix_command}</code>
+                          : pkg.winget_id && <code className="bg-zinc-800 px-2 py-1 rounded text-xs">--id {pkg.winget_id}</code>} {/* i18n-ignore: winget option */}
+                      </td>
                       <td className="p-3">{pkg.enabled ? <span className="text-green-400">●</span> : <span className="text-zinc-500">○</span>}</td>
                       <td className="p-3 text-right">
                         {canEditPackages && <button onClick={() => setPackageDialog({ open: true, initial: {
                             id: pkg.id, name: pkg.name, description: pkg.description || '', target_software: pkg.target_software,
                             min_fixed_version: pkg.min_fixed_version || '', fix_method: pkg.fix_method as RemediationPackageForm['fix_method'],
-                            fix_command: pkg.fix_command || '', package_id: pkg.package_id || '', enabled: pkg.enabled } })}
+                            fix_command: pkg.fix_command || '', winget_id: pkg.winget_id || '', package_id: pkg.package_id || '', enabled: pkg.enabled } })}
                           className="px-2 py-1 border border-zinc-600 hover:bg-zinc-800 rounded text-xs">{t("remediation.form.edit")}</button>}
                       </td>
                     </tr>

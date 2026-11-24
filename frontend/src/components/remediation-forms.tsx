@@ -18,6 +18,7 @@ export interface RemediationPackageForm {
   min_fixed_version: string;
   fix_method: "winget" | "choco" | "script" | "package";
   fix_command: string;
+  winget_id: string;
   package_id: string;
   enabled: boolean;
 }
@@ -36,7 +37,7 @@ export interface RemediationRuleForm {
 
 const EMPTY_PACKAGE: RemediationPackageForm = {
   name: "", description: "", target_software: "", min_fixed_version: "",
-  fix_method: "winget", fix_command: "", package_id: "", enabled: true,
+  fix_method: "winget", fix_command: "", winget_id: "", package_id: "", enabled: true,
 };
 
 // Approval stays required by default (#197); nothing is fixed automatically unless chosen.
@@ -85,8 +86,10 @@ export function PackageDialog({ open, initial, onClose, onSaved }: {
     setForm((f) => ({ ...f, [key]: value }));
 
   const needsCommand = form.fix_method !== "package";
+  const isWinget = form.fix_method === "winget";
+  // winget: a package ID is enough, the server builds the command (#197)
   const valid = form.name.trim() && form.target_software.trim()
-    && (needsCommand ? form.fix_command.trim() : form.package_id.trim());
+    && (needsCommand ? (form.fix_command.trim() || (isWinget && form.winget_id.trim())) : form.package_id.trim());
 
   const save = async () => {
     setBusy(true); setError(null);
@@ -94,7 +97,8 @@ export function PackageDialog({ open, initial, onClose, onSaved }: {
       name: form.name.trim(), description: form.description.trim() || null,
       target_software: form.target_software.trim(), min_fixed_version: form.min_fixed_version.trim() || null,
       fix_method: form.fix_method,
-      fix_command: needsCommand ? form.fix_command.trim() : null,
+      fix_command: needsCommand ? form.fix_command.trim() || null : null,
+      winget_id: isWinget ? form.winget_id.trim() || null : null,
       package_id: needsCommand ? null : form.package_id.trim(),
       enabled: form.enabled,
     };
@@ -141,6 +145,14 @@ export function PackageDialog({ open, initial, onClose, onSaved }: {
               <option value="package">{t("remediation.package.methodPackage")}</option>
             </select>
           </div>
+          {isWinget && (
+            <div className="space-y-1">
+              <Label htmlFor="pkg-winget-id">{t("remediation.package.wingetId")}</Label>
+              <Input id="pkg-winget-id" value={form.winget_id} onChange={(e) => set("winget_id", e.target.value)}
+                className="font-mono text-xs" placeholder="7zip.7zip" /> {/* i18n-ignore: package ID example */}
+              <p className="text-xs text-muted-foreground">{t("remediation.package.wingetIdHelp")}</p>
+            </div>
+          )}
           {needsCommand ? (
             <div className="space-y-1">
               <Label htmlFor="pkg-command">{t("remediation.package.command")}</Label>

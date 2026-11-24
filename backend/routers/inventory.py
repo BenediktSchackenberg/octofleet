@@ -178,6 +178,17 @@ def install_date_from(value: Any) -> date | None:
         return None
 
 
+def software_architecture(prog: Dict[str, Any]) -> str | None:
+    """'x86' for a 32-bit installation on 64-bit Windows: the Windows agent reports the uninstall
+    entry's registry key, which lies under WOW6432Node for 32-bit programs (fallback: an install
+    path under "Program Files (x86)"). Remediation updates those with winget --architecture x86."""
+    key = str(prog.get("registryKey") or "").lower()
+    path = str(prog.get("installLocation") or prog.get("installPath") or "").lower()
+    if "\\wow6432node\\" in key or "\\program files (x86)\\" in path + "\\":
+        return "x86"
+    return None
+
+
 @router.get("/software/{node_id}", dependencies=_auth)
 async def get_software(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """Get software data for a node"""
@@ -340,9 +351,9 @@ async def submit_software(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
         await conn.execute("DELETE FROM software_current WHERE node_id = $1", uuid)
         for prog in programs:
             await conn.execute("""
-                INSERT INTO software_current (node_id, name, version, publisher, source_package, source_version, install_date, install_path, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-            """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, (prog.get("sourcePackage") or None), (prog.get("sourceVersion") or None), install_date_from(prog.get("installDate")), prog.get("installLocation"))
+                INSERT INTO software_current (node_id, name, version, publisher, source_package, source_version, install_date, install_path, architecture, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            """, uuid, prog.get("name", "Unknown")[:500], prog.get("version", "")[:100] if prog.get("version") else None, prog.get("publisher", "")[:255] if prog.get("publisher") else None, (prog.get("sourcePackage") or None), (prog.get("sourceVersion") or None), install_date_from(prog.get("installDate")), prog.get("installLocation"), software_architecture(prog))
         await vulnerability_cache.mark_software_change(conn, uuid, before, await vulnerability_cache.software_state(conn, uuid))
     return {"status": "ok", "node_id": str(uuid), "type": "software", "count": len(programs)}
 
@@ -416,6 +427,8 @@ async def ensure_schema(pool: asyncpg.Pool) -> None:
             await conn.execute("ALTER TABLE security_current ADD COLUMN IF NOT EXISTS linux jsonb")
             for column in ("app_control", "applocker", "vbs"):
                 await conn.execute(f"ALTER TABLE security_current ADD COLUMN IF NOT EXISTS {column} jsonb")
+            # 'x86' for 32-bit Windows programs (remediation: winget --architecture x86)
+            await conn.execute("ALTER TABLE software_current ADD COLUMN IF NOT EXISTS architecture text")
             await linux_updates.ensure_schema(conn)
             await linux_rules.ensure_schema(conn)
             browser_pk = await conn.fetchval("""

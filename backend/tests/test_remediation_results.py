@@ -78,11 +78,15 @@ class _Conn:
     def __init__(self, rows):
         self.rows = rows
 
-    async def fetch(self, *_):
-        return self.rows
+    async def fetch(self, query, *_):
+        return self.rows if "verified_vulnerabilities" in query else []  # no existing job
 
-    async def fetchrow(self, *_):
-        return None  # no existing job
+    async def execute(self, *_):
+        return None
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield
 
 
 class _Pool:
@@ -96,7 +100,8 @@ class _Pool:
 
 class DryRunTests(unittest.IsolatedAsyncioTestCase):
     async def scan(self, dry_run):
-        rows = [{"vulnerability_id": i, "node_id": "n1", "software_name": "7-Zip",
+        # three applications on one node: one job each
+        rows = [{"vulnerability_id": i, "node_id": "n1", "software_name": f"App {i}",
                  "software_version": "15.14", "cve_id": f"CVE-2026-{i}", "severity": "HIGH"}
                 for i in range(3)]
         engine = remediation.RemediationEngine(_Pool(rows))

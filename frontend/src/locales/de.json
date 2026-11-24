@@ -801,7 +801,9 @@
       "command": "Befehl",
       "scriptWarning": "Das Skript läuft als SYSTEM auf jedem Node, den eine Regel diesem Paket zuordnet. Nur vertrauenswürdige Befehle verwenden.",
       "packageId": "ID des Deployment-Pakets",
-      "minFixedVersion": "Behoben ab Version (optional)"
+      "minFixedVersion": "Behoben ab Version (optional)",
+      "wingetId": "winget-Paket-ID (optional)",
+      "wingetIdHelp": "Mit ID und ohne Befehl aktualisiert winget genau dieses Paket (winget upgrade --id … --exact); 32-Bit-Installationen bekommen --architecture x86. Ohne ID wird der Name der installierten Software verwendet. Die ID zeigt winget search, z. B. 7zip.7zip."
     },
     "rule": {
       "createTitle": "Neue Remediation-Regel",
@@ -822,7 +824,10 @@
       "approved": "Freigegeben",
       "approveSelected": "Auswahl freigeben ({count})",
       "select": "Job auswählen",
-      "selectAll": "Alle Jobs auswählen, die auf Freigabe warten"
+      "selectAll": "Alle Jobs auswählen, die auf Freigabe warten",
+      "moreCves": "+{count} weitere",
+      "cveList": "Alle CVEs, die dieses Update schließt",
+      "x86": "32-Bit"
     }
   },
   "nodeDetail": {
