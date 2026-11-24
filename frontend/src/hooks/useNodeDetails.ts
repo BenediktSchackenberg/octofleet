@@ -1,5 +1,6 @@
 "use client";
 
+import type { AppControlData, AppLockerData, VbsData } from "@/components/node-app-control";
 import type { NodeRemovalInfo } from "@/components/node-removal";
 import type { RebootBehavior } from "@/lib/update-tables";
 import { useEffect, useState } from "react";
@@ -122,6 +123,10 @@ export interface SecurityData {
   localAdmins?: any;
   /** Linux agent: login and sudo users, SSH, firewall, SELinux/AppArmor (as sent) */
   linux?: any;
+  /** Windows agent: App Control for Business (WDAC), AppLocker, VBS (normalised by the backend) */
+  appControl?: AppControlData | null;
+  appLocker?: AppLockerData | null;
+  vbs?: VbsData | null;
   data?: {
     antivirus?: { name?: string; enabled?: boolean; upToDate?: boolean };
     firewall?: { enabled?: boolean; profiles?: Record<string, boolean> };

@@ -15,6 +15,7 @@ import { Timeline } from "@/components/timeline";
 import { ManageTagsDialog } from "@/components/manage-tags-dialog";
 import { PerformanceTab } from "@/components/performance-tab";
 import { NodeServices } from "@/components/node-services";
+import { NodeAppControl } from "@/components/node-app-control";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, UpdateRebootBadge, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
 import { RebootButton } from "@/components/reboot-dialog";
@@ -1421,6 +1422,8 @@ export default function NodeDetailPage() {
                 </CardContent>
               </Card>
             </div>
+
+            <NodeAppControl appControl={secData.appControl} appLocker={secData.appLocker} vbs={secData.vbs} />
 
             {/* Local Admins - E1-07 */}
             {secData.localAdmins && (

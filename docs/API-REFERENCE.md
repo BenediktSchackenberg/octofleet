@@ -93,7 +93,7 @@ Agents push inventory data; the frontend reads it.
 | GET | `/api/v1/inventory/software/{node_id}` | — | Installed software |
 | GET | `/api/v1/inventory/hotfixes/{node_id}` | — | Installed Windows updates (`hotfixes`, from `Win32_QuickFixEngineering`) and the Windows Update history (`updateHistory`: up to 2000 entries, of the Defender signature updates only the newest) |
 | GET | `/api/v1/inventory/system/{node_id}` | — | System info (OS, hostname, etc.) |
-| GET | `/api/v1/inventory/security/{node_id}` | — | Security status (firewall, AV) |
+| GET | `/api/v1/inventory/security/{node_id}` | — | Security status (firewall, AV, TPM, BitLocker, UAC, local admins; `appControl`, `appLocker`, `vbs` – see below) |
 | GET | `/api/v1/inventory/network/{node_id}` | — | Network interfaces & connections |
 | GET | `/api/v1/inventory/linux/{node_id}` | — | Linux-specific inventory |
 | GET | `/api/v1/inventory/browser/{node_id}` | — | Browser extensions |
@@ -108,6 +108,14 @@ Agents push inventory data; the frontend reads it.
 | POST | `/api/v1/inventory/network` | API Key | Push network data |
 | POST | `/api/v1/inventory/browser` | API Key | Push browser data |
 | POST | `/api/v1/inventory/full` | API Key | Push full inventory (all categories) |
+
+The Windows agent's security section also sends `deviceGuard` (`Win32_DeviceGuard`), `appControl` (active App Control policies, vulnerable driver blocklist) and `appLocker` (effective policy per rule collection, `AppIDSvc` status). The server stores them normalised, and `GET /api/v1/inventory/security/{node_id}` returns (each `null` for agents that do not report them yet):
+
+- `appControl`: `kernelMode`, `userMode` (`enforced` / `audit` / `off` / `unknown`), `vulnerableDriverBlocklist` (`on` / `off` / `unknown`), `policySource` (`citool`, or `files` with policy IDs only), `policies` (`policyId`, `basePolicyId`, `name`, `version`, `systemPolicy`, `signed`, `enforced`, `supplemental`; `null` when unknown), `error`
+- `appLocker`: `collections` (`exe`, `msi`, `script`, `dll`, `appx`, each with `state` `enforced` / `audit` / `off` / `unknown`, `mode`, `ruleCount`), `appIdSvc` (`running` / `stopped` / `unknown`), `error`
+- `vbs`: `status` and `services.credentialGuard`, `services.hvci`, `services.systemGuard` (`running` / `notRunning` = configured but not running / `off` / `unknown`), `error`
+
+See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) for the sources.
 
 ### Groups & Tags
 

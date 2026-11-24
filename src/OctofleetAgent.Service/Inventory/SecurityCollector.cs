@@ -111,6 +111,67 @@ public class LocalAdminsResult
     public string? Error { get; set; }
 }
 
+/// <summary>
+/// Win32_DeviceGuard (root\Microsoft\Windows\DeviceGuard) as reported; the server turns the numbers into
+/// off/audit/enforced (App Control) and the VBS state. Null values: the class or property is missing.
+/// </summary>
+public class DeviceGuardInfo
+{
+    public bool Available { get; set; }
+    /// <summary>App Control kernel mode: 0 off, 1 audit, 2 enforced</summary>
+    public int? CodeIntegrityPolicyEnforcementStatus { get; set; }
+    /// <summary>App Control user mode: 0 off, 1 audit, 2 enforced</summary>
+    public int? UsermodeCodeIntegrityPolicyEnforcementStatus { get; set; }
+    /// <summary>0 not enabled, 1 enabled but not running, 2 running</summary>
+    public int? VirtualizationBasedSecurityStatus { get; set; }
+    /// <summary>1 Credential Guard, 2 memory integrity (HVCI), 3 System Guard Secure Launch, ...</summary>
+    public List<int>? SecurityServicesConfigured { get; set; }
+    public List<int>? SecurityServicesRunning { get; set; }
+    public string? Error { get; set; }
+}
+
+public class AppControlPolicy
+{
+    public string? PolicyId { get; set; }
+    public string? BasePolicyId { get; set; }
+    public string? FriendlyName { get; set; }
+    public string? Version { get; set; }
+    public bool? IsSystemPolicy { get; set; }
+    public bool? IsSignedPolicy { get; set; }
+    public bool? IsEnforced { get; set; }
+}
+
+/// <summary>App Control for Business (WDAC): active policies and the vulnerable driver blocklist.</summary>
+public class AppControlInfo
+{
+    /// <summary>"citool" (CiTool --list-policies), "files" (CiPolicies\Active, ids only) or null (unknown)</summary>
+    public string? PolicySource { get; set; }
+    public List<AppControlPolicy>? Policies { get; set; }
+    /// <summary>HKLM\SYSTEM\CurrentControlSet\Control\CI\Config VulnerableDriverBlocklistEnable; null when not set</summary>
+    public int? VulnerableDriverBlocklistEnable { get; set; }
+    public string? Error { get; set; }
+}
+
+public class AppLockerCollection
+{
+    /// <summary>Exe, Msi, Script, Dll, Appx</summary>
+    public string? Type { get; set; }
+    /// <summary>NotConfigured, Enabled, AuditOnly</summary>
+    public string? EnforcementMode { get; set; }
+    public int RuleCount { get; set; }
+}
+
+/// <summary>AppLocker effective policy (Get-AppLockerPolicy -Effective) and the Application Identity service.</summary>
+public class AppLockerInfo
+{
+    public bool Available { get; set; }
+    /// <summary>Rule collections in the effective policy; collections without rules may be left out</summary>
+    public List<AppLockerCollection> Collections { get; set; } = new();
+    /// <summary>AppIDSvc status (Running, Stopped, ...); null when the service does not exist</summary>
+    public string? AppIdSvcStatus { get; set; }
+    public string? Error { get; set; }
+}
+
 public class SecurityResult
 {
     public AntivirusResult Antivirus { get; set; } = new();
@@ -120,6 +181,9 @@ public class SecurityResult
     public UacInfo Uac { get; set; } = new();
     public SecureBootInfo SecureBoot { get; set; } = new();
     public LocalAdminsResult LocalAdmins { get; set; } = new();  // E1-07
+    public DeviceGuardInfo DeviceGuard { get; set; } = new();
+    public AppControlInfo AppControl { get; set; } = new();
+    public AppLockerInfo AppLocker { get; set; } = new();
 }
 #endregion
 
@@ -140,7 +204,10 @@ public static class SecurityCollector
             Task.Run(() => result.Tpm = GetTpmInfo()),
             Task.Run(() => result.Uac = GetUacInfo()),
             Task.Run(() => result.SecureBoot = GetSecureBootInfo()),
-            Task.Run(() => result.LocalAdmins = GetLocalAdmins())  // E1-07
+            Task.Run(() => result.LocalAdmins = GetLocalAdmins()),  // E1-07
+            Task.Run(() => result.DeviceGuard = GetDeviceGuardInfo()),
+            Task.Run(() => result.AppControl = GetAppControlInfo()),
+            Task.Run(() => result.AppLocker = GetAppLockerInfo())
         };
 
         await Task.WhenAll(tasks);
@@ -515,6 +582,227 @@ public static class SecurityCollector
             return new SecureBootInfo { Supported = false };
         }
     }
+
+    // App Control for Business (WDAC) and VBS/HVCI/Credential Guard share Win32_DeviceGuard. Every probe below
+    // fails soft: a missing class (older Windows), a missing tool or no access leaves its fields null ("unknown").
+    private static DeviceGuardInfo GetDeviceGuardInfo()
+    {
+        try
+        {
+            using var searcher = Wmi.Searcher(@"root\Microsoft\Windows\DeviceGuard", "SELECT * FROM Win32_DeviceGuard");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                return new DeviceGuardInfo
+                {
+                    Available = true,
+                    CodeIntegrityPolicyEnforcementStatus = WmiInt(obj, "CodeIntegrityPolicyEnforcementStatus"),
+                    UsermodeCodeIntegrityPolicyEnforcementStatus = WmiInt(obj, "UsermodeCodeIntegrityPolicyEnforcementStatus"),
+                    VirtualizationBasedSecurityStatus = WmiInt(obj, "VirtualizationBasedSecurityStatus"),
+                    SecurityServicesConfigured = WmiInts(obj, "SecurityServicesConfigured"),
+                    SecurityServicesRunning = WmiInts(obj, "SecurityServicesRunning")
+                };
+            }
+            return new DeviceGuardInfo { Error = "Win32_DeviceGuard returned no instance" };
+        }
+        catch (Exception ex)
+        {
+            return new DeviceGuardInfo { Error = ex.Message };
+        }
+    }
+
+    private static int? WmiInt(ManagementBaseObject obj, string name)
+    {
+        try { return obj[name] is { } value ? Convert.ToInt32(value) : null; }
+        catch { return null; }  // property missing on this Windows version
+    }
+
+    private static List<int>? WmiInts(ManagementBaseObject obj, string name)
+    {
+        try { return obj[name] is Array values ? values.Cast<object>().Select(Convert.ToInt32).ToList() : null; }
+        catch { return null; }
+    }
+
+    private static AppControlInfo GetAppControlInfo()
+    {
+        var result = new AppControlInfo();
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\CI\Config");
+            if (key?.GetValue("VulnerableDriverBlocklistEnable") is int blocklist)
+                result.VulnerableDriverBlocklistEnable = blocklist;
+        }
+        catch
+        {
+            // not readable: stays unknown
+        }
+
+        string? ciToolError = null;
+        try
+        {
+            var policies = GetPoliciesFromCiTool();
+            if (policies != null)
+            {
+                result.Policies = policies;
+                result.PolicySource = "citool";
+                return result;
+            }
+        }
+        catch (Exception ex)
+        {
+            ciToolError = $"CiTool: {ex.Message}";  // e.g. timed out - fall back to the policy files
+        }
+
+        try
+        {
+            // Multiple-policy format: one {PolicyId}.cip per active policy (no names without CiTool)
+            var active = Path.Combine(Environment.SystemDirectory, "CodeIntegrity", "CiPolicies", "Active");
+            if (Directory.Exists(active))
+            {
+                result.Policies = Directory.GetFiles(active, "*.cip")
+                    .Select(f => new AppControlPolicy { PolicyId = Path.GetFileNameWithoutExtension(f) })
+                    .OrderBy(p => p.PolicyId, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                result.PolicySource = "files";
+            }
+            else
+            {
+                result.Error = ciToolError;
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Error = ciToolError ?? ex.Message;
+        }
+        return result;
+    }
+
+    /// <summary>The active policies from CiTool (Windows 11 22H2, Server 2025); null without CiTool or on failure.</summary>
+    private static List<AppControlPolicy>? GetPoliciesFromCiTool()
+    {
+        var ciTool = Path.Combine(Environment.SystemDirectory, "CiTool.exe");
+        if (!File.Exists(ciTool)) return null;
+
+        // CiTool can wait for input ("press any key"): closed stdin and a time limit
+        var psi = new ProcessStartInfo { FileName = ciTool, Arguments = "--list-policies --json", RedirectStandardInput = true };
+        var run = ProcessRunner.Run(psi, TimeSpan.FromSeconds(30));
+        return run == null ? null : ParseCiToolPolicies(run.Stdout);
+    }
+
+    /// <summary>
+    /// CiTool --list-policies --json: {"Policies":[{"PolicyID", "BasePolicyID", "FriendlyName", "VersionString",
+    /// "IsSystemPolicy", "IsSignedPolicy", "IsEnforced", ...}], "OperationResult": 0}. Null when it reports a failure.
+    /// </summary>
+    internal static List<AppControlPolicy>? ParseCiToolPolicies(string output)
+    {
+        int start = output.IndexOf('{'), end = output.LastIndexOf('}');
+        if (start < 0 || end < start) return null;
+        using var json = JsonDocument.Parse(output[start..(end + 1)]);
+        var root = json.RootElement;
+        if (TryProp(root, "OperationResult", out var operation) && operation.ValueKind == JsonValueKind.Number && operation.GetInt64() != 0)
+            return null;
+        if (!TryProp(root, "Policies", out var policies) || policies.ValueKind != JsonValueKind.Array) return null;
+
+        return policies.EnumerateArray().Select(p => new AppControlPolicy
+        {
+            PolicyId = PropText(p, "PolicyID"),
+            BasePolicyId = PropText(p, "BasePolicyID"),
+            FriendlyName = PropText(p, "FriendlyName"),
+            Version = PropText(p, "VersionString") ?? PropText(p, "Version"),
+            IsSystemPolicy = PropBool(p, "IsSystemPolicy"),
+            IsSignedPolicy = PropBool(p, "IsSignedPolicy"),
+            IsEnforced = PropBool(p, "IsEnforced")
+        }).ToList();
+    }
+
+    private static AppLockerInfo GetAppLockerInfo()
+    {
+        var result = new AppLockerInfo { AppIdSvcStatus = GetServiceStatus("AppIDSvc") };
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -Command \"Get-AppLockerPolicy -Effective -Xml\""
+            };
+            var run = ProcessRunner.Run(psi);
+            if (run == null)
+            {
+                result.Error = "Failed to start PowerShell";
+                return result;
+            }
+            if (string.IsNullOrWhiteSpace(run.Stdout))
+            {
+                // e.g. no AppLocker module on this edition
+                result.Error = run.Stderr.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "No AppLocker policy returned";
+                return result;
+            }
+            result.Collections = ParseAppLockerPolicy(run.Stdout);
+            result.Available = true;
+        }
+        catch (Exception ex)
+        {
+            result.Error = ex.Message;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// &lt;AppLockerPolicy&gt;&lt;RuleCollection Type="Exe" EnforcementMode="AuditOnly"&gt;&lt;FilePathRule/&gt;...
+    /// Collections without rules are usually left out of the effective policy.
+    /// </summary>
+    internal static List<AppLockerCollection> ParseAppLockerPolicy(string xml)
+    {
+        var doc = System.Xml.Linq.XDocument.Parse(xml.Trim());
+        return doc.Root!.Elements()
+            .Where(e => e.Name.LocalName == "RuleCollection")
+            .Select(e => new AppLockerCollection
+            {
+                Type = (string?)e.Attribute("Type"),
+                EnforcementMode = (string?)e.Attribute("EnforcementMode"),
+                RuleCount = e.Elements().Count(r => r.Name.LocalName.EndsWith("Rule", StringComparison.Ordinal))
+            })
+            .ToList();
+    }
+
+    private static string? GetServiceStatus(string name)
+    {
+        try
+        {
+            using var service = new System.ServiceProcess.ServiceController(name);
+            return service.Status.ToString();
+        }
+        catch
+        {
+            return null;  // service does not exist (or no access)
+        }
+    }
+
+    private static bool TryProp(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in element.EnumerateObject())
+            {
+                if (prop.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = prop.Value;
+                    return true;
+                }
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static string? PropText(JsonElement element, string name) =>
+        TryProp(element, name, out var value) && value.ValueKind is JsonValueKind.String or JsonValueKind.Number
+            ? value.ToString()
+            : null;
+
+    private static bool? PropBool(JsonElement element, string name) =>
+        TryProp(element, name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
+            : null;
 
     private static bool? GetBoolProp(JsonElement element, string name)
     {
