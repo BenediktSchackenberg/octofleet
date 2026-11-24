@@ -23,6 +23,8 @@ export interface NodeVulnerability {
   fixed_version?: string | null;
   fix_status?: "fixed" | "none" | "unknown";
   nodes?: string[];
+  /** Microsoft reports the CVE as exploited (Windows itself, MSRC). */
+  exploited?: boolean;
 }
 
 interface NodeVulnerabilitiesResponse {
@@ -46,6 +48,18 @@ export interface VulnerabilityGroup {
   low: number;
   max_severity: string;
   max_cvss: number | null;
+  exploited_count?: number;
+}
+
+/** Whether a Windows node's build could be checked against Microsoft's Security Update Guide. */
+interface WindowsUpdates {
+  status: "checked" | "unknown";
+  reason: "no_build" | "unsupported_release" | "no_data" | null;
+  os_build: string | null;
+  product: string | null;
+  latest_kb?: string;
+  latest_build?: string;
+  up_to_date?: boolean;
 }
 
 interface NodeVulnerabilityGroupsResponse {
@@ -53,6 +67,7 @@ interface NodeVulnerabilityGroupsResponse {
   groups: VulnerabilityGroup[];
   count: number;
   scan?: ScanStatus;
+  windows_updates?: WindowsUpdates | null;
 }
 
 /** The running scan (with progress) and the last finished one, from the API. */
@@ -239,11 +254,43 @@ function SeverityBadge({ severity }: { severity?: string | null }) {
   );
 }
 
+function ExploitedBadge({ count }: { count?: number }) {
+  const { t } = useI18n();
+  return (
+    <span className="px-2 py-0.5 rounded text-xs font-sans font-bold bg-red-700 text-white" title={t("nodes.vulnerabilities.exploitedHint")}>
+      {count ? t("nodes.vulnerabilities.exploitedCount", { count }) : t("nodes.vulnerabilities.exploited")}
+    </span>
+  );
+}
+
 function CveLink({ v }: { v: NodeVulnerability }) {
   return (
-    <a href={nvdUrl(v.cve_id)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-1" title={v.description || undefined}>
-      {v.cve_id} <ExternalLink className="h-3 w-3" />
-    </a>
+    <span className="inline-flex items-center gap-2">
+      <a href={nvdUrl(v.cve_id)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-1" title={v.description || undefined}>
+        {v.cve_id} <ExternalLink className="h-3 w-3" />
+      </a>
+      {v.exploited && <ExploitedBadge />}
+    </span>
+  );
+}
+
+/** Whether the Windows build was checked against Microsoft's Security Update Guide; a warning when it could not be. */
+function WindowsUpdatesNote({ state }: { state?: WindowsUpdates | null }) {
+  const { t } = useI18n();
+  if (!state) return null;
+  const w = (key: string, params?: Record<string, string | number>) => t(`nodes.vulnerabilities.windows.${key}`, params);
+  const params = { build: state.os_build ?? "-", product: state.product ?? "-", kb: state.latest_kb ?? "", latest: state.latest_build ?? "" };
+  if (state.status !== "checked") {
+    return (
+      <div role="status" className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-800 dark:text-yellow-300">
+        {w(state.reason ?? "no_data", params)}
+      </div>
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      {w("checked", params)} {w(state.up_to_date ? "upToDate" : "behind", params)}
+    </p>
   );
 }
 
@@ -392,6 +439,7 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
                     <span className="font-medium">{g.fix_unit}</span>
                     <span className="text-muted-foreground">{g.fix_unit_version}</span>
                     <KernelBadge state={g.kernel_state} />
+                    {(g.exploited_count ?? 0) > 0 && <ExploitedBadge count={g.exploited_count} />}
                   </span>
                 </TableCell>
                 <TableCell><SeverityBadge severity={g.max_severity} /></TableCell>
@@ -524,6 +572,7 @@ export function NodeVulnerabilities({ nodeId }: { nodeId: string }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <ScanStatusBanner status={data?.scan} />
+        <WindowsUpdatesNote state={data?.windows_updates} />
         {groups.failed ? (
           <p className="text-muted-foreground">{t("nodes.vulnerabilities.error")}</p>
         ) : !data ? (
@@ -575,6 +624,7 @@ export function NodeVulnerabilityPreview({ nodeId, hostname, limit = 5 }: { node
             </Link>
             <span className="text-muted-foreground">{g.fix_unit_version}</span>
             <KernelBadge state={g.kernel_state} />
+            {(g.exploited_count ?? 0) > 0 && <ExploitedBadge count={g.exploited_count} />}
             <span className="text-muted-foreground">· {t("nodes.vulnerabilities.cveCount", { count: g.cve_count })}:</span>
             <SeverityCounts group={g} />
             <span className="text-muted-foreground">·</span>

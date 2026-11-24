@@ -357,7 +357,7 @@
     "vulnerabilities": {
       "tab": "Schwachstellen ({count})",
       "title": "Bekannte Schwachstellen ({count})",
-      "description": "CVEs, die der letzte Schwachstellen-Scan der installierten Software zugeordnet hat, gruppiert nach dem Update, das sie behebt.",
+      "description": "CVEs, die der letzte Schwachstellen-Scan der installierten Software und – für Windows selbst – dem Windows-Build zugeordnet hat (Microsoft Security Update Guide), gruppiert nach dem Update, das sie behebt.",
       "loading": "Schwachstellen werden geladen…",
       "error": "Die Schwachstellen konnten nicht geladen werden.",
       "none": "Für dieses Gerät sind keine CVEs gespeichert. Nicht geprüfte Software ist nicht enthalten.",
@@ -399,7 +399,18 @@
         "low": "Niedrig",
         "unknown": "Unbekannt"
       },
-      "cvssVersion": "Version"
+      "cvssVersion": "Version",
+      "exploited": "Ausgenutzt",
+      "exploitedHint": "Microsoft meldet, dass diese Schwachstelle ausgenutzt wird.",
+      "exploitedCount": "{count} ausgenutzt",
+      "windows": {
+        "checked": "Windows-Build {build} ({product}) wird mit dem Security Update Guide von Microsoft abgeglichen.",
+        "upToDate": "Das neueste Update {kb} ist installiert.",
+        "behind": "Neuestes Update: {kb} (Build {latest}).",
+        "no_build": "Windows-Updates konnten nicht geprüft werden: Der Agent hat den Windows-Build mit Update-Revision noch nicht gemeldet (Inventar oder täglicher Sicherheits-Snapshot).",
+        "unsupported_release": "Windows-Updates konnten nicht geprüft werden: Build {build} gehört zu keinem Windows-Release, das Octofleet dem Security Update Guide von Microsoft zuordnet.",
+        "no_data": "Windows-Updates konnten noch nicht geprüft werden: Für {product} liegen noch keine Daten aus dem Security Update Guide von Microsoft vor (Abgleich ausstehend oder abgeschaltet)."
+      }
     },
     "removal": {
       "button": "Node entfernen…",

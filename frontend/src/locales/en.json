@@ -357,7 +357,7 @@
     "vulnerabilities": {
       "tab": "Vulnerabilities ({count})",
       "title": "Known vulnerabilities ({count})",
-      "description": "CVEs matched to the installed software by the last vulnerability scan, grouped by the update that fixes them.",
+      "description": "CVEs matched to the installed software by the last vulnerability scan and, for Windows itself, to the Windows build (Microsoft Security Update Guide), grouped by the update that fixes them.",
       "loading": "Loading vulnerabilities…",
       "error": "The vulnerabilities could not be loaded.",
       "none": "No CVEs are stored for this node. Software that was not checked is not included.",
@@ -399,7 +399,18 @@
         "low": "Low",
         "unknown": "Unknown"
       },
-      "cvssVersion": "Version"
+      "cvssVersion": "Version",
+      "exploited": "Exploited",
+      "exploitedHint": "Microsoft reports this vulnerability as exploited.",
+      "exploitedCount": "{count} exploited",
+      "windows": {
+        "checked": "Windows build {build} ({product}) is checked against Microsoft's Security Update Guide.",
+        "upToDate": "The newest update {kb} is installed.",
+        "behind": "Newest update: {kb} (build {latest}).",
+        "no_build": "Windows updates could not be checked: the agent has not reported the Windows build with its update revision yet (inventory or daily security snapshot).",
+        "unsupported_release": "Windows updates could not be checked: build {build} is not one of the Windows releases Octofleet maps to Microsoft's Security Update Guide.",
+        "no_data": "Windows updates could not be checked yet: no data from Microsoft's Security Update Guide for {product} (sync pending or disabled)."
+      }
     },
     "removal": {
       "button": "Remove node…",

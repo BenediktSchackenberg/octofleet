@@ -357,7 +357,7 @@
     "vulnerabilities": {
       "tab": "Vulnerabilidades ({count})",
       "title": "Vulnerabilidades conocidas ({count})",
-      "description": "CVE asignados al software instalado en el último análisis de vulnerabilidades, agrupados por la actualización que los corrige.",
+      "description": "CVE asignados al software instalado en el último análisis de vulnerabilidades y, para Windows, a la compilación de Windows (Microsoft Security Update Guide), agrupados por la actualización que los corrige.",
       "loading": "Cargando vulnerabilidades…",
       "error": "No se pudieron cargar las vulnerabilidades.",
       "none": "No hay CVE guardados para este equipo. No se incluye el software sin verificar.",
@@ -399,7 +399,18 @@
         "low": "Baja",
         "unknown": "Desconocida"
       },
-      "cvssVersion": "Versión"
+      "cvssVersion": "Versión",
+      "exploited": "Explotada",
+      "exploitedHint": "Microsoft informa de que esta vulnerabilidad se está explotando.",
+      "exploitedCount": "{count} explotadas",
+      "windows": {
+        "checked": "La compilación de Windows {build} ({product}) se compara con la Security Update Guide de Microsoft.",
+        "upToDate": "La actualización más reciente {kb} está instalada.",
+        "behind": "Actualización más reciente: {kb} (compilación {latest}).",
+        "no_build": "No se pudieron comprobar las actualizaciones de Windows: el agente aún no ha informado de la compilación de Windows con su revisión (inventario o instantánea de seguridad diaria).",
+        "unsupported_release": "No se pudieron comprobar las actualizaciones de Windows: la compilación {build} no pertenece a ninguna versión de Windows que Octofleet asigne a la Security Update Guide de Microsoft.",
+        "no_data": "Aún no se pudieron comprobar las actualizaciones de Windows: no hay datos de la Security Update Guide de Microsoft para {product} (sincronización pendiente o desactivada)."
+      }
     },
     "removal": {
       "button": "Eliminar nodo…",
