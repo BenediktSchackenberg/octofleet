@@ -2036,7 +2036,7 @@ CREATE TABLE IF NOT EXISTS patch_catalog_nodes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patch_id UUID NOT NULL REFERENCES patch_catalog(id) ON DELETE CASCADE,
     node_id TEXT NOT NULL,
-    status TEXT DEFAULT 'detected' CHECK (status IN ('detected','approved','downloading','installing','installed','failed','excluded')),
+    status TEXT DEFAULT 'detected' CHECK (status IN ('detected','approved','downloading','installing','installed','failed','excluded','not_required')),
     detected_at TIMESTAMPTZ DEFAULT NOW(),
     installed_at TIMESTAMPTZ,
     error_message TEXT
@@ -2044,6 +2044,7 @@ CREATE TABLE IF NOT EXISTS patch_catalog_nodes (
 CREATE INDEX IF NOT EXISTS idx_pcn_patch ON patch_catalog_nodes(patch_id);
 CREATE INDEX IF NOT EXISTS idx_pcn_node ON patch_catalog_nodes(node_id);
 CREATE INDEX IF NOT EXISTS idx_pcn_status ON patch_catalog_nodes(status);
+CREATE INDEX IF NOT EXISTS idx_pcn_patch_status ON patch_catalog_nodes(patch_id, status);
 CREATE TABLE IF NOT EXISTS node_patch_scans (
     node_id UUID PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
     scanned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

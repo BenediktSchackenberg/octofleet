@@ -14,7 +14,12 @@ from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
 from auth import require_permission, require_user_permission
 from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
-from routers.patches import linux_reboot_behavior, record_scan, scan_info
+from routers.patches import (
+    linux_reboot_behavior,
+    record_installed_from_history,
+    record_scan,
+    scan_info,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -362,6 +367,9 @@ async def submit_hotfixes(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
             if upd.get("resultCode"):
                 update_id = f"{update_id}@{upd.get('resultCode')}"
             await conn.execute("INSERT INTO update_history (node_id, update_id, kb_id, title, description, installed_on, operation, result_code, support_url, categories, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) ON CONFLICT (node_id, update_id) DO UPDATE SET kb_id = EXCLUDED.kb_id, title = EXCLUDED.title, description = EXCLUDED.description, installed_on = EXCLUDED.installed_on, operation = EXCLUDED.operation, result_code = EXCLUDED.result_code, support_url = EXCLUDED.support_url, categories = EXCLUDED.categories, updated_at = NOW() WHERE update_history.installed_on IS NULL OR EXCLUDED.installed_on > update_history.installed_on", uuid, update_id, upd.get("kbId"), upd.get("title", "Unknown Update")[:500], upd.get("description"), parse_datetime(upd.get("installedOn")), upd.get("operation"), upd.get("resultCode"), upd.get("supportUrl"), json.dumps(upd.get("categories", [])))
+        if update_history:
+            # catalog entries the history shows installed (the search after an installation comes first)
+            await record_installed_from_history(conn, str(uuid))
     return {"status": "ok", "node_id": str(uuid), "type": "hotfixes", "hotfixCount": len(hotfixes), "updateHistoryCount": len(update_history)}
 
 @router.post("/system", dependencies=[Depends(require_permission("inventory:write"))])

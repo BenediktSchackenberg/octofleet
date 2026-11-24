@@ -10,13 +10,18 @@ import {
   Layers, Rocket, BarChart3, RefreshCw, Plus, ChevronRight
 } from 'lucide-react';
 
+// Two units, as the API names them: patches (catalog KBs, like the table) and node entries (one per node and patch)
 interface ComplianceData {
   total_patches: number;
   approved: number;
+  excluded: number;
+  required_patches: number;
+  awaiting_approval: number;
   compliance_percent: number;
   installed: number;
   failed: number;
   pending: number;
+  not_required: number;
   mttp_hours: number | null;
   active_deployments: number;
   rings: Array<{ id: string; name: string; total: number; installed: number }>;
@@ -25,6 +30,7 @@ interface ComplianceData {
 interface PatchItem {
   id: string; kb_id: string; title: string; severity: string;
   category: string; is_approved: boolean; is_excluded: boolean; created_at: string;
+  nodes?: { required: number; installed: number; failed: number; not_required: number };
 }
 
 interface Ring {
@@ -140,7 +146,11 @@ export default function PatchesPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Shield className="h-7 w-7 text-cyan-400" /> Patch Management
           </h1>
-          <p className="text-muted-foreground mt-1">Manage Windows Updates, deployment rings, and compliance</p>
+          <p className="text-muted-foreground mt-1">{t("patchesPage.subtitle")}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {t("patchesPage.linuxHint")}{' '}
+            <Link href="/patches/updates" className="text-cyan-400 hover:text-cyan-300">{t("nav.fleetUpdates")}</Link>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={fetchAll} className="px-3 py-2 bg-card border border-border rounded-lg hover:bg-muted transition-colors">
@@ -152,22 +162,28 @@ export default function PatchesPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards: the first two count catalog updates like the table, the next two node entries (node × update) */}
       {compliance && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm"><Package className="h-4 w-4" /> Total Patches</div>
+            <div className="flex items-center gap-2 text-muted-foreground text-sm"><Package className="h-4 w-4" /> {t("patchesPage.cards.catalog")}</div>
             <div className="text-2xl font-bold mt-1 text-foreground">{compliance.total_patches}</div>
-            <div className="text-xs text-muted-foreground">{compliance.approved} approved</div>
+            <div className="text-xs text-muted-foreground">{t("patchesPage.cards.catalogDetail", { approved: compliance.approved, excluded: compliance.excluded ?? 0 })}</div>
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm"><Clock className="h-4 w-4" /> Pending</div>
+            <div className="flex items-center gap-2 text-muted-foreground text-sm"><AlertTriangle className="h-4 w-4" /> {t("patchesPage.cards.awaitingApproval")}</div>
+            <div className="text-2xl font-bold mt-1 text-yellow-400">{compliance.awaiting_approval ?? 0}</div>
+            <div className="text-xs text-muted-foreground">{t("patchesPage.cards.awaitingApprovalDetail", { required: compliance.required_patches ?? 0 })}</div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm"><Clock className="h-4 w-4" /> {t("patchesPage.cards.notInstalled")}</div>
             <div className="text-2xl font-bold mt-1 text-yellow-400">{compliance.pending}</div>
-            <div className="text-xs text-muted-foreground">{compliance.failed} failed</div>
+            <div className="text-xs text-muted-foreground">{t("patchesPage.cards.notInstalledDetail", { failed: compliance.failed })}</div>
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm"><BarChart3 className="h-4 w-4" /> Compliance</div>
+            <div className="flex items-center gap-2 text-muted-foreground text-sm"><BarChart3 className="h-4 w-4" /> {t("patchesPage.cards.compliance")}</div>
             <div className="text-2xl font-bold mt-1 text-green-400">{compliance.compliance_percent}%</div>
+            <div className="text-xs text-muted-foreground">{t("patchesPage.cards.complianceDetail", { installed: compliance.installed, notRequired: compliance.not_required ?? 0 })}</div>
             <div className="text-xs text-muted-foreground">MTTP: {compliance.mttp_hours ? `${compliance.mttp_hours}h` : 'N/A'}</div>
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
@@ -213,7 +229,9 @@ export default function PatchesPage() {
               <thead><tr className="border-b border-border text-muted-foreground">
                 <th className="text-left p-3">KB ID</th><th className="text-left p-3">Title</th>
                 <th className="text-left p-3">Severity</th><th className="text-left p-3">Category</th>
-                <th className="text-left p-3">Status</th><th className="text-left p-3">Actions</th>
+                <th className="text-left p-3">{t("patchesPage.approval")}</th>
+                <th className="text-left p-3" title={t("patchesPage.nodesHelp")}>{t("patchesPage.nodes")}</th>
+                <th className="text-left p-3">Actions</th>
               </tr></thead>
               <tbody>
                 {patches.map(p => (
@@ -225,9 +243,19 @@ export default function PatchesPage() {
                     <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${severityColor(p.severity)}`}>{p.severity}</span></td>
                     <td className="p-3 text-muted-foreground">{p.category}</td>
                     <td className="p-3">
-                      {p.is_excluded ? <span className="text-red-400 text-xs">Excluded</span> :
-                       p.is_approved ? <span className="text-green-400 text-xs">Approved</span> :
-                       <span className="text-yellow-400 text-xs">Pending</span>}
+                      {p.is_excluded ? <span className="text-red-400 text-xs">{t("patchesPage.excluded")}</span> :
+                       p.is_approved ? <span className="text-green-400 text-xs">{t("patchesPage.approved")}</span> :
+                       <span className="text-yellow-400 text-xs">{t("patchesPage.notApproved")}</span>}
+                    </td>
+                    <td className="p-3 text-xs whitespace-nowrap">
+                      {p.nodes && (p.nodes.required + p.nodes.installed + p.nodes.failed + p.nodes.not_required) > 0 ? (
+                        <span className="text-muted-foreground">
+                          <span className={p.nodes.required > 0 ? 'text-yellow-400' : ''}>{t("patchesPage.nodesRequired", { count: p.nodes.required })}</span>
+                          {' · '}{t("patchesPage.nodesInstalled", { count: p.nodes.installed })}
+                          {p.nodes.failed > 0 && <>{' · '}<span className="text-red-400">{t("patchesPage.nodesFailed", { count: p.nodes.failed })}</span></>}
+                          {p.nodes.not_required > 0 && <>{' · '}{t("patchesPage.nodesNotRequired", { count: p.nodes.not_required })}</>}
+                        </span>
+                      ) : <span className="text-muted-foreground">{t("patchesPage.noNodes")}</span>}
                     </td>
                     <td className="p-3 flex gap-2">
                       {!p.is_approved && !p.is_excluded && (
@@ -239,7 +267,7 @@ export default function PatchesPage() {
                     </td>
                   </tr>
                 ))}
-                {patches.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No patches found</td></tr>}
+                {patches.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No patches found</td></tr>}
               </tbody>
             </table>
           </div>
@@ -338,11 +366,13 @@ export default function PatchesPage() {
             <div className="w-full bg-muted rounded-full h-4 mb-4">
               <div className="bg-green-500 h-4 rounded-full transition-all" style={{width: `${compliance.compliance_percent}%`}}></div>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div><div className="text-2xl font-bold text-green-400">{compliance.installed}</div><div className="text-xs text-muted-foreground">Installed</div></div>
-              <div><div className="text-2xl font-bold text-yellow-400">{compliance.pending}</div><div className="text-xs text-muted-foreground">Pending</div></div>
-              <div><div className="text-2xl font-bold text-red-400">{compliance.failed}</div><div className="text-xs text-muted-foreground">Failed</div></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div><div className="text-2xl font-bold text-green-400">{compliance.installed}</div><div className="text-xs text-muted-foreground">{t("patchesPage.state.installed")}</div></div>
+              <div><div className="text-2xl font-bold text-muted-foreground">{compliance.not_required ?? 0}</div><div className="text-xs text-muted-foreground">{t("patchesPage.state.notRequired")}</div></div>
+              <div><div className="text-2xl font-bold text-yellow-400">{compliance.pending}</div><div className="text-xs text-muted-foreground">{t("patchesPage.state.notInstalled")}</div></div>
+              <div><div className="text-2xl font-bold text-red-400">{compliance.failed}</div><div className="text-xs text-muted-foreground">{t("patchesPage.state.failed")}</div></div>
             </div>
+            <p className="text-xs text-muted-foreground mt-4">{t("patchesPage.complianceHelp")}</p>
           </div>
           {compliance.rings.length > 0 && (
             <div className="bg-card border border-border rounded-xl p-6">

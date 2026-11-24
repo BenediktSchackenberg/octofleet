@@ -55,6 +55,68 @@ NODE_PATCH_SCANS_DDL = """
 # Catalog states a successful scan may resolve: still waiting, nothing started by Octofleet yet
 UNRESOLVED_STATES = ("detected", "approved")
 
+# Entries the node no longer needs: installed, or no longer offered by a successful search (installed
+# outside Octofleet, superseded or declined - 'not_required' until the update history shows the install).
+# Offered again (e.g. next month's MSRT under the same KB), such an entry waits again.
+RESOLVED_STATES = ("installed", "not_required")
+ENTRY_STATES = ("detected", "approved", "downloading", "installing", "installed", "failed", "excluded",
+                "not_required")
+
+# Update history results that count as installed (Windows Update's OperationResultCode 2 and 3)
+INSTALLED_RESULTS = ("Succeeded", "SucceededWithErrors")
+
+# The initial schema's inline CHECK has no 'not_required': replaced once, existing rows are kept as they are
+_ENTRY_STATE_LIST = ", ".join(f"'{state}'" for state in ENTRY_STATES)
+ENTRY_STATUS_CHECK_DDL = f"""
+    DO $$
+    BEGIN
+        IF to_regclass('public.patch_catalog_nodes') IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'public.patch_catalog_nodes'::regclass
+              AND conname = 'patch_catalog_nodes_status_check'
+              AND pg_get_constraintdef(oid) LIKE '%not_required%'
+        ) THEN
+            ALTER TABLE patch_catalog_nodes DROP CONSTRAINT IF EXISTS patch_catalog_nodes_status_check;
+            ALTER TABLE patch_catalog_nodes ADD CONSTRAINT patch_catalog_nodes_status_check
+                CHECK (status IN ({_ENTRY_STATE_LIST}));
+        END IF;
+    END $$
+"""
+
+# A node's catalog entries from its update history (order-independent: the Windows agent searches
+# right after an installation and sends the history afterwards, so the search resolves the entry
+# first). $1 = the node's UUID.
+# - an entry no longer offered ('not_required') becomes 'installed' when the KB was installed
+#   successfully after it was detected;
+# - a catalog KB installed on the node without an entry (e.g. resolved before this existed, when
+#   entries were deleted) gets an 'installed' one - only for installs after Octofleet first saw the
+#   KB, so that older installs of a KB that is reused (MSRT: KB890830 every month) do not count.
+INSTALLED_FROM_HISTORY_SQL = f"""
+    WITH done AS (
+        SELECT pc.id AS patch_id, pc.created_at, MAX(h.installed_on) AS installed_on
+        FROM update_history h
+        JOIN patch_catalog pc ON pc.kb_id = h.kb_id
+        WHERE h.node_id = $1::uuid AND h.result_code = ANY($2::text[]) AND h.installed_on IS NOT NULL
+        GROUP BY pc.id, pc.created_at
+    ), upgraded AS (
+        UPDATE patch_catalog_nodes e SET status = 'installed', installed_at = d.installed_on
+        FROM done d
+        WHERE e.patch_id = d.patch_id AND e.{_node_entries(3)} AND e.status = 'not_required'
+          AND d.installed_on >= e.detected_at
+        RETURNING e.id
+    )
+    INSERT INTO patch_catalog_nodes (patch_id, node_id, status, detected_at, installed_at)
+    SELECT d.patch_id, $3, 'installed', d.created_at, d.installed_on  -- detected: when Octofleet first saw the KB (MTTP)
+    FROM done d
+    WHERE d.installed_on >= d.created_at
+      AND NOT EXISTS (SELECT 1 FROM patch_catalog_nodes e WHERE e.patch_id = d.patch_id AND e.{_node_entries(3)})
+"""
+
+
+async def record_installed_from_history(conn, node_uuid: str) -> None:
+    """Marks the node's catalog entries installed from its update history (see INSTALLED_FROM_HISTORY_SQL)."""
+    await conn.execute(INSTALLED_FROM_HISTORY_SQL, node_uuid, list(INSTALLED_RESULTS), str(node_uuid))
+
 
 async def ensure_schema(pool) -> None:
     """Tables added after the initial schema (existing installations)."""
@@ -63,6 +125,10 @@ async def ensure_schema(pool) -> None:
         # whether Windows waits for a reboot (scan), whether an update needs one (never/always/can)
         await conn.execute("ALTER TABLE node_patch_scans ADD COLUMN IF NOT EXISTS reboot_pending BOOLEAN")
         await conn.execute("ALTER TABLE node_available_updates ADD COLUMN IF NOT EXISTS reboot_behavior TEXT")
+        # 'not_required' entries; counts per patch and status (catalog list, compliance)
+        await conn.execute(ENTRY_STATUS_CHECK_DDL)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pcn_patch_status ON patch_catalog_nodes(patch_id, status)")
 
 
 def scan_info(data: dict):
@@ -121,7 +187,31 @@ async def list_patch_catalog(
         rows = await conn.fetch(
             f"SELECT * FROM patch_catalog{where} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx+1}", *params
         )
-        return {"items": [dict(r) for r in rows], "total": total}
+        counts = {}
+        if rows:
+            counts = {c["patch_id"]: c for c in await conn.fetch(
+                PATCH_NODE_COUNTS_SQL, [r["id"] for r in rows], list(OPEN_STATES))}
+        items = []
+        for r in rows:
+            item = dict(r)
+            c = counts.get(r["id"])
+            item["nodes"] = {k: (c[k] if c else 0) for k in ("required", "installed", "failed", "not_required")}
+            items.append(item)
+        return {"items": items, "total": total}
+
+
+# Per patch of a catalog page: on how many nodes it is still required (waiting, approved, downloading,
+# installing), installed, failed, no longer needed. Uses idx_pcn_patch_status.
+PATCH_NODE_COUNTS_SQL = """
+    SELECT patch_id,
+        COUNT(*) FILTER (WHERE status = ANY($2::text[])) AS required,
+        COUNT(*) FILTER (WHERE status = 'installed') AS installed,
+        COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+        COUNT(*) FILTER (WHERE status = 'not_required') AS not_required
+    FROM patch_catalog_nodes
+    WHERE patch_id = ANY($1::uuid[])
+    GROUP BY patch_id
+"""
 
 
 @router.post("/api/v1/patches/catalog", dependencies=[Depends(require_user_permission("packages:write"))])
@@ -144,8 +234,10 @@ async def import_patches(data: dict):
     - failed: the search did not work (e.g. WSUS not reachable) - the node's lists stay as they are;
       only the status is recorded. Before, a failed search arrived as an empty list and cleared them.
     - succeeded: catalog entries of the node that are still waiting (detected/approved) but no
-      longer offered are removed - installed outside Octofleet (WSUS, Windows Update, Defender),
-      superseded or declined. Entries of Octofleet's own deployments stay.
+      longer offered become 'not_required' - installed (by Octofleet, WSUS, Windows Update,
+      Defender), superseded or declined; the node's update history then marks the installed ones
+      'installed'. Entries of Octofleet's own deployments stay. A resolved entry that is offered
+      again waits again ('detected').
     - partial (searched with errors): the lists are updated, nothing is removed.
     Without a scan block (older agents, the catalog import) nothing is removed, as before.
     """
@@ -163,7 +255,7 @@ async def import_patches(data: dict):
     if scan is not None and scan["status"] == "failed":
         async with get_pool().acquire() as conn:
             await record_scan(conn, node_id, scan, None)
-        return {"imported": 0, "total": 0, "removed": 0, "scan": "failed"}
+        return {"imported": 0, "total": 0, "resolved": 0, "scan": "failed"}
     imported = 0
     reported_ids = []
     async with get_pool().acquire() as conn:
@@ -181,20 +273,27 @@ async def import_patches(data: dict):
                 patch_id = row["id"]
                 imported += 1
             reported_ids.append(patch_id)
-            # Upsert node association
-            exists = await conn.fetchval(
-                "SELECT 1 FROM patch_catalog_nodes WHERE patch_id=$1 AND node_id=$2", patch_id, node_id)
-            if not exists:
-                await conn.execute("""
-                    INSERT INTO patch_catalog_nodes (patch_id, node_id, status) VALUES ($1,$2,'detected')
-                """, patch_id, node_id)
 
-        removed = 0
+        # The node's entries of the offered patches: resolved ones wait again, missing ones are added
+        await conn.execute(f"""
+            UPDATE patch_catalog_nodes SET status = 'detected', detected_at = NOW(), installed_at = NULL
+            WHERE {_node_entries(1)} AND patch_id = ANY($2::uuid[]) AND status = ANY($3::text[])
+        """, node_id, reported_ids, list(RESOLVED_STATES))
+        await conn.execute(f"""
+            INSERT INTO patch_catalog_nodes (patch_id, node_id, status)
+            SELECT DISTINCT p, $1, 'detected' FROM unnest($2::uuid[]) AS p
+            WHERE NOT EXISTS (SELECT 1 FROM patch_catalog_nodes e WHERE e.patch_id = p AND e.{_node_entries(1)})
+        """, node_id, reported_ids)
+
+        resolved = 0
         if scan is not None and scan["status"] == "succeeded":
             result = await conn.execute(
-                f"DELETE FROM patch_catalog_nodes WHERE {_node_entries(1)} AND status = ANY($2::text[]) "
-                "AND NOT (patch_id = ANY($3::uuid[]))", node_id, list(UNRESOLVED_STATES), reported_ids)
-            removed = int(result.split()[-1])
+                f"UPDATE patch_catalog_nodes SET status = 'not_required' WHERE {_node_entries(1)} "
+                "AND status = ANY($2::text[]) AND NOT (patch_id = ANY($3::uuid[]))",
+                node_id, list(UNRESOLVED_STATES), reported_ids)
+            resolved = int(result.split()[-1])
+            if resolved:
+                await record_installed_from_history(conn, node_id)
 
         # Also sync to node_available_updates for Patch Explorer
         # Clear old entries for this node, then re-insert from scan
@@ -211,7 +310,7 @@ async def import_patches(data: dict):
                 reboot_behavior(p) == "always", reboot_behavior(p))
         if scan is not None:
             await record_scan(conn, node_uuid, scan, len(patches))
-    return {"imported": imported, "total": len(patches), "removed": removed}
+    return {"imported": imported, "total": len(patches), "resolved": resolved}
 
 
 def reboot_behavior(patch: dict):
@@ -301,31 +400,53 @@ async def get_patch_detail(patch_id: str):
 
 @router.get("/api/v1/patches/compliance", dependencies=[Depends(require_user_permission("compliance:read"))])
 async def get_patch_compliance(node_id: str = None):
-    """Patch compliance of the fleet, or of one node with `node_id` (node_id or UUID): the patch and
-    entry counts, compliance and MTTP then cover only that node's entries; rings and active
-    deployments stay fleet-wide."""
+    """Patch compliance of the fleet, or of one node with `node_id` (node_id or UUID).
+
+    Two units, named apart:
+    - patches (catalog KBs, like the catalog table): `total_patches`, `approved`, `excluded`,
+      `required_patches` (still needed on at least one node), `awaiting_approval` (of those, neither
+      approved nor excluded);
+    - node entries (one per node and patch): `pending` (still needed: waiting, approved, downloading,
+      installing), `installed`, `failed`, `not_required` (no longer offered: superseded, declined, or
+      installed before the update history said so).
+    `compliance_percent` = (installed + not_required) / all entries except excluded ones.
+    With `node_id` both cover only that node's entries; rings and active deployments stay fleet-wide."""
     async with get_pool().acquire() as conn:
         # the node's entries, or all of them
-        entries = f"patch_catalog_nodes WHERE {_node_entries(1)}" if node_id else "patch_catalog_nodes WHERE TRUE"
+        cond = _node_entries(1) if node_id else "TRUE"
+        entry_cond = f"e.{cond}" if node_id else "TRUE"
+        node_patches = f"WHERE pc.id IN (SELECT patch_id FROM patch_catalog_nodes WHERE {cond})" if node_id else ""
         args = [node_id] if node_id else []
-        if node_id:
-            total_patches = await conn.fetchval(f"SELECT COUNT(DISTINCT patch_id) FROM {entries}", *args)
-            approved = await conn.fetchval(
-                f"SELECT COUNT(*) FROM patch_catalog WHERE is_approved=true AND id IN (SELECT patch_id FROM {entries})", *args)
-        else:
-            total_patches = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog")
-            approved = await conn.fetchval("SELECT COUNT(*) FROM patch_catalog WHERE is_approved=true")
-        total_node_patches = await conn.fetchval(f"SELECT COUNT(*) FROM {entries}", *args)
-        installed = await conn.fetchval(f"SELECT COUNT(*) FROM {entries} AND status='installed'", *args)
-        failed = await conn.fetchval(f"SELECT COUNT(*) FROM {entries} AND status='failed'", *args)
-        pending = await conn.fetchval(
-            f"SELECT COUNT(*) FROM {entries} AND status = ANY(${len(args) + 1}::text[])", *args, list(OPEN_STATES))
-        compliance_pct = round((installed / total_node_patches * 100), 1) if total_node_patches > 0 else 100.0
-        # MTTP - mean time to patch (avg time from detected to installed)
-        mttp = await conn.fetchval(f"""
-            SELECT AVG(EXTRACT(EPOCH FROM (installed_at - detected_at))/3600)
-            FROM {entries} AND status='installed' AND installed_at IS NOT NULL
-        """, *args)
+        n = len(args)
+        entries = await conn.fetchrow(f"""
+            SELECT COUNT(*) FILTER (WHERE status = ANY(${n + 1}::text[])) AS pending,
+                COUNT(*) FILTER (WHERE status = 'installed') AS installed,
+                COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+                COUNT(*) FILTER (WHERE status = 'not_required') AS not_required,
+                COUNT(*) FILTER (WHERE status <> 'excluded') AS counted,
+                -- MTTP - mean time to patch (detected to installed)
+                AVG(EXTRACT(EPOCH FROM (installed_at - detected_at)) / 3600)
+                    FILTER (WHERE status = 'installed' AND installed_at IS NOT NULL) AS mttp
+            FROM patch_catalog_nodes WHERE {cond}
+        """, *args, list(OPEN_STATES))
+        patches = await conn.fetchrow(f"""
+            WITH patches AS (
+                SELECT pc.is_approved, pc.is_excluded,
+                    EXISTS (SELECT 1 FROM patch_catalog_nodes e WHERE e.patch_id = pc.id
+                            AND e.status = ANY(${n + 1}::text[]) AND {entry_cond}) AS required
+                FROM patch_catalog pc
+                {node_patches}
+            )
+            SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE is_approved) AS approved,
+                COUNT(*) FILTER (WHERE is_excluded) AS excluded,
+                COUNT(*) FILTER (WHERE required) AS required,
+                COUNT(*) FILTER (WHERE required AND NOT is_approved AND NOT is_excluded) AS awaiting_approval
+            FROM patches
+        """, *args, list(OPEN_STATES))
+        installed, failed, pending = entries["installed"], entries["failed"], entries["pending"]
+        compliant = installed + entries["not_required"]
+        compliance_pct = round(compliant / entries["counted"] * 100, 1) if entries["counted"] else 100.0
+        mttp = entries["mttp"]
         active_deployments = await conn.fetchval("SELECT COUNT(*) FROM patch_deployments WHERE status='in_progress'")
         # Per-ring compliance
         rings = await conn.fetch("""
@@ -338,9 +459,12 @@ async def get_patch_compliance(node_id: str = None):
             GROUP BY pr.id, pr.name, pr.priority ORDER BY pr.priority
         """)
         return {
-            "total_patches": total_patches, "approved": approved,
+            "total_patches": patches["total"], "approved": patches["approved"],
+            "excluded": patches["excluded"], "required_patches": patches["required"],
+            "awaiting_approval": patches["awaiting_approval"],
             "compliance_percent": compliance_pct,
             "installed": installed, "failed": failed, "pending": pending,
+            "not_required": entries["not_required"],
             "mttp_hours": round(float(mttp), 1) if mttp else None,
             "active_deployments": active_deployments,
             "rings": [dict(r) for r in rings]

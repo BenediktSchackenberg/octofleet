@@ -37,6 +37,33 @@ Each patch entry contains:
 - Release date, supersedence info
 - Approval/exclusion status
 
+The catalog is for **Windows** updates only. Linux packages are searched and installed per node (Updates tab) and from *Patches → Fleet updates*.
+
+#### Node entries and the patches page
+
+Each node that was offered a catalog update gets an **entry** for it (`patch_catalog_nodes`), with a state:
+
+| State | Meaning |
+|---|---|
+| `detected`, `approved`, `downloading`, `installing` | still needed – not installed (counted as *Not installed*) |
+| `installed` | installed – by an Octofleet deployment, or seen in the node's update history |
+| `failed` | an Octofleet deployment failed |
+| `not_required` | a successful search no longer offers it: installed outside Octofleet, superseded or declined |
+| `excluded` | the update is excluded in the catalog (left out of compliance) |
+
+A successful search that no longer offers an update marks the entry `not_required` (before, the entry was deleted, so an installed update left no trace and the catalog showed it without any node). The node's update history (sent with the inventory) then marks it `installed` when it shows a successful install of the KB after the entry was detected – in either order: the Windows agent searches right after an installation and sends the history afterwards. A catalog KB the history shows installed on a node without an entry gets an `installed` one, but only for installs after Octofleet first saw the KB (the MSRT, KB890830, keeps its KB every month). An update offered again (next month's MSRT) waits again (`detected`).
+
+The patches page (*Patches*, `/patches`) counts two things and names them apart:
+
+| Card | Unit | Counts |
+|---|---|---|
+| *Updates in catalog* | updates (like the table) | all catalog updates; approved and excluded ones below |
+| *Awaiting approval* | updates | needed on at least one node, neither approved nor excluded; below: needed in all |
+| *Not installed* | node × update | entries still needed; failed ones below |
+| *Compliance* | node × update | (installed + no longer needed) / all entries except excluded ones; MTTP = average time from detected to installed |
+
+The table's *Approval* column is the catalog decision (approved / not approved / excluded) – not whether a node has the update; the *Nodes* column shows per update how many nodes still need it, have it installed, failed, or no longer need it.
+
 ### Patch Rings
 
 Rings control the rollout pace:
@@ -70,7 +97,7 @@ What the server does with a scan report:
 
 | Status | Available updates (Patch Explorer) | Catalog entries of the node |
 |---|---|---|
-| `succeeded` | replaced by the report | entries still waiting (`detected`, `approved`) that are no longer offered are removed – installed outside Octofleet (WSUS, Windows Update, Defender), superseded or declined; entries of Octofleet's own deployments stay |
+| `succeeded` | replaced by the report | entries still waiting (`detected`, `approved`) that are no longer offered become `not_required` – installed (by Octofleet, WSUS, Windows Update, Defender), superseded or declined; the update history then marks the installed ones `installed`. Offered entries that were `installed` or `not_required` wait again (`detected`). Entries of Octofleet's own deployments stay |
 | `partial` | replaced | unchanged |
 | `failed` | **kept** – the last successful search stays visible | unchanged |
 | no `scan` block (older agents, catalog import) | replaced | unchanged |
@@ -199,7 +226,7 @@ The built-in `viewer` role can read; `operator` and `admin` can also change and 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/patches/catalog` | List patches (with search, pagination; `node`: only patches still open on that node) |
+| GET | `/api/v1/patches/catalog` | List patches (with search, pagination; `node`: only patches still open on that node); each with `nodes`: `required`, `installed`, `failed`, `not_required` |
 | POST | `/api/v1/patches/catalog` | Create patch manually |
 | POST | `/api/v1/patches/catalog/import` | Import patches from agent scan |
 | GET | `/api/v1/patches/catalog/{patch_id}` | Get patch details with affected nodes |
@@ -210,7 +237,7 @@ The built-in `viewer` role can read; `operator` and `admin` can also change and 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/patches/compliance` | Fleet-wide patch compliance summary (`node_id`: only that node) |
+| GET | `/api/v1/patches/compliance` | Fleet-wide patch compliance summary (`node_id`: only that node). Updates: `total_patches`, `approved`, `excluded`, `required_patches`, `awaiting_approval`; node entries: `pending` (still needed), `installed`, `failed`, `not_required`, `compliance_percent`, `mttp_hours` |
 | GET | `/api/v1/patches/compliance/nodes` | Per-node compliance breakdown |
 | GET | `/api/v1/patches/scan-status/{node_id}` | The node's last Windows Update search: time, status, source (WSUS/Windows Update), error, update count |
 

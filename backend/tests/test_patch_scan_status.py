@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from routers.patches import UNRESOLVED_STATES, import_patches
+from routers.patches import RESOLVED_STATES, UNRESOLVED_STATES, import_patches
 
 NODE = str(uuid4())
 PATCH_ID = uuid4()
@@ -13,8 +13,7 @@ PATCHES = [{"kb_id": "KB5070001", "title": "2026-11 Cumulative Update", "severit
 def _conn():
     conn = AsyncMock()
     conn.fetchrow.return_value = {"id": PATCH_ID}  # the patch is already in the catalog
-    conn.fetchval.return_value = 1                  # and linked to the node
-    conn.execute.return_value = "DELETE 2"
+    conn.execute.return_value = "UPDATE 2"
     return conn
 
 
@@ -49,34 +48,48 @@ class ScanStatusTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_successful_search_resolves_entries_no_longer_offered(self):
         result, calls = await _import({"node_id": NODE, "patches": PATCHES, "scan": _scan("succeeded")})
-        deletes = _sql(calls, "DELETE FROM patch_catalog_nodes")
-        self.assertEqual(len(deletes), 1)
-        sql, node, states, reported = deletes[0]
+        # entries are kept as 'not_required' (they were deleted, so an installed update left no trace)
+        self.assertEqual(_sql(calls, "DELETE FROM patch_catalog_nodes"), [])
+        resolved = _sql(calls, "SET status = 'not_required'")
+        self.assertEqual(len(resolved), 1)
+        sql, node, states, reported = resolved[0]
         self.assertIn("status = ANY($2::text[])", sql)
         self.assertIn("NOT (patch_id = ANY($3::uuid[]))", sql)
         self.assertEqual((node, states, reported), (NODE, list(UNRESOLVED_STATES), [PATCH_ID]))
-        self.assertEqual(result["removed"], 2)
+        self.assertEqual(result["resolved"], 2)
+        # then the update history may already show them installed
+        history = _sql(calls, "FROM update_history")
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0][1], NODE)
+        self.assertEqual(history[0][3], NODE)
         # the Patch Explorer list is replaced, with the reported source
         self.assertEqual(len(_sql(calls, "DELETE FROM node_available_updates")), 1)
         self.assertEqual(_sql(calls, "INSERT INTO node_available_updates")[0][6], "wsus")
         self.assertEqual(_sql(calls, "INSERT INTO node_patch_scans")[0][-1], 1)
 
+    async def test_offered_entries_are_added_or_wait_again(self):
+        _, calls = await _import({"node_id": NODE, "patches": PATCHES * 2, "scan": _scan("succeeded")})
+        reset = _sql(calls, "SET status = 'detected'")
+        self.assertEqual(len(reset), 1)
+        self.assertEqual(reset[0][1:], (NODE, [PATCH_ID, PATCH_ID], list(RESOLVED_STATES)))
+        added = [c for c in _sql(calls, "INSERT INTO patch_catalog_nodes") if "unnest" in c[0]]
+        self.assertEqual(len(added), 1)                  # one statement for all patches
+        self.assertIn("SELECT DISTINCT p", added[0][0])  # a KB reported twice gets one entry
+        self.assertIn("NOT EXISTS", added[0][0])
+
     async def test_empty_successful_search_resolves_all_waiting_entries(self):
         _, calls = await _import({"node_id": NODE, "patches": [], "scan": _scan("succeeded")})
-        self.assertEqual(_sql(calls, "DELETE FROM patch_catalog_nodes")[0][3], [])
+        self.assertEqual(_sql(calls, "SET status = 'not_required'")[0][3], [])
 
-    async def test_partial_search_removes_nothing(self):
+    async def test_partial_search_resolves_nothing(self):
         _, calls = await _import({"node_id": NODE, "patches": PATCHES, "scan": _scan("partial", result_code=3)})
-        self.assertEqual(_sql(calls, "DELETE FROM patch_catalog_nodes"), [])
+        self.assertEqual(_sql(calls, "SET status = 'not_required'"), [])
+        self.assertEqual(_sql(calls, "FROM update_history"), [])
         self.assertEqual(len(_sql(calls, "DELETE FROM node_available_updates")), 1)
 
     async def test_without_scan_block_as_before(self):
         result, calls = await _import({"node_id": NODE, "patches": PATCHES})
-        self.assertEqual(_sql(calls, "DELETE FROM patch_catalog_nodes"), [])
+        self.assertEqual(_sql(calls, "SET status = 'not_required'"), [])
         self.assertEqual(_sql(calls, "node_patch_scans"), [])
         self.assertEqual(_sql(calls, "INSERT INTO node_available_updates")[0][6], "windows_update")
-        self.assertEqual(result["removed"], 0)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertEqual(result["resolved"], 0)

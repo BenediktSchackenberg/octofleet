@@ -27,7 +27,7 @@
   "src/app/patches/deployments/[id]/page.tsx": 15,
   "src/app/patches/deployments/new/page.tsx": 24,
   "src/app/patches/explorer/page.tsx": 86,
-  "src/app/patches/page.tsx": 49,
+  "src/app/patches/page.tsx": 37,
   "src/app/performance/page.tsx": 54,
   "src/app/provisioning/admin/page.tsx": 70,
   "src/app/provisioning/page.tsx": 63,
