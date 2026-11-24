@@ -152,6 +152,7 @@ const navGroups: NavGroup[] = [
       { href: "/settings", labelKey: "nav.settings", icon: Settings, roles: ["admin"] },
       { href: "/settings/provisioning", labelKey: "nav.provisioning", icon: Network, roles: ["admin"] },
       { href: "/settings/retention", labelKey: "nav.retention", icon: Shield, roles: ["admin"] },
+      { href: "/settings/logging", labelKey: "nav.logging", icon: ScrollText, roles: ["admin"] },
     ],
   },
 ];

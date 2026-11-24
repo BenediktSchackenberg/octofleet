@@ -52,6 +52,7 @@ from reportlab.platypus import (
 import event_counts
 import job_types
 import linux_rules
+import logging_config
 import monitoring_defaults
 import node_reboot
 import node_removal
@@ -88,6 +89,7 @@ from routers.jobs import agent_router as jobs_agent_router
 from routers.jobs import job_result_succeeded
 from routers.jobs import router as jobs_router
 from routers.linux_rules import router as linux_rules_router
+from routers.logging_settings import router as logging_settings_router
 from routers.metrics import router as metrics_router
 from routers.monitoring_mgmt import router as monitoring_mgmt_router
 from routers.mssql import router as mssql_router
@@ -159,6 +161,8 @@ async def lifespan(app: FastAPI):
     await retention.apply_on_startup(db_pool)
     await monitoring_defaults.ensure_schema(db_pool)
     await event_counts.ensure_schema(db_pool)
+    # the stored log level and access log (defaults: info, every request)
+    await logging_config.load(db_pool)
     # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
     vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
@@ -247,6 +251,9 @@ CORS_ORIGINS = ["*"] if _cors_env.strip() == "*" else [o.strip() for o in _cors_
 # Browsers silently block responses when both are set.
 _allow_creds = CORS_ORIGINS != ["*"]
 
+# One logging configuration for all modules (level and access log: Admin -> Settings -> Logging)
+logging_config.setup()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -332,6 +339,7 @@ INSTALL_SCRIPT_PATH = os.getenv("INSTALL_SCRIPT_PATH", "/app/static/Install-Octo
 
 # Include routers
 app.include_router(node_reboot_router)
+app.include_router(logging_settings_router)
 app.include_router(nodes_router)
 app.include_router(pending_router)
 app.include_router(inventory_router)
@@ -3319,7 +3327,7 @@ async def get_settings():
 @app.get("/api/v1/settings/{key}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def get_setting(key: str):
     """Get a specific setting."""
-    if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
+    if key in (SETTINGS_KEY, password_policy.POLICY_KEY, logging_config.KEY):
         raise HTTPException(400, "Use the dedicated settings endpoint")
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT value, updated_at FROM system_settings WHERE key = $1", key)
@@ -3330,7 +3338,7 @@ async def get_setting(key: str):
 @app.put("/api/v1/settings/{key}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def update_setting(key: str, value: str = Body(..., embed=True)):
     """Update or create a setting."""
-    if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
+    if key in (SETTINGS_KEY, password_policy.POLICY_KEY, logging_config.KEY):
         raise HTTPException(400, "Use the dedicated settings endpoint")
     async with db_pool.acquire() as conn:
         await conn.execute("""
@@ -3351,7 +3359,7 @@ async def update_setting(key: str, value: str = Body(..., embed=True)):
 @app.delete("/api/v1/settings/{key}", dependencies=[Depends(require_user_permission("settings:write"))])
 async def delete_setting(key: str):
     """Delete a setting."""
-    if key in (SETTINGS_KEY, password_policy.POLICY_KEY):
+    if key in (SETTINGS_KEY, password_policy.POLICY_KEY, logging_config.KEY):
         raise HTTPException(400, "Use the dedicated settings endpoint")
     async with db_pool.acquire() as conn:
         result = await conn.execute("DELETE FROM system_settings WHERE key = $1", key)
@@ -3794,7 +3802,7 @@ async def receive_live_data(data: Dict[str, Any], db: asyncpg.Pool = Depends(get
     # Debug: log network data presence
     network_data = data.get("network", [])
     if network_data:
-        logger.info(f"[LIVE-DATA] {node_id_text}: {len(network_data)} network interfaces received")
+        logger.debug(f"[LIVE-DATA] {node_id_text}: {len(network_data)} network interfaces received")
     
     async with db.acquire() as conn:
         # Get node UUID
@@ -6839,3 +6847,7 @@ async def create_enrollment_token(body: dict):
 async def delete_enrollment_token(token_id: str):
     return {"status": "deleted"}
 
+
+# The access log line per request (logging_config.py). Added last, so it is the outermost middleware
+# and its duration covers the whole request.
+app.add_middleware(logging_config.AccessLogMiddleware)

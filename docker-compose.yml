@@ -7,11 +7,20 @@
 #
 # First start creates an admin account. Set ADMIN_PASSWORD or read the one-time password from the backend log.
 
+# Docker keeps each container log in a JSON file; without a limit it grows until the container is
+# recreated. Rotated at LOG_MAX_SIZE, LOG_MAX_FILE files kept per container (docs/CONFIGURATION.md).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-20m}
+    max-file: "${LOG_MAX_FILE:-5}"
+
 services:
   # PostgreSQL with TimescaleDB for inventory storage
   db:
     image: timescale/timescaledb:latest-pg16
     container_name: octofleet-inventory-db
+    logging: *logging
     environment:
       POSTGRES_USER: octofleet
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
@@ -35,12 +44,15 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: octofleet-inventory-api
+    logging: *logging
     environment:
       DATABASE_URL: postgresql://octofleet:${DB_PASSWORD:?DB_PASSWORD must be set}@db:5432/inventory
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       API_KEY: ${API_KEY:?API_KEY must be set}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      # level until the setting from Admin -> Settings -> Logging is loaded (error/warning/info/debug)
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ${ISO_PATH:-/mnt/isos}:/mnt/isos:ro
       - ./Install-OctofleetAgent.ps1:/app/static/Install-OctofleetAgent.ps1:ro
@@ -64,6 +76,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: octofleet-inventory-ui
+    logging: *logging
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
       # For Docker internal communication:

@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

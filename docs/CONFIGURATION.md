@@ -29,6 +29,8 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 | `API_KEY` | *(required)* | API key for agent authentication. Must match the key configured on agents. |
 | `ADMIN_PASSWORD` | *(empty)* | Password of the `admin` user, used only on the very first start (12–72 characters, not `admin`; otherwise the backend does not start). Empty: the backend prints a one-time password to its log and asks for a new one after the first login. |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins. Use comma-separated URLs for production (e.g., `https://octofleet.example.com`). |
+| `LOG_LEVEL` | `info` | Backend log level until the setting from **Admin → Logging** is loaded at startup (`error`, `warning`, `info`, `debug`); see [Logging](#logging). |
+| `LOG_MAX_SIZE` / `LOG_MAX_FILE` | `20m` / `5` | Docker log rotation per container (db, backend, frontend): size of one log file and how many are kept. |
 | `OCTOFLEET_GATEWAY_URL` | *(empty)* | Gateway URL for inter-service communication |
 | `OCTOFLEET_GATEWAY_TOKEN` | *(empty)* | Token for gateway authentication |
 
@@ -242,6 +244,25 @@ cat backup.sql | docker exec -i octofleet-inventory-db psql -U octofleet invento
 Security events, file audit events, performance data and hardware changes are kept for a set time and older data is compressed: by default 30 / 90 / 30 / 365 days, compressed after 7 days (hardware changes not). Fresh installations apply these defaults immediately. Upgrades preserve existing database jobs until an admin explicitly activates each data type under **Admin → Retention**. Once activated, changes apply immediately as TimescaleDB jobs that drop whole chunks daily. See [Security Center – Retention & Legal Hold](SECURITY-CENTER.md#retention--legal-hold).
 
 Plan disk space with this in mind: on a test installation one Windows node with the network sensor on produced about 400,000 security events (about 180 MB, 11 MB compressed) per day.
+
+### Logging
+
+The backend writes its log to stdout. With Docker Compose (`docker compose logs backend`) Docker keeps it per container in JSON files that are rotated at `LOG_MAX_SIZE` with `LOG_MAX_FILE` files kept (default 20 MB × 5 per container); before, the files had no limit and grew until the container was recreated. Without Docker ([systemd services](DEPLOYMENT.md), or `uvicorn` started by hand) the output goes where the service manager sends it – with systemd to the journal (`journalctl --user -u <unit>`), which rotates by its own limits (`SystemMaxUse` in `journald.conf`); `LOG_MAX_SIZE`/`LOG_MAX_FILE` do not apply there. The settings below and `LOG_LEVEL` work the same either way.
+
+**Admin → Logging** (`/settings/logging`, `settings:read` to view, `settings:write` to change; changes are audited as `settings.logging`) sets, without a restart:
+- **Log level**: `error`, `warning`, `info` (default) or `debug` for the backend's own messages. Debug writes much more – switch it back after troubleshooting.
+- **One line per HTTP request**: every request (default, as before), only errors (status ≥ 400) and requests slower than a threshold (default 1,000 ms), or off. A line holds method, path without the query string (tokens in URLs no longer reach the log), status, duration and client address: `GET /api/v1/jobs/pending/<node> 200 2.4 ms 10.0.0.5`. It replaces uvicorn's access line, which had no duration.
+
+Lines are formatted and written by a background thread, so a request does not wait for the log. API: `GET`/`PUT /api/v1/settings/logging` with `{"level", "access_log": "all" | "errors_slow" | "off", "slow_ms"}`.
+
+**What a line per request costs** (measured on a test installation, 8 vCPU, simulated agents polling `GET /api/v1/terminal/pending/<node>`):
+
+| Access log | CPU per request | Most requests per second (backend at one full core) | Log per request |
+|---|---|---|---|
+| Every request | about 0.87 ms | about 1,000 | about 116 bytes |
+| Errors and slow only, or off | about 0.79 ms | about 1,040 | – |
+
+A line per request costs about 5–10 % of the backend's CPU per request and about 4 % of its maximum rate; latencies at 200 and 600 requests per second were the same. The limit is the single backend process (about 1,000 agent polls per second), not the log. The log volume matters more: at 1,000 requests per second every request means about 7 MB per minute, so the default rotation (100 MB per container) holds about a quarter of an hour – with many nodes choose *errors and slow requests* or raise `LOG_MAX_SIZE`/`LOG_MAX_FILE`.
 
 ### Resource Limits
 

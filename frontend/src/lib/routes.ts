@@ -49,6 +49,7 @@ const ROUTE_KEYS: Record<string, string> = {
   "/security/evidence": "nav.evidence",
   "/security/retention": "nav.retention",
   "/settings/retention": "nav.retention",
+  "/settings/logging": "nav.logging",
   "/vulnerabilities": "nav.vulnerabilities",
   "/remediation": "nav.remediation",
   "/compliance": "nav.compliance",

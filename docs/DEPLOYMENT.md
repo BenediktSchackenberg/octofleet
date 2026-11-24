@@ -25,10 +25,14 @@ StartLimitBurst=10
 
 Environment=INVENTORY_API_KEY=your-api-key
 Environment=NVD_API_KEY=your-nvd-key
+# Log level until the setting under Admin -> Logging is loaded (error/warning/info/debug)
+Environment=LOG_LEVEL=info
 
 [Install]
 WantedBy=default.target
 ```
+
+The backend logs to stdout, so systemd keeps its log in the journal (`journalctl --user -u openclaw-inventory -f`), rotated by journald's own limits. Log level and the per-request access line are set under **Admin → Logging** – see [Configuration: Logging](CONFIGURATION.md#logging).
 
 ### Frontend UI Service
 
