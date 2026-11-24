@@ -2148,6 +2148,30 @@
       "debug": "Debug – everything, for troubleshooting"
     },
     "levelHint": "Debug writes much more; switch it back when you are done.",
+    "components": "Level per component",
+    "componentsHint": "Every line names its component in brackets, e.g. [Jobs], so the log of one component can be filtered with grep. A component can log more or less than the log level above – e.g. Debug for Jobs only, while you follow a job.",
+    "sameAsLevel": "Like the log level",
+    "componentLevels": {
+      "error": "Errors",
+      "warning": "Warnings and errors",
+      "info": "Information",
+      "debug": "Debug"
+    },
+    "componentInfo": {
+      "Api": "Everything else: requests the server rejected (invalid data from agents, with node and reason), unhandled errors, the web server",
+      "Agent": "Agent registration, health and the agents' long-poll",
+      "Alerts": "Alerts, notifications and monitoring",
+      "Auth": "Sign-in, users, roles and the password policy",
+      "Inventory": "Inventory and live data sent by the agents",
+      "Jobs": "Jobs handed out to the agents and their results, deployments, packages",
+      "Remediation": "Auto-Fix: remediation jobs handed out and their results",
+      "RemoteTools": "Remote terminal, shell and screen sessions",
+      "Retention": "Data retention and compression",
+      "Security": "Security events, hardening and event counters",
+      "SelfUpdate": "Agent releases for the agents' self-update",
+      "Updates": "Patches, Windows and Linux updates, approval rules, reboots",
+      "Vulnerabilities": "Vulnerability matching and CVE data (NVD, OSV, Microsoft MSRC)"
+    },
     "accessLog": "One line per HTTP request",
     "access": {
       "all": "Every request (default, as before)",

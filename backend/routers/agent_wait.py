@@ -3,6 +3,8 @@ Octofleet API - Agent long-poll (#283)
 
 One held request per agent instead of several idle pollers; see agent_wait.py.
 """
+import logging
+import time
 from typing import Optional
 
 import asyncpg
@@ -14,6 +16,7 @@ from dependencies import get_db
 from routers import terminal
 
 router = APIRouter(tags=["Agent"])
+logger = logging.getLogger(__name__)
 
 
 def _lookup_id(node_id: str) -> str:
@@ -79,6 +82,9 @@ async def agent_wait_route(
         async with db.acquire() as conn:
             return await _waiting_work(conn, node_id, resolved_id, wanted)
 
+    started = time.monotonic()
     wake = await agent_wait.hub.wait(keys, wanted, agent_wait.hold_seconds(timeout), check=check,
                                      disconnected=request.is_disconnected)
+    logger.debug("Wait of %s%s: %s after %.1f s", node_id, "" if node else " (unknown node)",
+                 ", ".join(wake) or "nothing", time.monotonic() - started)
     return {"wake": wake}

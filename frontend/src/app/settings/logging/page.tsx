@@ -8,14 +8,22 @@ import { useI18n } from "@/lib/i18n-context";
 
 type Level = "error" | "warning" | "info" | "debug";
 type AccessLog = "all" | "errors_slow" | "off";
-interface Setting { level: Level; access_log: AccessLog; slow_ms: number }
+interface Setting { level: Level; access_log: AccessLog; slow_ms: number; components: Record<string, Level> }
+interface Answer extends Setting { component_names: string[] }
 
 const LEVELS: Level[] = ["error", "warning", "info", "debug"];
 const ACCESS: AccessLog[] = ["all", "errors_slow", "off"];
 
+function sameSetting(a: Setting, b: Setting) {
+  const keys = new Set([...Object.keys(a.components), ...Object.keys(b.components)]);
+  return a.level === b.level && a.access_log === b.access_log && a.slow_ms === b.slow_ms
+    && [...keys].every((k) => a.components[k] === b.components[k]);
+}
+
 /**
- * Admin -> Settings -> Logging: the backend's log level and which HTTP requests get a line. Applies at
- * once, without a restart; the default (info, every request) is how the backend logged before.
+ * Admin -> Settings -> Logging: the backend's log level, a level per component (#330) and which HTTP
+ * requests get a line. Applies at once, without a restart; the default (info, every request) is how the
+ * backend logged before.
  */
 export default function LoggingSettingsPage() {
   const { t } = useI18n();
@@ -23,19 +31,32 @@ export default function LoggingSettingsPage() {
   const canEdit = hasPermission("settings:write");
   const [saved, setSaved] = useState<Setting | null>(null);
   const [draft, setDraft] = useState<Setting | null>(null);
+  const [componentNames, setComponentNames] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!token) return;
-    apiClient.get<Setting>("/settings/logging", { showErrorToast: false }).then((s) => {
-      if (s) { setSaved(s); setDraft({ level: s.level, access_log: s.access_log, slow_ms: s.slow_ms }); }
+    apiClient.get<Answer>("/settings/logging", { showErrorToast: false }).then((s) => {
+      if (s) {
+        const components = s.components ?? {};
+        setSaved({ ...s, components });
+        setComponentNames(s.component_names ?? []);
+        setDraft({ level: s.level, access_log: s.access_log, slow_ms: s.slow_ms, components: { ...components } });
+      }
     });
   }, [token]);
+
+  function setComponentLevel(name: string, level: string) {
+    if (!draft) return;
+    const components = { ...draft.components };
+    if (level) components[name] = level as Level; else delete components[name];
+    setDraft({ ...draft, components });
+  }
 
   async function save() {
     if (!draft) return;
     setSaving(true);
-    const res = await apiClient.request<Setting>("/settings/logging", {
+    const res = await apiClient.request<Answer>("/settings/logging", {
       method: "PUT", body: JSON.stringify(draft), headers: { "Content-Type": "application/json" }, showErrorToast: false,
     });
     setSaving(false);
@@ -47,7 +68,7 @@ export default function LoggingSettingsPage() {
     }
   }
 
-  const dirty = !!draft && !!saved && (draft.level !== saved.level || draft.access_log !== saved.access_log || draft.slow_ms !== saved.slow_ms);
+  const dirty = !!draft && !!saved && !sameSetting(draft, saved);
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
@@ -70,6 +91,33 @@ export default function LoggingSettingsPage() {
               </select>
               <span className="block text-xs text-zinc-500">{t("loggingPage.levelHint")}</span>
             </label>
+
+            {componentNames.length > 0 && (
+              <div className="space-y-2">
+                <div>
+                  <span className="font-medium">{t("loggingPage.components")}</span>
+                  <span className="block text-xs text-zinc-500">{t("loggingPage.componentsHint")}</span>
+                </div>
+                <table className="w-full">
+                  <tbody>
+                    {componentNames.map((c) => (
+                      <tr key={c} className="border-t border-zinc-800">
+                        <td className="py-1.5 pr-3 align-top"><code className="text-blue-300">[{c}]</code></td>
+                        <td className="py-1.5 pr-3 text-zinc-400">{t(`loggingPage.componentInfo.${c}`)}</td>
+                        <td className="py-1.5 text-right">
+                          <select value={draft.components[c] ?? ""} disabled={!canEdit} aria-label={c}
+                            onChange={(e) => setComponentLevel(c, e.target.value)}
+                            className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1">
+                            <option value="">{t("loggingPage.sameAsLevel")}</option>
+                            {LEVELS.map((l) => <option key={l} value={l}>{t(`loggingPage.componentLevels.${l}`)}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <fieldset className="space-y-2">
               <legend className="font-medium mb-1">{t("loggingPage.accessLog")}</legend>

@@ -20,8 +20,18 @@ from fastapi import (
     Query,
     Request,
 )
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+
+def _updated_rows(status: str) -> int:
+    """The row count from asyncpg's command status (`UPDATE 3`)."""
+    try:
+        return int(status.rsplit(" ", 1)[-1])
+    except (AttributeError, ValueError):
+        return 0
 
 
 def _is_uuid(val: str) -> bool:
@@ -279,6 +289,7 @@ _allow_creds = CORS_ORIGINS != ["*"]
 
 # One logging configuration for all modules (level and access log: Admin -> Settings -> Logging)
 logging_config.setup()
+jobs_log = logging_config.component("Jobs")
 
 app.add_middleware(
     CORSMiddleware,
@@ -350,10 +361,19 @@ async def agent_activity_middleware(request: Request, call_next):
 from starlette.responses import FileResponse, JSONResponse
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """FastAPI's 422 answer as before, plus one rate-limited warning with route, node and reason (#330):
+    before, a rejected agent push left only its access line."""
+    logging_config.log_rejected(request, exc)
+    return await request_validation_exception_handler(request, exc)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    import traceback
-    traceback.print_exc()
+    # The traceback follows from uvicorn (Starlette re-raises after this answer); this line names the request
+    logging_config.log.error("Unhandled %s on %s %s: %s", type(exc).__name__, request.method, request.url.path,
+                             str(exc)[:300])
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
@@ -560,7 +580,7 @@ async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
             resolved_id = str(node_row["id"])
         # Reset stuck 'queued' jobs back to 'pending' (jobs that were picked up but never completed)
         # Uses job timeout or 5 minutes default
-        await conn.execute("""
+        reset_status = await conn.execute("""
             UPDATE job_instances ji
             SET status = 'pending', updated_at = NOW()
             FROM jobs j
@@ -568,6 +588,8 @@ async def get_pending_jobs(node_id: str, db: asyncpg.Pool = Depends(get_db)):
               AND ji.status = 'queued'
               AND ji.updated_at < NOW() - INTERVAL '1 second' * COALESCE(j.timeout_seconds, 300)
         """)
+        if reset := _updated_rows(reset_status):
+            jobs_log.info("%d queued job instance(s) without a result past their timeout set back to pending", reset)
         
         rows = await conn.fetch("""
             SELECT ji.id, ji.job_id, j.name, j.command_type, j.command_data, j.priority,
@@ -708,7 +730,10 @@ try {{
                 "command_type": command_type,
                 "command_payload": json.dumps(command_payload) if isinstance(command_payload, dict) else str(command_payload),
             })
+            jobs_log.info("Job instance %s (job %s, %s, attempt %s/%s) handed out to %s", row["id"], row["job_id"],
+                          command_type, row["attempt"], row["max_attempts"], node_id)
         
+        jobs_log.debug("Job poll from %s (node %s): %d job(s)", node_id, resolved_id, len(jobs))
         return {"jobs": jobs, "count": len(jobs)}
 
 
@@ -724,12 +749,14 @@ async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
         """, instance_id)
         
         if not row:
+            jobs_log.warning("Start of unknown job instance %s", instance_id)
             raise not_found("Job instance", instance_id)
         
         await conn.execute("""
             INSERT INTO job_logs (instance_id, level, message)
             VALUES ($1, 'info', 'Job execution started')
         """, instance_id)
+        jobs_log.info("Job instance %s started on node %s", instance_id, row["node_id"])
         
         return {"status": "running", "instanceId": instance_id}
 
@@ -759,14 +786,18 @@ async def submit_job_result_legacy(data: Dict[str, Any], db: asyncpg.Pool = Depe
             SET status = $1, completed_at = NOW(), updated_at = NOW(),
                 exit_code = $2, stdout = $3, stderr = $4
             WHERE id = $5
-            RETURNING id
+            RETURNING id, node_id
         """, "success" if success else "failed", exit_code, 
              stdout[:50000] if stdout else None, stderr[:50000] if stderr else None, 
              instance_id)
         
         if not row:
+            jobs_log.warning("Result for unknown job instance %s (legacy route)", instance_id)
             raise not_found("Job instance", instance_id)
         
+        (jobs_log.info if success else jobs_log.warning)(
+            "Job instance %s on node %s: %s, exit code %s (legacy route)", instance_id, row["node_id"],
+            "success" if success else "failed", exit_code)
         return {"status": "success" if success else "failed", "instanceId": instance_id}
 
 

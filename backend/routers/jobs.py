@@ -28,6 +28,7 @@ router = APIRouter(
 
 # Separate router for agent endpoints; each endpoint declares its permission.
 agent_router = APIRouter(prefix="/api/v1", tags=["jobs-agent"])
+logger = logging.getLogger(__name__)
 
 CHOCO_PACKAGES = {
     "notepad++": "notepadplusplus", "notepadplusplus": "notepadplusplus", "7zip": "7zip", "7-zip": "7zip", "vlc": "vlc", "git": "git",
@@ -328,7 +329,11 @@ async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.
             RETURNING job_id, node_id
         """, status, exit_code, stdout, stderr, error_message, duration_ms, instance_id)
         if not row:
+            logger.warning("Result for unknown job instance %s", instance_id)
             raise not_found("Job instance", instance_id)
+        (logger.info if success else logger.warning)(
+            "Job instance %s on node %s: %s, exit code %s%s", instance_id, row["node_id"], status, exit_code,
+            f", {duration_ms} ms" if duration_ms is not None else "")
         await conn.execute("INSERT INTO job_logs (instance_id, level, message) VALUES ($1::uuid, $2, $3)",
                            instance_id, "info" if success else "error", f"Job completed: exit_code={exit_code}")
         job = await conn.fetchrow("SELECT name, command_type, command_data FROM jobs WHERE id = $1", row["job_id"])

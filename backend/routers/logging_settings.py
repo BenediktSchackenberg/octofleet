@@ -11,15 +11,21 @@ from dependencies import get_pool
 router = APIRouter(tags=["settings"])
 
 
+def _answer(setting: dict) -> dict:
+    return {**setting, "defaults": logging_config.DEFAULTS, "component_names": list(logging_config.COMPONENTS)}
+
+
 @router.get("/api/v1/settings/logging", dependencies=[Depends(require_user_permission("settings:read"))])
 async def get_logging_setting():
-    """The backend's log level and access log (`all` / `errors_slow` / `off`, `slow_ms`), as applied now."""
-    return {**logging_config.current(), "defaults": logging_config.DEFAULTS}
+    """The backend's log level, the levels of components that differ from it, and the access log (`all` /
+    `errors_slow` / `off`, `slow_ms`), as applied now; `component_names` lists the components."""
+    return _answer(logging_config.current())
 
 
 @router.put("/api/v1/settings/logging")
 async def put_logging_setting(data: dict, user=Depends(require_user_permission("settings:write"))):
-    """Change the log level and the access log; applies at once, no restart. Audited."""
+    """Change the log level, the levels per component and the access log; applies at once, no restart.
+    Audited."""
     try:
         setting = logging_config.validate(data)
     except ValueError as exc:
@@ -37,4 +43,4 @@ async def put_logging_setting(data: dict, user=Depends(require_user_permission("
             """INSERT INTO audit_log (user_id, action, resource_type, resource_id, details)
                VALUES ($1, 'settings.logging', 'settings', 'logging', $2::jsonb)""",
             user_id, json.dumps({"by": username, "before": before, "after": setting}))
-    return {**setting, "defaults": logging_config.DEFAULTS}
+    return _answer(setting)

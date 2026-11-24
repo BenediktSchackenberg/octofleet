@@ -2148,6 +2148,30 @@
       "debug": "Depuración – todo, para diagnosticar"
     },
     "levelHint": "La depuración escribe mucho más; vuelve a cambiarlo al terminar.",
+    "components": "Nivel por componente",
+    "componentsHint": "Cada línea indica su componente entre corchetes, p. ej. [Jobs], así que el registro de un componente se puede filtrar con grep. Un componente puede registrar más o menos que el nivel de registro de arriba – p. ej. Debug solo para Jobs mientras sigue un trabajo.",
+    "sameAsLevel": "Como el nivel de registro",
+    "componentLevels": {
+      "error": "Errores",
+      "warning": "Advertencias y errores",
+      "info": "Información",
+      "debug": "Debug"
+    },
+    "componentInfo": {
+      "Api": "Todo lo demás: solicitudes rechazadas por el servidor (datos no válidos de agentes, con nodo y motivo), errores no controlados, el servidor web",
+      "Agent": "Registro de agentes, estado y long-poll de los agentes",
+      "Alerts": "Alertas, notificaciones y monitorización",
+      "Auth": "Inicio de sesión, usuarios, roles y política de contraseñas",
+      "Inventory": "Inventario y datos en vivo enviados por los agentes",
+      "Jobs": "Trabajos entregados a los agentes y sus resultados, despliegues, paquetes",
+      "Remediation": "Auto-Fix: trabajos de remediación entregados y sus resultados",
+      "RemoteTools": "Terminal remoto, sesiones de shell y de pantalla",
+      "Retention": "Retención y compresión de datos",
+      "Security": "Eventos de seguridad, endurecimiento y contadores de eventos",
+      "SelfUpdate": "Versiones del agente para la autoactualización de los agentes",
+      "Updates": "Parches, actualizaciones de Windows y Linux, reglas de aprobación, reinicios",
+      "Vulnerabilities": "Detección de vulnerabilidades y datos CVE (NVD, OSV, Microsoft MSRC)"
+    },
     "accessLog": "Una línea por solicitud HTTP",
     "access": {
       "all": "Cada solicitud (predeterminado, como antes)",

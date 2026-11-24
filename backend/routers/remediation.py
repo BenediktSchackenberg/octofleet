@@ -367,6 +367,7 @@ async def get_pending_remediation_jobs(node_id: str):
         """, lookup_id)
         
         if not node_row:
+            logger.debug("Remediation poll from unknown node %s", node_id)
             return {"jobs": [], "count": 0}
         
         node_uuid = node_row['id']
@@ -413,9 +414,12 @@ async def get_pending_remediation_jobs(node_id: str):
                 "fixCommand": fix_cmd,
                 "packageName": job['package_name']
             })
+            logger.info("Remediation job %s (%s %s, %s, %s) handed out to %s", job['id'], job['software_name'],
+                        job['software_version'], job['cve_id'], job['fix_method'], node_id)
             if len(result) == 5:
                 break
         
+        logger.debug("Remediation poll from %s: %d job(s)", node_id, len(result))
         return {"jobs": result, "count": len(result)}
 
 
@@ -462,7 +466,10 @@ async def submit_remediation_result(job_id: int, data: Dict[str, Any]):
     )
     
     if not job:
+        logger.warning("Result for unknown remediation job %s", job_id)
         raise HTTPException(status_code=404, detail="Remediation job not found")
+    (logger.warning if status == "failed" else logger.info)(
+        "Remediation job %s on node %s: %s, exit code %s", job_id, job.get("node_id", "-"), status, exit_code)
     
     # On success: mark related node_vulnerabilities as remediated
     if success:
