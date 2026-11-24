@@ -98,6 +98,21 @@ function readExpanded(): Set<string> {
   return new Set(DEFAULT_EXPANDED);
 }
 
+/** Every release row that lists the node: one per group it is in, or one under "Not in a group" */
+function nodeScopes(tree: FleetTreeSummary, nodeId: string): FleetScope[] {
+  const found: FleetScope[] = [];
+  const scan = (group: string, branch: TreeBranch) => {
+    for (const family of branch.os) {
+      for (const release of family.releases) {
+        if (release.node_ids.includes(nodeId)) found.push({ group, os: family.family, release: release.name });
+      }
+    }
+  };
+  tree.groups.forEach((g) => scan(g.id, g));
+  scan(UNASSIGNED, tree.unassigned);
+  return found;
+}
+
 function osIcon(family: string): string {
   return family === "Windows" ? "🪟" : family === "Linux" ? "🐧" : "💻"; // i18n-ignore
 }
@@ -110,6 +125,9 @@ export function FleetTree() {
   // saved rows can be read on the first render
   const [expanded, setExpanded] = useState<Set<string>>(() => (typeof window === "undefined" ? new Set(DEFAULT_EXPANDED) : readExpanded()));
   const onList = pathname === "/nodes";
+  // On a node page: the releases (one per group the node is in) that hold it
+  const nodeId = !onList && pathname.startsWith("/nodes/") ? decodeURIComponent(pathname.split("/")[2] ?? "") : null;
+  const nodePlaces = useMemo(() => (tree && nodeId ? nodeScopes(tree, nodeId) : []), [tree, nodeId]);
 
   const save = (next: Set<string>) => {
     try { sessionStorage.setItem(EXPANDED_KEY, JSON.stringify([...next])); } catch { /* not kept */ }
@@ -121,6 +139,14 @@ export function FleetTree() {
   if (shownScope === null || !sameScope(shownScope, scope)) {
     setShownScope(scope);
     const missing = scopeAncestors(scope).filter((key) => !expanded.has(key));
+    if (missing.length) setExpanded(save(new Set([...expanded, ...missing])));
+  }
+  // ... and a node page opens the node's places in the tree
+  const placesKey = nodePlaces.map(branchKey).join("|");
+  const [shownPlaces, setShownPlaces] = useState("");
+  if (placesKey !== shownPlaces) {
+    setShownPlaces(placesKey);
+    const missing = nodePlaces.flatMap(scopeAncestors).filter((key) => !expanded.has(key));
     if (missing.length) setExpanded(save(new Set([...expanded, ...missing])));
   }
 
@@ -136,7 +162,7 @@ export function FleetTree() {
     if (!expanded.has(key)) toggle(key);
   };
 
-  const selected = (target: FleetScope) => onList && sameScope(scope, target);
+  const selected = (target: FleetScope) => (onList ? sameScope(scope, target) : nodePlaces.some((place) => sameScope(place, target)));
 
   function branchRows(groupId: string, branch: TreeBranch, indent: number) {
     return branch.os.map((family) => {

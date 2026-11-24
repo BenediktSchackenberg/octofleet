@@ -59,6 +59,8 @@ test('Fleet tree: a branch scopes the Nodes list, kept in the URL', async ({ pag
   await names.first().click();
   await expect(page).toHaveURL(new RegExp(`/nodes/${tag}-a`));
   await expect(page.getByRole('navigation', { name: 'Fleet' })).toBeVisible();
+  // ... with the node's release marked (and its branch open)
+  await expect(page.getByRole('navigation', { name: 'Fleet' }).getByRole('button', { name: new RegExp(`^${release}`) })).toHaveAttribute('aria-current', 'true');
   await page.goBack();
   await expect(page).toHaveURL(/release=/);
   await expect(names).toHaveText([`${tag}-a`, `${tag}-b`]);
