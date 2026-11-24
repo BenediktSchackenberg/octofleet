@@ -58,7 +58,7 @@ C:\ProgramData\Octofleet\
 
 The folder holds the agent key. The installer and the service (at every start, and checked every hour) restrict it to SYSTEM and Administrators; do not widen its rules, the service restores them within an hour. The service also encrypts the key in `service-config.json` for SYSTEM (DPAPI): you can still put a new key into `InventoryApiKey` in plain text, and the service moves it into `InventoryApiKeyProtected` on its next start.
 
-The logs are in `C:\Windows\Logs\Octofleet\` (service log per day, `update.log` of the self-update), readable without elevation. Older agents wrote them to `C:\ProgramData\Octofleet\logs\`; the first start of a current agent moves them.
+The logs are in `C:\Windows\Logs\Octofleet\`, one file per component, readable without elevation (see [Logs](#logs)). Older agents wrote them to `C:\ProgramData\Octofleet\logs\`; the first start of a current agent moves them.
 
 #### `service-config.json`
 
@@ -92,6 +92,7 @@ Create or edit `C:\ProgramData\Octofleet\service-config.json`:
 | `RepoUrl` | Custom URL for the software repository | Auto-detected | No |
 | `PreferRepo` | Check local repo before external download URLs | `true` | No |
 | `FallbackToSource` | Fall back to source URL if package not in repo | `true` | No |
+| `Logging` | Log format, level per component, file size and old files kept, see [Logs](#logs) | CMTrace, `Information`, 2 MB, 4 | No |
 
 Between scheduled pushes, **Collect inventory** on the node page sends the agent an `inventory` job: the agent collects and pushes its inventory right away, and the page shows it once the agent has reported back (the agent picks up jobs about once a minute). If a WMI query or helper process hangs, the collection has time limits, and the job fails after its timeout (300 s by default) instead of blocking the agent. See [Troubleshooting](TROUBLESHOOTING.md#inventory-incomplete-or-collect-inventory-times-out-windows).
 
@@ -100,6 +101,49 @@ Between scheduled pushes, **Collect inventory** on the node page sends the agent
 #### `device-identity.json`
 
 This file is **auto-generated** on first run and contains the device's unique identity (cryptographic key pair). Do not edit or delete this file — it is used for secure device authentication.
+
+#### Logs
+
+Like the ConfigMgr client, the agent writes **one log per component** to `C:\Windows\Logs\Octofleet\` ([#330](https://github.com/BenediktSchackenberg/octofleet/issues/330)):
+
+| File | What |
+|---|---|
+| `Agent.log` | start and stop, configuration, registration, connection to the server – **and every warning and error of all components**: look here first |
+| `Inventory.log` | inventory collection (per section on debug) and push: size, HTTP status, duration, the server's answer when it rejects a push |
+| `Jobs.log` | job polling and results, deployments, packages (download, detection, install exit codes) |
+| `Updates.log` | Windows Update search and installation (also when started by a job): result codes, HRESULTs, reboot |
+| `Remediation.log` | remediation jobs, service reconciliation |
+| `Security.log` | security sensors (file audit, posture, processes, network, registry, logons, services) |
+| `Events.log` | event log push |
+| `LiveData.log` | live data |
+| `RemoteTools.log` | terminal, remote shell, screen sharing |
+| `SelfUpdate.log` | agent self-update (the update script itself writes `update.log`) |
+
+A file is created when its component writes its first line. The lines are in the **CMTrace format**: open the folder with **CMTrace** or **OneTrace** to see warnings (yellow) and errors (red) highlighted, merge several logs by time, or follow a file live. They are still plain text (`<![LOG[message]LOG]!><time=… date=… component="Updates" … type="2" thread="12" file="PatchScanner">`; type 1 = information or debug, 2 = warning, 3 = error). Each file is rotated at 2 MB: the current file keeps its name, the full one is renamed to `Updates-20261124-153000.log`, and the 4 newest of those are kept (at most 10 MB per component).
+
+The defaults can be changed in `service-config.json`, followed by a service restart:
+
+```json
+{
+  "Logging": {
+    "Format": "CMTrace",
+    "Level": "Information",
+    "Levels": { "Updates": "Debug", "Inventory": "Debug" },
+    "MaxFileSizeMB": 2,
+    "MaxOldFiles": 4
+  }
+}
+```
+
+| Field | Description | Default |
+|---|---|---|
+| `Format` | `CMTrace` or `Text` (`2026-11-24 15:30:00.123 +01:00 [WRN] [Updates] message`) | `CMTrace` |
+| `Level` | level of all components: `Debug`, `Information`, `Warning`, `Error` (`Verbose`, `Info`, `Warn` work too) | `Information` |
+| `Levels` | level per component, by the names above (`Agent`, `Inventory`, `Jobs`, `Updates`, `Remediation`, `Security`, `Events`, `LiveData`, `RemoteTools`, `SelfUpdate`) | – |
+| `MaxFileSizeMB` | size at which a file is rotated | `2` |
+| `MaxOldFiles` | rotated files kept per component | `4` |
+
+Set a component to `Debug` while troubleshooting and back afterwards: debug lines name every query that failed or found nothing (e.g. a WMI class missing on this Windows version). An unknown component or level is reported as a warning in `Agent.log` at start. Agents up to 0.8.x wrote one `service-YYYYMMDD.log` per day; those files stay until they are 14 days old and are then deleted.
 
 ### Minimal Configuration
 
@@ -173,14 +217,14 @@ Restart-Service OctofleetNodeAgent
    Get-Service OctofleetNodeAgent
    ```
 
-2. Check logs at `C:\Windows\Logs\Octofleet\` (`service-YYYYMMDD.log`, one file per day, 14 kept, rotated at 10 MB; `update.log` for self-updates). Older agents wrote to `C:\ProgramData\Octofleet\logs\`; the update moves those files once. While the agent has the file open Explorer may show an older modified time and size.
+2. Check the logs in `C:\Windows\Logs\Octofleet\` with CMTrace or OneTrace, starting with `Agent.log` (see [Logs](#logs); `update.log` for self-updates). Older agents wrote to `C:\ProgramData\Octofleet\logs\`; the update moves those files once. While the agent has a file open Explorer may show an older modified time and size.
 
-   When the server is not reachable (restart, network, DNS) or a request times out, each part of the agent logs **one warning line**, then at most one every 5 minutes with the number of failures, and one line when it works again, e.g.:
+   When the server is not reachable (restart, network, DNS) or a request times out, each part of the agent logs **one warning line** (in its component's log and in `Agent.log`), then at most one every 5 minutes with the number of failures, and one line when it works again, e.g. (in the `Text` format):
    ```
    [WRN] Screen session check failed: No connection could be made because the target machine actively refused it. (server:8080) (attempt 1, failing since 18:02:11)
    [INF] Screen session check works again (failed attempts: 3, failing since 18:02:11)
    ```
-   Meanwhile the pollers ask less often (up to once a minute). Errors with a stack trace (`[ERR]`) are real problems of the agent or answers the server rejected.
+   Meanwhile the pollers ask less often (up to once a minute). Errors with a stack trace (type 3 in CMTrace, `[ERR]` in the text format) are real problems of the agent or answers the server rejected.
 
 3. Confirm the node appears in the web UI under **Fleet → Nodes**
 
@@ -439,6 +483,7 @@ There is no default password. On the first start the backend uses `ADMIN_PASSWOR
 
 ### Windows: Service won't start
 
+- Check `C:\Windows\Logs\Octofleet\Agent.log`
 - Check **Event Viewer → Windows Logs → Application** for .NET errors
 - Verify `service-config.json` is valid JSON (no trailing commas!)
 - Run manually to see console output:

@@ -8,6 +8,8 @@ namespace OctofleetAgent.Service.Inventory;
 /// </summary>
 public static class BrowserCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(BrowserCollector));
+
     // Critical domains that contain sensitive auth/session data
     private static readonly HashSet<string> CriticalDomains = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -102,6 +104,7 @@ public static class BrowserCollector
             }
         }
 
+        Log.Debug("Browsers: {Users} of {Profiles} user profile(s) have a browser", results.Users.Count, userProfiles.Count);
         return results;
     }
 
@@ -299,6 +302,7 @@ public static class BrowserCollector
         if (walResult.Cookies != null && walResult.Count >= 0)
             return walResult;
 
+        Log.Debug("{Browser} cookies {Path} not readable: {Error}; {WalError}", browserName, dbPath, result.Error, walResult.Error);
         return new CookieCollectionResult 
         { 
             Count = -1, 
@@ -362,7 +366,10 @@ public static class BrowserCollector
                                 .AddTicks(expiresUtc * 10);
                             isExpired = expires < DateTime.UtcNow;
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Log.Debug("Cookie expiry {Value} out of range: {Error}", expiresUtc, ex.Message);
+                        }
                     }
 
                     var sameSiteValue = reader.GetInt32(6);
@@ -396,7 +403,7 @@ public static class BrowserCollector
             }
             finally
             {
-                try { File.Delete(tempPath); } catch { }
+                try { File.Delete(tempPath); } catch (Exception ex) { Log.Debug("Temporary copy {Path} not deleted: {Error}", tempPath, ex.Message); }
             }
         }
         catch (Exception ex)
@@ -441,7 +448,10 @@ public static class BrowserCollector
                 using var checkpointCmd = new SQLiteCommand("PRAGMA wal_checkpoint(PASSIVE);", conn);
                 checkpointCmd.ExecuteNonQuery();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Debug("Cookie WAL checkpoint failed, reading without it: {Error}", ex.Message);
+            }
 
             using var cmd = new SQLiteCommand(@"
                 SELECT host_key, name, path, expires_utc, is_secure, is_httponly, samesite, is_persistent
@@ -464,7 +474,10 @@ public static class BrowserCollector
                         expires = new DateTime(1601, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddTicks(expiresUtc * 10);
                         isExpired = expires < DateTime.UtcNow;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("Cookie expiry {Value} out of range: {Error}", expiresUtc, ex.Message);
+                    }
                 }
 
                 var (isCritical, category) = CheckCriticalDomain(domain);
@@ -493,7 +506,7 @@ public static class BrowserCollector
         }
         finally
         {
-            try { Directory.Delete(tempDir, true); } catch { }
+            try { Directory.Delete(tempDir, true); } catch (Exception ex) { Log.Debug("Temporary folder {Path} not deleted: {Error}", tempDir, ex.Message); }
         }
     }
 
@@ -584,13 +597,17 @@ public static class BrowserCollector
                         Description = description?.Length > 100 ? description.Substring(0, 100) + "..." : description
                     });
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Log.Debug("Extension manifest {Path} not readable: {Error}", manifestPath, ex.Message);
                     extensions.Add(new ExtensionData { Id = extId, Name = extId });
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Debug("Extensions in {Path} not readable: {Error}", extensionsDir, ex.Message);
+        }
 
         return extensions;
     }
@@ -678,7 +695,11 @@ public static class BrowserCollector
                 if (json.RootElement.TryGetProperty("logins", out var logins))
                     profileData.LoginsCount = logins.GetArrayLength();
             }
-            catch { profileData.LoginsCount = -1; }
+            catch (Exception ex)
+            {
+                Log.Debug("Firefox logins {Path} not readable: {Error}", loginsJson, ex.Message);
+                profileData.LoginsCount = -1;
+            }
         }
 
         return profileData;
@@ -743,7 +764,7 @@ public static class BrowserCollector
         }
         finally
         {
-            try { File.Delete(tempPath); } catch { }
+            try { File.Delete(tempPath); } catch (Exception ex) { Log.Debug("Temporary copy {Path} not deleted: {Error}", tempPath, ex.Message); }
         }
     }
 
@@ -773,7 +794,10 @@ public static class BrowserCollector
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Debug("Firefox extensions {Path} not readable: {Error}", extensionsJsonPath, ex.Message);
+        }
 
         return extensions;
     }
@@ -791,10 +815,14 @@ public static class BrowserCollector
             using var cmd = new SQLiteCommand($"SELECT COUNT(*) FROM {tableName}", conn);
             return Convert.ToInt32(cmd.ExecuteScalar());
         }
-        catch { return -1; }
+        catch (Exception ex)
+        {
+            Log.Debug("{Table} in {Path} not countable: {Error}", tableName, dbPath, ex.Message);
+            return -1;
+        }
         finally
         {
-            try { File.Delete(tempPath); } catch { }
+            try { File.Delete(tempPath); } catch (Exception ex) { Log.Debug("Temporary copy {Path} not deleted: {Error}", tempPath, ex.Message); }
         }
     }
 
@@ -805,7 +833,11 @@ public static class BrowserCollector
             var json = JsonDocument.Parse(File.ReadAllText(bookmarksPath));
             return CountBookmarksRecursive(json.RootElement);
         }
-        catch { return -1; }
+        catch (Exception ex)
+        {
+            Log.Debug("Bookmarks {Path} not readable: {Error}", bookmarksPath, ex.Message);
+            return -1;
+        }
     }
 
     private static int CountBookmarksRecursive(JsonElement element)

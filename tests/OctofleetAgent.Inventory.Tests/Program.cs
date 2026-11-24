@@ -81,6 +81,8 @@ try
         "AppLocker collections are read with mode and rule count");
     Assert(SecurityCollector.ParseAppLockerPolicy("<AppLockerPolicy Version=\"1\" />").Count == 0,
         "An empty AppLocker policy has no collections");
+
+    ComponentLogTests.Run(testRoot);
 }
 finally
 {

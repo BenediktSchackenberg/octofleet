@@ -64,7 +64,8 @@ public static class PatchInstaller
                     if (kb != null && kbSet.Contains(kb))
                     {
                         // Accept EULA if needed
-                        try { if (!update.EulaAccepted) update.AcceptEula(); } catch { }
+                        try { if (!update.EulaAccepted) update.AcceptEula(); }
+                        catch (Exception ex) { logger.LogWarning("PatchInstaller: EULA of {KB} not accepted: {Error}", kb, ex.Message); }
 
                         toDownload.Add(update);
                         toInstall.Add(update);
@@ -164,7 +165,7 @@ public static class PatchInstaller
             finally
             {
                 if (session != null)
-                    try { Marshal.ReleaseComObject(session); } catch { }
+                    try { Marshal.ReleaseComObject(session); } catch (Exception ex) { logger.LogDebug("PatchInstaller: update session not released: {Error}", ex.Message); }
             }
         }, ct);
 
@@ -175,7 +176,7 @@ public static class PatchInstaller
             {
                 case "force":
                     logger.LogInformation("PatchInstaller: Forcing reboot in 60s");
-                    StartReboot(60);
+                    StartReboot(60, logger);
                     break;
                 case "schedule" when !string.IsNullOrEmpty(rebootScheduleTime):
                     // DateTimeOffset keeps the time's offset ("…Z", "+01:00"); DateTime.TryParse turned it
@@ -185,7 +186,7 @@ public static class PatchInstaller
                     {
                         var delay = (int)Math.Max((scheduled - DateTimeOffset.UtcNow).TotalSeconds, 60);
                         logger.LogInformation("PatchInstaller: Scheduling reboot in {Delay}s", delay);
-                        StartReboot(delay);
+                        StartReboot(delay, logger);
                     }
                     break;
                 default: // no_reboot
@@ -197,7 +198,7 @@ public static class PatchInstaller
         return result;
     }
 
-    private static void StartReboot(int delaySec)
+    private static void StartReboot(int delaySec, ILogger logger)
     {
         try
         {
@@ -212,8 +213,13 @@ public static class PatchInstaller
             psi.ArgumentList.Add("/c");
             psi.ArgumentList.Add("Octofleet Agent: Reboot after patch installation");
             Process.Start(psi);
+            logger.LogInformation("PatchInstaller: reboot starts in {Seconds} s (shutdown /r)", delaySec);
         }
-        catch { /* best effort */ }
+        catch (Exception ex)
+        {
+            // best effort
+            logger.LogWarning("PatchInstaller: reboot could not be started: {Error}", ex.Message);
+        }
     }
 
     /// <summary>The newest 50 entries of the Windows Update history (empty if it cannot be read)</summary>

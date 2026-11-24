@@ -13,6 +13,9 @@ namespace OctofleetAgent.Service;
 public class JobPoller : BackgroundService
 {
     private readonly ILogger<JobPoller> _logger;
+    // Update search and installation log to Updates.log (logger names map to components, see LogComponents)
+    private readonly ILogger _patchScanLogger;
+    private readonly ILogger _patchInstallLogger;
     private readonly ServiceConfig _config;
     private readonly HttpClient _httpClient;
     private readonly ConnectionProblems _problems;
@@ -36,9 +39,11 @@ public class JobPoller : BackgroundService
         PropertyNameCaseInsensitive = true
     };
 
-    public JobPoller(ILogger<JobPoller> logger, ServiceConfig config)
+    public JobPoller(ILogger<JobPoller> logger, ILoggerFactory loggerFactory, ServiceConfig config)
     {
         _logger = logger;
+        _patchScanLogger = loggerFactory.CreateLogger<PatchScanner>();
+        _patchInstallLogger = loggerFactory.CreateLogger(typeof(PatchInstaller).FullName!);
         _config = config;
         _httpClient = AgentHttp.Create(TimeSpan.FromSeconds(30));
         _problems = new ConnectionProblems(logger, "Job check");
@@ -1115,7 +1120,7 @@ if ($svc) {{
         try
         {
             _logger.LogInformation("On-demand patch scan triggered via job");
-            var scanner = new PatchScanner(_logger, _config);
+            var scanner = new PatchScanner(_patchScanLogger, _config);
             await scanner.RunOnDemandScanAsync(ct);
             return new CommandResult { ExitCode = 0, Stdout = "Patch scan completed and results submitted." };
         }
@@ -1166,12 +1171,12 @@ if ($svc) {{
         {
             try
             {
-                var r = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _logger, CancellationToken.None);
+                var r = await PatchInstaller.InstallPatchesAsync(kbIds, rebootPolicy, rebootScheduleTime, _patchInstallLogger, CancellationToken.None);
 
                 // Keep the guard until the follow-up search has refreshed the update list.
                 try
                 {
-                    await new PatchScanner(_logger, _config).RunOnDemandScanAsync(CancellationToken.None);
+                    await new PatchScanner(_patchScanLogger, _config).RunOnDemandScanAsync(CancellationToken.None);
                     r.SearchAfter = "succeeded";
                 }
                 catch (Exception ex)

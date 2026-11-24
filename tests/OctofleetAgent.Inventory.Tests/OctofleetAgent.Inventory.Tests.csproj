@@ -13,6 +13,9 @@
     <Compile Include="../../src/OctofleetAgent.Service/Inventory/SecurityCollector.cs" Link="SecurityCollector.cs" />
     <Compile Include="../../src/OctofleetAgent.Service/ProcessRunner.cs" Link="ProcessRunner.cs" />
     <Compile Include="../../src/OctofleetAgent.Service/Wmi.cs" Link="Wmi.cs" />
+    <!-- Per-component logs (#330); the collectors log through Serilog -->
+    <Compile Include="../../src/OctofleetAgent.Service/ComponentLogs.cs" Link="ComponentLogs.cs" />
+    <PackageReference Include="Serilog" Version="4.0.0" />
     <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />

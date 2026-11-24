@@ -8,6 +8,8 @@ namespace OctofleetAgent.Service.Inventory;
 /// </summary>
 public static class InventoryPusher
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(InventoryPusher));
+
     private static readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(30)
@@ -29,6 +31,7 @@ public static class InventoryPusher
         
         if (string.IsNullOrEmpty(config.InventoryApiUrl))
         {
+            Log.Warning("Inventory {Type} not pushed: InventoryApiUrl is not configured", type);
             return new PushResult 
             { 
                 Success = false, 
@@ -36,6 +39,8 @@ public static class InventoryPusher
             };
         }
 
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var bytesSent = 0;
         try
         {
             var url = $"{config.InventoryApiUrl.TrimEnd('/')}/api/v1/inventory/{type}";
@@ -46,7 +51,7 @@ public static class InventoryPusher
             request.Content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
             
             // Track bytes sent
-            var bytesSent = System.Text.Encoding.UTF8.GetByteCount(jsonContent);
+            bytesSent = System.Text.Encoding.UTF8.GetByteCount(jsonContent);
             ConsoleUI.AddBytesSent(bytesSent);
             ConsoleUI.SetOperation($"Pushing {type} ({bytesSent / 1024}KB)...");
             
@@ -61,6 +66,8 @@ public static class InventoryPusher
             {
                 ConsoleUI.LastInventoryPush = DateTime.Now;
                 ConsoleUI.InventoryApiConnected = true;
+                Log.Information("Inventory {Type} pushed: {KB} KB, HTTP {Status} in {Ms} ms",
+                    type, bytesSent / 1024, (int)response.StatusCode, watch.ElapsedMilliseconds);
                 return new PushResult 
                 { 
                     Success = true, 
@@ -71,6 +78,10 @@ public static class InventoryPusher
             else
             {
                 ConsoleUI.AddError();
+                // The server's answer says why (e.g. a validation error); cut, it can be long
+                Log.Warning("Inventory {Type} rejected: {KB} KB, HTTP {Status} in {Ms} ms: {Response}",
+                    type, bytesSent / 1024, (int)response.StatusCode, watch.ElapsedMilliseconds,
+                    responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody);
                 return new PushResult 
                 { 
                     Success = false, 
@@ -84,6 +95,8 @@ public static class InventoryPusher
             ConsoleUI.AddError();
             ConsoleUI.SetOperation(null);
             ConsoleUI.InventoryApiConnected = false;
+            Log.Warning("Inventory {Type} push failed after {Ms} ms ({KB} KB): {Error}",
+                type, watch.ElapsedMilliseconds, bytesSent / 1024, ex.Message);
             return new PushResult 
             { 
                 Success = false, 

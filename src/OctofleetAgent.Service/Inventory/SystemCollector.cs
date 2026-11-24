@@ -115,6 +115,8 @@ public class SystemResult
 /// </summary>
 public static class SystemCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(SystemCollector));
+
     public static async Task<SystemResult> CollectAsync()
     {
         return await Task.Run(() =>
@@ -168,7 +170,10 @@ public static class SystemCollector
                             result.UptimeHours = Math.Round(uptime.TotalHours, 2);
                             result.UptimeFormatted = FormatUptime(uptime);
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Log.Debug("Uptime: LastBootUpTime {Value} not readable: {Error}", lastBootStr, ex.Message);
+                        }
                     }
                     break;
                 }
@@ -184,7 +189,11 @@ public static class SystemCollector
                 // replace a precise value (e.g. from a posture snapshot).
                 result.Build = !string.IsNullOrEmpty(build) && !string.IsNullOrEmpty(ubr) ? $"{build}.{ubr}" : null;
             }
-            catch { result.Build = null; }
+            catch (Exception ex)
+            {
+                Log.Debug("OS build revision (UBR) not readable: {Error}", ex.Message);
+                result.Build = null;
+            }
 
             // E1-03: Domain/Workgroup info from Win32_ComputerSystem
             using (var searcher = Wmi.Searcher("SELECT * FROM Win32_ComputerSystem"))
@@ -214,6 +223,7 @@ public static class SystemCollector
         }
         catch (Exception ex)
         {
+            Log.Warning("OS query failed: {Error}", ex.Message);
             return new OsInfo { Error = ex.Message };
         }
     }
@@ -267,8 +277,9 @@ public static class SystemCollector
 
             return users;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Local users query failed: {Error}", ex.Message);
             return users;
         }
     }
@@ -301,8 +312,9 @@ public static class SystemCollector
 
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Services query (Win32_Service) failed: {Error}", ex.Message);
             return result;
         }
     }
@@ -340,9 +352,10 @@ public static class SystemCollector
                     });
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // Skip keys we can't access
+                Log.Debug("Startup items: {Source} {Path} not readable: {Error}", source, path, ex.Message);
             }
         }
 
@@ -362,9 +375,9 @@ public static class SystemCollector
                 });
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore WMI errors
+            Log.Debug("Startup commands (Win32_StartupCommand) not readable: {Error}", ex.Message);
         }
 
         return items;
@@ -394,8 +407,9 @@ public static class SystemCollector
 
             return tasks;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug("Scheduled tasks not readable: {Error}", ex.Message);
             return new { note = "Detailed task info requires elevated permissions" };
         }
     }
@@ -421,8 +435,9 @@ public static class SystemCollector
 
             return shares;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Shares query (Win32_Share) failed: {Error}", ex.Message);
             return shares;
         }
     }
@@ -467,8 +482,9 @@ public static class SystemCollector
 
             return printers;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Printers query failed: {Error}", ex.Message);
             return printers;
         }
     }
@@ -514,8 +530,9 @@ public static class SystemCollector
 
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Environment variables not readable: {Error}", ex.Message);
             return result;
         }
     }

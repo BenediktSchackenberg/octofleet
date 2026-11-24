@@ -41,6 +41,8 @@ public class HotfixResult
 /// </summary>
 public static class HotfixCollector
 {
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext(typeof(HotfixCollector));
+
     public static async Task<HotfixResult> CollectAsync()
     {
         return await Task.Run(() =>
@@ -74,6 +76,7 @@ public static class HotfixCollector
             }
             catch (Exception ex)
             {
+                Log.Warning("Hotfix query (Win32_QuickFixEngineering) failed: {Error}", ex.Message);
                 result.Error = ex.Message;
             }
 
@@ -85,8 +88,10 @@ public static class HotfixCollector
             }
             catch (Exception ex)
             {
+                Log.Warning("Windows Update history failed: {Error}", ex.Message);
                 result.UpdateHistoryError = ex.Message;
             }
+            Log.Debug("Hotfixes: {Hotfixes} from WMI, {History} update history entries", result.HotfixCount, result.UpdateHistoryCount);
 
             result.TotalCount = result.HotfixCount + result.UpdateHistoryCount;
             return result;
@@ -101,7 +106,11 @@ public static class HotfixCollector
         {
             // Create Windows Update Session via COM
             var updateSessionType = Type.GetTypeFromProgID("Microsoft.Update.Session");
-            if (updateSessionType == null) return updates;
+            if (updateSessionType == null)
+            {
+                Log.Warning("Windows Update history: Microsoft.Update.Session is not registered");
+                return updates;
+            }
             
             dynamic? session = Activator.CreateInstance(updateSessionType);
             if (session == null) return updates;
@@ -143,7 +152,10 @@ public static class HotfixCollector
                                     categories.Add(cat.Name?.ToString() ?? "");
                                 }
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                Log.Debug("Update history entry {Title}: categories not readable: {Error}", title, ex.Message);
+                            }
                         
                             updates.Add(new UpdateHistoryEntry
                             {
@@ -158,9 +170,10 @@ public static class HotfixCollector
                                 Categories = categories
                             });
                         }
-                        catch
+                        catch (Exception ex)
                         {
                             // Skip problematic entries
+                            Log.Debug("Update history entry skipped: {Error}", ex.Message);
                         }
                     }
                 }
@@ -171,9 +184,10 @@ public static class HotfixCollector
                     Marshal.ReleaseComObject(session);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // COM not available or failed
+            // COM not available or failed: the history read so far is kept
+            Log.Warning("Windows Update history failed after {Count} entries: {Error}", updates.Count, ex.Message);
         }
         
         return updates.OrderByDescending(u => u.InstalledOn).ToList();

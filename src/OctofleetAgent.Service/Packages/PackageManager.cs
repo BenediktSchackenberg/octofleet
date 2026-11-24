@@ -18,6 +18,11 @@ namespace OctofleetAgent.Service.Packages;
 /// </summary>
 public class PackageManager
 {
+    // Logs to Jobs.log (LogComponents). Install arguments are not logged: they can hold product keys.
+    private static readonly Serilog.ILogger Log = Serilog.Log.ForContext<PackageManager>();
+    /// <summary>A URL for the log, without its query (signed URLs carry their token there).</summary>
+    private static string? SafeUrl(string? url) => url?.Split('?')[0];
+
     private readonly HttpClient _httpClient;
     private readonly string _cacheDir;
     private readonly string _apiBaseUrl;
@@ -50,8 +55,9 @@ public class PackageManager
             var principal = new WindowsPrincipal(identity);
             return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning("Could not check for administrator rights, assuming none: {Error}", ex.Message);
             return false;
         }
     }
@@ -92,6 +98,7 @@ public class PackageManager
             var response = await _httpClient.GetAsync($"{_apiBaseUrl}/api/v1/packages/{packageId}/versions/{versionId}/detect");
             if (!response.IsSuccessStatusCode)
             {
+                Log.Warning("Detection rules of package {Package} {Version}: HTTP {Status}", packageId, versionId, (int)response.StatusCode);
                 return new DetectionResult { IsInstalled = false, Error = $"API error: {response.StatusCode}" };
             }
 
@@ -121,6 +128,9 @@ public class PackageManager
 
             // AND logic: all rules must pass
             var allPassed = results.TrueForAll(r => r.Passed);
+            Log.Information("Package {Package} {Version} detection: {Installed} ({Rules})", packageId, versionId,
+                allPassed ? "installed" : "not installed",
+                string.Join("; ", results.Select(r => $"{r.Type} {(r.Passed ? "passed" : "failed")}: {r.Detail}")));
             
             return new DetectionResult
             {
@@ -132,6 +142,7 @@ public class PackageManager
         }
         catch (Exception ex)
         {
+            Log.Warning("Detection of package {Package} {Version} failed: {Error}", packageId, versionId, ex.Message);
             return new DetectionResult { IsInstalled = false, Error = ex.Message };
         }
     }
@@ -233,9 +244,10 @@ public class PackageManager
                         return (false, $"Version {fileVersion} < {minVersion}");
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // Ignore version check errors
+                Log.Debug("File rule {Path}: version not comparable with {MinVersion}: {Error}", path, minVersion, ex.Message);
             }
         }
 
@@ -255,8 +267,9 @@ public class PackageManager
             var status = sc.Status;
             return (true, $"Service {serviceName}: {status}");
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug("Service rule {Service}: {Error}", serviceName, ex.Message);
             return (false, $"Service not found: {serviceName}");
         }
     }
@@ -276,6 +289,7 @@ public class PackageManager
             var response = await _httpClient.GetAsync($"{_apiBaseUrl}/api/v1/packages/{packageId}/versions/{versionId}/download-info", ct);
             if (!response.IsSuccessStatusCode)
             {
+                Log.Warning("Download info of package {Package} {Version}: HTTP {Status}", packageId, versionId, (int)response.StatusCode);
                 return new DownloadResult { Success = false, Error = $"API error: {response.StatusCode}" };
             }
 
@@ -291,6 +305,7 @@ public class PackageManager
             var cachedPath = GetCachedPath(info.Filename, info.Sha256Hash);
             if (cachedPath != null)
             {
+                Log.Information("Package {Package} {Version}: {File} from the cache", packageId, versionId, info.Filename);
                 return new DownloadResult
                 {
                     Success = true,
@@ -338,6 +353,7 @@ public class PackageManager
 
                     // Move to cache
                     var finalPath = MoveToCache(localPath, info.Filename, info.Sha256Hash);
+                    Log.Information("Package {Package} {Version}: {File} downloaded via {Type} {Url}", packageId, versionId, info.Filename, source.Type, SafeUrl(source.Url));
 
                     return new DownloadResult
                     {
@@ -349,6 +365,7 @@ public class PackageManager
                 }
                 catch (Exception ex)
                 {
+                    Log.Warning("Package {Package} {Version}: download via {Type} {Url} failed: {Error}", packageId, versionId, source.Type, SafeUrl(source.Url), ex.Message);
                     lastError = ex;
                     progress?.Report(new DownloadProgress 
                     { 
@@ -366,6 +383,7 @@ public class PackageManager
         }
         catch (Exception ex)
         {
+            Log.Warning("Package {Package} {Version}: download failed: {Error}", packageId, versionId, ex.Message);
             return new DownloadResult { Success = false, Error = ex.Message };
         }
     }
@@ -474,7 +492,9 @@ public class PackageManager
                 return cachedPath;
             
             // Hash mismatch, delete corrupted cache
-            try { File.Delete(cachedPath); } catch { }
+            Log.Warning("Cached {File} has a different hash, downloading again", cachedPath);
+            try { File.Delete(cachedPath); }
+            catch (Exception ex) { Log.Warning("Corrupted cache file {File} not deleted: {Error}", cachedPath, ex.Message); }
         }
 
         return null;
@@ -525,6 +545,7 @@ public class PackageManager
         
         if ((isMsi || isExe || info.RequiresAdmin) && !_isElevated)
         {
+            Log.Warning("{File} not installed: the agent has no administrator rights", Path.GetFileName(download.LocalPath));
             return new InstallResult
             {
                 Success = false,
@@ -554,6 +575,7 @@ public class PackageManager
             }
         }
 
+        Log.Information("Installing {File} with {Command}", Path.GetFileName(download.LocalPath), Path.GetFileName(command));
         return await ExecuteCommand(command, info.InstallArgs, download.LocalPath, ct);
     }
 
@@ -578,10 +600,12 @@ public class PackageManager
                 return new InstallResult { Success = false, Error = "No uninstall command defined" };
             }
 
+            Log.Information("Uninstalling package {Package} {Version} with {Command}", packageId, versionId, Path.GetFileName(info.UninstallCommand));
             return await ExecuteCommand(info.UninstallCommand, info.UninstallArgs, null, ct);
         }
         catch (Exception ex)
         {
+            Log.Warning("Uninstall of package {Package} {Version} failed: {Error}", packageId, versionId, ex.Message);
             return new InstallResult { Success = false, Error = ex.Message };
         }
     }
@@ -616,6 +640,7 @@ public class PackageManager
             using var process = Process.Start(psi);
             if (process == null)
             {
+                Log.Warning("{Command} could not be started", command);
                 return new InstallResult { Success = false, Error = "Failed to start process" };
             }
 
@@ -653,10 +678,16 @@ public class PackageManager
                 };
             }
 
+            if (result.Success)
+                Log.Information("{Command} finished: exit code {ExitCode}{Reboot}", Path.GetFileName(command), result.ExitCode,
+                    result.RequiresReboot ? ", reboot required" : "");
+            else
+                Log.Warning("{Command} failed: exit code {ExitCode}: {Error}", Path.GetFileName(command), result.ExitCode, result.Error);
             return result;
         }
         catch (Exception ex)
         {
+            Log.Warning("{Command} failed: {Error}", Path.GetFileName(command), ex.Message);
             return new InstallResult { Success = false, Error = ex.Message };
         }
     }
@@ -684,8 +715,9 @@ public class PackageManager
                 var uri = new Uri(sourceUrl);
                 filename = Path.GetFileName(uri.LocalPath);
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Debug("No file name in {Url}: {Error}", SafeUrl(sourceUrl), ex.Message);
                 filename = $"download_{Guid.NewGuid():N}.tmp";
             }
         }
@@ -715,6 +747,7 @@ public class PackageManager
             var cachedPath = GetCachedPath(filename, expectedHash);
             if (cachedPath != null)
             {
+                Log.Information("{File} from the cache", filename);
                 return new DownloadResult
                 {
                     Success = true,
@@ -745,6 +778,7 @@ public class PackageManager
                 if (!hash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
                 {
                     File.Delete(localPath);
+                    Log.Warning("{File} from {Url}: hash mismatch, expected {Expected}, got {Actual}", filename, SafeUrl(downloadUrl), expectedHash, hash);
                     return new DownloadResult
                     {
                         Success = false,
@@ -755,6 +789,7 @@ public class PackageManager
 
             // Move to cache
             var finalPath = MoveToCache(localPath, filename, expectedHash ?? await ComputeFileHash(localPath));
+            Log.Information("{File} downloaded from {Source} {Url}", filename, fromRepo ? "the local repository" : "the source", SafeUrl(downloadUrl));
 
             return new DownloadResult
             {
@@ -767,6 +802,7 @@ public class PackageManager
         }
         catch (Exception ex)
         {
+            Log.Warning("{File} download from {Url} failed: {Error}", filename, SafeUrl(downloadUrl), ex.Message);
             return new DownloadResult { Success = false, Error = ex.Message };
         }
     }

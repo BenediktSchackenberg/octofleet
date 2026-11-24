@@ -12,27 +12,24 @@ var protectionError = ConfigProtection.Restrict(ServiceConfig.GetConfigDir());
 var logMove = AgentLogs.MoveOldLogs();
 var logDir = AgentLogs.Folder;
 Directory.CreateDirectory(logDir);
+var oldServiceLogs = AgentLogs.PruneServiceLogs();
 
 // Get config first
 var config = ServiceConfig.Load();
 var version = System.Reflection.Assembly.GetExecutingAssembly()
     .GetName().Version?.ToString(3) ?? "0.0.0";
 
-// Configure Serilog with custom sink that feeds ConsoleUI
+// Serilog: one file per component (Agent.log, Inventory.log, Updates.log, ...), CMTrace format,
+// level per component from "Logging" in service-config.json (#330). The console UI gets the same events.
+var logProblems = new List<string>();
+var logLevels = LogComponents.ResolveLevels(config.Logging, logProblems);
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
+    .ComponentLogging(logDir, config.Logging, logLevels)
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .MinimumLevel.Override("System", LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "Octofleet.Service")
     .WriteTo.Sink(new ConsoleSink())
-    .WriteTo.File(
-        path: Path.Combine(logDir, "service-.log"),
-        rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 14,
-        fileSizeLimitBytes: 10 * 1024 * 1024,
-        rollOnFileSizeLimit: true,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 
 try
@@ -52,10 +49,16 @@ try
     {
         // Service mode - show basic banner
         Banner.Show(version);
-        Log.Information("=== Octofleet Agent Service starting ===");
-        Log.Information("Log directory: {LogDir}", logDir);
+        Log.Information("=== Octofleet Agent Service {Version} starting ===", version);
+        Log.Information("Log directory: {LogDir} ({Format} format, {MaxMB} MB per file, {OldFiles} old files per component; levels: {Levels})",
+            logDir, config.Logging.Format, config.Logging.MaxFileSizeMB, config.Logging.MaxOldFiles,
+            string.Join(", ", logLevels.Select(l => $"{l.Key}={l.Value}")));
         if (logMove != null)
             Log.Information("{LogMove}", logMove);
+        if (oldServiceLogs != null)
+            Log.Information("{OldServiceLogs}", oldServiceLogs);
+        foreach (var problem in logProblems)
+            Log.Warning("service-config.json: {Problem}", problem);
         if (protectionError != null)
             Log.Warning("Could not restrict {ConfigDir} to SYSTEM and Administrators: {Error}", ServiceConfig.GetConfigDir(), protectionError);
     }
