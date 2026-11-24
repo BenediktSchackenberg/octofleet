@@ -19,10 +19,14 @@ from remediation import RemediationEngine
 from vulnerability import (
     VulnerabilityScanner,
     clear_osv_cache,
+    get_cve_lookup,
+    get_cve_suggestions,
     get_node_vulnerabilities,
     get_node_vulnerability_groups,
     get_scan_status,
     get_update_vulnerabilities,
+    normalize_cve_id,
+    normalize_cve_prefix,
     osv_cache_status,
     run_vulnerability_scan,
     verify_osv_cache,
@@ -149,6 +153,30 @@ async def update_vulnerabilities(unit: str, unit_version: str, _: str = Depends(
     """CVEs of one update (as listed by by-software) across all nodes, with the affected nodes."""
     vulnerabilities = await get_update_vulnerabilities(get_pool(), unit, unit_version)
     return {"vulnerabilities": vulnerabilities, "count": len(vulnerabilities)}
+
+
+@router.get("/api/v1/vulnerabilities/cves", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def cve_suggestions(q: str = Query(..., max_length=40), limit: int = Query(10, ge=1, le=50)):
+    """Known CVE IDs starting with q (at least the year: CVE-2026 or 2026-987), in ID order, for
+    suggestions; at most limit."""
+    prefix = normalize_cve_prefix(q)
+    if not prefix:
+        raise HTTPException(status_code=400, detail="Enter at least CVE-YYYY")
+    return {"items": await get_cve_suggestions(get_pool(), prefix, limit)}
+
+
+@router.get("/api/v1/vulnerabilities/cves/{cve_id}", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def cve_lookup(cve_id: str, limit: int = Query(500, ge=1, le=5000), offset: int = Query(0, ge=0)):
+    """Which nodes one CVE affects now: the CVE's details, `affected_nodes` (total) and one page of
+    the nodes with their affected packages, and the scan status. 404 if no scan has matched the CVE;
+    a known CVE that affects no node has `affected_nodes` 0."""
+    normalized = normalize_cve_id(cve_id)
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Not a CVE ID (CVE-YYYY-NNNN)")
+    result = await get_cve_lookup(get_pool(), normalized, limit, offset)
+    if result is None:
+        raise HTTPException(status_code=404, detail="CVE unknown to Octofleet")
+    return result
 
 
 @router.get("/api/v1/vulnerabilities/node/{node_id}", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])

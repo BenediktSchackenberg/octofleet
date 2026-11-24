@@ -193,11 +193,46 @@ backend start, after each scan and with the refresh button.
 | GET | `/api/v1/vulnerabilities/by-software` | API Key | The 20 updates with the most CVEs, from the vulnerability cache, with affected node names |
 | GET | `/api/v1/vulnerabilities` | API Key | List all vulnerabilities |
 | GET | `/api/v1/vulnerabilities/node/{node_id}` | API Key | Vulnerabilities for a node |
+| GET | `/api/v1/vulnerabilities/cves/{cve_id}?limit=500&offset=0` | JWT (`vulnerabilities:read`) | Which nodes one CVE affects now (see below); 404 if the CVE is unknown to Octofleet, 400 if `cve_id` is no CVE ID |
+| GET | `/api/v1/vulnerabilities/cves?q=CVE-2026-987&limit=10` | JWT (`vulnerabilities:read`) | Known CVE IDs starting with `q`, in ID order (`limit` 1–50), for suggestions: `{"items": [{"cve_id", "severity", "cvss_score"}]}`. `q` needs at least the year (`CVE-2026`; `2026-987` is read as `CVE-2026-987`), else 400 |
 | POST | `/api/v1/vulnerabilities/scan` | JWT (`settings:write`) | Trigger vulnerability scan; `{"refresh_cache": true}` ignores the OSV cache for this scan |
 | GET | `/api/v1/vulnerabilities/osv-cache` | JWT (`vulnerabilities:read`) | OSV cache status: entries, outdated, oldest/newest, size |
 | DELETE | `/api/v1/vulnerabilities/osv-cache` | JWT (`settings:write`) | Clear the OSV cache (409 while a scan runs) |
 | POST | `/api/v1/vulnerabilities/osv-cache/verify?sample=50` | JWT (`settings:write`) | Download a random sample (1–500) again, compare, correct differing entries |
 | GET | `/api/v1/vulnerabilities/scans` | API Key | List past scans |
+
+**CVE lookup** (`GET /api/v1/vulnerabilities/cves/{cve_id}`, any case) uses only what the scans
+stored. A CVE is *known* when a scan matched it to an installed software version at some point
+(legacy keyword hits do not count); an unknown CVE is `404 CVE unknown to Octofleet`. A known CVE
+that affects no node now (e.g. every affected version was updated) has `affected_nodes: 0` and an
+empty `nodes` list. Affected nodes are counted like everywhere else: findings marked as fixed and
+packages of older, not running kernels are left out.
+
+```json
+{
+  "cve_id": "CVE-2026-1234", "severity": "HIGH", "cvss_score": 7.5, "cvss_vector": "CVSS:3.1/…",
+  "published_date": "2026-10-01T00:00:00+00:00", "description": "…",
+  "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2026-1234",
+  "affected_nodes": 1, "limit": 500, "offset": 0,
+  "nodes": [{
+    "id": "…", "hostname": "web-01", "os_name": "Ubuntu", "os_version": "26.04",
+    "link": "/nodes/…?tab=vulnerabilities&view=cves&q=CVE-2026-1234",
+    "packages": [{"name": "linux-image-7.0.0-38-generic", "version": "7.0.0-38.38",
+                  "fix_unit": "linux", "fix_unit_version": "7.0.0-38.38",
+                  "fixed_version": "7.0.0-40.40", "fix_status": "fixed",
+                  "kernel_state": "running", "running_kernel": true}]
+  }],
+  "scan": {"running_scan": null, "last_completed_scan": {"completed_at": "…", "status": "completed", …}}
+}
+```
+
+The details combine all stored matches of the CVE: worst severity, highest CVSS score with its
+vector, earliest publication date, the NVD description before a distribution's summary. `nodes`
+is one page by hostname (`limit` 1–5000). `fix_status`: `fixed` (a newer version fixes it),
+`none` (distribution data, no fix yet), `unknown` (NVD names no fixed version). `kernel_state` /
+`running_kernel`: `running` (the running kernel), `pending` (a newer installed kernel waiting for
+a reboot), `null` (not a kernel package). `link` is the node page's vulnerability list filtered
+to the CVE. `scan.last_completed_scan` is the last finished scan the answer is based on.
 | POST | `/api/v1/vulnerabilities/{cve_id}/suppress` | API Key | Suppress a CVE |
 | GET | `/api/v1/remediation/packages` | API Key | Remediation packages |
 | POST | `/api/v1/remediation/scan` | API Key | Scan for remediable vulns |
