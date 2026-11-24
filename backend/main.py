@@ -51,6 +51,7 @@ from reportlab.platypus import (
 
 import event_counts
 import job_types
+import linux_rules
 import monitoring_defaults
 import node_removal
 import password_policy
@@ -85,6 +86,7 @@ from routers.inventory import router as inventory_router
 from routers.jobs import agent_router as jobs_agent_router
 from routers.jobs import job_result_succeeded
 from routers.jobs import router as jobs_router
+from routers.linux_rules import router as linux_rules_router
 from routers.metrics import router as metrics_router
 from routers.monitoring_mgmt import router as monitoring_mgmt_router
 from routers.mssql import router as mssql_router
@@ -158,6 +160,8 @@ async def lifespan(app: FastAPI):
     # Rebuilds nodes waiting for the vulnerability cache (on the first start: all of them)
     vulnerability_cache_task = asyncio.create_task(vulnerability_cache.worker(db_pool))
     removal_task = asyncio.create_task(node_removal.removal_loop(db_pool))
+    # Linux approval rules (#271): keeps the per-node approval counts current
+    linux_approval_task = asyncio.create_task(linux_rules.approval_loop(db_pool))
     
     # Existing databases need the session version used to revoke old access tokens.
     async with db_pool.acquire() as conn:
@@ -219,6 +223,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     removal_task.cancel()
     vulnerability_cache_task.cancel()
+    linux_approval_task.cancel()
     if db_pool:
         await db_pool.close()
         print("Database pool closed")
@@ -349,6 +354,7 @@ app.include_router(pxe_router)
 app.include_router(software_metering_router, tags=["Software Metering"])
 app.include_router(remediation_router)
 app.include_router(patches_router)
+app.include_router(linux_rules_router)
 app.include_router(baselines_router)
 app.include_router(services_mgmt_router)
 app.include_router(reports_router)

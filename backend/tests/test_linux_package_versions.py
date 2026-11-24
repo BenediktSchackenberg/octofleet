@@ -130,6 +130,8 @@ class StoreTests(unittest.IsolatedAsyncioTestCase):
         node_rows = conn.execute.call_args_list[0].args
         self.assertIn("linux_node_updates", node_rows[0])
         self.assertEqual(node_rows[1:], ("n1", [42], ["openssl"], ["3.5"]))
+        dirty = conn.execute.call_args_list[-2].args
+        self.assertIn("linux_approval_dirty", dirty[0])  # the approval cache re-evaluates the node
         final = conn.execute.call_args_list[-1].args
         self.assertEqual(final[1:3], ("n1", "ubuntu:24.04"))
 
@@ -146,6 +148,7 @@ class StoreTests(unittest.IsolatedAsyncioTestCase):
         result = await lu.store_node_updates(conn, "n1", report([{"name": "a", "newVersion": "1"}], release=None))
         self.assertEqual(result, "cleared")
         self.assertTrue(any("DELETE FROM linux_node_updates" in s for s in statements(conn)))
+        self.assertTrue(any("linux_approval_dirty" in s for s in statements(conn)))
         conn.fetch.assert_not_called()
 
     async def test_empty_list_clears_the_rows(self):
