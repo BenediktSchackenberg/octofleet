@@ -3,7 +3,8 @@ import { API_URL, getAuthHeaders } from './helpers';
 
 // Fleet updates, bulk actions: tick nodes, search on them, or install all of their updates after a
 // confirmation that lists each node with its reboot outlook and offers the reboot choice. Windows installs
-// only updates approved in the catalog; Linux has no bulk installation yet
+// only updates approved in the catalog; Linux nodes the versions their approval rules approve - these agents
+// report no release (older agent), so they are skipped (31-linux-approval-rules covers the rules)
 test('Fleet updates: search and install on ticked nodes', async ({ page, request }) => {
   const tag = `e2e-fleetbulk-${Date.now()}`;
   const headers = { ...(await getAuthHeaders()), 'Content-Type': 'application/json' };
@@ -30,7 +31,7 @@ test('Fleet updates: search and install on ticked nodes', async ({ page, request
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Shown: 3')).toBeVisible();
 
-  // Nothing approved yet: Windows is skipped with a link to the catalog, Linux is not installed in bulk
+  // Nothing approved yet: Windows is skipped with a link to the catalog, the older Linux agents too
   await page.getByRole('checkbox', { name: 'Select the nodes shown' }).check();
   await expect(page.getByText('3 selected')).toBeVisible();
   await page.getByRole('button', { name: 'Install updates…' }).click();
@@ -38,8 +39,8 @@ test('Fleet updates: search and install on ticked nodes', async ({ page, request
   await expect(dialog.getByRole('heading')).toHaveText('Install updates on the selected nodes?');
   await expect(dialog.getByRole('listitem').filter({ hasText: win })).toContainText('no approved updates – skipped');
   await expect(dialog.getByRole('listitem').filter({ hasText: win }).getByRole('link', { name: 'Approve in the catalog' })).toBeVisible();
-  await expect(dialog.getByRole('listitem').filter({ hasText: linux })).toContainText('Linux – no bulk installation yet');
-  await expect(dialog.getByRole('listitem').filter({ hasText: idle })).toContainText('Linux – no bulk installation yet');
+  await expect(dialog.getByRole('listitem').filter({ hasText: linux })).toContainText('Linux agent too old for approval rules – skipped');
+  await expect(dialog.getByRole('listitem').filter({ hasText: idle })).toContainText('Linux agent too old for approval rules – skipped');
   await expect(dialog.getByRole('button', { name: 'Install (0)' })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 

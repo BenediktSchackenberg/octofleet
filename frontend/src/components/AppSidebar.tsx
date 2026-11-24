@@ -39,6 +39,7 @@ import {
   Layers,
   X,
   TreePine,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 
@@ -117,6 +118,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/patches", labelKey: "nav.patches", icon: ShieldCheck, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/patches/updates", labelKey: "nav.fleetUpdates", icon: ListChecks, permission: "packages:read", roles: ["admin", "operator"] },
+      { href: "/patches/linux-rules", labelKey: "nav.linuxRules", icon: Scale, permission: "packages:read", roles: ["admin", "operator"] },
       { href: "/patches/explorer", labelKey: "nav.patchExplorer", icon: TreePine, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/performance", labelKey: "nav.performance", icon: Activity, permission: "nodes:read", roles: ["admin", "operator"] },
       { href: "/alerts", labelKey: "nav.alerts", icon: Bell, permission: "alerts:read", roles: ["admin", "operator"] },
