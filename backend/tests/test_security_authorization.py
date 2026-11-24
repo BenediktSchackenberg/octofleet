@@ -27,6 +27,8 @@ class SecurityAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 ("GET", "/api/v1/inventory/hardware/fleet", None),
                 ("GET", "/api/v1/hardware/fleet", None),
                 ("GET", "/api/v1/vulnerabilities/summary", None),
+                ("GET", "/api/v1/vulnerabilities/cves?q=CVE-2026", None),
+                ("GET", "/api/v1/vulnerabilities/cves/CVE-2026-1234", None),
                 ("GET", "/api/v1/onboarding/install-command", None),
                 ("GET", "/api/v1/settings/api_key", None),
                 ("POST", "/api/v1/jobs", {}),

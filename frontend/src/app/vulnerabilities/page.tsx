@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
 import { VulnerabilitySummaryFreshness } from "@/components/vulnerability-summary-freshness";
 import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
+import { CveLookup } from "@/components/cve-lookup";
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "@/components/ui-components";
@@ -132,15 +133,17 @@ export default function VulnerabilitiesPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
   const [expandedSoftware, setExpandedSoftware] = useState<string | null>(null);
+  const [lookedUpCve, setLookedUpCve] = useState<string | null>(null);
   const [urlRestored, setUrlRestored] = useState(false);
 
-  // Tab and open row live in the URL (?tab=nodes&node=…), so "Back" from a node page returns to them.
+  // Tab, open row and looked-up CVE live in the URL (?tab=nodes&node=…, ?cve=…), so "Back" from a node page returns to them.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
     if (tab && (TABS as readonly string[]).includes(tab)) setActiveTab(tab as Tab);
     setExpandedNode(params.get("node"));
     setExpandedSoftware(params.get("software"));
+    setLookedUpCve(params.get("cve"));
     setUrlRestored(true);
   }, []);
   useEffect(() => {
@@ -149,9 +152,10 @@ export default function VulnerabilitiesPage() {
     if (activeTab !== 'overview') params.set("tab", activeTab);
     if (activeTab === 'nodes' && expandedNode) params.set("node", expandedNode);
     if (activeTab === 'software' && expandedSoftware) params.set("software", expandedSoftware);
+    if (lookedUpCve) params.set("cve", lookedUpCve);
     const query = params.toString();
     window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
-  }, [urlRestored, activeTab, expandedNode, expandedSoftware]);
+  }, [urlRestored, activeTab, expandedNode, expandedSoftware, lookedUpCve]);
 
   const fetchData = async () => {
     try {
@@ -279,6 +283,8 @@ export default function VulnerabilitiesPage() {
         onRefreshed={fetchData}
         className="justify-end"
       />
+
+      <CveLookup cve={lookedUpCve} onCveChange={setLookedUpCve} lastScan={summary?.last_completed_scan} />
 
       {/* Severity Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
