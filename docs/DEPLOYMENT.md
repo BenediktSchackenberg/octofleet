@@ -120,4 +120,4 @@ LOG_FILE=/var/log/octofleet-agent.log
 ### Linux Agent shows HTTP 000 on job poll
 - Check if backend is running and accessible from agent host
 - Verify firewall allows port 8080
-- Test with: `curl -v http://server:8080/api/v1/jobs/pending/node-id`
+- Test with: `curl -v -H "X-API-Key: <agent key>" http://server:8080/api/v1/jobs/pending/node-id` – 200 means reachable and the key works; 401 means the key is missing or wrong

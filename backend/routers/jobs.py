@@ -237,7 +237,7 @@ async def cancel_or_delete_job(job_id: str, db: asyncpg.Pool = Depends(get_db),
 
 # --- Agent Endpoints ---
 
-# Agent endpoint moved to main.py (no auth required)
+# Agent endpoint in main.py (needs jobs:poll)
 # @agent_router.get("/jobs/pending/{node_id}") is in main.py
 
 @agent_router.post("/jobs/instances/{instance_id}/result", dependencies=[Depends(require_permission("jobs:poll"))])
