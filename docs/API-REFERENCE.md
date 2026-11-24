@@ -139,7 +139,7 @@ Agents push inventory data; the frontend reads it.
 | GET | `/api/v1/jobs/failures` | API Key | Failed job runs of the last `since_hours` (default 168), one entry per node and job type (and job name for `run`, `script` and package jobs), newest failure first: `failures` (count), `first_failed_at`, `last_failed_at`, the last failed `job_id`/`job_name`, `reason` (error message, else error output, else the last output lines), `hostname`, `node_id`. An entry is `resolved` (with `last_success_at`) when a later run of the same kind succeeded on that node; resolved entries only with `include_resolved=true`. `total` (open) and `resolved` count all entries; `limit` (≤ 1000)/`offset` |
 | GET | `/api/v1/jobs/{job_id}` | API Key | Get job details with its instances; `command_data` is the JSON object the job was created with |
 | DELETE | `/api/v1/jobs/{job_id}` | API Key | Delete job |
-| GET | `/api/v1/jobs/pending/{node_id}` | API Key | Get pending jobs for a node (agent poll) |
+| GET | `/api/v1/jobs/pending/{node_id}` | API Key | Get pending jobs for a node (agent poll; newer Linux agents run it when `GET /api/v1/agent/wait/{node_id}` says so) |
 | POST | `/api/v1/jobs/instances/{instance_id}/start` | API Key | Mark job instance as started |
 | POST | `/api/v1/jobs/instances/{instance_id}/result` | API Key | Submit job result |
 | POST | `/api/v1/jobs/result` | API Key | Submit job result (alt) |
@@ -401,6 +401,7 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/agent/version` | — | Get latest agent version |
+| GET | `/api/v1/agent/wait/{node_id}` | Agent key (`jobs:poll`) | Agent long-poll ([#283](https://github.com/BenediktSchackenberg/octofleet/issues/283)): held until there is work for the node, then `{"wake": [...]}` with the polls to run now – `jobs` (a pending job, as `jobs/pending` would return it), `remediation` (an approved remediation job not bound to a maintenance window), `terminal` (a queued command, or a terminal page just opened), `screen` / `shell` (a session just started); `{"wake": []}` after the hold time. `kinds` (comma-separated, default all) limits it to what the agent handles; `timeout` (seconds) shortens the hold, at most `AGENT_WAIT_SECONDS` (default 55, minus up to 10 % jitter). A wake-up while the agent is between two requests is kept for 2 minutes. The wake-up runs inside the (single) backend process |
 | POST | `/api/v1/agents/{node_id}/capabilities` | API Key | Report agent capabilities |
 | GET | `/api/v1/agents/{node_id}/capabilities` | API Key | Get agent capabilities |
 | GET | `/api/v1/agents/capabilities` | API Key | Fleet-wide capabilities |

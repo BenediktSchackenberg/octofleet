@@ -50,6 +50,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import agent_wait
 import audit_query
 import event_counts
 import job_failures
@@ -80,6 +81,7 @@ from auth import (
 from provisioning_config import SETTINGS_KEY, load_config, safe_url, server_url
 from routers.agent_monitor import router as agent_monitor_router
 from routers.agent_releases import router as agent_releases_router
+from routers.agent_wait import router as agent_wait_router
 from routers.alerting import router as alerting_router
 from routers.auth import assert_manageable_user, users_router
 from routers.auth import router as auth_router
@@ -177,6 +179,8 @@ async def lifespan(app: FastAPI):
     # Linux approval rules (#271): keeps the per-node approval counts current
     linux_approval_task = asyncio.create_task(linux_rules.approval_loop(db_pool))
     agent_monitor_task = asyncio.create_task(agent_monitor.run(db_pool))
+    # Held agent long-polls (#283) answer when the server is told to stop, so a restart does not wait
+    agent_wait.release_on_shutdown()
     # Repairs double-encoded JSON rows (reads decode them anyway); a full scan, so not during startup
     json_columns_task = asyncio.create_task(json_columns.ensure_schema(db_pool))
     # Older job instances get their run kind (the Tasks page's failed jobs) in the background
@@ -320,6 +324,9 @@ async def agent_activity_middleware(request: Request, call_next):
             elif "remediation" in path: action = "remediation-poll"
             elif "jobs" in path: action = "job-poll"
             log_agent_activity(hostname, action, path, ip, response.status_code)
+    elif path.startswith("/api/v1/agent/wait/"):
+        # The long-poll (#283) replaces the idle polls: counted as a poll of the node
+        log_agent_activity(path.rsplit("/", 1)[-1], "poll", path, ip, response.status_code)
 
     # Track POST endpoints (health, live data, inventory, results). Live data and the inventory carry
     # the node in the body: their handlers put it on request.state.agent_node.
@@ -360,6 +367,7 @@ app.include_router(groups_router)
 app.include_router(content_lifecycle_router, tags=["Content Lifecycle"])
 app.include_router(jobs_router)
 app.include_router(jobs_agent_router)
+app.include_router(agent_wait_router)
 app.include_router(mssql_router)
 app.include_router(metrics_router)
 app.include_router(deployments_router)
@@ -647,6 +655,7 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
         
         # Expand job to instances based on target
         instances_created = 0
+        notified = []  # the nodes' agents are woken up (agent long-poll, #283)
         
         if target_type == "device" and target_node_id:
             # target_node_id is already resolved text node_id
@@ -654,6 +663,7 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
                 INSERT INTO job_instances (job_id, node_id, status)
                 VALUES ($1::uuid, $2, 'pending')
             """, str(job_uuid), target_node_id)
+            notified.append(target_node_id)
             instances_created = 1
         
         elif target_type == "group" and target_id:
@@ -668,6 +678,7 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
                     INSERT INTO job_instances (job_id, node_id, status)
                     VALUES ($1::uuid, $2, 'pending')
                 """, str(job_uuid), node["node_id"])
+                notified.append(node["node_id"])
                 instances_created += 1
         
         elif target_type == "tag" and target_tag:
@@ -683,6 +694,7 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
                     INSERT INTO job_instances (job_id, node_id, status)
                     VALUES ($1::uuid, $2, 'pending')
                 """, str(job_uuid), node["node_id"])
+                notified.append(node["node_id"])
                 instances_created += 1
         
         elif target_type == "all":
@@ -697,8 +709,10 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
                     INSERT INTO job_instances (job_id, node_id, status)
                     VALUES ($1::uuid, $2, 'pending')
                 """, str(job_uuid), node["node_id"])
+                notified.append(node["node_id"])
                 instances_created += 1
         
+        agent_wait.notify(notified, "jobs")
         return {
             "id": job_id,
             "name": name,
@@ -809,6 +823,7 @@ async def smart_install(
                 INSERT INTO job_instances (job_id, node_id, status)
                 VALUES ($1::uuid, $2, 'pending')
             """, str(job_uuid), node["node_id"])
+            agent_wait.notify(node["node_id"], "jobs")
             
             results.append({
                 "target": target,

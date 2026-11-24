@@ -55,6 +55,7 @@ JOB_POLL_INTERVAL=60  # 1 minute
 LIVE_DATA_INTERVAL=5  # 5 seconds (for live view)
 POLL_IDLE_INTERVAL=5  # terminal and screen requests when idle; every second while a session is open
 SESSION_ACTIVE_GRACE=60  # keep polling every second this long after a session
+LONG_POLL=true  # one request the server holds until there is work; the polls above become a 10-min fallback
 AUTO_UPDATE=true  # update agent.sh from the Octofleet server
 UPDATE_CHECK_INTERVAL=21600  # 6 hours
 ```

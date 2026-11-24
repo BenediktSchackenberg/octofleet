@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
+import agent_wait
+
 logger = logging.getLogger(__name__)
 
 
@@ -380,18 +382,22 @@ async def create_remediation_job(
             RETURNING *
         """, vulnerability_id, remediation_package_id, rule_id, node_id,
              software_name, software_version, cve_id, status, requires_approval)
+        if status == 'approved':
+            agent_wait.notify(str(node_id), "remediation")
         return dict(row)
 
 
 async def approve_remediation_jobs(db_pool, job_ids: list[int], approved_by: str) -> int:
     """Approve multiple remediation jobs"""
     async with db_pool.acquire() as conn:
-        result = await conn.execute("""
+        rows = await conn.fetch("""
             UPDATE remediation_jobs 
             SET status = 'approved', approved_by = $1, approved_at = NOW(), updated_at = NOW()
             WHERE id = ANY($2) AND status = 'pending'
+            RETURNING node_id
         """, approved_by, job_ids)
-        return int(result.split()[-1])
+        agent_wait.notify([str(r["node_id"]) for r in rows], "remediation")
+        return len(rows)
 
 
 async def update_remediation_job_status(

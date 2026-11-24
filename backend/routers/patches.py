@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+import agent_wait
 import linux_rules
 import node_reboot
 from auth import require_permission, require_user_permission
@@ -598,6 +599,7 @@ async def create_patch_deployment(data: dict, request: Request):
                 INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
                 VALUES (gen_random_uuid(), $1, $2::uuid, 'pending', NOW())
             """, job_uuid, nid)
+        agent_wait.notify([str(n) for n in node_ids], "jobs")
 
         return dict(row)
 
