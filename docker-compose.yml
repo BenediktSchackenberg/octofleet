@@ -78,7 +78,9 @@ services:
     container_name: octofleet-inventory-ui
     logging: *logging
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+      # Backend URL as seen by the browser; empty: same host on :8080 when the UI
+      # is opened on :3000, otherwise the UI's own address (reverse proxy)
+      BROWSER_API_URL: ${BROWSER_API_URL:-}
       # For Docker internal communication:
       API_URL: http://backend:8080
     ports:

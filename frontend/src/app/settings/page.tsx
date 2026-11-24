@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Key, Users, Shield, Lock, Bell, Clock, Rocket, Bug, Save, Eye, EyeOff, Sun, Moon } from "lucide-react";
-import { API_URL } from '@/lib/api-config';
+import { API_BASE } from '@/lib/api-config';
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { formatDateTime } from "@/lib/format";
 
@@ -327,7 +327,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <span className="text-zinc-500">API URL:</span>
-              <div className="font-mono">{API_URL}</div>
+              <div className="font-mono">{API_BASE}</div>
             </div>
           </div>
         </div>

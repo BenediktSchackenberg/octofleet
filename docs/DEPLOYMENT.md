@@ -57,7 +57,8 @@ StartLimitBurst=10
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOSTNAME=0.0.0.0
-Environment=NEXT_PUBLIC_API_URL=http://localhost:8080
+# Optional, see docs/CONFIGURATION.md#frontend (default: same host, port 8080)
+# Environment=BROWSER_API_URL=https://api.example.com
 
 [Install]
 WantedBy=default.target

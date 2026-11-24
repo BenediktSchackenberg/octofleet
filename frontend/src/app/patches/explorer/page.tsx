@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { API_BASE } from '@/lib/api-config';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -309,8 +310,7 @@ export default function PatchExplorerPage() {
   useEffect(() => {
     if (!activeDeploymentId) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
-    const apiUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8080` : '';
-    const url = `${apiUrl}/api/v1/patches/explorer/deploy-stream/${activeDeploymentId}?token=${encodeURIComponent(token)}`;
+    const url = `${API_BASE}/patches/explorer/deploy-stream/${activeDeploymentId}?token=${encodeURIComponent(token)}`;
     const es = new EventSource(url);
 
     es.onmessage = (event) => {
