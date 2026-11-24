@@ -22,8 +22,10 @@ router = APIRouter(tags=["Packages"])
 
 
 @router.get("/api/v1/packages", dependencies=[Depends(verify_api_key)])
-async def list_packages(category: str = None, active_only: bool = True, db: asyncpg.Pool = Depends(get_db)):
-    """List all packages"""
+async def list_packages(category: str = None, search: str = None, active_only: bool = True,
+                        db: asyncpg.Pool = Depends(get_db)):
+    """Packages (active only unless active_only=false), optionally of one `category` or matching
+    `search` (part of the name, display name or vendor), with version count and latest version."""
     async with db.acquire() as conn:
         query = """
             SELECT p.id, p.name, p.display_name, p.vendor, p.description, p.category,
@@ -43,7 +45,12 @@ async def list_packages(category: str = None, active_only: bool = True, db: asyn
             query += f" AND p.category = ${param_idx}"
             params.append(category)
             param_idx += 1
-        
+
+        if search:
+            query += f" AND (p.name ILIKE ${param_idx} OR p.display_name ILIKE ${param_idx} OR p.vendor ILIKE ${param_idx})"
+            params.append(f"%{search}%")
+            param_idx += 1
+
         query += " ORDER BY p.display_name ASC"
         
         rows = await conn.fetch(query, *params)

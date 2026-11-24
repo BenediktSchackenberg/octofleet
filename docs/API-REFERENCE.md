@@ -142,24 +142,24 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/jobs` | API Key | Create a job (`targetType`: `device`/`group` with `targetId` = node or group UUID, or `all`) |
+| POST | `/api/v1/jobs` | User: `jobs:create` | Create a job (`targetType`: `device`/`group` with `targetId` = node or group UUID, `tag` with `targetTag` = tag name, or `all`); optional `priority` (lower runs first, default 5), `scheduledAt` / `expiresAt` (ISO 8601; agents get the job only in between) and `timeoutSeconds` (default 300); 400 for anything else |
 | GET | `/api/v1/jobs` | API Key | List jobs, newest first, with `total`; `node` (node ID, UUID or hostname) returns only the jobs that run on that node (targeted at it, at its group or at all nodes); `status` = `failed` (a failed instance; newest failure first, with `last_failed_at` and `last_error`), `running`, `pending`, `success` (all instances succeeded) or `cancelled`; `since_hours` = created within that many hours (with `status=failed`: failed within them); `command_type`; `q` (part of the name); `limit`/`offset`. Also returns `counts` (`total`, `running`, `success`, `failed` for the same filters except `status`) and `command_types` |
 | GET | `/api/v1/jobs/failures` | API Key | Failed job runs of the last `since_hours` (default 168), one entry per node and job type (and job name for `run`, `script` and package jobs), newest failure first: `failures` (count), `first_failed_at`, `last_failed_at`, the last failed `job_id`/`job_name`, `reason` (error message, else error output, else the last output lines), `hostname`, `node_id`. An entry is `resolved` (with `last_success_at`) when a later run of the same kind succeeded on that node; resolved entries only with `include_resolved=true`. `total` (open) and `resolved` count all entries; `limit` (≤ 1000)/`offset` |
 | GET | `/api/v1/jobs/{job_id}` | API Key | Get job details with its instances; `command_data` is the JSON object the job was created with |
 | DELETE | `/api/v1/jobs/{job_id}` | API Key | Delete job |
 | GET | `/api/v1/jobs/pending/{node_id}` | API Key | Get pending jobs for a node (agent poll; newer Linux agents run it when `GET /api/v1/agent/wait/{node_id}` says so) |
 | POST | `/api/v1/jobs/instances/{instance_id}/start` | API Key | Mark job instance as started |
-| POST | `/api/v1/jobs/instances/{instance_id}/result` | API Key | Submit job result |
+| POST | `/api/v1/jobs/instances/{instance_id}/result` | Agent: `jobs:poll` | Submit job result (`success` or `status`, `exitCode`, `stdout`/`stderr` – stored up to 50,000 characters each –, optional `errorMessage`, `durationMs`; else the duration since the start). Logged in `job_logs`; a failure sends the `job_failed` alert rules; results of patch deployments update the deployment's results. Not retried automatically. 404 for an unknown instance |
 | POST | `/api/v1/jobs/result` | API Key | Submit job result (alt) |
 | POST | `/api/v1/jobs/instances/{instance_id}/retry` | API Key | Retry failed job instance |
-| POST | `/api/v1/smart-install` | User: `jobs:create` | Smart install (auto-detect package manager) |
 | GET | `/api/v1/smart-install/packages` | JWT (`packages:read`) | List available smart-install packages |
+| POST | `/api/v1/smart-install` | User: `jobs:create` | Install a Chocolatey package (`package`: alias from `/smart-install/packages` or package name; 400 for other characters than letters, digits and `. _ + -`) on Windows nodes (`targets`: node IDs, UUIDs or hostnames), installing Chocolatey first where missing; one `run` job per node, unknown nodes listed as errors in `results` |
 
 ### Packages & Deployments
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/packages` | API Key | List packages |
+| GET | `/api/v1/packages` | API Key | List packages (`displayName`, `versionCount`, `latestVersion`, …); `category`, `search` (name, display name or vendor), `active_only` (default true) |
 | POST | `/api/v1/packages` | API Key | Create package |
 | GET | `/api/v1/packages/{package_id}` | API Key | Get package |
 | PUT | `/api/v1/packages/{package_id}` | API Key | Update package |
@@ -168,7 +168,7 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 | GET | `/api/v1/packages/{package_id}/versions/{version_id}` | API Key | Get version |
 | PUT | `/api/v1/packages/{package_id}/versions/{version_id}` | User: `packages:write` | Update version, including `downloadUrl` |
 | DELETE | `/api/v1/packages/{package_id}/versions/{version_id}` | API Key | Delete version |
-| POST | `/api/v1/deployments` | API Key | Create deployment |
+| POST | `/api/v1/deployments` | API Key | Create deployment; 400 unless `targetType` is `node`/`group` (with `targetId`) or `all` and `mode` is `required`/`available`/`uninstall`, 404 for an unknown package version |
 | GET | `/api/v1/deployments` | API Key | List deployments |
 | GET | `/api/v1/deployments/{deployment_id}` | API Key | Get deployment |
 | PATCH | `/api/v1/deployments/{deployment_id}` | API Key | Update deployment |
@@ -549,6 +549,7 @@ See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 | GET | `/api/v1/baselines/evaluations/{eval_id}` | API Key | Get evaluation results |
 | GET | `/api/v1/baselines/compliance/{node_id}` | API Key | Node compliance details |
 | GET | `/api/v1/baselines/compliance/trends` | API Key | Compliance trend data |
+| GET | `/api/v1/compliance/summary` | API Key | Defender, real-time protection, firewall and BitLocker per node (`nodes`: true/false/null each) and counted over all nodes (`defender`, `realTimeProtection`, `firewall`: enabled/disabled/unknown; `bitlocker`: encrypted/unencrypted/unknown), from the agents' security inventory; `GET /api/v1/export/compliance` exports the node list |
 | GET | `/api/v1/baselines/drift` | API Key | List drift events |
 | GET | `/api/v1/baselines/drift/summary` | API Key | Drift summary by category |
 | POST | `/api/v1/baselines/drift/{drift_id}/acknowledge` | API Key | Acknowledge drift |

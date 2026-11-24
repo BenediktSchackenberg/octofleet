@@ -1,5 +1,9 @@
+import asyncio
 import json
+import logging
+import re
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import asyncpg
@@ -7,10 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 import agent_wait
+import alert_notify
 import job_failures
+import job_results
 from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
 from json_columns import decode_json
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -180,17 +188,59 @@ async def get_job(job_id: str, db: asyncpg.Pool = Depends(get_db)):
         res["instances"] = [dict(i) for i in instances]
         return res
 
+JOB_TARGET_TYPES = ("device", "group", "tag", "all")
+
+
+def job_time(data: Dict[str, Any], key: str) -> Optional[datetime]:
+    """An optional ISO 8601 time from the request (UTC when it has no offset); 400 when invalid."""
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{key}: an ISO 8601 date and time")
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def job_int(data: Dict[str, Any], key: str, default: int, minimum: int) -> int:
+    """An optional whole number from the request; 400 when it is not one or below MINIMUM."""
+    value = data.get(key)
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise HTTPException(status_code=400, detail=f"{key}: a whole number of at least {minimum}")
+    return value
+
+
 @router.post("/jobs")
 async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db),
                      _user: CurrentUser = Depends(require_user_permission("jobs:create"))):
+    """Create a job and its instances.
+
+    `targetType`: device (`targetId`: node UUID), group (`targetId`: group UUID), tag (`targetTag`:
+    tag name) or all. Optional: `priority` (lower runs first, default 5), `scheduledAt` (not before),
+    `expiresAt` (not after; ISO 8601) and `timeoutSeconds` (default 300).
+    """
+    target_id = data.get("targetId")
+    target_type = data.get("targetType", "device")
+    target_tag = data.get("targetTag")
+    if target_type not in JOB_TARGET_TYPES:
+        raise HTTPException(status_code=400, detail=f"targetType: one of {', '.join(JOB_TARGET_TYPES)}")
+    if target_type == "tag" and not target_tag:
+        raise HTTPException(status_code=400, detail="targetTag required for targetType=tag")
+    priority = job_int(data, "priority", 5, 0)
+    timeout_seconds = job_int(data, "timeoutSeconds", 300, 1)
+    scheduled_at, expires_at = job_time(data, "scheduledAt"), job_time(data, "expiresAt")
     async with db.acquire() as conn:
         job_uuid = uuid.uuid4()
-        target_id = data.get("targetId")
-        target_type = data.get("targetType", "device")
         await conn.execute("""
-            INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command_data, created_by)
-            VALUES ($1, $2, $3, $4, $5::uuid, $6, $7::jsonb, $8)
-        """, job_uuid, data.get("name"), data.get("description"), target_type, target_id, data.get("commandType"), json.dumps(data.get("commandData")), "api")
+            INSERT INTO jobs (id, name, description, target_type, target_id, target_tag, command_type, command_data,
+                              priority, scheduled_at, expires_at, timeout_seconds, created_by)
+            VALUES ($1, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9, $10, $11, $12, $13)
+        """, job_uuid, data.get("name"), data.get("description"), target_type, target_id,
+            target_tag if target_type == "tag" else None, data.get("commandType"), json.dumps(data.get("commandData")),
+            priority, scheduled_at, expires_at, timeout_seconds, "api")
 
         # Create job_instances for target nodes
         node_ids = []
@@ -198,6 +248,11 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db),
             node_ids = [target_id]
         elif target_type == "group" and target_id:
             rows = await conn.fetch("SELECT node_id FROM group_members WHERE group_id = $1", target_id)
+            node_ids = [str(r["node_id"]) for r in rows]
+        elif target_type == "tag":
+            rows = await conn.fetch("""
+                SELECT DISTINCT dt.node_id FROM device_tags dt JOIN tags t ON t.id = dt.tag_id WHERE t.name = $1
+            """, target_tag)
             node_ids = [str(r["node_id"]) for r in rows]
         elif target_type == "all":
             rows = await conn.fetch("SELECT id FROM nodes")
@@ -244,25 +299,132 @@ async def cancel_or_delete_job(job_id: str, db: asyncpg.Pool = Depends(get_db),
 
 @agent_router.post("/jobs/instances/{instance_id}/result", dependencies=[Depends(require_permission("jobs:poll"))])
 async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
-    async with db.acquire() as conn:
-        success = job_result_succeeded(data)
-        status = "success" if success else "failed"
-        await conn.execute("""
-            UPDATE job_instances SET status = $1, completed_at = NOW(), exit_code = $2, stdout = $3, stderr = $4
-            WHERE id = $5
-        """, status, data.get("exitCode"), data.get("stdout"), data.get("stderr"), instance_id)
-        return {"status": status}
+    """Agent endpoint: the result of a job instance.
 
-# --- Packages ---
+    Stores status, exit code, output (cut to 50,000 characters each), `errorMessage` and the
+    duration (`durationMs`, else the time since the instance started), logs it in job_logs, sends
+    the job_failed alert on failure and processes VM creation and patch deployment results
+    (job_results.py). A failed instance is not retried automatically. 404 for an unknown instance.
+    """
+    try:
+        uuid.UUID(instance_id)
+    except ValueError:
+        raise not_found("Job instance", instance_id)
+    success = job_result_succeeded(data)
+    status = "success" if success else "failed"
+    exit_code = data.get("exitCode")
+    stdout = (data.get("stdout") or "")[:job_results.MAX_OUTPUT] or None
+    stderr = (data.get("stderr") or "")[:job_results.MAX_OUTPUT] or None
+    error_message = data.get("errorMessage") or None
+    duration_ms = data.get("durationMs") if isinstance(data.get("durationMs"), int) else None
 
-@router.get("/packages")
-async def list_packages(db: asyncpg.Pool = Depends(get_db)):
     async with db.acquire() as conn:
-        rows = await conn.fetch("SELECT * FROM packages WHERE is_active = true ORDER BY display_name")
-        return {"packages": [dict(r) for r in rows]}
+        row = await conn.fetchrow("""
+            UPDATE job_instances
+            SET status = $1, completed_at = NOW(), updated_at = NOW(), exit_code = $2, stdout = $3, stderr = $4,
+                error_message = $5,
+                duration_ms = COALESCE($6::int, (EXTRACT(EPOCH FROM NOW() - started_at) * 1000)::int)
+            WHERE id = $7::uuid
+            RETURNING job_id, node_id
+        """, status, exit_code, stdout, stderr, error_message, duration_ms, instance_id)
+        if not row:
+            raise not_found("Job instance", instance_id)
+        await conn.execute("INSERT INTO job_logs (instance_id, level, message) VALUES ($1::uuid, $2, $3)",
+                           instance_id, "info" if success else "error", f"Job completed: exit_code={exit_code}")
+        job = await conn.fetchrow("SELECT name, command_type, command_data FROM jobs WHERE id = $1", row["job_id"])
+        try:
+            if success and job and (job["name"] or "").startswith("Create VM:"):
+                await job_results.apply_vm_creation(conn, row["job_id"], stdout)
+            if job and job["command_type"] == "patch_install":
+                await job_results.apply_patch_install(conn, job["command_data"], row["node_id"], success, stdout)
+        except Exception:  # the result itself is stored; the agent does not send it again
+            logger.exception("Processing the result of job instance %s failed", instance_id)
+        if not success and job:
+            hostname = await conn.fetchval(
+                "SELECT hostname FROM nodes WHERE id::text = $1 OR node_id = $1 LIMIT 1", row["node_id"])
+            _alert_job_failed(db, job["name"], hostname or row["node_id"], exit_code,
+                              error_message or (stderr or "")[:500] or "Unknown error")
+
+    return {"status": status, "instanceId": instance_id}
+
+
+# Alerts run in the background: a slow webhook must not hold up the agent's request
+_alert_tasks: set = set()
+
+
+def _alert_job_failed(db, job_name, hostname, exit_code, error) -> None:
+    async def send():
+        try:
+            await alert_notify.trigger_alert(db, "job_failed", {
+                "message": f"Job '{job_name}' failed on {hostname}",
+                "job_name": job_name, "hostname": hostname, "exit_code": exit_code, "error": error,
+            })
+        except Exception:
+            logger.exception("job_failed alert")
+    task = asyncio.create_task(send())
+    _alert_tasks.add(task)
+    task.add_done_callback(_alert_tasks.discard)
+
+
+# GET /api/v1/packages (with version count, latest version, filters) is in routers/packages_mgmt.py.
+
+# Chocolatey package names: letters, digits and . _ + - (the name goes into a PowerShell command)
+CHOCO_PACKAGE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,99}$")
+
+
+def smart_install_command(choco_package: str) -> str:
+    """PowerShell: install Chocolatey if it is missing, then the package."""
+    return (
+        '$c="C:\\ProgramData\\chocolatey\\bin\\choco.exe";'
+        'if(!(Test-Path $c))'
+        '{Set-ExecutionPolicy Bypass -Scope Process -Force;'
+        '[Net.ServicePointManager]::SecurityProtocol='
+        '[Net.ServicePointManager]::SecurityProtocol -bor 3072;'
+        "iex((New-Object Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))}"
+        f';& $c install {choco_package} -y --no-progress'
+    )
+
 
 @router.post("/smart-install")
 async def smart_install(request: SmartInstallRequest, db: asyncpg.Pool = Depends(get_db),
-                        _user: CurrentUser = Depends(require_user_permission("jobs:create"))):
-    # Existing smart install logic...
-    return {"status": "ok"}
+                        user: CurrentUser = Depends(require_user_permission("jobs:create"))):
+    """Install a package on Windows nodes with Chocolatey, installing Chocolatey first where it is missing.
+
+    `package` is an alias from GET /smart-install/packages or a Chocolatey package name; `targets`
+    are node IDs, UUIDs or hostnames. One job per node found; unknown nodes are listed in `results`.
+    """
+    choco_package = CHOCO_PACKAGES.get(request.package.lower().strip(), request.package.strip())
+    if not CHOCO_PACKAGE_NAME.match(choco_package):
+        raise HTTPException(status_code=400, detail="package: letters, digits and . _ + - only")
+    command = smart_install_command(choco_package)
+    results = []
+    async with db.acquire() as conn:
+        for target in request.targets:
+            node = await conn.fetchrow("""
+                SELECT id, node_id, hostname FROM nodes
+                WHERE node_id = $1 OR id::text = $1 OR UPPER(hostname) = UPPER($1) LIMIT 1
+            """, target)
+            if not node:
+                results.append({"target": target, "status": "error", "error": f"Node not found: {target}"})
+                continue
+            job_id = uuid.uuid4()
+            await conn.execute("""
+                INSERT INTO jobs (id, name, description, target_type, target_id, command_type, command_data,
+                                  timeout_seconds, created_by)
+                VALUES ($1, $2, $3, 'device', $4, 'run', $5::jsonb, $6, $7)
+            """, job_id, f"Smart-Install {request.package}",
+                f"Auto-install {choco_package} via Chocolatey (with bootstrap)", node["id"],
+                json.dumps({"command": command}), request.timeout_seconds, user.username)
+            # job_instances.node_id: the node's UUID, as POST /jobs
+            await conn.execute("INSERT INTO job_instances (job_id, node_id, status) VALUES ($1, $2, 'pending')",
+                               job_id, str(node["id"]))
+            agent_wait.notify([str(node["id"]), node["node_id"]], "jobs")
+            results.append({"target": target, "hostname": node["hostname"], "status": "created",
+                            "jobId": str(job_id), "package": choco_package})
+    return {
+        "package": request.package,
+        "chocoPackage": choco_package,
+        "results": results,
+        "totalTargets": len(request.targets),
+        "jobsCreated": sum(1 for r in results if r["status"] == "created"),
+    }

@@ -51,6 +51,7 @@ from reportlab.platypus import (
 )
 
 import agent_wait
+import alert_notify
 import audit_query
 import event_counts
 import job_failures
@@ -68,6 +69,7 @@ import retention
 import vulnerability
 import vulnerability_cache
 from agent_monitor import monitor as agent_monitor
+from alert_notify import send_discord_webhook
 from auth import (
     ROLE_PERMISSIONS,
     APIKeyCreate,
@@ -95,8 +97,8 @@ from routers.groups import router as groups_router
 from routers.hardware import router as hardware_router
 from routers.inventory import ensure_schema as ensure_inventory_schema
 from routers.inventory import router as inventory_router
+from routers.jobs import CHOCO_PACKAGES
 from routers.jobs import agent_router as jobs_agent_router
-from routers.jobs import job_result_succeeded
 from routers.jobs import router as jobs_router
 from routers.linux_rules import router as linux_rules_router
 from routers.logging_settings import router as logging_settings_router
@@ -429,124 +431,7 @@ async def api_health_check():
 # E3: Job System API
 # ============================================
 
-# Popular Chocolatey packages for quick reference
-CHOCO_PACKAGES = {
-    "notepad++": "notepadplusplus",
-    "notepadplusplus": "notepadplusplus",
-    "7zip": "7zip",
-    "7-zip": "7zip",
-    "vlc": "vlc",
-    "git": "git",
-    "vscode": "vscode",
-    "vs-code": "vscode",
-    "python": "python",
-    "nodejs": "nodejs-lts",
-    "node": "nodejs-lts",
-    "chrome": "googlechrome",
-    "firefox": "firefox",
-    "putty": "putty",
-    "winscp": "winscp",
-    "filezilla": "filezilla",
-    "sysinternals": "sysinternals",
-    "powershell": "powershell-core",
-    "pwsh": "powershell-core",
-}
-
-
-class SmartInstallRequest(BaseModel):
-    """Request body for smart-install endpoint"""
-    package: str = Field(..., description="Package name (e.g., 'notepad++', '7zip', 'git')")
-    targets: List[str] = Field(..., description="List of node IDs or hostnames")
-    timeout_seconds: int = Field(600, description="Timeout for installation")
-
-
-@app.post("/api/v1/smart-install", dependencies=[Depends(require_user_permission("jobs:create"))])
-async def smart_install(
-    request: SmartInstallRequest,
-    db: asyncpg.Pool = Depends(get_db)
-):
-    """
-    Smart software installation with automatic Chocolatey bootstrap.
-    
-    Installs software on Windows nodes using Chocolatey. If Chocolatey is not
-    installed on the target node, it will be automatically installed first.
-    
-    Example:
-    ```json
-    {
-        "package": "notepad++",
-        "targets": ["CONTROLLER", "DESKTOP-PC1"]
-    }
-    ```
-    """
-    # Normalize package name
-    package_name = request.package.lower().strip()
-    choco_package = CHOCO_PACKAGES.get(package_name, package_name)
-    
-    # Build smart-install command (installs choco if missing, then package)
-    smart_cmd = (
-        f'$c="C:\\ProgramData\\chocolatey\\bin\\choco.exe";'
-        f'if(!(Test-Path $c))'
-        f'{{Set-ExecutionPolicy Bypass -Scope Process -Force;'
-        f'[Net.ServicePointManager]::SecurityProtocol='
-        f'[Net.ServicePointManager]::SecurityProtocol -bor 3072;'
-        f'iex((New-Object Net.WebClient).DownloadString('
-        f"'https://community.chocolatey.org/install.ps1'))}}"
-        f';& $c install {choco_package} -y --no-progress'
-    )
-    
-    results = []
-    async with db.acquire() as conn:
-        for target in request.targets:
-            # Find node
-            node = await conn.fetchrow(
-                "SELECT id, node_id, hostname FROM nodes WHERE node_id = $1 OR hostname = $1",
-                target
-            )
-            if not node:
-                results.append({
-                    "target": target,
-                    "status": "error",
-                    "error": f"Node not found: {target}"
-                })
-                continue
-            
-            # Create job
-            job_uuid = uuid.uuid4()
-            job_name = f"Smart-Install {request.package}"
-            
-            await conn.execute("""
-                INSERT INTO jobs (id, name, description, target_type, target_id, 
-                                 command_type, command_data, timeout_seconds, created_by)
-                VALUES ($1::uuid, $2, $3, 'device', $4::uuid, 'run', $5::jsonb, $6, $7)
-            """, str(job_uuid), job_name, 
-                f"Auto-install {choco_package} via Chocolatey (with bootstrap)",
-                str(node["id"]), json.dumps({"command": smart_cmd}),
-                request.timeout_seconds, "api")
-            
-            # Create instance
-            await conn.execute("""
-                INSERT INTO job_instances (job_id, node_id, status)
-                VALUES ($1::uuid, $2, 'pending')
-            """, str(job_uuid), node["node_id"])
-            agent_wait.notify(node["node_id"], "jobs")
-            
-            results.append({
-                "target": target,
-                "hostname": node["hostname"],
-                "status": "created",
-                "jobId": str(job_uuid),
-                "package": choco_package
-            })
-    
-    return {
-        "package": request.package,
-        "chocoPackage": choco_package,
-        "results": results,
-        "totalTargets": len(request.targets),
-        "jobsCreated": sum(1 for r in results if r["status"] == "created")
-    }
-
+# POST /api/v1/smart-install is in routers/jobs.py.
 
 @app.get("/api/v1/smart-install/packages", dependencies=[Depends(require_permission("packages:read"))])
 async def list_smart_install_packages():
@@ -849,177 +734,7 @@ async def start_job_instance(instance_id: str, db: asyncpg.Pool = Depends(get_db
         return {"status": "running", "instanceId": instance_id}
 
 
-@app.post("/api/v1/jobs/instances/{instance_id}/result", dependencies=[Depends(verify_api_key)])
-async def submit_job_result(instance_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
-    """Agent endpoint: Submit job execution result"""
-    success = job_result_succeeded(data)
-    exit_code = data.get("exitCode", -1)
-    stdout = data.get("stdout", "")
-    stderr = data.get("stderr", "")
-    error_message = data.get("errorMessage", "")
-    duration_ms = data.get("durationMs", 0)
-    
-    status = "success" if success else "failed"
-    
-    async with db.acquire() as conn:
-        row = await conn.fetchrow("""
-            UPDATE job_instances 
-            SET status = $1, completed_at = NOW(), updated_at = NOW(),
-                exit_code = $2, stdout = $3, stderr = $4, error_message = $5, 
-                duration_ms = $6
-            WHERE id = $7
-            RETURNING id, job_id, node_id, attempt, max_attempts
-        """, status, exit_code, stdout[:50000] if stdout else None, 
-             stderr[:50000] if stderr else None, error_message, duration_ms, instance_id)
-        
-        if not row:
-            raise not_found("Job instance", instance_id)
-        
-        # Log completion
-        await conn.execute("""
-            INSERT INTO job_logs (instance_id, level, message)
-            VALUES ($1, $2, $3)
-        """, instance_id, "info" if success else "error", 
-             f"Job completed: exit_code={exit_code}")
-        
-        # Trigger alert on failure
-        if not success:
-            # Get job and node info for alert
-            job_info = await conn.fetchrow("""
-                SELECT j.name as job_name, n.hostname 
-                FROM job_instances ji
-                JOIN jobs j ON ji.job_id = j.id
-                JOIN nodes n ON ji.node_id = n.node_id
-                WHERE ji.id = $1
-            """, instance_id)
-            if job_info:
-                try:
-                    await trigger_alert('job_failed', {
-                        'message': f"Job '{job_info['job_name']}' failed on {job_info['hostname']}",
-                        'job_name': job_info['job_name'],
-                        'hostname': job_info['hostname'],
-                        'exit_code': exit_code,
-                        'error': error_message or stderr[:500] if stderr else 'Unknown error'
-                    })
-                except Exception as e:
-                    print(f"Alert trigger error: {e}")
-        
-        # Check if should retry
-        should_retry = False
-        if not success and row["attempt"] < row["max_attempts"]:
-            should_retry = True
-            await conn.execute("""
-                UPDATE job_instances 
-                SET status = 'pending', attempt = attempt + 1, updated_at = NOW()
-                WHERE id = $1
-            """, instance_id)
-        
-        # Handle VM creation job completion - extract MAC and update provisioning task
-        if success:
-            job_info = await conn.fetchrow("""
-                SELECT name FROM jobs WHERE id = $1
-            """, row["job_id"])
-            
-            if job_info and job_info['name'] and job_info['name'].startswith('Create VM:'):
-                # This is a VM creation job - parse MAC from output
-                try:
-                    import re
-                    mac_match = re.search(r'"macAddress"\s*:\s*"([0-9A-Fa-f:]{17})"', stdout or '')
-                    if mac_match:
-                        mac_address = mac_match.group(1).upper()
-                        
-                        # Find provisioning task linked to this job
-                        task = await conn.fetchrow("""
-                            SELECT id, hostname FROM provisioning_tasks 
-                            WHERE network_config::jsonb->>'vm_job_id' = $1
-                        """, row["job_id"])
-                        
-                        if task:
-                            # Update task with MAC address and activate it
-                            await conn.execute("""
-                                UPDATE provisioning_tasks 
-                                SET mac_address = $1, 
-                                    status = 'pending',
-                                    status_message = 'VM created, waiting for PXE boot',
-                                    updated_at = NOW()
-                                WHERE id = $2
-                            """, mac_address, task['id'])
-                            print(f"✅ VM created: {task['hostname']} - MAC: {mac_address}")
-                except Exception as e:
-                    print(f"Error processing VM creation result: {e}")
-
-        # Handle patch_install job results
-        job_detail = await conn.fetchrow(
-            "SELECT command_type, command_data FROM jobs WHERE id = $1", row["job_id"])
-        if job_detail and job_detail["command_type"] == "patch_install":
-            try:
-                cmd_data = job_detail["command_data"]
-                if isinstance(cmd_data, str):
-                    cmd_data = json.loads(cmd_data)
-                deployment_id = cmd_data.get("deployment_id")
-                patch_ids = cmd_data.get("patches", [])
-                node_id = str(row["node_id"])
-
-                # Parse installed/failed KBs from stdout JSON
-                installed_kbs = []
-                failed_kbs = []
-                reboot_required = False
-                try:
-                    patch_output = json.loads(stdout) if stdout else {}
-                    installed_kbs = patch_output.get("installed", [])
-                    failed_kbs = patch_output.get("failed", [])
-                    reboot_required = patch_output.get("reboot_required", False)
-                except:
-                    pass
-
-                # Map installed KB IDs back to patch catalog IDs
-                if installed_kbs:
-                    installed_rows = await conn.fetch(
-                        "SELECT id::text, kb_id FROM patch_catalog WHERE kb_id = ANY($1::text[])",
-                        installed_kbs)
-                    installed_patch_ids = {r["id"] for r in installed_rows}
-                else:
-                    installed_patch_ids = set()
-
-                for patch_id in patch_ids:
-                    p_status = "installed" if patch_id in installed_patch_ids else (
-                        "failed" if not success else "installed")
-
-                    # Update deployment results
-                    if deployment_id:
-                        await conn.execute("""
-                            UPDATE patch_deployment_results
-                            SET status = $1, installed_at = CASE WHEN $1='installed' THEN NOW() ELSE NULL END
-                            WHERE deployment_id = $2 AND node_id = $3 AND patch_id = $4
-                        """, p_status, deployment_id, node_id, patch_id)
-
-                    # Update patch_catalog_nodes
-                    await conn.execute("""
-                        UPDATE patch_catalog_nodes SET status = $1,
-                            installed_at = CASE WHEN $1='installed' THEN NOW() ELSE NULL END
-                        WHERE patch_id = $2 AND node_id = $3::uuid
-                    """, p_status, patch_id, node_id)
-
-                # Check if all results for deployment are done
-                if deployment_id:
-                    remaining = await conn.fetchval("""
-                        SELECT COUNT(*) FROM patch_deployment_results
-                        WHERE deployment_id = $1 AND status = 'pending'
-                    """, deployment_id)
-                    if remaining == 0:
-                        await conn.execute(
-                            "UPDATE patch_deployments SET status='completed', completed_at=NOW() WHERE id=$1",
-                            deployment_id)
-
-                print(f"✅ patch_install result: installed={installed_kbs}, failed={failed_kbs}, reboot={reboot_required}")
-            except Exception as e:
-                print(f"Error processing patch_install result: {e}")
-        
-        return {
-            "status": status,
-            "instanceId": instance_id,
-            "willRetry": should_retry
-        }
+# POST /api/v1/jobs/instances/{instance_id}/result (agent result) is in routers/jobs.py.
 
 
 # Legacy endpoint for old Linux agent (snake_case fields, different path)
@@ -3366,97 +3081,10 @@ async def stop_shell_manager():
 # E19: Alert System
 # ============================================================================
 
-import aiohttp
-
-
-async def send_discord_webhook(webhook_url: str, embed: dict) -> bool:
-    """Send a Discord webhook message."""
-    try:
-        async with aiohttp.ClientSession() as session:
-            payload = {"embeds": [embed]}
-            async with session.post(webhook_url, json=payload) as resp:
-                return resp.status in (200, 204)
-    except Exception as e:
-        print(f"Discord webhook error: {e}")
-        return False
 
 async def trigger_alert(event_type: str, event_data: dict):
     """Check alert rules and send notifications."""
-    async with db_pool.acquire() as conn:
-        # Find matching enabled rules
-        rules = await conn.fetch("""
-            SELECT r.*, c.channel_type, c.config, c.name as channel_name
-            FROM alert_rules r
-            JOIN alert_channels c ON r.channel_id = c.id
-            WHERE r.event_type = $1 
-            AND r.enabled = true 
-            AND c.enabled = true
-        """, event_type)
-        
-        for rule in rules:
-            # Check cooldown
-            last_alert = await conn.fetchval("""
-                SELECT created_at FROM alert_history
-                WHERE rule_id = $1 AND status = 'sent'
-                ORDER BY created_at DESC LIMIT 1
-            """, rule['id'])
-            
-            if last_alert:
-                from datetime import timedelta
-                cooldown = timedelta(minutes=rule['cooldown_minutes'])
-                if datetime.utcnow().replace(tzinfo=None) - last_alert.replace(tzinfo=None) < cooldown:
-                    # Throttled
-                    await conn.execute("""
-                        INSERT INTO alert_history (rule_id, channel_id, event_type, event_data, status)
-                        VALUES ($1, $2, $3, $4, 'throttled')
-                    """, rule['id'], rule['channel_id'], event_type, json.dumps(event_data))
-                    continue
-            
-            # Send alert based on channel type
-            success = False
-            error_msg = None
-            
-            if rule['channel_type'] == 'discord':
-                webhook_url = rule['config'].get('webhook_url')
-                if webhook_url:
-                    # Build Discord embed
-                    color = {
-                        'node_offline': 0xFF0000,  # Red
-                        'node_online': 0x00FF00,   # Green
-                        'job_failed': 0xFF6600,    # Orange
-                        'job_success': 0x00FF00,   # Green
-                        'disk_warning': 0xFFFF00,  # Yellow
-                        'vulnerability_critical': 0xFF0000,  # Red
-                    }.get(event_type, 0x0099FF)
-                    
-                    embed = {
-                        "title": f"🔔 {event_type.replace('_', ' ').title()}",
-                        "description": event_data.get('message', str(event_data)),
-                        "color": color,
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                        "footer": {"text": "Octofleet Inventory"},
-                        "fields": []
-                    }
-                    
-                    # Add fields from event_data
-                    for key, value in event_data.items():
-                        if key != 'message' and value:
-                            embed["fields"].append({
-                                "name": key.replace('_', ' ').title(),
-                                "value": str(value)[:1024],
-                                "inline": True
-                            })
-                    
-                    success = await send_discord_webhook(webhook_url, embed)
-                    if not success:
-                        error_msg = "Webhook request failed"
-            
-            # Log alert
-            await conn.execute("""
-                INSERT INTO alert_history (rule_id, channel_id, event_type, event_data, status, error_message)
-                VALUES ($1, $2, $3, $4, $5, $6)
-            """, rule['id'], rule['channel_id'], event_type, json.dumps(event_data),
-                'sent' if success else 'failed', error_msg)
+    await alert_notify.trigger_alert(db_pool, event_type, event_data)
 
 
 # Alert Channels CRUD

@@ -55,6 +55,26 @@ interface EventLogEntry {
   timestamp: string;
 }
 
+/** An alert sent for an alert rule (GET /alert-history) */
+interface AlertHistoryEntry {
+  id: string;
+  event_type: string;
+  event_data?: { message?: string } | string | null;
+  rule_name?: string | null;
+  created_at: string;
+}
+
+const DANGER_ALERTS = new Set(["node_offline", "vulnerability_critical"]);
+const WARNING_ALERTS = new Set(["job_failed", "disk_warning"]);
+
+function alertMessage(a: AlertHistoryEntry): string {
+  let data = a.event_data;
+  if (typeof data === "string") {
+    try { data = JSON.parse(data); } catch { data = null; }
+  }
+  return (typeof data === "object" && data?.message) || a.rule_name || a.event_type;
+}
+
 // ─── Role labels ─────────────────────────────────────────────────────
 
 const roleLabels: Record<DashboardRole, { labelKey: string; icon: LucideIcon }> = {
@@ -122,14 +142,14 @@ function OperatorDashboard() {
   const { t } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [taskCounts, setTaskCounts] = useState<TaskCounts | null>(null);
-  const [alerts, setAlerts] = useState<Array<{ id: string; severity: string; title: string; created_at: string }>>([]);
+  const [alerts, setAlerts] = useState<AlertHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       apiClient.get<DashboardSummary>("/dashboard/summary"),
       apiClient.get<TaskCounts>("/dashboard/tasks", { showErrorToast: false }),
-      apiClient.get<Array<{ id: string; severity: string; title: string; created_at: string }>>("/alerts?limit=10", { showErrorToast: false }),
+      apiClient.get<AlertHistoryEntry[]>("/alert-history?limit=10", { showErrorToast: false }),
     ]).then(([s, t, a]) => {
       if (s) setSummary(s);
       if (t) setTaskCounts(t);
@@ -150,10 +170,10 @@ function OperatorDashboard() {
 
   const alertItems: ActivityItem[] = alerts.slice(0, 8).map((a, i) => ({
     id: a.id || String(i),
-    icon: a.severity === "critical" ? XCircle : a.severity === "high" ? AlertCircle : Bell,
-    description: a.title,
+    icon: DANGER_ALERTS.has(a.event_type) ? XCircle : WARNING_ALERTS.has(a.event_type) ? AlertCircle : Bell,
+    description: alertMessage(a),
     timestamp: new Date(a.created_at).toLocaleString(),
-    variant: (a.severity === "critical" ? "danger" : a.severity === "high" ? "warning" : "default") as "danger" | "warning" | "default",
+    variant: (DANGER_ALERTS.has(a.event_type) ? "danger" : WARNING_ALERTS.has(a.event_type) ? "warning" : "default") as "danger" | "warning" | "default",
   }));
 
   return (
