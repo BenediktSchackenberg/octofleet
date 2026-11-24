@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
+import agent_wait
 from auth import decode_token, require_permission
 from dependencies import API_KEY, db_pool, require_scope, verify_api_key
 from screen_session import ScreenSessionState, screen_session_manager
@@ -131,6 +132,7 @@ async def start_screen_session(
             resolution=resolution,
             monitor_index=monitor
         )
+        agent_wait.notify(session.node_id, "screen")
         
         # Log audit event
         await log_audit(
@@ -413,6 +415,7 @@ async def start_shell_session(
             user_id=user.id,
             shell_type=shell_type
         )
+        agent_wait.notify(session.node_id, "shell")
         
         # Log audit event
         await log_audit(
@@ -653,6 +656,8 @@ async def start_terminal_session(node_id: str, request: Request, _=Depends(requi
     session_id = str(uuid.uuid4())
     session = TerminalSession(session_id, node_id, shell)
     _terminal_sessions[session_id] = session
+    # The agent switches to fast terminal polling as soon as it knows (agent long-poll, #283)
+    agent_wait.notify(node_id, "terminal")
     
     return {
         "sessionId": session_id,
@@ -697,6 +702,7 @@ async def send_terminal_input(session_id: str, request: Request, _=Depends(requi
     session = _terminal_sessions[session_id]
     session.touch()
     session.pending_commands.append(command)
+    agent_wait.notify(session.node_id, "terminal")
     
     return {"status": "queued", "command": command}
 
@@ -790,6 +796,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=0.5)
                 if data.get("type") == "input":
                     session.pending_commands.append(data.get("data", ""))
+                    agent_wait.notify(session.node_id, "terminal")
             except asyncio.TimeoutError:
                 pass
             

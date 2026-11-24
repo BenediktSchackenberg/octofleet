@@ -40,6 +40,14 @@ LIVE_DATA_INTERVAL="${LIVE_DATA_INTERVAL:-5}"
 # happens, every second while a session is open and SESSION_ACTIVE_GRACE seconds after (see poll_pace)
 POLL_IDLE_INTERVAL="${POLL_IDLE_INTERVAL:-5}"
 SESSION_ACTIVE_GRACE="${SESSION_ACTIVE_GRACE:-60}"
+# Long-poll (#283): one request the server holds until there is something for this node (a job, a
+# terminal command or session, a screen session) instead of the polls above; they then only run every
+# LONG_POLL_FALLBACK_INTERVAL s while idle. Servers without the route (404) keep the polls as they are.
+LONG_POLL="${LONG_POLL:-true}"
+LONG_POLL_SECONDS="${LONG_POLL_SECONDS:-55}"      # hold time asked for; keep below proxy idle limits
+LONG_POLL_FALLBACK_INTERVAL="${LONG_POLL_FALLBACK_INTERVAL:-600}"
+LONG_POLL_RETRY_INTERVAL="${LONG_POLL_RETRY_INTERVAL:-15}"  # after an error, doubled per failure, jitter
+LONG_POLL_RECHECK_INTERVAL="${LONG_POLL_RECHECK_INTERVAL:-3600}"  # asks a server without the route again
 LOG_FILE="${LOG_FILE:-/var/log/octofleet-agent.log}"
 # LOG_LEVEL=debug also logs the server's raw answer to a rejected inventory push
 LOG_LEVEL="${LOG_LEVEL:-info}"
@@ -2320,14 +2328,97 @@ poll_terminal_commands() {
     [[ "$active" == 1 ]]
 }
 
-# poll_pace NOW ACTIVE_UNTIL: seconds until the next terminal or screen poll (#283). While a session is
-# open, or was until ACTIVE_UNTIL, every second (each loop); otherwise about POLL_IDLE_INTERVAL, +-1 s
-# so agents started together do not poll in the same second.
+# poll_pace NOW ACTIVE_UNTIL [IDLE]: seconds until the next terminal or screen poll (#283). While a
+# session is open, or was until ACTIVE_UNTIL, every second (each loop); otherwise about IDLE (default
+# POLL_IDLE_INTERVAL), +-1 s so agents started together do not poll in the same second.
 poll_pace() {
     if (( $1 < $2 )); then echo 1; return; fi
-    local idle=$(( POLL_IDLE_INTERVAL < 1 ? 1 : POLL_IDLE_INTERVAL ))
+    local idle=${3:-$POLL_IDLE_INTERVAL}
+    idle=$(( idle < 1 ? 1 : idle ))
     (( idle >= 3 )) && idle=$(( idle - 1 + RANDOM % 3 ))
     echo "$idle"
+}
+
+# ============================================================================
+# Long-poll (#283)
+# ============================================================================
+
+# The kinds of work this agent handles: no remediation and no shell sessions on Linux, screen only
+# with a capture tool. The server does not wake the agent for the others.
+long_poll_kinds() {
+    echo "jobs,terminal${SCREEN_CAPTURE_TOOL:+,screen}"
+}
+
+# One long-poll. Prints the kinds of work there is now (space-separated, empty after the hold time).
+# Returns 0 on an answer, 2 when the server has no long-poll (404, or no JSON answer from an older
+# server or a proxy), 1 on any other error (it then prints the reason).
+long_poll_once() {
+    local response code body
+    response=$(curl -sS --max-time $(( LONG_POLL_SECONDS + 20 )) -w "\n%{http_code}" \
+        -H "X-API-Key: $API_KEY" \
+        "${API_URL}/api/v1/agent/wait/${NODE_ID}?kinds=$(long_poll_kinds)&timeout=${LONG_POLL_SECONDS}" 2>/dev/null)
+    code=$(tail -n1 <<< "$response")
+    body=$(sed '$d' <<< "$response")
+    case "$code" in
+        200) jq -er '.wake | if type == "array" then map(select(. == "jobs" or . == "terminal" or . == "screen")) | join(" ") else error("no wake list") end' <<< "$body" 2>/dev/null || return 2 ;;
+        404) return 2 ;;
+        *) echo "HTTP ${code:-000}"; return 1 ;;
+    esac
+}
+
+# long_poll_retry_delay FAILURES: seconds until the next long-poll after FAILURES errors in a row.
+# LONG_POLL_RETRY_INTERVAL doubled per further failure up to 5 minutes, spread over 50-150 %: after a
+# server restart the agents of a large fleet do not all come back in the same second.
+long_poll_retry_delay() {
+    local n=$(( $1 < 1 ? 1 : $1 ))
+    local delay=$(( LONG_POLL_RETRY_INTERVAL << (n > 6 ? 5 : n - 1) ))
+    (( delay > 300 )) && delay=300
+    (( delay < 2 )) && delay=2
+    echo $(( delay / 2 + RANDOM % (delay + 1) ))
+}
+
+# long_poll_loop DIR [ROUNDS]: runs in the background next to the main loop. For every kind of work
+# the server names it creates DIR/<kind>; the main loop then runs that poll at once and deletes the
+# file after it. DIR/active exists while the long-poll works: the main loop then polls only every
+# LONG_POLL_FALLBACK_INTERVAL s. ROUNDS (tests): stop after that many requests.
+long_poll_loop() {
+    local dir="$1" rounds="${2:-0}" round=0 failures=0 rc out kind started i
+    while (( rounds == 0 || round < rounds )); do
+        round=$(( round + 1 ))
+        started=$SECONDS
+        out=$(long_poll_once); rc=$?
+        case "$rc" in
+            0)
+                if [[ ! -e "$dir/active" ]]; then
+                    touch "$dir/active"
+                    info "Long-poll active: the server wakes the agent for $(long_poll_kinds); idle polls every ${LONG_POLL_FALLBACK_INTERVAL}s"
+                fi
+                failures=0
+                for kind in $out; do touch "$dir/$kind"; done
+                # Give the main loop time to run the polls before asking again (else the same work
+                # wakes the agent twice), at most 30 s
+                for (( i = 0; i < 30; i++ )); do
+                    [[ -e "$dir/jobs" || -e "$dir/terminal" || -e "$dir/screen" ]] || break
+                    sleep 1
+                done
+                (( SECONDS - started < 1 )) && sleep 1
+                ;;
+            2)
+                [[ -e "$dir/active" || $round == 1 ]] && info "The server has no long-poll (older version): polling every few seconds, asking again in ${LONG_POLL_RECHECK_INTERVAL}s"
+                rm -f "$dir/active"
+                failures=0
+                sleep "$LONG_POLL_RECHECK_INTERVAL"
+                ;;
+            *)
+                failures=$(( failures + 1 ))
+                if [[ -e "$dir/active" ]]; then
+                    rm -f "$dir/active"
+                    warn "Long-poll failed ($out): polling every few seconds until it answers again"
+                fi
+                sleep "$(long_poll_retry_delay "$failures")"
+                ;;
+        esac
+    done
 }
 
 # ============================================================================
@@ -2414,11 +2505,20 @@ run_service() {
     local last_live=0
     local screen_due=0 screen_active_until=0
     local terminal_due=0 terminal_active_until=0
+    local wake_dir="" job_every idle_every
     # First update check two minutes after start, then every UPDATE_CHECK_INTERVAL
     local last_self_update=$(( $(date +%s) - UPDATE_CHECK_INTERVAL + 120 ))
     
     # Start file audit collector
     start_file_audit &
+    
+    # Long-poll in the background (#283); the main loop picks up its wake-ups from wake_dir
+    if [[ "$LONG_POLL" == true ]] && wake_dir=$(mktemp -d "${TMPDIR:-/tmp}/octofleet-wake.XXXXXX"); then
+        long_poll_loop "$wake_dir" &
+        trap "kill $! 2>/dev/null; rm -rf '$wake_dir'" EXIT
+    else
+        wake_dir=""
+    fi
     
     # Push after the start, so the node does not keep showing its state from before a restart; a
     # random 0-60 s later, so nodes started together do not push together. Right after a boot the
@@ -2442,21 +2542,40 @@ run_service() {
             if (( push_rc == 0 )); then push_failures=0; push_first=0; else push_failures=$(( push_failures + 1 )); fi
         fi
         
+        # While the long-poll works the server says when there is something: the polls run at once
+        # then, and otherwise only every LONG_POLL_FALLBACK_INTERVAL s (#283)
+        job_every=$JOB_POLL_INTERVAL idle_every=$POLL_IDLE_INTERVAL
+        if [[ -n "$wake_dir" && -e "$wake_dir/active" ]]; then
+            job_every=$LONG_POLL_FALLBACK_INTERVAL idle_every=$LONG_POLL_FALLBACK_INTERVAL
+        else
+            # No long-poll (off, older server, failing): back to the usual pace at once
+            (( terminal_due > now + idle_every + 1 )) && terminal_due=$(( now + idle_every ))
+            (( screen_due > now + idle_every + 1 )) && screen_due=$(( now + idle_every ))
+        fi
+        if [[ -n "$wake_dir" ]]; then
+            [[ -e "$wake_dir/jobs" ]] && last_poll=0
+            [[ -e "$wake_dir/terminal" ]] && terminal_due=0
+            [[ -e "$wake_dir/screen" ]] && screen_due=0
+        fi
+        
         # Poll jobs
-        if (( now - last_poll >= JOB_POLL_INTERVAL )); then
+        if (( now - last_poll >= job_every )); then
             poll_jobs || true
             last_poll=$now
+            [[ -n "$wake_dir" ]] && rm -f "$wake_dir/jobs"
         fi
         
         # Screen capture requests (if a capture tool is installed) and terminal commands: every second
         # while a session is open, otherwise about every POLL_IDLE_INTERVAL seconds (#283)
         if [[ -n "$SCREEN_CAPTURE_TOOL" ]] && (( now >= screen_due )); then
             check_screen_requests 2>/dev/null && screen_active_until=$(( now + SESSION_ACTIVE_GRACE ))
-            screen_due=$(( now + $(poll_pace "$now" "$screen_active_until") ))
+            screen_due=$(( now + $(poll_pace "$now" "$screen_active_until" "$idle_every") ))
+            [[ -n "$wake_dir" ]] && rm -f "$wake_dir/screen"
         fi
         if (( now >= terminal_due )); then
             poll_terminal_commands 2>/dev/null && terminal_active_until=$(( now + SESSION_ACTIVE_GRACE ))
-            terminal_due=$(( now + $(poll_pace "$now" "$terminal_active_until") ))
+            terminal_due=$(( now + $(poll_pace "$now" "$terminal_active_until" "$idle_every") ))
+            [[ -n "$wake_dir" ]] && rm -f "$wake_dir/terminal"
         fi
         
         # Self-update

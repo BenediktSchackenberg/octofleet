@@ -6,6 +6,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+import agent_wait
 import job_failures
 from auth import CurrentUser, require_permission, require_user_permission
 from dependencies import get_db, not_found, verify_api_key
@@ -207,6 +208,7 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db),
                 INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
                 VALUES (gen_random_uuid(), $1, $2::uuid, 'pending', NOW())
             """, job_uuid, nid)
+        agent_wait.notify(node_ids, "jobs")
 
         return {"id": str(job_uuid), "status": "created", "instances": len(node_ids)}
 

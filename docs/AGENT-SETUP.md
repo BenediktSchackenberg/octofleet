@@ -252,6 +252,30 @@ LOG_FILE="/var/log/octofleet-agent.log"
 | `LOG_ROTATE_COUNT` | Rotated log files kept (compressed) | `8` | No |
 | `LOG_ROTATE_MAXSIZE` | Rotate earlier than weekly when the log is larger (logrotate size, e.g. `10M`) | `10M` | No |
 | `LOGROTATE_FILE` | The agent's logrotate configuration; empty turns it off | `/etc/logrotate.d/octofleet-agent` | No |
+| `LONG_POLL` | `false` turns the [long-poll](#long-poll) off: the agent then polls on its timers as before | `true` | No |
+| `LONG_POLL_SECONDS` | How long the server may hold a long-poll (seconds; the server caps it at its `AGENT_WAIT_SECONDS`). Lower it behind a proxy that closes idle requests sooner | `55` | No |
+| `LONG_POLL_FALLBACK_INTERVAL` | While the long-poll works: the job, terminal and screen polls run only this often (seconds), as a fallback | `600` | No |
+| `LONG_POLL_RETRY_INTERVAL` | After a failed long-poll: the next one after a random 50–150 % of this (seconds), doubling per further failure up to 5 minutes | `15` | No |
+| `LONG_POLL_RECHECK_INTERVAL` | A server without the long-poll (404) is asked again after this long (seconds) | `3600` | No |
+
+### Long-Poll
+
+The agent keeps one request open to the server, `GET /api/v1/agent/wait/{node_id}` ([#283](https://github.com/BenediktSchackenberg/octofleet/issues/283)). The server answers as soon as there is something for the node – a job, a terminal command or a newly opened terminal page, a screen session – and the agent runs that poll at once (within about a second); otherwise the server answers empty after about 55 s and the agent asks again. The job, terminal and screen polls then run only every `LONG_POLL_FALLBACK_INTERVAL` (10 minutes) as a fallback; while a terminal page is open the terminal poll still runs every second.
+
+| Per idle node | Timers only (`LONG_POLL=false`, or an older server) | Long-poll |
+|---|---|---|
+| Requests per minute (jobs, terminal, screen) | about 13 (about 25 with a screen capture tool) | about 1.4 |
+| Delay until a new job starts | up to 60 s | about 1 s |
+| Delay until the agent notices a new terminal page | up to 5 s | about 1 s |
+| 10,000 idle nodes | about 2,200 requests per second | about 230, most of them held |
+
+The live data push (every 5 s) and the inventory push are not polls and stay as they are.
+
+- **Older servers:** the agent asks once; on a 404 it keeps its timers and asks again after `LONG_POLL_RECHECK_INTERVAL`. Older agents keep their timers against a new server: the poll routes stay.
+- **Errors and server restarts:** the agent falls back to its timers at once and reconnects after a random delay (7–22 s after the first failure, growing up to 5 minutes), so a large fleet does not come back in the same second. When the server stops it answers the held requests first, so a restart does not wait for them.
+- **Server side:** one held request per node, handled asynchronously. The backend's open-file limit (`ulimit -n`; Docker's default is high enough) must allow one connection per node plus the usual load. The wake-up runs inside the backend process, which is how Octofleet runs (one `uvicorn` process; terminal, screen and shell sessions live there too). With several backend instances an agent would learn about new work only with its next request (up to 55 s later); that would need Postgres `LISTEN/NOTIFY`.
+- **Proxies:** the hold time (55 s) is below the usual 60 s idle limit of proxies and load balancers. Behind a proxy with a shorter limit set `LONG_POLL_SECONDS` lower.
+- Jobs created by paths that do not wake the agent (e.g. scheduled jobs that become due, baselines, provisioning) start with the agent's next long-poll, at most about 55 s later.
 
 ### What the Linux Agent Reports About Updates
 
@@ -390,6 +414,8 @@ On Linux nodes, **Search for updates** and **Install updates** on the node's Upd
 4. **Check logs** — look for authentication errors (401/403)
 
 ### Agent polls but jobs stay "pending"
+
+- Linux agent: the log says `Long-poll active` when the server wakes the agent; `The server has no long-poll` means an older server (the agent then polls every minute)
 
 - Verify `InventoryApiUrl` and `InventoryApiKey` are set in `service-config.json`
 - The agent polls as `win-{hostname}` (lowercase) — the backend resolves this to the node UUID

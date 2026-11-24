@@ -30,6 +30,7 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 | `ADMIN_PASSWORD` | *(empty)* | Password of the `admin` user, used only on the very first start (12–72 characters, not `admin`; otherwise the backend does not start). Empty: the backend prints a one-time password to its log and asks for a new one after the first login. |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins. Use comma-separated URLs for production (e.g., `https://octofleet.example.com`). |
 | `LOG_LEVEL` | `info` | Backend log level until the setting from **Admin → Logging** is loaded at startup (`error`, `warning`, `info`, `debug`); see [Logging](#logging). |
+| `AGENT_WAIT_SECONDS` | `55` | Longest hold time of the agents' long-poll (`GET /api/v1/agent/wait/{node_id}`, see [AGENT-SETUP.md](AGENT-SETUP.md#long-poll)); keep it below the idle limit of a proxy in front of the backend. |
 | `LOG_MAX_SIZE` / `LOG_MAX_FILE` | `20m` / `5` | Docker log rotation per container (db, backend, frontend): size of one log file and how many are kept. |
 | `OCTOFLEET_GATEWAY_URL` | *(empty)* | Gateway URL for inter-service communication |
 | `OCTOFLEET_GATEWAY_TOKEN` | *(empty)* | Token for gateway authentication |
@@ -98,6 +99,7 @@ JOB_POLL_INTERVAL=60     # Job polling interval in seconds
 LIVE_DATA_INTERVAL=5     # Live metrics interval in seconds
 POLL_IDLE_INTERVAL=5     # Terminal/screen requests when idle, in seconds
 SESSION_ACTIVE_GRACE=60  # Poll every second this long after a session, in seconds
+LONG_POLL=true           # One held request instead of the idle polls (false: off)
 ```
 
 | Variable | Default | Description |
@@ -110,6 +112,7 @@ SESSION_ACTIVE_GRACE=60  # Poll every second this long after a session, in secon
 | `LIVE_DATA_INTERVAL` | `5` | How often to push live metrics (seconds) |
 | `POLL_IDLE_INTERVAL` | `5` | How often to ask for terminal commands and screen sessions while none is open (seconds, ±1 s). While a terminal page for the node is open: every second. A new session waits up to this long |
 | `SESSION_ACTIVE_GRACE` | `60` | How long the agent keeps polling every second after a session (seconds) |
+| `LONG_POLL` | `true` | One request the server holds until there is work for the node; the job, terminal and screen polls then run only every `LONG_POLL_FALLBACK_INTERVAL` (`600`) seconds. Servers without it: the polls above. Details and further settings: [AGENT-SETUP.md](AGENT-SETUP.md#long-poll) |
 
 ---
 

@@ -17,6 +17,8 @@ import uuid as _uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import agent_wait
+
 # At most this far ahead (a forgotten reboot weeks later surprises everybody)
 MAX_AHEAD = timedelta(days=7)
 # "Now" means in about a minute: the agent reports the job first, users see the message
@@ -291,6 +293,7 @@ async def create_jobs(conn, uuids: list, payload: dict, user) -> dict:
             INSERT INTO job_instances (id, job_id, node_id, status, queued_at)
             VALUES (gen_random_uuid(), $1, $2, 'pending', NOW())
         """, job_id, uid)
+        agent_wait.notify(str(uid), "jobs")
         await conn.execute(
             """INSERT INTO audit_log (user_id, action, resource_type, resource_id, details)
                VALUES ($1, $2, 'node', $3, $4::jsonb)""",
