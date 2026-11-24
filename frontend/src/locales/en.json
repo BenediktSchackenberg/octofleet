@@ -2648,5 +2648,35 @@
       "failed": "Failed",
       "throttled": "Throttled"
     }
+  },
+  "eventlogPage": {
+    "title": "Windows event log",
+    "description": "Security, system and application events",
+    "range": {
+      "1": "Last hour",
+      "6": "Last 6 hours",
+      "24": "Last 24 hours",
+      "48": "Last 48 hours",
+      "168": "Last 7 days"
+    },
+    "trendTitle": "Error and warning trends (last 7 days)",
+    "errors": "Errors",
+    "warnings": "Warnings",
+    "total": "Total",
+    "noData": "No event log data available",
+    "noDataHint": "Run an event log collection job",
+    "criticalTitle": "Critical and security events",
+    "clearFilter": "Clear filter",
+    "chartLoading": "Loading chart...",
+    "chartEmpty": "No event log data available",
+    "levels": {
+      "audit": "Audit",
+      "critical": "Critical",
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info",
+      "verbose": "Verbose",
+      "other": "Level {level}"
+    }
   }
 }

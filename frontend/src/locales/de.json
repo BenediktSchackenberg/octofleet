@@ -2648,5 +2648,35 @@
       "failed": "Fehlgeschlagen",
       "throttled": "Gedrosselt"
     }
+  },
+  "eventlogPage": {
+    "title": "Windows-Ereignisprotokoll",
+    "description": "Sicherheits-, System- und Anwendungsereignisse",
+    "range": {
+      "1": "Letzte Stunde",
+      "6": "Letzte 6 Stunden",
+      "24": "Letzte 24 Stunden",
+      "48": "Letzte 48 Stunden",
+      "168": "Letzte 7 Tage"
+    },
+    "trendTitle": "Fehler und Warnungen im Verlauf (letzte 7 Tage)",
+    "errors": "Fehler",
+    "warnings": "Warnungen",
+    "total": "Gesamt",
+    "noData": "Keine Ereignisprotokoll-Daten vorhanden",
+    "noDataHint": "Führen Sie einen Job zum Sammeln der Ereignisprotokolle aus",
+    "criticalTitle": "Kritische und Sicherheitsereignisse",
+    "clearFilter": "Filter aufheben",
+    "chartLoading": "Diagramm wird geladen...",
+    "chartEmpty": "Keine Ereignisprotokoll-Daten vorhanden",
+    "levels": {
+      "audit": "Überwachung",
+      "critical": "Kritisch",
+      "error": "Fehler",
+      "warning": "Warnung",
+      "info": "Info",
+      "verbose": "Ausführlich",
+      "other": "Ebene {level}"
+    }
   }
 }

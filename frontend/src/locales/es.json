@@ -2648,5 +2648,35 @@
       "failed": "Fallida",
       "throttled": "Limitada"
     }
+  },
+  "eventlogPage": {
+    "title": "Registro de eventos de Windows",
+    "description": "Eventos de seguridad, sistema y aplicación",
+    "range": {
+      "1": "Última hora",
+      "6": "Últimas 6 horas",
+      "24": "Últimas 24 horas",
+      "48": "Últimas 48 horas",
+      "168": "Últimos 7 días"
+    },
+    "trendTitle": "Evolución de errores y advertencias (últimos 7 días)",
+    "errors": "Errores",
+    "warnings": "Advertencias",
+    "total": "Total",
+    "noData": "No hay datos del registro de eventos",
+    "noDataHint": "Ejecute un trabajo de recopilación del registro de eventos",
+    "criticalTitle": "Eventos críticos y de seguridad",
+    "clearFilter": "Quitar filtro",
+    "chartLoading": "Cargando gráfico...",
+    "chartEmpty": "No hay datos del registro de eventos",
+    "levels": {
+      "audit": "Auditoría",
+      "critical": "Crítico",
+      "error": "Error",
+      "warning": "Advertencia",
+      "info": "Información",
+      "verbose": "Detallado",
+      "other": "Nivel {level}"
+    }
   }
 }
