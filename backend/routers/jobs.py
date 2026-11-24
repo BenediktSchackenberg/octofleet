@@ -28,7 +28,6 @@ router = APIRouter(
 
 # Separate router for agent endpoints; each endpoint declares its permission.
 agent_router = APIRouter(prefix="/api/v1", tags=["jobs-agent"])
-logger = logging.getLogger(__name__)
 
 CHOCO_PACKAGES = {
     "notepad++": "notepadplusplus", "notepadplusplus": "notepadplusplus", "7zip": "7zip", "7-zip": "7zip", "vlc": "vlc", "git": "git",
