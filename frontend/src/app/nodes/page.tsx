@@ -1,16 +1,19 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
-import { StatusBadge, statusToVariant } from "@/components/ui/StatusBadge";
-import { Check, X, Clock, Monitor, LayoutGrid, List, Plus, Server } from "lucide-react";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Check, X, Clock, Monitor, LayoutGrid, List, Plus, Server, FolderTree } from "lucide-react";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { StandardPage } from "@/components/ui/StandardPage";
 import { NodeRemovalStatus } from "@/components/node-removal";
 import { useI18n } from "@/lib/i18n-context";
+import { useFleetTree } from "@/components/fleet/FleetTree";
+import { STATUS_DOT, STATUS_LABEL, STATUS_VARIANT, statusFromSearch, statusToUrl, type NodeStatus } from "@/lib/node-status";
+import { ALL_NODES, UNASSIGNED, scopeGroupName, scopeNodeIds } from "@/lib/fleet-scope";
 import { DEFAULT_DIR, NODE_SORTS, sortFromSearch, sortNodes, sortToUrl, type NodeSort, type SortDir } from "@/lib/node-sort";
 
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -24,6 +27,8 @@ interface Node {
   os_name: string;
   os_version: string;
   is_online: boolean;
+  /** online / away / offline by last contact (the dashboard's rule); is_online stays true once a node reported */
+  status: NodeStatus;
   last_seen: string;
   agent_version: string;
   cpu_name: string | null;
@@ -268,7 +273,20 @@ export default function NodesPage() {
     }
   }
 
-  const filteredNodes = sortNodes(nodes.filter(
+  // The branch picked in the Fleet tree (?group=&os=&release=); null: all nodes
+  const { tree, loading: treeLoading, scope, selectScope } = useFleetTree();
+  // ?status=online|away|offline - from the dashboard's Fleet status card
+  const searchParams = useSearchParams();
+  const statusFilter = statusFromSearch(searchParams.toString());
+  const clearStatus = () => window.history.pushState(null, "", statusToUrl(window.location.href, null));
+  const inScope = useMemo(() => scopeNodeIds(tree, scope), [tree, scope]);
+  const scopedNodes = inScope ? nodes.filter((n) => inScope.has(n.node_id)) : nodes;
+  const scopeLabel = scope.group
+    ? [scope.group === UNASSIGNED ? t("fleetTree.unassigned") : scopeGroupName(tree, scope) ?? t("fleetTree.unknownGroup"), scope.os, scope.release]
+        .filter(Boolean).join(" › ")
+    : null;
+
+  const filteredNodes = sortNodes(scopedNodes.filter(
     (node) => {
       const matchesSearch = node.hostname.toLowerCase().includes(search.toLowerCase()) ||
         node.node_id.toLowerCase().includes(search.toLowerCase()) ||
@@ -277,19 +295,21 @@ export default function NodesPage() {
       const matchesIssueFilter = !showOnlyIssues || 
         (node.health_status && node.health_status !== 'healthy');
       
-      return matchesSearch && matchesIssueFilter;
+      const matchesStatus = !statusFilter || node.status === statusFilter;
+
+      return matchesSearch && matchesIssueFilter && matchesStatus;
     }
   ), order.sort, order.dir);
 
-  const onlineCount = nodes.filter((n) => n.is_online).length;
-  const issueCount = nodes.filter((n) => n.health_status && n.health_status !== 'healthy').length;
+  const onlineCount = scopedNodes.filter((n) => n.status === "online").length;
+  const issueCount = scopedNodes.filter((n) => n.health_status && n.health_status !== 'healthy').length;
 
   return (
     <StandardPage
-      title={t("nodes.devices")}
-      description={`${t("nodes.onlineSummary", { online: onlineCount, total: nodes.length })}${pendingNodes.length > 0 ? ` • ${t("nodes.pendingSummary", { count: pendingNodes.length })}` : ""}`}
+      title={scopeLabel ?? t("nodes.devices")}
+      description={`${t("nodes.onlineSummary", { online: onlineCount, total: scopedNodes.length })}${!scopeLabel && pendingNodes.length > 0 ? ` • ${t("nodes.pendingSummary", { count: pendingNodes.length })}` : ""}`}
       icon={<Server className="h-6 w-6" />}
-      loading={loading}
+      loading={loading || (!!scope.group && !tree && treeLoading)}
       actions={
         <div className="flex gap-2">
           <OnboardingDialog trigger={
@@ -315,6 +335,24 @@ export default function NodesPage() {
       }
       filters={
         <div className="flex flex-wrap gap-4 items-center">
+          {statusFilter && (
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-zinc-700 bg-zinc-800/50 text-sm text-zinc-200">
+              <span className={`w-2 h-2 rounded-full ${STATUS_DOT[statusFilter]}`} /> {t(STATUS_LABEL[statusFilter])}
+              <button type="button" onClick={clearStatus} title={t("fleetTree.anyStatus")} aria-label={t("fleetTree.anyStatus")}
+                className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-700">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          )}
+          {scopeLabel && (
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-zinc-700 bg-zinc-800/50 text-sm text-zinc-200">
+              <FolderTree className="h-3.5 w-3.5 text-zinc-400" /> {scopeLabel}
+              <button type="button" onClick={() => selectScope(ALL_NODES)} title={t("fleetTree.showAll")} aria-label={t("fleetTree.showAll")}
+                className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-700">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          )}
           <input
             type="text"
             placeholder={`${t("common.search")}...`}
@@ -350,9 +388,9 @@ export default function NodesPage() {
         </div>
       }
     >
-        {/* Pending Nodes Section */}
+        {/* Pending Nodes Section (on the whole fleet only: waiting nodes are in no branch yet) */}
         <PendingNodesSection 
-          pendingNodes={pendingNodes}
+          pendingNodes={scopeLabel ? [] : pendingNodes}
           onApprove={handleApprove}
           onReject={handleReject}
           approving={approving}
@@ -375,7 +413,7 @@ export default function NodesPage() {
                       <span className="text-lg">{osIcon}</span>
                       <span className="font-semibold text-zinc-100">{node.hostname}</span>
                     </div>
-                    <span className={`w-2.5 h-2.5 rounded-full mt-1 ${node.is_online ? "bg-green-500 animate-pulse" : "bg-zinc-500"}`} />
+                    <span className={`w-2.5 h-2.5 rounded-full mt-1 ${STATUS_DOT[node.status] ?? STATUS_DOT.offline}`} title={t(STATUS_LABEL[node.status] ?? STATUS_LABEL.offline)} />
                   </div>
                   <div className="text-xs text-zinc-400 space-y-1">
                     <div>{node.os_name}</div>
@@ -393,7 +431,7 @@ export default function NodesPage() {
             })}
             {filteredNodes.length === 0 && (
               <div className="col-span-full text-center py-8 text-zinc-500">
-                {search ? t("nodes.noNodes") : t("nodes.noNodesYet")}
+                {search ? t("nodes.noNodes") : statusFilter ? t(`fleetTree.noneWithStatus.${statusFilter}`) : scopeLabel ? t("fleetTree.emptyBranch") : t("nodes.noNodesYet")}
               </div>
             )}
           </div>
@@ -416,8 +454,8 @@ export default function NodesPage() {
                   className="hover:bg-zinc-800/50 transition-colors"
                 >
                   <td className="p-4">
-                    <StatusBadge variant={statusToVariant(node.is_online ? 'online' : 'offline')} dot>
-                      {node.is_online ? t("common.online") : t("common.offline")}
+                    <StatusBadge variant={STATUS_VARIANT[node.status] ?? STATUS_VARIANT.offline} dot>
+                      {t(STATUS_LABEL[node.status] ?? STATUS_LABEL.offline)}
                     </StatusBadge>
                   </td>
                   <td className="p-4">
@@ -445,7 +483,7 @@ export default function NodesPage() {
               {filteredNodes.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-zinc-500">
-                    {search ? t("nodes.noNodes") : t("nodes.noNodesYet")}
+                    {search ? t("nodes.noNodes") : statusFilter ? t(`fleetTree.noneWithStatus.${statusFilter}`) : scopeLabel ? t("fleetTree.emptyBranch") : t("nodes.noNodesYet")}
                   </td>
                 </tr>
               )}

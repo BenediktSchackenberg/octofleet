@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 import node_removal
 from auth import require_auth, require_permission, require_user_permission
 from dependencies import API_KEY, get_db, not_found, verify_api_key
+from node_status import status_sql
 
 # Use the JWT secret from auth module
 try:
@@ -82,6 +83,7 @@ NODE_LIST_ORDER = "ORDER BY lower(n.hostname), n.node_id"
 NODE_LIST_SQL = """
     SELECT n.id, n.node_id, n.hostname, n.os_name, n.os_version, n.os_build,
            n.first_seen, n.last_seen, n.is_online, n.agent_version, n.removal_state,
+           """ + status_sql("n") + """ AS status,
            h.cpu->>'name' as cpu_name,
            (h.ram->>'totalGb')::numeric as total_memory_gb,
            COALESCE(a.critical, 0) AS critical_count, COALESCE(a.warning, 0) AS warning_count
@@ -133,9 +135,102 @@ async def list_nodes(
 
         return {"nodes": nodes_list}
 
+# The Fleet workspace's tree: one row per node with what places it in the tree - its groups (one
+# grouped pass over device_groups, hash-joined) and, for Windows, the feature version from the newest
+# posture snapshot (one index lookup per Windows node via idx_config_posture_node; Linux skips it)
+NODE_TREE_SUMMARY_SQL = """
+    SELECT n.node_id, n.os_name, n.os_version, """ + status_sql("n") + """ AS status, p.display_version,
+           COALESCE(g.ids, ARRAY[]::text[]) AS group_ids, COALESCE(g.names, ARRAY[]::text[]) AS group_names
+    FROM nodes n
+    LEFT JOIN LATERAL (
+        SELECT s.os_info->>'displayVersion' AS display_version FROM config_posture_snapshots s
+        WHERE s.node_id = n.node_id AND n.os_name ILIKE '%windows%'
+        ORDER BY s.created_at DESC LIMIT 1
+    ) p ON true
+    LEFT JOIN (
+        SELECT dg.node_id,
+               array_agg(gr.id::text ORDER BY lower(gr.name), gr.id) AS ids,
+               array_agg(gr.name ORDER BY lower(gr.name), gr.id) AS names
+        FROM device_groups dg JOIN groups gr ON gr.id = dg.group_id
+        GROUP BY dg.node_id
+    ) g ON g.node_id = n.id
+    """ + NODE_LIST_ORDER
+
+_FAMILY_ORDER = {"Windows": 0, "Linux": 1, "macOS": 2, "Other": 3, "Unknown": 4}
+_natural = re.compile(r"(\d+)")
+
+
+def _natural_key(text: str) -> list:
+    return [int(part) if part.isdigit() else part.lower() for part in _natural.split(text)]
+
+
+def _tree_summary(rows) -> dict:
+    """Counts per group -> OS family -> release, and "not in a group" the same way.
+
+    Each release lists its node IDs, so the Nodes list can show a branch without a request per
+    click; nodes are not listed by name (10,000 leaves are no tree). A node in two groups counts
+    in both; the totals at the top count each node once. Online: contact within 5 minutes
+    (node_status, as on the dashboard and in the list).
+    """
+    def branch():
+        return {"total": 0, "online": 0, "os": {}}
+
+    def add(target: dict, family: str, release: str, node_id: str, online: bool):
+        target["total"] += 1
+        target["online"] += online
+        fam = target["os"].setdefault(family, {"total": 0, "online": 0, "releases": {}})
+        fam["total"] += 1
+        fam["online"] += online
+        rel = fam["releases"].setdefault(release, {"total": 0, "online": 0, "node_ids": []})
+        rel["total"] += 1
+        rel["online"] += online
+        rel["node_ids"].append(node_id)
+
+    groups: dict = {}
+    unassigned = branch()
+    total = online_total = 0
+    for row in rows:
+        online = row["status"] == "online"
+        total += 1
+        online_total += online
+        family = _get_os_family(row["os_name"])
+        release = _os_product(row["os_name"], row["os_version"], row["display_version"])
+        if row["group_ids"]:
+            for group_id, name in zip(row["group_ids"], row["group_names"]):
+                group = groups.setdefault(group_id, {"id": group_id, "name": name, **branch()})
+                add(group, family, release, row["node_id"], online)
+        else:
+            add(unassigned, family, release, row["node_id"], online)
+
+    def as_lists(target: dict) -> dict:
+        families = sorted(target["os"].items(), key=lambda f: (_FAMILY_ORDER.get(f[0], 9), f[0]))
+        target["os"] = [
+            {"family": family, "total": f["total"], "online": f["online"],
+             "releases": [{"name": name, **r} for name, r in sorted(f["releases"].items(), key=lambda r: _natural_key(r[0]))]}
+            for family, f in families
+        ]
+        return target
+
+    return {
+        "total": total,
+        "online": online_total,
+        "groups": [as_lists(g) for g in sorted(groups.values(), key=lambda g: (g["name"].lower(), g["id"]))],
+        "unassigned": as_lists(unassigned),
+    }
+
+
 @router.get("/tree", dependencies=[Depends(require_user_permission("nodes:read"))])
-async def get_nodes_tree(db: asyncpg.Pool = Depends(get_db)):
-    """Get nodes organized in a tree structure by groups/OS/version"""
+async def get_nodes_tree(view: Optional[str] = None, db: asyncpg.Pool = Depends(get_db)):
+    """Get nodes organized in a tree structure by groups/OS/version.
+
+    `?view=summary`: counts per group -> OS family -> release with the node IDs per release (the
+    Fleet workspace's tree); without it, the nested tree with every node.
+    """
+    if view == "summary":
+        async with db.acquire() as conn:
+            return _tree_summary(await conn.fetch(NODE_TREE_SUMMARY_SQL))
+    if view is not None:
+        raise HTTPException(status_code=422, detail="view must be 'summary' or left out")
     async with db.acquire() as conn:
         nodes = await conn.fetch("""
             SELECT n.node_id, n.hostname, n.os_name, n.os_version, n.last_seen, n.is_online,

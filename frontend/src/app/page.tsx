@@ -9,13 +9,8 @@ import { FAILED_JOBS_PATH } from "@/lib/tasks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { NodeTree } from "@/components/NodeTree";
-import { GlobalSearch } from "@/components/GlobalSearch";
-import { PerformanceTab } from "@/components/performance-tab";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Cpu, HardDrive, Shield, Globe, Cookie, Users, MemoryStick, TrendingUp, Search, Plus, Bug, Bell as BellIcon, Zap, Star, Clock } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Shield, TrendingUp, Plus, Bug, Bell as BellIcon, Zap, Star, Clock } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { useAuth } from "@/lib/auth-context";
@@ -149,20 +144,11 @@ export default function HomePage() {
   const router = useRouter();
   const { isAdmin, user } = useAuth();
   const { t } = useI18n();
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [timeseries, setTimeseries] = useState<{timeseries: Array<{time: string; cpu: number; ram: number; disk: number; nodes: number}>; current: {cpu: number; ram: number; disk: number}} | null>(null);
   const [sqlCatalog, setSqlCatalog] = useState<{versions: Array<{version: string; count: number; latestCu: number}>; total: number} | null>(null);
-  const [nodeData, setNodeData] = useState<any>(null);
-  const [hardware, setHardware] = useState<any>(null);
-  const [software, setSoftware] = useState<any[]>([]);
-  const [security, setSecurity] = useState<any>(null);
-  const [network, setNetwork] = useState<any>(null);
-  const [browser, setBrowser] = useState<any>(null);
-  const [hotfixes, setHotfixes] = useState<any>({ hotfixes: [], updateHistory: [] });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
   const [systemHealth, setSystemHealth] = useState<{status: string, database: string} | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [taskCounts, setTaskCounts] = useState<{ approvals: number; findings: number; failedJobs: number; offline: number } | null>(null);
@@ -195,21 +181,6 @@ export default function HomePage() {
     fetchTaskCounts();
     fetchEventStats();
   }, []);
-
-  useEffect(() => {
-    if (selectedNodeId) {
-      setActiveTab("overview");
-      fetchFullNodeData(selectedNodeId);
-    } else {
-      setNodeData(null);
-      setHardware(null);
-      setSoftware([]);
-      setSecurity(null);
-      setNetwork(null);
-      setBrowser(null);
-      setHotfixes({ hotfixes: [], updateHistory: [] });
-    }
-  }, [selectedNodeId]);
 
   async function fetchSummary() {
     try {
@@ -296,400 +267,13 @@ export default function HomePage() {
     if (data) setTimeseries(data);
   }
 
-  async function fetchFullNodeData(nodeId: string) {
-    try {
-      const [nodeData, hwData, swData, secData, netData, brData, hfData] = await Promise.all([
-        apiClient.get<any>(`/nodes/${nodeId}`),
-        apiClient.get<any>(`/inventory/hardware/${nodeId}`),
-        apiClient.get<any>(`/inventory/software/${nodeId}`),
-        apiClient.get<any>(`/inventory/security/${nodeId}`),
-        apiClient.get<any>(`/inventory/network/${nodeId}`),
-        apiClient.get<any>(`/inventory/browser/${nodeId}`),
-        apiClient.get<any>(`/inventory/hotfixes/${nodeId}`),
-      ]);
-
-      if (nodeData) setNodeData(nodeData);
-      if (hwData) setHardware(hwData.data || hwData);
-      if (swData) setSoftware(swData.data?.installedPrograms || swData.data?.software || swData.software || swData.installedPrograms || swData.data || swData || []);
-      if (secData) setSecurity(secData.data || secData);
-      if (netData) setNetwork(netData.data || netData);
-      if (brData) setBrowser(brData.data || brData);
-      if (hfData) {
-        const resolved = hfData.data || hfData;
-        setHotfixes({
-          hotfixes: resolved.hotfixes || [],
-          updateHistory: resolved.updateHistory || []
-        });
-      }
-    } catch (e) {
-      console.error("Failed to fetch node data:", e);
-    }
-  }
-
-  function handleNodeSelect(nodeId: string) {
-    router.push(`/nodes/${nodeId}`);
-  }
-
-  function formatRelativeTime(timestamp: string | null) {
-    if (!timestamp) return t("time.never");
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMinutes = (now.getTime() - date.getTime()) / 1000 / 60;
-    if (diffMinutes < 1) return t("time.now");
-    if (diffMinutes < 60) return t("time.minutesAgo", { minutes: Math.floor(diffMinutes) });
-    if (diffMinutes < 1440) return t("time.hoursAgo", { hours: Math.floor(diffMinutes / 60) });
-    return t("time.daysAgo", { days: Math.floor(diffMinutes / 1440) });
-  }
-
-  function getStatusBadge(lastSeen: string) {
-    const date = new Date(lastSeen);
-    const now = new Date();
-    const diffMinutes = (now.getTime() - date.getTime()) / 1000 / 60;
-    if (diffMinutes < 5) return <Badge className="bg-green-600">{t("common.online")}</Badge>;
-    if (diffMinutes < 60) return <Badge className="bg-yellow-600">{t("nodeDetail.away")}</Badge>;
-    return <Badge variant="secondary">{t("common.offline")}</Badge>;
-  }
-
-  // Info row helper
-  const InfoRow = ({ label, value }: { label: string; value: any }) => (
-    <div className="flex justify-between py-1">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right max-w-[60%] truncate" title={String(value)}>{value ?? "-"}</span>
-    </div>
-  );
-
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Node Tree */}
-        <aside className="w-64 border-r overflow-y-auto bg-muted/30">
-          <div className="p-3 border-b flex items-center gap-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <GlobalSearch onNodeSelect={handleNodeSelect} />
-          </div>
-          <div className="p-2 border-b">
-            <h2 className="text-sm font-semibold text-muted-foreground px-2">{t("nodes.title")}</h2>
-          </div>
-          <NodeTree 
-            onNodeSelect={handleNodeSelect} 
-            selectedNodeId={selectedNodeId || undefined}
-          />
-        </aside>
-
         {/* Main Area */}
         <main className="flex-1 overflow-y-auto p-6">
-          {selectedNodeId && nodeData ? (
-            /* Full Node Detail View with Tabs */
-            <div>
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">{nodeData.hostname}</h2>
-                    {getStatusBadge(nodeData.last_seen)}
-                  </div>
-                  <p className="text-muted-foreground text-sm">{nodeData.node_id}</p>
-                </div>
-                <Button variant="outline" onClick={() => setSelectedNodeId(null)}>
-                  {t("nodeDetail.backToDashboard")}
-                </Button>
-              </div>
-
-              {/* Tabs */}
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="mb-4 flex-wrap h-auto gap-1">
-                  <TabsTrigger value="overview" className="gap-1"><Monitor className="h-4 w-4" /> {t("nodeDetail.tabs.overview")}</TabsTrigger>
-                  <TabsTrigger value="performance" className="gap-1"><TrendingUp className="h-4 w-4" /> {t("nodeDetail.tabs.performance")}</TabsTrigger>
-                  <TabsTrigger value="hardware" className="gap-1"><Cpu className="h-4 w-4" /> {t("nodes.hardware")}</TabsTrigger>
-                  <TabsTrigger value="software" className="gap-1"><Package className="h-4 w-4" /> {t("nodes.software")} ({software.length})</TabsTrigger>
-                  <TabsTrigger value="security" className="gap-1"><Shield className="h-4 w-4" /> {t("nodes.security")}</TabsTrigger>
-                  <TabsTrigger value="network" className="gap-1"><Globe className="h-4 w-4" /> {t("nodes.network")}</TabsTrigger>
-                  <TabsTrigger value="browser" className="gap-1"><Cookie className="h-4 w-4" /> {t("nodeDetail.tabs.browser")}</TabsTrigger>
-                  <TabsTrigger value="updates" className="gap-1"><HardDrive className="h-4 w-4" /> {t("nodeDetail.tabs.updates")} ({hotfixes.hotfixes?.length || 0})</TabsTrigger>
-                </TabsList>
-
-                {/* Overview Tab */}
-                <TabsContent value="overview">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Card>
-                      <CardHeader><CardTitle className="text-lg">{t("dashboard.node.system")}</CardTitle></CardHeader>
-                      <CardContent className="text-sm space-y-1">
-                        <InfoRow label="OS" value={`${nodeData.os_name || ''} ${nodeData.os_version || ''}`} />
-                        <InfoRow label={t("dashboard.node.build")} value={nodeData.os_build} />
-                        <InfoRow label={t("nodes.agent")} value={nodeData.agent_version} />
-                        <InfoRow label={t("nodeDetail.firstSeen")} value={formatRelativeTime(nodeData.first_seen)} />
-                        <InfoRow label={t("nodes.lastSeen")} value={formatRelativeTime(nodeData.last_seen)} />
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader><CardTitle className="text-lg">{t("nodes.hardware")}</CardTitle></CardHeader>
-                      <CardContent className="text-sm space-y-1">
-                        <InfoRow label="CPU" value={hardware?.cpu?.name} />{/* i18n-ignore */}
-                        <InfoRow label={t("nodeDetail.cores")} value={hardware?.cpu?.cores} />
-                        <InfoRow label="RAM" value={hardware?.ram?.totalGB ? `${hardware.ram.totalGB} GB` : (hardware?.ram?.totalGb ? `${hardware.ram.totalGb.toFixed(1)} GB` : null)} />{/* i18n-ignore */}
-                        <InfoRow label={t("nodeDetail.gpus")} value={hardware?.gpu?.length || 0} />
-                      </CardContent>
-                    </Card>
-                    <Card className={!nodeData.groups?.length ? "border-yellow-500/50" : ""}>
-                      <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          {t("dashboard.node.groups")}
-                          {!nodeData.groups?.length && (
-                            <Badge variant="outline" className="text-yellow-500 border-yellow-500 ml-auto">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              {t("dashboard.node.unassigned")}
-                            </Badge>
-                          )}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {nodeData.groups?.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {nodeData.groups.map((g: any) => (
-                              <Badge key={g.id} variant="secondary">{g.name}</Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-sm">
-                            <p className="text-muted-foreground mb-2">{t("dashboard.node.noGroup")}</p>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href="/groups">{t("dashboard.node.manageGroups")}</Link>
-                            </Button>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                {/* Performance Tab */}
-                <TabsContent value="performance">
-                  {selectedNodeId && <PerformanceTab nodeId={selectedNodeId} />}
-                </TabsContent>
-
-                {/* Hardware Tab */}
-                <TabsContent value="hardware">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Card>
-                      <CardHeader><CardTitle>🖥️ CPU</CardTitle></CardHeader>{/* i18n-ignore */}
-                      <CardContent className="text-sm space-y-1">
-                        <InfoRow label={t("common.name")} value={hardware?.cpu?.name} />
-                        <InfoRow label={t("nodeDetail.cores")} value={hardware?.cpu?.cores} />
-                        <InfoRow label={t("nodeDetail.threads")} value={hardware?.cpu?.logicalProcessors} />
-                        <InfoRow label={t("dashboard.node.clock")} value={hardware?.cpu?.maxClockSpeed ? `${hardware.cpu.maxClockSpeed} MHz` : null} />
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader><CardTitle>💾 RAM</CardTitle></CardHeader>{/* i18n-ignore */}
-                      <CardContent className="text-sm space-y-1">
-                        <InfoRow label={t("nodeDetail.total")} value={hardware?.ram?.totalGB ? `${hardware.ram.totalGB} GB` : (hardware?.ram?.totalGb ? `${hardware.ram.totalGb.toFixed(1)} GB` : null)} />
-                        <InfoRow label={t("dashboard.node.modules")} value={hardware?.ram?.modules?.length || 0} />
-                        {hardware?.ram?.modules?.slice(0, 4).map((m: any, i: number) => (
-                          <InfoRow key={i} label={t("dashboard.node.slot", { number: i + 1 })} value={`${m.capacityGB} GB ${m.memoryType || ''}`} />
-                        ))}
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader><CardTitle>🎮 {t("nodeDetail.gpus")}</CardTitle></CardHeader>
-                      <CardContent className="text-sm space-y-2">
-                        {hardware?.gpu?.length > 0 ? hardware.gpu.map((g: any, i: number) => (
-                          <div key={i} className="border-b pb-2 last:border-0">
-                            <p className="font-medium">{g.name}</p>
-                            <p className="text-muted-foreground text-xs">{g.videoMemoryGB ? `${g.videoMemoryGB} GB VRAM` : ''} • {g.driverVersion || ''}</p>{/* i18n-ignore */}
-                          </div>
-                        )) : <p className="text-muted-foreground">{t("dashboard.node.noGpus")}</p>}
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader><CardTitle>💿 {t("dashboard.node.drives")}</CardTitle></CardHeader>
-                      <CardContent className="text-sm space-y-2">
-                        {hardware?.disks?.physicalDisks?.length > 0 ? hardware.disks.physicalDisks.map((d: any, i: number) => (
-                          <div key={i} className="border-b pb-2 last:border-0">
-                            <p className="font-medium">{d.model || d.friendlyName || t("dashboard.node.disk", { number: i + 1 })}</p>
-                            <p className="text-muted-foreground text-xs">{d.sizeGB ? `${d.sizeGB} GB` : ''} • {d.mediaType || d.busType}</p>
-                          </div>
-                        )) : hardware?.disks?.volumes?.length > 0 ? hardware.disks.volumes.slice(0, 5).map((v: any, i: number) => (
-                          <div key={i} className="border-b pb-2 last:border-0">
-                            <p className="font-medium">{v.driveLetter} {v.volumeName || ''}</p>
-                            <p className="text-muted-foreground text-xs">{v.sizeGB ? `${v.sizeGB.toFixed(0)} GB` : ''} • {v.freeGB ? t("dashboard.node.gbFree", { value: v.freeGB.toFixed(0) }) : ''}</p>
-                          </div>
-                        )) : <p className="text-muted-foreground">{t("dashboard.node.noDisks")}</p>}
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                {/* Software Tab */}
-                <TabsContent value="software">
-                  <Card>
-                    <CardHeader><CardTitle>📦 {t("nodeDetail.installedSoftware", { count: software.length })}</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="max-h-[500px] overflow-y-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>{t("common.name")}</TableHead>
-                              <TableHead>{t("nodeDetail.version")}</TableHead>
-                              <TableHead>{t("nodeDetail.publisher")}</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {software.slice(0, 100).map((sw: any, i: number) => (
-                              <TableRow key={i}>
-                                <TableCell className="font-medium">{sw.name}</TableCell>
-                                <TableCell className="font-mono text-xs">{sw.version}</TableCell>
-                                <TableCell className="text-muted-foreground">{sw.publisher}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                        {software.length > 100 && (
-                          <p className="text-muted-foreground text-sm mt-2">{t("dashboard.node.moreItems", { count: software.length - 100 })}</p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* Security Tab */}
-                <TabsContent value="security">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Card>
-                      <CardHeader><CardTitle>🛡️ Windows Defender</CardTitle></CardHeader>{/* i18n-ignore */}
-                      <CardContent className="text-sm space-y-1">
-                        <InfoRow label={t("dashboard.node.antivirus")} value={security?.defender?.antivirusEnabled ? `✅ ${t("common.active")}` : `❌ ${t("common.inactive")}`} />
-                        <InfoRow label={t("dashboard.node.realtime")} value={security?.defender?.realTimeProtection ? `✅ ${t("common.active")}` : `❌ ${t("common.inactive")}`} />
-                        <InfoRow label={t("dashboard.node.signatures")} value={security?.defender?.signatureVersion} />
-                        <InfoRow label={t("dashboard.node.lastUpdate")} value={security?.defender?.lastSignatureUpdate} />
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader><CardTitle>🔥 Firewall</CardTitle></CardHeader>{/* i18n-ignore */}
-                      <CardContent className="text-sm space-y-1">
-                        {security?.firewall?.profiles ? (
-                          Array.isArray(security.firewall.profiles) 
-                            ? security.firewall.profiles.map((p: any, i: number) => (
-                                <InfoRow key={i} label={p.name} value={p.enabled ? "✅ Aktiv" : "❌ Inaktiv"} />
-                              ))
-                            : Object.entries(security.firewall.profiles).map(([name, data]: [string, any]) => (
-                                <InfoRow key={name} label={name} value={data?.enabled ? "✅ Aktiv" : "❌ Inaktiv"} />
-                              ))
-                        ) : <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>}
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader><CardTitle>👤 {t("dashboard.node.users")}</CardTitle></CardHeader>
-                      <CardContent className="text-sm space-y-1">
-                        <InfoRow label={t("dashboard.node.signedIn")} value={security?.users?.currentUser} />
-                        <InfoRow label={t("nodeDetail.localAdmins")} value={security?.users?.localAdmins?.join(", ")} />
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader><CardTitle>🔐 BitLocker</CardTitle></CardHeader>{/* i18n-ignore */}
-                      <CardContent className="text-sm space-y-1">
-                        {security?.bitlocker?.volumes?.length > 0 ? security.bitlocker.volumes.map((v: any, i: number) => (
-                          <InfoRow key={i} label={v.mountPoint || t("dashboard.node.volume", { number: i + 1 })} value={v.protectionStatus || v.encryptionPercentage + "%"} />
-                        )) : <p className="text-muted-foreground">{t("dashboard.node.noBitlocker")}</p>}
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                {/* Network Tab */}
-                <TabsContent value="network">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {(hardware?.nics?.adapters?.length > 0 ? hardware.nics.adapters : network?.adapters)?.map((nic: any, i: number) => (
-                      <Card key={i}>
-                        <CardHeader><CardTitle className="text-lg">{nic.name || nic.description}</CardTitle></CardHeader>
-                        <CardContent className="text-sm space-y-1">
-                          <InfoRow label={t("common.status")} value={nic.connectionStatus || nic.status} />
-                          <InfoRow label="MAC" value={nic.macAddress} />{/* i18n-ignore */}
-                          <InfoRow label={t("nodeDetail.speed")} value={nic.speedMbps ? `${nic.speedMbps} Mbps` : nic.linkSpeed} />
-                          <InfoRow label={t("nodeDetail.type")} value={nic.adapterType || nic.type} />
-                        </CardContent>
-                      </Card>
-                    )) || <p className="text-muted-foreground col-span-2">{t("dashboard.node.noAdapters")}</p>}
-                    
-                    {/* Network Connections Summary */}
-                    {network?.connections && (
-                      <Card className="md:col-span-2">
-                        <CardHeader><CardTitle>🌐 {t("dashboard.node.connections", { count: network.connections.total })}</CardTitle></CardHeader>
-                        <CardContent className="text-sm">
-                          <div className="flex gap-4 flex-wrap">
-                            {network.connections.summary?.map((s: any, i: number) => (
-                              <Badge key={i} variant="outline">{s.state}: {s.count}</Badge>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                </TabsContent>
-
-                {/* Browser Tab */}
-                <TabsContent value="browser">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {browser?.users && Object.entries(browser.users).map(([userName, browsers]: [string, any]) => (
-                      Object.entries(browsers).map(([browserName, data]: [string, any]) => {
-                        const profile = data.profiles?.[0];
-                        return (
-                          <Card key={`${userName}-${browserName}`}>
-                            <CardHeader>
-                              <CardTitle className="text-lg">
-                                {browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊'} {browserName}
-                              </CardTitle>
-                              <CardDescription>{t("dashboard.node.browserUser", { user: userName })}</CardDescription>
-                            </CardHeader>
-                            <CardContent className="text-sm space-y-1">
-                              <InfoRow label={t("nodeDetail.profile")} value={profile?.name || data.profiles?.length || 0} />
-                              <InfoRow label={t("nodeDetail.history")} value={profile?.historyCount || 0} />
-                              <InfoRow label={t("nodeDetail.bookmarks")} value={profile?.bookmarkCount || 0} />
-                              <InfoRow label={t("dashboard.node.passwords")} value={profile?.passwordCount || "-"} />
-                              <InfoRow label={t("nodeDetail.extensions")} value={data.extensionCount || 0} />
-                            </CardContent>
-                          </Card>
-                        );
-                      })
-                    ))}
-                    {(!browser?.users || Object.keys(browser.users).length === 0) && (
-                      <p className="text-muted-foreground col-span-3">{t("nodeDetail.noBrowserData")}</p>
-                    )}
-                  </div>
-                </TabsContent>
-
-                {/* Updates Tab */}
-                <TabsContent value="updates">
-                  <Card>
-                    <CardHeader><CardTitle>🔄 {t("dashboard.node.installedUpdates", { count: hotfixes.hotfixes?.length || 0 })}</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="max-h-[400px] overflow-y-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>{t("dashboard.node.hotfixId")}</TableHead>
-                              <TableHead>{t("common.description")}</TableHead>
-                              <TableHead>{t("nodeDetail.installedOn")}</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {hotfixes.hotfixes?.slice(0, 50).map((hf: any, i: number) => (
-                              <TableRow key={i}>
-                                <TableCell className="font-mono">{hf.hotfixId}</TableCell>
-                                <TableCell>{hf.description}</TableCell>
-                                <TableCell>{formatLocalDate(hf.installedOn)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </div>
-          ) : (
+          {
             /* Dashboard Overview */
             loading ? (
               <DashboardSkeleton />
@@ -803,30 +387,36 @@ export default function HomePage() {
               {/* Bento Grid */}
               <div className="grid grid-cols-12 gap-6">
                 
-                {/* Fleet Status - 3 cols */}
+                {/* Fleet Status - 3 cols: links into Fleet -> Nodes, filtered by the same status */}
                 <Card className="col-span-12 md:col-span-3 border-primary/10 bg-gradient-to-br from-card to-primary/5 shadow-md">
                   <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
+                    <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-primary">
                       {t("dashboard.fleetStatus")}
+                      <Link href="/nodes" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">{t("dashboard.showNodes")}</Link>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="text-6xl font-black mb-4 tracking-tighter">{summary?.counts.total || 0}</div>
+                    <Link href="/nodes" className="block text-6xl font-black mb-4 tracking-tighter hover:text-primary transition-colors" title={t("dashboard.showNodes")}>
+                      {summary?.counts.total || 0}
+                    </Link>
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          <span className="text-muted-foreground">{t("common.online")}</span>
-                        </div>
-                        <span className="font-bold">{summary?.counts.online || 0}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-zinc-500" />
-                          <span className="text-muted-foreground">{t("common.offline")}</span>
-                        </div>
-                        <span className="font-bold">{summary?.counts.offline || 0}</span>
-                      </div>
+                      {([
+                        ["online", "common.online", "bg-green-500 animate-pulse"],
+                        ["away", "nodeDetail.away", "bg-yellow-500"],
+                        ["offline", "common.offline", "bg-zinc-500"],
+                      ] as const).filter(([status]) => status !== "away" || (summary?.counts.away ?? 0) > 0).map(([status, label, dot]) => (
+                        <Link
+                          key={status}
+                          href={`/nodes?status=${status}`}
+                          className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${dot}`} />
+                            <span className="text-muted-foreground">{t(label)}</span>
+                          </div>
+                          <span className="font-bold">{summary?.counts[status] || 0}</span>
+                        </Link>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
@@ -972,7 +562,7 @@ export default function HomePage() {
                                   <div 
                                     key={i} 
                                     className="grid grid-cols-[1fr_75px_75px_75px_80px] gap-2 items-center py-2 px-2 hover:bg-primary/5 rounded-lg border border-transparent hover:border-primary/10 transition-all cursor-pointer group"
-                                    onClick={() => handleNodeSelect(node.nodeId)}
+                                    onClick={() => router.push(`/nodes/${node.nodeId}`)}
                                   >
                                     <span className="font-bold text-xs truncate group-hover:text-primary transition-colors">{node.hostname}</span>
                                     <HeatBar value={cpu} colorClass="bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
@@ -1200,7 +790,7 @@ export default function HomePage() {
             </div>
             </RoleDashboard>
             )
-          )}
+          }
         </main>
       </div>
     </div>

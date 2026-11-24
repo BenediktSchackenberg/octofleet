@@ -102,6 +102,7 @@ Now that you have a node reporting in, explore these features:
 
 - **📊 Dashboard** — Fleet overview with health status and hotspot matrix
 - **✅ Tasks** — What needs attention: agents waiting for approval, failed jobs, remediations and alert deliveries (last 7 days), nodes with critical CVEs, critical security findings and offline devices – each with its status, time and a link to it. The dashboard's "Open tasks" and the sidebar badges count the same way (failed jobs of the last 7 days, with a tooltip) and link to the matching filter; the jobs page shows only failed jobs with `?status=failed`.
+- **🗂️ Fleet → Nodes** — The tree on the left groups the nodes by group, OS and release (and those in no group); pick a branch to list its nodes. The tree stays next to a node's page, so you keep your place.
 - **🖥️ Node Details** — Click any node for deep hardware/software inventory
   - **Collect inventory** asks the agent for a fresh inventory, instead of waiting for the next scheduled push.
   - The **Jobs** and **Patches** counts link to the node's own jobs and open patches.
