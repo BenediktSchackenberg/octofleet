@@ -246,7 +246,7 @@ $serviceName = 'OctofleetNodeAgent'
 $sourcePath = '{sourcePath.Replace("'", "''")}'
 $targetPath = '{targetPath.Replace("'", "''")}'
 $newVersion = '{version}'
-$logFile = Join-Path $env:ProgramData 'Octofleet\logs\update.log'
+$logFile = Join-Path $env:windir 'Logs\Octofleet\update.log'
 
 # Ensure log directory exists
 $logDir = Split-Path $logFile -Parent

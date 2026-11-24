@@ -263,7 +263,7 @@ try {
         Write-Host "   $($evt.TimeCreated): $($evt.Message)" -ForegroundColor Gray
     }
     Write-Host ""
-    Write-Host "Check logs at: C:\ProgramData\Octofleet\logs" -ForegroundColor Yellow
+    Write-Host "Check logs at: C:\Windows\Logs\Octofleet" -ForegroundColor Yellow
     exit 1
 }
 

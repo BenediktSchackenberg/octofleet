@@ -293,6 +293,16 @@ function Install-OctofleetAgent {
         
         $config | ConvertTo-Json -Depth 10 | Out-File -FilePath $configPath -Encoding UTF8
     }
+
+    # The config holds the agent key: only SYSTEM and Administrators may use the folder
+    # (ProgramData lets every local user read it and create files in it). The logs are in
+    # C:\Windows\Logs\Octofleet. The service applies the same rules at every start, checks them
+    # hourly and encrypts the key in the config for SYSTEM.
+    Write-Status "Restricting $configDir to SYSTEM and Administrators..."
+    & icacls.exe $configDir /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /C | Out-Null
+    if (Get-ChildItem -LiteralPath $configDir -Force) {
+        & icacls.exe (Join-Path $configDir "*") /reset /T /C | Out-Null
+    }
     
     # Fix .NET single-file extraction issue (required for some systems without proper TEMP)
     $extractDir = Join-Path $env:ProgramData "Octofleet\extract"

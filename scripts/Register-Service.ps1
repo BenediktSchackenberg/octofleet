@@ -133,7 +133,7 @@ if ($service.Status -eq "Running") {
 } else {
     Write-Host ""
     Write-Host "WARNING: Service status is $($service.Status)" -ForegroundColor Yellow
-    Write-Host "Check logs at: C:\ProgramData\Octofleet\logs" -ForegroundColor Yellow
+    Write-Host "Check logs at: C:\Windows\Logs\Octofleet" -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -147,5 +147,5 @@ Write-Host "Commands:" -ForegroundColor Yellow
 Write-Host "  Start:   Start-Service $ServiceName"
 Write-Host "  Stop:    Stop-Service $ServiceName"
 Write-Host "  Status:  Get-Service $ServiceName"
-Write-Host "  Logs:    Get-Content 'C:\ProgramData\Octofleet\logs\*.log' -Tail 50"
+Write-Host "  Logs:    Get-Content 'C:\Windows\Logs\Octofleet\*.log' -Tail 50"
 Write-Host ""

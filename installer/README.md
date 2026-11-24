@@ -90,13 +90,13 @@ Run the migration script to cleanly remove old "OpenClaw" agents:
 |------|-------------|
 | `C:\Program Files\Octofleet\` | Service binaries |
 | `C:\ProgramData\Octofleet\service-config.json` | Configuration |
-| `C:\ProgramData\Octofleet\logs\` | Log files |
+| `C:\Windows\Logs\Octofleet\` | Log files |
 
 ## Troubleshooting
 
 **Service not starting:**
 ```powershell
-Get-Content "C:\ProgramData\Octofleet\logs\*.log" -Tail 50
+Get-Content "C:\Windows\Logs\Octofleet\*.log" -Tail 50
 ```
 
 **Config not written:**

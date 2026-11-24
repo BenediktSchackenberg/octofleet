@@ -19,6 +19,7 @@
 param(
     [string]$InstallPath = "C:\Program Files\Octofleet",
     [string]$DataPath = (Join-Path $env:ProgramData "Octofleet"),
+    [string]$LogPath = (Join-Path $env:windir "Logs\Octofleet"),
     [int]$DelaySeconds = 0,
     [string]$LogFile
 )
@@ -69,7 +70,7 @@ if ($LASTEXITCODE -eq 0) {
 
 Start-Sleep -Seconds 2
 $allRemoved = $true
-foreach ($dir in @($InstallPath, $DataPath)) {
+foreach ($dir in @($InstallPath, $DataPath, $LogPath)) {
     for ($attempt = 1; $attempt -le 3 -and (Test-Path $dir); $attempt++) {
         Remove-Item -Path $dir -Recurse -Force -ErrorAction SilentlyContinue
         if (Test-Path $dir) { Start-Sleep -Seconds 2 }

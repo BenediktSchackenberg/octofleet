@@ -26,7 +26,7 @@ The database container uses these fixed values (change in `docker-compose.yml` i
 |----------|---------|-------------|
 | `DATABASE_URL` | `postgresql://octofleet:<DB_PASSWORD>@db:5432/inventory` | Full PostgreSQL connection string (set by `docker-compose.yml` from `DB_PASSWORD`) |
 | `JWT_SECRET` | *(required)* | Secret key for signing login sessions. Use a random string of 32+ characters, e.g. `openssl rand -hex 32`. |
-| `API_KEY` | *(required)* | API key for agent authentication. Must match the key configured on agents. |
+| `API_KEY` | *(required)* | API key for agent authentication. Must match the key configured on agents. Every managed machine stores it, so it has the agent's permissions only (inventory, job polls and results); administrative actions need a user login or an API key from **API Keys** (`/api-keys`). |
 | `ADMIN_PASSWORD` | *(empty)* | Password of the `admin` user, used only on the very first start (12–72 characters, not `admin`; otherwise the backend does not start). Empty: the backend prints a one-time password to its log and asks for a new one after the first login. |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins. Use comma-separated URLs for production (e.g., `https://octofleet.example.com`). |
 | `LOG_LEVEL` | `info` | Backend log level until the setting from **Admin → Logging** is loaded at startup (`error`, `warning`, `info`, `debug`); see [Logging](#logging). |

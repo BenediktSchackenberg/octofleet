@@ -284,9 +284,11 @@ def require_scope(scope: str):
         # JWT users bypass scope checks (they use role-based permissions)
         if isinstance(auth, dict) and "scopes" not in auth:
             return auth
-        # Centralized API key (env var) gets all scopes
+        # The central agent key (env var) has the agent scope only
         if isinstance(auth, str):
-            return auth
+            if scope == "agent":
+                return auth
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"API key missing required scope: {scope}")
         # Check scopes from API key
         scopes = getattr(request.state, "api_key_scopes", [])
         if "admin" in scopes or scope in scopes:
