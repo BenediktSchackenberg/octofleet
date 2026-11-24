@@ -6588,9 +6588,10 @@ async def export_file_activity(
                            "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]} for r in rows]}
 
 
-@app.get("/api/v1/admin/agent-live")
-async def agent_live_sse(request: Request, token: str = None):
-    """SSE endpoint for live agent activity stream."""
+@app.get("/api/v1/admin/agent-live", dependencies=[Depends(verify_api_key_or_query)])
+async def agent_live_sse(request: Request):
+    """SSE endpoint for live agent activity stream. EventSource cannot send headers, so the
+    session token may come as ?token= (verify_api_key_or_query), like on the other streams."""
     async def event_generator():
         last_idx = len(_agent_activity_buffer)
         last_node_check = 0
