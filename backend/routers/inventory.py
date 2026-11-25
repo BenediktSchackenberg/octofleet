@@ -15,6 +15,8 @@ from alerting import update_node_health
 from app.db.nodes import os_build_from, update_dynamic_device_groupships, upsert_node
 from auth import require_permission, require_user_permission
 from dependencies import get_db, not_found, parse_datetime, sanitize_for_postgres
+from disk_inventory import distinct_volumes
+from disk_inventory import physical_disks as real_disks
 from routers.patches import (
     linux_reboot_behavior,
     record_installed_from_history,
@@ -84,7 +86,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                 elif isinstance(disks, list):
                     volumes = disks
                 
-                for pdisk in physical:
+                for pdisk in real_disks({"physical": physical}):
                     if not isinstance(pdisk, dict): continue
                     health = (pdisk.get('healthStatus') or 'unknown').lower()
                     if health == 'healthy': physical_disk_health['healthy'] += 1
@@ -110,8 +112,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                         "healthStatus": pdisk.get('healthStatus', 'Unknown'), "temperature": pdisk.get('temperature'), "wearLevel": pdisk.get('wearLevel')
                     })
                 
-                for vol in volumes:
-                    if not isinstance(vol, dict): continue
+                for vol in distinct_volumes(volumes):
                     size_gb = vol.get('sizeGB', 0)
                     free_gb = vol.get('freeGB', 0)
                     total_storage_tb += size_gb / 1024

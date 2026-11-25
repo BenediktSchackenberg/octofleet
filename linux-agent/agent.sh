@@ -332,9 +332,11 @@ collect_hardware() {
     # Disks: physical disks (lsblk) and mounted volumes (findmnt)
     # Virtual disks report "rotational" whatever is behind them, so no SSD/HDD on a VM
     # (the Windows agent reports none there either).
+    # zram (compressed swap in RAM) and ram disks are listed as type "disk" but are not disks.
     local physical=$(lsblk -J -b -d -o NAME,MODEL,VENDOR,SIZE,TYPE,TRAN,ROTA,SERIAL 2>/dev/null | \
         jq -c --argjson virtual "$([[ -n "$hypervisor" ]] && echo true || echo false)" '
         [.blockdevices[]? | select(.type == "disk") |
+         select(.name | test("^(zram|ram)[0-9]+$") | not) |
          {deviceId: ("/dev/" + .name),
           model: ((.model // .name) | gsub("^\\s+|\\s+$"; "")),
           manufacturer: ((.vendor // "") | gsub("^\\s+|\\s+$"; "")),
