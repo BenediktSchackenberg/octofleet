@@ -99,6 +99,9 @@ export interface SystemData {
   osVersion?: string;
   osBuild?: string;
   uptimeFormatted?: string;
+  uptimeHours?: number | null;
+  /** As the agent reported it, without offset: Windows the node's local time, Linux UTC */
+  lastBootTime?: string | null;
   computerName?: string;
   domain?: string;
   workgroup?: string;
@@ -258,6 +261,23 @@ export function useNodeDetails(nodeId: string) {
   }
 
   /**
+   * Reload only what a reboot changes: the Linux update data (reboot required) and the system data
+   * (boot time, uptime) - when the node reported again while the page is open.
+   */
+  async function refreshUpdateState() {
+    try {
+      const [linuxRes, sysRes] = await Promise.all([
+        apiClient.richGet<any>(`/inventory/linux/${nodeId}`),
+        apiClient.richGet(`/inventory/system/${nodeId}`),
+      ]);
+      if (linuxRes.ok && linuxRes.data) { const d = 'data' in linuxRes.data ? linuxRes.data.data : linuxRes.data; setLinuxData(d || null); }
+      if (sysRes.ok && sysRes.data) { const d = (sysRes.data as any).data || sysRes.data; setSystem(d as SystemData); }
+    } catch (err) {
+      console.error("Failed to reload the update state:", err);
+    }
+  }
+
+  /**
    * "Collect inventory": ask the node's agent for a fresh inventory (an `inventory` job), wait until
    * it reports back (up to 3 minutes; agents poll for jobs about once a minute), then reload the
    * data. Without the jobs:create permission or when the job cannot be created, only the stored data
@@ -345,6 +365,6 @@ export function useNodeDetails(nodeId: string) {
     hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList,
     linuxUpdates, totalUpdatesCount,
     // Actions
-    refreshInventory, collectInventory, collecting, fetchNodeDetails,
+    refreshInventory, refreshUpdateState, collectInventory, collecting, fetchNodeDetails,
   };
 }

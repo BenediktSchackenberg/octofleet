@@ -173,3 +173,41 @@ def test_reboot_is_audited(nodes):
     body = r.json()
     entries = body.get("entries") or body.get("items") or body.get("logs") or (body if isinstance(body, list) else [])
     assert any(str(e.get("resource_id") or e.get("resourceId")) == linux for e in entries), body
+
+
+def system_info(hostname):
+    r = requests.get(f"{API_URL}/api/v1/inventory/system/{hostname}", headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    return body.get("data", body)
+
+
+def reboot_status(node_uuid):
+    r = requests.get(f"{API_URL}/api/v1/nodes/{node_uuid}/reboot", headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_boot_time_and_report_time_for_the_node_page(nodes):
+    """The Linux agent reports its boot time like the Windows agent (os.lastBootTime, uptimeHours,
+    uptimeFormatted); GET /nodes/{id}/reboot gives it with the time of the last update report, so
+    the node page notices a reboot with the poll it makes anyway."""
+    _, (linux_host, linux), _ = nodes
+    before = reboot_status(linux)
+    assert before["reboot"] is None and before["reported_at"] and before["last_boot_time"] is None
+
+    push(linux_host, {"system": {"os": {"name": "CachyOS Linux", "lastBootTime": "2026-11-24T17:50:40",
+                                        "uptimeHours": 0.02, "uptimeFormatted": "1m"}},
+                      "updates": {"packageManager": "pacman", "totalUpdates": 1, "rebootRequired": False,
+                                  "updates": [{"name": "vim", "newVersion": "9.1"}]}})
+    info = system_info(linux_host)
+    assert info["lastBootTime"] == "2026-11-24T17:50:40"
+    assert (info["uptimeHours"], info["uptimeFormatted"]) == (0.02, "1m")
+    after = reboot_status(linux)
+    assert after["last_boot_time"] == "2026-11-24T17:50:40"
+    assert after["reported_at"] > before["reported_at"]
+
+    # a boot time with an offset is stored in UTC (it failed the whole system section before)
+    push(linux_host, {"system": {"os": {"name": "CachyOS Linux", "lastBootTime": "2026-11-25T08:00:00+01:00"}}})
+    assert system_info(linux_host)["lastBootTime"] == "2026-11-25T07:00:00"
+    assert reboot_status(linux)["last_boot_time"] == "2026-11-25T07:00:00"

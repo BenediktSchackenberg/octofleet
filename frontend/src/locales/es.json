@@ -889,6 +889,7 @@
     "biosVersion": "Versión de BIOS",
     "biosDate": "Fecha de BIOS",
     "bootMode": "Modo de arranque",
+    "lastBoot": "Último arranque",
     "virtualizationDomain": "Virtualización y dominio",
     "type": "Tipo",
     "virtual": "Virtual",

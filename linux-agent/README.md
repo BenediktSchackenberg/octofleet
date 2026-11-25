@@ -87,7 +87,7 @@ sudo /opt/octofleet-agent/agent.sh update
 | Software | Installed packages (apt/dnf/pacman) |
 | Network | Interfaces, IPs, routes |
 | Security | Users with a login shell, administrators (sudo/admin/wheel groups and sudoers entries), effective SSH settings (`sshd -T`), firewall (ufw, firewalld, or rules on incoming traffic in iptables/nftables), SELinux/AppArmor |
-| System | OS, kernel, uptime, services |
+| System | OS, kernel, boot time and uptime (`os.lastBootTime` in UTC from the kernel's `btime`, `uptimeHours`, `uptimeFormatted`, as the Windows agent reports them), services |
 
 ## Commands
 

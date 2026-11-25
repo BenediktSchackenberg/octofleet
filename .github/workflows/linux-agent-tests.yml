@@ -45,6 +45,8 @@ jobs:
         run: bash tests/linux-agent/pacman-updates.test.sh
       - name: Test the reboot job and the logged-on users
         run: bash tests/linux-agent/reboot.test.sh
+      - name: Test the boot time and uptime in the inventory
+        run: bash tests/linux-agent/system.test.sh
       - name: Test the inventory push (numbers under mawk, broken sections, readable push errors)
         run: |
           sudo apt-get install -y -q mawk >/dev/null || true
