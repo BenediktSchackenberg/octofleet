@@ -43,6 +43,9 @@ for tool in bash sh jq timeout tail head grep sort paste cat sleep printf env da
     ln -s "$(command -v "$tool")" "$TOOLS/$tool"
 done
 export WORK PACKAGE_OUTPUT_DIR="$WORK"
+# the reboot marker lives in $WORK (absent unless a test creates it), never the host's
+# /var/run/reboot-required
+export REBOOT_REQUIRED_FILE="$WORK/reboot-required"
 
 # fake NAME EXIT OUTPUT [SLEEP]: a package manager command that logs its arguments (and
 # DEBIAN_FRONTEND) to $WORK/calls, prints OUTPUT and exits with EXIT
@@ -352,7 +355,6 @@ done
 env "${env[@]}" "$@" > "$out" 2>&1
 EOF
 chmod +x "$TOOLS/systemd-run"
-export REBOOT_REQUIRED_FILE="$WORK/reboot-required"
 clear_fakes; fake apt-get 0 'Setting up linux-image (1) ...'
 touch "$REBOOT_REQUIRED_FILE"
 INVOCATION_ID=t run_job patch_install '{"all": true, "reboot_policy": "force"}'
@@ -370,7 +372,7 @@ check "no reboot_policy: said in the output" grep -q "^Reboot: not requested" <<
 rm -f "$REBOOT_REQUIRED_FILE"
 INVOCATION_ID=t run_job patch_install '{"all": true, "reboot_policy": "force"}'
 check "no reboot required: no reboot even with force" bash -c '! grep -q "systemctl reboot" <<< "$1"' _ "$(calls)"
-rm -f "$TOOLS/systemd-run"; unset REBOOT_REQUIRED_FILE
+rm -f "$TOOLS/systemd-run"
 
 rm -rf "$WORK"
 echo
