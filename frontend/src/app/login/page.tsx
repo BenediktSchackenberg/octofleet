@@ -1,5 +1,6 @@
 "use client";
 import { apiClient } from "@/lib/api-client";
+import { API_URL } from "@/lib/api-config";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,19 +20,29 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Only a 401 means wrong credentials. A request that never reached the server (network, proxy,
+  // CORS, a browser blocking it) has status 0 - before, every failure said "Invalid username or
+  // password", and people reset passwords that were right.
+  function loginErrorMessage(status: number): string {
+    if (status === 401) return t("auth.loginError");
+    if (status === 403) return t("auth.loginDisabled");
+    if (status === 0) return t("auth.loginUnreachable", { url: API_URL || window.location.origin });
+    return t("auth.loginServerError", { status });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const data = await apiClient.post<{ access_token: string; user: any }>(`/auth/login`, { username, password }, { showErrorToast: false });
+      const res = await apiClient.richPost<{ access_token: string; user: any }>(`/auth/login`, { username, password }, { showErrorToast: false });
+      const data = res.data;
 
-      if (!data) {
-        throw new Error(t("auth.loginError"));
+      if (!res.ok || !data) {
+        throw new Error(loginErrorMessage(res.status));
       }
 
-      
       // Store token and user info
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));

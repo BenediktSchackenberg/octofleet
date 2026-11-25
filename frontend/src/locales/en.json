@@ -129,6 +129,9 @@
     "loginSubtitle": "Sign in to continue",
     "loginButton": "Sign In",
     "loginError": "Invalid username or password",
+    "loginDisabled": "This account is disabled.",
+    "loginUnreachable": "The Octofleet server at {url} cannot be reached – your password was not checked. Check the network connection, a proxy or browser extension that blocks the request, and the server address (BROWSER_API_URL, CORS_ORIGINS).",
+    "loginServerError": "The server could not sign you in (error {status}). Try again later or check the server log.",
     "loggedInAs": "Logged in as"
   },
   "dashboard": {

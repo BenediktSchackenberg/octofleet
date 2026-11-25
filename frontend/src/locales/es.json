@@ -129,6 +129,9 @@
     "loginSubtitle": "Inicia sesión para continuar",
     "loginButton": "Iniciar sesión",
     "loginError": "Usuario o contraseña no válidos",
+    "loginDisabled": "Esta cuenta está desactivada.",
+    "loginUnreachable": "No se puede conectar con el servidor de Octofleet en {url}; la contraseña no se ha comprobado. Revisa la conexión de red, un proxy o una extensión del navegador que bloquee la solicitud, y la dirección del servidor (BROWSER_API_URL, CORS_ORIGINS).",
+    "loginServerError": "El servidor no ha podido iniciar la sesión (error {status}). Inténtalo más tarde o revisa el registro del servidor.",
     "loggedInAs": "Conectado como"
   },
   "dashboard": {
