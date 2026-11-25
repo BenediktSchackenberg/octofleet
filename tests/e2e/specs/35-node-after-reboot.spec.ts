@@ -32,3 +32,22 @@ test('Node page: "Reboot required" clears when the node reports after a reboot; 
   expect((await report(false, '2026-11-25T17:50:40')).ok()).toBeTruthy();
   await expect(page.getByText('Reboot required', { exact: true })).toBeHidden({ timeout: 45_000 });
 });
+
+// Windows nodes show the boot time too: the Windows agent sends the node's local time without
+// offset, shown as is (no time zone conversion), next to the uptime
+test('Node page: Windows node shows its last boot and uptime', async ({ page, request }) => {
+  const hostname = `e2e-win-boot-${Date.now()}`;
+  const headers = { ...(await getAuthHeaders()), 'Content-Type': 'application/json' };
+  expect((await request.post(`${API_URL}/api/v1/inventory/full`, { headers, data: {
+    hostname, nodeId: hostname,
+    system: { os: { name: 'Microsoft Windows Server 2025 Standard', lastBootTime: '2026-11-15T16:25:59',
+      uptimeHours: 244.56, uptimeFormatted: '10d 4h 33m' } } } })).ok()).toBeTruthy();
+
+  await page.goto(`/nodes/${hostname}`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.setItem('locale', 'en'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const lastBoot = page.locator('div.flex.justify-between').filter({ hasText: 'Last boot' });
+  await expect(lastBoot).toContainText('11/15/2026');
+  await expect(lastBoot).toContainText(/(16|04):25/);
+  await expect(page.getByText('10d 4h 33m')).toBeVisible();
+});
