@@ -127,7 +127,7 @@ async function fetchTasks(t: T, showResolved: boolean): Promise<{ tasks: TaskIte
     apiClient.get<{ nodes: { id: string; hostname?: string; critical: number; max_cvss?: number; max_cvss_cve?: string }[] }>("/vulnerabilities/by-node?severity=critical&limit=50", quiet),
     apiClient.get<{ job_counts?: Record<string, number>; recent_jobs?: { id: string; software_name?: string; software_version?: string; cve_id?: string; status?: string; error_message?: string; completed_at?: string; updated_at?: string; created_at?: string }[] }>("/remediation/summary", quiet),
     apiClient.get<{ findings: { id: string; title?: string; status?: string; nodeId?: string; closedAt?: string | null; lastSeen?: string; createdAt?: string; severity?: string }[]; total: number }>("/security/findings?severity=critical&limit=50", quiet),
-    apiClient.get<{ nodes: { id: string; hostname?: string; is_online?: boolean; last_seen?: string }[] }>("/nodes", quiet),
+    apiClient.get<{ nodes: { id: string; hostname?: string; status?: string; last_seen?: string }[] }>("/nodes", quiet),
     apiClient.get<{ id: string; rule_name?: string; channel_name?: string; event_type?: string; status?: string; error_message?: string; created_at?: string }[]>("/alert-history?limit=50", quiet),
   ]);
   const value = <V,>(r: PromiseSettledResult<V>): V | null => (r.status === "fulfilled" ? r.value : null);
@@ -208,10 +208,9 @@ async function fetchTasks(t: T, showResolved: boolean): Promise<{ tasks: TaskIte
     });
   }
 
-  // Nodes not seen for more than 10 minutes
-  const TEN_MINUTES = 10 * 60_000;
-  for (const n of nodeList.filter((x) =>
-    !x.is_online && !(x.last_seen && Date.now() - new Date(x.last_seen).getTime() < TEN_MINUTES))) {
+  // Offline nodes: no contact for an hour (the server's node status, as on the dashboard's Fleet
+  // status card). is_online is not used: it stays true once a node reported.
+  for (const n of nodeList.filter((x) => x.status === "offline")) {
     counts.offline++;
     const hours = n.last_seen ? (Date.now() - new Date(n.last_seen).getTime()) / 3600_000 : Infinity;
     tasks.push({

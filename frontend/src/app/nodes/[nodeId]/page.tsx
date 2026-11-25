@@ -619,7 +619,7 @@ export default function NodeDetailPage() {
 
           {/* Performance Tab */}
           <TabsContent value="performance" className="space-y-4">
-            {node && <PerformanceTab nodeId={node.node_id} />}
+            {node && <PerformanceTab nodeId={node.node_id} highlight={searchParams.get("highlight")} />}
             {/* Linux agent: values from the last inventory (load, swap, logical CPUs, memory) */}
             {isLinuxNode && (
               <>

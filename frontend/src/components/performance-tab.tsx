@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/lib/i18n-context";
 import { useTabParam } from "@/hooks/useTabParam";
+import { CRIT_PERCENT, WARN_PERCENT } from "@/lib/node-health";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,9 +85,11 @@ interface AgentLogEntry {
 
 interface Props {
   nodeId: string;
+  /** cpu / ram / disk: the metric the dashboard flagged (?highlight=), marked with its threshold */
+  highlight?: string | null;
 }
 
-export function PerformanceTab({ nodeId }: Props) {
+export function PerformanceTab({ nodeId, highlight }: Props) {
   const { t } = useI18n();
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
@@ -368,8 +371,9 @@ export function PerformanceTab({ nodeId }: Props) {
         <div className="space-y-4">
           {/* Current Metrics Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
+            <Card className={highlight === "cpu" ? "ring-2 ring-amber-500" : undefined} aria-current={highlight === "cpu" ? "true" : undefined}>
               <CardContent className="pt-4">
+                {highlight === "cpu" && <p className="mb-2 text-xs text-amber-500">{t("nodeTools.performance.flagged", { warn: WARN_PERCENT, crit: CRIT_PERCENT })}</p>}
                 <div className="flex items-center gap-2">
                   <Cpu className="h-5 w-5 text-blue-500" />
                   <div>
@@ -386,8 +390,9 @@ export function PerformanceTab({ nodeId }: Props) {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={highlight === "ram" ? "ring-2 ring-amber-500" : undefined} aria-current={highlight === "ram" ? "true" : undefined}>
               <CardContent className="pt-4">
+                {highlight === "ram" && <p className="mb-2 text-xs text-amber-500">{t("nodeTools.performance.flagged", { warn: WARN_PERCENT, crit: CRIT_PERCENT })}</p>}
                 <div className="flex items-center gap-2">
                   <MemoryStick className="h-5 w-5 text-green-500" />
                   <div>
@@ -404,8 +409,9 @@ export function PerformanceTab({ nodeId }: Props) {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={highlight === "disk" ? "ring-2 ring-amber-500" : undefined} aria-current={highlight === "disk" ? "true" : undefined}>
               <CardContent className="pt-4">
+                {highlight === "disk" && <p className="mb-2 text-xs text-amber-500">{t("nodeTools.performance.flagged", { warn: WARN_PERCENT, crit: CRIT_PERCENT })}</p>}
                 <div className="flex items-center gap-2">
                   <HardDrive className="h-5 w-5 text-purple-500" />
                   <div>

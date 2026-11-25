@@ -264,7 +264,17 @@
       "evening": "Buenas tardes",
       "night": "Buenas noches"
     },
-    "showNodes": "Ver nodos →"
+    "showNodes": "Ver nodos →",
+    "perfWhy": "{metric} {value} % supera el {threshold} %",
+    "perfMetric": {
+      "cpu": "CPU",
+      "ram": "RAM",
+      "disk": "Disco"
+    },
+    "showAllCount": "Mostrar todos ({count})",
+    "showLess": "Mostrar menos",
+    "runningCount": "{count} en ejecución",
+    "showJobs": "Ver trabajos →"
   },
   "nodes": {
     "osBuild": "Compilación del SO {build}",
@@ -1494,7 +1504,8 @@
       "range14d": "Últimos 14 días (intervalo de 6 horas)",
       "range30d": "Últimos 30 días (promedio diario)",
       "recentEvents": "Eventos recientes",
-      "windowsEventLogs": "Registros de eventos de Windows"
+      "windowsEventLogs": "Registros de eventos de Windows",
+      "flagged": "Marcado en el panel: advertencia por encima del {warn} %, crítico por encima del {crit} %"
     },
     "livePage": {
       "title": "Vista en vivo",
