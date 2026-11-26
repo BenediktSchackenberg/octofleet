@@ -221,6 +221,7 @@ export default function FleetHardwarePage() {
             <p className="text-2xl font-bold flex items-center gap-2">
               {pdh.unhealthy > 0 ? <CircleX className="h-6 w-6 text-red-400" aria-hidden="true" />
                 : pdh.warning > 0 ? <CircleAlert className="h-6 w-6 text-yellow-400" aria-hidden="true" />
+                : pdh.unknown > 0 ? <CircleHelp className="h-6 w-6" aria-hidden="true" />
                 : <CircleCheck className="h-6 w-6 text-green-400" aria-hidden="true" />}
               {pdh.healthy + pdh.warning + pdh.unhealthy + pdh.virtual + pdh.unknown}
             </p>

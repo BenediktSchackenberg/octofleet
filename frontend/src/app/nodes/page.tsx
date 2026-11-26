@@ -202,6 +202,8 @@ export default function NodesPage() {
     setOrder(next);
     const url = sortToUrl(window.location.href, next.sort, next.dir);
     if (url !== window.location.href) window.history.pushState(window.history.state, "", url);
+    // Next keeps its search params for a pushState with its own state, so remember the sort here
+    rememberNodesList(new URL(url).search.slice(1));
   }
 
   useEffect(() => {

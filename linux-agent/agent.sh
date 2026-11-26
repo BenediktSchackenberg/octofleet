@@ -907,14 +907,15 @@ EOF
 }
 
 # apt_phased_updates: the pending updates apt holds back on this machine because Ubuntu releases them
-# to a share of machines at a time ("deferred due to phasing" in a dry run of "apt-get upgrade"), as
+# to a share of machines at a time ("deferred due to phasing" in a dry run of "apt-get upgrade",
+# "Not upgrading yet due to phasing" with apt 3), as
 # {"name": percent} - percent is the share already getting it ("phased 10%" in apt-cache policy), or
 # null when apt does not say. {} when none. A dry run reads the local package lists: no download,
 # no lock, about 0.6 s. apt installs such an update by itself once this machine's turn comes.
 apt_phased_updates() {
     local names n pct json='{}'
     names=$(LANG=C apt-get -s -q upgrade 2>/dev/null | \
-        awk '/deferred due to phasing:/ { f = 1; next } f && /^ / { print; next } f { exit }' | tr -s ' ' '\n' | sed 's/:.*$//' | grep -v '^$' | sort -u)
+        awk '/due to phasing:/ { f = 1; next } f && /^ / { print; next } f { exit }' | tr -s ' ' '\n' | sed 's/:.*$//' | grep -v '^$' | sort -u)
     [[ -z "$names" ]] && { echo '{}'; return 0; }
     while IFS= read -r n; do
         pct=$(LANG=C apt-cache policy "$n" 2>/dev/null | sed -n 's/.*(phased \([0-9][0-9]*\)%).*/\1/p' | head -1)
@@ -1931,7 +1932,7 @@ install_summary() {
     list=$(printf '%s\n' "${installed[@]}" | sort | paste -sd, - | sed 's/,/, /g')
     echo "Installed updates: ${#installed[@]} of ${#wanted[@]}${list:+ ($list)}"
     (( ${#still[@]} )) || return 0
-    if grep -q "deferred due to phasing" <<< "$out"; then
+    if grep -q "due to phasing:" <<< "$out"; then
         reason="held back by apt: phased updates, which Ubuntu rolls out to a share of machines at a time"
     elif grep -q "kept back" <<< "$out"; then
         reason="kept back by apt"

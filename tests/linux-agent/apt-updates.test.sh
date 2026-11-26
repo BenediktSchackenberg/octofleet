@@ -118,6 +118,17 @@ libfoo1/resolute-updates 1.1 amd64 [upgradable from: 1.0]' \
 check "phased without share: marked, percent null" \
     [ "$(field '.updates[0].phased')" = "true" ] && [ "$(field '.updates[0].phasedPercent')" = "null" ]
 
+# apt 3 heading ("Not upgrading yet due to phasing:"): marked the same way
+run_phased_case 'Listing... Done
+libfoo1/resolute-updates 1.1 amd64 [upgradable from: 1.0]' 'Not upgrading yet due to phasing:
+  libfoo1
+Summary:
+  Upgrading: 0, Installing: 0, Removing: 0, Not Upgrading: 1' 'libfoo1:
+  Candidate: 1.1
+  Version table:
+     1.1 500 (phased 30%)'
+check "apt 3 heading: marked with the share"     [ "$(field '.updates[0].phased')" = "true" ] && [ "$(field '.updates[0].phasedPercent')" = "30" ]
+
 # No phasing: nothing marked, count 0
 run_case 'Listing... Done
 curl/resolute-updates 8.14.1-2ubuntu1 amd64 [upgradable from: 8.14.1-2]'
