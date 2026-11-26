@@ -49,8 +49,7 @@ check "uptime.seconds from /proc/uptime" [ "$(field .uptime.seconds)" = "1530" ]
 rm -f "$PROC_DIR/stat" "$PROC_DIR/uptime"
 OUT=$(collect_system)
 check "nothing readable: valid JSON" jq -e . <<< "$OUT" >/dev/null
-check "nothing readable: lastBootTime and uptimeFormatted null" [ "$(field '[.os.lastBootTime, .os.uptimeFormatted] | map(tostring) | join(",")')" = "null,null" ]
-check "nothing readable: uptimeHours 0" [ "$(field .os.uptimeHours)" = "0" ]
+check "nothing readable: lastBootTime, uptimeHours and uptimeFormatted null" [ "$(field '[.os.lastBootTime, .os.uptimeHours, .os.uptimeFormatted] | map(tostring) | join(",")')" = "null,null,null" ]
 
 rm -rf "$PROC_DIR"
 echo
