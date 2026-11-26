@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ListChecks } from "lucide-react";
+import { Clock, Download, ListChecks, Loader2, Monitor, RotateCw, Search, ShieldAlert, WifiOff, XCircle, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
@@ -299,9 +299,15 @@ export default function FleetUpdatesPage() {
     (f.dir || (["pending", "security", "last_search"].includes(sort) ? "desc" : "asc")) === "desc" ? " ↓" : " ↑";
   const select = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 
-  const cards: { key: "nodes" | Flag; icon: string }[] = [
-    { key: "nodes", icon: "🖥️" }, { key: "pending", icon: "⬇️" }, { key: "security", icon: "🛡️" },
-    { key: "reboot", icon: "🔄" }, { key: "failed", icon: "❌" }, { key: "stale", icon: "⏳" }, { key: "offline", icon: "📴" },
+  // Icons as on the dashboard (lucide), coloured like the state they count
+  const cards: { key: "nodes" | Flag; Icon: LucideIcon; color: string }[] = [
+    { key: "nodes", Icon: Monitor, color: "text-muted-foreground" },
+    { key: "pending", Icon: Download, color: "text-amber-500" },
+    { key: "security", Icon: ShieldAlert, color: "text-red-500" },
+    { key: "reboot", Icon: RotateCw, color: "text-amber-500" },
+    { key: "failed", Icon: XCircle, color: "text-red-500" },
+    { key: "stale", Icon: Clock, color: "text-muted-foreground" },
+    { key: "offline", Icon: WifiOff, color: "text-muted-foreground" },
   ];
 
   const Head = ({ sort, label, className }: { sort: Sort; label: string; className?: string }) => (
@@ -329,7 +335,7 @@ export default function FleetUpdatesPage() {
                 onClick={() => card.key === "nodes" ? update({ flags: [] }) : toggle(card.key)}
                 title={t(`fleetUpdates.cardHint.${card.key}`, { days: STALE_DAYS })}
                 className={`rounded-lg border bg-card p-3 text-left transition-colors ${active ? "border-primary" : "hover:border-muted-foreground/40"}`}>
-                <div className="text-xl">{card.icon}</div>
+                <card.Icon className={`h-5 w-5 ${card.color}`} aria-hidden="true" />
                 <div className="text-2xl font-bold">{counts?.[card.key] ?? 0}</div>
                 <div className="text-sm text-muted-foreground">{t(`fleetUpdates.cards.${card.key}`, { days: STALE_DAYS })}</div>
               </button>
@@ -361,15 +367,15 @@ export default function FleetUpdatesPage() {
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
             <span className="font-medium">{t("fleetUpdates.bulk.selected", { count: selected.size })}</span>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => bulk("search")}>
-              🔍 {t("fleetUpdates.bulk.search", { count: selected.size })}
+              <Search className="h-4 w-4" aria-hidden="true" /> {t("fleetUpdates.bulk.search", { count: selected.size })}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => { setIncludeDefinitions(false); setRetry(false); setConfirming(true); }}>
-              ⬇️ {t("fleetUpdates.bulk.install")}
+              <Download className="h-4 w-4" aria-hidden="true" /> {t("fleetUpdates.bulk.install")}
             </Button>
             {canReboot && (
               <Button size="sm" variant="outline" disabled={busy} className="border-red-500/60 text-red-500"
                 onClick={() => setRebootNodes([...selected.values()])}>
-                🔄 {t("reboot.bulk", { count: selected.size })}
+                <RotateCw className="h-4 w-4" aria-hidden="true" /> {t("reboot.bulk", { count: selected.size })}
               </Button>
             )}
             <button type="button" className="text-muted-foreground underline hover:text-foreground" onClick={() => setSelected(new Map())}>
@@ -443,7 +449,7 @@ export default function FleetUpdatesPage() {
                         {node.reboot_job && node.reboot_job.state !== "failed" ? (
                           <Link href={`/jobs/${node.reboot_job.job_id}`}>
                             <Badge variant="outline" className="border-amber-500/50 text-amber-500">
-                              🔄 {node.reboot_job.restart_at
+                              <RotateCw aria-hidden="true" />{node.reboot_job.restart_at
                                 ? t(`reboot.state.${node.reboot_job.state}`, { time: formatDateTime(node.reboot_job.restart_at) })
                                 : t("reboot.state.pending")}
                             </Badge>
@@ -452,7 +458,7 @@ export default function FleetUpdatesPage() {
                           <Button size="sm" variant="ghost" className="h-6 px-2 text-red-500"
                             aria-label={t("reboot.rowButton", { name: node.hostname })} title={t("reboot.rowButton", { name: node.hostname })}
                             onClick={() => setRebootNodes([node])}>
-                            🔄 {t("reboot.button")}
+                            <RotateCw className="size-3" aria-hidden="true" />{t("reboot.button")}
                           </Button>
                         )}
                         {node.reboot_job?.state === "failed" && (
@@ -467,7 +473,7 @@ export default function FleetUpdatesPage() {
                       <div className="flex flex-wrap gap-1">
                         {node.running && (
                           <Badge variant="outline" className="border-purple-500/50 text-purple-500">
-                            ⏳ {t(`fleetUpdates.running.${node.running}`)}
+                            <Loader2 className="animate-spin" aria-hidden="true" />{t(`fleetUpdates.running.${node.running}`)}
                           </Badge>
                         )}
                         {node.installation && node.installation.state !== "installing" && (
@@ -475,7 +481,7 @@ export default function FleetUpdatesPage() {
                             <Badge variant="outline" className="border-amber-500/50 text-amber-500"
                               title={node.installation.restart_at ? t("fleetUpdates.installation.restartAt",
                                 { time: formatDateTime(node.installation.restart_at) }) : undefined}>
-                              🔄 {t(`fleetUpdates.installation.${node.installation.state}`)}
+                              <RotateCw aria-hidden="true" />{t(`fleetUpdates.installation.${node.installation.state}`)}
                             </Badge>
                           </Link>
                         )}
