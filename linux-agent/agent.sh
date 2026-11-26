@@ -475,8 +475,9 @@ collect_system() {
     local os_id=$(grep -oP '(?<=^ID=).+' /etc/os-release 2>/dev/null | tr -d '"' || echo "linux")
     local kernel=$(uname -r)
     # Boot time: the kernel's btime (seconds since the epoch, the same on every push - "now minus
-    # uptime" moves by a second); now minus /proc/uptime when it is missing
-    local proc="${PROC_DIR:-/proc}" uptime_seconds boot_epoch boot_time="" last_boot="" uptime_hours=0 uptime_formatted=""
+    # uptime" moves by a second); now minus /proc/uptime when it is missing. Neither readable: the
+    # three os.* values are null (unknown), not 0 - an uptime of 0 would read as "just rebooted"
+    local proc="${PROC_DIR:-/proc}" uptime_seconds boot_epoch boot_time="" last_boot="" uptime_hours=null uptime_formatted=""
     uptime_seconds=$(awk '{print int($1)}' "$proc/uptime" 2>/dev/null)
     [[ "$uptime_seconds" =~ ^[0-9]+$ ]] || uptime_seconds=0
     boot_epoch=$(awk '$1 == "btime" { print $2; exit }' "$proc/stat" 2>/dev/null)
