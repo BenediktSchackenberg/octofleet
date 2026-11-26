@@ -911,6 +911,7 @@
     "nodeId": "ID del nodo",
     "firstSeen": "Visto por primera vez",
     "changesRecorded": "Cambios registrados",
+    "lastSeen": "Visto por última vez",
     "agentVersion": "Versión del agente",
     "processor": "Procesador",
     "cores": "Núcleos",

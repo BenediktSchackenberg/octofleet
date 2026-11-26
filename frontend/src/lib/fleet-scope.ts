@@ -109,6 +109,26 @@ export function scopeGroupName(tree: FleetTreeSummary | null, scope: FleetScope)
   return tree.groups.find((g) => g.id === scope.group)?.name ?? null;
 }
 
+/** The branch as the Nodes list names it ("Not in a group › Linux › Ubuntu 24.04 LTS"); null: all nodes */
+export function scopeLabel(tree: FleetTreeSummary | null, scope: FleetScope,
+  names: { unassigned: string; unknownGroup: string }): string | null {
+  if (!scope.group) return null;
+  const group = scope.group === UNASSIGNED ? names.unassigned : scopeGroupName(tree, scope) ?? names.unknownGroup;
+  return [group, scope.os, scope.release].filter(Boolean).join(" › ");
+}
+
+// The Nodes list the user was last on (its query: branch, status, sort), for the node page's back link.
+// Per browser tab (sessionStorage); without it the link goes to all nodes.
+const LIST_KEY = "octofleet.nodesList";
+
+export function rememberNodesList(search: string): void {
+  try { sessionStorage.setItem(LIST_KEY, search); } catch { /* storage blocked: the link falls back */ }
+}
+
+export function lastNodesList(): string {
+  try { return sessionStorage.getItem(LIST_KEY) ?? ""; } catch { return ""; }
+}
+
 /** Keys of the tree rows a scope sits under, so they can be expanded to show it */
 export function scopeAncestors(scope: FleetScope): string[] {
   const keys: string[] = [];

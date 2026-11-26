@@ -911,6 +911,7 @@
     "nodeId": "Node ID",
     "firstSeen": "First seen",
     "changesRecorded": "Changes recorded",
+    "lastSeen": "Last seen",
     "agentVersion": "Agent version",
     "processor": "Processor",
     "cores": "Cores",

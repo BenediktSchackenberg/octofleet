@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Cog, LoaderCircle, RotateCcw, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -196,12 +197,12 @@ export function RebootDialog({ nodes, open, onOpenChange, onDone }: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🔄 {title}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><RotateCcw className="h-5 w-5" aria-hidden="true" />{title}</DialogTitle>
           <DialogDescription>{t("reboot.description")}</DialogDescription>
         </DialogHeader>
 
         {loadError && <p className="text-sm text-red-500">{loadError}</p>}
-        {!preview && !loadError && <p className="text-sm text-muted-foreground">⏳ {t("reboot.checking")}</p>}
+        {!preview && !loadError && <p className="text-sm text-muted-foreground flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />{t("reboot.checking")}</p>}
         {preview && (
           <ul className="space-y-2 text-sm" data-testid="reboot-nodes">
             {preview.map((n) => {
@@ -219,12 +220,12 @@ export function RebootDialog({ nodes, open, onOpenChange, onDone }: {
                   {n.found && !n.blocker && (
                     <ul className="mt-1 space-y-0.5 text-xs">
                       <li className={n.logged_on_users?.length ? "text-amber-500" : "text-muted-foreground"}>
-                        👤 {n.logged_on_users == null ? t("reboot.usersUnknown")
+                        <User className="inline h-3 w-3 mr-1 align-[-1px]" aria-hidden="true" />{n.logged_on_users == null ? t("reboot.usersUnknown")
                           : n.logged_on_users.length === 0 ? t("reboot.usersNone")
                           : t("reboot.users", { users: n.logged_on_users.map((u) => u.session ? `${u.user} (${u.session})` : u.user).join(", ") })}
                       </li>
                       <li className={n.running_job_count ? "text-amber-500" : "text-muted-foreground"}>
-                        ⚙️ {n.running_job_count ? (
+                        <Cog className="inline h-3 w-3 mr-1 align-[-1px]" aria-hidden="true" />{n.running_job_count ? (
                           <>
                             {t("reboot.jobs", { count: n.running_job_count })}{" "}
                             {(n.running_jobs ?? []).slice(0, 3).map((j, i) => (
@@ -238,7 +239,7 @@ export function RebootDialog({ nodes, open, onOpenChange, onDone }: {
                           : t("reboot.sessionsNone")}
                       </li>
                       {n.reboot && n.reboot.state !== "failed" && (
-                        <li className="text-amber-500">🔄 {t("reboot.alreadyScheduled", { time: n.reboot.restart_at ? formatDateTime(n.reboot.restart_at) : "?" })}</li>
+                        <li className="text-amber-500"><RotateCcw className="inline h-3 w-3 mr-1 align-[-1px]" aria-hidden="true" />{t("reboot.alreadyScheduled", { time: n.reboot.restart_at ? formatDateTime(n.reboot.restart_at) : "?" })}</li>
                       )}
                     </ul>
                   )}
@@ -308,7 +309,7 @@ export function RebootDialog({ nodes, open, onOpenChange, onDone }: {
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>{t("common.cancel")}</Button>
           <Button variant="destructive" onClick={submit} disabled={!canSubmit}>
-            {busy ? `⏳ ${t("reboot.submitting")}` : many ? t("reboot.submitMany", { count: rebootable.length }) : t("reboot.submitOne")}
+            {busy ? <><LoaderCircle className="animate-spin" aria-hidden="true" />{t("reboot.submitting")}</> : many ? t("reboot.submitMany", { count: rebootable.length }) : t("reboot.submitOne")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -357,11 +358,11 @@ export function RebootButton({ nodeId, hostname, size = "default", label }: {
       <span className="inline-flex flex-wrap items-center gap-2">
         <Link href={`/jobs/${state.job_id}`}>
           <Badge variant="outline" className="border-amber-500/50 text-amber-500">
-            🔄 {state.restart_at ? t(`reboot.state.${state.state}`, { time: formatDateTime(state.restart_at) }) : t("reboot.state.pending")}
+            <RotateCcw className="h-3 w-3" aria-hidden="true" />{state.restart_at ? t(`reboot.state.${state.state}`, { time: formatDateTime(state.restart_at) }) : t("reboot.state.pending")}
           </Badge>
         </Link>
         <Button size="sm" variant="outline" onClick={cancel} disabled={cancelling}>
-          {cancelling ? "⏳" : "✖"} {t("reboot.cancel")}
+          {cancelling ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <X aria-hidden="true" />}{t("reboot.cancel")}
         </Button>
       </span>
     );
@@ -375,7 +376,7 @@ export function RebootButton({ nodeId, hostname, size = "default", label }: {
       )}
       <Button size={size} variant="outline" onClick={() => setOpen(true)}
         className="border-red-500/60 text-red-500 hover:bg-red-500/10">
-        🔄 {label ?? t("reboot.button")}
+        <RotateCcw aria-hidden="true" />{label ?? t("reboot.button")}
       </Button>
       <RebootDialog nodes={[{ id: nodeId, hostname }]} open={open} onOpenChange={setOpen} onDone={load} />
     </>
