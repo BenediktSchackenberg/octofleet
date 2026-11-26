@@ -38,7 +38,7 @@ test('hardware fleet page: one row per host, worst status, VM disks without SMAR
   await expect(page.getByRole('heading', { name: 'Disks (4 on 3 hosts)' })).toBeVisible();
   const rows = page.locator('tbody tr');
   await expect(rows).toHaveCount(3);
-  // worst first: the host with a warning disk, then unknown, then virtual
+  // a host with a problem disk first, then alphabetically (unknown, virtual and healthy do not change the order)
   await expect(rows.nth(0)).toContainText('e2e-pc');
   await expect(rows.nth(1)).toContainText('e2e-old');
   await expect(rows.nth(2)).toContainText('e2e-vm');
@@ -51,6 +51,10 @@ test('hardware fleet page: one row per host, worst status, VM disks without SMAR
   await expect(pcRow.locator('td').last().getByText('Warning', { exact: true })).toHaveClass(/text-yellow-400/);
   await expect(pcRow.locator('li', { hasText: 'Disk 1' }).getByText('Warning', { exact: true })).toBeVisible();
   await expect(pcRow.locator('li', { hasText: 'Disk 0' })).not.toContainText('Healthy');
+  // the problem disk line takes its status colour; sizes are right-aligned
+  await expect(pcRow.locator('li', { hasText: 'Disk 1' })).toHaveClass(/text-yellow-300/);
+  await expect(pcRow.locator('li', { hasText: 'Disk 0' })).not.toHaveClass(/text-yellow-300/);
+  await expect(pcRow.getByRole('cell', { name: '1512 GB' })).toHaveClass(/text-right/);
 
   const vmRow = rows.nth(2);
   await expect(vmRow).toContainText('sda');

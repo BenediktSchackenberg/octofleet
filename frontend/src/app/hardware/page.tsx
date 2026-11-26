@@ -73,6 +73,9 @@ const HEALTH_STYLE: Record<Health, string> = {
 const ICON = "inline h-4 w-4 align-[-2px]";
 
 // A host's status is its worst disk's: a problem first, then what cannot be judged, then fine
+// A disk with a problem: its line in the host row takes the colour of its status
+const PROBLEM_TEXT: Partial<Record<Health, string>> = { warning: "text-yellow-300", unhealthy: "text-red-400" };
+
 const HEALTH_RANK: Record<Health, number> = { unhealthy: 4, warning: 3, unknown: 2, virtual: 1, healthy: 0 };
 
 type FleetDisk = FleetHardware["physicalDisks"][number];
@@ -84,7 +87,10 @@ function diskType(disk: FleetDisk, t: (key: string) => string): string {
   return bus ? `${kind} (${bus})` : kind;
 }
 
-/** The disks grouped per host (one table row each), the hosts with the worst status first */
+// Hosts with a problem disk come first (unhealthy, then warning); all others alphabetically
+const PROBLEM_RANK: Partial<Record<Health, number>> = { unhealthy: 2, warning: 1 };
+
+/** The disks grouped per host (one table row each): problem hosts first, then by hostname */
 function disksByHost(disks: FleetDisk[]) {
   const hosts = new Map<string, { nodeId: string; hostname: string; disks: (FleetDisk & { state: Health })[] }>();
   for (const disk of disks) {
@@ -95,7 +101,7 @@ function disksByHost(disks: FleetDisk[]) {
   return [...hosts.values()].map((host) => {
     const worst = host.disks.reduce<Health>((w, d) => (HEALTH_RANK[d.state] > HEALTH_RANK[w] ? d.state : w), "healthy");
     return { ...host, worst, totalGB: host.disks.reduce((sum, d) => sum + (d.sizeGB || 0), 0) };
-  }).sort((a, b) => HEALTH_RANK[b.worst] - HEALTH_RANK[a.worst]
+  }).sort((a, b) => (PROBLEM_RANK[b.worst] ?? 0) - (PROBLEM_RANK[a.worst] ?? 0)
     || a.hostname.localeCompare(b.hostname, undefined, { sensitivity: "base" }));
 }
 
@@ -264,7 +270,7 @@ export default function FleetHardwarePage() {
                   <tr className="text-left text-sm text-zinc-400">
                     <th className="p-3">{t("hardwareFleet.host")}</th>
                     <th className="p-3">{t("hardwareFleet.physicalDisks")}</th>
-                    <th className="p-3">{t("hardwareFleet.size")}</th>
+                    <th className="p-3 text-right">{t("hardwareFleet.size")}</th>
                     <th className="p-3">{t("hardwareFleet.type")}</th>
                     <th className="p-3">{t("hardwareFleet.status")}</th>
                   </tr>
@@ -283,10 +289,10 @@ export default function FleetHardwarePage() {
                       <td className="p-3 text-sm text-zinc-300">
                         <ul className="space-y-0.5">
                           {host.disks.map((disk, i) => (
-                            <li key={i}>
-                              <span className="font-mono text-zinc-200" title={disk.deviceId ?? undefined}>{deviceLabel(disk.deviceId, t) ?? "–"}</span>
+                            <li key={i} className={PROBLEM_TEXT[disk.state] ?? ""}>
+                              <span className="font-medium" title={disk.deviceId ?? undefined}>{deviceLabel(disk.deviceId, t) ?? "–"}</span>
                               <span className="text-zinc-500"> · </span>{disk.model}
-                              <span className="text-zinc-500"> · {disk.sizeGB?.toFixed(0)} GB</span>
+                              <span className="text-zinc-500 tabular-nums"> · {disk.sizeGB?.toFixed(0)} GB</span>
                               {mixed && disk.state !== "healthy" && disk.state !== "virtual" && (
                                 <span className={`ml-2 px-1.5 rounded text-xs ${HEALTH_STYLE[disk.state]}`}>{t(`hardwareFleet.health.${disk.state}`)}</span>
                               )}
@@ -294,7 +300,7 @@ export default function FleetHardwarePage() {
                           ))}
                         </ul>
                       </td>
-                      <td className="p-3 text-sm whitespace-nowrap">{host.totalGB.toFixed(0)} GB</td>
+                      <td className="p-3 text-sm whitespace-nowrap text-right tabular-nums">{host.totalGB.toFixed(0)} GB</td>
                       <td className="p-3 text-sm">{types.join(", ")}</td>
                       <td className="p-3">
                         <span className={`px-2 py-1 rounded text-xs whitespace-nowrap ${HEALTH_STYLE[host.worst]}`}
