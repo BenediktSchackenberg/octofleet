@@ -446,12 +446,14 @@ SELECT v.name, v.arch, v.version, v.repository, v.security, v.severity, v.first_
  ORDER BY u.node_id, v.name, v.arch
 """
 
-# Per Linux node: release, package manager, and whether its release has security data (apt: from the
-# security suites; dnf/yum: advisories - none on e.g. CentOS Stream; pacman: none)
+# Per Linux node: release, package manager (from the list summary the push stores, so the whole update
+# list is not read for one field; the whole list for rows from before it), and whether its release has
+# security data (apt: from the security suites; dnf/yum: advisories - none on e.g. CentOS Stream;
+# pacman: none)
 # Only nodes that still exist: linux_data_current is keyed by text and outlives a node deleted directly
 NODE_INFO = f"""
-SELECT l.node_id, l.release, l.updates->>'packageManager' AS package_manager,
-       CASE l.updates->>'packageManager'
+SELECT l.node_id, l.release, COALESCE(l.updates_for_list, l.updates)->>'packageManager' AS package_manager,
+       CASE COALESCE(l.updates_for_list, l.updates)->>'packageManager'
             WHEN 'apt' THEN true
             WHEN 'pacman' THEN false
             ELSE EXISTS (SELECT 1 FROM linux_package_versions v WHERE v.release = l.release AND v.security)

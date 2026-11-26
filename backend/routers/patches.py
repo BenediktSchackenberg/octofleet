@@ -135,6 +135,11 @@ async def ensure_schema(pool) -> None:
         await conn.execute(ENTRY_STATUS_CHECK_DDL)
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_pcn_patch_status ON patch_catalog_nodes(patch_id, status)")
+        # the fleet list's newest search / installation / reboot per node (_newest_run); job history is
+        # kept, so without it each lookup read all of a node's runs of that kind (needs run_kind:
+        # job_failures.ensure_schema runs first). Built once: ~2 s per 2.5 million instances.
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_job_instances_node_kind_queued "
+                           "ON job_instances (node_id, run_kind, queued_at DESC)")
 
 
 def scan_info(data: dict):
@@ -849,20 +854,56 @@ def _linux_counts(linux: dict) -> dict:
     }
 
 
+def _newest_run(*kinds: str) -> str:
+    """The node's newest job instance of these kinds, for _fleet_rows (`n`: the node). By the instance's
+    run_kind (the job's command type, set on insert; job_failures) instead of joining every run to its
+    job to find its type, and as one probe of idx_job_instances_node_kind_queued per node key (the
+    instance's node_id is the node's UUID or its agent id) and kind: the newest of those few. A single
+    `node_id IN (..) AND run_kind IN (..) ORDER BY queued_at` read all of the node's runs of the kind
+    (job history is kept), or the planner walked the global queued_at index. The kinds are constants
+    of this module, never input."""
+    kinds_sql = ", ".join(f"'{k}'" for k in kinds)
+    return f"""(SELECT x.* FROM (VALUES (n.id::text), (n.node_id::text)) AS key(node_id)
+                  CROSS JOIN unnest(ARRAY[{kinds_sql}]) AS kind(run_kind)
+                  CROSS JOIN LATERAL (SELECT * FROM job_instances i
+                                       WHERE i.node_id = key.node_id AND i.run_kind = kind.run_kind
+                                       ORDER BY i.queued_at DESC LIMIT 1) x
+                  ORDER BY x.queued_at DESC LIMIT 1)"""
+
+
+def linux_updates_for_list(updates: dict) -> dict:
+    """What the fleet list needs of a Linux node's update list, stored with it at each push
+    (`linux_data_current.updates_for_list`): the totals, the reboot flag, and only the entries that are
+    phased or may need a reboot (by name) - `_linux_counts` and the reboot estimate give the same
+    result for it as for the whole list. A node lists about 150 packages; reading and decoding all of
+    them on every request was most of the list's time at 10,000 nodes."""
+    entries = updates.get("updates") if isinstance(updates.get("updates"), list) else []
+    named = [p for p in entries if isinstance(p, dict) and p.get("name")]
+    total = updates.get("totalUpdates")
+    return {
+        "packageManager": updates.get("packageManager"),
+        "totalUpdates": total if isinstance(total, int) else len(named),
+        "securityUpdates": updates.get("securityUpdates"),
+        "rebootRequired": updates.get("rebootRequired"),
+        "updates": [{"name": p["name"], "security": p.get("security"), "phased": p.get("phased")}
+                    for p in named
+                    if p.get("phased") is True or linux_reboot_behavior(str(p["name"])) != "never"],
+    }
+
+
 async def _fleet_rows(conn) -> list:
     """All nodes with their update state (unfiltered)"""
-    rows = await conn.fetch("""
+    rows = await conn.fetch(f"""
         SELECT n.id, n.node_id, n.hostname, n.os_name, n.is_online, n.last_seen,
                s.scanned_at, s.status AS search_status, s.source AS search_source, s.server AS search_server,
                s.error AS search_error, s.reboot_pending,
-               l.node_id AS linux_node_id, l.updates AS linux_updates,
+               -- the push's summary of the list; the whole list for rows from before it (_linux_counts reads both)
+               l.node_id AS linux_node_id, COALESCE(l.updates_for_list, l.updates) AS linux_updates,
                GREATEST(s.scanned_at, l.updated_at) AS reported_at,
                (SELECT json_build_object('id', j.id, 'status', ji.status, 'completed_at', ji.completed_at,
                                          'payload', j.command_data,
                                          'error', COALESCE(NULLIF(ji.error_message, ''), left(ji.stderr, 300), left(ji.stdout, 300)))
-                  FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
-                 WHERE ji.node_id IN (n.id::text, n.node_id) AND j.command_type = 'reboot'
-                 ORDER BY ji.queued_at DESC LIMIT 1) AS last_reboot,
+                  FROM {_newest_run("reboot")} ji JOIN jobs j ON j.id = ji.job_id) AS last_reboot,
                (SELECT json_agg(json_build_object('kb_id', u.kb_id, 'title', u.title, 'severity', u.severity, 'category', u.category,
                                                   'reboot_behavior', u.reboot_behavior,
                                                   'approved', EXISTS (SELECT 1 FROM patch_catalog c WHERE c.kb_id = u.kb_id
@@ -870,17 +911,12 @@ async def _fleet_rows(conn) -> list:
                   FROM node_available_updates u WHERE u.node_id = n.id) AS windows_updates,
                (SELECT json_build_object('id', j.id, 'type', j.command_type, 'status', ji.status,
                                          'at', COALESCE(ji.completed_at, ji.queued_at))
-                  FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
-                 WHERE ji.node_id IN (n.id::text, n.node_id)
-                   AND j.command_type IN ('patch_scan', 'patch_install')
-                 ORDER BY ji.queued_at DESC LIMIT 1) AS last_job,
+                  FROM {_newest_run("patch_scan", "patch_install")} ji JOIN jobs j ON j.id = ji.job_id) AS last_job,
                (SELECT json_build_object('id', j.id, 'status', ji.status, 'completed_at', ji.completed_at,
                                          'reboot_policy', j.command_data->>'reboot_policy',
                                          'reboot_schedule_time', j.command_data->>'reboot_schedule_time',
                                          'output', left(ji.stdout, 4000))
-                  FROM job_instances ji JOIN jobs j ON j.id = ji.job_id
-                 WHERE ji.node_id IN (n.id::text, n.node_id) AND j.command_type = 'patch_install'
-                 ORDER BY ji.queued_at DESC LIMIT 1) AS last_install
+                  FROM {_newest_run("patch_install")} ji JOIN jobs j ON j.id = ji.job_id) AS last_install
         FROM nodes n
         LEFT JOIN node_patch_scans s ON s.node_id = n.id
         LEFT JOIN linux_data_current l ON l.node_id = n.id::text
@@ -1073,7 +1109,7 @@ def _fleet_counts(rows: list, now: datetime) -> dict:
 
 
 # Dashboard card: the counts of the Fleet updates page, kept in memory. Computing them reads every
-# node's update state (`_fleet_rows`, seconds at 10,000 nodes), so a request never waits for that
+# node's update state (`_fleet_rows`, about 1 s at 10,000 nodes), so a request never waits for that
 # once a value exists: an older value is returned and refreshed in the background. One backend
 # process, as Octofleet runs today; each process would keep its own value.
 SUMMARY_MAX_AGE = timedelta(minutes=2)

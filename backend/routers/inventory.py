@@ -19,6 +19,7 @@ from disk_inventory import distinct_volumes
 from disk_inventory import physical_disks as real_disks
 from routers.patches import (
     linux_reboot_behavior,
+    linux_updates_for_list,
     record_installed_from_history,
     record_scan,
     scan_info,
@@ -686,16 +687,21 @@ async def submit_linux_data(hostname: str, node_id_str: str, data: Dict[str, Any
     async with db.acquire() as conn:
         # one transaction: the stored list and its rows per package version stay in step
         async with conn.transaction():
+            # updates_for_list: what the fleet list reads of it (patches.linux_updates_for_list)
             await conn.execute("""
-                INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
+                INSERT INTO linux_data_current (node_id, performance, services, updates, disk_health, updated_at,
+                                                updates_for_list)
+                VALUES ($1, $2, $3, $4, $5, NOW(), $6)
                 ON CONFLICT (node_id) DO UPDATE SET
                     performance = COALESCE(EXCLUDED.performance, linux_data_current.performance),
                     services = COALESCE(EXCLUDED.services, linux_data_current.services),
                     updates = COALESCE(EXCLUDED.updates, linux_data_current.updates),
                     disk_health = COALESCE(EXCLUDED.disk_health, linux_data_current.disk_health),
+                    updates_for_list = CASE WHEN EXCLUDED.updates IS NULL THEN linux_data_current.updates_for_list
+                                            ELSE EXCLUDED.updates_for_list END,
                     updated_at = NOW()
-            """, str(uuid), as_json("performance"), as_json("services"), as_json("updates"), as_json("diskHealth"))
+            """, str(uuid), as_json("performance"), as_json("services"), as_json("updates"), as_json("diskHealth"),
+                json.dumps(linux_updates_for_list(updates)) if isinstance(updates, dict) else None)
             if isinstance(updates, dict):
                 await store_linux_package_updates(conn, str(uuid), updates)
         if scan is not None:
