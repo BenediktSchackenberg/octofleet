@@ -71,6 +71,9 @@ done
 export PATH="$BIN" OS_RELEASE_FILE="$WORK/os-release"
 printf 'NAME="CachyOS Linux"\nID=cachyos\nID_LIKE=arch\nBUILD_ID=rolling\n' > "$OS_RELEASE_FILE"
 export MODULES_DIR="$WORK/modules"; mkdir -p "$MODULES_DIR/$(uname -r)"
+# the Debian marker comes first in collect_updates: point it into $WORK (absent), never at the
+# host's /var/run/reboot-required
+export REBOOT_REQUIRED_FILE="$WORK/reboot-required"
 calls() { cat "$WORK/calls" 2>/dev/null; }
 
 OUT=$(collect_updates)

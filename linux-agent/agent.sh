@@ -842,12 +842,13 @@ collect_updates() {
     fi
     
     # Reboot required after updates: Debian/Ubuntu mark it with /var/run/reboot-required (and the
-    # packages in reboot-required.pkgs); dnf/yum systems answer through needs-restarting -r (exit 1)
-    local reboot_required=null reboot_packages="[]"
-    if [[ -e /var/run/reboot-required ]]; then
+    # packages in reboot-required.pkgs; REBOOT_REQUIRED_FILE overrides the path, as in
+    # run_patch_install); dnf/yum systems answer through needs-restarting -r (exit 1)
+    local reboot_required=null reboot_packages="[]" flag="${REBOOT_REQUIRED_FILE:-/var/run/reboot-required}"
+    if [[ -e "$flag" ]]; then
         reboot_required=true
-        [[ -r /var/run/reboot-required.pkgs ]] && \
-            reboot_packages=$(sort -u /var/run/reboot-required.pkgs | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null || echo '[]')
+        [[ -r "$flag.pkgs" ]] && \
+            reboot_packages=$(sort -u "$flag.pkgs" | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null || echo '[]')
     elif [[ "$package_manager" == "apt" ]]; then
         reboot_required=false
     elif [[ "$package_manager" == "dnf" || "$package_manager" == "yum" ]]; then

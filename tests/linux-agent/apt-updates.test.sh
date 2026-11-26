@@ -17,6 +17,8 @@ for fn in collect_updates os_release_json; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 OS_RELEASE_FILE=$(mktemp); export OS_RELEASE_FILE
+# the reboot marker of the test, never the host's /var/run/reboot-required
+REBOOT_REQUIRED_FILE="$OS_RELEASE_FILE.reboot-required"; export REBOOT_REQUIRED_FILE
 cat > "$OS_RELEASE_FILE" <<'REL'
 PRETTY_NAME="Ubuntu 26.04 LTS"
 NAME="Ubuntu"
@@ -78,8 +80,14 @@ check "empty list: no updates" [ "$(field '.updates | length')" = "0" ] && [ "$(
 check "empty list: no security updates" [ "$(field .securityUpdates)" = "0" ]
 
 # Reboot flag and the scan block of a patch_scan job
-check "rebootRequired is true or false with apt" bash -c '[[ "$1" == true || "$1" == false ]]' _ "$(field .rebootRequired)"
-check "rebootPackages is a list" [ "$(field '.rebootPackages | type')" = "array" ]
+check "no reboot marker: rebootRequired false with apt" [ "$(field .rebootRequired)" = "false" ]
+check "no reboot marker: rebootPackages empty" [ "$(field '.rebootPackages | type')" = "array" ] && [ "$(field '.rebootPackages | length')" = "0" ]
+touch "$REBOOT_REQUIRED_FILE"; printf 'linux-image-7.0.0-44-generic\nlinux-base\nlinux-base\n' > "$REBOOT_REQUIRED_FILE.pkgs"
+run_case 'Listing... Done'
+check "reboot marker: rebootRequired true" [ "$(field .rebootRequired)" = "true" ]
+check "reboot marker: rebootPackages from reboot-required.pkgs, once each" [ "$(field '.rebootPackages | join(",")')" = "linux-base,linux-image-7.0.0-44-generic" ]
+rm -f "$REBOOT_REQUIRED_FILE" "$REBOOT_REQUIRED_FILE.pkgs"
+run_case 'Listing... Done'
 check "no scan block outside a patch_scan job" [ "$(field .scan)" = "null" ]
 PATCH_SCAN_JSON='{"status":"partial","source":"apt","error":"W: Failed to fetch","duration_seconds":3}'
 run_case 'Listing... Done'

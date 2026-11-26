@@ -81,6 +81,9 @@ done
 export OS_RELEASE_FILE="$WORK/os-release"
 printf 'NAME="Rocky Linux"\nVERSION_ID="9.8"\nID="rocky"\nID_LIKE="rhel centos fedora"\n' > "$OS_RELEASE_FILE"
 export PATH="$BIN" DNF_PLUGIN_DIR="$WORK/plugins" PACKAGE_OUTPUT_DIR="$WORK"
+# the Debian marker comes first in collect_updates: point it into $WORK (absent), never at the
+# host's /var/run/reboot-required
+export REBOOT_REQUIRED_FILE="$WORK/reboot-required"
 unset INVOCATION_ID
 touch "$WORK/plugins/needs_restarting.py"
 calls() { cat "$WORK/calls" 2>/dev/null; }
