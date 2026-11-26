@@ -2483,7 +2483,7 @@ async def delete_setting(key: str):
 # E14: Auto-Remediation API
 # ============================================
 
-from remediation import RemediationEngine, TriggerRemediationRequest, get_remediation_summary
+from remediation import RemediationEngine, TriggerRemediationRequest
 
 # --- Remediation Packages (Fix Mappings) ---
 
@@ -2586,50 +2586,6 @@ class RemediationEngine:
                 "jobsPreview": len(jobs_preview),
                 "jobs": jobs_created if not dry_run else jobs_preview,
             }
-
-async def get_remediation_summary(pool):
-    async with pool.acquire() as conn:
-        fixed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status IN ('completed', 'success')") or 0
-        pending = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status IN ('pending', 'approved', 'running')") or 0
-        failed = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'failed'") or 0
-        running = await conn.fetchval("SELECT COUNT(*) FROM remediation_jobs WHERE status = 'running'") or 0
-        fixable = await conn.fetchval("""
-            SELECT COUNT(DISTINCT v.id) FROM verified_vulnerabilities v
-            JOIN node_vulnerabilities nv ON nv.vulnerability_id = v.id
-            WHERE UPPER(v.severity) IN ('CRITICAL', 'HIGH')
-        """) or 0
-        active_packages = await conn.fetchval("SELECT COUNT(*) FROM remediation_packages WHERE enabled = true") or 0
-        active_rules = await conn.fetchval("SELECT COUNT(*) FROM remediation_rules WHERE enabled = true") or 0
-        recent = await conn.fetch("""
-            SELECT rj.id, rj.node_id, rj.software_name, rj.software_version, rj.cve_id, rj.status, 
-                   rp.fix_method, rj.created_at, rj.completed_at, rj.exit_code, rj.error_message
-            FROM remediation_jobs rj
-            LEFT JOIN remediation_packages rp ON rp.id = rj.remediation_package_id
-            ORDER BY rj.created_at DESC LIMIT 20
-        """)
-        return {
-            "fixed": fixed,
-            "pending": pending,
-            "failed": failed,
-            "fixableCves": fixable,
-            "fixable_vulnerabilities": fixable,
-            "active_packages": active_packages,
-            "active_rules": active_rules,
-            "job_counts": {"success": fixed, "completed": fixed, "approved": pending, "pending": pending, "failed": failed, "running": running},
-            "recent_jobs": [{
-                "id": r["id"], "node_id": str(r["node_id"]), "software_name": r["software_name"],
-                "software_version": r["software_version"], "cve_id": r["cve_id"], "status": r["status"],
-                "fix_method": r["fix_method"], "exit_code": r["exit_code"], "error_message": r["error_message"],
-                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                "completed_at": r["completed_at"].isoformat() if r["completed_at"] else None
-            } for r in recent],
-            "recentJobs": [{
-                "id": str(r["id"]), "nodeId": str(r["node_id"]), "softwareName": r["software_name"],
-                "cveId": r["cve_id"], "status": r["status"],
-                "createdAt": str(r["created_at"]), "completedAt": str(r["completed_at"]) if r["completed_at"] else None
-            } for r in recent]
-        }
-
 
 # --- Agent Endpoint for Remediation Jobs ---
 
