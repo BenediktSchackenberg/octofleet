@@ -277,7 +277,20 @@
     "showAllCount": "Mostrar todos ({count})",
     "showLess": "Mostrar menos",
     "runningCount": "{count} en ejecución",
-    "showJobs": "Ver trabajos →"
+    "showJobs": "Ver trabajos →",
+    "showVulnerabilities": "Ver vulnerabilidades →",
+    "updates": {
+      "title": "Actualizaciones",
+      "show": "Ver actualizaciones →",
+      "current": "nodos al día",
+      "currentHint": "Sin actualizaciones pendientes y con una búsqueda de actualizaciones sin errores en los últimos 7 días",
+      "security": "Actualizaciones de seguridad",
+      "pending": "Actualizaciones pendientes",
+      "reboot": "Reinicio necesario",
+      "failed": "Búsqueda de actualizaciones fallida",
+      "stale": "Sin búsqueda en 7 días",
+      "asOf": "Estado: {time}"
+    }
   },
   "nodes": {
     "osBuild": "Compilación del SO {build}",
@@ -778,7 +791,9 @@
       "version": "Versión instalada",
       "kernel": "Kernel",
       "openNode": "Mostrar esta CVE en la página del nodo"
-    }
+    },
+    "onlySeverity": "Solo nodos con CVE: {severity}",
+    "showAllNodes": "Ver todos los nodos"
   },
   "vulnerabilityScan": {
     "running": "Análisis en curso desde las {time} ({minutes} min): {checked} de {total} versiones de software comprobadas. Las cifras pueden estar incompletas hasta que termine.",

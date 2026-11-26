@@ -107,3 +107,13 @@ def test_scores_come_with_their_cvss_vector():
     for node in requests.get(f"{API_URL}/api/v1/vulnerabilities/by-node", headers=HEADERS, timeout=10).json()["nodes"]:
         listed = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{node['id']}?limit=5", headers=HEADERS, timeout=10).json()
         assert all("cvss_vector" in v for v in listed["vulnerabilities"])
+
+
+def test_by_node_filters_by_critical_and_high():
+    for severity in ("critical", "high"):
+        r = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-node?severity={severity}", headers=HEADERS, timeout=10)
+        assert r.status_code == 200, r.text
+        assert all(node[severity] > 0 for node in r.json()["nodes"]), severity
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-node?severity=medium", headers=HEADERS, timeout=10)
+    assert r.status_code == 422, r.text
+

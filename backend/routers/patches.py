@@ -1,7 +1,9 @@
 """
 Octofleet API - Patches Routes
 """
+import asyncio
 import json
+import logging
 import re
 import uuid as _uuid
 from datetime import datetime, timedelta, timezone
@@ -13,6 +15,8 @@ import linux_rules
 import node_reboot
 from auth import require_permission, require_user_permission
 from dependencies import get_pool
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Patches"])
 def _is_uuid(val: str) -> bool:
@@ -1003,18 +1007,9 @@ async def fleet_updates(os: str = None, pending: bool = False, security: bool = 
     now = datetime.now(timezone.utc)
 
     def stale(r, days):
-        at = r["last_search"]["at"]
-        return at is None or (now - datetime.fromisoformat(at)).days >= days
+        return _stale(r, days, now)
 
-    counts = {
-        "nodes": len(rows),
-        "pending": sum(1 for r in rows if r["pending"]),
-        "security": sum(1 for r in rows if r["security"]),
-        "reboot": sum(1 for r in rows if r["reboot"] in ("pending", "needed")),
-        "failed": sum(1 for r in rows if r["last_search"]["status"] == "failed"),
-        "stale": sum(1 for r in rows if stale(r, 7)),
-        "offline": sum(1 for r in rows if not r["online"]),
-    }
+    counts = _fleet_counts(rows, now)
     if os in ("windows", "linux"):
         rows = [r for r in rows if r["os_family"] == os]
     if pending:
@@ -1047,6 +1042,76 @@ async def fleet_updates(os: str = None, pending: bool = False, security: bool = 
     rows.sort(key=lambda r: (r["hostname"] or "").lower())
     rows.sort(key=keys[sort], reverse=descending)
     return {"nodes": rows[offset:offset + limit], "total": len(rows), "counts": counts}
+
+
+# "No search for N days" on the cards, as the page's STALE_DAYS
+STALE_DAYS = 7
+
+
+def _stale(row: dict, days: int, now: datetime) -> bool:
+    """No update search for `days` days (or never)"""
+    at = row["last_search"]["at"]
+    return at is None or (now - datetime.fromisoformat(at)).days >= days
+
+
+def _fleet_counts(rows: list, now: datetime) -> dict:
+    """Nodes per state, as the Fleet updates cards count them. `current`: up to date - nothing
+    pending, the last search did not fail and is at most STALE_DAYS old."""
+    def counts(rs):
+        return {
+            "nodes": len(rs),
+            "pending": sum(1 for r in rs if r["pending"]),
+            "security": sum(1 for r in rs if r["security"]),
+            "reboot": sum(1 for r in rs if r["reboot"] in ("pending", "needed")),
+            "failed": sum(1 for r in rs if r["last_search"]["status"] == "failed"),
+            "stale": sum(1 for r in rs if _stale(r, STALE_DAYS, now)),
+            "offline": sum(1 for r in rs if not r["online"]),
+            "current": sum(1 for r in rs if not r["pending"] and r["last_search"]["status"] != "failed"
+                           and not _stale(r, STALE_DAYS, now)),
+        }
+    return {**counts(rows), "by_os": {os: counts([r for r in rows if r["os_family"] == os]) for os in ("windows", "linux")}}
+
+
+# Dashboard card: the counts of the Fleet updates page, kept in memory. Computing them reads every
+# node's update state (`_fleet_rows`, seconds at 10,000 nodes), so a request never waits for that
+# once a value exists: an older value is returned and refreshed in the background. One backend
+# process, as Octofleet runs today; each process would keep its own value.
+SUMMARY_MAX_AGE = timedelta(minutes=2)
+_summary: dict = {"counts": None, "at": None, "task": None}
+_summary_lock = asyncio.Lock()
+
+
+async def _refresh_fleet_summary(only_if_old: bool = False) -> None:
+    async with _summary_lock:
+        # several first requests at once: the first computes, the others find its value
+        if only_if_old and _summary["at"] and datetime.now(timezone.utc) - _summary["at"] <= SUMMARY_MAX_AGE:
+            return
+        async with get_pool().acquire() as conn:
+            rows = await _fleet_rows(conn)
+        now = datetime.now(timezone.utc)
+        _summary["counts"], _summary["at"] = _fleet_counts(rows, now), now
+
+
+def _log_refresh_error(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception():
+        logger.warning("Fleet updates summary: refresh failed: %s", task.exception())
+
+
+@router.get("/api/v1/patches/fleet/summary", dependencies=[Depends(require_user_permission("packages:read"))])
+async def fleet_updates_summary():
+    """The Fleet updates counts for the dashboard (`counts` of GET /patches/fleet, plus `current`:
+    nodes up to date, and `by_os`), at most SUMMARY_MAX_AGE old plus one refresh: an older value is
+    returned with `refreshing` and recomputed in the background. `as_of`: when it was computed."""
+    if _summary["counts"] is None:
+        await _refresh_fleet_summary(only_if_old=True)
+    elif datetime.now(timezone.utc) - _summary["at"] > SUMMARY_MAX_AGE:
+        task = _summary["task"]
+        if task is None or task.done():
+            _summary["task"] = asyncio.create_task(_refresh_fleet_summary())
+            _summary["task"].add_done_callback(_log_refresh_error)
+    task = _summary["task"]
+    return {**_summary["counts"], "as_of": _summary["at"].isoformat(),
+            "refreshing": bool(task and not task.done())}
 
 
 async def _create_node_job(conn, node_uuid: str, name: str, command_type: str, data: dict, username: str) -> str:

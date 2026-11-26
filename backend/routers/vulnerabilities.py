@@ -153,13 +153,13 @@ async def import_msrc_document(document: Dict[str, Any] = Body(...),
 
 @router.get("/api/v1/vulnerabilities/by-node", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def vulnerabilities_by_node(limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
-                                  severity: Optional[str] = Query(None, pattern="^(critical|CRITICAL)$"),
+                                  severity: Optional[str] = Query(None, pattern="^(critical|CRITICAL|high|HIGH)$"),
                                   _: str = Depends(verify_api_key)):
     """Vulnerability breakdown per node from the vulnerability cache, most findings first, one page
     (`total` nodes in all): distinct CVEs by their worst severity, affected updates.
-    `severity=critical`: only nodes with critical CVEs, most first."""
+    `severity=critical` / `high`: only nodes with CVEs of that severity, most first."""
     async with get_pool().acquire() as conn:
-        return await vulnerability_cache.nodes_page(conn, limit, offset, critical_only=bool(severity))
+        return await vulnerability_cache.nodes_page(conn, limit, offset, severity=severity.lower() if severity else None)
 
 
 @router.get("/api/v1/vulnerabilities/by-software", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
