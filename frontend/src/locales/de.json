@@ -129,6 +129,9 @@
     "loginSubtitle": "Melde dich an, um fortzufahren",
     "loginButton": "Anmelden",
     "loginError": "Ungültiger Benutzername oder Passwort",
+    "loginDisabled": "Dieses Konto ist deaktiviert.",
+    "loginUnreachable": "Der Octofleet-Server unter {url} ist nicht erreichbar – das Passwort wurde nicht geprüft. Prüfe die Netzwerkverbindung, einen Proxy oder eine Browser-Erweiterung, die die Anfrage blockiert, und die Server-Adresse (BROWSER_API_URL, CORS_ORIGINS).",
+    "loginServerError": "Der Server konnte dich nicht anmelden (Fehler {status}). Versuche es später erneut oder prüfe das Server-Log.",
     "loggedInAs": "Angemeldet als"
   },
   "dashboard": {

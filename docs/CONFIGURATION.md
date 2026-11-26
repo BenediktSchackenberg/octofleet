@@ -90,7 +90,7 @@ Where the browser sends API requests and WebSockets:
 2. UI opened on port **3000** (default `docker-compose.yml` without a reverse proxy): the same host on port **8080**, as before.
 3. Otherwise – UI opened through a reverse proxy, e.g. `https://octofleet.example.com` – the page's own address: `/api/v1/...` and `wss://octofleet.example.com/api/v1/.../ws/...`. The proxy forwards `/api/` to the backend (see [Reverse Proxy](#reverse-proxy-nginx-example)); no second port is needed.
 
-`BROWSER_API_URL` must be reachable from the user's browser. *Settings → System → API URL* shows the address in use.
+`BROWSER_API_URL` must be reachable from the user's browser. *Settings → System → API URL* shows the address in use. If it is not, the login page says *The Octofleet server at … cannot be reached* with the address it tried (see [Troubleshooting](TROUBLESHOOTING.md#sign-in-fails)).
 
 ---
 

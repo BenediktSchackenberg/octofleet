@@ -1,5 +1,14 @@
 # Troubleshooting Guide
 
+## Sign-in Fails
+
+The login page names the cause:
+
+- **Invalid username or password** – the server checked the credentials and rejected them (401). Failed attempts are in the audit log (`auth.login_failed`).
+- **This account is disabled** – the user exists but is not active (403).
+- **The Octofleet server at … cannot be reached – your password was not checked** – the request never got an answer: the backend is down, the address is wrong, or something between blocks it. Check that the address shown is reachable from the browser (`curl <address>/health`), that `CORS_ORIGINS` contains the address the UI is opened with (e.g. `http://octofleet-host:3000`), `BROWSER_API_URL` (see [Configuration](CONFIGURATION.md)), and proxies or browser extensions. Some embedded browsers block a page on port 3000 from calling port 8080; a reverse proxy that serves UI and API on one address avoids it.
+- **The server could not sign you in (error N)** – another error, e.g. 500 or 429 from a proxy; the backend log (`docker compose logs backend`) has the reason.
+
 ## Service Fails to Start on Windows Server (Error 1053)
 
 ### Symptoms
