@@ -591,11 +591,12 @@ export default function NodeDetailPage() {
             {node && (
               <Card>
                 <CardHeader><CardTitle>📅 {t("nodeDetail.timestamps")}</CardTitle></CardHeader>
+                {/* one value style for the whole row: same font and size (Node ID was small monospace, the agent version spaced out) */}
                 <CardContent className="grid gap-4 md:grid-cols-5">
                   <div>
                     <p className="text-sm text-muted-foreground">{t("nodeDetail.nodeId")}</p>
                     <div className="flex items-start gap-2">
-                      <p className="font-medium font-mono text-xs break-all">{node.node_id}</p>
+                      <p className="font-medium break-all">{node.node_id}</p>
                       <CopyButton text={node.node_id} />
                     </div>
                   </div>
@@ -604,7 +605,7 @@ export default function NodeDetailPage() {
                     <p className="font-medium">{formatDateTime(node.first_seen)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("nodes.lastSeen")}</p>
+                    <p className="text-sm text-muted-foreground">{t("nodeDetail.lastSeen")}</p>
                     <p className="font-medium">{formatDateTime(node.last_seen)}</p>
                   </div>
                   <div>
@@ -613,7 +614,7 @@ export default function NodeDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">{t("nodeDetail.agentVersion")}</p>
-                    <p className="font-medium font-mono">{node.agent_version || '-'}</p>
+                    <p className="font-medium">{node.agent_version || '-'}</p>
                   </div>
                 </CardContent>
               </Card>
