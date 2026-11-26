@@ -8,7 +8,8 @@ tables, so approval rules can be evaluated set-based in SQL instead of reading J
   nodes (the minimum age of an approval rule counts from it). The security flag only ever turns on
   and a severity is only ever added: a node whose advisory search failed must not clear them.
 - ``linux_node_updates``: the node's pending updates, one row per package version, with the name the
-  agent installs it by and the installed version.
+  agent installs it by, the installed version and ``phased`` (apt holds it back on this node for now:
+  Ubuntu phases it in to a share of machines at a time - per node, not per version).
 
 A push whose update list (and release) did not change costs one indexed read; a changed list is two
 statements (versions upsert, node rows diff), independent of how many packages there are.
@@ -51,6 +52,9 @@ SCHEMA = (
         PRIMARY KEY (node_id, version_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_linux_node_updates_version ON linux_node_updates (version_id)",
+    # rows stored before this column were not phased; the hash of each node's list includes the flag
+    # now, so every node rewrites its rows once with its next inventory
+    "ALTER TABLE linux_node_updates ADD COLUMN IF NOT EXISTS phased boolean NOT NULL DEFAULT false",
     "ALTER TABLE linux_data_current ADD COLUMN IF NOT EXISTS release text",
     "ALTER TABLE linux_data_current ADD COLUMN IF NOT EXISTS updates_hash text",
 )
@@ -118,12 +122,14 @@ def normalize(updates: Any) -> Optional[dict]:
             key = (package, arch, version, repository_key(entry.get("repository")))
             row = rows.get(key)
             security = entry.get("security") is True
+            phased = entry.get("phased") is True
             severity = severity if severity in SEVERITIES else None
             if row is None:
                 rows[key] = {"name": name, "installed": _text(entry.get("installedVersion")),
-                             "security": security, "severity": severity}
+                             "security": security, "severity": severity, "phased": phased}
             else:
                 row["security"] = row["security"] or security
+                row["phased"] = row["phased"] or phased
                 if severity and (not row["severity"] or SEVERITIES.index(severity) > SEVERITIES.index(row["severity"])):
                     row["severity"] = severity
     ordered = sorted(rows.items())  # one lock order for concurrent inserts of the same versions
@@ -179,20 +185,21 @@ SELECT_VERSIONS = """
 """
 
 # The node's rows become exactly the reported ones: gone ones deleted, new ones inserted, changed
-# ones (install name, installed version) updated - unchanged rows are not written.
+# ones (install name, installed version, phased) updated - unchanged rows are not written.
 REPLACE_NODE_UPDATES = """
     WITH input AS (
-        SELECT * FROM unnest($2::bigint[], $3::text[], $4::text[]) AS t(version_id, package, installed_version)
+        SELECT * FROM unnest($2::bigint[], $3::text[], $4::text[], $5::boolean[])
+                      AS t(version_id, package, installed_version, phased)
     ), removed AS (
         DELETE FROM linux_node_updates u
          WHERE u.node_id = $1 AND u.version_id <> ALL($2::bigint[])
     )
-    INSERT INTO linux_node_updates (node_id, version_id, package, installed_version)
-    SELECT $1, version_id, package, installed_version FROM input
+    INSERT INTO linux_node_updates (node_id, version_id, package, installed_version, phased)
+    SELECT $1, version_id, package, installed_version, phased FROM input
     ON CONFLICT (node_id, version_id) DO UPDATE
-       SET package = EXCLUDED.package, installed_version = EXCLUDED.installed_version
-     WHERE (linux_node_updates.package, linux_node_updates.installed_version)
-           IS DISTINCT FROM (EXCLUDED.package, EXCLUDED.installed_version)
+       SET package = EXCLUDED.package, installed_version = EXCLUDED.installed_version, phased = EXCLUDED.phased
+     WHERE (linux_node_updates.package, linux_node_updates.installed_version, linux_node_updates.phased)
+           IS DISTINCT FROM (EXCLUDED.package, EXCLUDED.installed_version, EXCLUDED.phased)
 """
 
 
@@ -228,7 +235,8 @@ async def store_node_updates(conn, node_uuid: str, updates: Any) -> Optional[str
         stored = [(ids[k], v) for k, v in report["rows"] if k in ids]
         await conn.execute(
             REPLACE_NODE_UPDATES, node_uuid,
-            [i for i, _ in stored], [v["name"] for _, v in stored], [v["installed"] for _, v in stored])
+            [i for i, _ in stored], [v["name"] for _, v in stored], [v["installed"] for _, v in stored],
+            [v["phased"] for _, v in stored])
         result = "stored"
     # the approval rules' cache re-evaluates the node (linux_rules worker)
     await conn.execute("INSERT INTO linux_approval_dirty (node_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING", node_uuid)

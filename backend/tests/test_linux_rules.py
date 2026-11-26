@@ -71,8 +71,10 @@ class PatternTests(unittest.TestCase):
         json.dumps(data)
 
 
-def row(package="openssl", arch="amd64", version="1", excluded=False, approved_at=NOW - timedelta(hours=1)):
-    return {"package": package, "arch": arch, "version": version, "excluded": excluded, "approved_at": approved_at}
+def row(package="openssl", arch="amd64", version="1", excluded=False, approved_at=NOW - timedelta(hours=1),
+        phased=False):
+    return {"package": package, "arch": arch, "version": version, "excluded": excluded, "approved_at": approved_at,
+            "phased": phased}
 
 
 class StateTests(unittest.TestCase):
@@ -83,12 +85,18 @@ class StateTests(unittest.TestCase):
         self.assertEqual(lr.approval_state(row(approved_at=None), NOW), "not_approved")
         # an exclusion wins, whatever the approval says
         self.assertEqual(lr.approval_state(row(excluded=True), NOW), "excluded")
+        # apt holds it back on the node: not evaluated (EVALUATE leaves it out, so approved_at is NULL)
+        self.assertEqual(lr.approval_state(row(phased=True, approved_at=None), NOW), "phased")
 
 
 class InstallPackagesTests(unittest.TestCase):
     def test_only_approved_with_exact_versions(self):
         rows = [row("openssl", version="3.0.13-0ubuntu3.6"), row("curl", approved_at=None),
                 row("vim", approved_at=NOW + timedelta(days=1)), row("linux-image-generic", excluded=True)]
+        self.assertEqual(lr.install_packages(rows, NOW), [{"name": "openssl", "version": "3.0.13-0ubuntu3.6"}])
+
+    def test_phased_updates_are_left_out(self):
+        rows = [row("openssl", version="3.0.13-0ubuntu3.6"), row("libsqlite3-0", phased=True)]
         self.assertEqual(lr.install_packages(rows, NOW), [{"name": "openssl", "version": "3.0.13-0ubuntu3.6"}])
 
     def test_multiarch_names_get_the_architecture(self):
@@ -109,6 +117,12 @@ class SqlShapeTests(unittest.TestCase):
         for sql in (lr.EVALUATE, lr.NODE_DETAIL, lr.APPLY, lr.SCOPE_NODES):
             self.assertIn("$3::text[]", sql)
         self.assertNotIn("$2", lr.FLEET_STATE)
+
+    def test_phased_rows_are_not_evaluated(self):
+        # the cache (APPLY, RECOUNT_DUE, FLEET_STATE), the preview and the bulk payload all build on EVALUATE
+        pending = lr.EVALUATE.split("pending AS MATERIALIZED")[1].split("), matches AS")[0]
+        self.assertIn("WHERE NOT u.phased", pending)
+        self.assertIn("u.phased", lr.NODE_DETAIL)
 
     def test_ring_nodes_limited_to_the_target_nodes(self):
         ring_nodes = lr.EVALUATE.split("ring_nodes AS MATERIALIZED")[1].split("), scope AS")[0]

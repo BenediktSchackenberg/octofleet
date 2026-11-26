@@ -56,7 +56,7 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(r["release"], "ubuntu:24.04")
         self.assertEqual(r["rows"], [(("openssl", "amd64", "3.0.13-0ubuntu3.6", "noble-security"),
                                       {"name": "openssl", "installed": "3.0.13-0ubuntu3.5",
-                                       "security": True, "severity": None})])
+                                       "security": True, "severity": None, "phased": False})])
 
     def test_dnf_name_arch(self):
         r = lu.normalize(report([
@@ -91,6 +91,16 @@ class NormalizeTests(unittest.TestCase):
         self.assertNotEqual(lu.normalize(report(a))["hash"], lu.normalize(report(a[:1]))["hash"])
         self.assertNotEqual(lu.normalize(report(a))["hash"],
                             lu.normalize(report(a, {"id": "ubuntu", "versionId": "26.04"}))["hash"])
+
+    def test_phased(self):
+        # apt holds it back on this node: stored per node row; a flip changes the hash (rows rewritten)
+        a = [{"name": "libsqlite3-0", "newVersion": "3.46.1-9ubuntu0.4", "arch": "amd64", "phased": True,
+              "phasedPercent": 10},
+             {"name": "fwupd", "newVersion": "2.0.20-1", "arch": "amd64", "phased": "yes"}]  # only true counts
+        r = lu.normalize(report(a))
+        self.assertEqual({k[0]: v["phased"] for k, v in r["rows"]}, {"libsqlite3-0": True, "fwupd": False})
+        b = [dict(a[0], phased=False), a[1]]
+        self.assertNotEqual(r["hash"], lu.normalize(report(b))["hash"])
 
     def test_cap(self):
         many = [{"name": f"p{i}", "newVersion": "1"} for i in range(lu.MAX_UPDATES + 5)]
@@ -129,7 +139,7 @@ class StoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(upsert[1:], ("ubuntu:24.04", ["openssl"], ["amd64"], ["3.6"], ["noble-security"], [True], [None]))
         node_rows = conn.execute.call_args_list[0].args
         self.assertIn("linux_node_updates", node_rows[0])
-        self.assertEqual(node_rows[1:], ("n1", [42], ["openssl"], ["3.5"]))
+        self.assertEqual(node_rows[1:], ("n1", [42], ["openssl"], ["3.5"], [False]))
         dirty = conn.execute.call_args_list[-2].args
         self.assertIn("linux_approval_dirty", dirty[0])  # the approval cache re-evaluates the node
         final = conn.execute.call_args_list[-1].args

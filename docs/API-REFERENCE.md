@@ -534,7 +534,7 @@ See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for detailed documentation.
 | PUT | `/api/v1/patches/linux-rules/{rule_id}` | User: `packages:write` | Change a rule; fields left out keep their value |
 | DELETE | `/api/v1/patches/linux-rules/{rule_id}` | User: `packages:write` | Delete a rule |
 | POST | `/api/v1/patches/linux-rules/preview` | User: `packages:read` | An unsaved rule (same fields) on its own: `nodes` in scope, pending versions `approved` / `waiting` / `excluded`, `nodes_without_security_data` (security-only rule) |
-| GET | `/api/v1/patches/linux-approved/{node_uuid}` | User: `packages:read` | The node's pending Linux updates: `name` (as installed), `package`, `arch`, `version`, `installed_version`, `repository`, `security`, `severity`, `first_seen_at`, `state` (`approved` / `waiting` / `excluded` / `not_approved`), `approved_at`, `rules`; plus `release`, `package_manager`, `security_data` |
+| GET | `/api/v1/patches/linux-approved/{node_uuid}` | User: `packages:read` | The node's pending Linux updates: `name` (as installed), `package`, `arch`, `version`, `installed_version`, `repository`, `security`, `severity`, `first_seen_at`, `state` (`approved` / `waiting` / `excluded` / `not_approved`, or `phased`: apt holds it back on the node for now, not evaluated by the rules), `approved_at`, `rules`; plus `release`, `package_manager`, `security_data` |
 | GET | `/api/v1/patches/deployments` | User: `packages:read` | List patch deployments |
 | POST | `/api/v1/patches/deployments` | User: `packages:deploy` | Create patch deployment |
 | GET | `/api/v1/patches/deployments/{id}` | User: `packages:read` | Get deployment details |
