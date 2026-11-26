@@ -133,6 +133,9 @@ export default function VulnerabilitiesPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
   const [expandedSoftware, setExpandedSoftware] = useState<string | null>(null);
+  // Nodes tab: only the nodes with critical / high CVEs (?severity=, from the dashboard)
+  const [nodeSeverity, setNodeSeverity] = useState<"critical" | "high" | null>(null);
+  const severityQuery = nodeSeverity ? `&severity=${nodeSeverity}` : "";
   const [lookedUpCve, setLookedUpCve] = useState<string | null>(null);
   const [urlRestored, setUrlRestored] = useState(false);
 
@@ -144,6 +147,8 @@ export default function VulnerabilitiesPage() {
     setExpandedNode(params.get("node"));
     setExpandedSoftware(params.get("software"));
     setLookedUpCve(params.get("cve"));
+    const severity = params.get("severity");
+    setNodeSeverity(severity === "critical" || severity === "high" ? severity : null);
     setUrlRestored(true);
   }, []);
   useEffect(() => {
@@ -153,15 +158,16 @@ export default function VulnerabilitiesPage() {
     if (activeTab === 'nodes' && expandedNode) params.set("node", expandedNode);
     if (activeTab === 'software' && expandedSoftware) params.set("software", expandedSoftware);
     if (lookedUpCve) params.set("cve", lookedUpCve);
+    if (activeTab === 'nodes' && nodeSeverity) params.set("severity", nodeSeverity);
     const query = params.toString();
     window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
-  }, [urlRestored, activeTab, expandedNode, expandedSoftware, lookedUpCve]);
+  }, [urlRestored, activeTab, expandedNode, expandedSoftware, lookedUpCve, nodeSeverity]);
 
   const fetchData = async () => {
     try {
       const [summaryRes, nodesRes, softwareRes, scansRes] = await Promise.all([
         apiClient.get<VulnerabilitySummary>(`/vulnerabilities/summary`, { showErrorToast: false }),
-        apiClient.get<{ nodes: NodeVulnInfo[]; total: number }>(`/vulnerabilities/by-node?limit=${nodeLimit.current}`, { showErrorToast: false }),
+        apiClient.get<{ nodes: NodeVulnInfo[]; total: number }>(`/vulnerabilities/by-node?limit=${nodeLimit.current}${severityQuery}`, { showErrorToast: false }),
         apiClient.get<{ software: SoftwareVulnInfo[] }>(`/vulnerabilities/by-software`, { showErrorToast: false }),
         apiClient.get<{ scans: any[] }>(`/vulnerabilities/scans?limit=5`, { showErrorToast: false }),
       ]);
@@ -180,15 +186,16 @@ export default function VulnerabilitiesPage() {
   // Refresh faster while a scan runs, so its progress and the growing results stay visible.
   const scanRunning = !!summary?.running_scan;
   useEffect(() => {
+    if (!urlRestored) return; // the severity from the URL first
     fetchData();
     const interval = setInterval(fetchData, scanRunning ? 10000 : 30000);
     return () => clearInterval(interval);
-  }, [scanRunning]);
+  }, [scanRunning, urlRestored, nodeSeverity]);
 
   const showMoreNodes = async () => {
     nodeLimit.current = Math.min(nodeLimit.current + NODE_PAGE, 1000);
     const res = await apiClient.get<{ nodes: NodeVulnInfo[]; total: number }>(
-      `/vulnerabilities/by-node?limit=${nodeLimit.current}`, { showErrorToast: false });
+      `/vulnerabilities/by-node?limit=${nodeLimit.current}${severityQuery}`, { showErrorToast: false });
     if (res) { setNodeVulns(res.nodes || []); setNodeTotal(res.total ?? 0); }
   };
 
@@ -446,8 +453,18 @@ export default function VulnerabilitiesPage() {
       {activeTab === 'nodes' && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               <Monitor className="h-5 w-5" /> {p("byNodeTitle")}
+              {nodeSeverity && (
+                <button
+                  type="button"
+                  onClick={() => { nodeLimit.current = NODE_PAGE; setNodeSeverity(null); }}
+                  className="ml-2 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+                  title={p("showAllNodes")}
+                >
+                  {p("onlySeverity", { severity: sev(nodeSeverity) })} <span aria-hidden>×</span>
+                </button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>

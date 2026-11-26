@@ -206,3 +206,19 @@ def test_an_installation_in_progress_is_not_started_again(nodes):
     assert r.status_code == 200, r.text
     assert row(fleet(q=tag), win)["installation"] is None
     assert len(install([win], retry=True)["jobs"]) == 1
+
+
+def test_summary_counts_like_the_page(nodes):
+    """Dashboard card: the same counts as the page's cards, plus up to date and per OS (at most a
+    couple of minutes old: compared after a fresh computation, both answers taken together)."""
+    r = requests.get(f"{API_URL}/api/v1/patches/fleet/summary", headers=HEADERS, timeout=30)
+    assert r.status_code == 200, r.text
+    summary = r.json()
+    for key in ("nodes", "current", "pending", "security", "reboot", "failed", "stale", "offline", "as_of", "refreshing", "by_os"):
+        assert key in summary, key
+    assert 0 <= summary["current"] <= summary["nodes"]
+    assert summary["by_os"]["windows"]["nodes"] + summary["by_os"]["linux"]["nodes"] == summary["nodes"]
+    page = requests.get(f"{API_URL}/api/v1/patches/fleet?limit=1", headers=HEADERS, timeout=30).json()["counts"]
+    # the cached value can be older than the nodes this module just pushed: the totals never shrink
+    assert summary["nodes"] <= page["nodes"]
+

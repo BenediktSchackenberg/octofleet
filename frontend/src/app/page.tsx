@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Shield, TrendingUp, Plus, Bug, Bell as BellIcon, Zap, Star, Clock } from "lucide-react";
+import { Package, Briefcase, FolderTree, RefreshCw, Activity, AlertCircle, Monitor, Shield, ShieldAlert, TrendingUp, Plus, Bug, Bell as BellIcon, Zap, Star, Clock, Download, Database } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { useAuth } from "@/lib/auth-context";
@@ -123,6 +123,25 @@ interface DashboardSummary {
   };
 }
 
+/** GET /patches/fleet/summary: nodes per update state, as the Fleet updates page counts them */
+interface FleetUpdatesSummary {
+  nodes: number; current: number; pending: number; security: number; reboot: number; failed: number; stale: number;
+  as_of: string; refreshing: boolean;
+}
+
+/** The Updates card's rows: the Fleet updates page's filter (?pending=1, …) and the dot colour; rows
+ *  that only point at problems are shown when they count something */
+const UPDATE_ROWS = [
+  ["security", "bg-red-500", true],
+  ["pending", "bg-sky-500", true],
+  ["reboot", "bg-yellow-500", true],
+  ["failed", "bg-orange-500", false],
+  ["stale", "bg-zinc-500", false],
+] as const;
+
+/** One style for the links in the card headers ("Show nodes →", …) */
+const CARD_LINK = "text-xs font-semibold normal-case tracking-normal text-primary hover:underline";
+
 interface MetricsSummary {
   nodesWithMetrics: number;
   totalNodes: number;
@@ -154,6 +173,7 @@ export default function HomePage() {
   const [jobCounts, setJobCounts] = useState<{ total: number; running: number; success: number; failed: number } | null>(null);
   const [showAllPerf, setShowAllPerf] = useState(false);
   const [taskCounts, setTaskCounts] = useState<{ approvals: number; findings: number; failedJobs: number; offline: number } | null>(null);
+  const [fleetUpdates, setFleetUpdates] = useState<FleetUpdatesSummary | null>(null);
   const [eventStats, setEventStats] = useState<{ stats: Array<{ event_type: string; count: number }>; retention: any } | null>(null);
   const { favorites } = useFavorites();
   const { recent } = useRecentlyOpened();
@@ -183,6 +203,7 @@ export default function HomePage() {
     fetchTaskCounts();
     fetchJobCounts();
     fetchEventStats();
+    fetchFleetUpdates();
   }, []);
 
   async function fetchSummary() {
@@ -229,6 +250,12 @@ export default function HomePage() {
       c.offline = results[3].value.nodes.filter((n: any) => n.status === "offline").length;
     }
     setTaskCounts(c);
+  }
+
+  // Without packages:read (403) the card is left out
+  async function fetchFleetUpdates() {
+    const data = await apiClient.get<FleetUpdatesSummary>("/patches/fleet/summary", { showErrorToast: false });
+    setFleetUpdates(data ?? null);
   }
 
   async function fetchEventStats() {
@@ -293,7 +320,7 @@ export default function HomePage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="shadow-sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); fetchTaskCounts(); }}>
+                  <Button variant="outline" size="sm" className="shadow-sm" onClick={() => { fetchSummary(); fetchMetrics(); fetchTimeseries(); fetchSqlCatalog(); fetchTaskCounts(); fetchFleetUpdates(); }}>
                     <RefreshCw className="h-4 w-4 mr-2" /> {t("common.refresh")}
                   </Button>
                 </div>
@@ -391,71 +418,75 @@ export default function HomePage() {
               {/* Bento Grid */}
               <div className="grid grid-cols-12 gap-6">
                 
-                {/* Fleet Status - 3 cols: links into Fleet -> Nodes, filtered by the same status */}
-                <Card className="col-span-12 md:col-span-3 border-primary/10 bg-gradient-to-br from-card to-primary/5 shadow-md">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-primary">
-                      {t("dashboard.fleetStatus")}
-                      <Link href="/nodes" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">{t("dashboard.showNodes")}</Link>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <Link href="/nodes" className="block text-6xl font-black mb-4 tracking-tighter hover:text-primary transition-colors" title={t("dashboard.showNodes")}>
-                      {summary?.counts.total || 0}
-                    </Link>
-                    <div className="flex flex-col gap-2">
-                      {([
-                        ["online", "common.online", "bg-green-500 animate-pulse"],
-                        ["away", "nodeDetail.away", "bg-yellow-500"],
-                        ["offline", "common.offline", "bg-zinc-500"],
-                      ] as const).filter(([status]) => status !== "away" || (summary?.counts.away ?? 0) > 0).map(([status, label, dot]) => (
-                        <Link
-                          key={status}
-                          href={`/nodes?status=${status}`}
-                          className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${dot}`} />
-                            <span className="text-muted-foreground">{t(label)}</span>
-                          </div>
-                          <span className="font-bold">{summary?.counts[status] || 0}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Security - 3 cols */}
+                {/* Critical threats - 3 cols: critical and high as rows, each to the nodes with such CVEs */}
                 <Card className="col-span-12 md:col-span-3 border-destructive/10 bg-gradient-to-br from-card to-destructive/5 shadow-md">
                   <CardHeader className="pb-3">
-                    <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-destructive">
-                      {t("dashboard.criticalThreats")}
+                    <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-destructive">
+                      <span className="flex items-center gap-2"><ShieldAlert className="h-3.5 w-3.5" /> {t("dashboard.criticalThreats")}</span>
+                      <Link href="/vulnerabilities" className={CARD_LINK}>{t("dashboard.showVulnerabilities")}</Link>
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="pt-0 space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-destructive">{summary?.vulnerabilities?.critical || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-destructive/70">{t("dashboard.critical")}</div>
-                      </div>
-                      <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-orange-500">{summary?.vulnerabilities?.high || 0}</div>
-                        <div className="text-[10px] uppercase font-bold text-orange-500/70">{t("dashboard.highRisk")}</div>
-                      </div>
-                    </div>
+                  <CardContent className="pt-0 space-y-2">
+                    {([
+                      ["critical", "dashboard.critical", "bg-destructive/10 border-destructive/20 hover:border-destructive/50", "text-destructive"],
+                      ["high", "dashboard.highRisk", "bg-orange-500/10 border-orange-500/20 hover:border-orange-500/50", "text-orange-500"],
+                    ] as const).map(([severity, label, box, text]) => (
+                      <Link
+                        key={severity}
+                        href={`/vulnerabilities?tab=nodes&severity=${severity}`}
+                        className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-colors ${box}`}
+                      >
+                        <span className={`text-xs font-bold uppercase tracking-wider ${text} opacity-80`}>{t(label)}</span>
+                        <span className={`text-3xl font-black ${text}`}>{summary?.vulnerabilities?.[severity] || 0}</span>
+                      </Link>
+                    ))}
                     <VulnerabilitySummaryFreshness
                       asOf={summary?.vulnerabilities?.as_of}
                       scanCompletedAt={summary?.vulnerabilities?.scan_completed_at}
                       refreshing={summary?.vulnerabilities?.refreshing}
                       pendingNodes={summary?.vulnerabilities?.pending_nodes}
                       onRefreshed={fetchSummary}
-                      className="justify-center flex-wrap"
+                      className="justify-center flex-wrap pt-1"
                     />
-                    <Button variant="ghost" size="sm" className="w-full text-xs hover:bg-destructive/5 text-muted-foreground" asChild>
-                      <Link href="/vulnerabilities">{t("dashboard.viewSecurityReports")}</Link>
-                    </Button>
                   </CardContent>
                 </Card>
+
+                {/* Updates - 3 cols: the Fleet updates counts; the rows link to the page with that filter */}
+                {fleetUpdates && (
+                  <Card className="col-span-12 md:col-span-3 border-sky-500/10 bg-gradient-to-br from-card to-sky-500/5 shadow-md">
+                    <CardHeader className="pb-3">
+                      <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-sky-500">
+                        <span className="flex items-center gap-2"><Download className="h-3.5 w-3.5" /> {t("dashboard.updates.title")}</span>
+                        <Link href="/patches/updates" className={CARD_LINK}>{t("dashboard.updates.show")}</Link>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <Link href="/patches/updates" className="block hover:text-primary transition-colors" title={t("dashboard.updates.currentHint")}>
+                        <span className="text-5xl font-black tracking-tighter">{fleetUpdates.current}</span>
+                        <span className="text-xl font-bold text-muted-foreground"> / {fleetUpdates.nodes}</span>
+                      </Link>
+                      <div className="text-xs text-muted-foreground mb-3" title={t("dashboard.updates.currentHint")}>{t("dashboard.updates.current")}</div>
+                      <div className="flex flex-col gap-2">
+                        {UPDATE_ROWS.filter(([key, , always]) => always || fleetUpdates[key] > 0).map(([key, dot]) => (
+                          <Link
+                            key={key}
+                            href={`/patches/updates?${key}=1`}
+                            className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${dot}`} />
+                              <span className="text-muted-foreground">{t(`dashboard.updates.${key}`)}</span>
+                            </div>
+                            <span className="font-bold">{fleetUpdates[key]}</span>
+                          </Link>
+                        ))}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-3 text-center">
+                        {t("dashboard.updates.asOf", { time: formatTime(fleetUpdates.as_of) })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Performance - 6 cols, spans 2 rows */}
                 <Card className="col-span-12 md:col-span-6 md:row-span-2 border-border/50 shadow-lg bg-card/50 backdrop-blur-sm">
@@ -464,7 +495,7 @@ export default function HomePage() {
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                         <TrendingUp className="h-3.5 w-3.5" /> {t("dashboard.fleetPerformance")}
                       </CardDescription>
-                      <Link href="/performance" className="text-xs font-semibold text-primary hover:underline">
+                      <Link href="/performance" className={CARD_LINK}>
                         {t("dashboard.detailedAnalytics")}
                       </Link>
                     </div>
@@ -613,12 +644,46 @@ export default function HomePage() {
                     )}
                   </CardContent>
                 </Card>
+                {/* Fleet status - 3 cols: links into Fleet -> Nodes, filtered by the same status */}
+                <Card className="col-span-12 md:col-span-3 border-primary/10 bg-gradient-to-br from-card to-primary/5 shadow-md">
+                  <CardHeader className="pb-3">
+                    <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-primary">
+                      <span className="flex items-center gap-2"><Monitor className="h-3.5 w-3.5" /> {t("dashboard.fleetStatus")}</span>
+                      <Link href="/nodes" className={CARD_LINK}>{t("dashboard.showNodes")}</Link>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Link href="/nodes" className="block text-6xl font-black mb-4 tracking-tighter hover:text-primary transition-colors" title={t("dashboard.showNodes")}>
+                      {summary?.counts.total || 0}
+                    </Link>
+                    <div className="flex flex-col gap-2">
+                      {([
+                        ["online", "common.online", "bg-green-500 animate-pulse"],
+                        ["away", "nodeDetail.away", "bg-yellow-500"],
+                        ["offline", "common.offline", "bg-zinc-500"],
+                      ] as const).filter(([status]) => status !== "away" || (summary?.counts.away ?? 0) > 0).map(([status, label, dot]) => (
+                        <Link
+                          key={status}
+                          href={`/nodes?status=${status}`}
+                          className="flex items-center justify-between text-sm px-3 py-1.5 bg-background/50 rounded-lg border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${dot}`} />
+                            <span className="text-muted-foreground">{t(label)}</span>
+                          </div>
+                          <span className="font-bold">{summary?.counts[status] || 0}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Jobs 24h - 3 cols */}
                 <Card className="col-span-6 md:col-span-3 border-green-500/10 bg-gradient-to-br from-card to-green-500/5 shadow-md hover:shadow-green-500/5 transition-all">
                   <CardHeader className="pb-3">
                     <CardDescription className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest text-green-600">
                       <span className="flex items-center gap-2"><Briefcase className="h-3.5 w-3.5" /> {t("dashboard.jobs24h")}</span>
-                      <Link href="/jobs?range=24h" className="text-[10px] font-bold text-green-600 hover:underline uppercase tracking-tighter">{t("dashboard.showJobs")}</Link>
+                      <Link href="/jobs?range=24h" className={CARD_LINK}>{t("dashboard.showJobs")}</Link>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
@@ -645,9 +710,9 @@ export default function HomePage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-400">
-                        🗄️ {t("dashboard.sqlLifecycle")}
+                        <Database className="h-3.5 w-3.5" /> {t("dashboard.sqlLifecycle")}
                       </CardDescription>
-                      <Link href="/sql" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
+                      <Link href="/sql" className={CARD_LINK}>
                         {t("dashboard.manage")}
                       </Link>
                     </div>
@@ -681,7 +746,7 @@ export default function HomePage() {
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-purple-400">
                         <Shield className="h-3.5 w-3.5" /> {t("dashboard.securityEvents")}
                       </CardDescription>
-                      <Link href="/security/events" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
+                      <Link href="/security/events" className={CARD_LINK}>
                         {t("dashboard.details")}
                       </Link>
                     </div>
@@ -746,7 +811,7 @@ export default function HomePage() {
                       <CardDescription className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                         <AlertCircle className="h-3.5 w-3.5" /> {t("dashboard.fleetIncidents")}
                       </CardDescription>
-                      <Link href="/alerts" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter">
+                      <Link href="/alerts" className={CARD_LINK}>
                         {t("dashboard.incidentLog")}
                       </Link>
                     </div>

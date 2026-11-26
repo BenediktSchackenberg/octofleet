@@ -277,7 +277,20 @@
     "showAllCount": "Alle anzeigen ({count})",
     "showLess": "Weniger anzeigen",
     "runningCount": "{count} laufen",
-    "showJobs": "Jobs anzeigen →"
+    "showJobs": "Jobs anzeigen →",
+    "showVulnerabilities": "Schwachstellen anzeigen →",
+    "updates": {
+      "title": "Updates",
+      "show": "Updates anzeigen →",
+      "current": "Nodes aktuell",
+      "currentHint": "Keine ausstehenden Updates und eine Update-Suche in den letzten 7 Tagen, die nicht fehlgeschlagen ist",
+      "security": "Sicherheitsupdates",
+      "pending": "Ausstehende Updates",
+      "reboot": "Neustart nötig",
+      "failed": "Update-Suche fehlgeschlagen",
+      "stale": "Seit 7 Tagen keine Suche",
+      "asOf": "Stand {time}"
+    }
   },
   "nodes": {
     "osBuild": "OS-Build {build}",
@@ -778,7 +791,9 @@
       "version": "Installierte Version",
       "kernel": "Kernel",
       "openNode": "Diese CVE auf der Node-Seite anzeigen"
-    }
+    },
+    "onlySeverity": "Nur Nodes mit CVEs: {severity}",
+    "showAllNodes": "Alle Nodes anzeigen"
   },
   "vulnerabilityScan": {
     "running": "Scan läuft seit {time} ({minutes} Min.) – {checked} von {total} Software-Versionen geprüft. Die Zahlen können bis zum Ende unvollständig sein.",
