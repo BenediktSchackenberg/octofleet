@@ -13,7 +13,7 @@ import { NodeRemovalStatus } from "@/components/node-removal";
 import { useI18n } from "@/lib/i18n-context";
 import { useFleetTree } from "@/components/fleet/FleetTree";
 import { STATUS_DOT, STATUS_LABEL, STATUS_VARIANT, statusFromSearch, statusToUrl, type NodeStatus } from "@/lib/node-status";
-import { ALL_NODES, UNASSIGNED, scopeGroupName, scopeNodeIds } from "@/lib/fleet-scope";
+import { ALL_NODES, rememberNodesList, scopeLabel as labelOfScope, scopeNodeIds } from "@/lib/fleet-scope";
 import { DEFAULT_DIR, NODE_SORTS, sortFromSearch, sortNodes, sortToUrl, type NodeSort, type SortDir } from "@/lib/node-sort";
 
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -281,10 +281,10 @@ export default function NodesPage() {
   const clearStatus = () => window.history.pushState(null, "", statusToUrl(window.location.href, null));
   const inScope = useMemo(() => scopeNodeIds(tree, scope), [tree, scope]);
   const scopedNodes = inScope ? nodes.filter((n) => inScope.has(n.node_id)) : nodes;
-  const scopeLabel = scope.group
-    ? [scope.group === UNASSIGNED ? t("fleetTree.unassigned") : scopeGroupName(tree, scope) ?? t("fleetTree.unknownGroup"), scope.os, scope.release]
-        .filter(Boolean).join(" › ")
-    : null;
+  const scopeLabel = labelOfScope(tree, scope, { unassigned: t("fleetTree.unassigned"), unknownGroup: t("fleetTree.unknownGroup") });
+  // the node page's back link returns to exactly this list (branch, status, sort)
+  const listQuery = searchParams.toString();
+  useEffect(() => { rememberNodesList(listQuery); }, [listQuery]);
 
   const filteredNodes = sortNodes(scopedNodes.filter(
     (node) => {

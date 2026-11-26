@@ -1,7 +1,7 @@
 "use client";
 
 import { useTabParam } from "@/hooks/useTabParam";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useNodeDetails } from "@/hooks/useNodeDetails";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,9 @@ import { AvailableUpdates, UpdateRebootBadge, relevantUpdateCount, useAvailableU
 import { RebootButton } from "@/components/reboot-dialog";
 import { UpdateActions } from "@/components/node-update-actions";
 import { UPDATE_COLS, installedUpdateType, resultVariant, type RebootBehavior, latestInstallEntry } from "@/lib/update-tables";
-import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
+import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell, ArrowLeft } from "lucide-react";
+import { useFleetTree } from "@/components/fleet/FleetTree";
+import { lastNodesList, scopeFromSearch, scopeLabel } from "@/lib/fleet-scope";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { apiClient } from "@/lib/api-client";
@@ -322,8 +324,8 @@ export default function NodeDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-background p-8">
-        <div className="max-w-7xl mx-auto">
+      <main className="min-h-screen bg-background p-6">
+        <div className="max-w-7xl">
           <p className="text-muted-foreground">{t("nodeDetail.loadingData")}</p>
         </div>
       </main>
@@ -332,8 +334,8 @@ export default function NodeDetailPage() {
 
   if (!node && !hardware) {
     return (
-      <main className="min-h-screen bg-background p-8">
-        <div className="max-w-7xl mx-auto">
+      <main className="min-h-screen bg-background p-6">
+        <div className="max-w-7xl">
           <Link href="/" className="text-muted-foreground hover:text-primary">
             {t("nodeDetail.backToDashboard")}
           </Link>
@@ -350,10 +352,11 @@ export default function NodeDetailPage() {
 
 
   return (
-    <main className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Breadcrumb */}
-{/* Header */}
+    <main className="min-h-screen bg-background p-6">
+      <div className="max-w-7xl">
+        {/* Back to the Nodes list the user came from, with its branch, status and sort */}
+        <BackToNodes />
+        {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
@@ -1833,5 +1836,22 @@ export default function NodeDetailPage() {
         </Tabs>
       </div>
     </main>
+  );
+}
+
+/** "← Not in a group › Linux › Ubuntu 24.04 LTS": back to the Nodes list as the user left it (the list
+ * remembers its query per browser tab); "← All nodes" when the page was opened directly. */
+function BackToNodes() {
+  const { t } = useI18n();
+  const { tree } = useFleetTree();
+  // read after hydration: the server renders the fallback, so the first client render matches it
+  const query = useSyncExternalStore(() => () => {}, lastNodesList, () => "");
+  const label = scopeLabel(tree, scopeFromSearch(query), { unassigned: t("fleetTree.unassigned"), unknownGroup: t("fleetTree.unknownGroup") })
+    ?? t("fleetTree.allNodes");
+  return (
+    <Link href={query ? `/nodes?${query}` : "/nodes"}
+      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />{label}
+    </Link>
   );
 }
