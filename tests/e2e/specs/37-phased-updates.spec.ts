@@ -32,6 +32,13 @@ test('Linux updates: phased updates are marked, not pending and not selectable',
   await expect(row('fwupd').getByRole('checkbox')).toBeChecked();
   await expect(row('libsqlite3-0').getByRole('checkbox')).not.toBeChecked();
   await expect(page.getByRole('button', { name: /Install selected \(1\)/ })).toBeVisible();
+
+  // Patches -> Fleet updates counts the same: 1 pending, the phased one only as a hint
+  const fleet = await (await request.get(`${API_URL}/api/v1/patches/fleet?q=${hostname}`, { headers })).json();
+  expect(fleet.nodes[0]).toMatchObject({ pending: 1, phased: 1 });
+  await page.goto(`/patches/updates?q=${hostname}`, { waitUntil: 'domcontentloaded' });
+  const fleetRow = page.getByRole('row').filter({ hasText: hostname });
+  await expect(fleetRow).toContainText('1 phased (not counted)');
 });
 
 test('Linux updates: only phased updates pending - nothing to install', async ({ page, request }) => {

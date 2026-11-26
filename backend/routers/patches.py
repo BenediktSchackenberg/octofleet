@@ -829,6 +829,22 @@ def install_state(last_install: dict | None, scanned_at: datetime | None, reboot
     return None
 
 
+def _linux_counts(linux: dict) -> dict:
+    """A Linux node's pending and security counts and the names of its installable updates, without
+    the phased updates (Ubuntu releases them to a share of machines at a time; apt holds them back on
+    this one and installs nothing until its turn comes). Older agents report no phasing: unchanged."""
+    packages = [p for p in (linux.get("updates") or []) if isinstance(p, dict) and p.get("name")]
+    phased = [p for p in packages if p.get("phased") is True]
+    total = linux.get("totalUpdates") if isinstance(linux.get("totalUpdates"), int) else len(packages)
+    security = linux.get("securityUpdates") if isinstance(linux.get("securityUpdates"), int) else 0
+    return {
+        "names": [p["name"] for p in packages if p.get("phased") is not True],
+        "pending": max(0, total - len(phased)),
+        "security": max(0, security - sum(1 for p in phased if p.get("security") is True)),
+        "phased": len(phased),
+    }
+
+
 async def _fleet_rows(conn) -> list:
     """All nodes with their update state (unfiltered)"""
     rows = await conn.fetch("""
@@ -905,16 +921,16 @@ async def _fleet_rows(conn) -> list:
             # the updates behind "will / may need a reboot" (tooltip)
             reboot_updates = [u.get("kb_id") or u.get("title") for u in relevant if u.get("reboot_behavior") in ("always", "can")]
             os_family = "windows"
+            phased = 0
             linux_rules_state = None
             # approved in the catalog (Patches -> Catalog): what a bulk installation installs
             approved = sum(1 for u in relevant if u.get("approved"))
             approved_definitions = sum(1 for u in definitions if u.get("approved"))
         else:
             linux = linux or {}
-            names = [p.get("name") for p in (linux.get("updates") or []) if p.get("name")]
+            counts = _linux_counts(linux)
+            names, pending, security, phased = counts["names"], counts["pending"], counts["security"], counts["phased"]
             definitions = []
-            pending = linux.get("totalUpdates") if isinstance(linux.get("totalUpdates"), int) else len(names)
-            security = linux.get("securityUpdates") if isinstance(linux.get("securityUpdates"), int) else 0
             reboot = _linux_reboot(names, linux.get("rebootRequired") is True)
             reboot_updates = [n for n in names if linux_reboot_behavior(n) in ("always", "can")]
             os_family = "linux"
@@ -938,6 +954,8 @@ async def _fleet_rows(conn) -> list:
             "os_family": os_family, "online": bool(r["is_online"]),
             "last_seen": r["last_seen"].isoformat() if r["last_seen"] else None,
             "pending": pending, "security": security, "definitions": len(definitions),
+            # Ubuntu phased updates apt holds back on the node for now: listed, not counted as pending
+            "phased": phased,
             "approved": approved, "approved_definitions": approved_definitions,
             "linux": linux_rules_state,
             "reboot": reboot if (pending or reboot == "pending") else "none",
