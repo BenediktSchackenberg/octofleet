@@ -18,7 +18,7 @@ import { NodeServices } from "@/components/node-services";
 import { NodeAppControl } from "@/components/node-app-control";
 import { PatchScanStatus, usePatchScan } from "@/components/patch-scan-status";
 import { AvailableUpdates, UpdateRebootBadge, relevantUpdateCount, useAvailableUpdates } from "@/components/available-updates";
-import { RebootButton } from "@/components/reboot-dialog";
+import { RebootButton, useNodeRebootStatus } from "@/components/reboot-dialog";
 import { UpdateActions } from "@/components/node-update-actions";
 import { UPDATE_COLS, installedUpdateType, resultVariant, type RebootBehavior, latestInstallEntry } from "@/lib/update-tables";
 import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell } from "lucide-react";
@@ -281,7 +281,7 @@ export default function NodeDetailPage() {
   const { hasPermission } = useAuth();
   const { t } = useI18n();
   
-  const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, collecting, collectInventory, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, fetchNodeDetails } = useNodeDetails(nodeId);
+  const { loading, node, history, hardware, software, hotfixes, system, security, network, browser, criticalCookies, events, eventsLoading, refreshing, collecting, collectInventory, linuxData, linuxUpdates, hwData, sysData, secData, netData, browserData, ramData, gpuList, nicsList, totalUpdatesCount, refreshInventory, refreshUpdateState, fetchNodeDetails } = useNodeDetails(nodeId);
   // Linux nodes get the Linux agent's cards even without data (with a notice): a missing card
   // would look like a node with nothing to report, not like a collection problem.
   const nodeOsName = sysData.osName || node?.os_name || "";
@@ -303,6 +303,21 @@ export default function NodeDetailPage() {
     ? linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0
     : relevantUpdateCount(availableUpdates);
   const updatesTabState = patchScan?.status === "failed" ? "failed" : pendingUpdates > 0 ? "pending" : null;
+  // The node reported its updates again or booted while the page is open (e.g. after an
+  // installation with reboot): reload the update data, so "Reboot required" does not stay until a
+  // manual reload. The reboot state poll of the Reboot buttons says so - no request of its own.
+  const { status: rebootStatus } = useNodeRebootStatus(node ? String(node.id) : undefined, hasPermission("nodes:read"));
+  const reportSeen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!rebootStatus) return;
+    const marker = `${rebootStatus.reported_at ?? ""}|${rebootStatus.last_boot_time ?? ""}`;
+    const previous = reportSeen.current;
+    reportSeen.current = marker;
+    if (previous === null || previous === marker) return;
+    refreshUpdateState();
+    setUpdateSearchKey((k) => k + 1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebootStatus]);
   // "Recently opened" and the breadcrumb show the hostname instead of the id
   const { nameRecent } = useRecentlyOpened();
   useEffect(() => {
@@ -541,6 +556,10 @@ export default function NodeDetailPage() {
                       <span className="font-mono">{sysData.uptimeFormatted}</span>
                     </div>
                   )}
+                  {/* Linux agents report the boot time in UTC, Windows agents the node's local time (both without offset) */}
+                  <InfoRow label={t("nodeDetail.lastBoot")} value={sysData.lastBootTime
+                    ? formatDateTime(isLinuxNode && !/(Z|[+-]\d\d:?\d\d)$/i.test(sysData.lastBootTime) ? `${sysData.lastBootTime}Z` : sysData.lastBootTime)
+                    : null} />
                   {hwData.bios?.isUefi !== undefined && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">{t("nodeDetail.bootMode")}</span>

@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Dict
 
 import asyncpg
@@ -389,6 +389,22 @@ async def submit_hotfixes(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_d
             await record_installed_from_history(conn, str(uuid))
     return {"status": "ok", "node_id": str(uuid), "type": "hotfixes", "hotfixCount": len(hotfixes), "updateHistoryCount": len(update_history)}
 
+def last_boot_from(value) -> datetime | None:
+    """os.lastBootTime for system_current.last_boot_time (timestamp without time zone): the Windows
+    agent sends the node's local time without offset, the Linux agent UTC without offset; a value
+    with an offset is stored in UTC (asyncpg rejects an aware datetime for this column, which failed
+    the whole system section). None when missing or not a date."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
 @router.post("/system", dependencies=[Depends(require_permission("inventory:write"))])
 async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Submit system inventory"""
@@ -397,10 +413,7 @@ async def submit_system(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)
     os_info = data.get("os", {})
     os_build = os_build_from(os_info)
     uuid = await upsert_node(db, node_id_str, hostname, os_name=os_info.get("name"), os_version=os_info.get("version"), os_build=os_build)
-    last_boot_time = None
-    if os_info.get("lastBootTime"):
-        try: last_boot_time = datetime.fromisoformat(os_info.get("lastBootTime").replace("Z", "+00:00"))
-        except: pass
+    last_boot_time = last_boot_from(os_info.get("lastBootTime"))
     async with db.acquire() as conn:
         agent_version = os_info.get("agentVersion")
         await conn.execute("""

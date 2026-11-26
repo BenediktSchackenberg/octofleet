@@ -45,10 +45,17 @@ async def reboot_nodes(data: dict, user=Depends(require_user_permission("nodes:r
 @router.get("/{node_id}/reboot", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def node_reboot_state(node_id: str, db: asyncpg.Pool = Depends(get_db)):
     """The node's newest reboot until it has reported after it: `state` scheduled / restarting /
-    failed with `restart_at`, `job_id`, `error`; `null` when nothing is pending."""
+    failed with `restart_at`, `job_id`, `error`; `null` when nothing is pending. Also `reported_at`
+    (the node's last update report: Windows update search or Linux update list) and
+    `last_boot_time` (as the agent reported it, see GET /inventory/system): the node page polls this
+    route anyway and reloads its update data when either changes, e.g. after a reboot."""
     async with db.acquire() as conn:
         uid = await conn.fetchval("SELECT id FROM nodes WHERE node_id = $1 OR id::text = $1", node_id)
         if uid is None:
             raise not_found("Node", node_id)
         row = (await node_reboot.node_states(conn, [str(uid)])).get(str(uid))
-        return {"reboot": row["reboot"] if row else None}
+        last_boot = await conn.fetchval("SELECT last_boot_time FROM system_current WHERE node_id = $1", uid)
+        reported = row["reported_at"] if row else None
+        return {"reboot": row["reboot"] if row else None,
+                "reported_at": reported.isoformat() if reported else None,
+                "last_boot_time": last_boot.isoformat() if last_boot else None}

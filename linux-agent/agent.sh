@@ -472,8 +472,25 @@ collect_system() {
     [[ -z "$os_version" ]] && os_version=$(grep -oP '(?<=^BUILD_ID=).+' /etc/os-release 2>/dev/null | tr -d '"')
     local os_id=$(grep -oP '(?<=^ID=).+' /etc/os-release 2>/dev/null | tr -d '"' || echo "linux")
     local kernel=$(uname -r)
-    local uptime_seconds=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
-    local boot_time=$(date -d "@$(($(date +%s) - uptime_seconds))" -Iseconds 2>/dev/null || echo "")
+    # Boot time: the kernel's btime (seconds since the epoch, the same on every push - "now minus
+    # uptime" moves by a second); now minus /proc/uptime when it is missing
+    local proc="${PROC_DIR:-/proc}" uptime_seconds boot_epoch boot_time="" last_boot="" uptime_hours=0 uptime_formatted=""
+    uptime_seconds=$(awk '{print int($1)}' "$proc/uptime" 2>/dev/null)
+    [[ "$uptime_seconds" =~ ^[0-9]+$ ]] || uptime_seconds=0
+    boot_epoch=$(awk '$1 == "btime" { print $2; exit }' "$proc/stat" 2>/dev/null)
+    [[ "$boot_epoch" =~ ^[0-9]+$ ]] || boot_epoch=$(( uptime_seconds > 0 ? $(date +%s) - uptime_seconds : 0 ))
+    if (( boot_epoch > 0 )); then
+        boot_time=$(date -d "@$boot_epoch" -Iseconds 2>/dev/null)
+        # os.lastBootTime, uptimeHours, uptimeFormatted as the Windows agent sends them (system_current);
+        # the time in UTC, without offset: older servers store it as given and reject an offset
+        last_boot=$(date -u -d "@$boot_epoch" +%Y-%m-%dT%H:%M:%S 2>/dev/null)
+        local up=$(( $(date +%s) - boot_epoch )); (( up < 0 )) && up=0
+        uptime_hours=$(( up / 36 )); uptime_hours=$(printf '%d.%02d' $(( uptime_hours / 100 )) $(( uptime_hours % 100 )))
+        local d=$(( up / 86400 )) h=$(( up % 86400 / 3600 )) m=$(( up % 3600 / 60 ))
+        if (( d >= 1 )); then uptime_formatted="${d}d ${h}h ${m}m"
+        elif (( h >= 1 )); then uptime_formatted="${h}h ${m}m"
+        else uptime_formatted="${m}m"; fi
+    fi
     local timezone=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo "UTC")
     
     cat << EOF
@@ -490,7 +507,10 @@ collect_system() {
         "version": "$os_version",
         "build": "$kernel",
         "computerName": "$hostname",
-        "agentVersion": "$VERSION"
+        "agentVersion": "$VERSION",
+        "lastBootTime": $( [[ -n "$last_boot" ]] && printf '"%s"' "$last_boot" || echo null ),
+        "uptimeHours": $uptime_hours,
+        "uptimeFormatted": $( [[ -n "$uptime_formatted" ]] && printf '"%s"' "$uptime_formatted" || echo null )
     },
     "uptime": {
         "seconds": $uptime_seconds,

@@ -889,6 +889,7 @@
     "biosVersion": "BIOS version",
     "biosDate": "BIOS date",
     "bootMode": "Boot mode",
+    "lastBoot": "Last boot",
     "virtualizationDomain": "Virtualization & domain",
     "type": "Type",
     "virtual": "Virtual",

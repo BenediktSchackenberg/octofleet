@@ -28,6 +28,58 @@ export interface RebootJobState {
   error?: string | null;
 }
 
+/** GET /nodes/{id}/reboot: the console reboot, and when the node last reported its updates and booted */
+export interface NodeRebootStatus {
+  reboot: RebootJobState | null;
+  reported_at?: string | null;
+  last_boot_time?: string | null;
+}
+
+const REBOOT_POLL_MS = 30_000;
+type RebootPoll = { subscribers: Set<(status: NodeRebootStatus) => void>; timer?: ReturnType<typeof setInterval>; last?: NodeRebootStatus };
+const rebootPolls = new Map<string, RebootPoll>();
+
+async function loadRebootStatus(nodeId: string): Promise<void> {
+  const res = await apiClient.get<NodeRebootStatus>(`/nodes/${nodeId}/reboot`, { showErrorToast: false });
+  const poll = rebootPolls.get(nodeId);
+  if (!res || !poll) return;
+  poll.last = res;
+  poll.subscribers.forEach((notify) => notify(res));
+}
+
+/**
+ * The node's reboot state (GET /nodes/{id}/reboot), every 30 s while the page is visible: one
+ * request per node for all its Reboot buttons and the node page, which reloads its update data
+ * when the node reported again. `reload` asks at once (after a reboot or cancel).
+ */
+export function useNodeRebootStatus(nodeId: string | undefined, enabled = true) {
+  const [status, setStatus] = useState<NodeRebootStatus | null>(null);
+  useEffect(() => {
+    if (!nodeId || !enabled) return;
+    let poll = rebootPolls.get(nodeId);
+    if (!poll) {
+      poll = { subscribers: new Set() };
+      rebootPolls.set(nodeId, poll);
+    }
+    const current = poll;
+    current.subscribers.add(setStatus);
+    if (current.last) setStatus(current.last);
+    if (!current.timer) {
+      loadRebootStatus(nodeId);
+      current.timer = setInterval(() => { if (document.visibilityState === "visible") loadRebootStatus(nodeId); }, REBOOT_POLL_MS);
+    }
+    return () => {
+      current.subscribers.delete(setStatus);
+      if (current.subscribers.size === 0) {
+        clearInterval(current.timer);
+        rebootPolls.delete(nodeId);
+      }
+    };
+  }, [nodeId, enabled]);
+  const reload = useCallback(() => (nodeId ? loadRebootStatus(nodeId) : Promise.resolve()), [nodeId]);
+  return { status, reload };
+}
+
 interface PreviewNode {
   id: string;
   found: boolean;
@@ -278,21 +330,10 @@ export function RebootButton({ nodeId, hostname, size = "default", label }: {
   const { hasPermission } = useAuth();
   const allowed = hasPermission("nodes:reboot");
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState<RebootJobState | null>(null);
   const [cancelling, setCancelling] = useState(false);
-
-  const load = useCallback(async () => {
-    const res = await apiClient.get<{ reboot: RebootJobState | null }>(`/nodes/${nodeId}/reboot`, { showErrorToast: false });
-    if (res) setState(res.reboot);
-  }, [nodeId]);
-
-  useEffect(() => {
-    if (!allowed) return;
-    load();
-    // while a reboot is pending, follow it until the node has reported after it
-    const timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 30_000);
-    return () => clearInterval(timer);
-  }, [allowed, load]);
+  // while a reboot is pending, follow it until the node has reported after it (shared poll)
+  const { status, reload: load } = useNodeRebootStatus(nodeId, allowed);
+  const state = status?.reboot ?? null;
 
   if (!allowed) return null;
 
