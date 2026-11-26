@@ -13,7 +13,8 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 # first "}" line after "EOF".
 eval "$(awk '/^collect_updates\(\) \{/ { f = 1 } f { print } f && /^EOF$/ { e = 1 } e && /^}$/ { exit }' "$AGENT")"
 eval "$(awk '/^os_release_json\(\) \{/ { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
-for fn in collect_updates os_release_json; do
+eval "$(awk '/^apt_phased_updates\(\) \{/ { f = 1 } f { print } f && /^}$/ { exit }' "$AGENT")"
+for fn in collect_updates os_release_json apt_phased_updates; do
     declare -F "$fn" >/dev/null || { echo "$fn not found in $AGENT"; exit 2; }
 done
 OS_RELEASE_FILE=$(mktemp); export OS_RELEASE_FILE
@@ -38,6 +39,17 @@ run_case() {
     printf '#!/bin/sh\nexit 0\n' > "$bin/apt-get"
     printf '#!/bin/sh\ncat <<'"'"'EOF'"'"'\n%s\nEOF\n' "$1" > "$bin/apt"
     chmod +x "$bin/apt-get" "$bin/apt"
+    OUT=$(PATH="$bin:$PATH" collect_updates)
+    rm -rf "$bin"
+}
+# run_phased_case APT_OUTPUT DRY_RUN POLICY: like run_case, and "apt-get -s upgrade" prints DRY_RUN,
+# "apt-cache policy NAME" prints POLICY (with NAME in it).
+run_phased_case() {
+    local bin; bin=$(mktemp -d)
+    printf '#!/bin/sh\ncat <<'"'"'EOF'"'"'\n%s\nEOF\n' "$2" > "$bin/apt-get"
+    printf '#!/bin/sh\ncat <<'"'"'EOF'"'"'\n%s\nEOF\n' "$1" > "$bin/apt"
+    printf '#!/bin/sh\n[ "$1" = policy ] || exit 1\ncat <<EOF\n%s\nEOF\n' "$3" > "$bin/apt-cache"
+    chmod +x "$bin/apt-get" "$bin/apt" "$bin/apt-cache"
     OUT=$(PATH="$bin:$PATH" collect_updates)
     rm -rf "$bin"
 }
@@ -70,6 +82,45 @@ check "no 'upgradable from:': installedVersion null" [ "$(field '.updates[0].ins
 OS_RELEASE_FILE=/nonexistent run_case 'Listing... Done
 curl/resolute-updates 8.14.1-2ubuntu1 amd64 [upgradable from: 8.14.1-2]'
 check "no os-release: release null, valid JSON" [ "$(field .release)" = "null" ] && [ "$(field .totalUpdates)" = "1" ]
+
+# Phased update: apt defers it on this machine - marked with Ubuntu's share, the others not
+run_phased_case 'Listing... Done
+libsqlite3-0/resolute-updates 3.46.1-9ubuntu0.4 amd64 [upgradable from: 3.46.1-9ubuntu0.3]
+fwupd/resolute-updates 2.1.6-3ubuntu4~26.04.1 amd64 [upgradable from: 2.1.1-1ubuntu3.1]' \
+'Reading package lists...
+Calculating upgrade...
+The following upgrades have been deferred due to phasing:
+  libsqlite3-0
+The following packages will be upgraded:
+  fwupd
+1 upgraded, 0 newly installed, 0 to remove and 1 not upgraded.' \
+'$2:
+  Installed: 3.46.1-9ubuntu0.3
+  Candidate: 3.46.1-9ubuntu0.4
+  Version table:
+     3.46.1-9ubuntu0.4 500 (phased 10%)'
+check "phased: valid JSON" valid_json
+check "phased: the deferred update is marked" [ "$(field '.updates[] | select(.name == "libsqlite3-0") | .phased')" = "true" ]
+check "phased: with Ubuntu's share" [ "$(field '.updates[] | select(.name == "libsqlite3-0") | .phasedPercent')" = "10" ]
+check "phased: the other update is not marked" [ "$(field '.updates[] | select(.name == "fwupd") | .phased')" = "null" ]
+check "phased: counted, and still in the total" [ "$(field .phasedUpdates)" = "1" ] && [ "$(field .totalUpdates)" = "2" ]
+
+# Deferred but apt-cache shows no share: phased, percent null
+run_phased_case 'Listing... Done
+libfoo1/resolute-updates 1.1 amd64 [upgradable from: 1.0]' \
+'The following upgrades have been deferred due to phasing:
+  libfoo1
+0 upgraded, 0 newly installed, 0 to remove and 1 not upgraded.' \
+'libfoo1:
+  Candidate: 1.1'
+check "phased without share: marked, percent null" \
+    [ "$(field '.updates[0].phased')" = "true" ] && [ "$(field '.updates[0].phasedPercent')" = "null" ]
+
+# No phasing: nothing marked, count 0
+run_case 'Listing... Done
+curl/resolute-updates 8.14.1-2ubuntu1 amd64 [upgradable from: 8.14.1-2]'
+check "no phasing: phasedUpdates 0, nothing marked" \
+    [ "$(field .phasedUpdates)" = "0" ] && [ "$(field '.updates[0] | has("phased")')" = "false" ]
 
 # Nothing to upgrade
 run_case 'Listing... Done'

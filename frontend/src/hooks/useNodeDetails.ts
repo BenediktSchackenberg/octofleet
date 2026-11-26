@@ -186,13 +186,17 @@ export interface LinuxData {
     packageManager?: string;
     totalUpdates?: number;
     securityUpdates?: number;
+    /** apt: updates Ubuntu phases in and apt holds back on this machine for now (in totalUpdates) */
+    phasedUpdates?: number;
     lastCheckTime?: string;
     rebootRequired?: boolean | null;
     rebootPackages?: string[];
     /** pacman: "arch-audit" when the security flags come from Arch's advisories, else none */
     securitySource?: string | null;
     /** reboot_behavior: the server's estimate from the package name (always / can / never) */
-    updates?: { name: string; newVersion: string; repository?: string; security: boolean; reboot_behavior?: RebootBehavior }[];
+    /** phased: held back by apt while Ubuntu phases it in (phasedPercent: the share already getting it) */
+    updates?: { name: string; newVersion: string; repository?: string; security: boolean; reboot_behavior?: RebootBehavior;
+      phased?: boolean; phasedPercent?: number | null }[];
   };
   diskHealth?: {
     smartctlAvailable?: boolean;
