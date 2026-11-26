@@ -5,8 +5,7 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { hwText } from "@/lib/hardware";
 import { useI18n } from "@/lib/i18n-context";
-
-
+import { AlertTriangle, CircleAlert, CircleCheck, CircleHelp, CircleX, HardDrive, Monitor, Server } from "lucide-react";
 
 interface FleetHardware {
   nodeCount: number;
@@ -19,12 +18,13 @@ interface FleetHardware {
     usedPercent: number;
   };
   diskHealth: { healthy: number; warning: number; critical: number };
-  physicalDiskHealth: { healthy: number; warning: number; unhealthy: number; unknown: number };
+  physicalDiskHealth: { healthy: number; warning: number; unhealthy: number; virtual?: number; unknown: number };
   diskTypes: { ssd: number; hdd: number; virtual?: number; unknown: number };
   busTypes: { name: string; count: number }[];
   physicalDisks: Array<{
     nodeId: string;
     hostname: string;
+    deviceId?: string | null;
     model: string;
     sizeGB: number;
     busType: string | null;
@@ -32,6 +32,7 @@ interface FleetHardware {
     isSsd: boolean | null;
     isVirtual?: boolean;
     healthStatus: string | null;
+    health?: Health;
     temperature: number | null;
     wearLevel: number | null;
   }>;
@@ -41,22 +42,68 @@ interface FleetHardware {
   }[];
 }
 
-type Health = "healthy" | "warning" | "unhealthy" | "unknown";
+// "virtual": a disk of a virtual machine without a health status – no SMART, its health belongs to
+// the host's storage; neutral, not a problem (unlike "unknown" on a physical disk).
+type Health = "healthy" | "warning" | "unhealthy" | "virtual" | "unknown";
 
-function healthOf(status: string | null): Health {
+function healthOf(status: string | null, isVirtual?: boolean): Health {
   const s = (status || "").toLowerCase();
   if (s === "healthy") return "healthy";
   if (s === "warning" || s === "degraded") return "warning";
   if (s === "unhealthy" || s === "failed") return "unhealthy";
-  return "unknown";
+  return isVirtual ? "virtual" : "unknown";
+}
+
+// Short device name: "\\.\PHYSICALDRIVE1" → "Disk 1" (as in Disk Management), "/dev/sda" → "sda".
+function deviceLabel(deviceId: string | null | undefined, t: (key: string, vars?: Record<string, string | number>) => string): string | null {
+  if (!deviceId) return null;
+  const win = /PHYSICALDRIVE(\d+)$/i.exec(deviceId);
+  if (win) return t("hardwareFleet.diskNumber", { n: win[1] });
+  return deviceId.replace(/^\/dev\//, "");
 }
 
 const HEALTH_STYLE: Record<Health, string> = {
   healthy: "bg-green-500/20 text-green-400",
   warning: "bg-yellow-500/20 text-yellow-400",
   unhealthy: "bg-red-500/20 text-red-400",
+  virtual: "bg-sky-500/15 text-sky-300",
   unknown: "bg-zinc-500/20 text-zinc-400",
 };
+
+const ICON = "inline h-4 w-4 align-[-2px]";
+
+// A host's status is its worst disk's: a problem first, then what cannot be judged, then fine
+// A disk with a problem: its line in the host row takes the colour of its status
+const PROBLEM_TEXT: Partial<Record<Health, string>> = { warning: "text-yellow-300", unhealthy: "text-red-400" };
+
+const HEALTH_RANK: Record<Health, number> = { unhealthy: 4, warning: 3, unknown: 2, virtual: 1, healthy: 0 };
+
+type FleetDisk = FleetHardware["physicalDisks"][number];
+
+function diskType(disk: FleetDisk, t: (key: string) => string): string {
+  const kind = disk.isVirtual ? t("hardwareFleet.virtual")
+    : disk.isSsd === true ? "SSD" : disk.isSsd === false ? "HDD" : t("hardwareFleet.unknownType");
+  const bus = hwText(disk.busType) ?? hwText(disk.interfaceType);
+  return bus ? `${kind} (${bus})` : kind;
+}
+
+// Hosts with a problem disk come first (unhealthy, then warning); all others alphabetically
+const PROBLEM_RANK: Partial<Record<Health, number>> = { unhealthy: 2, warning: 1 };
+
+/** The disks grouped per host (one table row each): problem hosts first, then by hostname */
+function disksByHost(disks: FleetDisk[]) {
+  const hosts = new Map<string, { nodeId: string; hostname: string; disks: (FleetDisk & { state: Health })[] }>();
+  for (const disk of disks) {
+    const host = hosts.get(disk.nodeId) ?? { nodeId: disk.nodeId, hostname: disk.hostname, disks: [] };
+    host.disks.push({ ...disk, state: disk.health ?? healthOf(disk.healthStatus, disk.isVirtual) });
+    hosts.set(disk.nodeId, host);
+  }
+  return [...hosts.values()].map((host) => {
+    const worst = host.disks.reduce<Health>((w, d) => (HEALTH_RANK[d.state] > HEALTH_RANK[w] ? d.state : w), "healthy");
+    return { ...host, worst, totalGB: host.disks.reduce((sum, d) => sum + (d.sizeGB || 0), 0) };
+  }).sort((a, b) => (PROBLEM_RANK[b.worst] ?? 0) - (PROBLEM_RANK[a.worst] ?? 0)
+    || a.hostname.localeCompare(b.hostname, undefined, { sensitivity: "base" }));
+}
 
 export default function FleetHardwarePage() {
   const { t } = useI18n();
@@ -114,28 +161,29 @@ export default function FleetHardwarePage() {
 
   // Safe access
   const storage = data.storage || { totalTB: 0, usedTB: 0, usedPercent: 0 };
-  const pdh = data.physicalDiskHealth || { healthy: 0, warning: 0, unhealthy: 0, unknown: 0 };
+  const pdh = { virtual: 0, ...(data.physicalDiskHealth || { healthy: 0, warning: 0, unhealthy: 0, unknown: 0 }) };
   const dt = { virtual: 0, ...(data.diskTypes || { ssd: 0, hdd: 0, unknown: 0 }) };
   const cpuTypes = data.cpuTypes || [];
   const physicalDisks = data.physicalDisks || [];
+  const hosts = disksByHost(physicalDisks);
   const issues = data.issues || [];
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 p-8">
       <div className="max-w-7xl mx-auto">
-<h1 className="text-3xl font-bold mb-2">🖥️ {t("hardwareFleet.title")}</h1>
+<h1 className="text-3xl font-bold mb-2 flex items-center gap-3"><Server className="h-7 w-7 text-zinc-400" aria-hidden="true" />{t("hardwareFleet.title")}</h1>
         <p className="text-zinc-400 mb-6">{t("hardwareFleet.nodesRecorded", { count: data.nodeCount })}</p>
 
         {/* Issues Banner */}
         {issues.length > 0 && (
           <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500 rounded-lg">
-            <h3 className="text-yellow-400 font-semibold mb-2">⚠️ {t("hardwareFleet.issues", { count: issues.length })}</h3>
+            <h3 className="text-yellow-400 font-semibold mb-2 flex items-center gap-2"><AlertTriangle className="h-4 w-4" aria-hidden="true" />{t("hardwareFleet.issues", { count: issues.length })}</h3>
             <div className="space-y-2">
               {issues.slice(0, 5).map((issue, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
-                  <span className={issue.severity === "critical" ? "text-red-400" : "text-yellow-400"}>
-                    {issue.severity === "critical" ? "🔴" : "🟡"}
-                  </span>
+                  {issue.severity === "critical"
+                    ? <CircleX className="h-4 w-4 text-red-400 shrink-0" aria-hidden="true" />
+                    : <CircleAlert className="h-4 w-4 text-yellow-400 shrink-0" aria-hidden="true" />}
                   <Link href={`/nodes/${issue.nodeId}`} className="text-blue-400 hover:underline">
                     {issue.hostname}
                   </Link>
@@ -170,26 +218,31 @@ export default function FleetHardwarePage() {
           {/* Physical Disk Health */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
             <h3 className="text-zinc-400 text-sm">{t("hardwareFleet.physicalDisks")}</h3>
-            <p className="text-2xl font-bold">
-              {pdh.unhealthy > 0 ? "🔴" : pdh.warning > 0 ? "🟡" : pdh.healthy > 0 ? "🟢" : "❓"} {pdh.healthy + pdh.warning + pdh.unhealthy + pdh.unknown}
+            <p className="text-2xl font-bold flex items-center gap-2">
+              {pdh.unhealthy > 0 ? <CircleX className="h-6 w-6 text-red-400" aria-hidden="true" />
+                : pdh.warning > 0 ? <CircleAlert className="h-6 w-6 text-yellow-400" aria-hidden="true" />
+                : <CircleCheck className="h-6 w-6 text-green-400" aria-hidden="true" />}
+              {pdh.healthy + pdh.warning + pdh.unhealthy + pdh.virtual + pdh.unknown}
             </p>
             <div className="text-xs text-zinc-500 mt-2 space-y-1">
-              <div>✅ {pdh.healthy} {t("hardwareFleet.health.healthy")}</div>
-              <div>⚠️ {pdh.warning} {t("hardwareFleet.health.warning")}</div>
-              <div>❌ {pdh.unhealthy} {t("hardwareFleet.health.unhealthy")}</div>
-              {pdh.unknown > 0 && <div>❓ {pdh.unknown} {t("hardwareFleet.health.unknown")}</div>}
+              <div><CircleCheck className={`${ICON} text-green-400`} aria-hidden="true" /> {pdh.healthy} {t("hardwareFleet.health.healthy")}</div>
+              <div><CircleAlert className={`${ICON} text-yellow-400`} aria-hidden="true" /> {pdh.warning} {t("hardwareFleet.health.warning")}</div>
+              <div><CircleX className={`${ICON} text-red-400`} aria-hidden="true" /> {pdh.unhealthy} {t("hardwareFleet.health.unhealthy")}</div>
+              {pdh.virtual > 0 && <div title={t("hardwareFleet.health.virtualHint")}><Monitor className={`${ICON} text-sky-300`} aria-hidden="true" /> {pdh.virtual} {t("hardwareFleet.health.virtual")}</div>}
+              {pdh.unknown > 0 && <div><CircleHelp className={ICON} aria-hidden="true" /> {pdh.unknown} {t("hardwareFleet.health.unknown")}</div>}
             </div>
           </div>
 
           {/* Disk Types */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
             <h3 className="text-zinc-400 text-sm">{t("hardwareFleet.diskTypes")}</h3>
-            <p className="text-2xl font-bold">{dt.ssd + dt.hdd + dt.virtual + dt.unknown}</p>
+            {/* how many kinds of disk (like CPU types), not how many disks - that is the Disks card */}
+            <p className="text-2xl font-bold">{[dt.ssd, dt.hdd, dt.virtual, dt.unknown].filter((n) => n > 0).length}</p>
             <div className="text-xs text-zinc-500 mt-2 space-y-1">
-              <div>💾 {dt.ssd} SSD</div>{/* i18n-ignore */}
-              <div>🗄️ {dt.hdd} HDD</div>{/* i18n-ignore */}
-              {dt.virtual > 0 && <div>🖥️ {dt.virtual} {t("hardwareFleet.virtual")}</div>}
-              {dt.unknown > 0 && <div>❓ {dt.unknown} {t("hardwareFleet.unknownType")}</div>}
+              <div><HardDrive className={ICON} aria-hidden="true" /> {dt.ssd} SSD</div>{/* i18n-ignore */}
+              <div><HardDrive className={ICON} aria-hidden="true" /> {dt.hdd} HDD</div>{/* i18n-ignore */}
+              {dt.virtual > 0 && <div><Monitor className={ICON} aria-hidden="true" /> {dt.virtual} {t("hardwareFleet.virtual")}</div>}
+              {dt.unknown > 0 && <div><CircleHelp className={ICON} aria-hidden="true" /> {dt.unknown} {t("hardwareFleet.unknownType")}</div>}
             </div>
           </div>
 
@@ -209,40 +262,50 @@ export default function FleetHardwarePage() {
         {physicalDisks.length > 0 && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
             <div className="p-4 border-b border-zinc-800">
-              <h3 className="font-semibold">📀 {t("hardwareFleet.physicalDisksCount", { count: physicalDisks.length })}</h3>
+              <h3 className="font-semibold flex items-center gap-2"><HardDrive className="h-4 w-4 text-zinc-400" aria-hidden="true" />{t("hardwareFleet.physicalDisksByHost", { count: physicalDisks.length, hosts: hosts.length })}</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-zinc-800/50">
                   <tr className="text-left text-sm text-zinc-400">
                     <th className="p-3">{t("hardwareFleet.host")}</th>
-                    <th className="p-3">{t("hardwareFleet.model")}</th>
-                    <th className="p-3">{t("hardwareFleet.size")}</th>
+                    <th className="p-3">{t("hardwareFleet.physicalDisks")}</th>
+                    <th className="p-3 text-right">{t("hardwareFleet.size")}</th>
                     <th className="p-3">{t("hardwareFleet.type")}</th>
                     <th className="p-3">{t("hardwareFleet.status")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
-                  {physicalDisks.map((disk, i) => {
-                    const bus = hwText(disk.busType) ?? hwText(disk.interfaceType);
-                    const health = healthOf(disk.healthStatus);
+                  {hosts.map((host) => {
+                    const types = [...new Set(host.disks.map((d) => diskType(d, t)))];
+                    const mixed = host.disks.some((d) => d.state !== host.worst);
                     return (
-                    <tr key={i} className="hover:bg-zinc-800/30">
+                    <tr key={host.nodeId} className="hover:bg-zinc-800/30 align-top">
                       <td className="p-3">
-                        <Link href={`/nodes/${disk.nodeId}`} className="text-blue-400 hover:underline">
-                          {disk.hostname}
+                        <Link href={`/nodes/${host.nodeId}?tab=hardware`} className="text-blue-400 hover:underline">
+                          {host.hostname}
                         </Link>
                       </td>
-                      <td className="p-3 text-sm text-zinc-300">{disk.model}</td>
-                      <td className="p-3 text-sm">{disk.sizeGB?.toFixed(0)} GB</td>
-                      <td className="p-3 text-sm">
-                        {disk.isVirtual ? `🖥️ ${t("hardwareFleet.virtual")}`
-                          : disk.isSsd === true ? "💾 SSD" : disk.isSsd === false ? "🗄️ HDD" : `❓ ${t("hardwareFleet.unknownType")}`}
-                        {bus && <span className="text-zinc-500 ml-1">({bus})</span>}
+                      <td className="p-3 text-sm text-zinc-300">
+                        <ul className="space-y-0.5">
+                          {host.disks.map((disk, i) => (
+                            <li key={i} className={PROBLEM_TEXT[disk.state] ?? ""}>
+                              <span className="font-medium" title={disk.deviceId ?? undefined}>{deviceLabel(disk.deviceId, t) ?? "–"}</span>
+                              <span className="text-zinc-500"> · </span>{disk.model}
+                              <span className="text-zinc-500 tabular-nums"> · {disk.sizeGB?.toFixed(0)} GB</span>
+                              {mixed && disk.state !== "healthy" && disk.state !== "virtual" && (
+                                <span className={`ml-2 px-1.5 rounded text-xs ${HEALTH_STYLE[disk.state]}`}>{t(`hardwareFleet.health.${disk.state}`)}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                       </td>
+                      <td className="p-3 text-sm whitespace-nowrap text-right tabular-nums">{host.totalGB.toFixed(0)} GB</td>
+                      <td className="p-3 text-sm">{types.join(", ")}</td>
                       <td className="p-3">
-                        <span className={`px-2 py-1 rounded text-xs ${HEALTH_STYLE[health]}`}>
-                          {t(`hardwareFleet.health.${health}`)}
+                        <span className={`px-2 py-1 rounded text-xs whitespace-nowrap ${HEALTH_STYLE[host.worst]}`}
+                          title={host.worst === "virtual" ? t("hardwareFleet.health.virtualHint") : undefined}>
+                          {t(`hardwareFleet.health.${host.worst}`)}
                         </span>
                       </td>
                     </tr>

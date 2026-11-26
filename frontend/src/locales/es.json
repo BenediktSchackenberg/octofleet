@@ -1406,7 +1406,9 @@
     "unknownType": "Desconocido",
     "cpuTypes": "Tipos de CPU",
     "physicalDisksCount": "Discos ({count})",
+    "physicalDisksByHost": "Discos ({count} en {hosts} hosts)",
     "host": "Host",
+    "diskNumber": "Disco {n}",
     "model": "Modelo",
     "size": "Tamaño",
     "type": "Tipo",
@@ -1415,6 +1417,8 @@
       "healthy": "Correcto",
       "warning": "Advertencia",
       "unhealthy": "Con errores",
+      "virtual": "Virtual – sin SMART",
+      "virtualHint": "Disco de una máquina virtual: no tiene datos SMART, su estado es el del almacenamiento del host.",
       "unknown": "Desconocido"
     }
   },

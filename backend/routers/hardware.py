@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import require_user_permission
 from dependencies import get_db, not_found, verify_api_key
+from disk_inventory import distinct_volumes, health_state, physical_disks
 
 router = APIRouter(tags=["Hardware"])
 
@@ -27,10 +28,10 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
         total_size_gb = 0
         used_size_gb = 0
         cpu_map = {}
-        physical_disks = []
+        fleet_disks = []
         issues = []
         disk_types = {"ssd": 0, "hdd": 0, "virtual": 0, "unknown": 0}
-        health = {"healthy": 0, "warning": 0, "unhealthy": 0, "unknown": 0}
+        health = {"healthy": 0, "warning": 0, "unhealthy": 0, "virtual": 0, "unknown": 0}
         
         for r in rows:
             hostname = r["hostname"] or "unknown"
@@ -57,7 +58,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                 try: disks = json.loads(disks)
                 except: disks = {}
             if isinstance(disks, dict):
-                for vol in disks.get("volumes", []):
+                for vol in distinct_volumes(disks.get("volumes")):
                     size = vol.get("sizeGB", 0) or 0
                     free = vol.get("freeGB", 0) or 0
                     total_size_gb += size
@@ -75,7 +76,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                             "severity": "critical" if used_pct > 95 else "warning"
                         })
                 
-                for pd in disks.get("physical", []):
+                for pd in physical_disks(disks):
                     is_ssd = pd.get("isSsd")
                     if is_virtual:
                         disk_types["virtual"] += 1
@@ -86,11 +87,9 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                     else:
                         disk_types["unknown"] += 1
                     
-                    hs = (pd.get("healthStatus") or "Unknown").lower()
-                    if hs == "healthy":
-                        health["healthy"] += 1
-                    elif hs in ("warning", "degraded"):
-                        health["warning"] += 1
+                    state = health_state(pd.get("healthStatus"), is_virtual)
+                    health[state] += 1
+                    if state in ("warning", "unhealthy"):
                         issues.append({
                             "nodeId": node_id,
                             "hostname": hostname,
@@ -98,29 +97,18 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
                             "kind": "diskHealth",
                             "model": pd.get("model"),
                             "status": pd.get("healthStatus"),
-                            "severity": "warning"
+                            "severity": "warning" if state == "warning" else "critical"
                         })
-                    elif hs in ("unhealthy", "failed"):
-                        health["unhealthy"] += 1
-                        issues.append({
-                            "nodeId": node_id,
-                            "hostname": hostname,
-                            "issue": f"Disk {pd.get('model', '?')} Status: {pd.get('healthStatus')}",
-                            "kind": "diskHealth",
-                            "model": pd.get("model"),
-                            "status": pd.get("healthStatus"),
-                            "severity": "critical"
-                        })
-                    else:
-                        health["unknown"] += 1
-                    
-                    physical_disks.append({
+
+                    fleet_disks.append({
                         "nodeId": node_id,
                         "hostname": hostname,
+                        "deviceId": pd.get("deviceId"),
                         "model": pd.get("model", "Unknown"),
                         "sizeGB": pd.get("sizeGB", 0),
                         "isSsd": pd.get("isSsd"),
                         "healthStatus": pd.get("healthStatus", "Unknown"),
+                        "health": state,
                         "busType": pd.get("busType"),
                         "interfaceType": pd.get("interfaceType"),
                         "isVirtual": is_virtual,
@@ -141,7 +129,7 @@ async def get_hardware_fleet(db: asyncpg.Pool = Depends(get_db)):
             "physicalDiskHealth": health,
             "diskTypes": disk_types,
             "cpuTypes": cpu_types,
-            "physicalDisks": physical_disks,
+            "physicalDisks": fleet_disks,
             "issues": issues,
         }
 

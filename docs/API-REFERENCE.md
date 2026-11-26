@@ -637,6 +637,8 @@ See [SOFTWARE-METERING.md](SOFTWARE-METERING.md) for detailed documentation.
 | GET | `/api/v1/hardware/fleet` | User: `hardware:read` | Fleet-wide hardware summary |
 | GET | `/api/v1/hardware/export` | — | Export hardware data |
 
+`/hardware/fleet` counts each disk and volume once: zram, loop and RAM devices are not disks, and a Linux device mounted several times (btrfs subvolumes, bind mounts) is one volume. Each disk has `deviceId` and `health` (`healthy`, `warning`, `unhealthy`, `virtual` – a VM disk without health data, no SMART – or `unknown`); `physicalDiskHealth` counts them per state.
+
 ---
 
 ## Error Responses

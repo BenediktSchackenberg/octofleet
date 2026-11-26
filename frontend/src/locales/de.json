@@ -1406,7 +1406,9 @@
     "unknownType": "Unbekannt",
     "cpuTypes": "CPU-Typen",
     "physicalDisksCount": "Datenträger ({count})",
+    "physicalDisksByHost": "Datenträger ({count} auf {hosts} Hosts)",
     "host": "Host",
+    "diskNumber": "Datenträger {n}",
     "model": "Modell",
     "size": "Größe",
     "type": "Typ",
@@ -1415,6 +1417,8 @@
       "healthy": "Gesund",
       "warning": "Warnung",
       "unhealthy": "Fehlerhaft",
+      "virtual": "Virtuell – kein SMART",
+      "virtualHint": "Datenträger einer virtuellen Maschine: keine SMART-Daten, sein Zustand ist der des Host-Speichers.",
       "unknown": "Unbekannt"
     }
   },
