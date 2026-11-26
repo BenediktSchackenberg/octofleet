@@ -230,7 +230,8 @@ export default function FleetHardwarePage() {
           {/* Disk Types */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
             <h3 className="text-zinc-400 text-sm">{t("hardwareFleet.diskTypes")}</h3>
-            <p className="text-2xl font-bold">{dt.ssd + dt.hdd + dt.virtual + dt.unknown}</p>
+            {/* how many kinds of disk (like CPU types), not how many disks - that is the Disks card */}
+            <p className="text-2xl font-bold">{[dt.ssd, dt.hdd, dt.virtual, dt.unknown].filter((n) => n > 0).length}</p>
             <div className="text-xs text-zinc-500 mt-2 space-y-1">
               <div><HardDrive className={ICON} aria-hidden="true" /> {dt.ssd} SSD</div>{/* i18n-ignore */}
               <div><HardDrive className={ICON} aria-hidden="true" /> {dt.hdd} HDD</div>{/* i18n-ignore */}

@@ -62,5 +62,8 @@ test('hardware fleet page: one row per host, worst status, VM disks without SMAR
   await expect(rows.nth(1).getByText('Unknown', { exact: true })).toHaveClass(/text-zinc-400/);
 
   await expect(page.getByText('1 Virtual – no SMART')).toBeVisible();
+  // Disk types counts kinds of disk (SSD, HDD, virtual), like CPU types - not the 4 disks
+  const typesCard = page.locator('div', { has: page.getByRole('heading', { name: 'Disk types' }) }).last();
+  await expect(typesCard.locator('p').first()).toHaveText('3');
   await expect(page.getByText('Drive C: is 96% full')).toBeVisible();
 });
