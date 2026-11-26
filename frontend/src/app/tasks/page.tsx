@@ -9,8 +9,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import {
-  RefreshCw, ShieldAlert, Briefcase, WifiOff, UserCheck, Bug, AlertTriangle, Bell, CheckCircle2, Clock,
+  RefreshCw, ShieldAlert, Briefcase, WifiOff, UserCheck, Bug, AlertTriangle, Bell, CheckCircle2, Clock, Check, X,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { formatDateTime } from "@/lib/format";
 import { useTabParam } from "@/hooks/useTabParam";
@@ -39,6 +40,8 @@ interface TaskItem {
   /** When it happened (ISO); null if the source has no time */
   at: string | null;
   link: string;
+  /** An agent waiting for approval: approve or reject it right in the row */
+  pending?: { id: string; hostname: string; ipAddress?: string };
 }
 
 const PRIORITY_ORDER: Record<Priority, number> = { critical: 0, high: 1, medium: 2 };
@@ -142,7 +145,8 @@ async function fetchTasks(t: T, showResolved: boolean): Promise<{ tasks: TaskIte
       object: p.hostname || p.id,
       status: t("tasksPage.status.waitingApproval"),
       description: [p.ipAddress, p.agentVersion && t("tasksPage.agentVersion", { version: p.agentVersion })].filter(Boolean).join(" · "),
-      at: p.createdAt ?? null, link: "/admin/agents",
+      at: p.createdAt ?? null, link: "/nodes", // Approve/Reject are in the Nodes page's pending section
+      pending: { id: p.id, hostname: p.hostname || p.id, ipAddress: p.ipAddress },
     });
   }
 
@@ -250,6 +254,10 @@ export default function TasksPage() {
   const [filter, setFilter] = useTabParam<Filter>("all", FILTERS);
   const [showResolved, setShowResolved] = useState(false);
   const [resolvedJobs, setResolvedJobs] = useState(0);
+  const { hasPermission } = useAuth();
+  const canApprove = hasPermission("nodes:write");
+  /** The pending agent being approved or rejected */
+  const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -268,6 +276,22 @@ export default function TasksPage() {
     const interval = setInterval(load, 60000);
     return () => clearInterval(interval);
   }, [load]);
+
+  // Approve or reject a waiting agent here (same routes as the Nodes page), then reload the list
+  const decide = async (pending: NonNullable<TaskItem["pending"]>, approve: boolean) => {
+    const who = pending.ipAddress ? `${pending.hostname} (${pending.ipAddress})` : pending.hostname;
+    if (!confirm(t(approve ? "tasksPage.approveConfirm" : "tasksPage.rejectConfirm", { agent: who }))) return;
+    setActing(pending.id);
+    try {
+      if (approve) await apiClient.post(`/pending-nodes/${pending.id}/approve`, {});
+      else await apiClient.delete(`/pending-nodes/${pending.id}/reject`);
+      await load();
+    } catch {
+      // the API client shows the error
+    } finally {
+      setActing(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (filter === "all") return tasks;
@@ -355,7 +379,7 @@ export default function TasksPage() {
                 <TableHead className="w-40">{t("tasksPage.columns.status")}</TableHead>
                 <TableHead>{t("tasksPage.columns.details")}</TableHead>
                 <TableHead className="w-44">{t("tasksPage.columns.when")}</TableHead>
-                <TableHead className="w-20" />
+                <TableHead className="w-20 text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -384,9 +408,23 @@ export default function TasksPage() {
                     ) : "-"}
                   </TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={task.link}>{t("tasksPage.open")}</Link>
-                    </Button>
+                    <div className="flex justify-end gap-2 whitespace-nowrap">
+                      {task.pending && canApprove && (
+                        <>
+                          <Button size="sm" className="bg-green-600 hover:bg-green-500 text-white" disabled={acting === task.pending.id}
+                            onClick={() => decide(task.pending!, true)}>
+                            <Check className="h-4 w-4 mr-1" /> {t("tasksPage.approve")}
+                          </Button>
+                          <Button variant="outline" size="sm" className="hover:bg-red-600 hover:text-white" disabled={acting === task.pending.id}
+                            onClick={() => decide(task.pending!, false)}>
+                            <X className="h-4 w-4 mr-1" /> {t("tasksPage.reject")}
+                          </Button>
+                        </>
+                      )}
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={task.link}>{t("tasksPage.open")}</Link>
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
