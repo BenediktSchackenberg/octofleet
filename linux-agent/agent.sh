@@ -814,6 +814,7 @@ collect_updates() {
     local security_updates=0
     local package_manager="unknown"
     local security_source=null
+    local phased_updates=0
     
     if command -v apt-get &>/dev/null; then
         package_manager="apt"
@@ -835,6 +836,15 @@ collect_updates() {
                 }
             ' | awk 'BEGIN{printf "["} {printf "%s", $0} END{print "]"}' || echo '[]')
         
+        # Updates Ubuntu phases in and apt holds back on this machine for now: marked, so the console
+        # neither counts them as installable nor offers them again and again
+        local phased
+        phased=$(apt_phased_updates)
+        if [[ "$phased" != "{}" ]]; then
+            updates=$(jq -c --argjson p "$phased" \
+                'map(.name as $n | if ($p | has($n)) then . + {phased: true, phasedPercent: $p[$n]} else . end)' <<< "$updates" 2>/dev/null || echo "$updates")
+        fi
+        phased_updates=$(echo "$updates" | jq '[.[] | select(.phased == true)] | length' 2>/dev/null || echo 0)
         total_updates=$(echo "$updates" | jq 'length' 2>/dev/null || echo 0)
         security_updates=$(echo "$updates" | jq '[.[] | select(.security)] | length' 2>/dev/null || echo 0)
         
@@ -884,6 +894,7 @@ collect_updates() {
     "packageManager": "$package_manager",
     "totalUpdates": $total_updates,
     "securityUpdates": $security_updates,
+    "phasedUpdates": $phased_updates,
     "lastCheckTime": "$last_update_check",
     "rebootRequired": $reboot_required,
     "rebootPackages": $reboot_packages,
@@ -893,6 +904,23 @@ collect_updates() {
     "updates": $updates
 }
 EOF
+}
+
+# apt_phased_updates: the pending updates apt holds back on this machine because Ubuntu releases them
+# to a share of machines at a time ("deferred due to phasing" in a dry run of "apt-get upgrade"), as
+# {"name": percent} - percent is the share already getting it ("phased 10%" in apt-cache policy), or
+# null when apt does not say. {} when none. A dry run reads the local package lists: no download,
+# no lock, about 0.6 s. apt installs such an update by itself once this machine's turn comes.
+apt_phased_updates() {
+    local names n pct json='{}'
+    names=$(LANG=C apt-get -s -q upgrade 2>/dev/null | \
+        awk '/deferred due to phasing:/ { f = 1; next } f && /^ / { print; next } f { exit }' | tr -s ' ' '\n' | sed 's/:.*$//' | grep -v '^$' | sort -u)
+    [[ -z "$names" ]] && { echo '{}'; return 0; }
+    while IFS= read -r n; do
+        pct=$(LANG=C apt-cache policy "$n" 2>/dev/null | sed -n 's/.*(phased \([0-9][0-9]*\)%).*/\1/p' | head -1)
+        json=$(jq -c --arg n "$n" --arg p "$pct" '. + {($n): (if $p == "" then null else ($p | tonumber) end)}' <<< "$json" 2>/dev/null || echo "$json")
+    done <<< "$names"
+    echo "$json"
 }
 
 # os_release_json: the distribution release from /etc/os-release as {id, versionId, idLike, name},

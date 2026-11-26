@@ -299,8 +299,12 @@ export default function NodeDetailPage() {
   const availableUpdates = useAvailableUpdates(nodeId, updateSearchKey);
   // pacman installs all updates at once (Arch supports no partial upgrades): no package selection
   const canSelectPackages = hasPermission("jobs:create") && linuxUpdates?.packageManager !== "pacman";
+  // Phased updates (Ubuntu releases them to a share of machines; apt holds them back here for now)
+  // stay listed but are not pending: nothing can install them until apt does by itself
+  const phasedPackages = (linuxUpdates?.updates ?? []).filter((p) => p.phased).map((p) => p.name);
+  const installablePackages = (linuxUpdates?.updates ?? []).filter((p) => !p.phased).map((p) => p.name);
   const pendingUpdates = linuxUpdates
-    ? linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0
+    ? Math.max(0, (linuxUpdates.totalUpdates ?? linuxUpdates.updates?.length ?? 0) - phasedPackages.length)
     : relevantUpdateCount(availableUpdates);
   const updatesTabState = patchScan?.status === "failed" ? "failed" : pendingUpdates > 0 ? "pending" : null;
   // The node reported its updates again or booted while the page is open (e.g. after an
@@ -1016,6 +1020,9 @@ export default function NodeDetailPage() {
                   </CardTitle>
                   <CardDescription>
                     {t("nodes.updates.summary", { manager: linuxUpdates.packageManager ?? "", security: linuxUpdates.securityUpdates || 0 })}
+                    {phasedPackages.length > 0 && (
+                      <span className="block">{t("nodes.updates.phasedNote", { count: phasedPackages.length })}</span>
+                    )}
                     {linuxUpdates.packageManager === "pacman" && (
                       <span className="block">
                         {t("nodes.updates.pacmanAllAtOnce")}{" "}
@@ -1025,9 +1032,10 @@ export default function NodeDetailPage() {
                   </CardDescription>
                 </div>
                 {hasPermission("jobs:create") && (
-                  <UpdateActions os="linux" nodeUuid={node ? String(node.id) : undefined} updateCount={totalUpdatesCount}
+                  <UpdateActions os="linux" nodeUuid={node ? String(node.id) : undefined}
+                    updateCount={Math.max(0, totalUpdatesCount - phasedPackages.length)}
                     packageManager={linuxUpdates.packageManager} selected={selectedPackages}
-                    allIds={(linuxUpdates.updates ?? []).map((p) => p.name)}
+                    allIds={installablePackages}
                     rebootBehavior={Object.fromEntries((linuxUpdates.updates ?? []).map((p) => [p.name, p.reboot_behavior ?? "unknown"]))}
                     rebootPending={linuxUpdates.rebootRequired === true}
                     onChanged={async () => { await refreshInventory(); setSelectedPackages([]); setUpdateSearchKey((k) => k + 1); }} />
@@ -1041,8 +1049,9 @@ export default function NodeDetailPage() {
                         {canSelectPackages && (
                           <TableHead className={UPDATE_COLS.select}>
                             <Checkbox aria-label={t("nodes.updates.selectAll")}
-                              checked={selectedPackages.length > 0 && selectedPackages.length === (linuxUpdates.updates?.length ?? 0)}
-                              onCheckedChange={(checked) => setSelectedPackages(checked ? (linuxUpdates.updates ?? []).map((p) => p.name) : [])} />
+                              checked={selectedPackages.length > 0 && selectedPackages.length === installablePackages.length}
+                              disabled={installablePackages.length === 0}
+                              onCheckedChange={(checked) => setSelectedPackages(checked ? installablePackages : [])} />
                           </TableHead>
                         )}
                         <TableHead>{t("nodes.updates.package")}</TableHead>
@@ -1056,6 +1065,7 @@ export default function NodeDetailPage() {
                           {canSelectPackages && (
                             <TableCell>
                               <Checkbox aria-label={t("nodes.updates.selectPackage", { name: pkg.name })}
+                                disabled={pkg.phased === true} title={pkg.phased ? t("nodes.updates.phasedHint") : undefined}
                                 checked={selectedPackages.includes(pkg.name)}
                                 onCheckedChange={(checked) => setSelectedPackages((current) =>
                                   checked ? [...current.filter((n) => n !== pkg.name), pkg.name] : current.filter((n) => n !== pkg.name))} />
@@ -1065,6 +1075,13 @@ export default function NodeDetailPage() {
                             <span className="inline-flex flex-wrap items-center gap-2">
                               {pkg.name}
                               {pkg.security && <Badge variant="destructive">{t("nodes.updates.securityBadge")}</Badge>}
+                              {pkg.phased && (
+                                <Badge variant="outline" className="border-sky-500/40 text-sky-400" title={t("nodes.updates.phasedHint")}>
+                                  {pkg.phasedPercent != null
+                                    ? t("nodes.updates.phasedBadgePercent", { percent: pkg.phasedPercent })
+                                    : t("nodes.updates.phasedBadge")}
+                                </Badge>
+                              )}
                               <UpdateRebootBadge behavior={pkg.reboot_behavior} />
                             </span>
                           </TableCell>
