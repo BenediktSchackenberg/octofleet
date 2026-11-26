@@ -1894,6 +1894,7 @@
     "empty": "Aún no hay nodos.",
     "neverSearched": "Aún no buscado",
     "security": "{count} de seguridad",
+    "phased": "{count} escalonada(s) (no contadas)",
     "offline": "Sin conexión",
     "range": "{from}–{to} de {total}",
     "previous": "Anterior",

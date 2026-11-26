@@ -31,6 +31,8 @@ export interface FleetNode {
   pending: number;
   security: number;
   definitions: number;
+  /** Linux: Ubuntu phased updates apt holds back on the node for now - listed, not in `pending` */
+  phased?: number;
   /** Pending updates a bulk installation installs: Windows approved in the catalog, Linux by the Linux approval rules */
   approved: number | null;
   approved_definitions: number | null;
@@ -420,6 +422,9 @@ export default function FleetUpdatesPage() {
                       )}
                       {node.definitions > 0 && (
                         <div className="text-xs text-muted-foreground">{t("patchScan.definitions", { count: node.definitions })}</div>
+                      )}
+                      {!!node.phased && (
+                        <div className="text-xs text-muted-foreground" title={t("nodes.updates.phasedHint")}>{t("fleetUpdates.phased", { count: node.phased })}</div>
                       )}
                       {node.approved !== null && node.pending > 0 && (!node.linux || node.linux.approval !== "agent_too_old") && (
                         <div className="text-xs text-muted-foreground">

@@ -1894,6 +1894,7 @@
     "empty": "No nodes yet.",
     "neverSearched": "Not searched yet",
     "security": "{count} security",
+    "phased": "{count} phased (not counted)",
     "offline": "Offline",
     "range": "{from}–{to} of {total}",
     "previous": "Previous",

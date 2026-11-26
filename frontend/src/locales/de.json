@@ -1894,6 +1894,7 @@
     "empty": "Noch keine Nodes.",
     "neverSearched": "Noch nicht gesucht",
     "security": "{count} Sicherheit",
+    "phased": "{count} gestaffelt (nicht gezählt)",
     "offline": "Offline",
     "range": "{from}–{to} von {total}",
     "previous": "Zurück",
