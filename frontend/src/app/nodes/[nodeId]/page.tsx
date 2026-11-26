@@ -21,7 +21,12 @@ import { AvailableUpdates, UpdateRebootBadge, relevantUpdateCount, useAvailableU
 import { RebootButton } from "@/components/reboot-dialog";
 import { UpdateActions } from "@/components/node-update-actions";
 import { UPDATE_COLS, installedUpdateType, resultVariant, type RebootBehavior, latestInstallEntry } from "@/lib/update-tables";
-import { Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell, ArrowLeft } from "lucide-react";
+import {
+  Copy, Check, Zap, FolderTree, FileText, ExternalLink, ShieldAlert, Bug, Briefcase, Bell, ArrowLeft,
+  Activity, Bookmark, BrickWall, CalendarClock, ClipboardList, Cookie, Cpu, Crown, Globe, Gpu, HardDrive, HeartPulse,
+  History, KeyRound, LoaderCircle, Lock, LockKeyhole, MemoryStick, Monitor, Puzzle, ScrollText, Shield, ShieldCheck,
+  SquareChevronRight, SquareTerminal, Stethoscope, TriangleAlert, User, UserCheck,
+} from "lucide-react";
 import { useFleetTree } from "@/components/fleet/FleetTree";
 import { lastNodesList, scopeFromSearch, scopeLabel } from "@/lib/fleet-scope";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
@@ -55,6 +60,10 @@ const UPDATE_RESULTS: Record<string, { key: string; ok: boolean }> = {
  * Win32_QuickFixEngineering description ("Security Update", "Update").
  */
 // Copy to clipboard component
+
+// Card title icons: one size and colour on the whole page (they replace emojis)
+const TITLE_ICON = "h-4 w-4 shrink-0 text-muted-foreground";
+
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -393,17 +402,17 @@ export default function NodeDetailPage() {
             )}
             <Link href={`/nodes/${nodeId}/terminal`}>
               <Button variant="outline" className="bg-green-500/10 border-green-500 text-green-500 hover:bg-green-500/20">
-                &gt;_ Terminal{/* i18n-ignore */}
+                <SquareTerminal aria-hidden="true" />Terminal{/* i18n-ignore */}
               </Button>
             </Link>
             <Link href={`/nodes/${nodeId}/screen`}>
               <Button variant="outline" className="bg-purple-500/10 border-purple-500 text-purple-500 hover:bg-purple-500/20">
-                🖥️ {t("nodeDetail.screen")}
+                <Monitor aria-hidden="true" />{t("nodeDetail.screen")}
               </Button>
             </Link>
             <Link href={`/nodes/${nodeId}/shell`}>
               <Button variant="outline" className="bg-orange-500/10 border-orange-500 text-orange-500 hover:bg-orange-500/20">
-                🐚 Shell{/* i18n-ignore */}
+                <SquareChevronRight aria-hidden="true" />Shell{/* i18n-ignore */}
               </Button>
             </Link>
             <Button
@@ -419,7 +428,8 @@ export default function NodeDetailPage() {
               disabled={refreshing || collecting || !node}
               title={t("nodeDetail.collect.hint")}
             >
-              {collecting ? `⏳ ${t("nodeDetail.collect.waiting")}` : refreshing ? `⏳ ${t("common.loading")}` : `📊 ${t("nodeDetail.collectInventory")}`}
+              {collecting || refreshing ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <ClipboardList aria-hidden="true" />}
+              {collecting ? t("nodeDetail.collect.waiting") : refreshing ? t("common.loading") : t("nodeDetail.collectInventory")}
             </Button>
             <Link href={`/jobs?target=${nodeId}`}>
               <Button variant="outline" className="bg-blue-500/10 border-blue-500 text-blue-500 hover:bg-blue-500/20">
@@ -450,7 +460,7 @@ export default function NodeDetailPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="overview">{t("nodeDetail.tabs.overview")}</TabsTrigger>
-            <TabsTrigger value="performance">📊 {t("nodeDetail.tabs.performance")}</TabsTrigger>
+            <TabsTrigger value="performance"><Activity aria-hidden="true" />{t("nodeDetail.tabs.performance")}</TabsTrigger>
             <TabsTrigger value="hardware">{t("nodes.hardware")}</TabsTrigger>
             <TabsTrigger value="software">{t("nodes.software")} ({software.length})</TabsTrigger>
             <TabsTrigger value="services">{t("nodeServices.tab")}</TabsTrigger>
@@ -472,7 +482,7 @@ export default function NodeDetailPage() {
             <TabsTrigger value="browser">{t("nodeDetail.tabs.browser")}</TabsTrigger>
             <TabsTrigger value="events">{t("nodes.events")} ({events.length})</TabsTrigger>
             <TabsTrigger value="history">{t("nodeDetail.tabs.timeline")}</TabsTrigger>
-            <TabsTrigger value="monitoring">🛡️ {t("nodeDetail.tabs.monitoring")}</TabsTrigger>
+            <TabsTrigger value="monitoring"><HeartPulse aria-hidden="true" />{t("nodeDetail.tabs.monitoring")}</TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -540,7 +550,7 @@ export default function NodeDetailPage() {
                   <InfoRow label="System UUID" value={hwData.bios?.uuid} />{/* i18n-ignore */}
                   {sysData.uptimeFormatted && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">⏱️ {t("nodes.uptime")}</span>
+                      <span className="text-muted-foreground">{t("nodes.uptime")}</span>
                       <span className="font-mono">{sysData.uptimeFormatted}</span>
                     </div>
                   )}
@@ -590,7 +600,7 @@ export default function NodeDetailPage() {
             {/* Timestamps & IDs */}
             {node && (
               <Card>
-                <CardHeader><CardTitle>📅 {t("nodeDetail.timestamps")}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><CalendarClock className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.timestamps")}</CardTitle></CardHeader>
                 {/* one value style for the whole row: same font and size (Node ID was small monospace, the agent version spaced out) */}
                 <CardContent className="grid gap-4 md:grid-cols-5">
                   <div>
@@ -668,7 +678,7 @@ export default function NodeDetailPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 {/* CPU Cores */}
                 <Card>
-                  <CardHeader><CardTitle>🔲 {t("nodeDetail.cpuCores")}</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="flex items-center gap-2"><Cpu className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.cpuCores")}</CardTitle></CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-4 gap-2">
                       {linuxData.performance?.cpuCores?.slice(0, 32).map((core) => (
@@ -690,7 +700,7 @@ export default function NodeDetailPage() {
 
                 {/* Memory Details */}
                 <Card>
-                  <CardHeader><CardTitle>💾 {t("nodeDetail.memoryDetails")}</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="flex items-center gap-2"><MemoryStick className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.memoryDetails")}</CardTitle></CardHeader>
                   <CardContent className="space-y-2">
                     <InfoRow label={t("nodeDetail.usable")} value={linuxData.performance?.memory?.totalBytes
                       ? ((linuxData.performance.memory.totalBytes / 1024 / 1024 / 1024).toFixed(1) + ' GB') : null} />
@@ -720,7 +730,7 @@ export default function NodeDetailPage() {
             <div className="grid gap-4 md:grid-cols-2">
               {/* CPU */}
               <Card>
-                <CardHeader><CardTitle>🔲 {t("nodeDetail.processor")}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Cpu className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.processor")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <InfoRow label={t("common.name")} value={hwData.cpu?.name} />
                   <InfoRow label={t("nodeDetail.cores")} value={hwData.cpu?.cores?.toString()} />
@@ -735,7 +745,7 @@ export default function NodeDetailPage() {
 
               {/* RAM */}
               <Card>
-                <CardHeader><CardTitle>💾 {t("nodes.memory")}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><MemoryStick className={TITLE_ICON} aria-hidden="true" />{t("nodes.memory")}</CardTitle></CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold">{t("nodeDetail.totalGb", { value: ramData.totalGB?.toFixed(0) || '-' })}</p>
                   <div className="text-sm text-muted-foreground mb-4 space-y-1">
@@ -779,7 +789,7 @@ export default function NodeDetailPage() {
 
               {/* GPU */}
               <Card>
-                <CardHeader><CardTitle>🎮 {t("nodeDetail.gpus")}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Gpu className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.gpus")}</CardTitle></CardHeader>
                 <CardContent>
                   {gpuList.length === 0 ? (
                     <p className="text-muted-foreground">{t("nodeDetail.noData")}</p>
@@ -803,7 +813,7 @@ export default function NodeDetailPage() {
 
               {/* Disks */}
               <Card>
-                <CardHeader><CardTitle>💿 {t("nodeDetail.disks")}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.disks")}</CardTitle></CardHeader>
                 <CardContent>
                   {hwData.disks?.physical?.length > 0 ? (
                     <Table>
@@ -869,7 +879,7 @@ export default function NodeDetailPage() {
               {/* Disk Health */}
               {isLinuxNode && (
                 <Card>
-                  <CardHeader><CardTitle>🩺 {t("nodeDetail.diskHealth")}</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="flex items-center gap-2"><Stethoscope className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.diskHealth")}</CardTitle></CardHeader>
                   <CardContent>
                     {linuxData?.diskHealth?.smartctlAvailable && (linuxData.diskHealth.disks?.length || 0) > 0 ? (
                     <Table>
@@ -1221,7 +1231,7 @@ export default function NodeDetailPage() {
             {secData.linux ? (
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
-                <CardHeader><CardTitle>🧱 {t("nodeDetail.linuxSecurity.firewall")}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><BrickWall className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.linuxSecurity.firewall")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t("common.status")}</span>
@@ -1234,7 +1244,7 @@ export default function NodeDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>🔑 SSH</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className={TITLE_ICON} aria-hidden="true" />SSH</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent className="space-y-2">
                   {secData.linux.ssh?.port || secData.linux.ssh?.permitRootLogin || secData.linux.ssh?.passwordAuthentication ? (
                     <>
@@ -1255,7 +1265,7 @@ export default function NodeDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>🛡️ SELinux / AppArmor</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className={TITLE_ICON} aria-hidden="true" />SELinux / AppArmor</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent className="space-y-2">
                   {(() => {
                     const [module, mode] = String(secData.linux.mandatoryAccessControl || "none").split(":");
@@ -1272,7 +1282,7 @@ export default function NodeDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>👑 {t("nodeDetail.linuxSecurity.administrators")}</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Crown className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.linuxSecurity.administrators")}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap gap-2">
                     {(secData.linux.sudoUsers || []).length > 0
@@ -1292,7 +1302,7 @@ export default function NodeDetailPage() {
             <>
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
-                <CardHeader><CardTitle>🛡️ Microsoft Defender</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardHeader><CardTitle className="flex items-center gap-2"><Shield className={TITLE_ICON} aria-hidden="true" />Microsoft Defender</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent className="space-y-2">
                   {secData.defender?.available ? (
                     <>
@@ -1333,7 +1343,7 @@ export default function NodeDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>🛡️ Windows Firewall</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardHeader><CardTitle className="flex items-center gap-2"><BrickWall className={TITLE_ICON} aria-hidden="true" />Windows Firewall</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent>
                   {secData.firewall?.profiles ? (
                     <div className="space-y-2">
@@ -1353,7 +1363,7 @@ export default function NodeDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>🔐 TPM</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardHeader><CardTitle className="flex items-center gap-2"><LockKeyhole className={TITLE_ICON} aria-hidden="true" />TPM</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent className="space-y-2">
                   {secData.tpm ? (
                     <>
@@ -1374,7 +1384,7 @@ export default function NodeDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>🔒 BitLocker</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardHeader><CardTitle className="flex items-center gap-2"><Lock className={TITLE_ICON} aria-hidden="true" />BitLocker</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent>
                   {secData.bitlocker?.volumes?.length > 0 ? (
                     <div className="space-y-2">
@@ -1396,7 +1406,7 @@ export default function NodeDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>👤 UAC</CardTitle></CardHeader>{/* i18n-ignore */}
+                <CardHeader><CardTitle className="flex items-center gap-2"><UserCheck className={TITLE_ICON} aria-hidden="true" />UAC</CardTitle></CardHeader>{/* i18n-ignore */}
                 <CardContent className="space-y-2">
                   {secData.uac ? (
                     <>
@@ -1434,7 +1444,7 @@ export default function NodeDetailPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    👑 {t("nodeDetail.localAdmins")}
+                    <Crown className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.localAdmins")}
                     <Badge variant="outline">{secData.localAdmins.count || secData.localAdmins.members?.length || 0}</Badge>
                   </CardTitle>
                 </CardHeader>
@@ -1500,7 +1510,7 @@ export default function NodeDetailPage() {
             {criticalCookies && (criticalCookies.warningCodes?.length ?? 0) > 0 && (
               <Card className="border-yellow-500 bg-yellow-500/10">
                 <CardHeader>
-                  <CardTitle className="text-yellow-600 dark:text-yellow-400">⚠️ {t("nodeDetail.securityNotices")}</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400"><TriangleAlert className="h-4 w-4" aria-hidden="true" />{t("nodeDetail.securityNotices")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
@@ -1517,7 +1527,7 @@ export default function NodeDetailPage() {
               <Card className="border-red-500/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    🔐 {t("nodeDetail.criticalCookies")} <Badge variant="destructive">{criticalCookies.count}</Badge>
+                    <Cookie className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.criticalCookies")} <Badge variant="destructive">{criticalCookies.count}</Badge>
                   </CardTitle>
                   <CardDescription>
                     {t("nodeDetail.criticalCookiesHint")}
@@ -1602,36 +1612,35 @@ export default function NodeDetailPage() {
                 <Card key={username}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      👤 {username}
+                      <User className={TITLE_ICON} aria-hidden="true" />{username}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                       {Object.entries(browsers || {}).map(([browserName, data]: [string, any]) => {
-                        const icon = browserName === 'Chrome' ? '🌐' : browserName === 'Edge' ? '📘' : '🦊';
                         const profile = data.profiles?.[0];
                         const cookiesCount = profile?.cookiesCount || 0;
                         return (
                           <div key={browserName} className="p-4 border rounded-lg">
                             <div className="flex items-center gap-2 mb-3">
-                              <span className="text-2xl">{icon}</span>
+                              <Globe className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
                               <span className="font-medium">{browserName}</span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-sm">
                               <div className="flex items-center gap-1">
-                                <span>📜</span>
+                                <History className={TITLE_ICON} aria-hidden="true" />
                                 <span className="text-muted-foreground">{t("nodeDetail.history")}</span>
                               </div>
                               <span className="font-mono text-right">{(profile?.historyCount || 0).toLocaleString()}</span>
                               
                               <div className="flex items-center gap-1">
-                                <span>🔖</span>
+                                <Bookmark className={TITLE_ICON} aria-hidden="true" />
                                 <span className="text-muted-foreground">{t("nodeDetail.bookmarks")}</span>
                               </div>
                               <span className="font-mono text-right">{(profile?.bookmarkCount || 0).toLocaleString()}</span>
                               
                               <div className="flex items-center gap-1">
-                                <span>🍪</span>
+                                <Cookie className={TITLE_ICON} aria-hidden="true" />
                                 <span className="text-muted-foreground">Cookies</span>{/* i18n-ignore */}
                               </div>
                               <span className="font-mono text-right">
@@ -1643,7 +1652,7 @@ export default function NodeDetailPage() {
                               </span>
                               
                               <div className="flex items-center gap-1">
-                                <span>🧩</span>
+                                <Puzzle className={TITLE_ICON} aria-hidden="true" />
                                 <span className="text-muted-foreground">{t("nodeDetail.extensions")}</span>
                               </div>
                               <span className="font-mono text-right">{data.extensionCount || 0}</span>
@@ -1676,13 +1685,13 @@ export default function NodeDetailPage() {
             {browserData.cookies && Object.keys(browserData.cookies).length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>🍪 {t("nodeDetail.cookiesByDomain")}</CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Cookie className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.cookiesByDomain")}</CardTitle>
                   <CardDescription>{t("nodeDetail.topDomains")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {Object.entries(browserData?.cookies || {}).map(([username, cookieList]: [string, any]) => (
                     <div key={username} className="mb-6">
-                      <p className="font-medium mb-2">👤 {username}</p>
+                      <p className="font-medium mb-2 flex items-center gap-2"><User className={TITLE_ICON} aria-hidden="true" />{username}</p>
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -1719,7 +1728,7 @@ export default function NodeDetailPage() {
           <TabsContent value="events">
             <Card>
               <CardHeader>
-                <CardTitle>📋 {t("nodeDetail.eventlog")}</CardTitle>
+                <CardTitle className="flex items-center gap-2"><ScrollText className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.eventlog")}</CardTitle>
                 <CardDescription>{t("nodeDetail.eventlogDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
@@ -1815,7 +1824,7 @@ export default function NodeDetailPage() {
           <TabsContent value="history">
             <Card>
               <CardHeader>
-                <CardTitle>📜 {t("nodeDetail.changeHistory")}</CardTitle>
+                <CardTitle className="flex items-center gap-2"><History className={TITLE_ICON} aria-hidden="true" />{t("nodeDetail.changeHistory")}</CardTitle>
                 <CardDescription>{t("nodeDetail.changeHistoryDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
