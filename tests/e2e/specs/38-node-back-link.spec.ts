@@ -10,7 +10,7 @@ test('node page: back link to the list the user came from', async ({ page, reque
     hostname, nodeId: hostname, system: { os: { name: 'Ubuntu 26.04 LTS' } } } })).ok()).toBeTruthy();
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => localStorage.setItem('locale', 'en'));
+  await page.evaluate(() => { localStorage.setItem('locale', 'en'); localStorage.setItem('octofleet-nodes-view', 'list'); });
 
   // opened directly: back to all nodes
   await page.goto(`/nodes/${hostname}`, { waitUntil: 'domcontentloaded' });
@@ -20,7 +20,8 @@ test('node page: back link to the list the user came from', async ({ page, reque
   // from the "Not in a group" branch: back to that branch
   await page.goto(`/nodes?group=unassigned`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Not in a group' })).toBeVisible();
-  await page.getByRole('link', { name: hostname }).first().click();
+  await page.getByPlaceholder('Search...').fill(hostname);
+  await page.locator('tbody tr td:nth-child(2) a', { hasText: hostname }).click();
   await expect(page).toHaveURL(new RegExp(`/nodes/${hostname}`));
   const backToBranch = page.getByRole('link', { name: 'Not in a group' }).filter({ has: page.locator('svg.lucide-arrow-left') });
   await expect(backToBranch).toHaveAttribute('href', '/nodes?group=unassigned');
