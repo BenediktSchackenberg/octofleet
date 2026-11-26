@@ -2877,29 +2877,19 @@ async def receive_live_data(request: Request, data: Dict[str, Any], db: asyncpg.
                 metrics.get("diskPercent")
             )
         
-        # Store processes (replace old data)
-        processes = data.get("processes", [])
+        # Store processes: the push's list replaces the node's previous one. The live view and the
+        # query engine read "the node's processes"; keeping the lists of the last 30 s showed each
+        # process once per list (same PID several times, each with that list's CPU value).
+        processes = [p for p in data.get("processes") or [] if isinstance(p, dict)]
         if processes:
-            # Delete old process data for this node
-            await conn.execute(
-                "DELETE FROM node_processes WHERE node_id = $1 AND collected_at < NOW() - INTERVAL '30 seconds'",
-                node_uuid
-            )
-            
-            # Insert new process data
-            for proc in processes:
-                await conn.execute("""
+            async with conn.transaction():
+                await conn.execute("DELETE FROM node_processes WHERE node_id = $1", node_uuid)
+                await conn.executemany("""
                     INSERT INTO node_processes (node_id, process_name, pid, cpu_percent, memory_mb, user_name, collected_at)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
-                """, node_uuid, 
-                    proc.get("name", "unknown"),
-                    proc.get("pid", 0),
-                    proc.get("cpuPercent"),
-                    proc.get("memoryMb"),
-                    proc.get("userName"),
-                    now
-                )
-        
+                """, [(node_uuid, proc.get("name", "unknown"), proc.get("pid", 0), proc.get("cpuPercent"),
+                       proc.get("memoryMb"), proc.get("userName"), now) for proc in processes])
+
         # Cache network data for SSE streaming
         network = data.get("network", [])
         if network:
