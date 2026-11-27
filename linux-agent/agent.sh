@@ -750,20 +750,25 @@ collect_services() {
     local services="[]"
     
     if command -v systemctl &>/dev/null; then
-        services=$(systemctl list-units --type=service --all --no-pager --no-legend 2>/dev/null | \
+        # --plain: without it systemctl puts a marker (● or *) in front of not-found and failed
+        # units, which became the name and shifted every other field
+        services=$(systemctl list-units --type=service --all --plain --no-pager --no-legend 2>/dev/null | \
             awk '
                 BEGIN { first = 1 }
                 {
+                    # a marker in front of the unit anyway (a systemd that ignores --plain): drop it
+                    if ($1 !~ /\.service$/ && $2 ~ /\.service$/) { $1 = ""; $0 = $0 }
                     name = $1
                     gsub(/\.service$/, "", name)
-                    # Escape backslashes in name (e.g. \x2d)
-                    gsub(/\\/, "\\\\", name)
+                    # Escape backslashes in name (e.g. \x2d); "&&" doubles them in every awk - mawk
+                    # made "\\\\" one backslash, so the JSON was invalid and the section left out
+                    gsub(/\\/, "&&", name)
                     load = $2
                     active = $3
                     sub_state = $4
                     desc = ""
                     for (i=5; i<=NF; i++) desc = desc (i>5?" ":"") $i
-                    gsub(/\\/, "\\\\", desc)
+                    gsub(/\\/, "&&", desc)
                     gsub(/"/, "\\\"", desc)
                     printf "%s{\"name\": \"%s\", \"loadState\": \"%s\", \"activeState\": \"%s\", \"subState\": \"%s\", \"description\": \"%s\"}",
                         (first ? "" : ","), name, load, active, sub_state, desc
