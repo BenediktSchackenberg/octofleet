@@ -57,6 +57,9 @@ SCHEMA = (
     "ALTER TABLE linux_node_updates ADD COLUMN IF NOT EXISTS phased boolean NOT NULL DEFAULT false",
     "ALTER TABLE linux_data_current ADD COLUMN IF NOT EXISTS release text",
     "ALTER TABLE linux_data_current ADD COLUMN IF NOT EXISTS updates_hash text",
+    # the fleet list's part of `updates`, written with it (routers.patches.linux_updates_for_list);
+    # NULL for lists stored before it: the list reads the whole one until the node reports again
+    "ALTER TABLE linux_data_current ADD COLUMN IF NOT EXISTS updates_for_list jsonb",
 )
 
 
