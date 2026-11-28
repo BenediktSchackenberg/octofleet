@@ -441,13 +441,33 @@ collect_software() {
                  sourcePackage: (if .[3] == "" then .[0] else .[3] end),
                  sourceVersion: (if .[4] == "" then .[1] else .[4] end)})' 2>/dev/null || echo '[]')
     elif command -v rpm &>/dev/null; then
-        # RHEL/Fedora/CentOS
-        packages=$(rpm -qa --queryformat '%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}\n' 2>/dev/null | \
-            jq -R -s 'split("\n") | map(select(. != "") | split("\t") | {name: .[0], version: .[1], architecture: .[2]})' 2>/dev/null || echo '[]')
+        # RHEL/Rocky/Alma/Fedora: the version with its epoch (1:3.5.9-1.el9 - as dnf lists updates;
+        # advisories compare with it, and without it 1:3.5.9 reads older than a fix in 1:3.0.7) and
+        # the source package from the source rpm's file name (openssl-libs is built from
+        # openssl-3.5.9-1.el9.src.rpm; advisories name the source). gpg-pubkey has no source rpm.
+        packages=$(rpm -qa --queryformat '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SOURCERPM}\n' 2>/dev/null | \
+            jq -R -s 'split("\n") | map(select(. != "") | split("\t") |
+                (if .[1] != "" and .[1] != "0" then .[1] + ":" else "" end) as $epoch |
+                ($epoch + .[2] + "-" + .[3]) as $version |
+                ((.[5] // "") | capture("^(?<name>.+)-(?<version>[^-]+)-(?<release>[^-]+)\\.src\\.rpm$")? // null) as $src |
+                {name: .[0], version: $version, architecture: .[4],
+                 sourcePackage: (if $src then $src.name else .[0] end),
+                 sourceVersion: (if $src then $epoch + $src.version + "-" + $src.release else $version end)})' 2>/dev/null || echo '[]')
     elif command -v pacman &>/dev/null; then
-        # Arch Linux
-        packages=$(pacman -Q 2>/dev/null | \
-            jq -R -s 'split("\n") | map(select(. != "") | split(" ") | {name: .[0], version: .[1]})' 2>/dev/null || echo '[]')
+        # Arch/CachyOS: name, version, architecture and the base (source) package from pacman's local
+        # database (one desc file per package); pacman -Q only as a fallback, without the base
+        local pacman_db="${PACMAN_LOCAL_DB:-/var/lib/pacman/local}"
+        if compgen -G "$pacman_db/*/desc" >/dev/null; then
+            packages=$(awk 'FNR == 1 && NR > 1 { print n "\t" v "\t" b "\t" a; n = v = b = a = "" }
+                /^%NAME%$/ { getline n } /^%VERSION%$/ { getline v } /^%BASE%$/ { getline b } /^%ARCH%$/ { getline a }
+                END { if (NR) print n "\t" v "\t" b "\t" a }' "$pacman_db"/*/desc 2>/dev/null | \
+                jq -R -s 'split("\n") | map(select(. != "") | split("\t") |
+                    {name: .[0], version: .[1], architecture: .[3],
+                     sourcePackage: (if .[2] == "" then .[0] else .[2] end), sourceVersion: .[1]})' 2>/dev/null || echo '[]')
+        else
+            packages=$(pacman -Q 2>/dev/null | \
+                jq -R -s 'split("\n") | map(select(. != "") | split(" ") | {name: .[0], version: .[1]})' 2>/dev/null || echo '[]')
+        fi
     elif command -v apk &>/dev/null; then
         # Alpine
         packages=$(apk --installed query --format json --fields name,version,origin '*' 2>/dev/null | \
