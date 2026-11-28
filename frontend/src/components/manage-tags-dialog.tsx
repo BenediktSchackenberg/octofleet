@@ -77,7 +77,10 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
   async function handleRemoveTag(tagId: string) {
     setLoading(true);
     try {
-      const res = await apiClient.delete(`/devices/${nodeId}/tags`, { showErrorToast: false });
+      // the route needs the tag ids in the body: without them it answered 422 and the tag stayed
+      const res = await apiClient.delete(`/devices/${nodeId}/tags`, {
+        showErrorToast: false, body: JSON.stringify({ tagIds: [tagId] }), headers: { "Content-Type": "application/json" },
+      });
       if (res) {
         onTagsChanged();
       }
@@ -142,11 +145,14 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
                   >
                     {tag.name}
                     <button
+                      type="button"
                       onClick={() => handleRemoveTag(tag.id)}
                       disabled={loading}
+                      aria-label={t("tags.remove", { name: tag.name })}
+                      title={t("tags.remove", { name: tag.name })}
                       className="ml-1 hover:bg-destructive/20 rounded p-0.5"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3 w-3" aria-hidden="true" />
                     </button>
                   </Badge>
                 ))}

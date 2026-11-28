@@ -1512,7 +1512,8 @@
     "namePlaceholder": "Nombre de la etiqueta…",
     "done": "Listo",
     "colorLabel": "Color",
-    "otherColor": "Otro color"
+    "otherColor": "Otro color",
+    "remove": "Quitar {name}"
   },
   "nodeTools": {
     "liveBadge": "En vivo",

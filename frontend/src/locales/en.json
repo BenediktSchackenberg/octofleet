@@ -1512,7 +1512,8 @@
     "namePlaceholder": "Tag name…",
     "done": "Done",
     "colorLabel": "Colour",
-    "otherColor": "Other colour"
+    "otherColor": "Other colour",
+    "remove": "Remove {name}"
   },
   "nodeTools": {
     "liveBadge": "Live",
