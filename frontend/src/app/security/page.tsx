@@ -10,6 +10,7 @@ import {
   Shield, AlertTriangle, FileSearch, Users, Settings, Database,
   Eye, Activity, ChevronRight, TrendingUp, TrendingDown
 } from "lucide-react";
+import { formatNumber } from "@/lib/format";
 
 interface DashboardData {
   findings_by_severity: { severity: string; status: string; count: number }[];
@@ -81,7 +82,7 @@ export default function SecurityPage() {
                   <span className="text-zinc-400 text-sm">Security Events (24h)</span>
                   <Activity className="h-5 w-5 text-blue-400" />
                 </div>
-                <div className="text-3xl font-bold">{data?.events_24h?.toLocaleString() || 0}</div>
+                <div className="text-3xl font-bold">{formatNumber(data?.events_24h ?? 0)}</div>
                 <div className="text-xs text-zinc-500 mt-1">Normalized events</div>
               </div>
 
@@ -90,7 +91,7 @@ export default function SecurityPage() {
                   <span className="text-zinc-400 text-sm">File Events (24h)</span>
                   <FileSearch className="h-5 w-5 text-green-400" />
                 </div>
-                <div className="text-3xl font-bold">{data?.file_events_24h?.toLocaleString() || 0}</div>
+                <div className="text-3xl font-bold">{formatNumber(data?.file_events_24h ?? 0)}</div>
                 <div className="text-xs text-zinc-500 mt-1">File audit events</div>
               </div>
 
@@ -145,7 +146,7 @@ export default function SecurityPage() {
                       <div key={i} className="flex items-center gap-3">
                         <span className="text-xs text-zinc-500 w-5">{i + 1}.</span>
                         <span className="text-sm flex-1 font-mono">{evt.event_type}</span>
-                        <span className="font-mono font-bold">{evt.count.toLocaleString()}</span>
+                        <span className="font-mono font-bold">{formatNumber(evt.count)}</span>
                       </div>
                     ))}
                   </div>

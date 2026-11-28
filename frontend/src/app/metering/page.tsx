@@ -35,6 +35,7 @@ import {
   CATEGORIES, LICENSE_TYPES,
   type TrueUpEntry,
 } from "@/hooks/useMetering";
+import { formatLocalDate } from "@/lib/format";
 
 // ─── Helpers (JSX) ───────────────────────────────────────────────────
 
@@ -230,7 +231,7 @@ export default function SoftwareMeteringPage() {
                         </div>
                         <div className="text-right">
                           <span className="text-xs text-zinc-500">{c.node}</span>
-                          <span className="text-xs text-zinc-600 ml-2">{new Date(c.date).toLocaleDateString()}</span>
+                          <span className="text-xs text-zinc-600 ml-2">{formatLocalDate(c.date)}</span>
                         </div>
                       </div>
                     ))}
@@ -393,7 +394,7 @@ export default function SoftwareMeteringPage() {
                       <td className="px-4 py-2.5 text-center font-mono">{l.installed_count ?? "-"}</td>
                       <td className="px-4 py-2.5 text-right font-mono">{formatCurrency(l.cost_per_license, l.currency)}</td>
                       <td className="px-4 py-2.5 text-zinc-400">{l.vendor || "-"}</td>
-                      <td className="px-4 py-2.5 text-zinc-400">{l.expires_at ? new Date(l.expires_at).toLocaleDateString() : "-"}</td>
+                      <td className="px-4 py-2.5 text-zinc-400">{l.expires_at ? formatLocalDate(l.expires_at) : "-"}</td>
                       <td className="px-4 py-2.5 text-right">
                         <button onClick={() => deleteLicense(l.id)} className="text-zinc-500 hover:text-red-400 p-1"><Trash2 className="h-3.5 w-3.5" /></button>
                       </td>

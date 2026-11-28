@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Users } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 interface AuditEvent { id: string; ts: string; actor_user_id: string; action: string; object_type: string; object_id: string; details: Record<string, unknown>; }
 
@@ -30,7 +31,7 @@ export default function AuditLogPage() {
             </tr></thead>
             <tbody>{events.map((e, i) => (
               <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/50">
-                <td className="p-3 text-xs text-zinc-400 whitespace-nowrap">{new Date(e.ts).toLocaleString()}</td>
+                <td className="p-3 text-xs text-zinc-400 whitespace-nowrap">{formatDateTime(e.ts)}</td>
                 <td className="p-3 text-xs font-medium">{e.actor_user_id}</td>
                 <td className="p-3 text-xs font-mono">{e.action}</td>
                 <td className="p-3 text-xs">{e.object_type} / {e.object_id?.substring(0, 8)}</td>

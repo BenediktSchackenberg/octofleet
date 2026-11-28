@@ -14,6 +14,7 @@ import {
   Wifi, WifiOff, Search, ArrowUpDown, ArrowUp, ArrowDown,
   Loader2, Filter
 } from 'lucide-react';
+import { formatDateTime } from "@/lib/format";
 
 interface RemediationJob {
   id: number;
@@ -516,7 +517,7 @@ export default function RemediationPage() {
                         </td>
                         <td className="p-3">{getStatusBadge(job.status)}</td>
                         <td className="p-3 text-zinc-400 text-sm whitespace-nowrap">
-                          {new Date(job.created_at).toLocaleString()}
+                          {formatDateTime(job.created_at)}
                         </td>
                         <td className="p-3">{getMethodBadge(job.fix_method || 'unknown')}</td>
                         <td className="p-3 font-mono text-xs text-zinc-500">{job.node_id?.slice(0, 8)}…</td>

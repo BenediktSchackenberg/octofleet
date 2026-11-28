@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { Eye, Plus, Edit, Trash2, Shield, Link2, Monitor, Server, Users, X, CheckCircle } from "lucide-react";
+import { formatLocalDate } from "@/lib/format";
 
 interface Profile {
   id: string;
@@ -420,7 +421,7 @@ export default function MonitoringProfilesPage() {
                     )}
 
                     <div className="text-xs text-zinc-600 mt-3">
-                      Created {new Date(p.created_at).toLocaleDateString()}
+                      Created {formatLocalDate(p.created_at)}
                     </div>
                   </div>
                 );
@@ -464,7 +465,7 @@ export default function MonitoringProfilesPage() {
                           {a.status}
                         </span>
                       </td>
-                      <td className="p-4 text-zinc-400">{new Date(a.created_at).toLocaleDateString()}</td>
+                      <td className="p-4 text-zinc-400">{formatLocalDate(a.created_at)}</td>
                       <td className="p-4 text-right">
                         <button onClick={() => handleUnassign(a.id)} className="text-zinc-500 hover:text-red-400 transition-colors">
                           <Trash2 className="h-4 w-4" />

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Pause, Play, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { formatDateTime } from "@/lib/format";
 
 interface DeploymentDetail {
   id: string; name: string; status: string; ring_name: string;
@@ -119,7 +120,7 @@ export default function DeploymentDetailPage() {
                 <td className="p-3 text-foreground">{r.hostname || r.node_id}</td>
                 <td className="p-3"><span className="text-foreground">{r.patch_title}</span>{r.kb_id && <span className="ml-1 text-xs font-mono text-muted-foreground">{r.kb_id}</span>}</td>
                 <td className="p-3 flex items-center gap-1">{statusIcon(r.status)} {r.status}{r.reboot_required && <AlertTriangle className="h-3 w-3 text-yellow-400 ml-1" aria-label="Reboot required" />}</td>
-                <td className="p-3 text-muted-foreground text-xs">{r.completed_at ? new Date(r.completed_at).toLocaleString() : '-'}</td>
+                <td className="p-3 text-muted-foreground text-xs">{r.completed_at ? formatDateTime(r.completed_at) : '-'}</td>
                 <td className="p-3 text-red-400 text-xs max-w-xs truncate">{r.error_message || ''}</td>
               </tr>
             ))}

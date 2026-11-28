@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { formatDateTime } from "@/lib/format";
 
 interface Service {
   id: string;
@@ -338,7 +339,7 @@ export default function ServiceDetailPage() {
                   <p className="text-xs text-muted-foreground">{log.message}</p>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(log.started_at).toLocaleString()}
+                  {formatDateTime(log.started_at)}
                 </span>
               </div>
             ))}

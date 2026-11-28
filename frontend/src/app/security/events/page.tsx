@@ -8,7 +8,7 @@ import {
   Activity, Monitor, Network, Key, Shield, Server, FileText, RefreshCw,
   ArrowUpDown, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Clock
 } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatNumber } from "@/lib/format";
 
 interface NormalizedEvent {
   id?: string;
@@ -342,7 +342,7 @@ export default function SecurityEventsPage() {
                   <Icon className={`h-4 w-4 ${tab === t.key ? `text-${t.color}-400` : "text-zinc-500"}`} />
                   <span className="text-xs text-zinc-400">{t.label}</span>
                 </div>
-                <span className="text-lg font-bold">{count.toLocaleString()}</span>
+                <span className="text-lg font-bold">{formatNumber(count)}</span>
               </button>
             );
           })}
@@ -380,7 +380,7 @@ export default function SecurityEventsPage() {
                 <option value="">{t("securityEvents.allTypes")}</option>
                 {types.map(e => (
                   <option key={e.event_type} value={e.event_type}>
-                    {`${EVENT_TYPE_LABELS[e.event_type] || e.event_type} (${e.count.toLocaleString()})`}
+                    {`${EVENT_TYPE_LABELS[e.event_type] || e.event_type} (${formatNumber(e.count)})`}
                   </option>
                 ))}
               </select>
@@ -405,11 +405,11 @@ export default function SecurityEventsPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <div className="text-xs text-zinc-500 mb-1">Raw Events</div>
-                  <div className="text-xl font-bold">{retention.raw_events.toLocaleString()}</div>
+                  <div className="text-xl font-bold">{formatNumber(retention.raw_events)}</div>
                 </div>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <div className="text-xs text-zinc-500 mb-1">Aggregated Events</div>
-                  <div className="text-xl font-bold">{retention.aggregated_events.toLocaleString()}</div>
+                  <div className="text-xl font-bold">{formatNumber(retention.aggregated_events)}</div>
                 </div>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <div className="text-xs text-zinc-500 mb-1">Oldest Raw Event</div>
@@ -509,8 +509,8 @@ export default function SecurityEventsPage() {
                       {rows.map(([type, val]) => (
                         <tr key={type} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                           <td className="p-3 font-medium">{EVENT_TYPE_LABELS[type] || type}</td>
-                          <td className="p-3 text-right">{val.count.toLocaleString()}</td>
-                          <td className="p-3 text-right text-zinc-400">{val.users.toLocaleString()}</td>
+                          <td className="p-3 text-right">{formatNumber(val.count)}</td>
+                          <td className="p-3 text-right text-zinc-400">{formatNumber(val.users)}</td>
                           <td className="p-3 text-right text-zinc-400">{totalCount > 0 ? ((val.count / totalCount) * 100).toFixed(1) : 0}%</td>
                         </tr>
                       ))}
@@ -520,7 +520,7 @@ export default function SecurityEventsPage() {
                       {rows.length > 0 && (
                         <tr className="bg-zinc-800/30 font-medium">
                           <td className="p-3">Total</td>
-                          <td className="p-3 text-right">{totalCount.toLocaleString()}</td>
+                          <td className="p-3 text-right">{formatNumber(totalCount)}</td>
                           <td className="p-3 text-right text-zinc-400">-</td>
                           <td className="p-3 text-right text-zinc-400">100%</td>
                         </tr>
@@ -563,7 +563,7 @@ export default function SecurityEventsPage() {
                         return (
                           <tr key={nodeId} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                             <td className="p-3 font-medium">{nodeId}</td>
-                            <td className="p-3 text-right">{val.count.toLocaleString()}</td>
+                            <td className="p-3 text-right">{formatNumber(val.count)}</td>
                             <td className="p-3 text-right text-zinc-400">{val.types.size}</td>
                             <td className="p-3">
                               <div className="w-full bg-zinc-800 rounded-full h-2">

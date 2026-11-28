@@ -44,6 +44,7 @@ import {
   type QueryResult, type DashboardWidget, type TabId,
 } from "@/hooks/useQueryEngine";
 import { StandardPage } from "@/components/ui/StandardPage";
+import { formatNumber } from "@/lib/format";
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -234,7 +235,7 @@ export default function QueryEnginePage() {
             <div className="flex items-center gap-2 text-xs">
               <Activity className="h-3.5 w-3.5 text-cyan-400" />
               <span className="text-zinc-500">Total queries:</span>
-              <span className="text-zinc-200 font-semibold">{stats.total_queries.toLocaleString()}</span>
+              <span className="text-zinc-200 font-semibold">{formatNumber(stats.total_queries)}</span>
             </div>
             <div className="flex items-center gap-2 text-xs">
               <Clock className="h-3.5 w-3.5 text-cyan-400" />

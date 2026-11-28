@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 interface VulnerabilitySummary {
   severity_counts: Record<string, number>;
@@ -119,7 +120,7 @@ export default function VulnerabilitiesPage() {
   const { t, locale } = useI18n();
   const p = (key: string, params?: Record<string, string | number>) => t(`vulnerabilitiesPage.${key}`, params);
   const sev = (severity: string) => t(`nodes.vulnerabilities.severity.${severity}`);
-  const formatTime = (value: string) => new Date(value).toLocaleString(locale);
+  const formatTime = (value: string) => formatDateTime(value);
   const [summary, setSummary] = useState<VulnerabilitySummary | null>(null);
   const [nodeVulns, setNodeVulns] = useState<NodeVulnInfo[]>([]);
   // The node list comes in pages (largest first); "Show more" asks for the next page too.

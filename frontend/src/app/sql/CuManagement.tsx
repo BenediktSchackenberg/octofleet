@@ -2,6 +2,7 @@
 import { apiClient } from "@/lib/api-client";
 
 import { useState, useEffect } from 'react';
+import { formatLocalDate } from "@/lib/format";
 
 
 
@@ -374,7 +375,7 @@ export default function CuManagement({ getAuthHeaders }: CuManagementProps) {
                       ) : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                      {cu.releaseDate ? new Date(cu.releaseDate).toLocaleDateString() : '-'}
+                      {cu.releaseDate ? formatLocalDate(cu.releaseDate) : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(cu.status)}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{getRingBadge(cu.ring)}</td>

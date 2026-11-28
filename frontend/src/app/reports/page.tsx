@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format";
 
 type TabKey = "dashboard" | "catalog" | "schedules" | "history";
 
@@ -112,7 +113,7 @@ const CATEGORIES = ["All", "Fleet", "Security", "Compliance", "Operations", "Exe
 
 const PIE_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
-const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
+const fmtDate = (value?: string | null) => (value ? formatDateTime(value) : "-");
 const fmtBytes = (b?: number | null) => (!b ? "-" : b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`);
 const cronHint = (cron: string) => {
   if (cron === "0 8 * * *") return "Täglich um 08:00";

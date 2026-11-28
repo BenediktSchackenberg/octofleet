@@ -10,6 +10,11 @@
  *   - label, title, description, placeholder, message, help properties in object literals
  *   - lines with German words or umlauts in any string, and "de-DE"
  *
+ * Separately, and without a baseline: dates and numbers formatted with the browser's
+ * toLocaleString(), toLocaleDateString() or toLocaleTimeString(). They ignore the user's language
+ * and date/time settings; src/lib/format.ts has formatDateTime, formatDate, formatLocalDate,
+ * formatTime and formatNumber for that. Any such line fails the check.
+ *
  * The counts per file are compared with i18n-baseline.json, which holds the existing
  * backlog. The check fails only if a file has more such lines than its baseline.
  *
@@ -169,12 +174,20 @@ function* sourceFiles(dir) {
   }
 }
 
+// The browser's own date and number formatting (not the user's settings) - no baseline, none allowed
+const RAW_FORMAT = /\.toLocale(Date|Time)?String\(/;
+const rawFormat = [];
+
 const found = {};
 const lines = {};
 for (const path of sourceFiles(srcDir)) {
   const file = relative(root, path).split(sep).join("/");
   if (ALLOWED.has(file)) continue;
-  const hits = scan(file, readFileSync(path, "utf8"));
+  const source = readFileSync(path, "utf8");
+  source.split("\n").forEach((text, i) => {
+    if (RAW_FORMAT.test(text) && !text.includes("i18n-ignore")) rawFormat.push(`${file}:${i + 1}: ${text.trim().slice(0, 140)}`);
+  });
+  const hits = scan(file, source);
   if (hits.length) {
     found[file] = hits.length;
     lines[file] = hits;
@@ -208,6 +221,12 @@ for (const [file, count] of Object.entries(found)) {
   }
 }
 const lowered = Object.entries(baseline).filter(([file, allowed]) => (found[file] ?? 0) < allowed);
+if (rawFormat.length) {
+  failed = true;
+  console.error("\nDates or numbers formatted by the browser, not by the user's settings:");
+  for (const line of rawFormat) console.error(`  ${line}`);
+  console.error("Use formatDateTime, formatDate, formatLocalDate, formatTime or formatNumber from src/lib/format.ts.");
+}
 
 if (failed) {
   console.error(

@@ -21,6 +21,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { formatDateTime } from "@/lib/format";
 
 
 // Types
@@ -764,7 +765,7 @@ export default function ProvisioningPage() {
                       </div>
                       <ProgressBar progress={task.progress_percent} status={task.status} />
                       <p className="text-sm text-zinc-500 mt-2">
-                        {task.status_message || `Created ${new Date(task.created_at).toLocaleString()}`}
+                        {task.status_message || `Created ${formatDateTime(task.created_at)}`}
                       </p>
                     </div>
 

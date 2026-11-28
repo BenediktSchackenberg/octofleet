@@ -18,6 +18,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
+import { formatDateTime } from "@/lib/format";
 
 /** Removal fields of GET /api/v1/nodes/{id} (#160). */
 export interface NodeRemovalInfo {
@@ -153,7 +154,7 @@ export function NodeRemovalBanner({ nodeId, hostname, removal, onChanged }: Prop
 
   if (!state) return null;
 
-  const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : "-");
+  const fmt = (iso?: string | null) => (iso ? formatDateTime(iso) : "-");
   const forceAllowed = !!removal.forceDeleteAfter && new Date(removal.forceDeleteAfter) <= new Date();
   const canDeleteNow = removal.canDelete || forceAllowed;
 
