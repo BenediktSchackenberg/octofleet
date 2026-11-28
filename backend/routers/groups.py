@@ -3,12 +3,12 @@ from typing import Any, Dict
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core.rules import RULE_FIELDS, RULE_OPERATORS, evaluate_dynamic_rule
-from app.db import memberships
-from auth import require_user_permission
-from dependencies import bad_request, conflict, get_db, not_found, verify_api_key
+from app.db import group_usage, memberships
+from auth import CurrentUser, require_user_permission
+from dependencies import bad_request, conflict, get_db, log_audit, not_found, verify_api_key
 
 router = APIRouter(
     prefix="/api/v1",
@@ -30,6 +30,13 @@ async def list_groups(db: asyncpg.Pool = Depends(get_db)):
             ORDER BY g.name
         """)
         return {"groups": [_group(r) for r in rows]}
+
+
+def _uuid(value: str) -> UUID:
+    try:
+        return UUID(value)
+    except ValueError:
+        raise bad_request("Invalid group id") from None
 
 
 def _group(row) -> dict:
@@ -186,14 +193,40 @@ async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = D
                 "members": {"added": changes["added"], "removed": changes["removed"]} if changes else None}
 
 
-@router.delete("/groups/{group_id}", dependencies=[Depends(require_user_permission("groups:write"))])
-async def delete_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """Delete a group"""
+@router.get("/groups/{group_id}/usage", dependencies=[Depends(require_user_permission("groups:read"))])
+async def group_usage_route(group_id: str, db: asyncpg.Pool = Depends(get_db)):
+    """What uses the group and what deleting it does to each use (`uses`: kind, count, names, effect)"""
+    gid = _uuid(group_id)
     async with db.acquire() as conn:
-        result = await conn.execute("DELETE FROM groups WHERE id = $1", UUID(group_id))
-        if result == "DELETE 0":
+        if not await conn.fetchval("SELECT 1 FROM groups WHERE id = $1", gid):
             raise not_found("Group", group_id)
-        return {"status": "deleted", "groupId": group_id}
+        return {"groupId": group_id, "uses": await group_usage.usage(conn, gid)}
+
+
+@router.delete("/groups/{group_id}")
+async def delete_group(group_id: str, request: Request, confirm: bool = False, db: asyncpg.Pool = Depends(get_db),
+                       user: CurrentUser = Depends(require_user_permission("groups:write"))):
+    """Delete a group. A group that is used (members, sub-groups, rules, rings, assignments, jobs ...) is
+    deleted only with `confirm=true`; without it the answer is 409 with the uses. Deleting cleans up:
+    members removed (the nodes stay), sub-groups to the top level, Linux approval rules and
+    patch rings keep the id (fail-safe: approve nothing, exclusions cover all), maintenance windows deactivated, assignments deleted,
+    the onboarding default cleared; jobs and deployments keep running on the nodes they were created for."""
+    gid = _uuid(group_id)
+    async with db.acquire() as conn:
+        async with conn.transaction():
+            name = await conn.fetchval("SELECT name FROM groups WHERE id = $1 FOR UPDATE", gid)
+            if name is None:
+                raise not_found("Group", group_id)
+            uses = await group_usage.usage(conn, gid)
+            if uses and not confirm:
+                raise HTTPException(status_code=409, detail={
+                    "message": "The group is in use; deleting it needs confirm=true", "uses": uses})
+            await group_usage.clean_up(conn, gid)
+            await conn.execute("DELETE FROM groups WHERE id = $1", gid)
+            await log_audit(conn, UUID(user.id), "group.deleted", "group", group_id,
+                            {"name": name, "uses": [{k: u[k] for k in ("kind", "count", "effect")} for u in uses]},
+                            request.client.host if request.client else None)
+        return {"status": "deleted", "groupId": group_id, "uses": uses}
 
 
 @router.post("/groups/preview-rule", dependencies=[Depends(require_user_permission("groups:write"))])

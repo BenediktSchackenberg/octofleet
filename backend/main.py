@@ -177,6 +177,8 @@ async def lifespan(app: FastAPI):
     await job_types.ensure_schema(db_pool)
     await audit_query.ensure_schema(db_pool)
     await job_failures.ensure_schema(db_pool)
+    from app.db import group_usage
+    await group_usage.ensure_schema(db_pool)
     await ensure_patches_schema(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)

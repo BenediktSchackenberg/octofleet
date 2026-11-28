@@ -63,7 +63,7 @@ def setup():
         requests.delete(f"{API_URL}/api/v1/patches/linux-rules/{rule}", headers=HEADERS, timeout=10)
     for ring in (pilot, broad):
         requests.delete(f"{API_URL}/api/v1/patches/rings/{ring}", headers=HEADERS, timeout=10)
-    requests.delete(f"{API_URL}/api/v1/groups/{group}", headers=HEADERS, timeout=10)
+    requests.delete(f"{API_URL}/api/v1/groups/{group}?confirm=true", headers=HEADERS, timeout=10)
 
 
 def rule(ctx, **fields):
@@ -168,7 +168,7 @@ def test_deleted_ring_group(setup):
     exclude = rule(setup, action="exclude", packages=["curl"], ring_ids=[ring])
     try:
         assert states(setup["nodes"]["broad"])["curl"] == "approved"  # not in the ring's (empty) group
-        api("DELETE", f"/groups/{group}")
+        api("DELETE", f"/groups/{group}?confirm=true")
         assert states(setup["nodes"]["broad"])["curl"] == "excluded"  # ring without its group: all nodes
         assert fleet_row(setup, "broad")["linux"]["excluded"] == 1
     finally:

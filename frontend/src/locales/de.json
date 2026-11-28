@@ -2535,7 +2535,9 @@
       "renameFollows": "Die Regeln von {count} dynamischen Gruppen folgen dem neuen Namen.",
       "usage": "{nodes} Nodes, {groups} dynamische Gruppen, {jobs} Jobs",
       "confirmDelete": "Tag {name} löschen?",
-      "confirmDeleteUsed": "Tag {name} löschen? Es wird verwendet von {usage}. Die Nodes verlieren das Tag, und dynamische Gruppen, die es prüfen, verlieren diese Mitglieder bei ihrer nächsten Auswertung."
+      "confirmDeleteUsed": "Tag {name} löschen? Es wird verwendet von {usage}. Die Nodes verlieren das Tag, und dynamische Gruppen, die es prüfen, verlieren diese Mitglieder bei ihrer nächsten Auswertung.",
+      "search": "Tags durchsuchen",
+      "noMatch": "Kein Tag passt zur Suche."
     },
     "none": "Noch keine Gruppen.",
     "type": "Art",
@@ -2545,7 +2547,10 @@
     "collapse": "{name} zuklappen",
     "expand": "{name} aufklappen",
     "addSubgroup": "Untergruppe zu {name} hinzufügen",
-    "treeHint": "Untergruppen stehen unter ihrer übergeordneten Gruppe. Jede Gruppe hat ihre eigenen Mitglieder - eine übergeordnete Gruppe enthält die Nodes ihrer Untergruppen nicht."
+    "treeHint": "Untergruppen stehen unter ihrer übergeordneten Gruppe. Jede Gruppe hat ihre eigenen Mitglieder - eine übergeordnete Gruppe enthält die Nodes ihrer Untergruppen nicht.",
+    "searchGroups": "Gruppen durchsuchen",
+    "noMatch": "Keine Gruppe passt zur Suche.",
+    "inPath": "in {path}"
   },
   "groupDetail": {
     "saveFailed": "Die Gruppe konnte nicht gespeichert werden.",
@@ -3044,5 +3049,52 @@
     "none": "Nichts gefunden",
     "more": "{count} weitere - weitertippen, um die Liste einzugrenzen",
     "change": "Andere {label} wählen"
+  },
+  "groupDelete": {
+    "title": "Gruppe \"{name}\" löschen?",
+    "checking": "Prüfe, was die Gruppe verwendet ...",
+    "unused": "Nichts verwendet diese Gruppe: keine Mitglieder, Untergruppen, Regeln oder Zuweisungen.",
+    "usedIntro": "Die Gruppe wird verwendet. Das Löschen bewirkt:",
+    "usesLabel": "Was die Gruppe verwendet",
+    "cannotUndo": "Das kann nicht rückgängig gemacht werden. Regeln und Ringe werden nie auf alle Nodes ausgeweitet.",
+    "deleteAndCleanUp": "Löschen und aufräumen",
+    "deleted": "Gruppe \"{name}\" gelöscht.",
+    "usageFailed": "Konnte nicht prüfen, was die Gruppe verwendet.",
+    "more": "und {count} weitere",
+    "kind": {
+      "members": "Mitglieds-Nodes: {count}",
+      "subgroups": "Untergruppen: {count}",
+      "linux_approvals": "Linux-Freigaberegeln: {count}",
+      "linux_exclusions": "Linux-Ausschlussregeln: {count}",
+      "patch_rings": "Patch-Ringe: {count}",
+      "onboarding": "Standardgruppe für neue Nodes",
+      "maintenance_windows": "Wartungsfenster: {count}",
+      "remediation_windows": "Verknüpfungen mit Behebungsfenstern: {count}",
+      "monitoring_assignments": "Monitoring-Zuweisungen: {count}",
+      "config_baselines": "Konfigurations-Baseline-Zuweisungen: {count}",
+      "software_baselines": "Software-Baseline-Zuweisungen: {count}",
+      "sql_server": "SQL-Server-Zuweisungen: {count}",
+      "jobs": "Jobs: {count}",
+      "deployments": "Verteilungen: {count}"
+    },
+    "effect": {
+      "members": "aus der Gruppe entfernt; die Nodes bleiben",
+      "subgroups": "rücken auf die oberste Ebene",
+      "linux_approvals": "bleiben, geben aber nichts mehr frei (keine Gruppe, keine Nodes)",
+      "linux_exclusions": "bleiben und schließen dann auf allen Nodes aus (ausfallsicher)",
+      "patch_rings": "bleiben ohne Nodes: ihre Freigaben enden, ihre Ausschlüsse gelten für alle Nodes",
+      "onboarding": "geleert; neue Nodes kommen in keine Gruppe",
+      "maintenance_windows": "deaktiviert",
+      "remediation_windows": "entfernt; die Behebung auf diesen Nodes wartet auf ein anderes Fenster",
+      "monitoring_assignments": "gelöscht",
+      "config_baselines": "gelöscht",
+      "software_baselines": "gelöscht",
+      "sql_server": "gelöscht",
+      "jobs": "bleiben; sie laufen auf den Nodes, für die sie erstellt wurden",
+      "deployments": "bleiben; sie laufen auf den Nodes, für die sie erstellt wurden"
+    }
+  },
+  "listPager": {
+    "range": "{from}-{to} von {total}"
   }
 }

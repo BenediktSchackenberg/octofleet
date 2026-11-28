@@ -38,7 +38,7 @@ def test_parent_chain_children_and_no_loops():
                          json={"name": f"x-{uuid.uuid4().hex[:6]}", "parentId": str(uuid.uuid4())}).status_code == 400
     # moving a sub-group up is fine; deleting the parent moves sub-groups to the top
     assert requests.put(f"{API}/groups/{leaf}", headers=HEADERS, timeout=10, json={"parentId": top}).status_code == 200
-    assert requests.delete(f"{API}/groups/{top}", headers=HEADERS, timeout=10).status_code == 200
+    assert requests.delete(f"{API}/groups/{top}?confirm=true", headers=HEADERS, timeout=10).status_code == 200
     assert get(mid)["parent_id"] is None
 
 

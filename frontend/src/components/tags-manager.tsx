@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ListPager, ListSearch, PAGE_SIZE, matchesWords } from "@/components/list-pager";
 import Link from "next/link";
 import { Check, Loader2, Pencil, Plus, Tag as TagIcon, Trash2, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -26,6 +27,11 @@ export function TagsManager({ onChanged }: { onChanged?: () => void }) {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // thousands of tags: a search and 50 a page
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const shown = useMemo(() => (tags ?? []).filter((tag) => matchesWords(tag.name, query)), [tags, query]);
+  useEffect(() => { setPage(0); }, [query]);
 
   const load = async () => {
     const res = await apiClient.get<{ tags: ManagedTag[] }>("/tags", { showErrorToast: false });
@@ -87,6 +93,8 @@ export function TagsManager({ onChanged }: { onChanged?: () => void }) {
         </Button>
       </div>
       {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+      {tags !== null && tags.length > 0 && <ListSearch value={query} onChange={setQuery} label={g("search")} />}
+      {tags !== null && tags.length > 0 && shown.length === 0 && <p className="text-sm text-muted-foreground">{g("noMatch")}</p>}
       {tags === null ? (
         <p className="text-sm text-muted-foreground animate-pulse">{t("common.loading")}</p>
       ) : tags.length === 0 && !creating ? (
@@ -104,7 +112,7 @@ export function TagsManager({ onChanged }: { onChanged?: () => void }) {
           </TableHeader>
           <TableBody>
             {creating && editRow(null)}
-            {tags.map((tag) => editing === tag.id ? editRow(tag) : (
+            {shown.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((tag) => editing === tag.id ? editRow(tag) : (
               <TableRow key={tag.id}>
                 <TableCell>
                   <span className="inline-flex items-center gap-2">
@@ -134,6 +142,7 @@ export function TagsManager({ onChanged }: { onChanged?: () => void }) {
           </TableBody>
         </Table>
       )}
+      <ListPager page={page} total={shown.length} onPage={setPage} />
     </div>
   );
 }

@@ -2535,7 +2535,9 @@
       "renameFollows": "The rules of {count} dynamic groups follow the new name.",
       "usage": "{nodes} nodes, {groups} dynamic groups, {jobs} jobs",
       "confirmDelete": "Delete the tag {name}?",
-      "confirmDeleteUsed": "Delete the tag {name}? It is used by {usage}. The nodes lose the tag, and dynamic groups that test it lose those members on their next evaluation."
+      "confirmDeleteUsed": "Delete the tag {name}? It is used by {usage}. The nodes lose the tag, and dynamic groups that test it lose those members on their next evaluation.",
+      "search": "Search tags",
+      "noMatch": "No tag matches the search."
     },
     "none": "No groups yet.",
     "type": "Type",
@@ -2545,7 +2547,10 @@
     "collapse": "Collapse {name}",
     "expand": "Expand {name}",
     "addSubgroup": "Add a sub-group to {name}",
-    "treeHint": "Sub-groups are shown under their parent. Each group has its own members - a parent does not include its sub-groups' nodes."
+    "treeHint": "Sub-groups are shown under their parent. Each group has its own members - a parent does not include its sub-groups' nodes.",
+    "searchGroups": "Search groups",
+    "noMatch": "No group matches the search.",
+    "inPath": "in {path}"
   },
   "groupDetail": {
     "saveFailed": "The group could not be saved.",
@@ -3044,5 +3049,52 @@
     "none": "Nothing found",
     "more": "{count} more - keep typing to narrow the list",
     "change": "Choose another {label}"
+  },
+  "groupDelete": {
+    "title": "Delete group \"{name}\"?",
+    "checking": "Checking what uses the group ...",
+    "unused": "Nothing uses this group: no members, sub-groups, rules or assignments.",
+    "usedIntro": "The group is in use. Deleting it does this:",
+    "usesLabel": "What uses the group",
+    "cannotUndo": "This cannot be undone. Rules and rings are never widened to all nodes.",
+    "deleteAndCleanUp": "Delete and clean up",
+    "deleted": "Group \"{name}\" deleted.",
+    "usageFailed": "Could not check what uses the group.",
+    "more": "and {count} more",
+    "kind": {
+      "members": "Member nodes: {count}",
+      "subgroups": "Sub-groups: {count}",
+      "linux_approvals": "Linux approval rules: {count}",
+      "linux_exclusions": "Linux exclusion rules: {count}",
+      "patch_rings": "Patch rings: {count}",
+      "onboarding": "Default group for new nodes",
+      "maintenance_windows": "Maintenance windows: {count}",
+      "remediation_windows": "Remediation window links: {count}",
+      "monitoring_assignments": "Monitoring assignments: {count}",
+      "config_baselines": "Configuration baseline assignments: {count}",
+      "software_baselines": "Software baseline assignments: {count}",
+      "sql_server": "SQL Server assignments: {count}",
+      "jobs": "Jobs: {count}",
+      "deployments": "Deployments: {count}"
+    },
+    "effect": {
+      "members": "removed from the group; the nodes stay",
+      "subgroups": "move to the top level",
+      "linux_approvals": "stay, but approve nothing any more (no group, no nodes)",
+      "linux_exclusions": "stay, and then exclude on all nodes (fail-safe)",
+      "patch_rings": "stay without nodes: their approvals stop, their exclusions cover all nodes",
+      "onboarding": "cleared; new nodes join no group",
+      "maintenance_windows": "deactivated",
+      "remediation_windows": "removed; remediation on these nodes waits for another window",
+      "monitoring_assignments": "deleted",
+      "config_baselines": "deleted",
+      "software_baselines": "deleted",
+      "sql_server": "deleted",
+      "jobs": "kept; they run on the nodes they were created for",
+      "deployments": "kept; they run on the nodes they were created for"
+    }
+  },
+  "listPager": {
+    "range": "{from}-{to} of {total}"
   }
 }
