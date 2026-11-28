@@ -3,8 +3,9 @@
 import { useTabParam } from "@/hooks/useTabParam";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,8 +76,9 @@ interface NodeVulnerabilityGroupsResponse {
 
 /** The running scan (with progress) and the last finished one, from the API. */
 export interface ScanStatus {
-  running_scan: { id: number; cancel_requested: boolean; started_at: string; checked: number; total: number } | null;
-  last_completed_scan: { completed_at: string; status: string; packages_scanned: number; error_packages: number } | null;
+  /** node_scan: a scan of this node only (node page), not of the fleet. */
+  running_scan: { id: number; cancel_requested: boolean; started_at: string; checked: number; total: number; node_scan?: boolean } | null;
+  last_completed_scan: { completed_at: string; status: string; packages_scanned: number; error_packages: number; node_scan?: boolean } | null;
 }
 
 /** Data older than this is marked as stale. */
@@ -104,7 +106,7 @@ export function ScanStatusBanner({ status, onStop }: { status?: ScanStatus | nul
     return (
       <div role="status" className="flex items-start gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 p-3 text-sm text-blue-800 dark:text-blue-300">
         <Loader2 className="h-4 w-4 mt-0.5 shrink-0 animate-spin" />
-        <span className="flex-1">{s("running", {
+        <span className="flex-1">{s(running.node_scan ? "nodeRunning" : "running", {
           time: started.toLocaleTimeString(locale),
           minutes: Math.max(0, Math.floor((Date.now() - started.getTime()) / 60000)),
           checked: Math.min(running.checked, running.total),
@@ -125,7 +127,7 @@ export function ScanStatusBanner({ status, onStop }: { status?: ScanStatus | nul
   const partial = last.status === "partial";
   return (
     <div role="status" className={`rounded-lg border p-3 text-sm ${stale || partial ? warnClass : "text-muted-foreground"}`}>
-      {s("dataFrom", { time: new Date(last.completed_at).toLocaleString(locale), age: relativeAge(age, t) })}
+      {s(last.node_scan ? "nodeDataFrom" : "dataFrom", { time: new Date(last.completed_at).toLocaleString(locale), age: relativeAge(age, t) })}
       {partial && <> {s("partial", { count: last.error_packages })}</>}
       {stale && <> {s("stale", { days: STALE_DAYS })}</>}
     </div>
@@ -202,7 +204,8 @@ export function useNodeVulnerabilityCount(nodeId: string) {
   return count;
 }
 
-function useApi<T>(path: string | null) {
+/** GET path; a new `version` loads it again and keeps the old data until the new one arrives. */
+function useApi<T>(path: string | null, version = 0) {
   // The result is kept with the path it belongs to, so another node shows "loading" until its own data arrives.
   const [result, setResult] = useState<{ path: string; data: T | null } | null>(null);
   useEffect(() => {
@@ -212,7 +215,7 @@ function useApi<T>(path: string | null) {
       .then((d) => { if (active) setResult({ path, data: d ?? null }); })
       .catch(() => { if (active) setResult({ path, data: null }); });
     return () => { active = false; };
-  }, [path]);
+  }, [path, version]);
   const current = path && result?.path === path ? result : null;
   return { data: current?.data ?? null, failed: current !== null && current.data === null };
 }
@@ -618,22 +621,83 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
 }
 
 /** A node's vulnerabilities (node page tab): grouped by update, or as a flat CVE list. */
+/** Seconds between reloads while a scan runs: this node's scan (seconds long) or a fleet scan. */
+const NODE_SCAN_POLL_MS = 2000;
+const FLEET_SCAN_POLL_MS = 15000;
+
+interface ScanRecord { id: number; status: string; packages_scanned: number | null; error_message: string | null }
+
+/** Scan now: checks this node's software versions (POST /vulnerabilities/scan?node=) and follows
+ * the scan until it has finished; `onProgress` reloads the node's data while it runs and after. */
+function useNodeScan(nodeId: string, onProgress: () => void) {
+  const { t } = useI18n();
+  const [scanId, setScanId] = useState<number | null>(null);
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const start = async () => {
+    setMessage(null);
+    const res = await apiClient.richPost<{ scan_id: number }>(
+      `/vulnerabilities/scan?node=${encodeURIComponent(nodeId)}`, {}, { showErrorToast: false });
+    if (res.ok && res.data) { setScanId(res.data.scan_id); onProgress(); }
+    else setMessage({ text: t(res.status === 409 ? "nodes.vulnerabilities.scanBusy" : "nodes.vulnerabilities.scanStartFailed"), error: true });
+  };
+  useEffect(() => {
+    if (scanId === null) return;
+    let active = true;
+    const timer = setInterval(async () => {
+      const scan = await apiClient.get<ScanRecord>(`/vulnerabilities/scans/${scanId}`, { showErrorToast: false });
+      if (!active || !scan) return;
+      onProgress();
+      if (scan.status === "running") return;
+      setScanId(null);
+      setMessage(scan.status === "completed" || scan.status === "partial"
+        ? { text: t("nodes.vulnerabilities.scanDone", { count: scan.packages_scanned ?? 0 }), error: false }
+        : { text: t("nodes.vulnerabilities.scanFailed", { error: scan.error_message ?? scan.status }), error: true });
+    }, NODE_SCAN_POLL_MS);
+    return () => { active = false; clearInterval(timer); };
+  }, [scanId]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { start, scanning: scanId !== null, message };
+}
+
 export function NodeVulnerabilities({ nodeId }: { nodeId: string }) {
   const { t } = useI18n();
+  const { hasPermission } = useAuth();
   // ?view=cves opens the CVE list (links from the node card and the vulnerabilities page)
   const [view, setView] = useTabParam<"groups" | "cves">("groups", ["groups", "cves"], "view");
+  const [version, setVersion] = useState(0);
+  const reload = () => setVersion((v) => v + 1);
   const base = `/vulnerabilities/node/${encodeURIComponent(nodeId)}`;
-  const groups = useApi<NodeVulnerabilityGroupsResponse>(`${base}/groups`);
-  const cves = useApi<NodeVulnerabilitiesResponse>(view === "cves" ? base : null);
+  const groups = useApi<NodeVulnerabilityGroupsResponse>(`${base}/groups`, version);
+  const cves = useApi<NodeVulnerabilitiesResponse>(view === "cves" ? base : null, version);
   const data = groups.data;
+  const scan = useNodeScan(nodeId, reload);
+  const running = data?.scan?.running_scan;
+  // A scan started elsewhere (another tab, the fleet page): follow it until it has finished.
+  useEffect(() => {
+    if (!running || scan.scanning) return;
+    const timer = setTimeout(reload, running.node_scan ? NODE_SCAN_POLL_MS : FLEET_SCAN_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [running, scan.scanning]);
+  const busy = scan.scanning || !!running;
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{t("nodes.vulnerabilities.title", { count: data?.count ?? 0 })}</CardTitle>
-        <CardDescription>{t("nodes.vulnerabilities.description")}</CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>{t("nodes.vulnerabilities.title", { count: data?.count ?? 0 })}</CardTitle>
+          <CardDescription>{t("nodes.vulnerabilities.description")}</CardDescription>
+        </div>
+        {hasPermission("settings:write") && (
+          <Button size="sm" variant="outline" className="shrink-0" onClick={scan.start} disabled={busy}
+            title={t("nodes.vulnerabilities.scanNowHint")}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} />
+            {busy ? t("nodes.vulnerabilities.scanning") : t("nodes.vulnerabilities.scanNow")}
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {scan.message && (
+          <p role="status" className={`text-sm ${scan.message.error ? "text-red-500" : "text-muted-foreground"}`}>{scan.message.text}</p>
+        )}
         <ScanStatusBanner status={data?.scan} />
         <WindowsUpdatesNote state={data?.windows_updates} />
         {groups.failed ? (

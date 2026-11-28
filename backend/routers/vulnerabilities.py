@@ -30,6 +30,7 @@ from vulnerability import (
     normalize_cve_id,
     normalize_cve_prefix,
     osv_cache_status,
+    run_node_vulnerability_scan,
     run_vulnerability_scan,
     verify_osv_cache,
 )
@@ -286,23 +287,51 @@ async def list_vulnerabilities(
         }
 
 
+# Serialises starting scans, so two requests cannot both see "nothing running".
+SCAN_START_LOCK = "SELECT pg_advisory_xact_lock(hashtextextended('vulnerability_scan_start', 0))"
+
+
 @router.post("/api/v1/vulnerabilities/scan")
 async def trigger_vulnerability_scan(background_tasks: BackgroundTasks,
                                      body: Optional[Dict[str, Any]] = Body(None),
+                                     node: Optional[str] = Query(None, max_length=255),
                                      _: CurrentUser = Depends(require_user_permission("settings:write"))):
     """Trigger a full vulnerability scan of all software inventory.
 
-    `{"refresh_cache": true}` ignores the OSV cache for this scan and stores every advisory again."""
+    `{"refresh_cache": true}` ignores the OSV cache for this scan and stores every advisory again.
+    `?node=<id or hostname>` scans only that node's software versions and rebuilds its
+    vulnerability cache right after (seconds for Linux nodes with the OSV cache filled). One node
+    scan at a time, and none while a fleet scan runs (409); a fleet scan is refused while a
+    node scan runs (409, it takes seconds)."""
     nvd_api_key = os.environ.get("NVD_API_KEY")
     scanner = VulnerabilityScanner(get_pool(), nvd_api_key)
     scanner.refresh_osv_cache = bool((body or {}).get("refresh_cache"))
-    
-    # Create scan record
+
     async with get_pool().acquire() as conn:
-        scan_id = await conn.fetchval("""
-            INSERT INTO vulnerability_scans (status, cache_refresh) VALUES ('running', $1) RETURNING id
-        """, scanner.refresh_osv_cache)
-    
+        node_row = None
+        if node is not None:
+            node_row = await conn.fetchrow("SELECT id, hostname FROM nodes WHERE id::text = $1 OR hostname = $1 LIMIT 1",
+                                           node)
+            if not node_row:
+                raise HTTPException(status_code=404, detail="Node not found")
+        async with conn.transaction():
+            await conn.execute(SCAN_START_LOCK)
+            running = await conn.fetchrow("""SELECT s.id, s.node_id, n.hostname FROM vulnerability_scans s
+                LEFT JOIN nodes n ON n.id = s.node_id
+                WHERE s.status = 'running' AND ($1 OR s.node_id IS NOT NULL)
+                ORDER BY s.started_at DESC LIMIT 1""", node_row is not None)
+            if running:
+                what = f"a scan of {running['hostname']}" if running["node_id"] else "a fleet scan"
+                raise HTTPException(status_code=409, detail=f"Wait until {what} has finished (scan {running['id']})")
+            scan_id = await conn.fetchval("""
+                INSERT INTO vulnerability_scans (status, cache_refresh, node_id) VALUES ('running', $1, $2) RETURNING id
+            """, scanner.refresh_osv_cache, node_row["id"] if node_row else None)
+
+    if node_row:
+        background_tasks.add_task(run_node_vulnerability_scan, get_pool(), scanner, scan_id, node_row["id"])
+        return {"scan_id": scan_id, "status": "started", "node": {"id": str(node_row["id"]), "hostname": node_row["hostname"]},
+                "message": "Scan of the node started in background"}
+
     async def create_remediation_jobs():
         # AUTO-REMEDIATION: after a complete scan, create remediation jobs
         engine = RemediationEngine(get_pool())
@@ -357,15 +386,31 @@ async def cancel_vulnerability_scan(scan_id: int, _: CurrentUser = Depends(requi
 
 
 @router.get("/api/v1/vulnerabilities/scans", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
-async def list_vulnerability_scans(limit: int = 10):
-    """Get vulnerability scan history."""
+async def list_vulnerability_scans(limit: int = Query(10, ge=1, le=1000), node: Optional[str] = Query(None, max_length=255)):
+    """Get vulnerability scan history: fleet scans, or with `?node=` the scans of that node."""
     async with get_pool().acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT * FROM vulnerability_scans
-            ORDER BY started_at DESC
-            LIMIT $1
-        """, limit)
+        node_id = None
+        if node is not None:
+            node_id = await conn.fetchval("SELECT id FROM nodes WHERE id::text = $1 OR hostname = $1 LIMIT 1", node)
+            if node_id is None:
+                raise HTTPException(status_code=404, detail="Node not found")
+        if node_id is None:
+            rows = await conn.fetch("""SELECT * FROM vulnerability_scans WHERE node_id IS NULL
+                ORDER BY started_at DESC LIMIT $1""", limit)
+        else:
+            rows = await conn.fetch("""SELECT * FROM vulnerability_scans WHERE node_id = $2
+                ORDER BY started_at DESC LIMIT $1""", limit, node_id)
         return {"scans": [dict(row) for row in rows]}
+
+
+@router.get("/api/v1/vulnerabilities/scans/{scan_id}", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def get_vulnerability_scan(scan_id: int):
+    """One scan (fleet or node): status, counts and error, e.g. to follow a node scan."""
+    async with get_pool().acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM vulnerability_scans WHERE id = $1", scan_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return dict(row)
 
 
 @router.post("/api/v1/vulnerabilities/{cve_id}/suppress")

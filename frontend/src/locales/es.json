@@ -443,7 +443,14 @@
         "no_build": "No se pudieron comprobar las actualizaciones de Windows: el agente aún no ha informado de la compilación de Windows con su revisión (inventario o instantánea de seguridad diaria).",
         "unsupported_release": "No se pudieron comprobar las actualizaciones de Windows: la compilación {build} no pertenece a ninguna versión de Windows que Octofleet asigne a la Security Update Guide de Microsoft.",
         "no_data": "Aún no se pudieron comprobar las actualizaciones de Windows: no hay datos de la Security Update Guide de Microsoft para {product} (sincronización pendiente o desactivada)."
-      }
+      },
+      "scanNow": "Escanear ahora",
+      "scanning": "Escaneando…",
+      "scanNowHint": "Comprobar ahora las vulnerabilidades de las versiones de software de este nodo y actualizar sus cifras. Los nodos con las mismas versiones también reciben los nuevos resultados.",
+      "scanBusy": "Hay otro escaneo en curso - inténtalo de nuevo cuando termine.",
+      "scanStartFailed": "No se pudo iniciar el escaneo.",
+      "scanDone": "Escaneo terminado: {count} versiones de software comprobadas.",
+      "scanFailed": "El escaneo ha fallado: {error}"
     },
     "removal": {
       "button": "Eliminar nodo…",
@@ -807,7 +814,9 @@
     "stopping": "Deteniendo…",
     "partial": "Ese análisis no pudo comprobar {count} versión(es) de software; se conservaron sus hallazgos anteriores.",
     "stale": "Los datos tienen más de {days} días: inicie un nuevo análisis.",
-    "none": "Aún no se ha completado ningún análisis: las cifras no se basan en un análisis."
+    "none": "Aún no se ha completado ningún análisis: las cifras no se basan en un análisis.",
+    "nodeRunning": "Escaneo de este nodo en curso desde {time} ({minutes} min) - {checked} de {total} versiones de software comprobadas.",
+    "nodeDataFrom": "Datos del escaneo de este nodo del {time} ({age})."
   },
   "dateTime": {
     "menuTitle": "Idioma, hora y fecha",
