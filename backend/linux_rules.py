@@ -13,7 +13,9 @@ A rule approves or excludes package versions (``linux_package_versions``) for th
 
 A version is approved for a node when an enabled approval rule in the node's scope matches it and is
 old enough, and **no enabled exclusion rule in the node's scope matches it** (an exclusion wins, also
-across rules). Without an enabled rule nothing is approved.
+across rules). Without an enabled rule nothing is approved. A **phased** update (apt holds it back on
+the node until Ubuntu's rollout reaches it) is not evaluated: it is neither approved nor waiting, and
+a bulk installation leaves it out; once the node reports it as installable, it is evaluated as usual.
 
 Fail-safe on deleted rings or groups (no foreign keys, so a rule is never deleted or widened by
 accident): an approval rule then no longer covers those nodes; an exclusion rule then covers all
@@ -352,6 +354,7 @@ WITH target AS MATERIALIZED (
        AND (r.group_id IS NULL OR g.node_id IS NOT NULL OR (r.action = 'exclude' AND d.grp))
 ), pending AS MATERIALIZED (
     SELECT u.node_id, u.version_id FROM linux_node_updates u JOIN target t ON t.node_id = u.node_id
+     WHERE NOT u.phased
 ), matches AS MATERIALIZED (
     SELECT r.id AS rule_id, v.id AS version_id, v.first_seen_at
       FROM rules r
@@ -437,7 +440,7 @@ MARK_DIRTY = "INSERT INTO linux_approval_dirty (node_id) VALUES ($1::uuid) ON CO
 # The node's pending updates with their approval state (node page, bulk installation)
 NODE_DETAIL = f"""
 SELECT v.name, v.arch, v.version, v.repository, v.security, v.severity, v.first_seen_at, v.release,
-       u.package, u.installed_version,
+       u.package, u.installed_version, u.phased,
        COALESCE(e.excluded, false) AS excluded, e.approved_at, e.approve_rules, e.exclude_rules
   FROM linux_node_updates u
   JOIN linux_package_versions v ON v.id = u.version_id
@@ -514,7 +517,10 @@ async def approval_loop(pool) -> None:
 
 
 def approval_state(row, now) -> str:
-    """approved / waiting (minimum age not reached) / excluded / not_approved"""
+    """approved / waiting (minimum age not reached) / excluded / not_approved, or phased (apt holds it
+    back on the node for now; not evaluated)"""
+    if row.get("phased"):
+        return "phased"
     if row["excluded"]:
         return "excluded"
     at = row["approved_at"]

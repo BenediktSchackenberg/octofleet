@@ -196,6 +196,30 @@ def test_preview(setup):
     assert preview["nodes"] == 1
 
 
+def test_phased_updates_are_neither_approved_nor_installed(setup):
+    """apt holds a phased update back on the node: the rules leave it out of the counts and the bulk
+    installation; once the node reports it as installable, it is approved like any other."""
+    tag, release = setup["tag"], {"id": f"ci{setup['tag']}", "versionId": "1"}
+    phased = [dict(UPDATES[0]), dict(UPDATES[1], phased=True, phasedPercent=10)]
+    node = push(f"rules-phased-{tag}", release, updates=phased)
+    setup["nodes"]["phased"] = node
+    rid = rule(setup)  # all updates, all nodes of this release
+    try:
+        assert states(node) == {"openssl": "approved", "curl": "phased"}
+        row = fleet_row(setup, "phased")
+        assert row["approved"] == 1 and row["linux"]["waiting"] == 0
+        r = api("POST", "/patches/fleet/install", json={"node_ids": [node]})
+        job = api("GET", f"/jobs/{r['jobs'][0]['job_id']}")
+        data = job["command_data"] if isinstance(job["command_data"], dict) else json.loads(job["command_data"])
+        assert data["packages"] == [{"name": "openssl", "version": "3.5.1-1"}]
+        # the node's turn came: same version, no longer phased
+        push(f"rules-phased-{tag}", release, updates=UPDATES)
+        assert states(node) == {"openssl": "approved", "curl": "approved"}
+        assert fleet_row(setup, "phased")["approved"] == 2
+    finally:
+        drop(setup, rid)
+
+
 def test_validation(setup):
     bad = [
         {"name": ""},
