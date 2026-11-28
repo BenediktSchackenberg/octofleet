@@ -185,7 +185,7 @@ function MoveToGroupButton({ nodeId, onMoved }: { nodeId: string; onMoved?: () =
 
   const moveToGroup = async (groupId: string) => {
     try {
-      await apiClient.post(`/groups/${groupId}/members`, { node_ids: [nodeId] });
+      await apiClient.post(`/groups/${groupId}/members`, { nodeIds: [nodeId] });
       setOpen(false);
       onMoved?.();
     } catch {}
@@ -455,7 +455,7 @@ export default function NodeDetailPage() {
                 <Zap className="h-4 w-4 mr-1" /> {t("nodeDetail.startJob")}
               </Button>
             </Link>
-            <MoveToGroupButton nodeId={nodeId} onMoved={fetchNodeDetails} />
+            {node && <MoveToGroupButton nodeId={String(node.id)} onMoved={fetchNodeDetails} />}
             <Link href={`/reports?node=${nodeId}`}>
               <Button variant="outline" className="bg-slate-500/10 border-slate-500 text-slate-400 hover:bg-slate-500/20">
                 <FileText className="h-4 w-4 mr-1" /> {t("nodeDetail.generateReport")}

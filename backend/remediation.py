@@ -370,14 +370,10 @@ async def is_in_maintenance_window(db_pool, node_id: Optional[UUID] = None) -> b
             node = await conn.fetchrow("SELECT node_id, hostname FROM nodes WHERE id = $1", node_id)
             if not node:
                 return False
-            identities = [str(node_id), node['node_id'], node['hostname']]
-            try:
-                memberships = await conn.fetch(
-                    "SELECT group_id FROM group_members WHERE node_id = ANY($1::text[])", identities)
-                group_ids = {str(member['group_id']) for member in memberships}
-            except Exception:
-                # Some older databases do not have group_members. Scoped windows fail closed.
-                pass
+            # the node's groups as the groups API manages them (device_groups); the legacy
+            # group_members table is written by nothing, so group-scoped windows never matched
+            memberships = await conn.fetch("SELECT group_id FROM device_groups WHERE node_id = $1", node_id)
+            group_ids = {str(member['group_id']) for member in memberships}
 
         for record in rows:
             row = dict(record)

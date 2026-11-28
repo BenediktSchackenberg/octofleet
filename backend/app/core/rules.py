@@ -1,5 +1,10 @@
 import re
 
+# What the push (app.db.nodes) and the preview/evaluate routes fill in for a node
+RULE_FIELDS = {"hostname", "os_name", "os_version", "os_build", "agent_version", "domain", "is_domain_joined", "tags"}
+RULE_OPERATORS = {"equals", "not_equals", "contains", "not_contains", "startswith", "endswith", "regex",
+                  "gte", "lte", "gt", "lt", "has_tag"}
+
 
 def evaluate_dynamic_rule(rule: dict, node_data: dict) -> bool:
     """
@@ -14,10 +19,8 @@ def evaluate_dynamic_rule(rule: dict, node_data: dict) -> bool:
         ]
     }
     
-    Supported fields:
-    - os_name, os_version, os_build, hostname, agent_version
-    - tags (special: checks if node has tag)
-    - cpu_name, total_memory_gb (from hardware)
+    Fields (RULE_FIELDS): hostname, os_name, os_version, os_build, agent_version, domain,
+    is_domain_joined, tags (with op has_tag). The routes reject other fields and operators.
     """
     if not rule or not isinstance(rule, dict):
         return False
