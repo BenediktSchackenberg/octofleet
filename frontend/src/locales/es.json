@@ -451,7 +451,8 @@
       "scanStartFailed": "No se pudo iniciar el escaneo.",
       "scanDone": "Escaneo terminado: {count} versiones de software comprobadas.",
       "scanFailed": "El escaneo ha fallado: {error}",
-      "notScanned": "Este nodo no se comprueba en busca de vulnerabilidades: los paquetes de {os} aún no se comparan con avisos. Que no haya CVEs aquí no significa que el nodo esté limpio."
+      "notScanned": "Este nodo no se comprueba en busca de vulnerabilidades: los paquetes de {os} aún no se comparan con avisos. Que no haya CVEs aquí no significa que el nodo esté limpio.",
+      "partlyScanned": "De {os} solo se comprueban los paquetes clave (openssl, openssh, curl, sudo, glibc, el kernel, ...: NVD por versión upstream): no hay avisos para esta distribución. Sus demás paquetes no se comprueban."
     },
     "removal": {
       "button": "Eliminar nodo…",

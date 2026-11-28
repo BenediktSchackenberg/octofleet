@@ -66,7 +66,7 @@ interface WindowsUpdates {
 }
 
 /** Whether the scan can check the node's OS release at all (Windows; Linux releases with an advisory source) */
-interface ScanSupport { supported: boolean | null; os: string | null }
+interface ScanSupport { supported: boolean | null; partial?: boolean; os: string | null }
 
 interface NodeVulnerabilityGroupsResponse {
   node: { id: string; hostname: string };
@@ -706,6 +706,13 @@ export function NodeVulnerabilities({ nodeId }: { nodeId: string }) {
         )}
         <ScanStatusBanner status={data?.scan} />
         <WindowsUpdatesNote state={data?.windows_updates} />
+        {/* Arch and its derivatives: only key packages are checked, the rest is not */}
+        {data?.scan_support?.partial && (
+          <p role="status" className="flex items-start gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-800 dark:text-yellow-300">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            {t("nodes.vulnerabilities.partlyScanned", { os: data.scan_support.os ?? "-" })}
+          </p>
+        )}
         {/* a release the scan cannot check: no CVEs here would read as a clean node */}
         {data?.scan_support?.supported === false && (
           <p role="status" className="flex items-start gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-800 dark:text-yellow-300">

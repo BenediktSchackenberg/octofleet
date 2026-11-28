@@ -451,7 +451,8 @@
       "scanStartFailed": "The scan could not be started.",
       "scanDone": "Scan finished: {count} software versions checked.",
       "scanFailed": "The scan failed: {error}",
-      "notScanned": "This node is not checked for vulnerabilities: packages of {os} are not matched against advisories yet. No CVEs here does not mean the node is clean."
+      "notScanned": "This node is not checked for vulnerabilities: packages of {os} are not matched against advisories yet. No CVEs here does not mean the node is clean.",
+      "partlyScanned": "Only key packages of {os} are checked (openssl, openssh, curl, sudo, glibc, the kernel, ...: NVD by upstream version) - there are no advisories for this distribution. Its other packages are not checked."
     },
     "removal": {
       "button": "Remove node…",
