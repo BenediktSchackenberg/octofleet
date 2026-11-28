@@ -80,6 +80,10 @@ UPDATE_CHECK_INTERVAL="${UPDATE_CHECK_INTERVAL:-21600}"  # 6 hours
 declare -A LAST_RX_BYTES
 declare -A LAST_TX_BYTES
 LAST_NET_TIME=0
+# Live process list (collect_live_processes): the previous CPU sample, uid -> JSON user name
+LIVE_PROC_SAMPLE=""
+declare -A LIVE_USER_NAMES
+LIVE_PROCESSES="[]"
 
 # Colors for output
 RED='\033[0;31m'
@@ -1101,16 +1105,101 @@ collect_live_metrics() {
 EOF
 }
 
+# Live process list: sets LIVE_PROCESSES to the JSON list of the top LIVE_PROCESS_COUNT processes by
+# CPU, then memory. cpuPercent is the CPU time a process used since the previous push, as a share of
+# all CPUs (0-100, as the Windows agent sends it), not ps's %CPU (the average over the process's whole
+# life). name is argv[0] without the arguments, so "postgres: checkpointer" stays whole and command
+# line arguments (passwords too) stay on the node; kernel threads get [comm] as in ps. One cat and one awk
+# over PROC_DIR/<pid>/stat, no ps. The sample stays in LIVE_PROC_SAMPLE for the next push, so this
+# must not run in $(...); the first call takes a baseline half a second before.
 collect_live_processes() {
-    # Top 20 processes by CPU usage
-    ps aux --sort=-%cpu 2>/dev/null | head -21 | tail -20 | awk 'BEGIN {print "["} 
-        NR>1 {
-            if (NR>2) print ","
-            gsub(/"/, "\\\"", $11)
-            printf "{\"name\":\"%s\",\"pid\":%d,\"cpuPercent\":%.1f,\"memoryMb\":%.1f,\"userName\":\"%s\"}", 
-                   $11, $2, $3, $6/1024, $1
-        } 
-        END {print "]"}' 2>/dev/null || echo "[]"
+    : "${LIVE_CLK_TCK:=$(getconf CLK_TCK 2>/dev/null || echo 100)}"
+    : "${LIVE_PAGE_SIZE:=$(getconf PAGESIZE 2>/dev/null || echo 4096)}"
+    local sample top
+    if [[ -z "$LIVE_PROC_SAMPLE" ]]; then
+        IFS= read -r LIVE_PROC_SAMPLE <<< "$(_live_process_top)"
+        sleep 0.5
+    fi
+    top=$(_live_process_top) || { LIVE_PROCESSES="[]"; return; }
+    # The first line is the new sample; read, not ${top%%...}: pattern removal is slow on long strings
+    local json="" pid uid cpu mem comm name user
+    {
+        IFS= read -r LIVE_PROC_SAMPLE
+        while read -r pid uid cpu mem comm; do
+            name=""
+            { IFS= read -r -d '' name < "$PROC_DIR/$pid/cmdline"; } 2>/dev/null
+            # Programs that set their title write it all into argv[0]: keep "postgres: checkpointer",
+            # cut "chrome --type=renderer ..." at its first option; then trailing blanks (padding)
+            name=${name%% -*}; name=${name%"${name##*[![:space:]]}"}
+            [[ -n "$name" ]] || name="[$comm]"
+            name=${name:0:200}; name=${name//[[:cntrl:]]/ }; name=${name//\\/\\\\}; name=${name//\"/\\\"}
+            if [[ "$uid" == "-" ]]; then
+                user=null
+            else
+                if [[ -z "${LIVE_USER_NAMES[$uid]-}" ]]; then
+                    user=$(getent passwd "$uid" 2>/dev/null)
+                    user=${user%%:*}; user=${user:-$uid}
+                    user=${user//[[:cntrl:]]/ }; user=${user//\\/\\\\}; user=${user//\"/\\\"}
+                    LIVE_USER_NAMES[$uid]="\"$user\""
+                fi
+                user=${LIVE_USER_NAMES[$uid]}
+            fi
+            json+="${json:+,}{\"name\":\"$name\",\"pid\":$pid,\"cpuPercent\":$cpu,\"memoryMb\":$mem,\"userName\":$user}"
+        done
+    } <<< "$top"
+    LIVE_PROCESSES="[$json]"
+}
+
+# _live_process_top: line 1 the new sample ("<uptime ticks> <pid>:<start>:<cpu ticks> ..."), then one
+# line "<pid> <uid or -> <cpu %> <memory MB> <comm>" per top process. A process is keyed by PID and
+# start time, so a reused PID does not inherit the old process's CPU time.
+_live_process_top() {
+    { printf '%s\n' "$LIVE_PROC_SAMPLE"; cat "$PROC_DIR"/[0-9]*/stat 2>/dev/null; } |
+    awk -v hz="$LIVE_CLK_TCK" -v page="$LIVE_PAGE_SIZE" -v count="${LIVE_PROCESS_COUNT:-20}" -v dir="$PROC_DIR" '
+        BEGIN {
+            getline line < (dir "/uptime"); split(line, u, " "); now = int(u[1] * hz)
+            while ((getline line < (dir "/stat")) > 0) if (line ~ /^cpu[0-9]/) ncpu++
+            if (!ncpu) ncpu = 1
+        }
+        NR == 1 {
+            if (NF) { prev_up = $1; for (i = 2; i <= NF; i++) { split($i, a, ":"); prev[a[1] ":" a[2]] = a[3] } }
+            next
+        }
+        {
+            # "pid (comm) state ...": comm may hold blanks and ")", so the fields start after the last ")"
+            open = index($0, " ("); close_at = 0
+            while ((k = index(substr($0, close_at + 1), ")")) > 0) close_at += k
+            if (!open || close_at <= open) next
+            pid = substr($0, 1, open - 1); comm = substr($0, open + 2, close_at - open - 2)
+            if (split(substr($0, close_at + 2), f, " ") < 22) next
+            ticks = f[12] + f[13]; key = pid ":" f[20]   # utime + stime, starttime (fields 14, 15, 22)
+            sample = sample " " key ":" sprintf("%.0f", ticks)   # mawk 1.3.4-2020: 3e+09 otherwise
+            d = 0
+            if (prev_up != "") {
+                if (key in prev) d = ticks - prev[key]
+                else if (f[20] + 0 >= prev_up + 0) d = ticks   # started since the previous sample
+            }
+            n++; P[n] = pid; D[n] = d; M[n] = f[22] * page / 1048576; C[n] = comm
+        }
+        END {
+            print sprintf("%.0f", now) sample
+            elapsed = (prev_up != "" && now > prev_up) ? (now - prev_up) * ncpu : 0
+            for (i = 1; i <= n; i++) {
+                c = elapsed ? 100 * D[i] / elapsed : 0
+                CPU[i] = c < 0 ? 0 : (c > 100 ? 100 : c)
+            }
+            for (k = 1; k <= count; k++) {
+                best = 0
+                for (i = 1; i <= n; i++)
+                    if (!(i in used) && (!best || CPU[i] > CPU[best] || (CPU[i] == CPU[best] && M[i] > M[best]))) best = i
+                if (!best) break
+                used[best] = 1
+                uid = "-"; file = dir "/" P[best] "/status"
+                while ((getline line < file) > 0) if (line ~ /^Uid:/) { split(line, x, " "); uid = x[2]; break }
+                close(file)
+                printf "%d %s %.1f %.1f %s\n", P[best], uid, CPU[best], M[best], C[best]
+            }
+        }'
 }
 
 collect_live_network() {
@@ -1186,7 +1275,8 @@ collect_agent_logs() {
 
 push_live_data() {
     local metrics=$(collect_live_metrics)
-    local processes=$(collect_live_processes)
+    collect_live_processes   # not in $(...): it keeps its CPU sample for the next push
+    local processes=$LIVE_PROCESSES
     local network=$(collect_live_network)
     local logs=$(collect_agent_logs)
     refresh_logged_on_users
