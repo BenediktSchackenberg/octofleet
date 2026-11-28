@@ -56,3 +56,33 @@ test('Fleet updates: list, filters with Back, link to the Updates tab', async ({
   await expect(page).toHaveURL(/tab=updates/);
   await expect(page.getByRole('tab', { name: /Updates/ })).toHaveAttribute('aria-selected', 'true');
 });
+
+// Icons, not emojis: the cards, the bulk buttons and the reboot row button use the same icon set as
+// the dashboard (emojis looked different on every system and clashed with the dark theme)
+test('Fleet updates: icons instead of emojis', async ({ page, request }) => {
+  const hostname = `e2e-fleet-icons-${Date.now()}`;
+  const headers = { ...(await getAuthHeaders()), 'Content-Type': 'application/json' };
+  expect((await request.post(`${API_URL}/api/v1/inventory/full`, { headers, data: { hostname, nodeId: hostname,
+    system: { os: { name: 'Ubuntu 26.04 LTS' } }, updates: { packageManager: 'apt', totalUpdates: 1, securityUpdates: 0, rebootRequired: true,
+      updates: [{ name: 'vim', newVersion: '9.1', security: false }] } } })).ok()).toBeTruthy();
+
+  await page.goto(`/patches/updates?q=${hostname}&reboot=1`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.setItem('locale', 'en'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const row = page.getByRole('row').filter({ hasText: hostname });
+  await expect(row).toContainText('Reboot pending');
+
+  // seven cards, each with an icon
+  const cards = page.locator('div[class*="lg:grid-cols-7"] > button[aria-pressed]');
+  await expect(cards).toHaveCount(7);
+  for (let i = 0; i < 7; i++) await expect(cards.nth(i).locator('svg')).toHaveCount(1);
+  // the row's Reboot button and the bulk buttons after ticking the node
+  await expect(row.getByRole('button', { name: /Reboot/ }).locator('svg')).toHaveCount(1);
+  await row.getByRole('checkbox').check();
+  for (const name of [/Search for updates/, /Install updates/, /Reboot/]) {
+    await expect(page.getByRole('button', { name }).first().locator('svg')).toHaveCount(1);
+  }
+  // no emoji left in the page's text
+  const text = await page.locator('main').innerText();
+  expect(text.match(/\p{Extended_Pictographic}/gu) ?? []).toEqual([]);
+});
