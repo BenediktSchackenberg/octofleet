@@ -65,7 +65,9 @@ MEMBERS_SQL = """
            max(dg.assigned_at) FILTER (WHERE dg.group_id = $1) AS assigned_at,
            max(dg.assigned_by) FILTER (WHERE dg.group_id = $1) AS assigned_by,
            bool_or(dg.group_id = $1) AS direct,
-           COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE dg.group_id <> $1), '{}') AS via
+           COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE dg.group_id <> $1), '{}') AS via,
+           (SELECT COALESCE(json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color) ORDER BY lower(t.name)), '[]')
+              FROM device_tags dt JOIN tags t ON t.id = dt.tag_id WHERE dt.node_id = n.id) AS tags
       FROM group_descendant_ids($1) d
       JOIN device_groups dg ON dg.group_id = d.group_id
       JOIN nodes n ON n.id = dg.node_id
@@ -109,7 +111,8 @@ async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
         members = await conn.fetch(MEMBERS_SQL, UUID(group_id))
         
         result = _group(group)
-        result["members"] = [dict(m) for m in members]
+        result["members"] = [{**dict(m), "tags": json.loads(m["tags"]) if isinstance(m["tags"], str) else m["tags"]}
+                             for m in members]
         result["direct_count"] = sum(1 for m in members if m["direct"])
         result["parents"] = [dict(r) for r in await conn.fetch(PARENTS_SQL, UUID(group_id))]
         result["children"] = [dict(r) for r in await conn.fetch(CHILDREN_SQL, UUID(group_id))]
