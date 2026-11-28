@@ -2619,6 +2619,9 @@ async def live_data_generator(node_id: str, session_id: str, pool):
     last_processes_time = 0
     last_logs_time = 0
     last_network_time = 0
+    # own timers: they shared last_network_time, which the network block had just reset
+    last_agent_logs_time = 0
+    last_eventlog_time = 0
     last_log_id = 0  # Track last seen log ID
     
     
@@ -2741,22 +2744,24 @@ async def live_data_generator(node_id: str, session_id: str, pool):
                 last_network_time = now
             
             # Send agent logs every 5 seconds (from cache)
-            if node_id in live_agent_logs_cache and now - last_network_time >= 5:
+            if node_id in live_agent_logs_cache and now - last_agent_logs_time >= 5:
                 agent_logs_data = live_agent_logs_cache[node_id]
                 data = {
                     "type": "agentLogs",
                     "data": agent_logs_data
                 }
                 yield f"event: agentLogs\ndata: {json.dumps(data)}\n\n"
+                last_agent_logs_time = now
             
             # Send Windows Event Logs every 5 seconds (from cache)
-            if node_id in live_eventlog_cache and now - last_network_time >= 5:
+            if node_id in live_eventlog_cache and now - last_eventlog_time >= 5:
                 eventlog_data = live_eventlog_cache[node_id]
                 data = {
                     "type": "eventLogs",
                     "data": eventlog_data
                 }
                 yield f"event: eventLogs\ndata: {json.dumps(data)}\n\n"
+                last_eventlog_time = now
             
             # Heartbeat every 10 seconds
             yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"
