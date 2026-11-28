@@ -249,7 +249,8 @@ async def create_job(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db),
         elif target_type == "group" and target_id:
             # the members the groups API manages (device_groups); the legacy group_members table is
             # written by nothing - a job for a group reached no node
-            rows = await conn.fetch("SELECT node_id FROM device_groups WHERE group_id = $1", target_id)
+            # with the members of its sub-groups (app/db/group_tree.py)
+            rows = await conn.fetch("SELECT node_id FROM group_node_ids($1::uuid)", target_id)
             node_ids = [str(r["node_id"]) for r in rows]
         elif target_type == "tag":
             rows = await conn.fetch("""

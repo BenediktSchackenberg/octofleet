@@ -372,7 +372,8 @@ async def is_in_maintenance_window(db_pool, node_id: Optional[UUID] = None) -> b
                 return False
             # the node's groups as the groups API manages them (device_groups); the legacy
             # group_members table is written by nothing, so group-scoped windows never matched
-            memberships = await conn.fetch("SELECT group_id FROM device_groups WHERE node_id = $1", node_id)
+            # a node in a sub-group is in its parents too (app/db/group_tree.py)
+            memberships = await conn.fetch("SELECT group_id FROM node_group_ids($1::uuid)", node_id)
             group_ids = {str(member['group_id']) for member in memberships}
 
         for record in rows:

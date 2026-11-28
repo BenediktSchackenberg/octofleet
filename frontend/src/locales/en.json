@@ -545,7 +545,9 @@
       "resultAlready": "{count} already",
       "resultNotFound": "{count} not found",
       "resultDynamic": "dynamic groups +{added} / -{removed}",
-      "nodesCount": "{count} nodes"
+      "nodesCount": "{count} nodes",
+      "resultIncluded": "{count} already in it through a sub-group",
+      "resultMoved": "{count} moved from a parent group"
     }
   },
   "onboarding": {
@@ -2547,7 +2549,7 @@
     "collapse": "Collapse {name}",
     "expand": "Expand {name}",
     "addSubgroup": "Add a sub-group to {name}",
-    "treeHint": "Sub-groups are shown under their parent. Each group has its own members - a parent does not include its sub-groups' nodes.",
+    "treeHint": "Sub-groups are shown under their parent. A group includes the nodes of its sub-groups; groups nest at most 3 levels deep.",
     "searchGroups": "Search groups",
     "noMatch": "No group matches the search.",
     "inPath": "in {path}"
@@ -2574,7 +2576,8 @@
       "hostname": "Hostname",
       "os": "Operating system",
       "lastSeen": "Last seen",
-      "addedAt": "Added"
+      "addedAt": "Added",
+      "membership": "Membership"
     },
     "remove": "Remove",
     "noMembers": "This group has no members",
@@ -2611,9 +2614,11 @@
     },
     "parents": "Parent groups",
     "subgroups": "Sub-groups ({count})",
-    "subgroupsHint": "Groups below this one. Each has its own members.",
+    "subgroupsHint": "Groups below this one. Their nodes are members of this group too.",
     "addSubgroup": "Add sub-group",
-    "deleteSubgroups": "Its {count} sub-groups move to the top level."
+    "deleteSubgroups": "Its {count} sub-groups move to the top level.",
+    "directSince": "Direct, added {date}",
+    "viaGroups": "Via {groups}"
   },
   "addDevices": {
     "button": "Add devices",
@@ -3043,12 +3048,14 @@
     "save": "Save",
     "exists": "A group with this name exists already.",
     "createdDynamic": "Group created with {count} nodes that match the rule.",
-    "ruleApplied": "Rule applied: {added} nodes added, {removed} removed."
+    "ruleApplied": "Rule applied: {added} nodes added, {removed} removed.",
+    "depthHint": "Groups nest at most {levels} levels deep."
   },
   "searchSelect": {
     "none": "Nothing found",
     "more": "{count} more - keep typing to narrow the list",
-    "change": "Choose another {label}"
+    "change": "Choose another {label}",
+    "placeholderGroup": "Search groups"
   },
   "groupDelete": {
     "title": "Delete group \"{name}\"?",

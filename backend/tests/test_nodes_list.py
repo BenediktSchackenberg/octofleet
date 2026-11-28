@@ -41,7 +41,7 @@ class NodeListTests(unittest.IsolatedAsyncioTestCase):
         group = str(uuid4())
         await list_nodes(unassigned=False, group_id=group, db=pool)
         sql, arg = conn.fetch.call_args.args
-        self.assertIn("WHERE EXISTS (SELECT 1 FROM device_groups dg", sql)   # not a JOIN: no duplicates
+        self.assertIn("WHERE n.id IN (SELECT node_id FROM group_node_ids($1::uuid))", sql)   # with sub-groups, each node once
         self.assertEqual(str(arg), group)
 
     async def test_health_from_fired_alerts(self):

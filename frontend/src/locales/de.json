@@ -545,7 +545,9 @@
       "resultAlready": "{count} schon",
       "resultNotFound": "{count} nicht gefunden",
       "resultDynamic": "dynamische Gruppen +{added} / -{removed}",
-      "nodesCount": "{count} Nodes"
+      "nodesCount": "{count} Nodes",
+      "resultIncluded": "{count} schon über eine Untergruppe enthalten",
+      "resultMoved": "{count} aus einer übergeordneten Gruppe verschoben"
     }
   },
   "onboarding": {
@@ -2547,7 +2549,7 @@
     "collapse": "{name} zuklappen",
     "expand": "{name} aufklappen",
     "addSubgroup": "Untergruppe zu {name} hinzufügen",
-    "treeHint": "Untergruppen stehen unter ihrer übergeordneten Gruppe. Jede Gruppe hat ihre eigenen Mitglieder - eine übergeordnete Gruppe enthält die Nodes ihrer Untergruppen nicht.",
+    "treeHint": "Untergruppen stehen unter ihrer übergeordneten Gruppe. Eine Gruppe enthält die Nodes ihrer Untergruppen; Gruppen lassen sich höchstens 3 Ebenen tief verschachteln.",
     "searchGroups": "Gruppen durchsuchen",
     "noMatch": "Keine Gruppe passt zur Suche.",
     "inPath": "in {path}"
@@ -2574,7 +2576,8 @@
       "hostname": "Hostname",
       "os": "Betriebssystem",
       "lastSeen": "Zuletzt gesehen",
-      "addedAt": "Hinzugefügt am"
+      "addedAt": "Hinzugefügt am",
+      "membership": "Mitgliedschaft"
     },
     "remove": "Entfernen",
     "noMembers": "Diese Gruppe hat keine Mitglieder",
@@ -2611,9 +2614,11 @@
     },
     "parents": "Übergeordnete Gruppen",
     "subgroups": "Untergruppen ({count})",
-    "subgroupsHint": "Gruppen unter dieser. Jede hat ihre eigenen Mitglieder.",
+    "subgroupsHint": "Gruppen unter dieser. Ihre Nodes gehören auch zu dieser Gruppe.",
     "addSubgroup": "Untergruppe hinzufügen",
-    "deleteSubgroups": "Ihre {count} Untergruppen wandern auf die oberste Ebene."
+    "deleteSubgroups": "Ihre {count} Untergruppen wandern auf die oberste Ebene.",
+    "directSince": "Direkt, hinzugefügt {date}",
+    "viaGroups": "Über {groups}"
   },
   "addDevices": {
     "button": "Geräte hinzufügen",
@@ -3043,12 +3048,14 @@
     "save": "Speichern",
     "exists": "Eine Gruppe mit diesem Namen gibt es schon.",
     "createdDynamic": "Gruppe angelegt mit {count} Nodes, auf die die Regel passt.",
-    "ruleApplied": "Regel angewendet: {added} Nodes hinzugefügt, {removed} entfernt."
+    "ruleApplied": "Regel angewendet: {added} Nodes hinzugefügt, {removed} entfernt.",
+    "depthHint": "Gruppen lassen sich höchstens {levels} Ebenen tief verschachteln."
   },
   "searchSelect": {
     "none": "Nichts gefunden",
     "more": "{count} weitere - weitertippen, um die Liste einzugrenzen",
-    "change": "Andere {label} wählen"
+    "change": "Andere {label} wählen",
+    "placeholderGroup": "Gruppen suchen"
   },
   "groupDelete": {
     "title": "Gruppe \"{name}\" löschen?",

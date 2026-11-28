@@ -6,7 +6,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core.rules import RULE_FIELDS, RULE_OPERATORS, evaluate_dynamic_rule
-from app.db import group_usage, memberships
+from app.db import group_tree, group_usage, memberships
 from auth import CurrentUser, require_user_permission
 from dependencies import bad_request, conflict, get_db, log_audit, not_found, verify_api_key
 
@@ -18,17 +18,10 @@ router = APIRouter(
 
 @router.get("/groups", dependencies=[Depends(require_user_permission("groups:read"))])
 async def list_groups(db: asyncpg.Pool = Depends(get_db)):
-    """List all groups with member counts"""
+    """All groups. `member_count`: the nodes the group reaches (its members and those of its sub-groups,
+    each once); `direct_count`: its own members. One pass over the group tree and the memberships."""
     async with db.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT g.id, g.name, g.description, g.parent_id, g.is_dynamic, 
-                   g.dynamic_rule, g.color, g.icon, g.created_at, g.updated_at,
-                   COUNT(dg.node_id) as member_count
-            FROM groups g
-            LEFT JOIN device_groups dg ON g.id = dg.group_id
-            GROUP BY g.id
-            ORDER BY g.name
-        """)
+        rows = await conn.fetch(LIST_SQL)
         return {"groups": [_group(r) for r in rows]}
 
 
@@ -47,6 +40,40 @@ def _group(row) -> dict:
     return item
 
 
+# Every group with the nodes it reaches (its subtree's members, each once) and its own members
+LIST_SQL = """
+    WITH RECURSIVE tree(ancestor_id, group_id, depth) AS (
+        SELECT id, id, 0 FROM groups
+        UNION ALL
+        SELECT tree.ancestor_id, g.id, tree.depth + 1 FROM tree JOIN groups g ON g.parent_id = tree.group_id
+         WHERE tree.depth < 20
+    ), reach AS (
+        SELECT tree.ancestor_id AS group_id, count(DISTINCT dg.node_id) AS n
+          FROM tree JOIN device_groups dg ON dg.group_id = tree.group_id GROUP BY 1
+    ), direct AS (
+        SELECT group_id, count(*) AS n FROM device_groups GROUP BY 1
+    )
+    SELECT g.id, g.name, g.description, g.parent_id, g.is_dynamic,
+           g.dynamic_rule, g.color, g.icon, g.created_at, g.updated_at,
+           COALESCE(reach.n, 0) AS member_count, COALESCE(direct.n, 0) AS direct_count
+      FROM groups g LEFT JOIN reach ON reach.group_id = g.id LEFT JOIN direct ON direct.group_id = g.id
+     ORDER BY g.name"""
+# A group's members: its own and those of its sub-groups, each node once - `direct` when the node is
+# a member of this group itself, `via` the sub-groups it comes through
+MEMBERS_SQL = """
+    SELECT n.id, n.node_id, n.hostname, n.os_name, n.last_seen, n.is_online,
+           max(dg.assigned_at) FILTER (WHERE dg.group_id = $1) AS assigned_at,
+           max(dg.assigned_by) FILTER (WHERE dg.group_id = $1) AS assigned_by,
+           bool_or(dg.group_id = $1) AS direct,
+           COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE dg.group_id <> $1), '{}') AS via,
+           (SELECT COALESCE(json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color) ORDER BY lower(t.name)), '[]')
+              FROM device_tags dt JOIN tags t ON t.id = dt.tag_id WHERE dt.node_id = n.id) AS tags
+      FROM group_descendant_ids($1) d
+      JOIN device_groups dg ON dg.group_id = d.group_id
+      JOIN nodes n ON n.id = dg.node_id
+      JOIN groups g ON g.id = dg.group_id
+     GROUP BY n.id
+     ORDER BY n.hostname"""
 # The group's ancestors, nearest last (for the breadcrumb) and its direct sub-groups with member counts
 PARENTS_SQL = """
     WITH RECURSIVE up AS (
@@ -56,7 +83,7 @@ PARENTS_SQL = """
     SELECT id, name FROM up ORDER BY depth DESC"""
 CHILDREN_SQL = """
     SELECT g.id, g.name, g.is_dynamic, g.color,
-           (SELECT COUNT(*) FROM device_groups dg WHERE dg.group_id = g.id) AS member_count
+           (SELECT COUNT(*) FROM group_node_ids(g.id)) AS member_count
     FROM groups g WHERE g.parent_id = $1 ORDER BY lower(g.name), g.id"""
 # Whether $2 is the group $1 itself or one of its sub-groups (at any depth): such a parent would make a loop
 IS_SELF_OR_DESCENDANT_SQL = """
@@ -80,18 +107,13 @@ async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
         if not group:
             raise not_found("Group", group_id)
         
-        # Get members
-        members = await conn.fetch("""
-            SELECT n.id, n.node_id, n.hostname, n.os_name, n.last_seen, n.is_online,
-                   dg.assigned_at, dg.assigned_by
-            FROM device_groups dg
-            JOIN nodes n ON dg.node_id = n.id
-            WHERE dg.group_id = $1
-            ORDER BY n.hostname
-        """, UUID(group_id))
+        # its members and those of its sub-groups, with how each one is in it
+        members = await conn.fetch(MEMBERS_SQL, UUID(group_id))
         
         result = _group(group)
-        result["members"] = [dict(m) for m in members]
+        result["members"] = [{**dict(m), "tags": json.loads(m["tags"]) if isinstance(m["tags"], str) else m["tags"]}
+                             for m in members]
+        result["direct_count"] = sum(1 for m in members if m["direct"])
         result["parents"] = [dict(r) for r in await conn.fetch(PARENTS_SQL, UUID(group_id))]
         result["children"] = [dict(r) for r in await conn.fetch(CHILDREN_SQL, UUID(group_id))]
         return result
@@ -110,6 +132,8 @@ async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db))
     async with db.acquire() as conn, conn.transaction():
         if data.get("parentId") and not await conn.fetchval("SELECT 1 FROM groups WHERE id = $1", UUID(data["parentId"])):
             raise bad_request("parentId: no such group", "parentId")
+        if data.get("parentId") and await group_tree.too_deep(conn, UUID(data["parentId"])):
+            raise bad_request(f"parentId: groups nest at most {group_tree.MAX_LEVELS} levels deep", "parentId")
         try:
             row = await conn.fetchrow("""
                 INSERT INTO groups (name, description, parent_id, is_dynamic, dynamic_rule, color, icon)
@@ -160,6 +184,8 @@ async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = D
                 raise bad_request("parentId: no such group", "parentId")
             if await conn.fetchval(IS_SELF_OR_DESCENDANT_SQL, UUID(group_id), parent):
                 raise bad_request("parentId: not the group itself or one of its sub-groups", "parentId")
+            if await group_tree.too_deep(conn, parent, UUID(group_id)):
+                raise bad_request(f"parentId: groups nest at most {group_tree.MAX_LEVELS} levels deep", "parentId")
 
         row = await conn.fetchrow("""
             UPDATE groups SET
@@ -189,7 +215,12 @@ async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = D
         changes = None
         if row["is_dynamic"] and data.get("dynamicRule"):
             changes = await memberships.reevaluate(conn, None, [row["id"]])
-        return {"status": "updated", "group": _group(row),
+        # moved below a new parent: the nodes the group brings leave the new parents' own members
+        moved = 0
+        if data.get("parentId"):
+            nodes = [r["node_id"] for r in await conn.fetch("SELECT node_id FROM group_node_ids($1::uuid)", row["id"])]
+            moved = await group_tree.leave_parents(conn, row["id"], nodes)
+        return {"status": "updated", "group": _group(row), "movedFrom": moved,
                 "members": {"added": changes["added"], "removed": changes["removed"]} if changes else None}
 
 
@@ -343,21 +374,35 @@ async def _resolve_nodes(conn, refs: list) -> tuple[list, list]:
 @router.post("/groups/{group_id}/members", dependencies=[Depends(require_user_permission("groups:write"))])
 async def add_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Add nodes to a group. `nodeIds`: UUIDs, node IDs or hostnames; one statement for all of them.
-    Returns `added` (new members), `alreadyMembers` and `notFound` (references that name no node)."""
+    A group reaches the nodes of its sub-groups, so a node is never a member twice in one branch:
+    a node a sub-group already brings in is not added (`alreadyIncluded`, with the sub-groups in `via`),
+    and an added node leaves the group's parents it was a member of itself (`movedFrom`: how many of
+    those memberships went; rule-managed ones stay). Also `added`, `alreadyMembers`, `notFound`."""
     refs = _node_refs(data)
     assigned_by = data.get("assignedBy") or "api"
+    gid = UUID(group_id)
     async with db.acquire() as conn:
-        if not await conn.fetchval("SELECT 1 FROM groups WHERE id = $1", UUID(group_id)):
-            raise not_found("Group", group_id)
-        node_ids, missing = await _resolve_nodes(conn, refs)
-        added = await conn.fetchval("""
-            WITH ins AS (
-                INSERT INTO device_groups (node_id, group_id, assigned_by)
-                SELECT DISTINCT unnest($1::uuid[]), $2::uuid, $3::varchar
-                ON CONFLICT (node_id, group_id) DO NOTHING RETURNING 1)
-            SELECT COUNT(*) FROM ins""", node_ids, UUID(group_id), assigned_by)
+        async with conn.transaction():
+            if not await conn.fetchval("SELECT 1 FROM groups WHERE id = $1", gid):
+                raise not_found("Group", group_id)
+            node_ids, missing = await _resolve_nodes(conn, refs)
+            node_ids = list(dict.fromkeys(node_ids))
+            direct = {r["node_id"] for r in await conn.fetch(
+                "SELECT node_id FROM device_groups WHERE group_id = $1 AND node_id = ANY($2::uuid[])", gid, node_ids)}
+            included = {r["node_id"]: r["via"] for r in await conn.fetch(group_tree.INCLUDED_SQL, gid, node_ids)
+                        if r["node_id"] not in direct}
+            new = [n for n in node_ids if n not in direct and n not in included]
+            added = await conn.fetchval("""
+                WITH ins AS (
+                    INSERT INTO device_groups (node_id, group_id, assigned_by)
+                    SELECT unnest($1::uuid[]), $2::uuid, $3::varchar
+                    ON CONFLICT (node_id, group_id) DO NOTHING RETURNING 1)
+                SELECT COUNT(*) FROM ins""", new, gid, assigned_by)
+            moved = await group_tree.leave_parents(conn, gid, new)
         return {"status": "ok", "groupId": group_id, "added": added,
-                "alreadyMembers": len(set(node_ids)) - added, "notFound": missing}
+                "alreadyMembers": len(direct), "notFound": missing,
+                "alreadyIncluded": [{"nodeId": str(n), "via": via} for n, via in included.items()],
+                "movedFrom": moved}
 
 
 @router.delete("/groups/{group_id}/members", dependencies=[Depends(require_user_permission("groups:write"))])

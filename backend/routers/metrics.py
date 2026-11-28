@@ -66,7 +66,7 @@ async def get_metrics_timeseries(hours: int = 24, bucket_minutes: int = 30, grou
         group_filter = ""
         params = [start_time, bucket_delta]
         if group_id:
-            group_filter = "AND n.id IN (SELECT node_id FROM device_groups WHERE group_id = $3::uuid)"
+            group_filter = "AND n.id IN (SELECT node_id FROM group_node_ids($3::uuid))"
             params.append(group_id)
             
         query = f"""

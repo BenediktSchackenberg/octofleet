@@ -545,7 +545,9 @@
       "resultAlready": "{count} ya estaban",
       "resultNotFound": "{count} no encontrados",
       "resultDynamic": "grupos dinámicos +{added} / -{removed}",
-      "nodesCount": "{count} nodos"
+      "nodesCount": "{count} nodos",
+      "resultIncluded": "{count} ya incluidos a través de un subgrupo",
+      "resultMoved": "{count} movidos desde un grupo superior"
     }
   },
   "onboarding": {
@@ -2547,7 +2549,7 @@
     "collapse": "Contraer {name}",
     "expand": "Expandir {name}",
     "addSubgroup": "Añadir un subgrupo a {name}",
-    "treeHint": "Los subgrupos se muestran bajo su grupo superior. Cada grupo tiene sus propios miembros: un grupo superior no incluye los nodos de sus subgrupos.",
+    "treeHint": "Los subgrupos se muestran bajo su grupo superior. Un grupo incluye los nodos de sus subgrupos; los grupos se anidan como máximo 3 niveles.",
     "searchGroups": "Buscar grupos",
     "noMatch": "Ningún grupo coincide con la búsqueda.",
     "inPath": "en {path}"
@@ -2574,7 +2576,8 @@
       "hostname": "Nombre de host",
       "os": "Sistema operativo",
       "lastSeen": "Visto por última vez",
-      "addedAt": "Añadido el"
+      "addedAt": "Añadido el",
+      "membership": "Pertenencia"
     },
     "remove": "Quitar",
     "noMembers": "Este grupo no tiene miembros",
@@ -2611,9 +2614,11 @@
     },
     "parents": "Grupos superiores",
     "subgroups": "Subgrupos ({count})",
-    "subgroupsHint": "Grupos por debajo de este. Cada uno tiene sus propios miembros.",
+    "subgroupsHint": "Grupos por debajo de este. Sus nodos también son miembros de este grupo.",
     "addSubgroup": "Añadir subgrupo",
-    "deleteSubgroups": "Sus {count} subgrupos pasan al nivel superior."
+    "deleteSubgroups": "Sus {count} subgrupos pasan al nivel superior.",
+    "directSince": "Directo, añadido {date}",
+    "viaGroups": "A través de {groups}"
   },
   "addDevices": {
     "button": "Añadir dispositivos",
@@ -3043,12 +3048,14 @@
     "save": "Guardar",
     "exists": "Ya existe un grupo con este nombre.",
     "createdDynamic": "Grupo creado con {count} nodos que cumplen la regla.",
-    "ruleApplied": "Regla aplicada: {added} nodos añadidos, {removed} quitados."
+    "ruleApplied": "Regla aplicada: {added} nodos añadidos, {removed} quitados.",
+    "depthHint": "Los grupos se anidan como máximo {levels} niveles."
   },
   "searchSelect": {
     "none": "No se encontró nada",
     "more": "{count} más - siga escribiendo para acotar la lista",
-    "change": "Elegir otro {label}"
+    "change": "Elegir otro {label}",
+    "placeholderGroup": "Buscar grupos"
   },
   "groupDelete": {
     "title": "¿Eliminar el grupo \"{name}\"?",

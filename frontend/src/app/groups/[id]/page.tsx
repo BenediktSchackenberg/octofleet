@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
-import { GroupFormDialog, passGroupNotice, takeGroupNotice } from "@/components/group-form-dialog";
+import { GroupFormDialog, MAX_GROUP_LEVELS, passGroupNotice, takeGroupNotice } from "@/components/group-form-dialog";
 import { GroupDeleteDialog } from "@/components/group-delete-dialog";
 import type { GroupRule } from "@/components/group-rule-builder";
 import { ChevronRight, FolderPlus, FolderTree, RefreshCw, Sparkles } from "lucide-react";
@@ -29,8 +29,11 @@ interface GroupMember {
   os_name: string | null;
   last_seen: string;
   is_online: boolean;
-  assigned_at: string;
-  assigned_by: string;
+  assigned_at: string | null;
+  assigned_by: string | null;
+  /** a member of this group itself; otherwise it comes through the sub-groups in `via` */
+  direct: boolean;
+  via: string[];
 }
 
 interface GroupDetail {
@@ -275,7 +278,9 @@ export default function GroupDetailPage() {
                 <CardTitle className="flex items-center gap-2"><FolderTree className="h-5 w-5" aria-hidden="true" />{t("groupDetail.subgroups", { count: group.children?.length ?? 0 })}</CardTitle>
                 <CardDescription>{t("groupDetail.subgroupsHint")}</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setCreatingChild(true)}>
+              <Button variant="outline" size="sm" onClick={() => setCreatingChild(true)}
+                disabled={(group.parents?.length ?? 0) + 1 >= MAX_GROUP_LEVELS}
+                title={(group.parents?.length ?? 0) + 1 >= MAX_GROUP_LEVELS ? t("groupForm.depthHint", { levels: MAX_GROUP_LEVELS }) : undefined}>
                 <FolderPlus className="h-4 w-4 mr-1" aria-hidden="true" />{t("groupDetail.addSubgroup")}
               </Button>
             </div>
@@ -332,7 +337,7 @@ export default function GroupDetailPage() {
                     <TableHead>{t("common.status")}</TableHead>
                     <TableHead>{t("groupDetail.columns.os")}</TableHead>
                     <TableHead>{t("groupDetail.columns.lastSeen")}</TableHead>
-                    <TableHead>{t("groupDetail.columns.addedAt")}</TableHead>
+                    <TableHead>{t("groupDetail.columns.membership")}</TableHead>
                     {!group.is_dynamic && <TableHead></TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -350,16 +355,19 @@ export default function GroupDetailPage() {
                       <TableCell>{getStatusBadge(member.last_seen)}</TableCell>
                       <TableCell>{member.os_name || "-"}</TableCell>
                       <TableCell>{formatDate(member.last_seen)}</TableCell>
-                      <TableCell>{formatDate(member.assigned_at)}</TableCell>
+                      <TableCell className={member.direct ? "" : "text-muted-foreground"}>
+                        {member.direct ? t("groupDetail.directSince", { date: formatDate(member.assigned_at ?? "") })
+                          : t("groupDetail.viaGroups", { groups: member.via.join(", ") })}
+                      </TableCell>
                       {!group.is_dynamic && (
                         <TableCell>
-                          <Button
+                          {member.direct && <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRemoveMember(member.id)}
                           >
                             {t("groupDetail.remove")}
-                          </Button>
+                          </Button>}
                         </TableCell>
                       )}
                     </TableRow>

@@ -38,6 +38,23 @@ function selfAndBelow(groups: GroupOption[], id: string): Set<string> {
   return out;
 }
 
+/** How deep groups nest: a top-level group, its sub-groups and theirs (the API refuses more) */
+export const MAX_GROUP_LEVELS = 3;
+
+/** Levels from the top: 1 for a top-level group */
+export function groupLevel(groups: GroupOption[], id: string): number {
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  let level = 0;
+  for (let g = byId.get(id); g && level < 20; g = g.parent_id ? byId.get(g.parent_id) : undefined) level++;
+  return level;
+}
+
+/** Levels of a group's subtree: 1 for a group without sub-groups */
+function subtreeLevels(groups: GroupOption[], id: string): number {
+  const below = groups.filter((g) => g.parent_id === id);
+  return 1 + (below.length ? Math.max(...below.map((g) => subtreeLevels(groups, g.id))) : 0);
+}
+
 /** Create or edit a group: name, description, colour, the parent group (sub-groups), and static or
  *  dynamic - a dynamic group takes its members from a rule, previewed while it is written. */
 export function GroupFormDialog({ group, parentId, onClose, onSaved }: {
@@ -55,7 +72,12 @@ export function GroupFormDialog({ group, parentId, onClose, onSaved }: {
   useEffect(() => {
     apiClient.get<{ groups: GroupOption[] }>("/groups", { showErrorToast: false }).then((res) => setGroups(res?.groups ?? []));
   }, []);
-  const blocked = group?.id ? selfAndBelow(groups, group.id) : new Set<string>();
+  // not offered as parent: the group itself and its sub-groups (a loop), and groups too deep to take it
+  const height = group?.id ? subtreeLevels(groups, group.id) : 1;
+  const blocked = new Set<string>([
+    ...(group?.id ? selfAndBelow(groups, group.id) : []),
+    ...groups.filter((o) => groupLevel(groups, o.id) + height > MAX_GROUP_LEVELS).map((o) => o.id),
+  ]);
   const rule = value.dynamic_rule ?? EMPTY_RULE;
   const valid = value.name.trim() !== "" && (!value.is_dynamic || ruleComplete(rule));
 
@@ -102,6 +124,7 @@ export function GroupFormDialog({ group, parentId, onClose, onSaved }: {
             {/* searchable by path; empty = top level; the group itself and its sub-groups are not offered */}
             <SearchSelect options={groupOptions(groups).filter((o) => !blocked.has(o.id))} value={value.parent_id}
               onChange={(id) => setValue({ ...value, parent_id: id })} label={g("parent")} placeholder={g("topLevel")} />
+            <p className="text-xs text-muted-foreground">{g("depthHint", { levels: MAX_GROUP_LEVELS })}</p>
           </div>
           {!editing && (
             <fieldset className="space-y-1 text-sm">

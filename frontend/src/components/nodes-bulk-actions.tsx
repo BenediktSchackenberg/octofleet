@@ -28,7 +28,7 @@ export function TagChips({ tags, className = "" }: { tags?: TagInfo[] | null; cl
 type Action = "addGroup" | "removeGroup" | "addTag" | "removeTag";
 interface GroupInfo { id: string; name: string; is_dynamic: boolean; parent_id: string | null; color: string | null; member_count: number }
 interface Result {
-  added?: number; removed?: number; alreadyMembers?: number; alreadyTagged?: number; notFound?: string[];
+  added?: number; removed?: number; alreadyMembers?: number; alreadyIncluded?: unknown[]; movedFrom?: number; alreadyTagged?: number; notFound?: string[];
   dynamicGroups?: { added: number; removed: number };
 }
 
@@ -86,6 +86,8 @@ function BulkDialog({ action, nodeIds, onClose, onDone }: {
       r.added !== undefined ? b("resultAdded", { count: r.added }) : null,
       r.removed !== undefined ? b("resultRemoved", { count: r.removed }) : null,
       (r.alreadyMembers ?? r.alreadyTagged) ? b("resultAlready", { count: (r.alreadyMembers ?? r.alreadyTagged) as number }) : null,
+      r.alreadyIncluded?.length ? b("resultIncluded", { count: r.alreadyIncluded.length }) : null,
+      r.movedFrom ? b("resultMoved", { count: r.movedFrom }) : null,
       r.notFound?.length ? b("resultNotFound", { count: r.notFound.length }) : null,
       r.dynamicGroups && (r.dynamicGroups.added || r.dynamicGroups.removed)
         ? b("resultDynamic", { added: r.dynamicGroups.added, removed: r.dynamicGroups.removed }) : null,
