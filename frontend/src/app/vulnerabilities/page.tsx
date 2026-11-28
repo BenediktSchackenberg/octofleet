@@ -2,7 +2,7 @@
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
 import { VulnerabilitySummaryFreshness } from "@/components/vulnerability-summary-freshness";
-import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
+import { CvssScore, NodeVulnerabilityPreview, ScanStatusBanner, UpdateCves, UpdateNodes, nodeVulnerabilitiesHref, type ScanStatus } from "@/components/node-vulnerabilities";
 import { CveLookup } from "@/components/cve-lookup";
 
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -86,7 +86,7 @@ interface SoftwareVulnInfo {
   max_severity: string | null;
   critical: number;
   high: number;
-  affected_nodes: string[];
+  affected_nodes: number;
 }
 
 interface ScanHistory {
@@ -613,15 +613,8 @@ export default function VulnerabilitiesPage() {
                             <span className="font-semibold">{sw.software_name}</span>
                             <span className="text-sm text-muted-foreground">v{sw.software_version}</span>
                           </div>
-                          <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground">{p("installedOn")}</span>
-                            {sw.affected_nodes.map(n => (
-                              <a key={n} href={nodeVulnerabilitiesHref(n, { unit: sw.software_name, version: sw.software_version })}
-                                onClick={(e) => e.stopPropagation()}
-                                className="px-2 py-0.5 rounded-full text-xs bg-muted hover:bg-primary/20 transition-colors font-medium">
-                                {n}
-                              </a>
-                            ))}
+                          <div className="text-xs text-muted-foreground mt-2">
+                            {sw.affected_nodes === 1 ? p("nodesAffectedOne") : p("nodesAffectedCount", { count: sw.affected_nodes })}
                           </div>
                         </div>
                         <div className="flex items-center gap-4 ml-4">
@@ -649,8 +642,9 @@ export default function VulnerabilitiesPage() {
                         </div>
                       </div>
                       {swExpanded && (
-                        <div className="border-t p-4 bg-muted/20">
+                        <div className="border-t p-4 bg-muted/20 space-y-6">
                           <UpdateCves unit={sw.software_name} version={sw.software_version} />
+                          <UpdateNodes unit={sw.software_name} version={sw.software_version} />
                         </div>
                       )}
                     </div>

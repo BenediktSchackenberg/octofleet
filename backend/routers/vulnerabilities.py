@@ -25,6 +25,7 @@ from vulnerability import (
     get_node_vulnerabilities,
     get_node_vulnerability_groups,
     get_scan_status,
+    get_update_nodes,
     get_update_vulnerabilities,
     normalize_cve_id,
     normalize_cve_prefix,
@@ -165,16 +166,25 @@ async def vulnerabilities_by_node(limit: int = Query(100, ge=1, le=1000), offset
 @router.get("/api/v1/vulnerabilities/by-software", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def vulnerabilities_by_software(_: str = Depends(verify_api_key)):
     """The 20 updates (source package on Linux, product on Windows) with the most CVEs, from the
-    vulnerability cache, with affected node names."""
+    vulnerability cache, with the number of affected nodes (the nodes: by-software/nodes)."""
     async with get_pool().acquire() as conn:
         return await vulnerability_cache.software_page(conn, 20)
 
 
 @router.get("/api/v1/vulnerabilities/by-software/cves", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def update_vulnerabilities(unit: str, unit_version: str, _: str = Depends(verify_api_key)):
-    """CVEs of one update (as listed by by-software) across all nodes, with the affected nodes."""
+    """CVEs of one update (as listed by by-software) across all nodes, each with the number of nodes
+    it affects (`affected_nodes`)."""
     vulnerabilities = await get_update_vulnerabilities(get_pool(), unit, unit_version)
     return {"vulnerabilities": vulnerabilities, "count": len(vulnerabilities)}
+
+
+@router.get("/api/v1/vulnerabilities/by-software/nodes", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
+async def update_nodes(unit: str, unit_version: str, limit: int = Query(100, ge=1, le=1000),
+                       offset: int = Query(0, ge=0), _: str = Depends(verify_api_key)):
+    """The nodes one update's CVEs affect: `total` and one page by hostname, each with how many of the
+    update's CVEs it has (`cves`)."""
+    return await get_update_nodes(get_pool(), unit, unit_version, limit, offset)
 
 
 @router.get("/api/v1/vulnerabilities/cves", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])

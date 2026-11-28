@@ -80,6 +80,25 @@ def test_cves_of_an_update_across_nodes():
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["count"] == len(body["vulnerabilities"])
+    # a node count per CVE, not every node's name
+    assert all(isinstance(v["affected_nodes"], int) and "nodes" not in v for v in body["vulnerabilities"])
+
+
+def test_nodes_of_an_update_one_page_at_a_time():
+    software = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-software", headers=HEADERS, timeout=10).json()["software"]
+    assert all(isinstance(s["affected_nodes"], int) for s in software)
+    unit, version, count = (software[0]["software_name"], software[0]["software_version"], software[0]["affected_nodes"]) \
+        if software else ("no-such-update", "0", 0)
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-software/nodes",
+                     params={"unit": unit, "unit_version": version, "limit": 1}, headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["total"] == count and len(body["nodes"]) == min(1, count)
+    for node in body["nodes"]:
+        assert set(node) == {"node_id", "hostname", "os_name", "os_version", "cves"} and node["cves"] > 0
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-software/nodes",
+                     params={"unit": unit, "unit_version": version, "limit": 0}, headers=HEADERS, timeout=10)
+    assert r.status_code == 422
 
 
 def test_cancel_of_a_scan_that_is_not_running_is_409():
