@@ -36,7 +36,7 @@ export default function FindingsPage() {
   return (
     <StandardPage
       title="Findings"
-      description={`${total} findings — triage and manage security issues`}
+      description={`${total} findings - triage and manage security issues`}
       icon={<Bug className="h-6 w-6" />}
       loading={loading}
       filters={
@@ -52,14 +52,14 @@ export default function FindingsPage() {
         </div>
       }
     >
-        {findings.length === 0 ? <div className="text-center py-20"><AlertTriangle className="h-16 w-16 text-zinc-700 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">No findings</h3><p className="text-zinc-400 text-sm">Your fleet is looking clean — no security issues detected.</p></div> :
+        {findings.length === 0 ? <div className="text-center py-20"><AlertTriangle className="h-16 w-16 text-zinc-700 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">No findings</h3><p className="text-zinc-400 text-sm">Your fleet is looking clean - no security issues detected.</p></div> :
         <div className="space-y-3">
           {findings.map(f => (
             <div key={f.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4">
               <div className={`px-2 py-1 rounded text-xs font-bold ${sevColors[f.severity] || sevColors.info}`}>{f.severity.toUpperCase()}</div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold truncate">{f.title}</div>
-                <div className="text-zinc-400 text-xs">{f.type} · {f.node_id || "Fleet-wide"} · Score: {f.score ?? "—"}</div>
+                <div className="text-zinc-400 text-xs">{f.type} · {f.node_id || "Fleet-wide"} · Score: {f.score ?? "-"}</div>
               </div>
               <div className="text-xs text-zinc-500">{new Date(f.last_seen).toLocaleString()}</div>
               <div className="flex gap-1">

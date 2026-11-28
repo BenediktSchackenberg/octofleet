@@ -236,7 +236,7 @@ export default function PatchesPage() {
               <tbody>
                 {patches.map(p => (
                   <tr key={p.id} className="border-b border-border hover:bg-muted/50">
-                    <td className="p-3 font-mono text-xs">{p.kb_id || '—'}</td>
+                    <td className="p-3 font-mono text-xs">{p.kb_id || '-'}</td>
                     <td className="p-3">
                       <Link href={`/patches/catalog?id=${p.id}`} className="text-foreground hover:text-cyan-400">{p.title}</Link>
                     </td>
@@ -298,7 +298,7 @@ export default function PatchesPage() {
                       {g.name}
                     </button>
                   ))}
-                  {groups.length === 0 && <span className="text-xs text-muted-foreground">No groups yet — create one under Fleet → Groups</span>}
+                  {groups.length === 0 && <span className="text-xs text-muted-foreground">No groups yet - create one under Fleet → Groups</span>}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -340,7 +340,7 @@ export default function PatchesPage() {
                 {deployments.map(d => (
                   <tr key={d.id} className="border-b border-border hover:bg-muted/50">
                     <td className="p-3 font-medium text-foreground">{d.name}</td>
-                    <td className="p-3 text-muted-foreground">{d.ring_name || '—'}</td>
+                    <td className="p-3 text-muted-foreground">{d.ring_name || '-'}</td>
                     <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor(d.status)}`}>{d.status}</span></td>
                     <td className="p-3 text-muted-foreground text-xs">{d.reboot_policy}</td>
                     <td className="p-3 text-muted-foreground text-xs">{new Date(d.created_at).toLocaleDateString()}</td>

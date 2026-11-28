@@ -70,7 +70,7 @@ public static class PatchInstaller
                         toDownload.Add(update);
                         toInstall.Add(update);
                         matched[kb] = title;
-                        logger.LogInformation("PatchInstaller: Matched {KB} — {Title}", kb, title);
+                        logger.LogInformation("PatchInstaller: Matched {KB} - {Title}", kb, title);
                     }
                 }
 
@@ -154,7 +154,7 @@ public static class PatchInstaller
             }
             catch (COMException ex)
             {
-                result.ErrorMessage = $"COM error: 0x{ex.HResult:X8} — {ex.Message}";
+                result.ErrorMessage = $"COM error: 0x{ex.HResult:X8} - {ex.Message}";
                 logger.LogError(ex, "PatchInstaller COM error");
             }
             catch (Exception ex)

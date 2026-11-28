@@ -112,8 +112,8 @@ const CATEGORIES = ["All", "Fleet", "Security", "Compliance", "Operations", "Exe
 
 const PIE_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
-const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : "—");
-const fmtBytes = (b?: number | null) => (!b ? "—" : b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`);
+const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
+const fmtBytes = (b?: number | null) => (!b ? "-" : b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`);
 const cronHint = (cron: string) => {
   if (cron === "0 8 * * *") return "Täglich um 08:00";
   if (cron === "0 8 * * 1") return "Wöchentlich montags";
@@ -245,7 +245,7 @@ export default function ReportsPage() {
       const exec = await apiClient.get<Execution>(`/reports/executions/${created.id}`, { camelCase: true, showErrorToast: false });
       if (!exec) continue;
       if (exec.status === "completed") {
-        toast.success("Report fertig — Download startet");
+        toast.success("Report fertig - Download startet");
         await downloadFile(exec.id, runFormat, runDialog.name);
         break;
       }

@@ -78,7 +78,7 @@ const STATUS_COLORS = {
 };
 
 function formatRpo(seconds: number | null): string {
-  if (seconds === null) return "—";
+  if (seconds === null) return "-";
   if (seconds < 60) return `${Math.round(seconds)}s`;
   if (seconds < 3600) return `${Math.round(seconds / 60)}min`;
   if (seconds < 86400) return `${(seconds / 3600).toFixed(1)}h`;
@@ -86,7 +86,7 @@ function formatRpo(seconds: number | null): string {
 }
 
 function formatAge(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
   return formatRpo(diff);
 }
@@ -329,7 +329,7 @@ export default function BackupAmpelPage() {
                       <TableCell className="text-zinc-200 font-medium">
                         {inst.hostname}\{inst.instanceName}
                       </TableCell>
-                      <TableCell className="text-zinc-400">{inst.version || "—"}</TableCell>
+                      <TableCell className="text-zinc-400">{inst.version || "-"}</TableCell>
                       <TableCell className="text-zinc-300">{inst.databases.length}</TableCell>
                       <TableCell className="text-zinc-300">{formatAge(lastFull)}</TableCell>
                       <TableCell className="text-zinc-300">{formatAge(lastLog)}</TableCell>

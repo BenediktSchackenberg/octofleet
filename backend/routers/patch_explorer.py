@@ -300,7 +300,7 @@ async def explorer_deploy(data: DeployRequest, request: Request):
 
             # Create deployment results
             for u in data.updates:
-                # patch_id is UUID — use a dummy from patch_catalog or NULL workaround
+                # patch_id is UUID - use a dummy from patch_catalog or NULL workaround
                 # Since our updates may not map to patch_catalog, store update info in deployment results
                 await conn.execute("""
                     INSERT INTO patch_deployment_results (deployment_id, node_id, patch_id, status)
@@ -360,7 +360,7 @@ async def explorer_deploy(data: DeployRequest, request: Request):
 
 
 # ---------------------------------------------------------------------------
-# 7. POST /api/v1/patches/explorer/agent-updates  (no auth — agent endpoint)
+# 7. POST /api/v1/patches/explorer/agent-updates  (no auth - agent endpoint)
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -544,7 +544,7 @@ async def agent_submit_updates(data: AgentUpdatesPayload):
         return {"status": "ok", "node_id": str(node_id), "updates_received": inserted}
 
 
-# 8. POST /api/v1/patches/explorer/scan — Trigger on-demand patch scan on nodes
+# 8. POST /api/v1/patches/explorer/scan - Trigger on-demand patch scan on nodes
 # ---------------------------------------------------------------------------
 
 @router.post("/api/v1/patches/explorer/scan", dependencies=[Depends(require_user_permission("packages:deploy"))])

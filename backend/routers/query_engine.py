@@ -375,7 +375,7 @@ def _validate_column(table: str, col: str) -> str:
         if c != "*" and c not in ALLOWED_TABLES[t]:
             raise HTTPException(400, f"Column {c} not allowed on table {t}")
         return f'"{t}"."{c}"' if c != "*" else f'"{t}".*'
-    # Plain column — resolve against primary table
+    # Plain column - resolve against primary table
     if col == "*":
         return f'"{table}".*'
     if col not in ALLOWED_TABLES.get(table, {}):
@@ -1088,16 +1088,16 @@ async def _fetch_live_data(conn, command: str, node_id, hostname: str) -> Any:
             'SELECT process_name, pid, cpu_percent, memory_mb FROM node_processes WHERE node_id = $1 ORDER BY cpu_percent DESC NULLS LAST LIMIT 50',
             node_id,
         )
-        return [dict(r) for r in rows] if rows else [{"note": "No process data in DB — requires live agent"}]
+        return [dict(r) for r in rows] if rows else [{"note": "No process data in DB - requires live agent"}]
 
     if command == "ports":
-        return [{"note": "Live port scan not yet implemented — requires agent-side execution"}]
+        return [{"note": "Live port scan not yet implemented - requires agent-side execution"}]
 
     if command == "files":
-        return [{"note": "File listing not yet implemented — requires agent-side execution"}]
+        return [{"note": "File listing not yet implemented - requires agent-side execution"}]
 
     if command == "registry":
-        return [{"note": "Registry query not yet implemented — requires agent-side execution"}]
+        return [{"note": "Registry query not yet implemented - requires agent-side execution"}]
 
     if command == "env":
         row = await conn.fetchrow(

@@ -8,7 +8,7 @@
 
 Windows-Deployment ohne WDS? Geht! Mit iPXE, WinPE, Samba und ein bisschen Hartnäckigkeit. Hier die wichtigsten Learnings:
 
-- **ProxyDHCP** mit dnsmasq — kein eigener DHCP-Server nötig
+- **ProxyDHCP** mit dnsmasq - kein eigener DHCP-Server nötig
 - **VirtIO SCSI-Treiber** (`vioscsi`) in WinPE einbetten
 - **SMB in WinPE** braucht `net start lanmanserver` + Geduld
 - **MAC-basiertes Routing** für individuelle Deployments
@@ -23,7 +23,7 @@ Enterprise-Umgebungen nutzen WDS (Windows Deployment Services) oder SCCM für OS
 - SCCM ist komplex und teuer
 - Für Homelab/KVM-Umgebungen: Overkill
 
-**Unser Ziel:** Zero-Touch Windows Deployment auf Unraid/KVM VMs — nur mit Open Source Tools.
+**Unser Ziel:** Zero-Touch Windows Deployment auf Unraid/KVM VMs - nur mit Open Source Tools.
 
 ---
 
@@ -163,7 +163,7 @@ ping -n 10 127.0.0.1 >nul
 net use Z: \\192.168.0.5\images
 ```
 
-Noch besser — Retry-Loop:
+Noch besser - Retry-Loop:
 ```batch
 :smb_retry
 net use Z: \\192.168.0.5\images 2>nul
@@ -250,11 +250,11 @@ wpeutil reboot
 
 ## Fazit
 
-Zero-Touch Windows Deployment ohne WDS ist möglich — aber nicht trivial. Die größten Hürden:
+Zero-Touch Windows Deployment ohne WDS ist möglich - aber nicht trivial. Die größten Hürden:
 
 1. **VirtIO-Treiber** müssen in WinPE
 2. **SMB in WinPE** ist zickig
-3. **Timing ist alles** — Retry-Loops sind dein Freund
+3. **Timing ist alles** - Retry-Loops sind dein Freund
 
 Das Ergebnis: ~10 Minuten von PXE-Boot bis fertiger Windows-Installation. Vollautomatisch. 🚀
 

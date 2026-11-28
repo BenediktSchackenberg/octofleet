@@ -99,7 +99,7 @@ export default function PosturePage() {
           {comparison?.diff && comparison.diff.totalChanges > 0 && (
             <div className="bg-zinc-800 rounded-lg border border-border p-4">
               <h2 className="text-lg font-semibold mb-2">
-                ⚠️ Baseline Drift Detected — {comparison.diff.totalChanges} changes
+                ⚠️ Baseline Drift Detected - {comparison.diff.totalChanges} changes
               </h2>
               <p className="text-sm text-muted-foreground mb-3">
                 Comparing baseline from {comparison.baselineDate ? new Date(comparison.baselineDate).toLocaleString() : "?"} 
@@ -110,7 +110,7 @@ export default function PosturePage() {
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${severityColor(c.severity)}`}>{c.severity}</span>
                     <span className="text-muted-foreground font-medium">[{c.category}]</span>
-                    {c.field && <span>{c.field}: <span className="text-red-400">{String(c.old ?? "—")}</span> → <span className="text-green-400">{String(c.new ?? "—")}</span></span>}
+                    {c.field && <span>{c.field}: <span className="text-red-400">{String(c.old ?? "-")}</span> → <span className="text-green-400">{String(c.new ?? "-")}</span></span>}
                     {c.name && <span>{c.change}: <span className="text-white font-medium">{c.name}</span></span>}
                     {c.port && <span>{c.change}: <span className="text-white font-medium">{c.port}</span></span>}
                   </div>
@@ -121,7 +121,7 @@ export default function PosturePage() {
 
           {comparison?.diff && comparison.diff.totalChanges === 0 && comparison.baselineId !== comparison.currentId && (
             <div className="bg-green-900/30 border border-green-700 rounded-lg p-4">
-              ✅ No drift detected — current config matches baseline
+              ✅ No drift detected - current config matches baseline
             </div>
           )}
 

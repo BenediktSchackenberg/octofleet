@@ -700,7 +700,7 @@
   },
   "vulnerabilitiesPage": {
     "title": "Panel de vulnerabilidades",
-    "description": "Seguimiento de CVE del software instalado — datos de NVD y OSV",
+    "description": "Seguimiento de CVE del software instalado - datos de NVD y OSV",
     "scan": "Iniciar análisis",
     "scanning": "Analizando…",
     "errorLoad": "No se pudieron cargar los datos de vulnerabilidades.",

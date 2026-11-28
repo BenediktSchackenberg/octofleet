@@ -100,24 +100,24 @@ The job will be picked up by the agent on its next poll cycle (default: 60 secon
 
 Now that you have a node reporting in, explore these features:
 
-- **📊 Dashboard** — Fleet overview with health status and hotspot matrix; the first row answers "is my fleet safe and current?" (Critical threats: critical and high CVEs, each to the nodes that have them; Updates: nodes up to date, and pending, security, reboot, failed and stale searches, each to *Fleet updates* with that filter); its cards link to the pages they count (Fleet status → Nodes by status, Jobs (24h) → Jobs of the last 24 hours, all or by result, Fleet performance rows → the node's Performance tab with the flagged metric marked)
-- **✅ Tasks** — What needs attention: agents waiting for approval, failed jobs, remediations and alert deliveries (last 7 days), nodes with critical CVEs, critical security findings and offline devices – each with its status, time and a link to it. Failed jobs are one entry per node and job type ("Search for updates failed 6× on app-server-01", with the reason and since when); an entry drops out once a later run of the same kind succeeds on that node (*Show resolved job failures* shows them). The dashboard's "Open tasks" counts like the page and links to the matching filter. The sidebar badge next to Jobs counts failed jobs of the last 7 days (with a tooltip) and leads to the jobs page, which shows only failed jobs with `?status=failed`.
-- **🗂️ Fleet → Nodes** — The tree on the left groups the nodes by group, OS and release (and those in no group); pick a branch to list its nodes. The tree stays next to a node's page, so you keep your place.
-- **🖥️ Node Details** — Click any node for deep hardware/software inventory
+- **📊 Dashboard** - Fleet overview with health status and hotspot matrix; the first row answers "is my fleet safe and current?" (Critical threats: critical and high CVEs, each to the nodes that have them; Updates: nodes up to date, and pending, security, reboot, failed and stale searches, each to *Fleet updates* with that filter); its cards link to the pages they count (Fleet status → Nodes by status, Jobs (24h) → Jobs of the last 24 hours, all or by result, Fleet performance rows → the node's Performance tab with the flagged metric marked)
+- **✅ Tasks** - What needs attention: agents waiting for approval, failed jobs, remediations and alert deliveries (last 7 days), nodes with critical CVEs, critical security findings and offline devices – each with its status, time and a link to it. Failed jobs are one entry per node and job type ("Search for updates failed 6× on app-server-01", with the reason and since when); an entry drops out once a later run of the same kind succeeds on that node (*Show resolved job failures* shows them). The dashboard's "Open tasks" counts like the page and links to the matching filter. The sidebar badge next to Jobs counts failed jobs of the last 7 days (with a tooltip) and leads to the jobs page, which shows only failed jobs with `?status=failed`.
+- **🗂️ Fleet → Nodes** - The tree on the left groups the nodes by group, OS and release (and those in no group); pick a branch to list its nodes. The tree stays next to a node's page, so you keep your place.
+- **🖥️ Node Details** - Click any node for deep hardware/software inventory
   - **Collect inventory** asks the agent for a fresh inventory, instead of waiting for the next scheduled push.
   - The **Jobs** and **Patches** counts link to the node's own jobs and open patches.
   - The **Services** tab lists the services of Windows and Linux nodes. Linux nodes also have a **Linux** tab for their Linux-specific details.
   - The **Updates** tab of Windows nodes shows the last update search (WSUS or Windows Update), the installed updates with their status, and the update history.
   - A tab whose data the agent did not report stays visible with a notice, so a collection problem is not mistaken for an empty node.
-- **🔒 Vulnerabilities** — Scan for CVEs across your fleet
-- **📦 Packages** — Track and deploy software
-- **🔐 Security Center** — File audit, behavior rules, and compliance monitoring
-- **📈 Performance** — Real-time metrics and trend visualization
-- **🩹 Patch Management** — Manage Windows updates with rings and compliance tracking *(new in v0.6.0)*
-- **📐 Config Baselines** — CIS benchmarks with drift detection *(new in v0.6.0)*
-- **📦 Content Lifecycle** — Repository management with Dev → Test → Prod pipelines *(new in v0.6.0)*
-- **🔍 Query Engine** — Ask questions about your fleet with a visual query builder *(new in v0.6.0)*
-- **📊 Software Metering** — License tracking and compliance *(new in v0.6.0)*
+- **🔒 Vulnerabilities** - Scan for CVEs across your fleet
+- **📦 Packages** - Track and deploy software
+- **🔐 Security Center** - File audit, behavior rules, and compliance monitoring
+- **📈 Performance** - Real-time metrics and trend visualization
+- **🩹 Patch Management** - Manage Windows updates with rings and compliance tracking *(new in v0.6.0)*
+- **📐 Config Baselines** - CIS benchmarks with drift detection *(new in v0.6.0)*
+- **📦 Content Lifecycle** - Repository management with Dev → Test → Prod pipelines *(new in v0.6.0)*
+- **🔍 Query Engine** - Ask questions about your fleet with a visual query builder *(new in v0.6.0)*
+- **📊 Software Metering** - License tracking and compliance *(new in v0.6.0)*
 
 ## Environment Variables
 
@@ -150,17 +150,17 @@ docker compose logs -f backend
 
 ## Next Steps
 
-- 📖 [Architecture Overview](ARCHITECTURE.md) — How the system works
-- 🔐 [Security Center Guide](SECURITY-CENTER.md) — File audit, behavior rules, findings
-- 🩹 [Patch Management](PATCH-MANAGEMENT.md) — Windows update orchestration *(new in v0.6.0)*
-- 📐 [Configuration Baselines](SECURITY-CENTER.md#configuration-baselines) — CIS benchmarks & drift detection *(new in v0.6.0)*
-- 📦 [Content Lifecycle](CONTENT-LIFECYCLE.md) — Repository & environment management *(new in v0.6.0)*
-- 🔍 [Query Engine](QUERY-ENGINE.md) — Fleet-wide query builder *(new in v0.6.0)*
-- 📊 [Software Metering](SOFTWARE-METERING.md) — License tracking *(new in v0.6.0)*
-- 🔧 [Configuration Reference](CONFIGURATION.md) — All environment variables
-- 📡 [API Reference](API-REFERENCE.md) — REST API documentation
-- 🌐 [PXE Provisioning](PXE-PROVISIONING.md) — Zero-touch OS deployment
-- 🤖 [Agent Setup](AGENT-SETUP.md) — Detailed agent installation guide
+- 📖 [Architecture Overview](ARCHITECTURE.md) - How the system works
+- 🔐 [Security Center Guide](SECURITY-CENTER.md) - File audit, behavior rules, findings
+- 🩹 [Patch Management](PATCH-MANAGEMENT.md) - Windows update orchestration *(new in v0.6.0)*
+- 📐 [Configuration Baselines](SECURITY-CENTER.md#configuration-baselines) - CIS benchmarks & drift detection *(new in v0.6.0)*
+- 📦 [Content Lifecycle](CONTENT-LIFECYCLE.md) - Repository & environment management *(new in v0.6.0)*
+- 🔍 [Query Engine](QUERY-ENGINE.md) - Fleet-wide query builder *(new in v0.6.0)*
+- 📊 [Software Metering](SOFTWARE-METERING.md) - License tracking *(new in v0.6.0)*
+- 🔧 [Configuration Reference](CONFIGURATION.md) - All environment variables
+- 📡 [API Reference](API-REFERENCE.md) - REST API documentation
+- 🌐 [PXE Provisioning](PXE-PROVISIONING.md) - Zero-touch OS deployment
+- 🤖 [Agent Setup](AGENT-SETUP.md) - Detailed agent installation guide
 
 ## Troubleshooting
 
@@ -168,7 +168,7 @@ docker compose logs -f backend
 ```bash
 docker compose logs backend
 ```
-Usually a database connection issue — make sure the `db` container is healthy first.
+Usually a database connection issue - make sure the `db` container is healthy first.
 
 **Agent not showing up?**
 - Verify the API URL is reachable from the agent machine

@@ -5299,7 +5299,7 @@ CIS_TEMPLATES = {
     "cis-win-server-2022-l1": {
         "id": "cis-win-server-2022-l1",
         "name": "CIS Windows Server 2022/2025 L1",
-        "description": "CIS Benchmark Level 1 for Windows Server 2022/2025 — essential security hardening",
+        "description": "CIS Benchmark Level 1 for Windows Server 2022/2025 - essential security hardening",
         "baseline_type": "custom",
         "rules": [
             {"rule_name": "Windows Firewall Service Running", "rule_type": "service",
@@ -5334,7 +5334,7 @@ CIS_TEMPLATES = {
     "cis-win11-enterprise-l1": {
         "id": "cis-win11-enterprise-l1",
         "name": "CIS Windows 11 Enterprise L1",
-        "description": "CIS Benchmark Level 1 for Windows 11 Enterprise — workstation security hardening",
+        "description": "CIS Benchmark Level 1 for Windows 11 Enterprise - workstation security hardening",
         "baseline_type": "custom",
         "rules": [
             {"rule_name": "Windows Defender Antivirus Running", "rule_type": "service",

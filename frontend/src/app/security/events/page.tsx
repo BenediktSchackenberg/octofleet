@@ -413,7 +413,7 @@ export default function SecurityEventsPage() {
                 </div>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <div className="text-xs text-zinc-500 mb-1">Oldest Raw Event</div>
-                  <div className="text-xl font-bold">{retention.oldest_raw_event ? formatTime(retention.oldest_raw_event) : "—"}</div>
+                  <div className="text-xl font-bold">{retention.oldest_raw_event ? formatTime(retention.oldest_raw_event) : "-"}</div>
                 </div>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <div className="text-xs text-zinc-500 mb-1">Retention Policy</div>
@@ -521,7 +521,7 @@ export default function SecurityEventsPage() {
                         <tr className="bg-zinc-800/30 font-medium">
                           <td className="p-3">Total</td>
                           <td className="p-3 text-right">{totalCount.toLocaleString()}</td>
-                          <td className="p-3 text-right text-zinc-400">—</td>
+                          <td className="p-3 text-right text-zinc-400">-</td>
                           <td className="p-3 text-right text-zinc-400">100%</td>
                         </tr>
                       )}
@@ -615,8 +615,8 @@ export default function SecurityEventsPage() {
                     </td>
                     <td className="p-3 font-mono text-xs max-w-md truncate" title={e.path}>{e.path}</td>
                     <td className="p-3 text-zinc-400">{e.user_id}</td>
-                    <td className="p-3 text-zinc-400 text-xs">{e.process_name || "—"}</td>
-                    <td className="p-3 text-right text-zinc-500 text-xs">{e.file_size ? `${(e.file_size / 1024).toFixed(1)}KB` : "—"}</td>
+                    <td className="p-3 text-zinc-400 text-xs">{e.process_name || "-"}</td>
+                    <td className="p-3 text-right text-zinc-500 text-xs">{e.file_size ? `${(e.file_size / 1024).toFixed(1)}KB` : "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -654,9 +654,9 @@ export default function SecurityEventsPage() {
                         <span className="text-xs font-medium">{EVENT_TYPE_LABELS[e.event_type] || e.event_type}</span>
                       </td>
                       {e.event_type.startsWith("service") || e.event_type.startsWith("registry") ? (
-                        <td className="p-3 text-zinc-500 text-xs" title={t("securityEvents.details.noActor")}>—</td>
+                        <td className="p-3 text-zinc-500 text-xs" title={t("securityEvents.details.noActor")}>-</td>
                       ) : (
-                        <td className="p-3 text-zinc-400 text-xs">{e.user_id || "—"}</td>
+                        <td className="p-3 text-zinc-400 text-xs">{e.user_id || "-"}</td>
                       )}
                       <td className="p-3"><PayloadDetail payload={payload} eventType={e.event_type} /></td>
                     </tr>

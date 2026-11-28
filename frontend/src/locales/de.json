@@ -700,7 +700,7 @@
   },
   "vulnerabilitiesPage": {
     "title": "Schwachstellen-Dashboard",
-    "description": "CVE-Tracking für installierte Software — Daten von NVD und OSV",
+    "description": "CVE-Tracking für installierte Software - Daten von NVD und OSV",
     "scan": "Scan starten",
     "scanning": "Scan läuft…",
     "errorLoad": "Die Schwachstellendaten konnten nicht geladen werden.",

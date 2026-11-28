@@ -2,7 +2,7 @@
 
 ## Epic Overview
 
-**Goal:** Zero-Touch OS Deployment für VMs und Bare Metal Server — von PXE Boot bis Domain Join.
+**Goal:** Zero-Touch OS Deployment für VMs und Bare Metal Server - von PXE Boot bis Domain Join.
 
 **Status:** 📋 Planning  
 **Priority:** Medium  

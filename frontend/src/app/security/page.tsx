@@ -57,7 +57,7 @@ export default function SecurityPage() {
           </div>
         </div>
 
-        {/* Tabs removed — navigation is now in the Navbar mega dropdown */}
+        {/* Tabs removed - navigation is now in the Navbar mega dropdown */}
 
         {loading ? (
           <div className="flex justify-center py-20">

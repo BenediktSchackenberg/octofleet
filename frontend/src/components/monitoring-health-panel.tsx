@@ -133,7 +133,7 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-3 bg-zinc-800/50 rounded-lg">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">Version</span>
-            <div className="font-mono text-sm mt-1 text-purple-300">{caps?.agent_version || "—"}</div>
+            <div className="font-mono text-sm mt-1 text-purple-300">{caps?.agent_version || "-"}</div>
           </div>
           <div className="p-3 bg-zinc-800/50 rounded-lg">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">OS</span>
@@ -145,13 +145,13 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
               {permissions.is_admin ? (
                 <span className="text-amber-400 flex items-center gap-1"><Shield className="h-3 w-3" /> Admin</span>
               ) : (
-                <span className="text-zinc-300">{String(permissions.service_account || "—")}</span>
+                <span className="text-zinc-300">{String(permissions.service_account || "-")}</span>
               )}
             </div>
           </div>
           <div className="p-3 bg-zinc-800/50 rounded-lg">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">Last Seen</span>
-            <div className="text-sm mt-1">{caps?.last_seen ? timeAgo(caps.last_seen) : "—"}</div>
+            <div className="text-sm mt-1">{caps?.last_seen ? timeAgo(caps.last_seen) : "-"}</div>
           </div>
         </div>
       </div>
@@ -223,11 +223,11 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
             </div>
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">Active Watchers</span>
-              <div className="text-2xl font-bold mt-1 text-blue-400">{lastHealth.metadata?.watcher_count ?? "—"}</div>
+              <div className="text-2xl font-bold mt-1 text-blue-400">{lastHealth.metadata?.watcher_count ?? "-"}</div>
             </div>
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">CPU Overhead</span>
-              <div className="text-2xl font-bold mt-1 text-green-400">{lastHealth.metadata?.cpu_overhead_estimate ?? "—"}</div>
+              <div className="text-2xl font-bold mt-1 text-green-400">{lastHealth.metadata?.cpu_overhead_estimate ?? "-"}</div>
             </div>
           </div>
 
@@ -264,8 +264,8 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
                     <td className="p-2 text-xs text-zinc-400">{timeAgo(h.ts)}</td>
                     <td className="p-2 text-right font-mono">{h.metadata?.queue_depth ?? 0}</td>
                     <td className={`p-2 text-right font-mono ${(h.metadata?.drop_count ?? 0) > 0 ? "text-red-400" : ""}`}>{h.metadata?.drop_count ?? 0}</td>
-                    <td className="p-2 text-right font-mono">{h.metadata?.watcher_count ?? "—"}</td>
-                    <td className="p-2 text-right">{h.metadata?.cpu_overhead_estimate ?? "—"}</td>
+                    <td className="p-2 text-right font-mono">{h.metadata?.watcher_count ?? "-"}</td>
+                    <td className="p-2 text-right">{h.metadata?.cpu_overhead_estimate ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>

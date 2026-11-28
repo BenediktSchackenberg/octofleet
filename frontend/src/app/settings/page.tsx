@@ -309,7 +309,7 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-zinc-500 mt-2">
               Kostenlos holen: <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">nvd.nist.gov/developers/request-an-api-key</a>
-              {" "}— Mit API Key: 10x schnellere Scans!
+              {" "}- Mit API Key: 10x schnellere Scans!
             </p>
             {nvdApiKeySaved && (
               <p className="text-xs text-green-400 mt-1">✓ API Key konfiguriert</p>

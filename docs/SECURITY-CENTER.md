@@ -1,23 +1,23 @@
 # Security Center
 
-The Security Center is Octofleet's comprehensive security monitoring and compliance suite. It provides real-time file auditing, behavioral threat detection, configuration drift monitoring, patch management, configuration baselines, and forensic evidence capabilities — all from a single dashboard.
+The Security Center is Octofleet's comprehensive security monitoring and compliance suite. It provides real-time file auditing, behavioral threat detection, configuration drift monitoring, patch management, configuration baselines, and forensic evidence capabilities - all from a single dashboard.
 
 ## Overview
 
 The Security Center spans 20+ dedicated pages in the frontend and covers:
 
-- **Security Dashboard** — At-a-glance risk overview
-- **Monitoring Profiles** — Define what to monitor and how
-- **Behavior Rules** — Detect suspicious patterns automatically
-- **File Audit** — Real-time file change monitoring
-- **Posture Snapshots** — Configuration baseline tracking
-- **Findings** — Auto-generated security findings with risk scoring
-- **Activity Dashboards** — File and user activity visualization
-- **Evidence Export** — Forensic evidence packaging
-- **Retention & Legal Hold** — Data lifecycle management
-- **Patch Management** — Patch catalog, rings, deployments, compliance *(new in v0.6.0)*
-- **Configuration Baselines** — CIS benchmarks, drift detection, auto-remediation *(new in v0.6.0)*
-- **Content Lifecycle** — Repository management with environment pipelines *(new in v0.6.0)*
+- **Security Dashboard** - At-a-glance risk overview
+- **Monitoring Profiles** - Define what to monitor and how
+- **Behavior Rules** - Detect suspicious patterns automatically
+- **File Audit** - Real-time file change monitoring
+- **Posture Snapshots** - Configuration baseline tracking
+- **Findings** - Auto-generated security findings with risk scoring
+- **Activity Dashboards** - File and user activity visualization
+- **Evidence Export** - Forensic evidence packaging
+- **Retention & Legal Hold** - Data lifecycle management
+- **Patch Management** - Patch catalog, rings, deployments, compliance *(new in v0.6.0)*
+- **Configuration Baselines** - CIS benchmarks, drift detection, auto-remediation *(new in v0.6.0)*
+- **Content Lifecycle** - Repository management with environment pipelines *(new in v0.6.0)*
 
 ---
 
@@ -158,8 +158,8 @@ File audit provides real-time monitoring of file system changes across your flee
 
 ### Viewing File Activity
 
-- **Event stream:** `GET /api/v1/events/files` — Raw file events with timestamps, paths, and operation types
-- **Activity dashboard:** `GET /api/v1/security/activity/files` — Aggregated file activity with charts
+- **Event stream:** `GET /api/v1/events/files` - Raw file events with timestamps, paths, and operation types
+- **Activity dashboard:** `GET /api/v1/security/activity/files` - Aggregated file activity with charts
 - **Node-level:** File events are visible on each node's detail page
 
 ### Key Data Points
@@ -365,8 +365,8 @@ Security policies define organizational security standards and baselines.
 
 All administrative actions are logged for compliance:
 
-- **Backend audit:** `GET /api/v1/audit` — API-level actions (who did what, when)
-- **UI audit:** `GET /api/v1/audit/ui-events` — Frontend interactions (page views, button clicks)
+- **Backend audit:** `GET /api/v1/audit` - API-level actions (who did what, when)
+- **UI audit:** `GET /api/v1/audit/ui-events` - Frontend interactions (page views, button clicks)
 
 Both endpoints support filtering by user, action type, and date range.
 
@@ -383,17 +383,17 @@ Both endpoints support filtering by user, action type, and date range.
 
 ---
 
-## Patch Management (E30) — NEW in v0.6.0
+## Patch Management (E30) - NEW in v0.6.0
 
 Octofleet now includes full Windows patch management. See [PATCH-MANAGEMENT.md](PATCH-MANAGEMENT.md) for the complete guide, and [REMEDIATION.md](REMEDIATION.md) for fixing vulnerable applications (Auto-Fix).
 
 ### Quick Overview
 
-- **Patch Catalog** — Central registry of all patches, auto-populated by agent scans
-- **Patch Rings** — Canary → Pilot → Broad rollout strategy for controlled deployment
-- **Deployments** — Full lifecycle (create, schedule, pause, resume, cancel)
-- **Compliance** — Per-node and fleet-wide compliance dashboards
-- **Agent Scanner** — `PatchScanner.cs` discovers missing Windows updates automatically
+- **Patch Catalog** - Central registry of all patches, auto-populated by agent scans
+- **Patch Rings** - Canary → Pilot → Broad rollout strategy for controlled deployment
+- **Deployments** - Full lifecycle (create, schedule, pause, resume, cancel)
+- **Compliance** - Per-node and fleet-wide compliance dashboards
+- **Agent Scanner** - `PatchScanner.cs` discovers missing Windows updates automatically
 
 ### Getting Started
 
@@ -405,7 +405,7 @@ Octofleet now includes full Windows patch management. See [PATCH-MANAGEMENT.md](
 
 ---
 
-## Configuration Baselines (E31) — NEW in v0.6.0
+## Configuration Baselines (E31) - NEW in v0.6.0
 
 Configuration baselines let you define and enforce configuration standards based on CIS benchmarks.
 
@@ -420,10 +420,10 @@ Import a template to create a baseline with pre-configured rules for registry ke
 
 ### Drift Detection & Remediation
 
-- **Automatic evaluation** — Nodes are evaluated against assigned baselines
-- **Drift events** — Created when a node deviates from its baseline
-- **Actions** — Acknowledge, waive, or auto-remediate drifts
-- **Trend charts** — Compliance trends over time
+- **Automatic evaluation** - Nodes are evaluated against assigned baselines
+- **Drift events** - Created when a node deviates from its baseline
+- **Actions** - Acknowledge, waive, or auto-remediate drifts
+- **Trend charts** - Compliance trends over time
 
 ### API Quick Reference
 

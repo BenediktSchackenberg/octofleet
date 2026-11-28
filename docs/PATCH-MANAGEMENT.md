@@ -2,7 +2,7 @@
 
 > Introduced in **v0.6.0** (Epic E30)
 
-Octofleet's Patch & Update Orchestration system provides end-to-end Windows patch management — from discovery through deployment to compliance reporting.
+Octofleet's Patch & Update Orchestration system provides end-to-end Windows patch management - from discovery through deployment to compliance reporting.
 
 ## Overview
 
@@ -13,11 +13,11 @@ Octofleet's Patch & Update Orchestration system provides end-to-end Windows patc
 └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-- **Patch Catalog** — Central registry of all known patches (KB articles), auto-populated by agent scans
-- **Patch Rings** — Canary → Pilot → Broad rollout strategy
-- **Deployment Wizard** — Create, schedule, pause, resume, and cancel patch deployments
-- **Compliance Tracking** — Per-node and fleet-wide patch compliance dashboards
-- **Agent Scanner** — `PatchScanner.cs` on the Windows agent scans for missing updates via the Windows Update API
+- **Patch Catalog** - Central registry of all known patches (KB articles), auto-populated by agent scans
+- **Patch Rings** - Canary → Pilot → Broad rollout strategy
+- **Deployment Wizard** - Create, schedule, pause, resume, and cancel patch deployments
+- **Compliance Tracking** - Per-node and fleet-wide patch compliance dashboards
+- **Agent Scanner** - `PatchScanner.cs` on the Windows agent scans for missing updates via the Windows Update API
 
 ---
 
@@ -27,8 +27,8 @@ Octofleet's Patch & Update Orchestration system provides end-to-end Windows patc
 
 The catalog is populated in two ways:
 
-1. **Agent scan results** — Agents run `PatchScanner.cs` to detect available Windows updates and POST results to `/api/v1/patches/scan-results`. The backend upserts patches into the catalog automatically.
-2. **Manual creation** — Admins can add patches manually via the API or UI.
+1. **Agent scan results** - Agents run `PatchScanner.cs` to detect available Windows updates and POST results to `/api/v1/patches/scan-results`. The backend upserts patches into the catalog automatically.
+2. **Manual creation** - Admins can add patches manually via the API or UI.
 
 Each patch entry contains:
 - KB ID, title, description
@@ -80,9 +80,9 @@ Rings are configured with a name, description, and optional node/group targeting
 
 A patch deployment targets one or more patches to a set of rings/nodes. Deployments support:
 
-- **Pause / Resume / Cancel** — Full lifecycle control
-- **Ring-based progression** — Deploy to Canary first, observe, then advance
-- **Status tracking** — Per-node installation status
+- **Pause / Resume / Cancel** - Full lifecycle control
+- **Ring-based progression** - Deploy to Canary first, observe, then advance
+- **Status tracking** - Per-node installation status
 
 ### Agent-Side Scanner
 

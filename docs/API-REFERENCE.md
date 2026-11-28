@@ -94,15 +94,15 @@ Agents push inventory data; the frontend reads it.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/inventory/hardware/{node_id}` | — | Hardware inventory for node |
-| GET | `/api/v1/inventory/software/{node_id}` | — | Installed software |
-| GET | `/api/v1/inventory/hotfixes/{node_id}` | — | Installed Windows updates (`hotfixes`, from `Win32_QuickFixEngineering`) and the Windows Update history (`updateHistory`: up to 2000 entries, of the Defender signature updates only the newest) |
-| GET | `/api/v1/inventory/system/{node_id}` | — | System info (OS, hostname, etc.); `lastBootTime` without offset – the node's local time from Windows agents, UTC from Linux agents – with `uptimeHours` and `uptimeFormatted` as of the last inventory |
-| GET | `/api/v1/inventory/security/{node_id}` | — | Security status (firewall, AV, TPM, BitLocker, UAC, local admins; `appControl`, `appLocker`, `vbs` – see below) |
-| GET | `/api/v1/inventory/network/{node_id}` | — | Network interfaces & connections |
-| GET | `/api/v1/inventory/linux/{node_id}` | — | Linux-specific inventory |
-| GET | `/api/v1/inventory/browser/{node_id}` | — | Browser extensions |
-| GET | `/api/v1/inventory/browser/{node_id}/cookies` | — | Browser cookies |
+| GET | `/api/v1/inventory/hardware/{node_id}` | - | Hardware inventory for node |
+| GET | `/api/v1/inventory/software/{node_id}` | - | Installed software |
+| GET | `/api/v1/inventory/hotfixes/{node_id}` | - | Installed Windows updates (`hotfixes`, from `Win32_QuickFixEngineering`) and the Windows Update history (`updateHistory`: up to 2000 entries, of the Defender signature updates only the newest) |
+| GET | `/api/v1/inventory/system/{node_id}` | - | System info (OS, hostname, etc.); `lastBootTime` without offset – the node's local time from Windows agents, UTC from Linux agents – with `uptimeHours` and `uptimeFormatted` as of the last inventory |
+| GET | `/api/v1/inventory/security/{node_id}` | - | Security status (firewall, AV, TPM, BitLocker, UAC, local admins; `appControl`, `appLocker`, `vbs` – see below) |
+| GET | `/api/v1/inventory/network/{node_id}` | - | Network interfaces & connections |
+| GET | `/api/v1/inventory/linux/{node_id}` | - | Linux-specific inventory |
+| GET | `/api/v1/inventory/browser/{node_id}` | - | Browser extensions |
+| GET | `/api/v1/inventory/browser/{node_id}/cookies` | - | Browser cookies |
 | GET | `/api/v1/inventory/browser/{node_id}/critical` | User: `inventory:read` | Critical browser findings |
 | GET | `/api/v1/hardware/fleet` | User: `hardware:read` | Fleet-wide hardware summary |
 | POST | `/api/v1/inventory/hardware` | API Key | Push hardware inventory (agent) |
@@ -136,13 +136,13 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 | POST | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Add nodes to a group: `{"nodeIds": [...]}` – each a node UUID, node ID or hostname; one statement for all. Returns `added`, `alreadyMembers` and `notFound` (references that name no node) |
 | DELETE | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Remove nodes from a group (`nodeIds` as above); returns `removed`, `notFound` |
 | DELETE | `/api/v1/groups/{group_id}/members/{node}` | User: `groups:write` | Remove one node (UUID, node ID or hostname); 404 if it names no node |
-| GET | `/api/v1/tags` | — | List tags |
+| GET | `/api/v1/tags` | - | List tags |
 | POST | `/api/v1/tags` | User: `groups:write` | Create tag |
 | DELETE | `/api/v1/tags/{tag_id}` | User: `groups:write` | Delete tag |
 | POST | `/api/v1/devices/{node_id}/tags` | User: `groups:write` | Assign tags to node |
 | DELETE | `/api/v1/devices/{node_id}/tags` | User: `groups:write` | Remove tags from node |
-| GET | `/api/v1/devices/{node_id}/groups` | — | Get node's groups |
-| GET | `/api/v1/devices/{node_id}/tags` | — | Get node's tags |
+| GET | `/api/v1/devices/{node_id}/groups` | - | Get node's groups |
+| GET | `/api/v1/devices/{node_id}/tags` | - | Get node's tags |
 
 ### Jobs
 
@@ -486,7 +486,7 @@ See [SECURITY-CENTER.md](SECURITY-CENTER.md) for feature details.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/agent/version` | — | Get latest agent version |
+| GET | `/api/v1/agent/version` | - | Get latest agent version |
 | GET | `/api/v1/agent/wait/{node_id}` | Agent key (`jobs:poll`) | Agent long-poll ([#283](https://github.com/BenediktSchackenberg/octofleet/issues/283)): held until there is work for the node, then `{"wake": [...]}` with the polls to run now – `jobs` (a pending job, as `jobs/pending` would return it), `remediation` (an approved remediation job not bound to a maintenance window), `terminal` (a queued command, or a terminal page just opened), `screen` / `shell` (a session just started); `{"wake": []}` after the hold time. `kinds` (comma-separated, default all) limits it to what the agent handles; `timeout` (seconds) shortens the hold, at most `AGENT_WAIT_SECONDS` (default 55, minus up to 10 % jitter). A wake-up while the agent is between two requests is kept for 2 minutes. The wake-up runs inside the (single) backend process |
 | POST | `/api/v1/agents/{node_id}/capabilities` | Agent: `inventory:write` | Report agent capabilities |
 | GET | `/api/v1/agents/{node_id}/capabilities` | User: `nodes:read` | Get agent capabilities |
@@ -640,7 +640,7 @@ See [SOFTWARE-METERING.md](SOFTWARE-METERING.md) for detailed documentation.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/hardware/fleet` | User: `hardware:read` | Fleet-wide hardware summary |
-| GET | `/api/v1/hardware/export` | — | Export hardware data |
+| GET | `/api/v1/hardware/export` | - | Export hardware data |
 
 `/hardware/fleet` counts each disk and volume once: zram, loop and RAM devices are not disks, and a Linux device mounted several times (btrfs subvolumes, bind mounts) is one volume. Each disk has `deviceId` and `health` (`healthy`, `warning`, `unhealthy`, `virtual` – a VM disk without health data, no SMART – or `unknown`); `physicalDiskHealth` counts them per state.
 

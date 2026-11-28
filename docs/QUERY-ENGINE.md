@@ -2,16 +2,16 @@
 
 > Introduced in **v0.6.0** (Epic E34)
 
-The Real-time Query Engine lets you ask questions about your fleet using a safe DSL (Domain-Specific Language) that gets translated to parameterized SQL. No direct SQL access — all queries go through a whitelist-based security layer.
+The Real-time Query Engine lets you ask questions about your fleet using a safe DSL (Domain-Specific Language) that gets translated to parameterized SQL. No direct SQL access - all queries go through a whitelist-based security layer.
 
 ## Overview
 
-- **DSL-to-SQL builder** — Structured JSON queries translated to safe, parameterized SQL
-- **22 queryable tables** — Fleet, software, security, metrics, events, jobs, and more
-- **18 pre-built templates** — Common fleet questions ready to use
-- **Live agent queries** — Query running processes, services, and open ports in real-time
-- **CSV export** — Download query results for external analysis
-- **Visual WHERE clause builder** — Frontend UI for building queries without writing code
+- **DSL-to-SQL builder** - Structured JSON queries translated to safe, parameterized SQL
+- **22 queryable tables** - Fleet, software, security, metrics, events, jobs, and more
+- **18 pre-built templates** - Common fleet questions ready to use
+- **Live agent queries** - Query running processes, services, and open ports in real-time
+- **CSV export** - Download query results for external analysis
+- **Visual WHERE clause builder** - Frontend UI for building queries without writing code
 
 ---
 
@@ -142,7 +142,7 @@ Queries are JSON objects with the following structure:
 
 ## Live Queries
 
-Live queries execute directly on agents in real-time, returning current process lists, service states, or open ports — data that isn't stored in the database.
+Live queries execute directly on agents in real-time, returning current process lists, service states, or open ports - data that isn't stored in the database.
 
 ```bash
 curl -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
@@ -151,19 +151,19 @@ curl -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
 ```
 
 Supported live query types:
-- `processes` — Running processes
-- `services` — Service status
-- `ports` — Open network ports
+- `processes` - Running processes
+- `services` - Service status
+- `ports` - Open network ports
 
 ---
 
 ## Security Model
 
-- **Table whitelist** — Only the 22 tables listed above can be queried
-- **Column whitelist** — Only declared columns are accessible per table
-- **Parameterized SQL** — All user values are bound as parameters (no SQL injection)
-- **Join whitelist** — Only pre-defined foreign key relationships are allowed
-- **Result limits** — Maximum row count enforced
+- **Table whitelist** - Only the 22 tables listed above can be queried
+- **Column whitelist** - Only declared columns are accessible per table
+- **Parameterized SQL** - All user values are bound as parameters (no SQL injection)
+- **Join whitelist** - Only pre-defined foreign key relationships are allowed
+- **Result limits** - Maximum row count enforced
 
 ---
 

@@ -2,7 +2,7 @@
 
 > Introduced in **v0.6.0** (Epic E33)
 
-Manage software repositories, content snapshots, and environment-based promotion pipelines — from Dev through Test to Production.
+Manage software repositories, content snapshots, and environment-based promotion pipelines - from Dev through Test to Production.
 
 ## Overview
 
@@ -18,12 +18,12 @@ graph LR
 
 The Content Lifecycle system provides:
 
-- **Repository Management** — Create and manage repositories for APT, YUM, Chocolatey, NuGet, WinGet, or generic content
-- **Content Items** — Track individual packages/artifacts within repositories
-- **Snapshots** — Freeze a repository's state at a point in time
-- **Environment Pipeline** — Promote snapshots through Dev → Test → Prod stages
-- **Snapshot Diff** — Compare two snapshots to see what changed
-- **Dashboard** — Overview of all repositories, environments, and recent activity
+- **Repository Management** - Create and manage repositories for APT, YUM, Chocolatey, NuGet, WinGet, or generic content
+- **Content Items** - Track individual packages/artifacts within repositories
+- **Snapshots** - Freeze a repository's state at a point in time
+- **Environment Pipeline** - Promote snapshots through Dev → Test → Prod stages
+- **Snapshot Diff** - Compare two snapshots to see what changed
+- **Dashboard** - Overview of all repositories, environments, and recent activity
 
 ---
 
@@ -55,7 +55,7 @@ Items can be added manually or discovered via repository sync (`POST /repositori
 
 ### Snapshots
 
-A snapshot freezes the current state of a repository — the exact set of items and their versions. Snapshots are immutable once created. Use them to:
+A snapshot freezes the current state of a repository - the exact set of items and their versions. Snapshots are immutable once created. Use them to:
 
 - **Track changes** over time
 - **Compare** versions (snapshot diff)

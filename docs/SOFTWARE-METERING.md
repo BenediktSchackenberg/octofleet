@@ -36,7 +36,7 @@ Each catalog entry includes:
 
 ### Normalization Rules
 
-Software names vary wildly across installations — "Google Chrome", "Google Chrome (x64)", "Google LLC - Chrome". Normalization rules use regex patterns to map variations to a single catalog entry.
+Software names vary wildly across installations - "Google Chrome", "Google Chrome (x64)", "Google LLC - Chrome". Normalization rules use regex patterns to map variations to a single catalog entry.
 
 ```json
 {
@@ -57,11 +57,11 @@ curl -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
 
 Create license records to track your entitlements:
 
-- **License type** — Per-device, per-user, site, enterprise
-- **Quantity** — Number of seats/devices purchased
-- **Vendor & SKU** — For procurement tracking
-- **Expiry date** — License expiration
-- **Linked catalog entries** — Which software this license covers
+- **License type** - Per-device, per-user, site, enterprise
+- **Quantity** - Number of seats/devices purchased
+- **Vendor & SKU** - For procurement tracking
+- **Expiry date** - License expiration
+- **Linked catalog entries** - Which software this license covers
 
 ### Compliance
 
@@ -77,8 +77,8 @@ The compliance engine compares license entitlements against actual software inst
 
 Agents can submit usage data (`POST /api/v1/metering/usage/submit`) to track which software is actively used vs. just installed. This enables:
 
-- **Reclamation candidates** — Software installed but unused for N days
-- **True-up reports** — Accurate usage-based compliance data
+- **Reclamation candidates** - Software installed but unused for N days
+- **True-up reports** - Accurate usage-based compliance data
 
 ### Reclamation
 

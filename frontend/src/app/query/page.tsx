@@ -102,7 +102,7 @@ export default function QueryEnginePage() {
         const val = data.rows[0][cols[0]];
         return (
           <div className="flex items-center justify-center py-6">
-            <span className="text-5xl font-bold text-cyan-400">{String(val ?? "—")}</span>
+            <span className="text-5xl font-bold text-cyan-400">{String(val ?? "-")}</span>
           </div>
         );
       }
@@ -131,7 +131,7 @@ export default function QueryEnginePage() {
             {data.rows.slice(0, 20).map((r, i) => (
               <li key={i} className="text-sm text-zinc-300 flex items-center gap-2">
                 <span className="text-cyan-500">•</span>
-                {String(r[col] ?? "—")}
+                {String(r[col] ?? "-")}
               </li>
             ))}
           </ul>
@@ -159,7 +159,7 @@ export default function QueryEnginePage() {
                 {data.rows.slice(0, 25).map((r, i) => (
                   <tr key={i} className="hover:bg-zinc-800/20">
                     {cols.map(c => (
-                      <td key={c} className="px-2 py-1 text-zinc-400 font-mono truncate max-w-[200px]">{String(r[c] ?? "—")}</td>
+                      <td key={c} className="px-2 py-1 text-zinc-400 font-mono truncate max-w-[200px]">{String(r[c] ?? "-")}</td>
                     ))}
                   </tr>
                 ))}
@@ -188,7 +188,7 @@ export default function QueryEnginePage() {
   return (
     <StandardPage
       title="Query Engine"
-      description="Real-time fleet queries — like CMPivot, but cooler"
+      description="Real-time fleet queries - like CMPivot, but cooler"
       icon={<Terminal className="h-6 w-6 text-cyan-400" />}
       actions={
         result ? (
@@ -646,7 +646,7 @@ export default function QueryEnginePage() {
                                 const val = row[col];
                                 const display =
                                   val === null || val === undefined
-                                    ? "—"
+                                    ? "-"
                                     : typeof val === "object"
                                     ? JSON.stringify(val)
                                     : String(val);
@@ -746,7 +746,7 @@ export default function QueryEnginePage() {
                                   <tr key={j} className="border-t border-zinc-800/30">
                                     {Object.values(row).map((v, k) => (
                                       <td key={k} className="px-3 py-1 text-zinc-400 font-mono">
-                                        {String(v ?? "—")}
+                                        {String(v ?? "-")}
                                       </td>
                                     ))}
                                   </tr>
@@ -995,7 +995,7 @@ export default function QueryEnginePage() {
                           {savedRunResult.result.rows.map((r, i) => (
                             <tr key={i} className="hover:bg-zinc-800/20">
                               {savedRunResult.result.columns.map(c => (
-                                <td key={c} className="px-3 py-1.5 text-zinc-400 font-mono truncate max-w-[200px]">{String(r[c] ?? "—")}</td>
+                                <td key={c} className="px-3 py-1.5 text-zinc-400 font-mono truncate max-w-[200px]">{String(r[c] ?? "-")}</td>
                               ))}
                             </tr>
                           ))}

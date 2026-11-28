@@ -30,9 +30,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// FALLBACK ONLY — authoritative source is GET /api/v1/auth/permissions
+// FALLBACK ONLY - authoritative source is GET /api/v1/auth/permissions
 // Used when the backend endpoint is unreachable.
-// Do NOT rely on this for access control decisions — always prefer resolvedPermissions from the API.
+// Do NOT rely on this for access control decisions - always prefer resolvedPermissions from the API.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ["*"],
   operator: [
@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // Permissions that are safe to allow even when backend is unreachable.
-  // These are UI-navigation-only permissions — actual access control is enforced server-side.
+  // These are UI-navigation-only permissions - actual access control is enforced server-side.
   const SAFE_FALLBACK_PERMISSIONS = new Set(["nodes:read", "groups:read"]);
 
   function hasPermission(permission: string): boolean {
@@ -187,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
     
-    // SECURITY: Backend unreachable — deny all permissions except safe navigation defaults.
+    // SECURITY: Backend unreachable - deny all permissions except safe navigation defaults.
     // Do NOT fall back to ROLE_PERMISSIONS from localStorage, as user.roles can be tampered with.
     // The backend is the only authoritative source for permission checks.
     return SAFE_FALLBACK_PERMISSIONS.has(permission);

@@ -191,7 +191,7 @@ const POLICY_TYPES = [
 ];
 
 function formatSize(bytes: number | null | undefined): string {
-  if (!bytes) return "—";
+  if (!bytes) return "-";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let i = 0;
   let size = bytes;
@@ -211,7 +211,7 @@ function timeAgo(date: string | null): string {
 }
 
 function formatDate(date: string | null): string {
-  if (!date) return "—";
+  if (!date) return "-";
   return new Date(date).toLocaleString();
 }
 
@@ -950,7 +950,7 @@ export default function ContentLifecyclePage() {
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{repoTypeIcon(selectedRepo.repoType)}</span>
                       <span className="font-semibold">{selectedRepo.name}</span>
-                      <span className="text-xs text-zinc-500">— {items.length} items</span>
+                      <span className="text-xs text-zinc-500">- {items.length} items</span>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => setShowItemForm(true)} className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-xs">
@@ -1005,7 +1005,7 @@ export default function ContentLifecyclePage() {
                           <tr key={item.id} className="hover:bg-zinc-800/30">
                             <td className="px-4 py-2 text-zinc-200">{item.name}</td>
                             <td className="px-4 py-2 font-mono text-xs text-zinc-400">{item.version}</td>
-                            <td className="px-4 py-2 text-xs text-zinc-500">{item.architecture || "—"}</td>
+                            <td className="px-4 py-2 text-xs text-zinc-500">{item.architecture || "-"}</td>
                             <td className="px-4 py-2 text-right text-xs text-zinc-500">{formatSize(item.fileSize)}</td>
                             <td className="px-4 py-2 text-right">
                               <button onClick={() => deleteItem(item.id)} className="text-zinc-600 hover:text-red-400 p-1"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -1147,7 +1147,7 @@ export default function ContentLifecyclePage() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
                     <Camera className="h-4 w-4 text-violet-400" />
-                    {selectedSnapshot.name} — {snapshotItems.length} items
+                    {selectedSnapshot.name} - {snapshotItems.length} items
                   </h3>
                   <button onClick={() => setSelectedSnapshot(null)} className="text-zinc-500 hover:text-zinc-300"><X className="h-4 w-4" /></button>
                 </div>
@@ -1166,7 +1166,7 @@ export default function ContentLifecyclePage() {
                         <tr key={item.id}>
                           <td className="px-3 py-1.5 text-zinc-200">{item.name}</td>
                           <td className="px-3 py-1.5 font-mono text-zinc-400">{item.version}</td>
-                          <td className="px-3 py-1.5 text-zinc-500">{item.architecture || "—"}</td>
+                          <td className="px-3 py-1.5 text-zinc-500">{item.architecture || "-"}</td>
                           <td className="px-3 py-1.5 text-right text-zinc-500">{formatSize(item.fileSize)}</td>
                         </tr>
                       ))}
@@ -1484,7 +1484,7 @@ export default function ContentLifecyclePage() {
                   <label className="text-xs text-zinc-400 block mb-1">Snapshot</label>
                   <select value={promoteSnapshotId} onChange={(e) => setPromoteSnapshotId(e.target.value)} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
                     <option value="">Select snapshot...</option>
-                    {snapshots.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.repositoryName}) — {s.itemCount} items</option>)}
+                    {snapshots.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.repositoryName}) - {s.itemCount} items</option>)}
                   </select>
                 </div>
               </div>
@@ -1516,7 +1516,7 @@ export default function ContentLifecyclePage() {
                   <label className="text-xs text-zinc-400 block mb-1">Snapshot</label>
                   <select value={requestForm.snapshot_id} onChange={(e) => setRequestForm({ ...requestForm, snapshot_id: e.target.value })} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200">
                     <option value="">Select snapshot...</option>
-                    {snapshots.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.repositoryName}) — {s.itemCount} items</option>)}
+                    {snapshots.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.repositoryName}) - {s.itemCount} items</option>)}
                   </select>
                 </div>
                 <div>

@@ -156,7 +156,7 @@ async def list_jobs(limit: int = 50, offset: int = 0, node: Optional[str] = None
         """, *params, limit, offset)
         return {"jobs": [{
             **dict(r),
-            "target_name": r["target_name"] or (str(r["target_id"])[:8] if r["target_id"] else "—"),
+            "target_name": r["target_name"] or (str(r["target_id"])[:8] if r["target_id"] else "-"),
         } for r in rows], "total": total, "counts": dict(count_row), "command_types": command_types}
 
 

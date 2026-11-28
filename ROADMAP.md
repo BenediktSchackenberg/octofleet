@@ -1,4 +1,4 @@
-# ROADMAP.md — Endpoint Management Platform Roadmap
+# ROADMAP.md - Endpoint Management Platform Roadmap
 
 ## Epic Overview
 
@@ -29,7 +29,7 @@
 ## User Story: Software Distribution to Inventoried Nodes
 
 **As** an IT administrator / system operator  
-**I want to** install, update, and uninstall software packages from a central software depot on inventoried PCs (nodes) — both targeted at individual nodes and defined node groups,  
+**I want to** install, update, and uninstall software packages from a central software depot on inventoried PCs (nodes) - both targeted at individual nodes and defined node groups,  
 **so that** I can distribute and manage software in a standardized, reproducible, and controlled way through a central interface, without manual intervention on individual systems.
 
 **Dependent Epics:** E11, E12, E13, E14 + existing E3, E4, E5
@@ -429,7 +429,7 @@
 - [ ] Full audit trail (who/what/when) + agent logs per run visible
 
 ---
-*Updated: 2026-02-15 — E18 Service Orchestration Epic added*
+*Updated: 2026-02-15 - E18 Service Orchestration Epic added*
 
 ---
 ## Reference Services (E18-04, E18-05) ✅
@@ -491,4 +491,4 @@ Created 2026-02-17:
 | E20-07 | Date Range Filtering | Low | ✅ Done |
 
 ---
-*Updated: 2026-02-25 — E19 PXE Provisioning, E20 Reporting Epics added*
+*Updated: 2026-02-25 - E19 PXE Provisioning, E20 Reporting Epics added*

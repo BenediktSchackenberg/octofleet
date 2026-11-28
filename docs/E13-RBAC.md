@@ -1,4 +1,4 @@
-# E13: RBAC — Role-Based Access Control
+# E13: RBAC - Role-Based Access Control
 
 **Status:** ✅ COMPLETE
 **Date:** 2026-02-12
@@ -47,12 +47,12 @@ Full multi-user authentication and authorization system implemented.
 
 ## Database Tables
 
-- `users` — User accounts
-- `roles` — System and custom roles  
-- `user_roles` — User-role mapping
-- `api_keys` — API access tokens
-- `sessions` — Web sessions (prepared)
-- `audit_log` — Activity log
+- `users` - User accounts
+- `roles` - System and custom roles  
+- `user_roles` - User-role mapping
+- `api_keys` - API access tokens
+- `sessions` - Web sessions (prepared)
+- `audit_log` - Activity log
 
 ## Default Credentials
 
@@ -87,36 +87,36 @@ Password: Octofleet2026!
 ## API Endpoints
 
 ### Auth
-- `POST /api/v1/auth/login` — Login
-- `POST /api/v1/auth/setup` — Initial admin setup
-- `GET /api/v1/auth/me` — Current user
-- `POST /api/v1/auth/me/password` — Change your own password
-- `GET /api/v1/auth/password-rules` — Password rules, for every signed-in user (changing them: `PUT /api/v1/security/password-policy`, `settings:write`)
+- `POST /api/v1/auth/login` - Login
+- `POST /api/v1/auth/setup` - Initial admin setup
+- `GET /api/v1/auth/me` - Current user
+- `POST /api/v1/auth/me/password` - Change your own password
+- `GET /api/v1/auth/password-rules` - Password rules, for every signed-in user (changing them: `PUT /api/v1/security/password-policy`, `settings:write`)
 
 ### Users
-- `GET /api/v1/users` — List users
-- `POST /api/v1/users` — Create user
-- `PUT /api/v1/users/{id}` — Update user
-- `DELETE /api/v1/users/{id}` — Delete user
-- `POST /api/v1/users/{id}/roles/{role}` — Assign role
-- `DELETE /api/v1/users/{id}/roles/{role}` — Remove role
+- `GET /api/v1/users` - List users
+- `POST /api/v1/users` - Create user
+- `PUT /api/v1/users/{id}` - Update user
+- `DELETE /api/v1/users/{id}` - Delete user
+- `POST /api/v1/users/{id}/roles/{role}` - Assign role
+- `DELETE /api/v1/users/{id}/roles/{role}` - Remove role
 
 ### Roles
-- `GET /api/v1/roles` — List roles
-- `POST /api/v1/roles` — Create custom role
-- `DELETE /api/v1/roles/{id}` — Delete role
+- `GET /api/v1/roles` - List roles
+- `POST /api/v1/roles` - Create custom role
+- `DELETE /api/v1/roles/{id}` - Delete role
 
 ### API Keys
-- `GET /api/v1/api-keys` — List keys
-- `POST /api/v1/api-keys` — Create key
-- `DELETE /api/v1/api-keys/{id}` — Revoke key
+- `GET /api/v1/api-keys` - List keys
+- `POST /api/v1/api-keys` - Create key
+- `DELETE /api/v1/api-keys/{id}` - Revoke key
 
 ### Audit
-- `GET /api/v1/audit` — Query audit log (filters: see [API reference](API-REFERENCE.md#audit-log))
+- `GET /api/v1/audit` - Query audit log (filters: see [API reference](API-REFERENCE.md#audit-log))
 
 ## Commits
 
-- `91eb863` — feat(E13): RBAC - Role Based Access Control
-- `587ec39` — fix: TypeScript type annotation
-- `55d7167` — feat(E13): Complete RBAC implementation
-- `bd32d5a` — fix: Migrate all pages from API key to JWT auth
+- `91eb863` - feat(E13): RBAC - Role Based Access Control
+- `587ec39` - fix: TypeScript type annotation
+- `55d7167` - feat(E13): Complete RBAC implementation
+- `bd32d5a` - fix: Migrate all pages from API key to JWT auth

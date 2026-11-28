@@ -17,10 +17,10 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 ## 1. Feature Matrix
 
 ### Legend
-- ✅ **Available** — Feature is production-ready
-- ⚠️ **Partial** — Core functionality exists but lacks enterprise-grade depth
-- ❌ **Missing** — Not implemented or only conceptual
-- 🔧 **In Progress** — Active development
+- ✅ **Available** - Feature is production-ready
+- ⚠️ **Partial** - Core functionality exists but lacks enterprise-grade depth
+- ❌ **Missing** - Not implemented or only conceptual
+- 🔧 **In Progress** - Active development
 
 | # | Capability Cluster | SCCM | Foreman/Katello | Octofleet | Status Detail |
 |---|---|---|---|---|---|
@@ -57,7 +57,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ## 2. Backlog: Epics for Enterprise Parity
 
-### Epic E30 — Patch & Update Orchestration (Windows + Linux)
+### Epic E30 - Patch & Update Orchestration (Windows + Linux)
 
 **Goal:** End-to-end patch compliance lifecycle: Detection → Approval → Rollout → Verification → Reporting.
 
@@ -92,7 +92,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ---
 
-### Epic E31 — Configuration Baselines & Drift Management
+### Epic E31 - Configuration Baselines & Drift Management
 
 **Goal:** Define desired state (baselines), detect drift, auto-remediate or alert.
 
@@ -127,7 +127,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ---
 
-### Epic E32 — Octofleet Smart Proxy (Edge Infrastructure Services)
+### Epic E32 - Octofleet Smart Proxy (Edge Infrastructure Services)
 
 **Goal:** Deployable proxy component per site/network segment for PXE/TFTP caching, agent relay, and optional DHCP/DNS integration.
 
@@ -159,7 +159,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ---
 
-### Epic E33 — Content Repository & Lifecycle Management
+### Epic E33 - Content Repository & Lifecycle Management
 
 **Goal:** Version-controlled content management with environment promotion (Dev → Test → Prod), signing, and policy gates.
 
@@ -192,7 +192,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ---
 
-### Epic E34 — Real-time Query Engine (CMPivot-like)
+### Epic E34 - Real-time Query Engine (CMPivot-like)
 
 **Goal:** Run ad-hoc queries across online fleet in seconds, with aggregation, filtering, and actionable results.
 
@@ -208,7 +208,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 - ❌ Actions from query results (kill process, collect logs)
 
 **Scope:**
-1. **MVP:** Query language (safe subset — e.g., `SELECT hostname, os_name, installed_software WHERE software LIKE '%Chrome%'`), backend execution against inventory DB, real-time results in UI
+1. **MVP:** Query language (safe subset - e.g., `SELECT hostname, os_name, installed_software WHERE software LIKE '%Chrome%'`), backend execution against inventory DB, real-time results in UI
 2. **Phase 2:** Live agent queries (e.g., running processes, open ports, file existence) with SSE result streaming
 3. **Phase 3:** Saved queries, scheduled queries, "Actions" from results (gated by RBAC)
 
@@ -225,7 +225,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ---
 
-### Epic E35 — Enterprise Reporting Suite
+### Epic E35 - Enterprise Reporting Suite
 
 **Goal:** Pre-built report catalog, self-service report builder, scheduled delivery (email/webhook).
 
@@ -259,7 +259,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ---
 
-### Epic E36 — RBAC Delegation & Audit-Grade Governance
+### Epic E36 - RBAC Delegation & Audit-Grade Governance
 
 **Goal:** Fine-grained RBAC with node/group-level scoping, session auditing, approval workflows, SSO/MFA.
 
@@ -295,7 +295,7 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 ---
 
-### Epic E37 — Cloud Attach / Co-Management (Optional/Strategic)
+### Epic E37 - Cloud Attach / Co-Management (Optional/Strategic)
 
 **Goal:** Hybrid management integration with cloud platforms (Azure AD/Entra ID, Conditional Access, device identity federation).
 
@@ -329,14 +329,14 @@ This document provides a structured feature comparison between Microsoft SCCM/Co
 
 | Priority | Epic | Impact | Complexity | Dependencies | Rationale |
 |---|---|---|---|---|---|
-| **P1** 🔴 | E30 — Patch Orchestration | Security, Compliance | High | E14 (Remediation) ✅ | #1 enterprise requirement; builds on existing remediation |
-| **P1** 🔴 | E31 — Config Baselines & Drift | Compliance, Hardening | High | E21 (Security) ✅ | Audit readiness, compliance frameworks demand this |
-| **P2** 🟡 | E34 — Real-time Query Engine | Operations, IR | Medium | Live View ✅ | High user value, differentiator vs. competition |
-| **P2** 🟡 | E33 — Content Lifecycle | Supply Chain, Consistency | High | E4 (Packages) ✅ | Foundation for reliable deployments at scale |
-| **P3** 🟠 | E35 — Enterprise Reporting | Visibility, Audit | Medium | PDF/Excel ✅ | Builds on existing exports, high stakeholder value |
-| **P3** 🟠 | E36 — RBAC & Governance | Enterprise Readiness | Medium | E8 (Auth) ✅ | Required for multi-team adoption |
-| **P4** ⚪ | E32 — Smart Proxy | Scale, Multi-Site | High | E10 (PXE) ✅ | Needed when scaling beyond single site |
-| **P5** ⚪ | E37 — Cloud Attach | Market Strategy | High | E36 (SSO) | Only if targeting hybrid enterprise |
+| **P1** 🔴 | E30 - Patch Orchestration | Security, Compliance | High | E14 (Remediation) ✅ | #1 enterprise requirement; builds on existing remediation |
+| **P1** 🔴 | E31 - Config Baselines & Drift | Compliance, Hardening | High | E21 (Security) ✅ | Audit readiness, compliance frameworks demand this |
+| **P2** 🟡 | E34 - Real-time Query Engine | Operations, IR | Medium | Live View ✅ | High user value, differentiator vs. competition |
+| **P2** 🟡 | E33 - Content Lifecycle | Supply Chain, Consistency | High | E4 (Packages) ✅ | Foundation for reliable deployments at scale |
+| **P3** 🟠 | E35 - Enterprise Reporting | Visibility, Audit | Medium | PDF/Excel ✅ | Builds on existing exports, high stakeholder value |
+| **P3** 🟠 | E36 - RBAC & Governance | Enterprise Readiness | Medium | E8 (Auth) ✅ | Required for multi-team adoption |
+| **P4** ⚪ | E32 - Smart Proxy | Scale, Multi-Site | High | E10 (PXE) ✅ | Needed when scaling beyond single site |
+| **P5** ⚪ | E37 - Cloud Attach | Market Strategy | High | E36 (SSO) | Only if targeting hybrid enterprise |
 
 ### Recommended Roadmap
 

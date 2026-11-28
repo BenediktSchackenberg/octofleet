@@ -58,15 +58,15 @@ This document describes the high-level architecture of Octofleet, how its compon
 - **Technology:** Python 3.12, FastAPI, asyncpg (async PostgreSQL driver)
 - **Role:** Central API server, business logic, event processing, report generation
 - **Key modules:**
-  - `routers/` — 30 route modules organized by domain:
+  - `routers/` - 30 route modules organized by domain:
     - **Core:** auth, nodes, groups, inventory, dashboard, jobs, deployments
     - **Security:** security, monitoring_mgmt, baselines, vulnerabilities, remediation
     - **Ops:** patches, packages_mgmt, services_mgmt, terminal, hardware, reports
     - **Platform:** query_engine, content_lifecycle, software_metering, alerting, metrics, mssql
     - **Provisioning:** provisioning, provisioning_iso, provisioning_vm, provisioning_domain, provisioning_linux_boot, provisioning_postinstall
-  - `auth.py` — Authentication (JWT + API Key), RBAC
-  - `alerting.py` — Alert engine with Discord integration
-  - `main.py` — App setup, middleware, and many inline route handlers (~450 endpoints)
+  - `auth.py` - Authentication (JWT + API Key), RBAC
+  - `alerting.py` - Alert engine with Discord integration
+  - `main.py` - App setup, middleware, and many inline route handlers (~450 endpoints)
 - **Real-time:** WebSocket for terminal sessions and screen sharing; SSE for live updates
 
 ### Database (PostgreSQL + TimescaleDB)
@@ -281,11 +281,11 @@ Agent (PatchScanner.cs)  →  Scan Results  →  Patch Catalog
 
 CIS benchmark-based configuration compliance:
 
-- **Templates** — Pre-built CIS benchmarks (Win Server 2022/2025, Win 11)
-- **Baseline Rules** — Registry keys, service states, security policies
-- **Evaluation Engine** — Evaluates nodes against baselines, generates drift events
-- **Auto-Remediation** — Automatically fix drifted settings via agent jobs
-- **Compliance Dashboard** — Trend charts showing compliance over time
+- **Templates** - Pre-built CIS benchmarks (Win Server 2022/2025, Win 11)
+- **Baseline Rules** - Registry keys, service states, security policies
+- **Evaluation Engine** - Evaluates nodes against baselines, generates drift events
+- **Auto-Remediation** - Automatically fix drifted settings via agent jobs
+- **Compliance Dashboard** - Trend charts showing compliance over time
 
 ### Content Lifecycle (E33)
 

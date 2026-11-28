@@ -371,12 +371,12 @@ See individual docs: [Patch Management](PATCH-MANAGEMENT.md) · [Query Engine](Q
 ```
 2025-2026
 ├── E1-E20: Core Platform (complete)
-├── E21: Security Center (complete — v0.5.5)
-├── E30: Patch & Update Orchestration (complete — v0.6.0) ✅
-├── E31: Configuration Baselines & Drift Management (complete — v0.6.0) ✅
-├── E33: Content Repository & Lifecycle Management (complete — v0.6.0) ✅
-├── E34: Real-time Query Engine (complete — v0.6.0) ✅
-├── E38: Software Metering & License Tracking (complete — v0.6.0) ✅
+├── E21: Security Center (complete - v0.5.5)
+├── E30: Patch & Update Orchestration (complete - v0.6.0) ✅
+├── E31: Configuration Baselines & Drift Management (complete - v0.6.0) ✅
+├── E33: Content Repository & Lifecycle Management (complete - v0.6.0) ✅
+├── E34: Real-time Query Engine (complete - v0.6.0) ✅
+├── E38: Software Metering & License Tracking (complete - v0.6.0) ✅
 │
 ├── Next: Enterprise Auth (LDAP/AD, SSO/OIDC)
 ├── Next: Config Management (Ansible, DSC)
