@@ -25,6 +25,25 @@ type Raw = Record<string, unknown>;
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined);
 
 /**
+ * A row of a Linux agent before 0.5.42 for a not-found or failed unit: systemctl put a marker (● or *)
+ * in front of the unit, the agent took it as the name and every field moved one to the right -
+ * {name: "●", loadState: "auditd.service", activeState: "not-found", subState: "inactive",
+ * description: "dead auditd.service"}. Moved back here; rows of newer agents are returned as they are.
+ */
+function unshiftLinuxService(s: Raw): Raw {
+  const unit = text(s.loadState);
+  if (!unit?.endsWith(".service") || /[A-Za-z0-9]/.test(text(s.name) ?? "")) return s;
+  const [sub = "", ...description] = (text(s.description) ?? "").split(" ");
+  return {
+    name: unit.slice(0, -".service".length),
+    loadState: s.activeState,
+    activeState: s.subState,
+    subState: sub,
+    description: description.join(" "),
+  };
+}
+
+/**
  * The services of a node in one shape. Windows agent (SystemCollector, stored in system_current.services):
  * {total, running, services: [{name, displayName, state, startMode, startName, description}]}.
  * Linux agent (collect_services, stored in linux_data_current.services):
@@ -35,15 +54,18 @@ export function normalizeServices(windows: unknown, linux: unknown): NodeService
   const linuxData = linux && typeof linux === "object" ? (linux as Raw) : null;
   if (linuxData && Array.isArray(linuxData.services)) {
     const enabled = new Set(Array.isArray(linuxData.enabledServices) ? (linuxData.enabledServices as string[]) : []);
-    return (linuxData.services as Raw[]).map((s) => {
+    return (linuxData.services as Raw[]).map((raw) => {
+      const s = unshiftLinuxService(raw);
       const active = text(s.activeState) ?? "";
       const sub = text(s.subState);
+      const load = text(s.loadState);
       const name = text(s.name) ?? "?";
       return {
         name,
         description: text(s.description),
         state: active === "active" ? "running" : active === "failed" ? "failed" : active === "inactive" ? "stopped" : "other",
-        rawState: sub ? `${active} (${sub})` : active,
+        // a unit systemd only knows from a reference (not-found) or could not load: say so
+        rawState: (sub ? `${active} (${sub})` : active) + (load && load !== "loaded" ? `, ${load}` : ""),
         startType: enabled.size > 0 ? (enabled.has(name) ? "enabled" : "disabled") : undefined,
       };
     });
