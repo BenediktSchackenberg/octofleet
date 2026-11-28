@@ -22,7 +22,8 @@ export interface NodeVulnerability {
   packages?: string[];
   fixed_version?: string | null;
   fix_status?: "fixed" | "none" | "unknown";
-  nodes?: string[];
+  /** Fleet views: the number of nodes the CVE affects. */
+  affected_nodes?: number;
   /** Microsoft reports the CVE as exploited (Windows itself, MSRC). */
   exploited?: boolean;
 }
@@ -372,7 +373,7 @@ export function UpdateCves({ unit, version }: { unit: string; version: string })
             <TableHead className="text-right">CVSS</TableHead>
             <TableHead>{t("nodes.vulnerabilities.cvssVersion")}</TableHead>
             <TableHead>{t("nodes.vulnerabilities.fixedIn")}</TableHead>
-            <TableHead>{t("nodes.vulnerabilities.nodesColumn")}</TableHead>
+            <TableHead className="text-right">{t("nodes.vulnerabilities.nodesColumn")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -383,11 +384,7 @@ export function UpdateCves({ unit, version }: { unit: string; version: string })
               <TableCell className="text-right font-mono"><CvssScore score={v.cvss_score} vector={v.cvss_vector} version={false} /></TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground" title={v.cvss_vector || undefined}>{cvssVersionLabel(v.cvss_vector)?.slice(1) ?? "-"}</TableCell>
               <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
-              <TableCell className="text-sm">
-                {(v.nodes || []).map((node) => (
-                  <Link key={node} href={nodeVulnerabilitiesHref(node, { unit, version })} className="mr-2 text-blue-400 hover:underline">{node}</Link>
-                ))}
-              </TableCell>
+              <TableCell className="text-sm text-right tabular-nums">{v.affected_nodes ?? "-"}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -395,6 +392,62 @@ export function UpdateCves({ unit, version }: { unit: string; version: string })
       {rows.length > shown && (
         <Button variant="outline" size="sm" onClick={() => setShown(shown + PAGE_SIZE)}>
           {t("nodes.vulnerabilities.showMore", { count: Math.min(PAGE_SIZE, rows.length - shown), remaining: rows.length - shown })}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+interface UpdateNode { node_id: string; hostname: string; os_name: string | null; os_version: string | null; cves: number }
+const NODES_PAGE = 50;
+
+/** The nodes one update's CVEs affect (vulnerabilities page, "by software"), a page at a time; each
+ *  opens the node's Vulnerabilities tab on this update. */
+export function UpdateNodes({ unit, version }: { unit: string; version: string }) {
+  const { t } = useI18n();
+  const [nodes, setNodes] = useState<UpdateNode[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const load = async (offset: number) => {
+    setLoading(true);
+    const res = await apiClient.get<{ total: number; nodes: UpdateNode[] }>(
+      `/vulnerabilities/by-software/nodes?unit=${encodeURIComponent(unit)}&unit_version=${encodeURIComponent(version)}&limit=${NODES_PAGE}&offset=${offset}`,
+      { showErrorToast: false });
+    setLoading(false);
+    if (!res) { setFailed(true); return; }
+    setTotal(res.total);
+    setNodes((prev) => offset === 0 ? res.nodes : [...prev, ...res.nodes]);
+  };
+  useEffect(() => { load(0); }, [unit, version]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (failed) return <p className="text-sm text-muted-foreground">{t("nodes.vulnerabilities.error")}</p>;
+  if (total === null) return <p className="text-sm text-muted-foreground animate-pulse">{t("nodes.vulnerabilities.loading")}</p>;
+  const remaining = total - nodes.length;
+  return (
+    <div className="space-y-2">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("nodes.vulnerabilities.updateNodes", { count: total })}</h4>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("nodes.vulnerabilities.nodesColumn")}</TableHead>
+            <TableHead>OS</TableHead>
+            <TableHead className="text-right">{t("nodes.vulnerabilities.updateNodeCves")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {nodes.map((n) => (
+            <TableRow key={n.node_id}>
+              <TableCell><Link href={nodeVulnerabilitiesHref(n.hostname, { unit, version })} className="text-blue-400 hover:underline">{n.hostname}</Link></TableCell>
+              <TableCell className="text-sm text-muted-foreground">{[n.os_name, n.os_version].filter(Boolean).join(" ") || "-"}</TableCell>
+              <TableCell className="text-sm text-right tabular-nums">{n.cves}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {remaining > 0 && (
+        <Button variant="outline" size="sm" disabled={loading} onClick={() => load(nodes.length)}>
+          {loading && <Loader2 className="animate-spin" />}
+          {t("nodes.vulnerabilities.moreNodes", { count: Math.min(NODES_PAGE, remaining), remaining })}
         </Button>
       )}
     </div>
