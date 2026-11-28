@@ -28,7 +28,7 @@ export default function FileAuditPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-[1920px] mx-auto p-6">
-<div className="flex items-center gap-3 mb-6"><FileSearch className="h-8 w-8 text-green-400" /><div><h1 className="text-2xl font-bold">File & Document Audit</h1><p className="text-zinc-400 text-sm">{total.toLocaleString()} file events — who changed what, when</p></div></div>
+<div className="flex items-center gap-3 mb-6"><FileSearch className="h-8 w-8 text-green-400" /><div><h1 className="text-2xl font-bold">File & Document Audit</h1><p className="text-zinc-400 text-sm">{total.toLocaleString()} file events - who changed what, when</p></div></div>
         <div className="flex gap-3 mb-6 flex-wrap">
           <input placeholder="Search path..." value={filter.path} onChange={e => setFilter({...filter, path: e.target.value})} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm w-64" />
           <input placeholder="Node ID..." value={filter.node_id} onChange={e => setFilter({...filter, node_id: e.target.value})} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm w-48" />
@@ -49,9 +49,9 @@ export default function FileAuditPage() {
                 <td className={`p-3 font-mono text-xs font-bold ${opColors[e.op] || "text-zinc-400"}`}>{e.op}</td>
                 <td className="p-3 text-xs font-mono max-w-sm truncate">{e.path}</td>
                 <td className="p-3 text-xs">{e.node_id}</td>
-                <td className="p-3 text-xs">{e.user_id || "—"}</td>
-                <td className="p-3 text-xs text-zinc-500">{e.process_name || "—"}</td>
-                <td className="p-3 text-xs text-zinc-500">{e.file_size ? `${(e.file_size/1024).toFixed(1)} KB` : "—"}</td>
+                <td className="p-3 text-xs">{e.user_id || "-"}</td>
+                <td className="p-3 text-xs text-zinc-500">{e.process_name || "-"}</td>
+                <td className="p-3 text-xs text-zinc-500">{e.file_size ? `${(e.file_size/1024).toFixed(1)} KB` : "-"}</td>
               </tr>
             ))}</tbody>
           </table>

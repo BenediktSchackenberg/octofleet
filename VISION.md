@@ -1,4 +1,4 @@
-# VISION.md — Endpoint Management Platform
+# VISION.md - Endpoint Management Platform
 
 ## Projektname: Octofleet Endpoint Manager
 
@@ -6,12 +6,12 @@ Eine zentrale, webbasierte Endpoint-Management-Plattform für Windows und Linux.
 
 ## Core Features
 
-1. **Inventar & Telemetrie** — Hardware, Software, Patches, Security
-2. **Job-System** — Software-Installation, Scripts, Aktionen
-3. **Gruppen/Targets** — Statische + Dynamische Gruppen, Tags
-4. **Paketmanagement** — Multi-Source (Share/Internet), Detection Rules
-5. **Deployments** — Rollout-Steuerung, Maintenance Windows
-6. **Web UI** — Dashboard, Geräte, Gruppen, Pakete, Audit
+1. **Inventar & Telemetrie** - Hardware, Software, Patches, Security
+2. **Job-System** - Software-Installation, Scripts, Aktionen
+3. **Gruppen/Targets** - Statische + Dynamische Gruppen, Tags
+4. **Paketmanagement** - Multi-Source (Share/Internet), Detection Rules
+5. **Deployments** - Rollout-Steuerung, Maintenance Windows
+6. **Web UI** - Dashboard, Geräte, Gruppen, Pakete, Audit
 
 ## Architektur
 

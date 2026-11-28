@@ -1,5 +1,5 @@
 """
-E33: Content Repository & Lifecycle Management — MVP
+E33: Content Repository & Lifecycle Management - MVP
 """
 import json
 from datetime import datetime, timezone

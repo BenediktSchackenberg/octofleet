@@ -17,7 +17,7 @@
 ### A) Installation per HTTP Repository
 - [ ] HTTP-Endpoint (Repository) für Agent-Pakete existiert
 - [ ] Agent kann über HTTP heruntergeladen und installiert werden (GUI oder CLI)
-- [ ] Download ist integriert — keine manuellen Datei-Suchen
+- [ ] Download ist integriert - keine manuellen Datei-Suchen
 
 ### B) Vorkonfigurierte Config wird automatisch geschrieben
 - [ ] Gültige UTF-8 `C:\ProgramData\Octofleet\service-config.json` wird erstellt
@@ -36,7 +36,7 @@
 - [ ] Token-Schutz (HTTPS + Zugriffsschutz ODER kurzlebige Enroll-Tokens)
 
 ### E) Rollout-Varianten (mindestens eine)
-- [ ] **Variante 1:** Bootstrapper — kleines Setup zieht Installer + Config
+- [ ] **Variante 1:** Bootstrapper - kleines Setup zieht Installer + Config
 - [ ] **Variante 2:** MSI mit Parametern (`GATEWAY_URL=... TOKEN=...`)
 - [ ] **Variante 3:** ZIP-Bundle mit Install-Skript
 

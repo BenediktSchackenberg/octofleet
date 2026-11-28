@@ -713,7 +713,7 @@ export default function JobsPage() {
                         <span className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-300">{job.commandType}</span>
                       </td>
                       <td className="px-4 py-3 text-zinc-300">
-                        {job.targetType === "all" ? t("jobsPage.create.targetAll") : (job.targetName && job.targetName !== "—" ? job.targetName : job.targetType)}
+                        {job.targetType === "all" ? t("jobsPage.create.targetAll") : (job.targetName && job.targetName !== "-" ? job.targetName : job.targetType)}
                       </td>
                       <td className="px-4 py-3"><SummaryBar summary={job.summary} /></td>
                       <td className="px-4 py-3 text-zinc-400 text-sm">{formatDateTime(job.createdAt)}</td>

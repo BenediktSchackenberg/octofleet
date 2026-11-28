@@ -66,7 +66,7 @@ interface ScopeEntry {
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string | null) {
-  if (!dateStr) return "—";
+  if (!dateStr) return "-";
   return formatDateTime(dateStr, {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
@@ -326,7 +326,7 @@ function UsersTab({ users, roles, refresh }: { users: User[]; roles: Role[]; ref
                       {user.isSuperuser && <Badge variant="default" className="ml-2">Super</Badge>}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{user.email || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{user.email || "-"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {user.roles.map(r => <Badge key={r} variant="default" className="text-xs">{r}</Badge>)}
@@ -409,7 +409,7 @@ function UserDetailPanel({ user, roles, refresh, assignRole, removeRole }: {
       <div className="mt-6 space-y-6">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div><span className="text-muted-foreground">Username</span><p className="font-medium">@{user.username}</p></div>
-          <div><span className="text-muted-foreground">Email</span><p className="font-medium">{user.email || "—"}</p></div>
+          <div><span className="text-muted-foreground">Email</span><p className="font-medium">{user.email || "-"}</p></div>
           <div><span className="text-muted-foreground">Status</span><p>{user.isActive ? "Active" : "Disabled"}</p></div>
           <div><span className="text-muted-foreground">Created</span><p>{formatDate(user.createdAt)}</p></div>
           <div><span className="text-muted-foreground">Last Login</span><p>{formatDate(user.lastLogin)}</p></div>

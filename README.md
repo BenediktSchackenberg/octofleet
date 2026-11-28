@@ -29,13 +29,13 @@
 
 ## 🎯 Why Octofleet?
 
-- **🚀 5-Minute Setup** — Docker Compose up and you're running
-- **💯 100% Self-Hosted** — Your data stays on your infrastructure
-- **🔓 Fully Open Source** — No license fees, no vendor lock-in
-- **🪶 Lightweight Agents** — < 20MB footprint, minimal resource usage
-- **🔌 API-First** — 509 endpoints accessible via REST API
-- **🌐 Cross-Platform** — Windows and Linux support
-- **🌙 Dark Mode** — Full dark mode across all pages
+- **🚀 5-Minute Setup** - Docker Compose up and you're running
+- **💯 100% Self-Hosted** - Your data stays on your infrastructure
+- **🔓 Fully Open Source** - No license fees, no vendor lock-in
+- **🪶 Lightweight Agents** - < 20MB footprint, minimal resource usage
+- **🔌 API-First** - 509 endpoints accessible via REST API
+- **🌐 Cross-Platform** - Windows and Linux support
+- **🌙 Dark Mode** - Full dark mode across all pages
 
 ---
 
@@ -48,7 +48,7 @@
 ### 📊 Inventory & Monitoring
 - Real-time fleet dashboard with hotspot matrix
 - Hardware inventory (CPU, RAM, Disks, Network)
-- **Hardware Fleet Dashboard** — CPU/disk/storage aggregation, disk health monitoring, physical disk inventory
+- **Hardware Fleet Dashboard** - CPU/disk/storage aggregation, disk health monitoring, physical disk inventory
 - Software inventory with version tracking
 - Performance monitoring with heat intensity visualization
 - Process and network monitoring
@@ -73,11 +73,11 @@
 - **Security Center** with dedicated pages for monitoring, findings, and forensics
 - Vulnerability scanning (NVD for Windows applications, OSV for Linux packages) + fleet-wide aggregation
 - Auto-remediation of vulnerable Windows applications (winget/Chocolatey) – [docs/REMEDIATION.md](docs/REMEDIATION.md)
-- **File audit** — real-time monitoring (Windows + Linux)
-- **Behavior rules** — threshold, pattern & time-based detection
-- **Findings & risk scoring** — auto-generated, severity-weighted
-- **Config posture snapshots** — baseline drift detection
-- **Activity dashboards** — file & user activity, after-hours alerts
+- **File audit** - real-time monitoring (Windows + Linux)
+- **Behavior rules** - threshold, pattern & time-based detection
+- **Findings & risk scoring** - auto-generated, severity-weighted
+- **Config posture snapshots** - baseline drift detection
+- **Activity dashboards** - file & user activity, after-hours alerts
 - **Evidence export** & retention / legal hold
 - Role-based access control (RBAC) + UI audit logging
 
@@ -85,57 +85,57 @@
 <td width="50%">
 
 ### 🩹 Patch & Update Management
-- **Patch catalog** — centralized KB/update registry
-- **Patch rings** — Canary → Pilot → Broad rollout strategy
-- **Deployment wizard** — create, schedule, pause, resume, cancel
-- **Compliance tracking** — per-node and fleet-wide
-- **Agent-side scanner** — `PatchScanner.cs` discovers missing Windows updates
-- **🆕 Patch Explorer** — file-explorer style tree view (OS → Nodes → Software → Updates)
-- **Live deployment progress** — real-time SSE streaming with per-node status indicators
-- **Deployment verification** — post-deploy scan to confirm updates were applied
-- **Deployment history** — full audit trail of all patch deployments
+- **Patch catalog** - centralized KB/update registry
+- **Patch rings** - Canary → Pilot → Broad rollout strategy
+- **Deployment wizard** - create, schedule, pause, resume, cancel
+- **Compliance tracking** - per-node and fleet-wide
+- **Agent-side scanner** - `PatchScanner.cs` discovers missing Windows updates
+- **🆕 Patch Explorer** - file-explorer style tree view (OS → Nodes → Software → Updates)
+- **Live deployment progress** - real-time SSE streaming with per-node status indicators
+- **Deployment verification** - post-deploy scan to confirm updates were applied
+- **Deployment history** - full audit trail of all patch deployments
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-### 📐 Configuration Baselines — NEW in v0.6.0!
+### 📐 Configuration Baselines - NEW in v0.6.0!
 - **CIS benchmark templates** (Win Server 2022/2025, Win 11)
-- **Baseline rules** — registry, service, security policy checks
-- **Drift detection** — automatic evaluation with drift events
-- **Auto-remediation** — fix drifted settings automatically
+- **Baseline rules** - registry, service, security policy checks
+- **Drift detection** - automatic evaluation with drift events
+- **Auto-remediation** - fix drifted settings automatically
 - **Compliance dashboard** with trend charts
 
 </td>
 <td width="50%">
 
-### 📦 Content Lifecycle — NEW in v0.6.0!
-- **Repository management** — APT, YUM, Chocolatey, NuGet, WinGet, Generic
-- **Content snapshots** — freeze repository state at a point in time
-- **Environment pipeline** — Dev → Test → Prod promotion
-- **Promotion & rollback** — advance or revert environments
-- **Snapshot diff** — compare any two snapshots
+### 📦 Content Lifecycle - NEW in v0.6.0!
+- **Repository management** - APT, YUM, Chocolatey, NuGet, WinGet, Generic
+- **Content snapshots** - freeze repository state at a point in time
+- **Environment pipeline** - Dev → Test → Prod promotion
+- **Promotion & rollback** - advance or revert environments
+- **Snapshot diff** - compare any two snapshots
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-### 🔍 Real-time Query Engine — NEW in v0.6.0!
+### 🔍 Real-time Query Engine - NEW in v0.6.0!
 - **DSL-to-SQL query builder** with visual WHERE clause builder
 - **22 queryable tables** across fleet, software, security, metrics, events
 - **18 pre-built templates** for common fleet questions
-- **Live agent queries** — processes, services, open ports in real-time
+- **Live agent queries** - processes, services, open ports in real-time
 - **CSV export** for external analysis
 
 </td>
 <td width="50%">
 
-### 📊 Software Metering & Licenses — NEW in v0.6.0!
+### 📊 Software Metering & Licenses - NEW in v0.6.0!
 - **Software catalog** with auto-discovery from fleet inventory
-- **License compliance** — per-device, per-user, site, enterprise
-- **Normalization rules** — map name variations to catalog entries
+- **License compliance** - per-device, per-user, site, enterprise
+- **Normalization rules** - map name variations to catalog entries
 - **Usage tracking** & reclamation candidates
 - **True-up reports** for license reconciliation
 
@@ -147,22 +147,22 @@
 ### 🖥️ Remote Access & UX
 - **Screen mirroring (live view)**
 - Remote terminal in browser
-- **Agent Activity Monitor** — real-time SSE feed
-- **Command Palette (Ctrl+K)** — instant node search & navigation
-- **Mega Dropdown Navigation** — 2-column Security & Compliance mega menu
-- **Dark Mode** — full dark mode across all pages
+- **Agent Activity Monitor** - real-time SSE feed
+- **Command Palette (Ctrl+K)** - instant node search & navigation
+- **Mega Dropdown Navigation** - 2-column Security & Compliance mega menu
+- **Dark Mode** - full dark mode across all pages
 - Discord alert notifications
 
 </td>
 <td width="50%">
 
 ### 🔌 Zero-Touch Provisioning
-- **PXE boot** — No USB/ISO needed
-- **WinPE deployment** — Full automation
-- **VirtIO support** — KVM/QEMU ready
-- **Multi-VLAN** — Tentacle relay architecture
-- **Driver injection** — Auto hardware detection
-- **Linux PXE** — Ubuntu 22.04/24.04 via NFS
+- **PXE boot** - No USB/ISO needed
+- **WinPE deployment** - Full automation
+- **VirtIO support** - KVM/QEMU ready
+- **Multi-VLAN** - Tentacle relay architecture
+- **Driver injection** - Auto hardware detection
+- **Linux PXE** - Ubuntu 22.04/24.04 via NFS
 
 </td>
 </tr>
@@ -190,9 +190,9 @@
 <td width="50%">
 
 ### 📊 Reports & Exports
-- **PDF Reports** — Fleet Summary, Security, Inventory
-- **Excel/CSV/JSON exports** — For all data types
-- **Date range filtering** — 7d/30d/90d presets
+- **PDF Reports** - Fleet Summary, Security, Inventory
+- **Excel/CSV/JSON exports** - For all data types
+- **Date range filtering** - 7d/30d/90d presets
 - Report Generator page (`/reports`)
 
 </td>
@@ -234,7 +234,7 @@ Open http://localhost:3000 and log in as `admin` with `ADMIN_PASSWORD`, or with 
 
 ### Option 2: Install Agent
 
-**Windows (PowerShell as Admin — one-liner):**
+**Windows (PowerShell as Admin - one-liner):**
 ```powershell
 irm https://github.com/BenediktSchackenberg/octofleet/releases/latest/download/Install-OctofleetAgent.ps1 | iex
 ```
@@ -293,7 +293,7 @@ API_KEY="your-api-key"
                       │ REST API
 ┌─────────────────────▼───────────────────────────────────────┐
 │                        Backend                               │
-│            (FastAPI + Python 3.12 — 22 Routers)            │
+│            (FastAPI + Python 3.12 - 22 Routers)            │
 │              509 endpoints · localhost:8080                 │
 └─────────────────────┬───────────────────────────────────────┘
                       │ SQL
@@ -437,7 +437,7 @@ See the [Enterprise Roadmap](docs/ROADMAP-ENTERPRISE.md) and [public roadmap](..
 - E33 Content Repository & Lifecycle Management
 - E34 Real-time Query Engine
 - E38 Software Metering & License Tracking
-- E42 Patch Explorer — Tree-based fleet update management with live progress & verification
+- E42 Patch Explorer - Tree-based fleet update management with live progress & verification
 
 ### 🔜 Upcoming
 - macOS Agent
@@ -453,7 +453,7 @@ See the [Enterprise Roadmap](docs/ROADMAP-ENTERPRISE.md) and [public roadmap](..
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 

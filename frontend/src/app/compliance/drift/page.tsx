@@ -121,8 +121,8 @@ export default function DriftEvents() {
               <TableBody>
                 {events.map((ev) => (
                   <TableRow key={ev.id} className="dark:border-zinc-700">
-                    <TableCell className="dark:text-white">{ev.baseline_name || "—"}</TableCell>
-                    <TableCell className="dark:text-gray-300">{ev.rule_name || "—"}</TableCell>
+                    <TableCell className="dark:text-white">{ev.baseline_name || "-"}</TableCell>
+                    <TableCell className="dark:text-gray-300">{ev.rule_name || "-"}</TableCell>
                     <TableCell className="dark:text-gray-300 font-mono text-xs">{ev.node_id?.toString().slice(0, 8)}...</TableCell>
                     <TableCell>
                       <Badge className={`${severityColor[ev.severity] || "bg-gray-500"} text-white text-xs`}>{severityLabel(ev.severity)}</Badge>

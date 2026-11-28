@@ -79,8 +79,8 @@ export default function PatchCatalogPage() {
               <tr key={n.node_id} className="border-b border-border">
                 <td className="p-2 text-foreground">{n.hostname || n.node_id}</td>
                 <td className="p-2 flex items-center gap-1">{statusIcon(n.status)} {n.status}</td>
-                <td className="p-2 text-muted-foreground text-xs">{n.detected_at ? new Date(n.detected_at).toLocaleDateString() : '—'}</td>
-                <td className="p-2 text-muted-foreground text-xs">{n.installed_at ? new Date(n.installed_at).toLocaleDateString() : '—'}</td>
+                <td className="p-2 text-muted-foreground text-xs">{n.detected_at ? new Date(n.detected_at).toLocaleDateString() : '-'}</td>
+                <td className="p-2 text-muted-foreground text-xs">{n.installed_at ? new Date(n.installed_at).toLocaleDateString() : '-'}</td>
                 <td className="p-2 text-red-400 text-xs">{n.error_message || ''}</td>
               </tr>
             ))}

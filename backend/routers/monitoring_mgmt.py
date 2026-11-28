@@ -633,7 +633,7 @@ async def get_agent_capabilities(node_id: str):
         # Try by node_id directly, then resolve hostname→UUID
         row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", node_id)
         if not row:
-            # Frontend sends UUID but agent registers with hostname — try reverse lookup
+            # Frontend sends UUID but agent registers with hostname - try reverse lookup
             resolved = await conn.fetchval("SELECT hostname FROM nodes WHERE id::text = $1", node_id)
             if resolved:
                 row = await conn.fetchrow("SELECT * FROM agent_capabilities WHERE node_id = $1", resolved)
@@ -991,7 +991,7 @@ async def get_aggregated_events(
     since: str = None, until: str = None,
     limit: int = 100, offset: int = 0
 ):
-    """Query aggregated (historical) event data — hourly buckets"""
+    """Query aggregated (historical) event data - hourly buckets"""
     pool = get_pool()
     async with pool.acquire() as conn:
         conditions = []

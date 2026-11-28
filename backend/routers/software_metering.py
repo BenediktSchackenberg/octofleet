@@ -389,7 +389,7 @@ async def compliance_summary(db: asyncpg.Pool = Depends(get_db)):
                 if total_lic > 0:
                     avg_cost = float(lic["cost"]) / total_lic
                     potential_savings += (total_lic - installed) * avg_cost
-                compliant  # don't double count — this is over_licensed
+                compliant  # don't double count - this is over_licensed
             else:
                 compliant += 1
 
@@ -613,7 +613,7 @@ async def submit_usage(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db))
 
 @router.get("/usage/reclaim", dependencies=[Depends(require_user_permission("nodes:read"))])
 async def reclaim_candidates(db: asyncpg.Pool = Depends(get_db)):
-    """Software unused >90 days that has active licenses — reclamation candidates."""
+    """Software unused >90 days that has active licenses - reclamation candidates."""
     async with db.acquire() as conn:
         rows = await conn.fetch("""
             SELECT c.id as catalog_id, c.canonical_name, c.publisher,

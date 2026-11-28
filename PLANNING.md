@@ -1,6 +1,6 @@
-# Octofleet System — Planungsdokument
+# Octofleet System - Planungsdokument
 
-> ⚠️ **STATUS: PLANNING** — Dieses Dokument beschreibt das Zielbild für das Inventory-System.
+> ⚠️ **STATUS: PLANNING** - Dieses Dokument beschreibt das Zielbild für das Inventory-System.
 
 ## 🎯 Zielbild
 

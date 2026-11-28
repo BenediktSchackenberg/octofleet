@@ -3,13 +3,13 @@ import { API_URL, getAuthHeaders } from "./helpers";
 
 test.describe("Reports Page UI", () => {
   test.beforeEach(async ({ page }) => {
-    // Uses global auth state from storageState — no manual login needed
+    // Uses global auth state from storageState - no manual login needed
     await page.goto("/reports", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1500);
   });
 
   test("should display reports page", async ({ page }) => {
-    // Check page title — new catalog-based reports page
+    // Check page title - new catalog-based reports page
     await expect(page.locator("h1")).toContainText("Report");
 
     // Check catalog or report list is visible

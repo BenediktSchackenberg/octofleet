@@ -17,9 +17,9 @@ featured: true
 
 Enterprise IT uses WDS (Windows Deployment Services) or SCCM for OS deployments. But these come with baggage:
 
-- 🏢 **WDS requires a Windows Server** — licensing, maintenance, another VM to babysit
-- 💰 **SCCM is expensive** — and complex enough to need its own admin
-- 🏠 **Overkill for homelabs** — you just want to spin up VMs, not manage infrastructure
+- 🏢 **WDS requires a Windows Server** - licensing, maintenance, another VM to babysit
+- 💰 **SCCM is expensive** - and complex enough to need its own admin
+- 🏠 **Overkill for homelabs** - you just want to spin up VMs, not manage infrastructure
 
 **Our goal:** Deploy Windows Server 2025 on KVM/QEMU VMs with zero human interaction. Click a button → wait 10 minutes → RDP into a fresh server.
 
@@ -60,7 +60,7 @@ Spoiler: We did it. Here's how.
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-The secret sauce? **Tentacles** — lightweight relay services that handle PXE in each network segment. No VLAN trunk magic, no broadcast flooding, just one tentacle per network.
+The secret sauce? **Tentacles** - lightweight relay services that handle PXE in each network segment. No VLAN trunk magic, no broadcast flooding, just one tentacle per network.
 
 ---
 
@@ -134,7 +134,7 @@ initrd http://192.168.0.5:9080/images/winpe/boot.wim
 boot
 ```
 
-This loads WinPE (Windows Preinstallation Environment) — a minimal Windows that runs entirely in RAM.
+This loads WinPE (Windows Preinstallation Environment) - a minimal Windows that runs entirely in RAM.
 
 ---
 
@@ -181,7 +181,7 @@ ping -n 5 127.0.0.1 >nul  :: Wait 5 seconds
 net use Z: \\192.168.0.5\images
 ```
 
-But wait — it still fails! Sometimes it works on the first try, sometimes after 30 seconds, sometimes after 5 minutes. What gives?
+But wait - it still fails! Sometimes it works on the first try, sometimes after 30 seconds, sometimes after 5 minutes. What gives?
 
 ### Challenge 3: The 3-5 Minute SMB Mystery
 
@@ -307,11 +307,11 @@ Track all active deployments with real-time progress:
 
 Click a button, fill in the details, deploy:
 
-- **Hostname** — what to call the new server
-- **MAC Address** — how to identify it (or auto-detect)
-- **Operating System** — pick from available images
-- **Network** — DHCP or static IP
-- **Options** — install agent, enable RDP, join domain
+- **Hostname** - what to call the new server
+- **MAC Address** - how to identify it (or auto-detect)
+- **Operating System** - pick from available images
+- **Network** - DHCP or static IP
+- **Options** - install agent, enable RDP, join domain
 
 ### Unknown MAC Detection
 
@@ -340,7 +340,7 @@ When a device PXE boots without a job, we catch it:
 
 Real networks have VLANs. PXE broadcasts don't cross VLAN boundaries (unless you configure IP helpers, which is fragile).
 
-Our solution: **Tentacles** — small services that run in each network segment.
+Our solution: **Tentacles** - small services that run in each network segment.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -406,20 +406,20 @@ What we gained:
 
 ## Key Takeaways
 
-1. **ProxyDHCP is your friend** — coexist with existing DHCP, don't fight it
-2. **VirtIO drivers matter** — `vioscsi` for SCSI, `viostor` for IDE (know your storage)
-3. **SMB in WinPE is weird** — `net start lanmanserver` + retry loops
-4. **Samba DNS lookups kill performance** — `name resolve order = bcast host`
-5. **Automation needs retry loops** — networks are unreliable, embrace it
+1. **ProxyDHCP is your friend** - coexist with existing DHCP, don't fight it
+2. **VirtIO drivers matter** - `vioscsi` for SCSI, `viostor` for IDE (know your storage)
+3. **SMB in WinPE is weird** - `net start lanmanserver` + retry loops
+4. **Samba DNS lookups kill performance** - `name resolve order = bcast host`
+5. **Automation needs retry loops** - networks are unreliable, embrace it
 
 ---
 
 ## What's Next
 
-- **Autounattend.xml integration** — skip OOBE, set passwords, join domains
-- **Agent auto-enrollment** — newly deployed servers register themselves
-- **Linux support** — cloud-init for Ubuntu/Rocky Linux deployments
-- **Bare metal** — same workflow for physical servers
+- **Autounattend.xml integration** - skip OOBE, set passwords, join domains
+- **Agent auto-enrollment** - newly deployed servers register themselves
+- **Linux support** - cloud-init for Ubuntu/Rocky Linux deployments
+- **Bare metal** - same workflow for physical servers
 
 ---
 
@@ -427,10 +427,10 @@ What we gained:
 
 Everything is open source:
 
-- **Octofleet** — [github.com/BenediktSchackenberg/octofleet](https://github.com/BenediktSchackenberg/octofleet)
-- **VirtIO Drivers** — [github.com/virtio-win/virtio-win-pkg-scripts](https://github.com/virtio-win/virtio-win-pkg-scripts)
-- **iPXE** — [ipxe.org](https://ipxe.org)
-- **wimtools** — Linux WIM manipulation (`apt install wimtools`)
+- **Octofleet** - [github.com/BenediktSchackenberg/octofleet](https://github.com/BenediktSchackenberg/octofleet)
+- **VirtIO Drivers** - [github.com/virtio-win/virtio-win-pkg-scripts](https://github.com/virtio-win/virtio-win-pkg-scripts)
+- **iPXE** - [ipxe.org](https://ipxe.org)
+- **wimtools** - Linux WIM manipulation (`apt install wimtools`)
 
 ---
 

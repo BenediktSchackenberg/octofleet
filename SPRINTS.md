@@ -1,8 +1,8 @@
-# SPRINTS.md — Sprint Planning & History
+# SPRINTS.md - Sprint Planning & History
 
 ## Current Sprint
 
-### Sprint 1 — 2026-02-07 → 2026-02-14
+### Sprint 1 - 2026-02-07 → 2026-02-14
 **Theme: Polish & Stability**
 
 #### Goals
@@ -29,7 +29,7 @@
 ## Sprint Template
 
 ```markdown
-### Sprint X — YYYY-MM-DD → YYYY-MM-DD
+### Sprint X - YYYY-MM-DD → YYYY-MM-DD
 **Theme: [One-liner description]**
 
 #### Goals
@@ -52,7 +52,7 @@
 
 ## Sprint History
 
-### Sprint 0 — 2026-02-05 → 2026-02-07 (Pre-Planning Phase)
+### Sprint 0 - 2026-02-05 → 2026-02-07 (Pre-Planning Phase)
 **Theme: Foundation & Inventory System**
 
 #### Completed Tasks

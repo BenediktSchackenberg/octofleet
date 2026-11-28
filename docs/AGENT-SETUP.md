@@ -80,10 +80,10 @@ Create or edit `C:\ProgramData\Octofleet\service-config.json`:
 
 | Field | Description | Default | Required |
 |-------|-------------|---------|----------|
-| `InventoryApiUrl` | URL to the Octofleet backend API (no trailing slash) | — | **Yes** |
-| `InventoryApiKey` | API key for authenticating with the backend | — | **Yes** |
-| `GatewayUrl` | URL to the Octofleet Gateway (for remote access features) | — | No |
-| `GatewayToken` | Authentication token for the Gateway | — | No (required if GatewayUrl set) |
+| `InventoryApiUrl` | URL to the Octofleet backend API (no trailing slash) | - | **Yes** |
+| `InventoryApiKey` | API key for authenticating with the backend | - | **Yes** |
+| `GatewayUrl` | URL to the Octofleet Gateway (for remote access features) | - | No |
+| `GatewayToken` | Authentication token for the Gateway | - | No (required if GatewayUrl set) |
 | `DisplayName` | Display name for this node in the UI | Machine hostname | No |
 | `AutoStart` | Automatically start all agent services on launch | `true` | No |
 | `AutoPushInventory` | Push inventory data to backend on startup | `true` | No |
@@ -100,7 +100,7 @@ Between scheduled pushes, **Collect inventory** on the node page sends the agent
 
 #### `device-identity.json`
 
-This file is **auto-generated** on first run and contains the device's unique identity (cryptographic key pair). Do not edit or delete this file — it is used for secure device authentication.
+This file is **auto-generated** on first run and contains the device's unique identity (cryptographic key pair). Do not edit or delete this file - it is used for secure device authentication.
 
 #### Logs
 
@@ -295,8 +295,8 @@ LOG_LEVEL=info
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `API_URL` | URL to the Octofleet backend API | — | **Yes** |
-| `API_KEY` | API key for authentication | — | **Yes** |
+| `API_URL` | URL to the Octofleet backend API | - | **Yes** |
+| `API_KEY` | API key for authentication | - | **Yes** |
 | `NODE_ID` | Override node identifier | hostname | No |
 | `PUSH_INTERVAL` | Full inventory push interval (seconds). The push after the start comes a random 0–60 s after it, the first scheduled one at a random 50–150 % of the interval, then every interval ±10 %, so nodes started together do not push together. Jobs and *Collect inventory* push immediately. Older installs have `1800` in `config.env`, which stays (also when `install.sh` runs again) | `3600` | No |
 | `PUSH_RETRY_INTERVAL` | First retry of a failed inventory push (seconds), e.g. while the server is still starting after a reboot; doubles with every further failure up to `PUSH_INTERVAL`, plus 0–50 % random jitter so a large fleet does not retry in lockstep | `60` | No |
@@ -497,20 +497,20 @@ On Linux nodes, **Search for updates** and **Install updates** on the node's Upd
 
 ### Agent not appearing in the dashboard
 
-1. **Check the API URL** — must be reachable from the agent host:
+1. **Check the API URL** - must be reachable from the agent host:
    ```bash
    curl http://your-server:8080/health
    ```
-2. **Check the API key** — must match the key configured on the server (`API_KEY` in `docker-compose.yml`)
-3. **Check firewall** — port `8080` must be open between agent and server
-4. **Check logs** — look for authentication errors (401/403)
+2. **Check the API key** - must match the key configured on the server (`API_KEY` in `docker-compose.yml`)
+3. **Check firewall** - port `8080` must be open between agent and server
+4. **Check logs** - look for authentication errors (401/403)
 
 ### Agent polls but jobs stay "pending"
 
 - Linux agent: the log says `Long-poll active` when the server wakes the agent; `The server has no long-poll` means an older server (the agent then polls every minute)
 
 - Verify `InventoryApiUrl` and `InventoryApiKey` are set in `service-config.json`
-- The agent polls as `win-{hostname}` (lowercase) — the backend resolves this to the node UUID
+- The agent polls as `win-{hostname}` (lowercase) - the backend resolves this to the node UUID
 - Check backend logs for `GET /api/v1/jobs/pending/win-yourhost` requests
 
 ### "Invalid credentials" on first login

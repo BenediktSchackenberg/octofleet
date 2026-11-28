@@ -4,7 +4,7 @@
 # Collects inventory and pushes to the Octofleet API
 #
 set -u
-# Note: pipefail intentionally NOT set — it causes || fallbacks to
+# Note: pipefail intentionally NOT set - it causes || fallbacks to
 # duplicate output when grep/awk pipes have no matches (exit 1).
 
 # JSON numbers need "." as decimal separator, but awk (mawk) and printf follow

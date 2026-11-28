@@ -114,7 +114,7 @@ export function complianceBadge(status?: string) {
 }
 
 export function formatCurrency(amount: number | null, currency = "EUR") {
-  if (amount == null) return "—";
+  if (amount == null) return "-";
   return new Intl.NumberFormat(localeTag(), { style: "currency", currency }).format(amount);
 }
 

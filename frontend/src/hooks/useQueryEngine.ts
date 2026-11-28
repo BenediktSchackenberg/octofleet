@@ -173,7 +173,7 @@ export function cronToHuman(cron: string): string {
 }
 
 export function formatTime(iso?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleString();
 }
 

@@ -132,7 +132,7 @@ function RoleBanner({ role, onSwitch }: { role: DashboardRole; onSwitch: (r: Das
 // ─── Admin Dashboard ─────────────────────────────────────────────────
 
 function AdminDashboard() {
-  // Admin renders the existing full dashboard passed as children — see RoleDashboard
+  // Admin renders the existing full dashboard passed as children - see RoleDashboard
   return null;
 }
 
@@ -229,7 +229,7 @@ function AuditorDashboard() {
     id: e.id || String(i),
     icon: ClipboardCheck,
     description: `${e.event_type}: ${e.subject}`,
-    timestamp: e.timestamp ? new Date(e.timestamp).toLocaleString() : "—",
+    timestamp: e.timestamp ? new Date(e.timestamp).toLocaleString() : "-",
   }));
 
   return (

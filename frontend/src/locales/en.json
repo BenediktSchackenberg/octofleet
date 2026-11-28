@@ -700,7 +700,7 @@
   },
   "vulnerabilitiesPage": {
     "title": "Vulnerability Dashboard",
-    "description": "CVE tracking for installed software — data from NVD and OSV",
+    "description": "CVE tracking for installed software - data from NVD and OSV",
     "scan": "Start scan",
     "scanning": "Scanning…",
     "errorLoad": "The vulnerability data could not be loaded.",

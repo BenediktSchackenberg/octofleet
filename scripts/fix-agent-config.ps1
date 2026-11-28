@@ -1,4 +1,4 @@
-# Fix OctoFleet Agent Config — run on each Windows node as Administrator
+# Fix OctoFleet Agent Config - run on each Windows node as Administrator
 # Usage: Run this in an elevated PowerShell prompt
 
 $ApiUrl = "http://192.168.0.49:8080"

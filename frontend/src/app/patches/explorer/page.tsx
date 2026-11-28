@@ -1230,7 +1230,7 @@ function WelcomePanel({ stats }: { stats: StatsData | null }) {
     <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
       <TreePine className="w-12 h-12 text-emerald-500/30 mb-4" />
       <h2 className="text-xl font-semibold text-zinc-200 mb-2">Patch Explorer</h2>
-      <p className="text-sm text-zinc-500 mb-8 max-w-sm">Browse your fleet by OS, select nodes and updates, then deploy patches — all from one place.</p>
+      <p className="text-sm text-zinc-500 mb-8 max-w-sm">Browse your fleet by OS, select nodes and updates, then deploy patches - all from one place.</p>
 
       {stats && (
         <div className="flex items-center gap-8">

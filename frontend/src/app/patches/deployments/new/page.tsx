@@ -111,7 +111,7 @@ export default function NewDeploymentPage() {
             <select value={selectedRing} onChange={e => setSelectedRing(e.target.value)}
               className="w-full px-3 py-2 bg-card border border-border rounded-lg text-foreground">
               <option value="">All Nodes</option>
-              {rings.map(r => <option key={r.id} value={r.id}>{r.name}{r.description ? ` — ${r.description}` : ''}</option>)}
+              {rings.map(r => <option key={r.id} value={r.id}>{r.name}{r.description ? ` - ${r.description}` : ''}</option>)}
             </select>
           </div>
           <div>

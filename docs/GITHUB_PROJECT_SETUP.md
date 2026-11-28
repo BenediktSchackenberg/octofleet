@@ -1,4 +1,4 @@
-# GitHub Project Board Setup — Anleitung
+# GitHub Project Board Setup - Anleitung
 
 ## 1. Project erstellen (30 Sekunden)
 

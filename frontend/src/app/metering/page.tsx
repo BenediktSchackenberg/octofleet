@@ -208,7 +208,7 @@ export default function SoftwareMeteringPage() {
                       </div>
                     ))}
                     {(!dashboard.top_unused || dashboard.top_unused.length === 0) && (
-                      <p className="text-sm text-zinc-600 text-center py-4">No usage data yet — agents need to report</p>
+                      <p className="text-sm text-zinc-600 text-center py-4">No usage data yet - agents need to report</p>
                     )}
                   </div>
                 </div>
@@ -311,10 +311,10 @@ export default function SoftwareMeteringPage() {
                     {filteredCatalog.map((c) => (
                       <tr key={c.id} className="hover:bg-zinc-800/30">
                         <td className="px-4 py-2.5 text-zinc-200 font-medium">{catName(c)}</td>
-                        <td className="px-4 py-2.5 text-zinc-400">{c.publisher || "—"}</td>
+                        <td className="px-4 py-2.5 text-zinc-400">{c.publisher || "-"}</td>
                         <td className="px-4 py-2.5"><span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded">{c.category}</span></td>
-                        <td className="px-4 py-2.5 text-center font-mono">{catNodes(c) ?? "—"}</td>
-                        <td className="px-4 py-2.5 text-center font-mono">{catLicenses(c) ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-center font-mono">{catNodes(c) ?? "-"}</td>
+                        <td className="px-4 py-2.5 text-center font-mono">{catLicenses(c) ?? "-"}</td>
                         <td className="px-4 py-2.5 text-center">{complianceBadge(catCompliance(c))}</td>
                         <td className="px-4 py-2.5 text-right">
                           <button onClick={() => { setEditingCatalog(c); setCatalogForm({ canonical_name: catName(c), publisher: c.publisher || "", category: c.category, notes: c.notes || "" }); setShowCatalogForm(true); }} className="text-zinc-500 hover:text-zinc-300 p-1"><Edit className="h-3.5 w-3.5" /></button>
@@ -390,10 +390,10 @@ export default function SoftwareMeteringPage() {
                       <td className="px-4 py-2.5 text-zinc-200">{l.catalog_name || l.catalog_id}</td>
                       <td className="px-4 py-2.5"><span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded">{l.license_type}</span></td>
                       <td className="px-4 py-2.5 text-center font-mono">{l.total_licenses ?? "∞"}</td>
-                      <td className="px-4 py-2.5 text-center font-mono">{l.installed_count ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-center font-mono">{l.installed_count ?? "-"}</td>
                       <td className="px-4 py-2.5 text-right font-mono">{formatCurrency(l.cost_per_license, l.currency)}</td>
-                      <td className="px-4 py-2.5 text-zinc-400">{l.vendor || "—"}</td>
-                      <td className="px-4 py-2.5 text-zinc-400">{l.expires_at ? new Date(l.expires_at).toLocaleDateString() : "—"}</td>
+                      <td className="px-4 py-2.5 text-zinc-400">{l.vendor || "-"}</td>
+                      <td className="px-4 py-2.5 text-zinc-400">{l.expires_at ? new Date(l.expires_at).toLocaleDateString() : "-"}</td>
                       <td className="px-4 py-2.5 text-right">
                         <button onClick={() => deleteLicense(l.id)} className="text-zinc-500 hover:text-red-400 p-1"><Trash2 className="h-3.5 w-3.5" /></button>
                       </td>
@@ -561,7 +561,7 @@ export default function SoftwareMeteringPage() {
                       <td className="px-4 py-2.5 text-zinc-200 font-medium">{r.name}</td>
                       <td className="px-4 py-2.5 text-center font-mono">{r.purchased ?? "∞"}</td>
                       <td className="px-4 py-2.5 text-center font-mono">{r.installed}</td>
-                      <td className="px-4 py-2.5 text-center font-mono">{r.used ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-center font-mono">{r.used ?? "-"}</td>
                       <td className="px-4 py-2.5 text-center">{complianceBadge(r.status)}</td>
                       <td className="px-4 py-2.5 text-right font-mono">{formatCurrency(r.total_cost)}</td>
                     </tr>

@@ -152,10 +152,10 @@ npx playwright test tests/dashboard.spec.ts
 
 ## Known Limitations
 
-1. **No visual regression testing** — Screenshots not compared
-2. **No E2E job execution test** — Would require running agent
-3. **No auth flow test** — No login UI implemented yet
-4. **API tests use hardcoded data** — Depends on existing DB state
+1. **No visual regression testing** - Screenshots not compared
+2. **No E2E job execution test** - Would require running agent
+3. **No auth flow test** - No login UI implemented yet
+4. **API tests use hardcoded data** - Depends on existing DB state
 
 ---
 

@@ -1,5 +1,5 @@
 """
-E36 Phase 1 — RBAC management endpoints:
+E36 Phase 1 - RBAC management endpoints:
   - Role CRUD (enhanced), scoped role assignments, audit log
 """
 from typing import List, Optional

@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS provisioning_events (
 
 ### 3. NFS Server (Required for Ubuntu)
 
-Ubuntu's casper live boot system **requires NFS** — HTTP `url=` does not work.
+Ubuntu's casper live boot system **requires NFS** - HTTP `url=` does not work.
 
 ```bash
 sudo apt install nfs-kernel-server
@@ -134,7 +134,7 @@ sudo apt install nfs-kernel-server
 sudo mkdir -p /mnt/ubuntu-24.04
 sudo mount -o loop /path/to/ubuntu-24.04-live-server-amd64.iso /mnt/ubuntu-24.04
 
-# Configure exports — insecure option is REQUIRED for PXE clients
+# Configure exports - insecure option is REQUIRED for PXE clients
 echo '/mnt/ubuntu-24.04 *(ro,sync,no_subtree_check,insecure)' | sudo tee -a /etc/exports
 sudo exportfs -ra
 ```
@@ -190,7 +190,7 @@ Or use the Octofleet web UI at `/provisioning`.
 2. Enter the target machine's **MAC address**
 3. Select a **template** (OS + config)
 4. Click **Create Task**
-5. Boot the target machine via PXE — it auto-picks up the assignment
+5. Boot the target machine via PXE - it auto-picks up the assignment
 
 ### Via API
 
