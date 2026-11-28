@@ -67,6 +67,15 @@ class QueryTests(unittest.TestCase):
         self.assertIn("LIMIT $2", CVE_SUGGESTIONS_SQL)
         self.assertNotIn("LIKE", CVE_SUGGESTIONS_SQL)
 
+    def test_suggestions_take_the_ids_first_then_their_details(self):
+        # the first `limit` distinct IDs come from the index and stop there; severity and score are
+        # read only for them (grouping every match of "CVE-2024" first read the whole prefix)
+        ids, details = CVE_SUGGESTIONS_SQL.split("LATERAL")
+        self.assertIn("SELECT DISTINCT cve_id", ids)
+        self.assertEqual(ids.count("LIMIT $2"), 3)  # each source, and the merged list
+        self.assertIn('cve_id COLLATE "C" = ids.cve_id', details)
+        self.assertNotIn("LIMIT", details)
+
 
 class FormatTests(unittest.TestCase):
     def test_unknown_cve(self):

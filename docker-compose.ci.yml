@@ -4,6 +4,7 @@
 services:
   db:
     image: timescale/timescaledb:latest-pg16
+    shm_size: 512mb  # as in docker-compose.yml: parallel queries need more than Docker's 64 MB
     environment:
       POSTGRES_USER: octofleet
       POSTGRES_PASSWORD: ci-test-password

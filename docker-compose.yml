@@ -20,6 +20,10 @@ services:
   db:
     image: timescale/timescaledb:latest-pg16
     container_name: octofleet-inventory-db
+    # Shared memory for parallel queries (/dev/shm). Docker's default of 64 MB is too small: a
+    # parallel hash join needs ~50 MB, and a second one fails with "could not resize shared memory
+    # segment ... No space left on device". Only used while a query needs it.
+    shm_size: 512mb
     logging: *logging
     environment:
       POSTGRES_USER: octofleet
