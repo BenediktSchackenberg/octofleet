@@ -4,20 +4,20 @@ import { API_URL, getAuthHeaders } from './helpers';
 // Dashboard: the first row answers "is my fleet safe and current?" - Critical threats (critical and
 // high as rows, each to the nodes with such CVEs) and Updates (nodes up to date, rows to the Fleet
 // updates page with that filter). The card header links share one style.
-test('Dashboard: Updates card and Critical threats rows link to the filtered pages', async ({ page, request }) => {
-  const headers = await getAuthHeaders();
-  const summary = await (await request.get(`${API_URL}/api/v1/patches/fleet/summary`, { headers })).json();
-
+test('Dashboard: Updates card and Critical threats rows link to the filtered pages', async ({ page }) => {
+  // one page load, so the summary below is the one the page shows: it is cached (stale-while-revalidate),
+  // and a separate request can get another value than the page while earlier specs change the fleet
+  await page.addInitScript(() => localStorage.setItem('locale', 'en'));
+  const summaryResponse = page.waitForResponse((r) => r.url().includes('/api/v1/patches/fleet/summary') && r.ok());
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => localStorage.setItem('locale', 'en'));
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  const summary = await (await summaryResponse).json();
 
   // Updates: up to date out of all nodes, the rows with the page's filters
   await expect(page.getByText('nodes up to date')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Show updates →' })).toHaveAttribute('href', '/patches/updates');
   const pending = page.locator('a[href="/patches/updates?pending=1"]');
   await expect(pending).toContainText('Pending updates');
-  await expect(pending).toContainText(String(summary.pending));
+  await expect(pending.locator('span.font-bold')).toHaveText(String(summary.pending));
   await expect(page.locator('a[href="/patches/updates?security=1"]')).toContainText('Security updates');
   await expect(page.locator('a[href="/patches/updates?reboot=1"]')).toContainText('Reboot needed');
 
