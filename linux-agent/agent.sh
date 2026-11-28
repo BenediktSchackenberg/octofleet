@@ -429,9 +429,14 @@ collect_software() {
     
     # Detect package manager and collect packages
     if command -v dpkg &>/dev/null; then
-        # Debian/Ubuntu - use jq to build proper JSON
-        packages=$(dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' 2>/dev/null | \
-            jq -R -s 'split("\n") | map(select(. != "") | split("\t") |
+        # Debian/Ubuntu - use jq to build proper JSON. dpkg-query -W lists every package dpkg knows,
+        # also removed ones whose configuration files are left (state rc: `apt remove` keeps them,
+        # only purge deletes them) - an old kernel removed years ago would count as installed, with
+        # its CVEs. Only packages with their files on disk are reported: the second letter of the
+        # status is i (installed), U (unpacked), F (half-configured) or W/t (triggers pending) -
+        # not c (configuration files only), n (not installed) or H (partly unpacked).
+        packages=$(dpkg-query -W -f='${db:Status-Abbrev}\t${Package}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' 2>/dev/null | \
+            jq -R -s 'split("\n") | map(select(. != "") | split("\t") | select(.[0][1:2] | test("^[iUFWt]$")) | .[1:] |
                 {name: .[0], version: .[1], architecture: .[2],
                  sourcePackage: (if .[3] == "" then .[0] else .[3] end),
                  sourceVersion: (if .[4] == "" then .[1] else .[4] end)})' 2>/dev/null || echo '[]')

@@ -47,6 +47,8 @@ jobs:
         run: bash tests/linux-agent/reboot.test.sh
       - name: Test the boot time and uptime in the inventory
         run: bash tests/linux-agent/system.test.sh
+      - name: Test the software list (only installed packages)
+        run: bash tests/linux-agent/software.test.sh
       - name: Test the services list (systemctl markers)
         run: bash tests/linux-agent/services.test.sh
       - name: Test the inventory push (numbers under mawk, broken sections, readable push errors)
