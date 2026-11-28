@@ -17,7 +17,7 @@ from vulnerability import (
     node_findings_sql,
 )
 
-NODE = {"id": uuid4(), "hostname": "app-server-01"}
+NODE = {"id": uuid4(), "hostname": "app-server-01", "os_name": "Ubuntu", "os_version": "24.04"}
 
 
 def cve(cve_id, rank, unit="openssl", packages=("libssl3",), fixed=None, exploited=False):

@@ -3,7 +3,7 @@
 import { useTabParam } from "@/hooks/useTabParam";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Loader2, AlertTriangle } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,8 +63,12 @@ interface WindowsUpdates {
   up_to_date?: boolean;
 }
 
+/** Whether the scan can check the node's OS release at all (Windows; Linux releases with an advisory source) */
+interface ScanSupport { supported: boolean | null; os: string | null }
+
 interface NodeVulnerabilityGroupsResponse {
   node: { id: string; hostname: string };
+  scan_support?: ScanSupport;
   groups: VulnerabilityGroup[];
   /** Older kernels installed but not running: not counted, so the API sends them without CVE counts */
   old_kernels?: { fix_unit: string; fix_unit_version: string; packages: string[] }[];
@@ -190,12 +194,13 @@ function severityFromUrl(): string {
 }
 
 /** Number of known vulnerabilities of a node, or null while loading or on error. */
+/** The node's CVE count for its tab label; "-" when the scan cannot check the node's release (0 would read as clean). */
 export function useNodeVulnerabilityCount(nodeId: string) {
-  const [count, setCount] = useState<number | null>(null);
+  const [count, setCount] = useState<number | "-" | null>(null);
   useEffect(() => {
     let active = true;
-    apiClient.get<NodeVulnerabilitiesResponse>(`/vulnerabilities/node/${encodeURIComponent(nodeId)}?limit=1`, { showErrorToast: false })
-      .then((d) => { if (active) setCount(d?.count ?? null); })
+    apiClient.get<NodeVulnerabilitiesResponse & { scan_support?: ScanSupport }>(`/vulnerabilities/node/${encodeURIComponent(nodeId)}?limit=1`, { showErrorToast: false })
+      .then((d) => { if (active) setCount(d?.scan_support?.supported === false ? "-" : d?.count ?? null); })
       .catch(() => { if (active) setCount(null); });
     return () => { active = false; };
   }, [nodeId]);
@@ -630,20 +635,29 @@ export function NodeVulnerabilities({ nodeId }: { nodeId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("nodes.vulnerabilities.title", { count: data?.count ?? 0 })}</CardTitle>
+        <CardTitle>{t("nodes.vulnerabilities.title", { count: data?.scan_support?.supported === false ? "-" : data?.count ?? 0 })}</CardTitle>
         <CardDescription>{t("nodes.vulnerabilities.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <ScanStatusBanner status={data?.scan} />
         <WindowsUpdatesNote state={data?.windows_updates} />
+        {/* a release the scan cannot check: no CVEs here would read as a clean node */}
+        {data?.scan_support?.supported === false && (
+          <p role="status" className="flex items-start gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-800 dark:text-yellow-300">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            {t("nodes.vulnerabilities.notScanned", { os: data.scan_support.os ?? "-" })}
+          </p>
+        )}
         {groups.failed ? (
           <p className="text-muted-foreground">{t("nodes.vulnerabilities.error")}</p>
         ) : !data ? (
           <p className="text-muted-foreground animate-pulse">{t("nodes.vulnerabilities.loading")}</p>
         ) : data.groups.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>{t("nodes.vulnerabilities.none")}</p>
-          </div>
+          data.scan_support?.supported === false ? null : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>{t("nodes.vulnerabilities.none")}</p>
+            </div>
+          )
         ) : (
           <>
             <div className="flex gap-2">

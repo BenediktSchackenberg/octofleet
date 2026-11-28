@@ -29,6 +29,7 @@ from vulnerability import (
     get_update_vulnerabilities,
     normalize_cve_id,
     normalize_cve_prefix,
+    not_scanned_releases,
     osv_cache_status,
     run_vulnerability_scan,
     verify_osv_cache,
@@ -107,7 +108,9 @@ async def vulnerability_summary_route():
     `cache.pending_nodes`: nodes waiting for a rebuild). The scan status is live."""
     async with get_pool().acquire() as conn:
         return {**await get_scan_status(conn), **await vulnerability_cache.fleet_summary(conn),
-                "cache": await vulnerability_cache.status(conn)}
+                "cache": await vulnerability_cache.status(conn),
+                # releases the scan cannot check: their nodes have no CVEs because nothing was checked
+                "not_scanned": await not_scanned_releases(conn)}
 
 
 @router.get("/api/v1/vulnerabilities/summary/status", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
