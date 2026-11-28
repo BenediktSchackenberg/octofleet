@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui-components";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Check, X, Clock, Monitor, LayoutGrid, List, Plus, Server, FolderTree } from "lucide-react";
+import { Check, X, Clock, Monitor, LayoutGrid, List, Plus, Server, FolderTree, Tag as TagIcon } from "lucide-react";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { StandardPage } from "@/components/ui/StandardPage";
 import { NodeRemovalStatus } from "@/components/node-removal";
@@ -15,6 +15,7 @@ import { useFleetTree } from "@/components/fleet/FleetTree";
 import { STATUS_DOT, STATUS_LABEL, STATUS_VARIANT, statusFromSearch, statusToUrl, type NodeStatus } from "@/lib/node-status";
 import { ALL_NODES, rememberNodesList, scopeLabel as labelOfScope, scopeNodeIds } from "@/lib/fleet-scope";
 import { DEFAULT_DIR, NODE_SORTS, sortFromSearch, sortNodes, sortToUrl, type NodeSort, type SortDir } from "@/lib/node-sort";
+import { BulkActionsBar, TagChips, type TagInfo } from "@/components/nodes-bulk-actions";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
@@ -36,6 +37,7 @@ interface Node {
   health_status?: 'healthy' | 'warning' | 'critical';
   alert_count?: number;
   removal_state?: 'uninstall_pending' | 'uninstall_failed' | 'uninstalled' | null;
+  tags?: TagInfo[];
 }
 
 interface PendingNode {
@@ -183,6 +185,8 @@ export default function NodesPage() {
   const [search, setSearch] = useState("");
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
+  // Nodes picked for a bulk action (list view), by UUID; only those still shown count
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
     if (typeof window !== "undefined") return (localStorage.getItem("octofleet-nodes-view") as "list" | "grid") || "grid";
     return "grid";
@@ -280,6 +284,13 @@ export default function NodesPage() {
   // ?status=online|away|offline - from the dashboard's Fleet status card
   const searchParams = useSearchParams();
   const statusFilter = statusFromSearch(searchParams.toString());
+  // ?tag=name - from the tags on the Groups page
+  const tagFilter = searchParams.get("tag");
+  const clearTag = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("tag");
+    window.history.pushState(null, "", url.toString());
+  };
   const clearStatus = () => window.history.pushState(null, "", statusToUrl(window.location.href, null));
   const inScope = useMemo(() => scopeNodeIds(tree, scope), [tree, scope]);
   const scopedNodes = inScope ? nodes.filter((n) => inScope.has(n.node_id)) : nodes;
@@ -292,16 +303,27 @@ export default function NodesPage() {
     (node) => {
       const matchesSearch = node.hostname.toLowerCase().includes(search.toLowerCase()) ||
         node.node_id.toLowerCase().includes(search.toLowerCase()) ||
-        (node.os_name && node.os_name.toLowerCase().includes(search.toLowerCase()));
+        (node.os_name && node.os_name.toLowerCase().includes(search.toLowerCase())) ||
+        (node.tags ?? []).some((tag) => tag.name.toLowerCase().includes(search.toLowerCase()));
+      const matchesTag = !tagFilter || (node.tags ?? []).some((tag) => tag.name.toLowerCase() === tagFilter.toLowerCase());
       
       const matchesIssueFilter = !showOnlyIssues || 
         (node.health_status && node.health_status !== 'healthy');
       
       const matchesStatus = !statusFilter || node.status === statusFilter;
 
-      return matchesSearch && matchesIssueFilter && matchesStatus;
+      return matchesSearch && matchesIssueFilter && matchesStatus && matchesTag;
     }
   ), order.sort, order.dir);
+  // the selection among the nodes shown (a filter change narrows it, it never acts on hidden nodes)
+  const selectedIds = filteredNodes.filter((n) => selected.has(n.id)).map((n) => n.id);
+  const allSelected = filteredNodes.length > 0 && selectedIds.length === filteredNodes.length;
+  const toggle = (id: string) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(filteredNodes.map((n) => n.id)));
 
   const onlineCount = scopedNodes.filter((n) => n.status === "online").length;
   const issueCount = scopedNodes.filter((n) => n.health_status && n.health_status !== 'healthy').length;
@@ -341,6 +363,15 @@ export default function NodesPage() {
             <span className="inline-flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-zinc-700 bg-zinc-800/50 text-sm text-zinc-200">
               <span className={`w-2 h-2 rounded-full ${STATUS_DOT[statusFilter]}`} /> {t(STATUS_LABEL[statusFilter])}
               <button type="button" onClick={clearStatus} title={t("fleetTree.anyStatus")} aria-label={t("fleetTree.anyStatus")}
+                className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-700">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          )}
+          {tagFilter && (
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-zinc-700 bg-zinc-800/50 text-sm text-zinc-200">
+              <TagIcon className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" /> {tagFilter}
+              <button type="button" onClick={clearTag} title={t("nodes.bulk.anyTag")} aria-label={t("nodes.bulk.anyTag")}
                 className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-700">
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -419,6 +450,7 @@ export default function NodesPage() {
                   </div>
                   <div className="text-xs text-zinc-400 space-y-1">
                     <div>{node.os_name}</div>
+                    <TagChips tags={node.tags} />
                     <div className="flex justify-between">
                       <span>{t("nodes.agentVersionShort", { version: node.agent_version || "-" })}</span>
                       <span>{formatLastSeen(node.last_seen, t)}</span>
@@ -438,10 +470,18 @@ export default function NodesPage() {
             )}
           </div>
         ) : (
+        <div className="space-y-3">
+        <BulkActionsBar nodeIds={selectedIds} allMatching={allSelected && filteredNodes.length > 1}
+          onDone={fetchNodes} onClear={() => setSelected(new Set())} />
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-800 text-left text-sm text-zinc-400">
+                <th className="w-10 pl-4">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                    ref={(el) => { if (el) el.indeterminate = selectedIds.length > 0 && !allSelected; }}
+                    aria-label={t("nodes.bulk.selectAll", { count: filteredNodes.length })} title={t("nodes.bulk.selectAll", { count: filteredNodes.length })} />
+                </th>
                 <SortHeader order={order} onSort={sortBy} sort="status" label={t("common.status")} />
                 <SortHeader order={order} onSort={sortBy} sort="name" label={t("nodes.hostname")} />
                 <SortHeader order={order} onSort={sortBy} sort="os" label={t("nodes.os")} className="hidden md:table-cell" />
@@ -453,8 +493,12 @@ export default function NodesPage() {
               {filteredNodes.map((node) => (
                 <tr
                   key={node.id}
-                  className="hover:bg-zinc-800/50 transition-colors"
+                  className={`hover:bg-zinc-800/50 transition-colors ${selected.has(node.id) ? "bg-zinc-800/40" : ""}`}
                 >
+                  <td className="w-10 pl-4">
+                    <input type="checkbox" checked={selected.has(node.id)} onChange={() => toggle(node.id)}
+                      aria-label={t("nodes.bulk.selectNode", { name: node.hostname })} />
+                  </td>
                   <td className="p-4">
                     <StatusBadge variant={STATUS_VARIANT[node.status] ?? STATUS_VARIANT.offline} dot>
                       {t(STATUS_LABEL[node.status] ?? STATUS_LABEL.offline)}
@@ -469,6 +513,7 @@ export default function NodesPage() {
                     </Link>
                     <HealthBadge status={node.health_status} count={node.alert_count} />
                     <NodeRemovalStatus nodeId={node.node_id} state={node.removal_state} onChanged={fetchNodes} />
+                    <TagChips tags={node.tags} className="mt-1 flex" />
                   </td>
                   <td className="p-4 hidden md:table-cell text-sm text-zinc-400">
                     {node.os_name}
@@ -484,13 +529,14 @@ export default function NodesPage() {
 
               {filteredNodes.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-zinc-500">
+                  <td colSpan={6} className="p-8 text-center text-zinc-500">
                     {search ? t("nodes.noNodes") : statusFilter ? t(`fleetTree.noneWithStatus.${statusFilter}`) : scopeLabel ? t("fleetTree.emptyBranch") : t("nodes.noNodesYet")}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
         </div>
         )}
     </StandardPage>

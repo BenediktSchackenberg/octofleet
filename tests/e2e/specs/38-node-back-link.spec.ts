@@ -21,7 +21,7 @@ test('node page: back link to the list the user came from', async ({ page, reque
   await page.goto(`/nodes?group=unassigned`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Not in a group' })).toBeVisible();
   await page.getByPlaceholder('Search...').fill(hostname);
-  await page.locator('tbody tr td:nth-child(2) a', { hasText: hostname }).click();
+  await page.locator('tbody tr td a[href^="/nodes/"]', { hasText: hostname }).click();
   await expect(page).toHaveURL(new RegExp(`/nodes/${hostname}`));
   const backToBranch = page.getByRole('link', { name: 'Not in a group' }).filter({ has: page.locator('svg.lucide-arrow-left') });
   await expect(backToBranch).toHaveAttribute('href', '/nodes?group=unassigned');

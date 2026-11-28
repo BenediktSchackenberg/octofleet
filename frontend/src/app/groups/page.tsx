@@ -9,6 +9,7 @@ import Link from "next/link";
 import { LoadingSpinner } from "@/components/ui-components";
 import { Plus, FolderTree, Tag, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
+import { TagsManager } from "@/components/tags-manager";
 
 
 
@@ -186,30 +187,17 @@ export default function GroupsPage() {
         ))}
       </div>
 
-      {/* Tags Section */}
-      {tags.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Tag className="h-5 w-5" /> {t("groupsPage.tags")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="outline"
-                  className="text-sm py-1 px-3"
-                  style={{ borderColor: tag.color || undefined }}
-                >
-                  {tag.name} ({tag.device_count})
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Tags: rename, colour, delete - with where each is used */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="h-5 w-5" /> {t("groupsPage.tags")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TagsManager onChanged={fetchData} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

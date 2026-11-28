@@ -498,6 +498,44 @@
       "os": "Operating system",
       "agent": "Agent version",
       "last_seen": "Last seen"
+    },
+    "bulk": {
+      "bar": "Bulk actions",
+      "selected": "{count} selected",
+      "selectedAll": "All {count} shown nodes selected",
+      "selectAll": "Select all {count} shown nodes",
+      "selectNode": "Select {name}",
+      "clear": "Clear selection",
+      "anyTag": "Any tag",
+      "addGroup": "Add to group",
+      "removeGroup": "Remove from group",
+      "addTag": "Add tag",
+      "removeTag": "Remove tag",
+      "addGroupTitle": "Add to group",
+      "removeGroupTitle": "Remove from group",
+      "addTagTitle": "Add tag",
+      "removeTagTitle": "Remove tag",
+      "addGroupHint": "Adds the {count} selected nodes to a static group. Dynamic groups take their members from their rule.",
+      "removeGroupHint": "Removes the {count} selected nodes from a static group.",
+      "addTagHint": "Tags the {count} selected nodes. Dynamic groups whose rule tests tags follow at once.",
+      "removeTagHint": "Removes a tag from the {count} selected nodes. Dynamic groups whose rule tests tags follow at once.",
+      "addGroupRun": "Add {count} nodes to {name}",
+      "removeGroupRun": "Remove {count} nodes from {name}",
+      "addTagRun": "Tag {count} nodes with {name}",
+      "removeTagRun": "Remove {name} from {count} nodes",
+      "group": "Group",
+      "tag": "Tag",
+      "chooseGroup": "Choose a group…",
+      "chooseTag": "Choose a tag…",
+      "newTag": "or a new tag",
+      "noGroups": "No static group yet - create one on the Groups page.",
+      "noTags": "No tag yet.",
+      "tagExists": "A tag with this name exists already.",
+      "resultAdded": "{count} added",
+      "resultRemoved": "{count} removed",
+      "resultAlready": "{count} already",
+      "resultNotFound": "{count} not found",
+      "resultDynamic": "dynamic groups +{added} / -{removed}"
     }
   },
   "onboarding": {
@@ -1457,7 +1495,9 @@
     "allAssigned": "All tags assigned",
     "create": "Create a new tag",
     "namePlaceholder": "Tag name…",
-    "done": "Done"
+    "done": "Done",
+    "colorLabel": "Colour",
+    "otherColor": "Other colour"
   },
   "nodeTools": {
     "liveBadge": "Live",
@@ -2463,7 +2503,24 @@
     "members": "{count} members",
     "membersOne": "{count} member",
     "tags": "Tags",
-    "deleteConfirm": "Delete this group?"
+    "deleteConfirm": "Delete this group?",
+    "tagsManager": {
+      "hint": "A tag is a label you set on nodes; a group is a set of nodes you deploy to (static, or by a rule that may test tags).",
+      "new": "New tag",
+      "none": "No tags yet. Tag nodes in the Nodes list (select them, then Add tag) or here.",
+      "name": "Tag",
+      "nodes": "Nodes",
+      "dynamicGroups": "Dynamic groups",
+      "jobs": "Jobs",
+      "save": "Save",
+      "edit": "Edit {name}",
+      "delete": "Delete {name}",
+      "exists": "A tag with this name exists already.",
+      "renameFollows": "The rules of {count} dynamic groups follow the new name.",
+      "usage": "{nodes} nodes, {groups} dynamic groups, {jobs} jobs",
+      "confirmDelete": "Delete the tag {name}?",
+      "confirmDeleteUsed": "Delete the tag {name}? It is used by {usage}. The nodes lose the tag, and dynamic groups that test it lose those members on their next evaluation."
+    }
   },
   "groupDetail": {
     "saveFailed": "The group could not be saved.",

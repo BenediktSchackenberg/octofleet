@@ -64,7 +64,7 @@ To obtain a JWT token, use the login endpoint. API keys are configured via envir
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/nodes` | API Key | List all nodes (`unassigned=true`: without a group; `group_id`: of one group), ordered by hostname (case-insensitive), then node ID; each with `health_status` and `alert_count` from its fired critical/warning alerts, and `status` by last contact: `online` (within 5 minutes), `away` (within an hour), `offline` – the rule of the dashboard's node counts |
+| GET | `/api/v1/nodes` | API Key | List all nodes (`unassigned=true`: without a group; `group_id`: of one group), ordered by hostname (case-insensitive), then node ID; each with `health_status` and `alert_count` from its fired critical/warning alerts, and `status` by last contact: `online` (within 5 minutes), `away` (within an hour), `offline` – the rule of the dashboard's node counts; `tags`: the node's tags (`id`, `name`, `color`) |
 | GET | `/api/v1/nodes/tree` | API Key | Node tree view (hierarchical); `?view=summary`: counts per group → OS family → release with the node IDs per release, as used by Fleet → Nodes |
 | GET | `/api/v1/nodes/search` | API Key | Search nodes |
 | GET | `/api/v1/nodes/os-distribution` | API Key | OS distribution summary |
@@ -132,15 +132,18 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 | PUT | `/api/v1/groups/{group_id}` | User: `groups:write` | Update group; fields left out stay as they are (`parentId: null` moves a sub-group to the top) |
 | DELETE | `/api/v1/groups/{group_id}` | User: `groups:write` | Delete group |
 | POST | `/api/v1/groups/preview-rule` | User: `groups:write` | Preview dynamic group rule (`rule`, checked like `dynamicRule`) |
-| POST | `/api/v1/groups/{group_id}/evaluate` | User: `groups:write` | Evaluate group membership |
+| POST | `/api/v1/groups/{group_id}/evaluate` | User: `groups:write` | Re-evaluate a dynamic group for all nodes: `added`, `removed`, `evaluated` (set-based: a fixed number of statements, not two queries per node; members added by hand stay) |
 | POST | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Add nodes to a group: `{"nodeIds": [...]}` – each a node UUID, node ID or hostname; one statement for all. Returns `added`, `alreadyMembers` and `notFound` (references that name no node) |
 | DELETE | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Remove nodes from a group (`nodeIds` as above); returns `removed`, `notFound` |
 | DELETE | `/api/v1/groups/{group_id}/members/{node}` | User: `groups:write` | Remove one node (UUID, node ID or hostname); 404 if it names no node |
-| GET | `/api/v1/tags` | - | List tags |
-| POST | `/api/v1/tags` | User: `groups:write` | Create tag |
+| GET | `/api/v1/tags` | User: `groups:read` | All tags with where they are used: `device_count`, `dynamic_groups` (whose rule tests the tag), `jobs` (created for the tag) |
+| POST | `/api/v1/tags` | User: `groups:write` | Create tag (`name`, `color`) |
+| PATCH | `/api/v1/tags/{tag_id}` | User: `groups:write` | Rename (`name`) or recolour (`color`: `#RRGGBB` or null); dynamic group rules that test the tag follow the new name in the same transaction (`rulesUpdated`); 409 if the name is taken |
+| POST | `/api/v1/tags/{tag_id}/nodes` | User: `groups:write` | Tag many nodes: `{"nodeIds": [...]}` – UUIDs, node IDs or hostnames, one statement; returns `added`, `alreadyTagged`, `notFound`, and `dynamicGroups` (`added`/`removed`: members of dynamic groups whose rule tests tags, re-evaluated for these nodes at once) |
+| DELETE | `/api/v1/tags/{tag_id}/nodes` | User: `groups:write` | Remove a tag from many nodes (`nodeIds` as above); `removed`, `notFound`, `dynamicGroups` |
 | DELETE | `/api/v1/tags/{tag_id}` | User: `groups:write` | Delete tag |
-| POST | `/api/v1/devices/{node_id}/tags` | User: `groups:write` | Assign tags to node |
-| DELETE | `/api/v1/devices/{node_id}/tags` | User: `groups:write` | Remove tags from node |
+| POST | `/api/v1/devices/{node_id}/tags` | User: `groups:write` | Assign tags to node (dynamic groups whose rule tests tags follow at once) |
+| DELETE | `/api/v1/devices/{node_id}/tags` | User: `groups:write` | Remove tags from node (likewise) |
 | GET | `/api/v1/devices/{node_id}/groups` | - | Get node's groups |
 | GET | `/api/v1/devices/{node_id}/tags` | - | Get node's tags |
 

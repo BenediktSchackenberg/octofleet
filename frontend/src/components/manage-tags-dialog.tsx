@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tag, Plus, X, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
+import { TagColorPicker } from "@/components/tag-color-picker";
 
 
 
@@ -185,13 +186,8 @@ export function ManageTagsDialog({ nodeId, nodeTags, onTagsChanged }: Props) {
           {/* Create new tag */}
           <div className="border-t pt-4">
             <h4 className="text-sm font-medium mb-2">{t("tags.create")}</h4>
+            <div className="mb-2"><TagColorPicker value={newTagColor} onChange={setNewTagColor} /></div>
             <div className="flex gap-2">
-              <Input
-                value={newTagColor}
-                onChange={(e) => setNewTagColor(e.target.value)}
-                type="color"
-                className="w-12 h-10 p-1 cursor-pointer"
-              />
               <Input
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}

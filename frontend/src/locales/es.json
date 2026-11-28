@@ -498,6 +498,44 @@
       "os": "Sistema operativo",
       "agent": "Versión del agente",
       "last_seen": "Visto por última vez"
+    },
+    "bulk": {
+      "bar": "Acciones en bloque",
+      "selected": "{count} seleccionados",
+      "selectedAll": "Los {count} nodos mostrados seleccionados",
+      "selectAll": "Seleccionar los {count} nodos mostrados",
+      "selectNode": "Seleccionar {name}",
+      "clear": "Quitar la selección",
+      "anyTag": "Cualquier etiqueta",
+      "addGroup": "Añadir a grupo",
+      "removeGroup": "Quitar del grupo",
+      "addTag": "Añadir etiqueta",
+      "removeTag": "Quitar etiqueta",
+      "addGroupTitle": "Añadir a grupo",
+      "removeGroupTitle": "Quitar del grupo",
+      "addTagTitle": "Añadir etiqueta",
+      "removeTagTitle": "Quitar etiqueta",
+      "addGroupHint": "Añade los {count} nodos seleccionados a un grupo estático. Los grupos dinámicos toman sus miembros de su regla.",
+      "removeGroupHint": "Quita los {count} nodos seleccionados de un grupo estático.",
+      "addTagHint": "Etiqueta los {count} nodos seleccionados. Los grupos dinámicos cuya regla comprueba etiquetas se actualizan al momento.",
+      "removeTagHint": "Quita una etiqueta de los {count} nodos seleccionados. Los grupos dinámicos cuya regla comprueba etiquetas se actualizan al momento.",
+      "addGroupRun": "Añadir {count} nodos a {name}",
+      "removeGroupRun": "Quitar {count} nodos de {name}",
+      "addTagRun": "Etiquetar {count} nodos con {name}",
+      "removeTagRun": "Quitar {name} de {count} nodos",
+      "group": "Grupo",
+      "tag": "Etiqueta",
+      "chooseGroup": "Elegir un grupo…",
+      "chooseTag": "Elegir una etiqueta…",
+      "newTag": "o una etiqueta nueva",
+      "noGroups": "Aún no hay grupos estáticos: cree uno en la página Grupos.",
+      "noTags": "Aún no hay etiquetas.",
+      "tagExists": "Ya existe una etiqueta con este nombre.",
+      "resultAdded": "{count} añadidos",
+      "resultRemoved": "{count} quitados",
+      "resultAlready": "{count} ya estaban",
+      "resultNotFound": "{count} no encontrados",
+      "resultDynamic": "grupos dinámicos +{added} / -{removed}"
     }
   },
   "onboarding": {
@@ -1457,7 +1495,9 @@
     "allAssigned": "Todas las etiquetas asignadas",
     "create": "Crear una etiqueta",
     "namePlaceholder": "Nombre de la etiqueta…",
-    "done": "Listo"
+    "done": "Listo",
+    "colorLabel": "Color",
+    "otherColor": "Otro color"
   },
   "nodeTools": {
     "liveBadge": "En vivo",
@@ -2463,7 +2503,24 @@
     "members": "{count} miembros",
     "membersOne": "{count} miembro",
     "tags": "Etiquetas",
-    "deleteConfirm": "¿Eliminar este grupo?"
+    "deleteConfirm": "¿Eliminar este grupo?",
+    "tagsManager": {
+      "hint": "Una etiqueta es una marca que usted pone en los nodos; un grupo es un conjunto de nodos al que despliega (estático o por una regla que puede comprobar etiquetas).",
+      "new": "Nueva etiqueta",
+      "none": "Aún no hay etiquetas. Etiquete nodos en la lista de nodos (selecciónelos y luego Añadir etiqueta) o aquí.",
+      "name": "Etiqueta",
+      "nodes": "Nodos",
+      "dynamicGroups": "Grupos dinámicos",
+      "jobs": "Trabajos",
+      "save": "Guardar",
+      "edit": "Editar {name}",
+      "delete": "Eliminar {name}",
+      "exists": "Ya existe una etiqueta con este nombre.",
+      "renameFollows": "Las reglas de {count} grupos dinámicos siguen el nuevo nombre.",
+      "usage": "{nodes} nodos, {groups} grupos dinámicos, {jobs} trabajos",
+      "confirmDelete": "¿Eliminar la etiqueta {name}?",
+      "confirmDeleteUsed": "¿Eliminar la etiqueta {name}? La usan {usage}. Los nodos pierden la etiqueta y los grupos dinámicos que la comprueban pierden esos miembros en su próxima evaluación."
+    }
   },
   "groupDetail": {
     "saveFailed": "No se pudo guardar el grupo.",
