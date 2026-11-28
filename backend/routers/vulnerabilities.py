@@ -203,14 +203,19 @@ async def cve_lookup(cve_id: str, limit: int = Query(500, ge=1, le=5000), offset
 
 @router.get("/api/v1/vulnerabilities/node/{node_id}", dependencies=[Depends(require_user_permission("vulnerabilities:read"))])
 async def node_vulnerabilities(node_id: str, limit: Optional[int] = Query(None, ge=1, le=1000),
-                               unit: Optional[str] = None, unit_version: Optional[str] = None):
+                               offset: int = Query(0, ge=0, le=100000),
+                               unit: Optional[str] = None, unit_version: Optional[str] = None,
+                               severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low|unknown|CRITICAL|HIGH|MEDIUM|LOW|UNKNOWN)$"),
+                               q: Optional[str] = Query(None, max_length=200)):
     """CVEs affecting one node (id or hostname), most severe first, one entry per CVE.
 
-    count is the total for the node; with limit only the first entries are returned
-    (e.g. a preview of the most severe ones). unit and unit_version narrow the list to one
-    update from /groups.
+    count is the total for the node and severity_counts the same by severity; severity and q
+    (CVE ID, update or package) filter the list, matching counts what they leave; limit/offset
+    return one page of it (e.g. a preview of the most severe ones). unit and unit_version narrow
+    the list to one update from /groups.
     """
-    result = await get_node_vulnerabilities(get_pool(), node_id, limit, unit, unit_version)
+    result = await get_node_vulnerabilities(get_pool(), node_id, limit, unit, unit_version,
+                                            severity=severity, query=q, offset=offset)
     if result is None:
         raise HTTPException(status_code=404, detail="Node not found")
     return result

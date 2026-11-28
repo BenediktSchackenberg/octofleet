@@ -65,6 +65,8 @@ interface WindowsUpdates {
 interface NodeVulnerabilityGroupsResponse {
   node: { id: string; hostname: string };
   groups: VulnerabilityGroup[];
+  /** Older kernels installed but not running: not counted, so the API sends them without CVE counts */
+  old_kernels?: { fix_unit: string; fix_unit_version: string; packages: string[] }[];
   count: number;
   scan?: ScanStatus;
   windows_updates?: WindowsUpdates | null;
@@ -413,6 +415,11 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
     setTimeout(() => document.getElementById(`update-${key}`)?.scrollIntoView({ block: "center" }), 300);
   }, []);
   const counted = data.groups.filter((g) => g.kernel_state !== "old");
+  // Older kernels come after the counted updates, without counts (opening one lists its CVEs)
+  const oldKernels: VulnerabilityGroup[] = (data.old_kernels ?? []).map((k) => ({
+    ...k, kernel_state: "old", cve_count: 0, fixable_count: 0, unknown_fix_count: 0,
+    critical: 0, high: 0, medium: 0, low: 0, max_severity: "UNKNOWN", max_cvss: null,
+  }));
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">{t("nodes.vulnerabilities.groupsSummary", { count: data.count, groups: counted.length })}</p>
@@ -427,8 +434,9 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.groups.map((g) => {
+          {[...data.groups, ...oldKernels].map((g) => {
             const key = `${g.fix_unit}|${g.fix_unit_version}`;
+            const old = g.kernel_state === "old";
             const expanded = open === key;
             return [
               <TableRow key={key} id={`update-${key}`} className={`cursor-pointer ${g.kernel_state === "old" ? "opacity-60" : ""}`}
@@ -442,13 +450,15 @@ function VulnerabilityGroups({ nodeId, data }: { nodeId: string; data: NodeVulne
                     {(g.exploited_count ?? 0) > 0 && <ExploitedBadge count={g.exploited_count} />}
                   </span>
                 </TableCell>
-                <TableCell><SeverityBadge severity={g.max_severity} /></TableCell>
+                <TableCell>{old ? "-" : <SeverityBadge severity={g.max_severity} />}</TableCell>
                 <TableCell className="text-right">
-                  <div className="font-mono">{g.cve_count}</div>
-                  <div className="text-xs"><SeverityCounts group={g} /></div>
+                  {old ? <span className="text-muted-foreground">-</span> : <>
+                    <div className="font-mono">{g.cve_count}</div>
+                    <div className="text-xs"><SeverityCounts group={g} /></div>
+                  </>}
                 </TableCell>
                 <TableCell className="text-sm">
-                  <GroupFix group={g} />
+                  {old ? "-" : <GroupFix group={g} />}
                 </TableCell>
                 <TableCell className="text-right" title={g.packages.join(", ")}>{g.packages.length}</TableCell>
               </TableRow>,
