@@ -167,14 +167,21 @@ def test_groups_count_by_severity_and_list_old_kernels(node):
 
 
 def test_a_release_the_scan_cannot_check_is_not_shown_as_clean():
-    """An Arch Linux node: no advisory source - the API says so instead of a plain 0."""
-    hostname = f"arch-{uuid.uuid4().hex[:8]}"
+    """An openSUSE node: no advisory source - the API says so instead of a plain 0. An Arch node is
+    partly checked (key packages against NVD) and says that."""
+    hostname = f"suse-{uuid.uuid4().hex[:8]}"
     r = requests.post(f"{API_URL}/api/v1/inventory/full", headers=HEADERS, timeout=30, json={
-        "hostname": hostname, "nodeId": hostname, "system": {"os": {"name": "Arch Linux", "version": "rolling"}}})
+        "hostname": hostname, "nodeId": hostname, "system": {"os": {"name": "openSUSE Leap", "version": "15.6"}}})
     assert r.status_code == 200, r.text
     groups = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}/groups", headers=HEADERS, timeout=10).json()
-    assert groups["scan_support"]["supported"] is False and groups["scan_support"]["os"].startswith("Arch Linux"), groups
+    assert groups["scan_support"]["supported"] is False and groups["scan_support"]["os"].startswith("openSUSE"), groups
     listed = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}?limit=1", headers=HEADERS, timeout=10).json()
     assert listed["scan_support"]["supported"] is False
     summary = requests.get(f"{API_URL}/api/v1/vulnerabilities/summary", headers=HEADERS, timeout=10).json()
-    assert any((r["os"] or "").startswith("Arch Linux") and r["nodes"] >= 1 for r in summary["not_scanned"]), summary["not_scanned"]
+    assert any((r["os"] or "").startswith("openSUSE") and r["nodes"] >= 1 for r in summary["not_scanned"]), summary["not_scanned"]
+    arch = f"arch-{uuid.uuid4().hex[:8]}"
+    r = requests.post(f"{API_URL}/api/v1/inventory/full", headers=HEADERS, timeout=30, json={
+        "hostname": arch, "nodeId": arch, "system": {"os": {"name": "Arch Linux", "version": "rolling"}}})
+    assert r.status_code == 200, r.text
+    support = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{arch}/groups", headers=HEADERS, timeout=10).json()["scan_support"]
+    assert support["supported"] is True and support["partial"] is True, support

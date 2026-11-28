@@ -13,9 +13,14 @@ class ScanSupportTest(unittest.TestCase):
             self.assertTrue(scan_support(os_name, version)["supported"], os_name)
 
     def test_releases_without_an_advisory_source(self):
-        self.assertEqual(scan_support("Arch Linux", "rolling"), {"supported": False, "os": "Arch Linux rolling"})
-        self.assertFalse(scan_support("CachyOS Linux", "rolling")["supported"])
+        self.assertEqual(scan_support("openSUSE Leap", "15.6"), {"supported": False, "partial": False, "os": "openSUSE Leap 15.6"})
         self.assertFalse(scan_support("Ubuntu", None)["supported"])  # no release, no ecosystem
+
+    def test_rolling_distributions_are_partly_checked(self):
+        # Arch and its derivatives: key packages against NVD by upstream version
+        self.assertEqual(scan_support("Arch Linux", "rolling"), {"supported": True, "partial": True, "os": "Arch Linux rolling"})
+        self.assertTrue(scan_support("CachyOS Linux", "rolling")["partial"])
+        self.assertFalse(scan_support("Ubuntu", "24.04")["partial"])
 
     def test_no_os_reported_yet_is_unknown(self):
         self.assertEqual(scan_support(None, None), {"supported": None, "os": None})
@@ -30,7 +35,7 @@ class NotScannedTest(unittest.TestCase):
                         {"os_name": "CachyOS Linux", "os_version": "rolling", "nodes": 1},
                         {"os_name": "openSUSE Leap", "os_version": "15.6", "nodes": 30}]
         self.assertEqual(asyncio.run(not_scanned_releases(Conn())),
-                         [{"os": "openSUSE Leap 15.6", "nodes": 30}, {"os": "CachyOS Linux rolling", "nodes": 1}])
+                         [{"os": "openSUSE Leap 15.6", "nodes": 30}])  # CachyOS: partly checked
         self.assertIn("GROUP BY os_name, os_version", vulnerability.RELEASES_SQL)
 
 

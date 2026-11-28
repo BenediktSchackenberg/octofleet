@@ -451,7 +451,8 @@
       "scanStartFailed": "Der Scan konnte nicht gestartet werden.",
       "scanDone": "Scan fertig: {count} Softwareversionen geprüft.",
       "scanFailed": "Der Scan ist fehlgeschlagen: {error}",
-      "notScanned": "Dieser Node wird nicht auf Schwachstellen geprüft: Pakete von {os} werden noch nicht mit Advisories abgeglichen. Keine CVEs heißt hier nicht, dass der Node sauber ist."
+      "notScanned": "Dieser Node wird nicht auf Schwachstellen geprüft: Pakete von {os} werden noch nicht mit Advisories abgeglichen. Keine CVEs heißt hier nicht, dass der Node sauber ist.",
+      "partlyScanned": "Von {os} werden nur wichtige Pakete geprüft (openssl, openssh, curl, sudo, glibc, der Kernel, ...: NVD nach Upstream-Version) - für diese Distribution gibt es keine Advisories. Ihre anderen Pakete werden nicht geprüft."
     },
     "removal": {
       "button": "Node entfernen…",
