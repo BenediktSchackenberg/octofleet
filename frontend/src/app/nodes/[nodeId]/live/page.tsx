@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { API_BASE } from '@/lib/api-config';
+import { formatTime } from "@/lib/format";
 
 
 
@@ -284,7 +285,7 @@ export default function LiveViewPage() {
             </Badge>
             {lastHeartbeat > 0 && (
               <span className="text-sm text-muted-foreground">
-                {t("nodeTools.livePage.lastHeartbeat", { time: new Date(lastHeartbeat).toLocaleTimeString() })}
+                {t("nodeTools.livePage.lastHeartbeat", { time: formatTime(lastHeartbeat) })}
               </span>
             )}
           </div>
@@ -413,7 +414,7 @@ export default function LiveViewPage() {
                   {logs.slice(-5).map(log => (
                     <div key={log.id} className="text-sm py-1 border-b last:border-0">
                       <span className="text-muted-foreground">
-                        {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '-'}
+                        {log.timestamp ? formatTime(log.timestamp) : '-'}
                       </span>
                       {' '}
                       {getLevelBadge(log.level, log.levelName)}
@@ -468,7 +469,7 @@ export default function LiveViewPage() {
                 {filteredLogs.map(log => (
                   <div key={log.id} className="py-1 border-b border-border/30 hover:bg-accent/50">
                     <span className="text-muted-foreground">
-                      {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '--:--:--'}
+                      {log.timestamp ? formatTime(log.timestamp) : '--:--:--'}
                     </span>
                     {' '}
                     {getLevelBadge(log.level, log.levelName)}
@@ -621,7 +622,7 @@ export default function LiveViewPage() {
                   {agentLogs.map((log, i) => (
                     <div key={i} className="flex gap-2 p-2 rounded hover:bg-muted/50 border-b border-muted">
                       <span className="text-muted-foreground whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleTimeString()}
+                        {formatTime(log.timestamp)}
                       </span>
                       <Badge 
                         variant={log.level === 'Error' ? 'destructive' : log.level === 'Warning' ? 'secondary' : 'outline'}

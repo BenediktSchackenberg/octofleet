@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import type { QueryDSL, QueryResult, LiveResult, WhereClause, QueryTemplate, SchemaColumn } from "./useQueryEngine";
 import { copyText } from "@/lib/clipboard";
+import { formatTime } from "@/lib/format";
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export function useQueryExecution(getTableColumns: (table: string) => SchemaColu
       const data = res.data;
       setResult(data);
       setHistory((prev) => [
-        { query, time: new Date().toLocaleTimeString(), ms: data.executionMs, rows: data.rowCount },
+        { query, time: formatTime(new Date()), ms: data.executionMs, rows: data.rowCount },
         ...prev.slice(0, 49),
       ]);
     } catch (err: unknown) {

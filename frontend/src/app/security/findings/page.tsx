@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { AlertTriangle, CheckCircle, XCircle, Eye, Bug } from "lucide-react";
 import { StandardPage } from "@/components/ui/StandardPage";
+import { formatDateTime } from "@/lib/format";
 
 interface Finding { id: string; type: string; title: string; description: string; severity: string; score: number; status: string; first_seen: string; last_seen: string; node_id: string; user_id: string; }
 
@@ -61,7 +62,7 @@ export default function FindingsPage() {
                 <div className="font-semibold truncate">{f.title}</div>
                 <div className="text-zinc-400 text-xs">{f.type} · {f.node_id || "Fleet-wide"} · Score: {f.score ?? "-"}</div>
               </div>
-              <div className="text-xs text-zinc-500">{new Date(f.last_seen).toLocaleString()}</div>
+              <div className="text-xs text-zinc-500">{formatDateTime(f.last_seen)}</div>
               <div className="flex gap-1">
                 {f.status === "open" && <button onClick={() => updateStatus(f.id, "acknowledged")} title="Acknowledge" className="p-1.5 text-zinc-500 hover:text-yellow-400"><Eye className="h-4 w-4" /></button>}
                 {f.status !== "resolved" && <button onClick={() => updateStatus(f.id, "resolved")} title="Resolve" className="p-1.5 text-zinc-500 hover:text-green-400"><CheckCircle className="h-4 w-4" /></button>}

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Shield, Server, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { formatLocalDate } from "@/lib/format";
 
 interface PatchDetail {
   id: string; kb_id: string; title: string; description: string;
@@ -64,7 +65,7 @@ export default function PatchCatalogPage() {
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div><span className="text-muted-foreground">Status:</span> <span className={patch.is_excluded ? 'text-red-400' : patch.is_approved ? 'text-green-400' : 'text-yellow-400'}>{patch.is_excluded ? 'Excluded' : patch.is_approved ? 'Approved' : 'Pending'}</span></div>
           {patch.approved_by && <div><span className="text-muted-foreground">Approved by:</span> <span className="text-foreground">{patch.approved_by}</span></div>}
-          {patch.release_date && <div><span className="text-muted-foreground">Released:</span> <span className="text-foreground">{new Date(patch.release_date).toLocaleDateString()}</span></div>}
+          {patch.release_date && <div><span className="text-muted-foreground">Released:</span> <span className="text-foreground">{formatLocalDate(patch.release_date)}</span></div>}
         </div>
       </div>
       <div className="bg-card border border-border rounded-xl p-6">
@@ -79,8 +80,8 @@ export default function PatchCatalogPage() {
               <tr key={n.node_id} className="border-b border-border">
                 <td className="p-2 text-foreground">{n.hostname || n.node_id}</td>
                 <td className="p-2 flex items-center gap-1">{statusIcon(n.status)} {n.status}</td>
-                <td className="p-2 text-muted-foreground text-xs">{n.detected_at ? new Date(n.detected_at).toLocaleDateString() : '-'}</td>
-                <td className="p-2 text-muted-foreground text-xs">{n.installed_at ? new Date(n.installed_at).toLocaleDateString() : '-'}</td>
+                <td className="p-2 text-muted-foreground text-xs">{n.detected_at ? formatLocalDate(n.detected_at) : '-'}</td>
+                <td className="p-2 text-muted-foreground text-xs">{n.installed_at ? formatLocalDate(n.installed_at) : '-'}</td>
                 <td className="p-2 text-red-400 text-xs">{n.error_message || ''}</td>
               </tr>
             ))}

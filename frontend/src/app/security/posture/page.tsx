@@ -4,6 +4,7 @@ import { useTabParam } from "@/hooks/useTabParam";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+import { formatDateTime } from "@/lib/format";
 
 interface PostureSnapshot {
   id: string;
@@ -102,8 +103,8 @@ export default function PosturePage() {
                 ⚠️ Baseline Drift Detected - {comparison.diff.totalChanges} changes
               </h2>
               <p className="text-sm text-muted-foreground mb-3">
-                Comparing baseline from {comparison.baselineDate ? new Date(comparison.baselineDate).toLocaleString() : "?"} 
-                with current from {comparison.currentDate ? new Date(comparison.currentDate).toLocaleString() : "?"}
+                Comparing baseline from {comparison.baselineDate ? formatDateTime(comparison.baselineDate) : "?"} 
+                with current from {comparison.currentDate ? formatDateTime(comparison.currentDate) : "?"}
               </p>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {comparison.diff.changes.map((c, i) => (
@@ -136,7 +137,7 @@ export default function PosturePage() {
               >
                 {snapshots.map(s => (
                   <option key={s.id} value={s.id}>
-                    {new Date(s.createdAt).toLocaleString()} ({s.snapshotType})
+                    {formatDateTime(s.createdAt)} ({s.snapshotType})
                   </option>
                 ))}
               </select>

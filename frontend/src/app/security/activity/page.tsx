@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { API_BASE } from "@/lib/api-config";
 import { getAuthHeader } from "@/lib/auth-context";
 import Link from "next/link";
+import { formatDateTime, formatTime } from "@/lib/format";
 
 export default function ActivityPage() {
   const [tab, setTab] = useTabParam<"files" | "users">("files", ["files", "users"]);
@@ -124,7 +125,7 @@ export default function ActivityPage() {
                 <tbody className="text-muted-foreground">
                   {(fileData.recentEvents || []).map((e: any) => (
                     <tr key={e.id} className="border-t border-border">
-                      <td className="py-1">{new Date(e.ts).toLocaleTimeString()}</td>
+                      <td className="py-1">{formatTime(e.ts)}</td>
                       <td>{e.nodeId}</td>
                       <td>{e.eventType}</td>
                       <td className="font-mono truncate max-w-[200px]">{e.payload?.file?.path || e.payload?.path || ""}</td>
@@ -151,7 +152,7 @@ export default function ActivityPage() {
                     <td className="font-mono">{u.totalEvents}</td>
                     <td className="font-mono">{u.uniqueOps}</td>
                     <td className="font-mono">{u.uniqueFiles}</td>
-                    <td className="text-xs">{new Date(u.lastActivity).toLocaleString()}</td>
+                    <td className="text-xs">{formatDateTime(u.lastActivity)}</td>
                   </tr>
                 ))}
               </tbody>

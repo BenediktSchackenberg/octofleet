@@ -44,6 +44,7 @@ import {
   Ban,
   Activity,
 } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -212,7 +213,7 @@ function timeAgo(date: string | null): string {
 
 function formatDate(date: string | null): string {
   if (!date) return "-";
-  return new Date(date).toLocaleString();
+  return formatDateTime(date);
 }
 
 function repoTypeIcon(type: string): string {

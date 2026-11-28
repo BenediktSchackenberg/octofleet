@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Shield, Activity, Cpu, HardDrive, AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, FileSearch, Network, KeyRound, Settings, Eye, FolderLock } from "lucide-react";
+import { formatNumber } from "@/lib/format";
 
 interface Capabilities {
   node_id: string;
@@ -212,13 +213,13 @@ export function MonitoringHealthPanel({ nodeId }: { nodeId: string }) {
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">Queue Depth</span>
               <div className={`text-2xl font-bold mt-1 ${(lastHealth.metadata?.queue_depth ?? 0) > 1000 ? "text-red-400" : (lastHealth.metadata?.queue_depth ?? 0) > 100 ? "text-yellow-400" : "text-green-400"}`}>
-                {(lastHealth.metadata?.queue_depth ?? 0).toLocaleString()}
+                {formatNumber(lastHealth.metadata?.queue_depth ?? 0)}
               </div>
             </div>
             <div className="p-3 bg-zinc-800/50 rounded-lg">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">Dropped Events</span>
               <div className={`text-2xl font-bold mt-1 ${hasDrops ? "text-red-400" : "text-green-400"}`}>
-                {(lastHealth.metadata?.drop_count ?? 0).toLocaleString()}
+                {formatNumber(lastHealth.metadata?.drop_count ?? 0)}
               </div>
             </div>
             <div className="p-3 bg-zinc-800/50 rounded-lg">

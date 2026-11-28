@@ -6,6 +6,7 @@ import type {
   QueryDSL, QueryResult, SavedQuery, ScheduleEntry, ScheduleResult,
   DashboardMeta, Dashboard, DashboardWidget, HistoryEntry, TabId,
 } from "./useQueryEngine";
+import { formatDateTime } from "@/lib/format";
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
@@ -253,7 +254,7 @@ export function useQueryHistory(
   const saveHistoryAsSaved = async (entry: HistoryEntry) => {
     try {
       const res = await apiClient.richPost(`/query/saved`, {
-        name: `Query from ${new Date(entry.created_at).toLocaleString()}`,
+        name: `Query from ${formatDateTime(entry.created_at)}`,
         description: "", query_dsl: entry.query_dsl, category: "", tags: [], is_public: false,
       });
       if (res.ok) setError(null);

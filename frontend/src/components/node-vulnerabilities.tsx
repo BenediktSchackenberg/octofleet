@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDateTime, formatLocalDate, formatTime } from "@/lib/format";
 
 export interface NodeVulnerability {
   cve_id: string;
@@ -105,7 +106,7 @@ export function ScanStatusBanner({ status, onStop }: { status?: ScanStatus | nul
       <div role="status" className="flex items-start gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 p-3 text-sm text-blue-800 dark:text-blue-300">
         <Loader2 className="h-4 w-4 mt-0.5 shrink-0 animate-spin" />
         <span className="flex-1">{s("running", {
-          time: started.toLocaleTimeString(locale),
+          time: formatTime(started),
           minutes: Math.max(0, Math.floor((Date.now() - started.getTime()) / 60000)),
           checked: Math.min(running.checked, running.total),
           total: running.total,
@@ -125,7 +126,7 @@ export function ScanStatusBanner({ status, onStop }: { status?: ScanStatus | nul
   const partial = last.status === "partial";
   return (
     <div role="status" className={`rounded-lg border p-3 text-sm ${stale || partial ? warnClass : "text-muted-foreground"}`}>
-      {s("dataFrom", { time: new Date(last.completed_at).toLocaleString(locale), age: relativeAge(age, t) })}
+      {s("dataFrom", { time: formatDateTime(last.completed_at), age: relativeAge(age, t) })}
       {partial && <> {s("partial", { count: last.error_packages })}</>}
       {stale && <> {s("stale", { days: STALE_DAYS })}</>}
     </div>
@@ -339,7 +340,7 @@ function GroupCves({ nodeId, group }: { nodeId: string; group: VulnerabilityGrou
               <TableCell className="font-mono text-xs text-muted-foreground" title={v.cvss_vector || undefined}>{cvssVersionLabel(v.cvss_vector)?.slice(1) ?? "-"}</TableCell>
               <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
-                {v.published_date ? new Date(v.published_date).toLocaleDateString() : "-"}
+                {v.published_date ? formatLocalDate(v.published_date) : "-"}
               </TableCell>
             </TableRow>
           ))}
@@ -601,7 +602,7 @@ function CveList({ data }: { data: NodeVulnerabilitiesResponse }) {
               </TableCell>
               <TableCell className={`text-sm ${v.fixed_version ? "font-mono" : "text-muted-foreground"}`}>{fixedIn(v, t)}</TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
-                {v.published_date ? new Date(v.published_date).toLocaleDateString() : "-"}
+                {v.published_date ? formatLocalDate(v.published_date) : "-"}
               </TableCell>
             </TableRow>
           ))}

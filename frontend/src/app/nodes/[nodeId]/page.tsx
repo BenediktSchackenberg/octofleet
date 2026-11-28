@@ -38,7 +38,7 @@ import { hwNumber, hwText } from "@/lib/hardware";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
 import { NodeRemovalBanner, RemoveNodeButton } from "@/components/node-removal";
 import { NodeVulnerabilities, nodeVulnerabilitiesHref, useNodeVulnerabilityCount } from "@/components/node-vulnerabilities";
-import { formatDate, formatDateTime as formatDateTimeIntl, formatLocalDate } from "@/lib/format";
+import { formatDate, formatDateTime as formatDateTimeIntl, formatLocalDate, formatNumber } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "sonner";
 
@@ -926,7 +926,7 @@ export default function NodeDetailPage() {
                               </Badge>
                             </TableCell>
                             <TableCell>{disk.temperature}°C</TableCell>
-                            <TableCell>{disk.powerOnHours?.toLocaleString()}h</TableCell>
+                            <TableCell>{disk.powerOnHours != null ? `${formatNumber(disk.powerOnHours)} h` : "-"}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1667,13 +1667,13 @@ export default function NodeDetailPage() {
                                 <History className={TITLE_ICON} aria-hidden="true" />
                                 <span className="text-muted-foreground">{t("nodeDetail.history")}</span>
                               </div>
-                              <span className="font-mono text-right">{(profile?.historyCount || 0).toLocaleString()}</span>
+                              <span className="font-mono text-right">{formatNumber(profile?.historyCount || 0)}</span>
                               
                               <div className="flex items-center gap-1">
                                 <Bookmark className={TITLE_ICON} aria-hidden="true" />
                                 <span className="text-muted-foreground">{t("nodeDetail.bookmarks")}</span>
                               </div>
-                              <span className="font-mono text-right">{(profile?.bookmarkCount || 0).toLocaleString()}</span>
+                              <span className="font-mono text-right">{formatNumber(profile?.bookmarkCount || 0)}</span>
                               
                               <div className="flex items-center gap-1">
                                 <Cookie className={TITLE_ICON} aria-hidden="true" />
@@ -1683,7 +1683,7 @@ export default function NodeDetailPage() {
                                 {cookiesCount === -1 ? (
                                   <Badge variant="destructive" className="text-xs">{t("nodeDetail.locked")}</Badge>
                                 ) : (
-                                  cookiesCount.toLocaleString()
+                                  formatNumber(cookiesCount)
                                 )}
                               </span>
                               

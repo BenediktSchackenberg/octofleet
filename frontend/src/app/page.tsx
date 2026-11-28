@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import { RoleDashboard, type DashboardRole } from "@/components/dashboard/RoleDashboard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
-import { formatLocalDate, formatTime } from "@/lib/format";
+import { formatLocalDate, formatNumber, formatTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n-context";
 import { VulnerabilitySummaryFreshness } from "@/components/vulnerability-summary-freshness";
 import { routeLabel } from "@/lib/routes";
@@ -769,7 +769,7 @@ export default function HomePage() {
                       const entries = Object.entries(prefixMap).filter(([k]) => grouped[k]);
                       return (
                         <div>
-                          <div className="text-4xl font-black mb-0.5">{total.toLocaleString()}</div>
+                          <div className="text-4xl font-black mb-0.5">{formatNumber(total)}</div>
                           <div className="text-[10px] uppercase font-bold text-muted-foreground mb-3">{t("dashboard.last7days")}</div>
                           {/* Proportion bar */}
                           <div className="flex h-2 rounded-full overflow-hidden mb-3 bg-muted/30">
@@ -778,7 +778,7 @@ export default function HomePage() {
                                 key={key}
                                 style={{ width: `${total > 0 ? ((grouped[key] || 0) / total) * 100 : 0}%`, backgroundColor: meta.color }}
                                 className="transition-all"
-                                title={`${meta.label}: ${grouped[key]?.toLocaleString()}`}
+                                title={`${meta.label}: ${formatNumber(grouped[key])}`}
                               />
                             ))}
                           </div>
@@ -789,7 +789,7 @@ export default function HomePage() {
                                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: meta.color }} />
                                   <span className="font-medium text-muted-foreground">{meta.label}</span>
                                 </div>
-                                <span className="font-bold font-mono">{(grouped[key] || 0).toLocaleString()}</span>
+                                <span className="font-bold font-mono">{formatNumber(grouped[key] || 0)}</span>
                               </div>
                             ))}
                           </div>

@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Download, Plus, Package } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 interface Export { id: string; scope: string; filter_criteria: Record<string, unknown>; manifest_hash: string; created_by: string; created_at: string; }
 
@@ -35,7 +36,7 @@ export default function EvidencePage() {
         <div className="space-y-3">{exports.map(e => (
           <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4">
             <Package className="h-8 w-8 text-cyan-400" />
-            <div className="flex-1"><div className="font-semibold">{e.scope}</div><div className="text-zinc-400 text-xs">by {e.created_by} · {new Date(e.created_at).toLocaleString()}</div></div>
+            <div className="flex-1"><div className="font-semibold">{e.scope}</div><div className="text-zinc-400 text-xs">by {e.created_by} · {formatDateTime(e.created_at)}</div></div>
             {e.manifest_hash && <span className="text-xs font-mono text-zinc-500">{e.manifest_hash.substring(0, 16)}...</span>}
           </div>
         ))}</div>}

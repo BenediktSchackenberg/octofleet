@@ -11,6 +11,7 @@ import {
   TreePine, Circle, Server, Bug, Clock, Wifi, WifiOff, History,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { formatDate, formatDateTime, formatLocalDate } from "@/lib/format";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -1005,7 +1006,7 @@ export default function PatchExplorerPage() {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-zinc-200 truncate">{dep.name}</div>
                       <div className="text-[10px] text-zinc-500 flex items-center gap-2">
-                        <span>{new Date(dep.createdAt).toLocaleDateString()}</span>
+                        <span>{formatLocalDate(dep.createdAt)}</span>
                         <span>{dep.nodeCount} nodes</span>
                         {dep.failedCount > 0 && <span className="text-red-400">{dep.failedCount} failed</span>}
                       </div>
@@ -1139,7 +1140,7 @@ export default function PatchExplorerPage() {
                 <option value="scheduled">Scheduled</option>
               </select>
               <button
-                onClick={() => { setDeployName(`Patch Explorer ${new Date().toLocaleDateString()}`); setShowDeploy(true); }}
+                onClick={() => { setDeployName(`Patch Explorer ${formatDate(new Date())}`); setShowDeploy(true); }}
                 className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Rocket className="w-4 h-4" /> Deploy
@@ -1354,7 +1355,7 @@ function NodeDetail({ node, software, deployingIds, onSelectSoftware }: { node: 
               {node.isOnline ? 'Online' : 'Offline'}
             </span>
             <span>Agent {node.agentVersion}</span>
-            <span><Clock className="w-3 h-3 inline" /> {new Date(node.lastSeen).toLocaleString()}</span>
+            <span><Clock className="w-3 h-3 inline" /> {formatDateTime(node.lastSeen)}</span>
           </div>
         </div>
         <span className={`px-2 py-1 rounded-lg text-xs font-medium ${STATUS_BG[node.status] || ''}`}>{node.status}</span>

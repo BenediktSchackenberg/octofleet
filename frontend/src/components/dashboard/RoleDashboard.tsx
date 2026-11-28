@@ -18,6 +18,7 @@ import {
   ComplianceGauge,
   type ActivityItem,
 } from "./DashboardWidgets";
+import { formatDateTime } from "@/lib/format";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -172,7 +173,7 @@ function OperatorDashboard() {
     id: a.id || String(i),
     icon: DANGER_ALERTS.has(a.event_type) ? XCircle : WARNING_ALERTS.has(a.event_type) ? AlertCircle : Bell,
     description: alertMessage(a),
-    timestamp: new Date(a.created_at).toLocaleString(),
+    timestamp: formatDateTime(a.created_at),
     variant: (DANGER_ALERTS.has(a.event_type) ? "danger" : WARNING_ALERTS.has(a.event_type) ? "warning" : "default") as "danger" | "warning" | "default",
   }));
 
@@ -229,7 +230,7 @@ function AuditorDashboard() {
     id: e.id || String(i),
     icon: ClipboardCheck,
     description: `${e.event_type}: ${e.subject}`,
-    timestamp: e.timestamp ? new Date(e.timestamp).toLocaleString() : "-",
+    timestamp: e.timestamp ? formatDateTime(e.timestamp) : "-",
   }));
 
   return (

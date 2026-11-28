@@ -9,6 +9,7 @@ import {
   Shield, Package, CheckCircle, XCircle, AlertTriangle, Clock,
   Layers, Rocket, BarChart3, RefreshCw, Plus, ChevronRight
 } from 'lucide-react';
+import { formatLocalDate } from "@/lib/format";
 
 // Two units, as the API names them: patches (catalog KBs, like the table) and node entries (one per node and patch)
 interface ComplianceData {
@@ -343,7 +344,7 @@ export default function PatchesPage() {
                     <td className="p-3 text-muted-foreground">{d.ring_name || '-'}</td>
                     <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor(d.status)}`}>{d.status}</span></td>
                     <td className="p-3 text-muted-foreground text-xs">{d.reboot_policy}</td>
-                    <td className="p-3 text-muted-foreground text-xs">{new Date(d.created_at).toLocaleDateString()}</td>
+                    <td className="p-3 text-muted-foreground text-xs">{formatLocalDate(d.created_at)}</td>
                     <td className="p-3">
                       <Link href={`/patches/deployments/${d.id}`} className="text-cyan-400 hover:text-cyan-300">
                         <ChevronRight className="h-4 w-4" />

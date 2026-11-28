@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuerySchema } from "./useQuerySchema";
 import { useQueryExecution } from "./useQueryExecution";
 import { useQueryHistory } from "./useQueryHistory";
+import { formatDateTime } from "@/lib/format";
 
 // ─── Types (re-exported for consumers) ───────────────────────────────
 
@@ -174,7 +175,7 @@ export function cronToHuman(cron: string): string {
 
 export function formatTime(iso?: string): string {
   if (!iso) return "-";
-  return new Date(iso).toLocaleString();
+  return formatDateTime(iso);
 }
 
 export type TabId = "builder" | "live" | "templates" | "history" | "saved" | "schedules" | "dashboards";
