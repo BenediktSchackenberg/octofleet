@@ -498,6 +498,44 @@
       "os": "Betriebssystem",
       "agent": "Agent-Version",
       "last_seen": "Zuletzt gesehen"
+    },
+    "bulk": {
+      "bar": "Sammelaktionen",
+      "selected": "{count} ausgewählt",
+      "selectedAll": "Alle {count} angezeigten Nodes ausgewählt",
+      "selectAll": "Alle {count} angezeigten Nodes auswählen",
+      "selectNode": "{name} auswählen",
+      "clear": "Auswahl aufheben",
+      "anyTag": "Jedes Tag",
+      "addGroup": "Zu Gruppe hinzufügen",
+      "removeGroup": "Aus Gruppe entfernen",
+      "addTag": "Tag setzen",
+      "removeTag": "Tag entfernen",
+      "addGroupTitle": "Zu Gruppe hinzufügen",
+      "removeGroupTitle": "Aus Gruppe entfernen",
+      "addTagTitle": "Tag setzen",
+      "removeTagTitle": "Tag entfernen",
+      "addGroupHint": "Fügt die {count} ausgewählten Nodes einer statischen Gruppe hinzu. Dynamische Gruppen bekommen ihre Mitglieder aus ihrer Regel.",
+      "removeGroupHint": "Entfernt die {count} ausgewählten Nodes aus einer statischen Gruppe.",
+      "addTagHint": "Setzt ein Tag auf die {count} ausgewählten Nodes. Dynamische Gruppen, deren Regel Tags prüft, folgen sofort.",
+      "removeTagHint": "Entfernt ein Tag von den {count} ausgewählten Nodes. Dynamische Gruppen, deren Regel Tags prüft, folgen sofort.",
+      "addGroupRun": "{count} Nodes zu {name} hinzufügen",
+      "removeGroupRun": "{count} Nodes aus {name} entfernen",
+      "addTagRun": "{count} Nodes mit {name} taggen",
+      "removeTagRun": "{name} von {count} Nodes entfernen",
+      "group": "Gruppe",
+      "tag": "Tag",
+      "chooseGroup": "Gruppe wählen…",
+      "chooseTag": "Tag wählen…",
+      "newTag": "oder ein neues Tag",
+      "noGroups": "Noch keine statische Gruppe - lege eine auf der Seite Gruppen an.",
+      "noTags": "Noch kein Tag.",
+      "tagExists": "Ein Tag mit diesem Namen gibt es schon.",
+      "resultAdded": "{count} hinzugefügt",
+      "resultRemoved": "{count} entfernt",
+      "resultAlready": "{count} schon",
+      "resultNotFound": "{count} nicht gefunden",
+      "resultDynamic": "dynamische Gruppen +{added} / -{removed}"
     }
   },
   "onboarding": {
@@ -1457,7 +1495,9 @@
     "allAssigned": "Alle Tags zugewiesen",
     "create": "Neuen Tag erstellen",
     "namePlaceholder": "Tag-Name…",
-    "done": "Fertig"
+    "done": "Fertig",
+    "colorLabel": "Farbe",
+    "otherColor": "Andere Farbe"
   },
   "nodeTools": {
     "liveBadge": "Live",
@@ -2463,7 +2503,24 @@
     "members": "{count} Mitglieder",
     "membersOne": "{count} Mitglied",
     "tags": "Tags",
-    "deleteConfirm": "Diese Gruppe löschen?"
+    "deleteConfirm": "Diese Gruppe löschen?",
+    "tagsManager": {
+      "hint": "Ein Tag ist eine Markierung, die du an Nodes setzt; eine Gruppe ist eine Menge von Nodes, auf die du verteilst (statisch oder per Regel, die Tags prüfen kann).",
+      "new": "Neues Tag",
+      "none": "Noch keine Tags. Setze Tags in der Nodes-Liste (auswählen, dann Tag setzen) oder hier.",
+      "name": "Tag",
+      "nodes": "Nodes",
+      "dynamicGroups": "Dynamische Gruppen",
+      "jobs": "Jobs",
+      "save": "Speichern",
+      "edit": "{name} bearbeiten",
+      "delete": "{name} löschen",
+      "exists": "Ein Tag mit diesem Namen gibt es schon.",
+      "renameFollows": "Die Regeln von {count} dynamischen Gruppen folgen dem neuen Namen.",
+      "usage": "{nodes} Nodes, {groups} dynamische Gruppen, {jobs} Jobs",
+      "confirmDelete": "Tag {name} löschen?",
+      "confirmDeleteUsed": "Tag {name} löschen? Es wird verwendet von {usage}. Die Nodes verlieren das Tag, und dynamische Gruppen, die es prüfen, verlieren diese Mitglieder bei ihrer nächsten Auswertung."
+    }
   },
   "groupDetail": {
     "saveFailed": "Die Gruppe konnte nicht gespeichert werden.",

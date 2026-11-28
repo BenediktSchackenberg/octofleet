@@ -37,7 +37,7 @@ test('Fleet tree: a branch scopes the Nodes list, kept in the URL', async ({ pag
   await expect(page.getByText('No nodes found')).toBeVisible();
   await page.goto('/nodes?status=online', { waitUntil: 'domcontentloaded' });
   await page.getByPlaceholder('Search...').fill(tag);
-  await expect(page.locator('tbody tr td:nth-child(2) a')).toHaveText([`${tag}-a`, `${tag}-b`]);
+  await expect(page.locator('tbody tr td a[href^="/nodes/"]')).toHaveText([`${tag}-a`, `${tag}-b`]);
   await page.getByRole('button', { name: 'Show every status' }).click();
   await expect(page).not.toHaveURL(/status=/);
 
@@ -51,7 +51,7 @@ test('Fleet tree: a branch scopes the Nodes list, kept in the URL', async ({ pag
   await tree.getByRole('button', { name: /^Linux\s*\d/ }).last().click();
   await tree.getByRole('button', { name: new RegExp(`^${release}`) }).click();
   await expect(page).toHaveURL(/group=unassigned&os=Linux&release=/);
-  const names = page.locator('tbody tr td:nth-child(2) a');
+  const names = page.locator('tbody tr td a[href^="/nodes/"]');
   await expect(names).toHaveText([`${tag}-a`, `${tag}-b`]);
   await expect(page.getByRole('heading', { name: `Not in a group › Linux › ${release}` })).toBeVisible();
 

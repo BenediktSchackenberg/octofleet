@@ -6,6 +6,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.rules import RULE_FIELDS, RULE_OPERATORS, evaluate_dynamic_rule
+from app.db import memberships
 from auth import require_user_permission
 from dependencies import bad_request, conflict, get_db, not_found, verify_api_key
 
@@ -219,88 +220,18 @@ async def preview_dynamic_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(
 
 @router.post("/groups/{group_id}/evaluate", dependencies=[Depends(require_user_permission("groups:write"))])
 async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
-    """
-    Re-evaluate a dynamic group and update memberships.
-    Useful after changing the rule or when you want to force a refresh.
-    """
+    """Re-evaluate a dynamic group for all nodes and update its memberships (set-based: four statements,
+    not two queries per node)."""
     async with db.acquire() as conn:
-        group = await conn.fetchrow("""
-            SELECT id, name, is_dynamic, dynamic_rule FROM groups WHERE id = $1
-        """, UUID(group_id))
-        
+        group = await conn.fetchrow("SELECT id, name, is_dynamic FROM groups WHERE id = $1", UUID(group_id))
         if not group:
             raise not_found("Group", group_id)
-        
-        if not group['is_dynamic']:
+        if not group["is_dynamic"]:
             raise HTTPException(status_code=400, detail="Group is not dynamic")
-        
-        rule = group['dynamic_rule']
-        if isinstance(rule, str):
-            rule = json.loads(rule)
-        
-        # Get all nodes
-        nodes = await conn.fetch("""
-            SELECT n.id, n.hostname, n.os_name, n.os_version, n.os_build, 
-                   n.agent_version, s.domain, s.is_domain_joined
-            FROM nodes n
-            LEFT JOIN system_current s ON n.id = s.node_id
-        """)
-        
-        # Pre-fetch all tags for all nodes
-        all_tags = await conn.fetch("""
-            SELECT dt.node_id, t.name FROM device_tags dt
-            JOIN tags t ON dt.tag_id = t.id
-        """)
-        node_tags_map = {}
-        for row in all_tags:
-            if row['node_id'] not in node_tags_map:
-                node_tags_map[row['node_id']] = []
-            node_tags_map[row['node_id']].append(row['name'])
-        
-        added = 0
-        removed = 0
-        
-        for node in nodes:
-            node_data = {
-                "hostname": node['hostname'] or "",
-                "os_name": node['os_name'] or "",
-                "os_version": node['os_version'] or "",
-                "os_build": node['os_build'] or "",
-                "agent_version": node['agent_version'] or "",
-                "domain": node['domain'] or "",
-                "is_domain_joined": node['is_domain_joined'] or False,
-                "tags": node_tags_map.get(node['id'], []),
-            }
-            
-            should_be_member = evaluate_dynamic_rule(rule, node_data)
-            
-            is_member = await conn.fetchval("""
-                SELECT 1 FROM device_groups WHERE node_id = $1 AND group_id = $2
-            """, node['id'], UUID(group_id))
-            
-            if should_be_member and not is_member:
-                await conn.execute("""
-                    INSERT INTO device_groups (node_id, group_id, assigned_by)
-                    VALUES ($1, $2, 'dynamic_rule')
-                    ON CONFLICT DO NOTHING
-                """, node['id'], UUID(group_id))
-                added += 1
-            elif not should_be_member and is_member:
-                result = await conn.execute("""
-                    DELETE FROM device_groups 
-                    WHERE node_id = $1 AND group_id = $2 AND assigned_by = 'dynamic_rule'
-                """, node['id'], UUID(group_id))
-                if result != "DELETE 0":
-                    removed += 1
-        
-        return {
-            "status": "ok",
-            "groupId": group_id,
-            "groupName": group['name'],
-            "added": added,
-            "removed": removed,
-            "evaluated": len(nodes)
-        }
+        async with conn.transaction():
+            result = await memberships.reevaluate(conn, None, [group["id"]])
+        return {"status": "ok", "groupId": group_id, "groupName": group["name"],
+                "added": result["added"], "removed": result["removed"], "evaluated": result["nodes"]}
 
 
 def _node_refs(data: Dict[str, Any]) -> list:
@@ -375,17 +306,18 @@ async def remove_device_group(group_id: str, node_ref: str, db: asyncpg.Pool = D
 
 @router.get("/tags", dependencies=[Depends(require_user_permission("groups:read"))])
 async def list_tags(db: asyncpg.Pool = Depends(get_db)):
-    """List all tags with usage counts"""
+    """All tags with where they are used: `device_count` (nodes), `dynamic_groups` (dynamic groups whose
+    rule tests the tag) and `jobs` (jobs created for the tag)."""
     async with db.acquire() as conn:
         rows = await conn.fetch("""
             SELECT t.id, t.name, t.color, t.created_at,
-                   COUNT(dt.node_id) as device_count
-            FROM tags t
-            LEFT JOIN device_tags dt ON t.id = dt.tag_id
-            GROUP BY t.id
-            ORDER BY t.name
-        """)
-        return {"tags": [dict(r) for r in rows]}
+                   (SELECT COUNT(*) FROM device_tags dt WHERE dt.tag_id = t.id) AS device_count,
+                   (SELECT COUNT(*) FROM jobs j WHERE j.target_type = 'tag' AND j.target_tag = t.name) AS jobs
+            FROM tags t ORDER BY lower(t.name), t.id""")
+        rules = await conn.fetch("SELECT dynamic_rule FROM groups WHERE is_dynamic AND dynamic_rule IS NOT NULL")
+        used = [memberships.rule_tags(r["dynamic_rule"]) for r in rules]
+        return {"tags": [{**dict(r), "dynamic_groups": sum(1 for names in used if r["name"].lower() in names)}
+                         for r in rows]}
 
 
 @router.post("/tags", dependencies=[Depends(require_user_permission("groups:write"))])
@@ -404,6 +336,82 @@ async def create_tag(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
             return {"status": "created", "tag": dict(row)}
         except asyncpg.UniqueViolationError:
             raise HTTPException(status_code=409, detail="Tag name already exists")
+
+
+TAG_COLOR_RE = __import__("re").compile(r"^#[0-9a-fA-F]{6}$")
+
+
+@router.patch("/tags/{tag_id}", dependencies=[Depends(require_user_permission("groups:write"))])
+async def update_tag(tag_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Rename a tag (`name`) or change its `color` (#RRGGBB, or null). Dynamic group rules that test the
+    tag follow the new name in the same transaction, so their members stay the same. 409 if the name
+    is taken."""
+    fields = {k: data[k] for k in ("name", "color") if k in data}
+    if not fields:
+        raise bad_request("name or color", "name")
+    name = fields.get("name")
+    if "name" in fields and (not isinstance(name, str) or not name.strip() or len(name.strip()) > 100):
+        raise bad_request("name: 1-100 characters", "name")
+    color = fields.get("color")
+    if "color" in fields and color is not None and not (isinstance(color, str) and TAG_COLOR_RE.match(color)):
+        raise bad_request("color: #RRGGBB or null", "color")
+    async with db.acquire() as conn, conn.transaction():
+        tag = await conn.fetchrow("SELECT id, name, color FROM tags WHERE id = $1 FOR UPDATE", UUID(tag_id))
+        if not tag:
+            raise not_found("Tag", tag_id)
+        new_name = name.strip() if "name" in fields else tag["name"]
+        try:
+            row = await conn.fetchrow(
+                "UPDATE tags SET name = $2, color = $3 WHERE id = $1 RETURNING id, name, color, created_at",
+                tag["id"], new_name, color if "color" in fields else tag["color"])
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=409, detail="Tag name already exists")
+        rules_updated = 0
+        if new_name != tag["name"]:
+            for g in await conn.fetch("SELECT id, dynamic_rule FROM groups WHERE is_dynamic AND dynamic_rule IS NOT NULL"):
+                rule = memberships.rename_tag_in_rule(g["dynamic_rule"], tag["name"], new_name)
+                if rule is not None:
+                    await conn.execute("UPDATE groups SET dynamic_rule = $2 WHERE id = $1", g["id"], json.dumps(rule))
+                    rules_updated += 1
+        return {"status": "updated", "tag": dict(row), "rulesUpdated": rules_updated}
+
+
+async def _tag_or_404(conn, tag_id: str):
+    tag = await conn.fetchrow("SELECT id, name FROM tags WHERE id = $1", UUID(tag_id))
+    if not tag:
+        raise not_found("Tag", tag_id)
+    return tag
+
+
+@router.post("/tags/{tag_id}/nodes", dependencies=[Depends(require_user_permission("groups:write"))])
+async def tag_nodes(tag_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Tag many nodes at once: `nodeIds` (UUIDs, node IDs or hostnames), one statement. Dynamic groups
+    whose rule tests tags are re-evaluated for these nodes. Returns `added`, `alreadyTagged`,
+    `notFound` and `dynamicGroups` (members added/removed by rules)."""
+    refs = _node_refs(data)
+    async with db.acquire() as conn, conn.transaction():
+        tag = await _tag_or_404(conn, tag_id)
+        node_ids, missing = await _resolve_nodes(conn, refs)
+        added = len(await conn.fetch("""
+            INSERT INTO device_tags (node_id, tag_id) SELECT DISTINCT unnest($1::uuid[]), $2::uuid
+            ON CONFLICT (node_id, tag_id) DO NOTHING RETURNING 1""", node_ids, tag["id"]))
+        changes = await memberships.reevaluate(conn, set(node_ids), tag_rules_only=True)
+        return {"status": "ok", "tagId": tag_id, "added": added, "alreadyTagged": len(set(node_ids)) - added,
+                "notFound": missing, "dynamicGroups": {"added": changes["added"], "removed": changes["removed"]}}
+
+
+@router.delete("/tags/{tag_id}/nodes", dependencies=[Depends(require_user_permission("groups:write"))])
+async def untag_nodes(tag_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
+    """Remove a tag from many nodes (`nodeIds` as for tagging), one statement; dynamic groups as there."""
+    refs = _node_refs(data)
+    async with db.acquire() as conn, conn.transaction():
+        tag = await _tag_or_404(conn, tag_id)
+        node_ids, missing = await _resolve_nodes(conn, refs)
+        result = await conn.execute("DELETE FROM device_tags WHERE tag_id = $1 AND node_id = ANY($2::uuid[])",
+                                    tag["id"], node_ids)
+        changes = await memberships.reevaluate(conn, set(node_ids), tag_rules_only=True)
+        return {"status": "ok", "tagId": tag_id, "removed": int(result.split()[-1]), "notFound": missing,
+                "dynamicGroups": {"added": changes["added"], "removed": changes["removed"]}}
 
 
 @router.delete("/tags/{tag_id}", dependencies=[Depends(require_user_permission("groups:write"))])
@@ -441,7 +449,7 @@ async def add_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Pool =
                 added += 1
             except Exception:
                 pass
-        
+        await memberships.reevaluate(conn, [node['id']], tag_rules_only=True)
         return {"status": "ok", "nodeId": node_id, "added": added}
 
 
@@ -465,7 +473,7 @@ async def remove_device_tags(node_id: str, data: Dict[str, Any], db: asyncpg.Poo
                     removed += 1
             except Exception:
                 pass
-        
+        await memberships.reevaluate(conn, [node['id']], tag_rules_only=True)
         return {"status": "ok", "nodeId": node_id, "removed": removed}
 
 

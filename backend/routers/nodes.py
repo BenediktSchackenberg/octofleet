@@ -86,7 +86,8 @@ NODE_LIST_SQL = """
            """ + status_sql("n") + """ AS status,
            h.cpu->>'name' as cpu_name,
            (h.ram->>'totalGb')::numeric as total_memory_gb,
-           COALESCE(a.critical, 0) AS critical_count, COALESCE(a.warning, 0) AS warning_count
+           COALESCE(a.critical, 0) AS critical_count, COALESCE(a.warning, 0) AS warning_count,
+           COALESCE(tg.tags, '[]'::json) AS tags
     FROM nodes n
     LEFT JOIN hardware_current h ON n.id = h.node_id
     LEFT JOIN (
@@ -96,6 +97,12 @@ NODE_LIST_SQL = """
         FROM alerts WHERE status = 'fired' AND severity IN ('critical', 'warning')
         GROUP BY node_id
     ) a ON a.node_id = n.id
+    -- the node's tags (name, color), one grouped pass over device_tags
+    LEFT JOIN (
+        SELECT dt.node_id, json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color)
+                                    ORDER BY lower(t.name)) AS tags
+        FROM device_tags dt JOIN tags t ON t.id = dt.tag_id GROUP BY dt.node_id
+    ) tg ON tg.node_id = n.id
     {where}
     """ + NODE_LIST_ORDER
 
@@ -122,6 +129,7 @@ async def list_nodes(
         nodes_list = []
         for r in rows:
             node = dict(r)
+            node["tags"] = json.loads(node["tags"]) if isinstance(node["tags"], str) else node["tags"]
             critical = node.pop("critical_count") or 0
             warning = node.pop("warning_count") or 0
             if critical > 0:

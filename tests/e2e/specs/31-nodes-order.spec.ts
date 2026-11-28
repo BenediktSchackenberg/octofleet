@@ -19,7 +19,7 @@ test('Nodes list: stable order by name, sort in the URL', async ({ page, request
   await page.evaluate(() => { localStorage.setItem('locale', 'en'); localStorage.setItem('octofleet-nodes-view', 'list'); });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByPlaceholder('Search...').fill(tag);
-  const names = page.locator('tbody tr td:nth-child(2) a');
+  const names = page.locator('tbody tr td a[href^="/nodes/"]');
   await expect(names).toHaveText([`${tag}-A`, `${tag}-b`, `${tag}-c`]);
 
   // The name column again: descending, in the URL, kept on reload

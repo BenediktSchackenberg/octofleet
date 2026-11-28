@@ -15,7 +15,7 @@ def _db(rows):
 
 
 def _row(hostname, critical=0, warning=0):
-    return {"id": uuid4(), "node_id": hostname, "hostname": hostname, "critical_count": critical,
+    return {"id": uuid4(), "node_id": hostname, "hostname": hostname, "critical_count": critical, "tags": '[{"id": "t1", "name": "ring-1", "color": null}]',
             "warning_count": warning}
 
 
@@ -54,3 +54,13 @@ class NodeListTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NodeListTagsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tags_in_one_grouped_pass_and_decoded(self):
+        pool, conn = _db([_row("a")])
+        result = await list_nodes(db=pool)
+        self.assertEqual(result["nodes"][0]["tags"], [{"id": "t1", "name": "ring-1", "color": None}])
+        sql = conn.fetch.call_args.args[0]
+        self.assertIn("FROM device_tags dt JOIN tags t ON t.id = dt.tag_id GROUP BY dt.node_id", sql)
+
