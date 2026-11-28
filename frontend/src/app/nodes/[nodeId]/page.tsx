@@ -31,6 +31,7 @@ import { useFleetTree } from "@/components/fleet/FleetTree";
 import { lastNodesList, scopeFromSearch, scopeLabel } from "@/lib/fleet-scope";
 import { MonitoringHealthPanel } from "@/components/monitoring-health-panel";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { SearchSelect, groupOptions } from "@/components/search-select";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
@@ -201,23 +202,15 @@ function MoveToGroupButton({ nodeId, onMoved }: { nodeId: string; onMoved?: () =
         <FolderTree className="h-4 w-4 mr-1" /> {t("nodeDetail.moveToGroup")}
       </Button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-md border bg-popover p-1 shadow-md">
+        <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-md border bg-popover p-2 shadow-md">
           {loading ? (
             <p className="text-sm text-muted-foreground p-2">{t("common.loading")}</p>
           ) : groups.length === 0 ? (
             <p className="text-sm text-muted-foreground p-2">{t("nodeDetail.noGroups")}</p>
           ) : (
-            groups.map((g: any) => (
-              <button
-                key={g.id}
-                className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent flex items-center gap-2"
-                onClick={() => moveToGroup(g.id)}
-              >
-                {g.icon && <span>{g.icon}</span>}
-                {g.color && <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: g.color }} />}
-                {g.name}
-              </button>
-            ))
+            // searchable by path: a dropdown is unusable with hundreds of groups
+            <SearchSelect options={groupOptions(groups)} value={null} onChange={(id) => { if (id) moveToGroup(id); }}
+              label={t("nodeDetail.moveToGroup")} placeholder={t("searchSelect.placeholderGroup")} />
           )}
         </div>
       )}

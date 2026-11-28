@@ -190,6 +190,32 @@ export function FleetTree() {
     });
   }
 
+  // groups as a tree: a group with sub-groups lists them, a group without lists its OS breakdown
+  function groupRows(parent: string | null, indent: number): React.ReactNode {
+    if (!tree) return null;
+    const known = new Set(tree.groups.map((g) => g.id));
+    const level = tree.groups.filter((g) => (g.parent_id && known.has(g.parent_id) ? g.parent_id : null) === parent);
+    return level.map((group) => {
+      const groupScope = { group: group.id, os: null, release: null };
+      const groupKey = branchKey(groupScope);
+      const subGroups = tree.groups.some((g) => g.parent_id === group.id);
+      return (
+        <div key={group.id}>
+          <TreeRow
+            label={group.name} icon={<FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />}
+            total={group.total} online={group.online} indent={indent}
+            expanded={expanded.has(groupKey)} onToggle={() => toggle(groupKey)}
+            selected={selected(groupScope)} onPick={() => pick(groupScope, groupKey)}
+            action={<RowLink href={`/groups/${group.id}`} label={t("fleetTree.manageGroup", { name: group.name })} />}
+          />
+          {expanded.has(groupKey) && (subGroups
+            ? groupRows(group.id, indent + 1)
+            : branchRows(group.id, group, indent + 1))}
+        </div>
+      );
+    });
+  }
+
   return (
     <nav aria-label={t("fleetTree.title")} className="text-sm select-none">
       <div className="flex items-center justify-between px-3 py-2 border-b">
@@ -217,22 +243,7 @@ export function FleetTree() {
           />
           {expanded.has("groups") && (tree.groups.length === 0 ? (
             <p className="py-1 pr-2 text-xs text-muted-foreground" style={{ paddingLeft: 40 }}>{t("fleetTree.noGroups")}</p>
-          ) : tree.groups.map((group) => {
-            const groupScope = { group: group.id, os: null, release: null };
-            const groupKey = branchKey(groupScope);
-            return (
-              <div key={group.id}>
-                <TreeRow
-                  label={group.name} icon={<FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />}
-                  total={group.total} online={group.online} indent={1}
-                  expanded={expanded.has(groupKey)} onToggle={() => toggle(groupKey)}
-                  selected={selected(groupScope)} onPick={() => pick(groupScope, groupKey)}
-                  action={<RowLink href={`/groups/${group.id}`} label={t("fleetTree.manageGroup", { name: group.name })} />}
-                />
-                {expanded.has(groupKey) && branchRows(group.id, group, 2)}
-              </div>
-            );
-          }))}
+          ) : groupRows(null, 1))}
 
           {tree.unassigned.total > 0 && (() => {
             const unassignedScope = { group: UNASSIGNED, os: null, release: null };

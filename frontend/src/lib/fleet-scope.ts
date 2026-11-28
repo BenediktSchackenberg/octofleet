@@ -26,6 +26,10 @@ export interface TreeBranch extends TreeCount {
 export interface TreeGroup extends TreeBranch {
   id: string;
   name: string;
+  /** the parent group; the counts include the nodes of all sub-groups */
+  parent_id?: string | null;
+  /** a group with sub-groups lists them instead of an OS breakdown */
+  has_sub_groups?: boolean;
 }
 
 /** GET /api/v1/nodes/tree?view=summary */

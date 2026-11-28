@@ -133,9 +133,11 @@ SCHEMA_CACHE = (
     BEGIN
         INSERT INTO linux_approval_dirty (node_id)
         SELECT DISTINCT c.node_id FROM changed c
-         WHERE EXISTS (SELECT 1 FROM linux_update_rules r WHERE r.group_id = c.group_id)
-            OR EXISTS (SELECT 1 FROM patch_rings pr JOIN linux_update_rules r ON pr.id = ANY(r.ring_ids)
-                        WHERE pr.node_group_id = c.group_id)
+         WHERE EXISTS (SELECT 1 FROM group_ancestor_ids(c.group_id) a
+                        JOIN linux_update_rules r ON r.group_id = a.group_id)
+            OR EXISTS (SELECT 1 FROM group_ancestor_ids(c.group_id) a
+                        JOIN patch_rings pr ON pr.node_group_id = a.group_id
+                        JOIN linux_update_rules r ON pr.id = ANY(r.ring_ids))
         ON CONFLICT DO NOTHING;
         RETURN NULL;
     END $$""",
@@ -147,6 +149,10 @@ SCHEMA_CACHE = (
         ON patch_rings FOR EACH STATEMENT EXECUTE FUNCTION linux_approval_mark_ring_change()""",
     "DROP TRIGGER IF EXISTS linux_approval_group_deleted ON groups",
     """CREATE TRIGGER linux_approval_group_deleted AFTER DELETE
+        ON groups FOR EACH STATEMENT EXECUTE FUNCTION linux_approval_mark_group_delete()""",
+    # a sub-group moved: the nodes its parents reach change
+    "DROP TRIGGER IF EXISTS linux_approval_group_moved ON groups",
+    """CREATE TRIGGER linux_approval_group_moved AFTER UPDATE OF parent_id
         ON groups FOR EACH STATEMENT EXECUTE FUNCTION linux_approval_mark_group_delete()""",
     "DROP TRIGGER IF EXISTS linux_approval_members_added ON device_groups",
     """CREATE TRIGGER linux_approval_members_added AFTER INSERT ON device_groups
@@ -338,9 +344,15 @@ WITH target AS MATERIALIZED (
               FROM rule_rings rr JOIN target t ON rr.node_group_id IS NULL
             UNION ALL
             SELECT rr.rule_id, dg.node_id, rr.delay_hours
-              FROM rule_rings rr JOIN device_groups dg ON dg.group_id = rr.node_group_id
-              JOIN target t ON t.node_id = dg.node_id) x
+              FROM rule_rings rr CROSS JOIN LATERAL group_node_ids(rr.node_group_id) dg
+              JOIN target t ON t.node_id = dg.node_id
+             WHERE rr.node_group_id IS NOT NULL) x
      GROUP BY rule_id, node_id
+), rule_group_nodes AS MATERIALIZED (
+    -- the nodes a rule's group reaches: its members and those of its sub-groups
+    SELECT r.id AS rule_id, gn.node_id
+      FROM rules r CROSS JOIN LATERAL group_node_ids(r.group_id) gn
+     WHERE r.group_id IS NOT NULL
 ), scope AS MATERIALIZED (
     SELECT r.id AS rule_id, r.action, t.node_id,
            r.min_age_hours + CASE WHEN r.expedite OR cardinality(r.ring_ids) = 0 THEN 0
@@ -349,7 +361,7 @@ WITH target AS MATERIALIZED (
       JOIN dangling d ON d.rule_id = r.id
       JOIN target t ON cardinality(r.release_like) = 0 OR t.release LIKE ANY(r.release_like)
       LEFT JOIN ring_nodes rn ON rn.rule_id = r.id AND rn.node_id = t.node_id
-      LEFT JOIN device_groups g ON g.group_id = r.group_id AND g.node_id = t.node_id
+      LEFT JOIN rule_group_nodes g ON g.rule_id = r.id AND g.node_id = t.node_id
      WHERE (cardinality(r.ring_ids) = 0 OR rn.node_id IS NOT NULL OR (r.action = 'exclude' AND d.ring))
        AND (r.group_id IS NULL OR g.node_id IS NOT NULL OR (r.action = 'exclude' AND d.grp))
 ), pending AS MATERIALIZED (

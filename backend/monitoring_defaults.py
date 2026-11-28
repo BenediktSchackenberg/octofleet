@@ -49,8 +49,8 @@ EFFECTIVE_PROFILE_SQL = {
         SELECT a.*, p.name as profile_name, p.sensors, p.sampling, p.include_paths, p.exclude_paths
         FROM monitoring_assignments a
         JOIN monitoring_profiles p ON p.id = a.profile_id
-        JOIN device_groups dg ON dg.group_id = a.target_id::uuid
-        WHERE a.target_type = 'group' AND dg.node_id = $1::uuid AND a.status = 'active'
+        JOIN node_group_ids($1::uuid) dg ON dg.group_id = a.target_id::uuid
+        WHERE a.target_type = 'group' AND a.status = 'active'
             AND (a.end_time IS NULL OR a.end_time > now())
         ORDER BY a.priority DESC LIMIT 1
     """,

@@ -177,8 +177,9 @@ async def lifespan(app: FastAPI):
     await job_types.ensure_schema(db_pool)
     await audit_query.ensure_schema(db_pool)
     await job_failures.ensure_schema(db_pool)
-    from app.db import group_usage
+    from app.db import group_tree, group_usage
     await group_usage.ensure_schema(db_pool)
+    await group_tree.ensure_schema(db_pool)  # before the Linux rules: their triggers call it
     await ensure_patches_schema(db_pool)
     await password_policy.ensure_schema(db_pool)
     await vulnerability.ensure_schema(db_pool)
@@ -2158,7 +2159,7 @@ async def check_maintenance_window(node_id: str):
     async with db_pool.acquire() as conn:
         # Get node's group memberships
         groups = await conn.fetch(
-            "SELECT group_id FROM device_groups WHERE node_id = $1", node_id
+            "SELECT group_id FROM node_group_ids($1::uuid)", node_id
         )
         group_ids = [str(g["group_id"]) for g in groups]
         

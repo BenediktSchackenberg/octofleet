@@ -42,7 +42,7 @@ async def create_deployment(data: dict, db: asyncpg.Pool = Depends(get_db)):
         elif target_type == "node":
             await conn.execute("INSERT INTO deployment_status (deployment_id, node_id, status) VALUES ($1, $2, 'pending')", dep_id, target_id)
         elif target_type == "group":
-            await conn.execute("INSERT INTO deployment_status (deployment_id, node_id, status) SELECT $1, node_id, 'pending' FROM device_groups WHERE group_id = $2", dep_id, target_id)
+            await conn.execute("INSERT INTO deployment_status (deployment_id, node_id, status) SELECT $1, node_id, 'pending' FROM group_node_ids($2::uuid)", dep_id, target_id)
         
         return {"id": str(dep_id), "status": "created"}
 

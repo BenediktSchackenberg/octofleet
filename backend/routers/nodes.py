@@ -120,8 +120,7 @@ async def list_nodes(
                 WHERE NOT EXISTS (SELECT 1 FROM device_groups dg WHERE dg.node_id::uuid = n.id::uuid)"""))
         elif group_id:
             rows = await conn.fetch(NODE_LIST_SQL.format(where="""
-                WHERE EXISTS (SELECT 1 FROM device_groups dg
-                              WHERE dg.node_id::uuid = n.id::uuid AND dg.group_id = $1::uuid)"""),
+                WHERE n.id IN (SELECT node_id FROM group_node_ids($1::uuid))"""),
                 UUID(group_id))
         else:
             rows = await conn.fetch(NODE_LIST_SQL.format(where=""))
@@ -143,8 +142,8 @@ async def list_nodes(
 
         return {"nodes": nodes_list}
 
-# The Fleet workspace's tree: one row per node with what places it in the tree - its groups (one
-# grouped pass over device_groups, hash-joined) and, for Windows, the feature version from the newest
+# The Fleet workspace's tree: one row per node with what places it in the tree - the groups that reach
+# it, its own and their parents (the group tree walked once, joined to device_groups, hash-joined) and, for Windows, the feature version from the newest
 # posture snapshot (one index lookup per Windows node via idx_config_posture_node; Linux skips it)
 NODE_TREE_SUMMARY_SQL = """
     SELECT n.node_id, n.os_name, n.os_version, """ + status_sql("n") + """ AS status, p.display_version,
@@ -156,11 +155,17 @@ NODE_TREE_SUMMARY_SQL = """
         ORDER BY s.created_at DESC LIMIT 1
     ) p ON true
     LEFT JOIN (
-        SELECT dg.node_id,
+        WITH RECURSIVE up(group_id, ancestor_id, depth) AS (
+            SELECT id, id, 0 FROM groups
+            UNION ALL
+            SELECT up.group_id, g.parent_id, up.depth + 1 FROM up JOIN groups g ON g.id = up.ancestor_id
+             WHERE g.parent_id IS NOT NULL AND up.depth < 20)
+        SELECT x.node_id,
                array_agg(gr.id::text ORDER BY lower(gr.name), gr.id) AS ids,
                array_agg(gr.name ORDER BY lower(gr.name), gr.id) AS names
-        FROM device_groups dg JOIN groups gr ON gr.id = dg.group_id
-        GROUP BY dg.node_id
+        FROM (SELECT DISTINCT dg.node_id, up.ancestor_id FROM device_groups dg JOIN up ON up.group_id = dg.group_id) x
+        JOIN groups gr ON gr.id = x.ancestor_id
+        GROUP BY x.node_id
     ) g ON g.node_id = n.id
     """ + NODE_LIST_ORDER
 
@@ -172,7 +177,15 @@ def _natural_key(text: str) -> list:
     return [int(part) if part.isdigit() else part.lower() for part in _natural.split(text)]
 
 
-def _tree_summary(rows) -> dict:
+# Where each group sits: its parent and whether it has sub-groups (the tree nests them; a group with
+# sub-groups shows those instead of an OS breakdown)
+TREE_GROUPS_SQL = """
+    SELECT g.id::text AS id, g.parent_id::text AS parent_id,
+           EXISTS (SELECT 1 FROM groups c WHERE c.parent_id = g.id) AS has_sub_groups
+      FROM groups g"""
+
+
+def _tree_summary(rows, places=None) -> dict:
     """Counts per group -> OS family -> release, and "not in a group" the same way.
 
     Each release lists its node IDs, so the Nodes list can show a branch without a request per
@@ -205,7 +218,9 @@ def _tree_summary(rows) -> dict:
         release = _os_product(row["os_name"], row["os_version"], row["display_version"])
         if row["group_ids"]:
             for group_id, name in zip(row["group_ids"], row["group_names"]):
-                group = groups.setdefault(group_id, {"id": group_id, "name": name, **branch()})
+                place = (places or {}).get(group_id, {})
+                group = groups.setdefault(group_id, {"id": group_id, "name": name, "parent_id": place.get("parent_id"),
+                                                     "has_sub_groups": bool(place.get("has_sub_groups")), **branch()})
                 add(group, family, release, row["node_id"], online)
         else:
             add(unassigned, family, release, row["node_id"], online)
@@ -236,7 +251,8 @@ async def get_nodes_tree(view: Optional[str] = None, db: asyncpg.Pool = Depends(
     """
     if view == "summary":
         async with db.acquire() as conn:
-            return _tree_summary(await conn.fetch(NODE_TREE_SUMMARY_SQL))
+            places = {r["id"]: dict(r) for r in await conn.fetch(TREE_GROUPS_SQL)}
+            return _tree_summary(await conn.fetch(NODE_TREE_SUMMARY_SQL), places)
     if view is not None:
         raise HTTPException(status_code=422, detail="view must be 'summary' or left out")
     async with db.acquire() as conn:

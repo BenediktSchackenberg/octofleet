@@ -12,7 +12,7 @@ import { ChevronDown, ChevronRight, FolderPlus, FolderTree, Plus, Sparkles, Tag 
 import { useI18n } from "@/lib/i18n-context";
 import { TagsManager } from "@/components/tags-manager";
 import { ListPager, ListSearch, PAGE_SIZE, matchesWords } from "@/components/list-pager";
-import { GroupFormDialog, passGroupNotice, takeGroupNotice } from "@/components/group-form-dialog";
+import { GroupFormDialog, MAX_GROUP_LEVELS, groupLevel, passGroupNotice, takeGroupNotice } from "@/components/group-form-dialog";
 
 interface Group {
   id: string;
@@ -179,7 +179,9 @@ export default function GroupsPage() {
                       <TableCell className="max-w-md truncate text-muted-foreground" title={group.description ?? undefined}>{group.description || "-"}</TableCell>
                       <TableCell className="text-right">
                         <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setCreating({ parentId: group.id }); }}
-                          aria-label={t("groupsPage.addSubgroup", { name: group.name })} title={t("groupsPage.addSubgroup", { name: group.name })}>
+                          disabled={groupLevel(groups, group.id) >= MAX_GROUP_LEVELS}
+                          aria-label={t("groupsPage.addSubgroup", { name: group.name })}
+                          title={groupLevel(groups, group.id) >= MAX_GROUP_LEVELS ? t("groupForm.depthHint", { levels: MAX_GROUP_LEVELS }) : t("groupsPage.addSubgroup", { name: group.name })}>
                           <FolderPlus aria-hidden="true" />
                         </Button>
                       </TableCell>

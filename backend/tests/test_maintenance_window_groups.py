@@ -30,7 +30,7 @@ class Pool:
 
             async def fetch(self, query, *args):
                 pool.queries.append(query)
-                if "device_groups" in query:
+                if "node_group_ids" in query:
                     return [{"group_id": g} for g in pool.groups]
                 return [pool.window]
 
@@ -48,7 +48,7 @@ class GroupScopedWindowTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_group_window_applies_to_its_members(self):
         pool = Pool(window("group", GROUP), [GROUP])
         self.assertTrue(await is_in_maintenance_window(pool, NODE))
-        self.assertTrue(any("device_groups" in q for q in pool.queries))
+        self.assertTrue(any("node_group_ids" in q for q in pool.queries))  # with the parents of its groups
         self.assertFalse(any("group_members" in q for q in pool.queries))
 
     async def test_not_to_other_nodes(self):

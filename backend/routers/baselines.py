@@ -160,12 +160,11 @@ async def reconcile_all_baselines(db: asyncpg.Pool = Depends(get_db)):
             # Get nodes in group that haven't completed this baseline
             nodes_needing_install = await conn.fetch("""
                 SELECT n.id, n.node_id, n.hostname
-                FROM device_groups dg
+                FROM group_node_ids($2::uuid) dg
                 JOIN nodes n ON n.id = dg.node_id
                 LEFT JOIN software_baseline_status sbs 
                     ON sbs.node_id = n.node_id AND sbs.baseline_id = $1::uuid
-                WHERE dg.group_id = $2::uuid
-                  AND n.is_online = true
+                WHERE n.is_online = true
                   AND (sbs.status IS NULL OR sbs.status = 'failed')
             """, assignment["baseline_id"], assignment["group_id"])
             
@@ -782,7 +781,7 @@ async def evaluate_baseline(baseline_id: str, db: asyncpg.Pool = Depends(get_db)
             if a["target_type"] == "node":
                 node_ids.add(a["target_id"])
             elif a["target_type"] == "group":
-                members = await conn.fetch("SELECT node_id FROM device_groups WHERE group_id=$1", a["target_id"])
+                members = await conn.fetch("SELECT node_id FROM group_node_ids($1::uuid)", a["target_id"])
                 for m in members:
                     node_ids.add(m["node_id"])
 

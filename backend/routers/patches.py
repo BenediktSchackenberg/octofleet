@@ -573,7 +573,7 @@ async def create_patch_deployment(data: dict, request: Request):
             ring = await conn.fetchrow("SELECT node_group_id FROM patch_rings WHERE id=$1", ring_id)
             if ring and ring["node_group_id"]:
                 nodes = await conn.fetch(
-                    "SELECT node_id FROM device_groups WHERE group_id=$1",
+                    "SELECT node_id FROM group_node_ids($1::uuid)",
                     ring["node_group_id"])
                 node_ids = [str(n["node_id"]) for n in nodes]
             else:
