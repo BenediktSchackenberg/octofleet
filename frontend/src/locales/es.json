@@ -525,8 +525,8 @@
       "removeTagRun": "Quitar {name} de {count} nodos",
       "group": "Grupo",
       "tag": "Etiqueta",
-      "chooseGroup": "Elegir un grupo…",
-      "chooseTag": "Elegir una etiqueta…",
+      "chooseGroup": "Buscar grupos…",
+      "chooseTag": "Buscar etiquetas…",
       "newTag": "o una etiqueta nueva",
       "noGroups": "Aún no hay grupos estáticos: cree uno en la página Grupos.",
       "noTags": "Aún no hay etiquetas.",
@@ -535,7 +535,8 @@
       "resultRemoved": "{count} quitados",
       "resultAlready": "{count} ya estaban",
       "resultNotFound": "{count} no encontrados",
-      "resultDynamic": "grupos dinámicos +{added} / -{removed}"
+      "resultDynamic": "grupos dinámicos +{added} / -{removed}",
+      "nodesCount": "{count} nodos"
     }
   },
   "onboarding": {
@@ -2520,7 +2521,16 @@
       "usage": "{nodes} nodos, {groups} grupos dinámicos, {jobs} trabajos",
       "confirmDelete": "¿Eliminar la etiqueta {name}?",
       "confirmDeleteUsed": "¿Eliminar la etiqueta {name}? La usan {usage}. Los nodos pierden la etiqueta y los grupos dinámicos que la comprueban pierden esos miembros en su próxima evaluación."
-    }
+    },
+    "none": "Aún no hay grupos.",
+    "type": "Tipo",
+    "membersColumn": "Miembros",
+    "static": "Estático",
+    "subgroups": "{count} subgrupos",
+    "collapse": "Contraer {name}",
+    "expand": "Expandir {name}",
+    "addSubgroup": "Añadir un subgrupo a {name}",
+    "treeHint": "Los subgrupos se muestran bajo su grupo superior. Cada grupo tiene sus propios miembros: un grupo superior no incluye los nodos de sus subgrupos."
   },
   "groupDetail": {
     "saveFailed": "No se pudo guardar el grupo.",
@@ -2578,7 +2588,12 @@
         "regex": "coincide con la expresión regular",
         "has_tag": "tiene la etiqueta"
       }
-    }
+    },
+    "parents": "Grupos superiores",
+    "subgroups": "Subgrupos ({count})",
+    "subgroupsHint": "Grupos por debajo de este. Cada uno tiene sus propios miembros.",
+    "addSubgroup": "Añadir subgrupo",
+    "deleteSubgroups": "Sus {count} subgrupos pasan al nivel superior."
   },
   "addDevices": {
     "button": "Añadir dispositivos",
@@ -2938,5 +2953,81 @@
       "port": "Puerto",
       "customJson": "Valor JSON propio"
     }
+  },
+  "groupRule": {
+    "match": "Los miembros son los nodos que cumplen",
+    "operator": "Todas o alguna",
+    "all": "todas",
+    "any": "alguna",
+    "ofTheseConditions": "de estas condiciones:",
+    "field": "Campo de la condición {n}",
+    "op": "Operador de la condición {n}",
+    "value": "Valor de la condición {n}",
+    "remove": "Quitar la condición {n}",
+    "add": "Añadir condición",
+    "yes": "sí",
+    "no": "no",
+    "chooseTag": "Elegir una etiqueta…",
+    "incomplete": "Complete cada condición para ver qué nodos coinciden.",
+    "previewing": "Comprobando…",
+    "matches": "Coinciden {count} de {total} nodos:",
+    "fields": {
+      "hostname": "Nombre de host",
+      "os_name": "Nombre del SO",
+      "os_version": "Versión del SO",
+      "os_build": "Compilación del SO",
+      "agent_version": "Versión del agente",
+      "domain": "Dominio",
+      "is_domain_joined": "Unido al dominio",
+      "tags": "Etiqueta"
+    },
+    "ops": {
+      "equals": "es",
+      "not_equals": "no es",
+      "contains": "contiene",
+      "not_contains": "no contiene",
+      "startswith": "empieza por",
+      "endswith": "termina en",
+      "regex": "coincide (regex)",
+      "gte": "≥",
+      "lte": "≤",
+      "gt": ">",
+      "lt": "<",
+      "has_tag": "tiene"
+    },
+    "placeholders": {
+      "hostname": "srv-",
+      "os_name": "Ubuntu",
+      "os_version": "24.04",
+      "os_build": "26100",
+      "agent_version": "0.5.43",
+      "domain": "corp.example"
+    }
+  },
+  "groupForm": {
+    "newTitle": "Nuevo grupo",
+    "editTitle": "Editar {name}",
+    "hint": "Un grupo estático contiene los nodos que usted añade; un grupo dinámico toma sus miembros de una regla y la sigue en cada envío de inventario.",
+    "name": "Nombre",
+    "description": "Descripción",
+    "color": "Color",
+    "parent": "Grupo superior",
+    "topLevel": "Ninguno (nivel superior)",
+    "type": "Tipo",
+    "static": "Estático",
+    "dynamic": "Dinámico",
+    "staticHint": "Usted añade y quita los nodos (también desde la lista de nodos).",
+    "dynamicHint": "Los miembros siguen la regla: los nodos entran y salen cuando cambian sus datos.",
+    "rule": "Regla",
+    "create": "Crear grupo",
+    "save": "Guardar",
+    "exists": "Ya existe un grupo con este nombre.",
+    "createdDynamic": "Grupo creado con {count} nodos que cumplen la regla.",
+    "ruleApplied": "Regla aplicada: {added} nodos añadidos, {removed} quitados."
+  },
+  "searchSelect": {
+    "none": "No se encontró nada",
+    "more": "{count} más - siga escribiendo para acotar la lista",
+    "change": "Elegir otro {label}"
   }
 }

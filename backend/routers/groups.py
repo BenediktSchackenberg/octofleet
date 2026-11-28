@@ -29,7 +29,35 @@ async def list_groups(db: asyncpg.Pool = Depends(get_db)):
             GROUP BY g.id
             ORDER BY g.name
         """)
-        return {"groups": [dict(r) for r in rows]}
+        return {"groups": [_group(r) for r in rows]}
+
+
+def _group(row) -> dict:
+    """A group row with its rule decoded (jsonb comes back as text)"""
+    item = dict(row)
+    if isinstance(item.get("dynamic_rule"), str):
+        item["dynamic_rule"] = json.loads(item["dynamic_rule"])
+    return item
+
+
+# The group's ancestors, nearest last (for the breadcrumb) and its direct sub-groups with member counts
+PARENTS_SQL = """
+    WITH RECURSIVE up AS (
+        SELECT g.id, g.name, g.parent_id, 0 AS depth FROM groups g WHERE g.id = (SELECT parent_id FROM groups WHERE id = $1)
+        UNION ALL
+        SELECT g.id, g.name, g.parent_id, up.depth + 1 FROM groups g JOIN up ON g.id = up.parent_id WHERE up.depth < 50)
+    SELECT id, name FROM up ORDER BY depth DESC"""
+CHILDREN_SQL = """
+    SELECT g.id, g.name, g.is_dynamic, g.color,
+           (SELECT COUNT(*) FROM device_groups dg WHERE dg.group_id = g.id) AS member_count
+    FROM groups g WHERE g.parent_id = $1 ORDER BY lower(g.name), g.id"""
+# Whether $2 is the group $1 itself or one of its sub-groups (at any depth): such a parent would make a loop
+IS_SELF_OR_DESCENDANT_SQL = """
+    WITH RECURSIVE down AS (
+        SELECT id, 0 AS depth FROM groups WHERE id = $1
+        UNION ALL
+        SELECT g.id, down.depth + 1 FROM groups g JOIN down ON g.parent_id = down.id WHERE down.depth < 50)
+    SELECT EXISTS (SELECT 1 FROM down WHERE id = $2)"""
 
 
 @router.get("/groups/{group_id}", dependencies=[Depends(require_user_permission("groups:read"))])
@@ -55,8 +83,10 @@ async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
             ORDER BY n.hostname
         """, UUID(group_id))
         
-        result = dict(group)
+        result = _group(group)
         result["members"] = [dict(m) for m in members]
+        result["parents"] = [dict(r) for r in await conn.fetch(PARENTS_SQL, UUID(group_id))]
+        result["children"] = [dict(r) for r in await conn.fetch(CHILDREN_SQL, UUID(group_id))]
         return result
 
 
@@ -67,8 +97,12 @@ async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db))
     name = data.get("name")
     if not name:
         raise bad_request("Name is required", "name")
-    
-    async with db.acquire() as conn:
+    if data.get("isDynamic") and not data.get("dynamicRule"):
+        raise bad_request("dynamicRule: a dynamic group needs a rule", "dynamicRule")
+
+    async with db.acquire() as conn, conn.transaction():
+        if data.get("parentId") and not await conn.fetchval("SELECT 1 FROM groups WHERE id = $1", UUID(data["parentId"])):
+            raise bad_request("parentId: no such group", "parentId")
         try:
             row = await conn.fetchrow("""
                 INSERT INTO groups (name, description, parent_id, is_dynamic, dynamic_rule, color, icon)
@@ -83,9 +117,11 @@ async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db))
                 data.get("color"),
                 data.get("icon")
             )
-            return {"status": "created", "group": dict(row)}
         except asyncpg.UniqueViolationError:
             raise conflict("Group name already exists", "Group")
+        # a dynamic group gets its members at once, not on the nodes' next push
+        members = (await memberships.reevaluate(conn, None, [row["id"]]))["added"] if row["is_dynamic"] else 0
+        return {"status": "created", "group": _group(row), "members": members}
 
 
 def check_rule(rule) -> None:
@@ -107,11 +143,17 @@ def check_rule(rule) -> None:
 async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update an existing group"""
     check_rule(data.get("dynamicRule"))
-    async with db.acquire() as conn:
+    async with db.acquire() as conn, conn.transaction():
         existing = await conn.fetchrow("SELECT id FROM groups WHERE id = $1", UUID(group_id))
         if not existing:
             raise not_found("Group", group_id)
-        
+        if data.get("parentId"):
+            parent = UUID(data["parentId"])
+            if not await conn.fetchval("SELECT 1 FROM groups WHERE id = $1", parent):
+                raise bad_request("parentId: no such group", "parentId")
+            if await conn.fetchval(IS_SELF_OR_DESCENDANT_SQL, UUID(group_id), parent):
+                raise bad_request("parentId: not the group itself or one of its sub-groups", "parentId")
+
         row = await conn.fetchrow("""
             UPDATE groups SET
                 name = COALESCE($2, name),
@@ -136,7 +178,12 @@ async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = D
             # only when the request names it: renaming a sub-group set its parent to NULL
             "parentId" in data,
         )
-        return {"status": "updated", "group": dict(row)}
+        # a changed rule applies at once
+        changes = None
+        if row["is_dynamic"] and data.get("dynamicRule"):
+            changes = await memberships.reevaluate(conn, None, [row["id"]])
+        return {"status": "updated", "group": _group(row),
+                "members": {"added": changes["added"], "removed": changes["removed"]} if changes else None}
 
 
 @router.delete("/groups/{group_id}", dependencies=[Depends(require_user_permission("groups:write"))])
