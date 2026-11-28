@@ -443,7 +443,8 @@
         "no_build": "Windows updates could not be checked: the agent has not reported the Windows build with its update revision yet (inventory or daily security snapshot).",
         "unsupported_release": "Windows updates could not be checked: build {build} is not one of the Windows releases Octofleet maps to Microsoft's Security Update Guide.",
         "no_data": "Windows updates could not be checked yet: no data from Microsoft's Security Update Guide for {product} (sync pending or disabled)."
-      }
+      },
+      "notScanned": "This node is not checked for vulnerabilities: packages of {os} are not matched against advisories yet. No CVEs here does not mean the node is clean."
     },
     "removal": {
       "button": "Remove node…",
@@ -837,7 +838,10 @@
       "openNode": "Show this CVE on the node page"
     },
     "onlySeverity": "Only nodes with {severity} CVEs",
-    "showAllNodes": "Show all nodes"
+    "showAllNodes": "Show all nodes",
+    "notScanned": "Not checked for vulnerabilities: {releases}. Packages of these releases are not matched against advisories yet, so their nodes show no CVEs - that does not mean they are clean.",
+    "notScannedOne": "{os} (1 node)",
+    "notScannedMany": "{os} ({count} nodes)"
   },
   "vulnerabilityScan": {
     "running": "Scan running since {time} ({minutes} min) – {checked} of {total} software versions checked. Numbers can be incomplete until it finishes.",

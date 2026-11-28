@@ -443,7 +443,8 @@
         "no_build": "Windows-Updates konnten nicht geprüft werden: Der Agent hat den Windows-Build mit Update-Revision noch nicht gemeldet (Inventar oder täglicher Sicherheits-Snapshot).",
         "unsupported_release": "Windows-Updates konnten nicht geprüft werden: Build {build} gehört zu keinem Windows-Release, das Octofleet dem Security Update Guide von Microsoft zuordnet.",
         "no_data": "Windows-Updates konnten noch nicht geprüft werden: Für {product} liegen noch keine Daten aus dem Security Update Guide von Microsoft vor (Abgleich ausstehend oder abgeschaltet)."
-      }
+      },
+      "notScanned": "Dieser Node wird nicht auf Schwachstellen geprüft: Pakete von {os} werden noch nicht mit Advisories abgeglichen. Keine CVEs heißt hier nicht, dass der Node sauber ist."
     },
     "removal": {
       "button": "Node entfernen…",
@@ -837,7 +838,10 @@
       "openNode": "Diese CVE auf der Node-Seite anzeigen"
     },
     "onlySeverity": "Nur Nodes mit CVEs: {severity}",
-    "showAllNodes": "Alle Nodes anzeigen"
+    "showAllNodes": "Alle Nodes anzeigen",
+    "notScanned": "Nicht auf Schwachstellen geprüft: {releases}. Pakete dieser Releases werden noch nicht mit Advisories abgeglichen; ihre Nodes zeigen deshalb keine CVEs - das heißt nicht, dass sie sauber sind.",
+    "notScannedOne": "{os} (1 Node)",
+    "notScannedMany": "{os} ({count} Nodes)"
   },
   "vulnerabilityScan": {
     "running": "Scan läuft seit {time} ({minutes} Min.) – {checked} von {total} Software-Versionen geprüft. Die Zahlen können bis zum Ende unvollständig sein.",

@@ -443,7 +443,8 @@
         "no_build": "No se pudieron comprobar las actualizaciones de Windows: el agente aún no ha informado de la compilación de Windows con su revisión (inventario o instantánea de seguridad diaria).",
         "unsupported_release": "No se pudieron comprobar las actualizaciones de Windows: la compilación {build} no pertenece a ninguna versión de Windows que Octofleet asigne a la Security Update Guide de Microsoft.",
         "no_data": "Aún no se pudieron comprobar las actualizaciones de Windows: no hay datos de la Security Update Guide de Microsoft para {product} (sincronización pendiente o desactivada)."
-      }
+      },
+      "notScanned": "Este nodo no se comprueba en busca de vulnerabilidades: los paquetes de {os} aún no se comparan con avisos. Que no haya CVEs aquí no significa que el nodo esté limpio."
     },
     "removal": {
       "button": "Eliminar nodo…",
@@ -837,7 +838,10 @@
       "openNode": "Mostrar esta CVE en la página del nodo"
     },
     "onlySeverity": "Solo nodos con CVE: {severity}",
-    "showAllNodes": "Ver todos los nodos"
+    "showAllNodes": "Ver todos los nodos",
+    "notScanned": "Sin comprobar vulnerabilidades: {releases}. Los paquetes de estas versiones aún no se comparan con avisos, por eso sus nodos no muestran CVEs - eso no significa que estén limpios.",
+    "notScannedOne": "{os} (1 nodo)",
+    "notScannedMany": "{os} ({count} nodos)"
   },
   "vulnerabilityScan": {
     "running": "Análisis en curso desde las {time} ({minutes} min): {checked} de {total} versiones de software comprobadas. Las cifras pueden estar incompletas hasta que termine.",

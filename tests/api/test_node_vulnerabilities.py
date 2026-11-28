@@ -164,3 +164,17 @@ def test_groups_count_by_severity_and_list_old_kernels(node):
     assert body["old_kernels"] == []
     assert body["severity_counts"] == {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0}
     assert all(g["kernel_state"] != "old" for g in body["groups"])
+
+
+def test_a_release_the_scan_cannot_check_is_not_shown_as_clean():
+    """An Arch Linux node: no advisory source - the API says so instead of a plain 0."""
+    hostname = f"arch-{uuid.uuid4().hex[:8]}"
+    r = requests.post(f"{API_URL}/api/v1/inventory/full", headers=HEADERS, timeout=30, json={
+        "hostname": hostname, "nodeId": hostname, "system": {"os": {"name": "Arch Linux", "version": "rolling"}}})
+    assert r.status_code == 200, r.text
+    groups = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}/groups", headers=HEADERS, timeout=10).json()
+    assert groups["scan_support"]["supported"] is False and groups["scan_support"]["os"].startswith("Arch Linux"), groups
+    listed = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}?limit=1", headers=HEADERS, timeout=10).json()
+    assert listed["scan_support"]["supported"] is False
+    summary = requests.get(f"{API_URL}/api/v1/vulnerabilities/summary", headers=HEADERS, timeout=10).json()
+    assert any((r["os"] or "").startswith("Arch Linux") and r["nodes"] >= 1 for r in summary["not_scanned"]), summary["not_scanned"]

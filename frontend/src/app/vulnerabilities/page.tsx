@@ -50,6 +50,8 @@ interface VulnerabilitySummary {
     node_count: number;
   }>;
   last_scan: string | null;
+  /** OS releases the scan cannot check, with their number of nodes */
+  not_scanned?: Array<{ os: string | null; nodes: number }>;
   total_vulnerabilities: number;
   running_scan: ScanStatus["running_scan"];
   last_completed_scan: ScanStatus["last_completed_scan"];
@@ -282,6 +284,14 @@ export default function VulnerabilitiesPage() {
       />
 
       <ScanStatusBanner status={summary} onStop={stopScan} />
+
+      {/* releases the scan cannot check: their nodes show no CVEs, which does not mean they are clean */}
+      {(summary?.not_scanned?.length ?? 0) > 0 && (
+        <p role="status" className="flex items-start gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-800 dark:text-yellow-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {p("notScanned", { releases: summary!.not_scanned!.map((r) => p(r.nodes === 1 ? "notScannedOne" : "notScannedMany", { os: r.os ?? "-", count: r.nodes })).join(", ") })}
+        </p>
+      )}
 
       <VulnerabilitySummaryFreshness
         asOf={summary?.cache?.refreshed_at}
