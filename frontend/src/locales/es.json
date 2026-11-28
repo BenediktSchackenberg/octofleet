@@ -2534,7 +2534,9 @@
       "renameFollows": "Las reglas de {count} grupos dinámicos siguen el nuevo nombre.",
       "usage": "{nodes} nodos, {groups} grupos dinámicos, {jobs} trabajos",
       "confirmDelete": "¿Eliminar la etiqueta {name}?",
-      "confirmDeleteUsed": "¿Eliminar la etiqueta {name}? La usan {usage}. Los nodos pierden la etiqueta y los grupos dinámicos que la comprueban pierden esos miembros en su próxima evaluación."
+      "confirmDeleteUsed": "¿Eliminar la etiqueta {name}? La usan {usage}. Los nodos pierden la etiqueta y los grupos dinámicos que la comprueban pierden esos miembros en su próxima evaluación.",
+      "search": "Buscar etiquetas",
+      "noMatch": "Ninguna etiqueta coincide con la búsqueda."
     },
     "none": "Aún no hay grupos.",
     "type": "Tipo",
@@ -2544,7 +2546,10 @@
     "collapse": "Contraer {name}",
     "expand": "Expandir {name}",
     "addSubgroup": "Añadir un subgrupo a {name}",
-    "treeHint": "Los subgrupos se muestran bajo su grupo superior. Cada grupo tiene sus propios miembros: un grupo superior no incluye los nodos de sus subgrupos."
+    "treeHint": "Los subgrupos se muestran bajo su grupo superior. Cada grupo tiene sus propios miembros: un grupo superior no incluye los nodos de sus subgrupos.",
+    "searchGroups": "Buscar grupos",
+    "noMatch": "Ningún grupo coincide con la búsqueda.",
+    "inPath": "en {path}"
   },
   "groupDetail": {
     "saveFailed": "No se pudo guardar el grupo.",
@@ -3043,5 +3048,52 @@
     "none": "No se encontró nada",
     "more": "{count} más - siga escribiendo para acotar la lista",
     "change": "Elegir otro {label}"
+  },
+  "groupDelete": {
+    "title": "¿Eliminar el grupo \"{name}\"?",
+    "checking": "Comprobando qué usa el grupo ...",
+    "unused": "Nada usa este grupo: ni miembros, subgrupos, reglas ni asignaciones.",
+    "usedIntro": "El grupo está en uso. Eliminarlo hace lo siguiente:",
+    "usesLabel": "Qué usa el grupo",
+    "cannotUndo": "No se puede deshacer. Las reglas y los anillos nunca se amplían a todos los nodos.",
+    "deleteAndCleanUp": "Eliminar y limpiar",
+    "deleted": "Grupo \"{name}\" eliminado.",
+    "usageFailed": "No se pudo comprobar qué usa el grupo.",
+    "more": "y {count} más",
+    "kind": {
+      "members": "Nodos miembros: {count}",
+      "subgroups": "Subgrupos: {count}",
+      "linux_approvals": "Reglas de aprobación de Linux: {count}",
+      "linux_exclusions": "Reglas de exclusión de Linux: {count}",
+      "patch_rings": "Anillos de parches: {count}",
+      "onboarding": "Grupo predeterminado para nodos nuevos",
+      "maintenance_windows": "Ventanas de mantenimiento: {count}",
+      "remediation_windows": "Vínculos con ventanas de corrección: {count}",
+      "monitoring_assignments": "Asignaciones de monitorización: {count}",
+      "config_baselines": "Asignaciones de líneas base de configuración: {count}",
+      "software_baselines": "Asignaciones de líneas base de software: {count}",
+      "sql_server": "Asignaciones de SQL Server: {count}",
+      "jobs": "Trabajos: {count}",
+      "deployments": "Despliegues: {count}"
+    },
+    "effect": {
+      "members": "se quitan del grupo; los nodos se quedan",
+      "subgroups": "pasan al nivel superior",
+      "linux_approvals": "se quedan, pero ya no aprueban nada (sin grupo, sin nodos)",
+      "linux_exclusions": "se quedan y entonces excluyen en todos los nodos (a prueba de fallos)",
+      "patch_rings": "se quedan sin nodos: sus aprobaciones se detienen, sus exclusiones cubren todos los nodos",
+      "onboarding": "se vacía; los nodos nuevos no entran en ningún grupo",
+      "maintenance_windows": "se desactivan",
+      "remediation_windows": "se quitan; la corrección en estos nodos espera otra ventana",
+      "monitoring_assignments": "se eliminan",
+      "config_baselines": "se eliminan",
+      "software_baselines": "se eliminan",
+      "sql_server": "se eliminan",
+      "jobs": "se quedan; se ejecutan en los nodos para los que se crearon",
+      "deployments": "se quedan; se ejecutan en los nodos para los que se crearon"
+    }
+  },
+  "listPager": {
+    "range": "{from}-{to} de {total}"
   }
 }

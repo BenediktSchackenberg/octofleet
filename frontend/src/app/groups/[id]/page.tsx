@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
 import { GroupFormDialog, passGroupNotice, takeGroupNotice } from "@/components/group-form-dialog";
+import { GroupDeleteDialog } from "@/components/group-delete-dialog";
 import type { GroupRule } from "@/components/group-rule-builder";
 import { ChevronRight, FolderPlus, FolderTree, RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
@@ -97,22 +98,7 @@ export default function GroupDetailPage() {
     }
   }
 
-  async function handleDelete() {
-    setSaving(true);
-    try {
-      const res = await apiClient.delete(`/groups/${groupId}`, { showErrorToast: false });
-      if (res) {
-        router.push("/groups");
-      } else {
-        alert(t("groupDetail.deleteFailed"));
-      }
-    } catch (e) {
-      console.error("Failed to delete group:", e);
-      alert(t("groupDetail.deleteFailed"));
-    } finally {
-      setSaving(false);
-    }
-  }
+
 
   async function handleRemoveMember(memberId: string) {
     try {
@@ -407,26 +393,11 @@ export default function GroupDetailPage() {
           onSaved={(id, text) => { setCreatingChild(false); passGroupNotice(text); router.push(`/groups/${id}`); }} />
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("groupDetail.deleteTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("groupDetail.deleteText", { name: group.name })}
-              {(group.children?.length ?? 0) > 0 && <> {t("groupDetail.deleteSubgroups", { count: group.children!.length })}</>}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
-              {saving ? t("groupDetail.deleting") : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Delete: lists what uses the group and what the delete does to it */}
+      {showDeleteDialog && (
+        <GroupDeleteDialog group={group} onClose={() => setShowDeleteDialog(false)}
+          onDeleted={(text) => { passGroupNotice(text); router.push("/groups"); }} />
+      )}
     </main>
   );
 }

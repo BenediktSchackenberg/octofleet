@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChevronDown, ChevronRight, FolderPlus, FolderTree, Plus, Sparkles, Tag } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { TagsManager } from "@/components/tags-manager";
-import { GroupFormDialog, passGroupNotice } from "@/components/group-form-dialog";
+import { ListPager, ListSearch, PAGE_SIZE, matchesWords } from "@/components/list-pager";
+import { GroupFormDialog, passGroupNotice, takeGroupNotice } from "@/components/group-form-dialog";
 
 interface Group {
   id: string;
@@ -25,8 +26,9 @@ interface Group {
 
 interface TagInfo { id: string }
 
-/** The groups as a tree: top-level groups first, each followed by its sub-groups (any depth), by name */
-function treeRows(groups: Group[], collapsed: Set<string>): Array<{ group: Group; depth: number; children: number }> {
+/** The groups as a tree: top-level groups first, each followed by its sub-groups (any depth), by name;
+ *  `roots` limits it to some top-level groups (a page of them) */
+function treeRows(groups: Group[], collapsed: Set<string>, roots?: Set<string>): Array<{ group: Group; depth: number; children: number }> {
   const byParent = new Map<string | null, Group[]>();
   const ids = new Set(groups.map((g) => g.id));
   for (const g of groups) {
@@ -37,6 +39,7 @@ function treeRows(groups: Group[], collapsed: Set<string>): Array<{ group: Group
   const rows: Array<{ group: Group; depth: number; children: number }> = [];
   const walk = (parent: string | null, depth: number) => {
     for (const g of byParent.get(parent) ?? []) {
+      if (parent === null && roots && !roots.has(g.id)) continue;
       const children = (byParent.get(g.id) ?? []).length;
       rows.push({ group: g, depth, children });
       if (!collapsed.has(g.id) && depth < 20) walk(g.id, depth + 1);
@@ -55,8 +58,10 @@ export default function GroupsPage() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   // the new-group dialog; parentId set when it was opened from a group's row (a sub-group)
   const [creating, setCreating] = useState<{ parentId: string | null } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => { fetchData(); }, []);
+  // a message from the page before (a deleted group)
+  useEffect(() => { fetchData(); setMessage(takeGroupNotice()); }, []);
 
   async function fetchData() {
     try {
@@ -73,7 +78,33 @@ export default function GroupsPage() {
     }
   }
 
-  const rows = useMemo(() => treeRows(groups, collapsed), [groups, collapsed]);
+  // thousands of groups: a page of top-level groups with their sub-groups; a search lists the matches
+  // (name, path or description) flat, with their path
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const byId = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
+  const pathOf = useMemo(() => (g: Group) => {
+    const names: string[] = [];
+    let p = g.parent_id ? byId.get(g.parent_id) : undefined;
+    for (let i = 0; p && i < 20; i++) { names.unshift(p.name); p = p.parent_id ? byId.get(p.parent_id) : undefined; }
+    return names.join(" › ");
+  }, [byId]);
+  const roots = useMemo(() => groups.filter((g) => !g.parent_id || !byId.has(g.parent_id))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })), [groups, byId]);
+  const matches = useMemo(() => query.trim() === "" ? null
+    : groups.filter((g) => matchesWords(`${pathOf(g)} ${g.name} ${g.description ?? ""}`, query))
+        .sort((a, b) => `${pathOf(a)} ${a.name}`.localeCompare(`${pathOf(b)} ${b.name}`, undefined, { sensitivity: "base" })),
+    [groups, query, pathOf]);
+  const total = matches ? matches.length : roots.length;
+  const rows = useMemo(() => {
+    if (matches) {
+      const childCount = (id: string) => groups.filter((g) => g.parent_id === id).length;
+      return matches.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((g) => ({ group: g, depth: 0, children: 0, path: pathOf(g), subgroups: childCount(g.id) }));
+    }
+    const pageRoots = new Set(roots.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((g) => g.id));
+    return treeRows(groups, collapsed, pageRoots).map((r) => ({ ...r, path: "", subgroups: r.children }));
+  }, [matches, roots, groups, collapsed, page, pathOf]);
+  useEffect(() => { setPage(0); }, [query]);
   const toggle = (id: string) => setCollapsed((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -96,9 +127,15 @@ export default function GroupsPage() {
         </Button>
       </div>
 
+      {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
+
       {/* Groups as a tree: sub-groups under their parent; a row opens the group */}
       <Card>
         <CardContent className="pt-6">
+          {groups.length > 0 && (
+            <div className="mb-3"><ListSearch value={query} onChange={setQuery} label={t("groupsPage.searchGroups")} /></div>
+          )}
+          {groups.length > 0 && total === 0 && <p className="text-sm text-muted-foreground">{t("groupsPage.noMatch")}</p>}
           {groups.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("groupsPage.none")}</p>
           ) : (
@@ -113,7 +150,7 @@ export default function GroupsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(({ group, depth, children }) => {
+                {rows.map(({ group, depth, children, path, subgroups }) => {
                   const open = !collapsed.has(group.id);
                   const Chevron = open ? ChevronDown : ChevronRight;
                   return (
@@ -129,7 +166,8 @@ export default function GroupsPage() {
                           ) : <span className="inline-block w-5" />}
                           <span className="size-2.5 rounded-full" style={{ backgroundColor: group.color || "#3b82f6" }} aria-hidden="true" />
                           <Link href={`/groups/${group.id}`} onClick={(e) => e.stopPropagation()} className="font-medium hover:underline">{group.name}</Link>
-                          {children > 0 && <span className="text-xs text-muted-foreground">{t("groupsPage.subgroups", { count: children })}</span>}
+                          {subgroups > 0 && <span className="text-xs text-muted-foreground">{t("groupsPage.subgroups", { count: subgroups })}</span>}
+                          {path && <span className="text-xs text-muted-foreground">{t("groupsPage.inPath", { path })}</span>}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -151,6 +189,7 @@ export default function GroupsPage() {
               </TableBody>
             </Table>
           )}
+          <ListPager page={page} total={total} onPage={setPage} />
           <p className="mt-3 text-xs text-muted-foreground">{t("groupsPage.treeHint")}</p>
         </CardContent>
       </Card>
