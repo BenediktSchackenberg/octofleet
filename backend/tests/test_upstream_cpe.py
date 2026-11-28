@@ -2,13 +2,18 @@
 (pkgrel, epoch and snapshot suffixes dropped, NVD's patch-level and major-version conventions);
 everything else gets none. Versions are real ones from a CachyOS node."""
 
+import inspect
 import unittest
 from datetime import datetime, timedelta, timezone
 
-import inspect
-
 import vulnerability
-from vulnerability import ROLLING_DISTRO, ROLLING_KERNEL, VulnerabilityScanner, running_kernel, upstream_cpe
+from vulnerability import (
+    ROLLING_DISTRO,
+    ROLLING_KERNEL,
+    VulnerabilityScanner,
+    running_kernel,
+    upstream_cpe,
+)
 
 
 class UpstreamCpeTests(unittest.TestCase):
