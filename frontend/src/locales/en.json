@@ -444,6 +444,13 @@
         "unsupported_release": "Windows updates could not be checked: build {build} is not one of the Windows releases Octofleet maps to Microsoft's Security Update Guide.",
         "no_data": "Windows updates could not be checked yet: no data from Microsoft's Security Update Guide for {product} (sync pending or disabled)."
       },
+      "scanNow": "Scan now",
+      "scanning": "Scanning…",
+      "scanNowHint": "Check this node's software versions for vulnerabilities now and update its numbers. Nodes with the same versions get the new results too.",
+      "scanBusy": "Another scan is running - try again when it has finished.",
+      "scanStartFailed": "The scan could not be started.",
+      "scanDone": "Scan finished: {count} software versions checked.",
+      "scanFailed": "The scan failed: {error}",
       "notScanned": "This node is not checked for vulnerabilities: packages of {os} are not matched against advisories yet. No CVEs here does not mean the node is clean."
     },
     "removal": {
@@ -850,7 +857,9 @@
     "stopping": "Stopping…",
     "partial": "That scan could not check {count} software version(s); their previous findings were kept.",
     "stale": "The data is older than {days} days – start a new scan.",
-    "none": "No scan has completed yet – the numbers are not based on a scan."
+    "none": "No scan has completed yet – the numbers are not based on a scan.",
+    "nodeRunning": "Scan of this node running since {time} ({minutes} min) - {checked} of {total} software versions checked.",
+    "nodeDataFrom": "Data from the scan of this node at {time} ({age})."
   },
   "dateTime": {
     "menuTitle": "Language, time and date",

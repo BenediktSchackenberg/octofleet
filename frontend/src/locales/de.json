@@ -444,6 +444,13 @@
         "unsupported_release": "Windows-Updates konnten nicht geprüft werden: Build {build} gehört zu keinem Windows-Release, das Octofleet dem Security Update Guide von Microsoft zuordnet.",
         "no_data": "Windows-Updates konnten noch nicht geprüft werden: Für {product} liegen noch keine Daten aus dem Security Update Guide von Microsoft vor (Abgleich ausstehend oder abgeschaltet)."
       },
+      "scanNow": "Jetzt scannen",
+      "scanning": "Scannt…",
+      "scanNowHint": "Die Softwareversionen dieses Nodes jetzt auf Schwachstellen prüfen und seine Zahlen aktualisieren. Nodes mit denselben Versionen erhalten die neuen Ergebnisse ebenfalls.",
+      "scanBusy": "Ein anderer Scan läuft - bitte erneut versuchen, wenn er fertig ist.",
+      "scanStartFailed": "Der Scan konnte nicht gestartet werden.",
+      "scanDone": "Scan fertig: {count} Softwareversionen geprüft.",
+      "scanFailed": "Der Scan ist fehlgeschlagen: {error}",
       "notScanned": "Dieser Node wird nicht auf Schwachstellen geprüft: Pakete von {os} werden noch nicht mit Advisories abgeglichen. Keine CVEs heißt hier nicht, dass der Node sauber ist."
     },
     "removal": {
@@ -850,7 +857,9 @@
     "stopping": "Wird gestoppt…",
     "partial": "Dieser Scan konnte {count} Software-Version(en) nicht prüfen; deren bisherige Funde wurden beibehalten.",
     "stale": "Die Daten sind älter als {days} Tage – bitte einen neuen Scan starten.",
-    "none": "Noch kein Scan abgeschlossen – die Zahlen beruhen auf keinem Scan."
+    "none": "Noch kein Scan abgeschlossen – die Zahlen beruhen auf keinem Scan.",
+    "nodeRunning": "Scan dieses Nodes läuft seit {time} ({minutes} Min.) - {checked} von {total} Softwareversionen geprüft.",
+    "nodeDataFrom": "Daten aus dem Scan dieses Nodes vom {time} ({age})."
   },
   "dateTime": {
     "menuTitle": "Sprache, Uhrzeit und Datum",

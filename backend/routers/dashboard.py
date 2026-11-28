@@ -59,7 +59,7 @@ async def get_dashboard_summary(db: asyncpg.Pool = Depends(get_db)):
         cache = await vulnerability_cache.status(conn)
         scan_completed_at = await conn.fetchval("""
             SELECT MAX(completed_at) FROM vulnerability_scans
-            WHERE status IN ('completed', 'partial') AND completed_at IS NOT NULL
+            WHERE node_id IS NULL AND status IN ('completed', 'partial') AND completed_at IS NOT NULL
         """)
 
         # Get recent events (last 10)
