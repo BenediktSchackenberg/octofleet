@@ -128,13 +128,14 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 |--------|------|------|-------------|
 | GET | `/api/v1/groups` | API Key | List groups |
 | GET | `/api/v1/groups/{group_id}` | API Key | Get group details |
-| POST | `/api/v1/groups` | User: `groups:write` | Create group |
-| PUT | `/api/v1/groups/{group_id}` | User: `groups:write` | Update group |
+| POST | `/api/v1/groups` | User: `groups:write` | Create group (`name`, `description`, `parentId`, `color`, `icon`, `isDynamic`, `dynamicRule`); a dynamic rule is `{operator: AND\|OR, conditions: [{field, op, value}]}` with `field` one of `hostname`, `os_name`, `os_version`, `os_build`, `agent_version`, `domain`, `is_domain_joined`, `tags` and `op` one of `equals`, `not_equals`, `contains`, `not_contains`, `startswith`, `endswith`, `regex`, `gte`, `lte`, `gt`, `lt`, `has_tag` – 400 for anything else |
+| PUT | `/api/v1/groups/{group_id}` | User: `groups:write` | Update group; fields left out stay as they are (`parentId: null` moves a sub-group to the top) |
 | DELETE | `/api/v1/groups/{group_id}` | User: `groups:write` | Delete group |
-| POST | `/api/v1/groups/preview-rule` | User: `groups:write` | Preview dynamic group rule |
+| POST | `/api/v1/groups/preview-rule` | User: `groups:write` | Preview dynamic group rule (`rule`, checked like `dynamicRule`) |
 | POST | `/api/v1/groups/{group_id}/evaluate` | User: `groups:write` | Evaluate group membership |
-| POST | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Add members to group |
-| DELETE | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Remove members from group |
+| POST | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Add nodes to a group: `{"nodeIds": [...]}` – each a node UUID, node ID or hostname; one statement for all. Returns `added`, `alreadyMembers` and `notFound` (references that name no node) |
+| DELETE | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Remove nodes from a group (`nodeIds` as above); returns `removed`, `notFound` |
+| DELETE | `/api/v1/groups/{group_id}/members/{node}` | User: `groups:write` | Remove one node (UUID, node ID or hostname); 404 if it names no node |
 | GET | `/api/v1/tags` | — | List tags |
 | POST | `/api/v1/tags` | User: `groups:write` | Create tag |
 | DELETE | `/api/v1/tags/{tag_id}` | User: `groups:write` | Delete tag |

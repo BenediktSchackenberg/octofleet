@@ -42,6 +42,7 @@ def node():
     ("POST", "/reports/schedules", {"name": "x"}),
     ("POST", "/tags", {"name": "agent-key-tag"}),
     ("POST", "/groups", {"name": "agent-key-group"}),
+    ("DELETE", f"/groups/{ZERO}/members/{ZERO}", None),
     ("POST", "/alert-channels", {"name": "x"}),
     ("GET", "/alert-channels", None),
     ("POST", "/content/repositories", {"name": "x"}),

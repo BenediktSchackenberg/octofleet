@@ -5,7 +5,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.rules import evaluate_dynamic_rule
+from app.core.rules import RULE_FIELDS, RULE_OPERATORS, evaluate_dynamic_rule
 from auth import require_user_permission
 from dependencies import bad_request, conflict, get_db, not_found, verify_api_key
 
@@ -62,6 +62,7 @@ async def get_group(group_id: str, db: asyncpg.Pool = Depends(get_db)):
 @router.post("/groups", dependencies=[Depends(require_user_permission("groups:write"))])
 async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Create a new group"""
+    check_rule(data.get("dynamicRule"))
     name = data.get("name")
     if not name:
         raise bad_request("Name is required", "name")
@@ -86,9 +87,25 @@ async def create_group(data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db))
             raise conflict("Group name already exists", "Group")
 
 
+def check_rule(rule) -> None:
+    """400 for a dynamic rule with a field or operator the evaluator cannot use"""
+    if rule is None:
+        return
+    if not isinstance(rule, dict) or not isinstance(rule.get("conditions"), list) or not rule["conditions"]:
+        raise bad_request("dynamicRule: {operator: AND|OR, conditions: [{field, op, value}, ...]}", "dynamicRule")
+    if str(rule.get("operator", "AND")).upper() not in ("AND", "OR"):
+        raise bad_request("dynamicRule.operator: AND or OR", "dynamicRule")
+    for cond in rule["conditions"]:
+        if not isinstance(cond, dict) or cond.get("field") not in RULE_FIELDS:
+            raise bad_request(f"dynamicRule field: one of {', '.join(sorted(RULE_FIELDS))}", "dynamicRule")
+        if cond.get("op", "equals") not in RULE_OPERATORS:
+            raise bad_request(f"dynamicRule op: one of {', '.join(sorted(RULE_OPERATORS))}", "dynamicRule")
+
+
 @router.put("/groups/{group_id}", dependencies=[Depends(require_user_permission("groups:write"))])
 async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
     """Update an existing group"""
+    check_rule(data.get("dynamicRule"))
     async with db.acquire() as conn:
         existing = await conn.fetchrow("SELECT id FROM groups WHERE id = $1", UUID(group_id))
         if not existing:
@@ -98,7 +115,7 @@ async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = D
             UPDATE groups SET
                 name = COALESCE($2, name),
                 description = COALESCE($3, description),
-                parent_id = $4,
+                parent_id = CASE WHEN $9 THEN $4 ELSE parent_id END,
                 is_dynamic = COALESCE($5, is_dynamic),
                 dynamic_rule = COALESCE($6, dynamic_rule),
                 color = COALESCE($7, color),
@@ -114,7 +131,9 @@ async def update_group(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = D
             data.get("isDynamic"),
             json.dumps(data["dynamicRule"]) if data.get("dynamicRule") else None,
             data.get("color"),
-            data.get("icon")
+            data.get("icon"),
+            # only when the request names it: renaming a sub-group set its parent to NULL
+            "parentId" in data,
         )
         return {"status": "updated", "group": dict(row)}
 
@@ -138,6 +157,7 @@ async def preview_dynamic_rule(data: Dict[str, Any], db: asyncpg.Pool = Depends(
     rule = data.get("rule")
     if not rule:
         raise HTTPException(status_code=400, detail="rule is required")
+    check_rule(rule)
     
     async with db.acquire() as conn:
         # Get all nodes with their basic info
@@ -283,57 +303,74 @@ async def evaluate_dynamic_group(group_id: str, db: asyncpg.Pool = Depends(get_d
         }
 
 
+def _node_refs(data: Dict[str, Any]) -> list:
+    """The nodes of a members request: `nodeIds` (the node's UUID, node ID or hostname each)"""
+    refs = data.get("nodeIds")
+    if not isinstance(refs, list) or not refs or not all(isinstance(r, str) and r for r in refs):
+        raise bad_request("nodeIds: a non-empty array of node UUIDs, node IDs or hostnames", "nodeIds")
+    return refs
+
+
+# The nodes a list of references names - by UUID, node ID or hostname (any case), in that order of
+# precedence - as three joins the planner can hash, so a bulk request for 10,000 nodes stays one pass
+RESOLVE_NODES_SQL = """
+    SELECT DISTINCT ON (r.ref) r.ref, COALESCE(a.id, b.id, c.id) AS id
+    FROM unnest($1::text[]) AS r(ref)
+    LEFT JOIN nodes a ON a.id = CASE WHEN r.ref ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                                     THEN r.ref::uuid END
+    LEFT JOIN nodes b ON b.node_id = r.ref
+    LEFT JOIN nodes c ON UPPER(c.hostname) = UPPER(r.ref)
+    ORDER BY r.ref, c.id"""
+
+
+async def _resolve_nodes(conn, refs: list) -> tuple[list, list]:
+    """(node UUIDs found, references not found)"""
+    rows = await conn.fetch(RESOLVE_NODES_SQL, refs)
+    return [r["id"] for r in rows if r["id"]], [r["ref"] for r in rows if not r["id"]]
+
+
 @router.post("/groups/{group_id}/members", dependencies=[Depends(require_user_permission("groups:write"))])
 async def add_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
-    """Add devices to a group"""
-    node_ids = data.get("nodeIds", [])
-    assigned_by = data.get("assignedBy", "api")
-    
-    if not node_ids:
-        raise bad_request("nodeIds array is required", "nodeIds")
-    
+    """Add nodes to a group. `nodeIds`: UUIDs, node IDs or hostnames; one statement for all of them.
+    Returns `added` (new members), `alreadyMembers` and `notFound` (references that name no node)."""
+    refs = _node_refs(data)
+    assigned_by = data.get("assignedBy") or "api"
     async with db.acquire() as conn:
-        # Verify group exists
-        group = await conn.fetchrow("SELECT id FROM groups WHERE id = $1", UUID(group_id))
-        if not group:
+        if not await conn.fetchval("SELECT 1 FROM groups WHERE id = $1", UUID(group_id)):
             raise not_found("Group", group_id)
-        
-        added = 0
-        for node_id in node_ids:
-            try:
-                await conn.execute("""
-                    INSERT INTO device_groups (node_id, group_id, assigned_by)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (node_id, group_id) DO NOTHING
-                """, UUID(node_id), UUID(group_id), assigned_by)
-                added += 1
-            except Exception:
-                pass  # Skip invalid UUIDs
-        
-        return {"status": "ok", "groupId": group_id, "added": added}
+        node_ids, missing = await _resolve_nodes(conn, refs)
+        added = await conn.fetchval("""
+            WITH ins AS (
+                INSERT INTO device_groups (node_id, group_id, assigned_by)
+                SELECT DISTINCT unnest($1::uuid[]), $2::uuid, $3::varchar
+                ON CONFLICT (node_id, group_id) DO NOTHING RETURNING 1)
+            SELECT COUNT(*) FROM ins""", node_ids, UUID(group_id), assigned_by)
+        return {"status": "ok", "groupId": group_id, "added": added,
+                "alreadyMembers": len(set(node_ids)) - added, "notFound": missing}
 
 
 @router.delete("/groups/{group_id}/members", dependencies=[Depends(require_user_permission("groups:write"))])
 async def remove_device_groups(group_id: str, data: Dict[str, Any], db: asyncpg.Pool = Depends(get_db)):
-    """Remove devices from a group"""
-    node_ids = data.get("nodeIds", [])
-    
-    if not node_ids:
-        raise bad_request("nodeIds array is required", "nodeIds")
-    
+    """Remove nodes from a group (`nodeIds` as for adding), one statement for all of them."""
+    refs = _node_refs(data)
     async with db.acquire() as conn:
-        removed = 0
-        for node_id in node_ids:
-            try:
-                result = await conn.execute("""
-                    DELETE FROM device_groups WHERE node_id = $1 AND group_id = $2
-                """, UUID(node_id), UUID(group_id))
-                if result != "DELETE 0":
-                    removed += 1
-            except Exception:
-                pass
-        
-        return {"status": "ok", "groupId": group_id, "removed": removed}
+        node_ids, missing = await _resolve_nodes(conn, refs)
+        result = await conn.execute("DELETE FROM device_groups WHERE group_id = $1 AND node_id = ANY($2::uuid[])",
+                                    UUID(group_id), node_ids)
+        return {"status": "ok", "groupId": group_id, "removed": int(result.split()[-1]), "notFound": missing}
+
+
+@router.delete("/groups/{group_id}/members/{node_ref}", dependencies=[Depends(require_user_permission("groups:write"))])
+async def remove_device_group(group_id: str, node_ref: str, db: asyncpg.Pool = Depends(get_db)):
+    """Remove one node (UUID, node ID or hostname) from a group - the group page's *Remove*; the API
+    client sends no body with DELETE, so the bulk route above could not be used there."""
+    async with db.acquire() as conn:
+        node_ids, _ = await _resolve_nodes(conn, [node_ref])
+        if not node_ids:
+            raise not_found("Node", node_ref)
+        result = await conn.execute("DELETE FROM device_groups WHERE group_id = $1 AND node_id = $2",
+                                    UUID(group_id), node_ids[0])
+        return {"status": "ok", "groupId": group_id, "removed": int(result.split()[-1])}
 
 
 @router.get("/tags", dependencies=[Depends(require_user_permission("groups:read"))])

@@ -84,6 +84,7 @@ ADMIN_ROUTES = (
     ("DELETE", f"/api/v1/tags/{ID}", "groups:write"),
     ("POST", "/api/v1/groups", "groups:write"),
     ("POST", f"/api/v1/groups/{ID}/members", "groups:write"),
+    ("DELETE", f"/api/v1/groups/{ID}/members/{ID}", "groups:write"),
     ("POST", f"/api/v1/devices/{ID}/tags", "groups:write"),
     ("POST", "/api/v1/alert-channels", "alerts:write"),
     ("POST", "/api/v1/alert-rules", "alerts:write"),

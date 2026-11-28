@@ -75,7 +75,7 @@ export function AddDevicesDialog({ groupId, existingMemberIds, onMembersAdded }:
     try {
       const data = await apiClient.post(`/groups/${groupId}/members`, {
           nodeIds: selectedIds,
-          assigned_by: 'admin',
+          assignedBy: 'admin',
         }, { showErrorToast: false });
 
       if (data) {

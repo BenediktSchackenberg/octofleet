@@ -135,7 +135,7 @@ export default function GroupDetailPage() {
 
   async function handleRemoveMember(memberId: string) {
     try {
-      const res = await apiClient.delete(`/groups/${groupId}/members`, { showErrorToast: false });
+      const res = await apiClient.delete(`/groups/${groupId}/members/${encodeURIComponent(memberId)}`, { showErrorToast: false });
       if (res) {
         await fetchGroup();
       }
