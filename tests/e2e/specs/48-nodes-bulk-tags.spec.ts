@@ -35,7 +35,9 @@ test('bulk: tag and group the shown nodes, then rename and delete the tag', asyn
 
   // both into the group
   await bar.getByRole('button', { name: 'Add to group' }).click();
-  await page.getByRole('combobox', { name: 'Group' }).selectOption({ label: `${prefix}-group` });
+  // a searchable list (hundreds of groups): type to narrow it down, pick the hit
+  await page.getByRole('combobox', { name: 'Group' }).fill(`${prefix}-gr`);
+  await page.getByRole('option', { name: new RegExp(`${prefix}-group`) }).click();
   await page.getByRole('button', { name: `Add 2 nodes to ${prefix}-group` }).click();
   await expect(bar.getByRole('status')).toContainText('2 added');
   const members = await (await request.get(`${API_URL}/api/v1/groups/${group.group.id}`, { headers })).json();

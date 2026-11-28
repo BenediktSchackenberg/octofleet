@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n-context";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TAG_COLORS, TagColorPicker } from "@/components/tag-color-picker";
+import { SearchSelect, groupOptions, type SearchOption } from "@/components/search-select";
 
 export interface TagInfo { id: string; name: string; color: string | null }
 
@@ -25,7 +26,7 @@ export function TagChips({ tags, className = "" }: { tags?: TagInfo[] | null; cl
 }
 
 type Action = "addGroup" | "removeGroup" | "addTag" | "removeTag";
-interface GroupInfo { id: string; name: string; is_dynamic: boolean }
+interface GroupInfo { id: string; name: string; is_dynamic: boolean; parent_id: string | null; color: string | null; member_count: number }
 interface Result {
   added?: number; removed?: number; alreadyMembers?: number; alreadyTagged?: number; notFound?: string[];
   dynamicGroups?: { added: number; removed: number };
@@ -41,7 +42,8 @@ function BulkDialog({ action, nodeIds, onClose, onDone }: {
   const { t } = useI18n();
   const b = (key: string, params?: Record<string, string | number>) => t(`nodes.bulk.${key}`, params);
   const isTag = action === "addTag" || action === "removeTag";
-  const [items, setItems] = useState<Array<{ id: string; name: string; color?: string | null }> | null>(null);
+  // hundreds of groups or tags: a searchable list (groups by their path), not a plain dropdown
+  const [items, setItems] = useState<SearchOption[] | null>(null);
   const [chosen, setChosen] = useState<string>("");
   const [newTag, setNewTag] = useState("");
   const [newColor, setNewColor] = useState<string>(TAG_COLORS[0]);
@@ -50,14 +52,18 @@ function BulkDialog({ action, nodeIds, onClose, onDone }: {
 
   useEffect(() => {
     if (isTag) {
-      apiClient.get<{ tags: TagInfo[] }>("/tags", { showErrorToast: false }).then((r) => setItems(r?.tags ?? []));
+      apiClient.get<{ tags: Array<TagInfo & { device_count: number }> }>("/tags", { showErrorToast: false })
+        .then((r) => setItems((r?.tags ?? []).map((tag) => ({ id: tag.id, label: tag.name, color: tag.color, hint: b("nodesCount", { count: tag.device_count }) }))));
     } else {
-      apiClient.get<{ groups: GroupInfo[] }>("/groups", { showErrorToast: false })
-        .then((r) => setItems((r?.groups ?? []).filter((g) => !g.is_dynamic)));
+      apiClient.get<{ groups: GroupInfo[] }>("/groups", { showErrorToast: false }).then((r) => {
+        const all = r?.groups ?? [];
+        const statics = new Set(all.filter((g) => !g.is_dynamic).map((g) => g.id));
+        setItems(groupOptions(all, (g) => b("nodesCount", { count: g.member_count ?? 0 })).filter((o) => statics.has(o.id)));
+      });
     }
   }, [isTag]);
 
-  const name = items?.find((i) => i.id === chosen)?.name ?? newTag.trim();
+  const name = items?.find((i) => i.id === chosen)?.label ?? newTag.trim();
   const canRun = !busy && (!!chosen || (action === "addTag" && !!newTag.trim()));
 
   async function run() {
@@ -101,11 +107,8 @@ function BulkDialog({ action, nodeIds, onClose, onDone }: {
             {items.length === 0 && action !== "addTag" ? (
               <p className="text-sm text-muted-foreground">{b(isTag ? "noTags" : "noGroups")}</p>
             ) : (
-              <select value={chosen} onChange={(e) => { setChosen(e.target.value); setNewTag(""); }}
-                aria-label={b(isTag ? "tag" : "group")} className="h-9 w-full rounded-md border bg-background px-3 text-sm">
-                <option value="">{b(isTag ? "chooseTag" : "chooseGroup")}</option>
-                {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
+              <SearchSelect options={items} value={chosen || null} onChange={(id) => { setChosen(id ?? ""); if (id) setNewTag(""); }}
+                label={b(isTag ? "tag" : "group")} placeholder={b(isTag ? "chooseTag" : "chooseGroup")} />
             )}
             {action === "addTag" && (
               <input value={newTag} onChange={(e) => { setNewTag(e.target.value); setChosen(""); }} maxLength={100}

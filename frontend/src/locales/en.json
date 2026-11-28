@@ -525,8 +525,8 @@
       "removeTagRun": "Remove {name} from {count} nodes",
       "group": "Group",
       "tag": "Tag",
-      "chooseGroup": "Choose a group…",
-      "chooseTag": "Choose a tag…",
+      "chooseGroup": "Search groups…",
+      "chooseTag": "Search tags…",
       "newTag": "or a new tag",
       "noGroups": "No static group yet - create one on the Groups page.",
       "noTags": "No tag yet.",
@@ -535,7 +535,8 @@
       "resultRemoved": "{count} removed",
       "resultAlready": "{count} already",
       "resultNotFound": "{count} not found",
-      "resultDynamic": "dynamic groups +{added} / -{removed}"
+      "resultDynamic": "dynamic groups +{added} / -{removed}",
+      "nodesCount": "{count} nodes"
     }
   },
   "onboarding": {
@@ -2520,7 +2521,16 @@
       "usage": "{nodes} nodes, {groups} dynamic groups, {jobs} jobs",
       "confirmDelete": "Delete the tag {name}?",
       "confirmDeleteUsed": "Delete the tag {name}? It is used by {usage}. The nodes lose the tag, and dynamic groups that test it lose those members on their next evaluation."
-    }
+    },
+    "none": "No groups yet.",
+    "type": "Type",
+    "membersColumn": "Members",
+    "static": "Static",
+    "subgroups": "{count} sub-groups",
+    "collapse": "Collapse {name}",
+    "expand": "Expand {name}",
+    "addSubgroup": "Add a sub-group to {name}",
+    "treeHint": "Sub-groups are shown under their parent. Each group has its own members - a parent does not include its sub-groups' nodes."
   },
   "groupDetail": {
     "saveFailed": "The group could not be saved.",
@@ -2578,7 +2588,12 @@
         "regex": "matches regex",
         "has_tag": "has tag"
       }
-    }
+    },
+    "parents": "Parent groups",
+    "subgroups": "Sub-groups ({count})",
+    "subgroupsHint": "Groups below this one. Each has its own members.",
+    "addSubgroup": "Add sub-group",
+    "deleteSubgroups": "Its {count} sub-groups move to the top level."
   },
   "addDevices": {
     "button": "Add devices",
@@ -2938,5 +2953,81 @@
       "port": "Port",
       "customJson": "Custom JSON value"
     }
+  },
+  "groupRule": {
+    "match": "Members are the nodes that match",
+    "operator": "All or any",
+    "all": "all",
+    "any": "any",
+    "ofTheseConditions": "of these conditions:",
+    "field": "Field of condition {n}",
+    "op": "Operator of condition {n}",
+    "value": "Value of condition {n}",
+    "remove": "Remove condition {n}",
+    "add": "Add condition",
+    "yes": "yes",
+    "no": "no",
+    "chooseTag": "Choose a tag…",
+    "incomplete": "Fill in every condition to see which nodes match.",
+    "previewing": "Checking…",
+    "matches": "Matches {count} of {total} nodes:",
+    "fields": {
+      "hostname": "Hostname",
+      "os_name": "OS name",
+      "os_version": "OS version",
+      "os_build": "OS build",
+      "agent_version": "Agent version",
+      "domain": "Domain",
+      "is_domain_joined": "Domain-joined",
+      "tags": "Tag"
+    },
+    "ops": {
+      "equals": "is",
+      "not_equals": "is not",
+      "contains": "contains",
+      "not_contains": "does not contain",
+      "startswith": "starts with",
+      "endswith": "ends with",
+      "regex": "matches (regex)",
+      "gte": "≥",
+      "lte": "≤",
+      "gt": ">",
+      "lt": "<",
+      "has_tag": "has"
+    },
+    "placeholders": {
+      "hostname": "srv-",
+      "os_name": "Ubuntu",
+      "os_version": "24.04",
+      "os_build": "26100",
+      "agent_version": "0.5.43",
+      "domain": "corp.example"
+    }
+  },
+  "groupForm": {
+    "newTitle": "New group",
+    "editTitle": "Edit {name}",
+    "hint": "A static group holds the nodes you add; a dynamic group takes its members from a rule and follows it on every inventory push.",
+    "name": "Name",
+    "description": "Description",
+    "color": "Colour",
+    "parent": "Parent group",
+    "topLevel": "None (top level)",
+    "type": "Type",
+    "static": "Static",
+    "dynamic": "Dynamic",
+    "staticHint": "You add and remove nodes yourself (also from the Nodes list).",
+    "dynamicHint": "Members follow the rule: nodes join and leave as their data changes.",
+    "rule": "Rule",
+    "create": "Create group",
+    "save": "Save",
+    "exists": "A group with this name exists already.",
+    "createdDynamic": "Group created with {count} nodes that match the rule.",
+    "ruleApplied": "Rule applied: {added} nodes added, {removed} removed."
+  },
+  "searchSelect": {
+    "none": "Nothing found",
+    "more": "{count} more - keep typing to narrow the list",
+    "change": "Choose another {label}"
   }
 }

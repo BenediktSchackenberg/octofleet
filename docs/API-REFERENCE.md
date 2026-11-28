@@ -126,11 +126,11 @@ See [Agent setup](AGENT-SETUP.md#what-the-windows-agent-reports-about-security) 
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/groups` | API Key | List groups |
-| GET | `/api/v1/groups/{group_id}` | API Key | Get group details |
-| POST | `/api/v1/groups` | User: `groups:write` | Create group (`name`, `description`, `parentId`, `color`, `icon`, `isDynamic`, `dynamicRule`); a dynamic rule is `{operator: AND\|OR, conditions: [{field, op, value}]}` with `field` one of `hostname`, `os_name`, `os_version`, `os_build`, `agent_version`, `domain`, `is_domain_joined`, `tags` and `op` one of `equals`, `not_equals`, `contains`, `not_contains`, `startswith`, `endswith`, `regex`, `gte`, `lte`, `gt`, `lt`, `has_tag` – 400 for anything else |
-| PUT | `/api/v1/groups/{group_id}` | User: `groups:write` | Update group; fields left out stay as they are (`parentId: null` moves a sub-group to the top) |
-| DELETE | `/api/v1/groups/{group_id}` | User: `groups:write` | Delete group |
+| GET | `/api/v1/groups` | API Key | List groups with `member_count`, `parent_id` and `dynamic_rule` (as JSON) |
+| GET | `/api/v1/groups/{group_id}` | API Key | Group details with `members`, `parents` (ancestors, top-level first) and `children` (direct sub-groups with `member_count`) |
+| POST | `/api/v1/groups` | User: `groups:write` | Create group (`name`, `description`, `parentId`, `color`, `icon`, `isDynamic`, `dynamicRule`); a dynamic rule is `{operator: AND\|OR, conditions: [{field, op, value}]}` with `field` one of `hostname`, `os_name`, `os_version`, `os_build`, `agent_version`, `domain`, `is_domain_joined`, `tags` and `op` one of `equals`, `not_equals`, `contains`, `not_contains`, `startswith`, `endswith`, `regex`, `gte`, `lte`, `gt`, `lt`, `has_tag` – 400 for anything else, and for a dynamic group without a rule or an unknown `parentId`. A dynamic group gets its members at once (`members`: how many matched) |
+| PUT | `/api/v1/groups/{group_id}` | User: `groups:write` | Update group; fields left out stay as they are (`parentId: null` moves a sub-group to the top; 400 for the group itself or one of its sub-groups as parent). A changed `dynamicRule` applies at once (`members`: `added`, `removed`) |
+| DELETE | `/api/v1/groups/{group_id}` | User: `groups:write` | Delete group; its sub-groups move to the top level |
 | POST | `/api/v1/groups/preview-rule` | User: `groups:write` | Preview dynamic group rule (`rule`, checked like `dynamicRule`) |
 | POST | `/api/v1/groups/{group_id}/evaluate` | User: `groups:write` | Re-evaluate a dynamic group for all nodes: `added`, `removed`, `evaluated` (set-based: a fixed number of statements, not two queries per node; members added by hand stay) |
 | POST | `/api/v1/groups/{group_id}/members` | User: `groups:write` | Add nodes to a group: `{"nodeIds": [...]}` – each a node UUID, node ID or hostname; one statement for all. Returns `added`, `alreadyMembers` and `notFound` (references that name no node) |

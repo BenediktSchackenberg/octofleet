@@ -525,8 +525,8 @@
       "removeTagRun": "{name} von {count} Nodes entfernen",
       "group": "Gruppe",
       "tag": "Tag",
-      "chooseGroup": "Gruppe wählen…",
-      "chooseTag": "Tag wählen…",
+      "chooseGroup": "Gruppen durchsuchen…",
+      "chooseTag": "Tags durchsuchen…",
       "newTag": "oder ein neues Tag",
       "noGroups": "Noch keine statische Gruppe - lege eine auf der Seite Gruppen an.",
       "noTags": "Noch kein Tag.",
@@ -535,7 +535,8 @@
       "resultRemoved": "{count} entfernt",
       "resultAlready": "{count} schon",
       "resultNotFound": "{count} nicht gefunden",
-      "resultDynamic": "dynamische Gruppen +{added} / -{removed}"
+      "resultDynamic": "dynamische Gruppen +{added} / -{removed}",
+      "nodesCount": "{count} Nodes"
     }
   },
   "onboarding": {
@@ -2520,7 +2521,16 @@
       "usage": "{nodes} Nodes, {groups} dynamische Gruppen, {jobs} Jobs",
       "confirmDelete": "Tag {name} löschen?",
       "confirmDeleteUsed": "Tag {name} löschen? Es wird verwendet von {usage}. Die Nodes verlieren das Tag, und dynamische Gruppen, die es prüfen, verlieren diese Mitglieder bei ihrer nächsten Auswertung."
-    }
+    },
+    "none": "Noch keine Gruppen.",
+    "type": "Art",
+    "membersColumn": "Mitglieder",
+    "static": "Statisch",
+    "subgroups": "{count} Untergruppen",
+    "collapse": "{name} zuklappen",
+    "expand": "{name} aufklappen",
+    "addSubgroup": "Untergruppe zu {name} hinzufügen",
+    "treeHint": "Untergruppen stehen unter ihrer übergeordneten Gruppe. Jede Gruppe hat ihre eigenen Mitglieder - eine übergeordnete Gruppe enthält die Nodes ihrer Untergruppen nicht."
   },
   "groupDetail": {
     "saveFailed": "Die Gruppe konnte nicht gespeichert werden.",
@@ -2578,7 +2588,12 @@
         "regex": "entspricht Regex",
         "has_tag": "hat Tag"
       }
-    }
+    },
+    "parents": "Übergeordnete Gruppen",
+    "subgroups": "Untergruppen ({count})",
+    "subgroupsHint": "Gruppen unter dieser. Jede hat ihre eigenen Mitglieder.",
+    "addSubgroup": "Untergruppe hinzufügen",
+    "deleteSubgroups": "Ihre {count} Untergruppen wandern auf die oberste Ebene."
   },
   "addDevices": {
     "button": "Geräte hinzufügen",
@@ -2938,5 +2953,81 @@
       "port": "Port",
       "customJson": "Eigener JSON-Wert"
     }
+  },
+  "groupRule": {
+    "match": "Mitglieder sind die Nodes, auf die",
+    "operator": "Alle oder eine",
+    "all": "alle",
+    "any": "eine",
+    "ofTheseConditions": "dieser Bedingungen zutreffen:",
+    "field": "Feld der Bedingung {n}",
+    "op": "Operator der Bedingung {n}",
+    "value": "Wert der Bedingung {n}",
+    "remove": "Bedingung {n} entfernen",
+    "add": "Bedingung hinzufügen",
+    "yes": "ja",
+    "no": "nein",
+    "chooseTag": "Tag wählen…",
+    "incomplete": "Fülle jede Bedingung aus, um die passenden Nodes zu sehen.",
+    "previewing": "Prüfe…",
+    "matches": "Passt auf {count} von {total} Nodes:",
+    "fields": {
+      "hostname": "Hostname",
+      "os_name": "OS-Name",
+      "os_version": "OS-Version",
+      "os_build": "OS-Build",
+      "agent_version": "Agent-Version",
+      "domain": "Domäne",
+      "is_domain_joined": "In Domäne",
+      "tags": "Tag"
+    },
+    "ops": {
+      "equals": "ist",
+      "not_equals": "ist nicht",
+      "contains": "enthält",
+      "not_contains": "enthält nicht",
+      "startswith": "beginnt mit",
+      "endswith": "endet mit",
+      "regex": "passt auf (Regex)",
+      "gte": "≥",
+      "lte": "≤",
+      "gt": ">",
+      "lt": "<",
+      "has_tag": "hat"
+    },
+    "placeholders": {
+      "hostname": "srv-",
+      "os_name": "Ubuntu",
+      "os_version": "24.04",
+      "os_build": "26100",
+      "agent_version": "0.5.43",
+      "domain": "corp.example"
+    }
+  },
+  "groupForm": {
+    "newTitle": "Neue Gruppe",
+    "editTitle": "{name} bearbeiten",
+    "hint": "Eine statische Gruppe enthält die Nodes, die du hinzufügst; eine dynamische Gruppe bekommt ihre Mitglieder aus einer Regel und folgt ihr bei jedem Inventar-Push.",
+    "name": "Name",
+    "description": "Beschreibung",
+    "color": "Farbe",
+    "parent": "Übergeordnete Gruppe",
+    "topLevel": "Keine (oberste Ebene)",
+    "type": "Art",
+    "static": "Statisch",
+    "dynamic": "Dynamisch",
+    "staticHint": "Du fügst Nodes selbst hinzu und entfernst sie (auch aus der Nodes-Liste).",
+    "dynamicHint": "Mitglieder folgen der Regel: Nodes kommen und gehen, wenn sich ihre Daten ändern.",
+    "rule": "Regel",
+    "create": "Gruppe anlegen",
+    "save": "Speichern",
+    "exists": "Eine Gruppe mit diesem Namen gibt es schon.",
+    "createdDynamic": "Gruppe angelegt mit {count} Nodes, auf die die Regel passt.",
+    "ruleApplied": "Regel angewendet: {added} Nodes hinzugefügt, {removed} entfernt."
+  },
+  "searchSelect": {
+    "none": "Nichts gefunden",
+    "more": "{count} weitere - weitertippen, um die Liste einzugrenzen",
+    "change": "Andere {label} wählen"
   }
 }

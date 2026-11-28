@@ -13,7 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { AddDevicesDialog } from "@/components/add-devices-dialog";
-import { RefreshCw, Sparkles } from "lucide-react";
+import { GroupFormDialog, passGroupNotice, takeGroupNotice } from "@/components/group-form-dialog";
+import type { GroupRule } from "@/components/group-rule-builder";
+import { ChevronRight, FolderPlus, FolderTree, RefreshCw, Sparkles } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth-context";
 import { formatDateTime } from "@/lib/format";
 import { useRecentlyOpened } from "@/hooks/useRecentlyOpened";
@@ -42,6 +44,10 @@ interface GroupDetail {
   created_at: string;
   updated_at: string;
   members: GroupMember[];
+  /** ancestors, top-level first (breadcrumb) */
+  parents?: Array<{ id: string; name: string }>;
+  /** direct sub-groups */
+  children?: Array<{ id: string; name: string; is_dynamic: boolean; color: string | null; member_count: number }>;
 }
 
 
@@ -65,15 +71,15 @@ export default function GroupDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editColor, setEditColor] = useState("");
   const [saving, setSaving] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
+  const [creatingChild, setCreatingChild] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGroup();
-  }, [groupId]);
+    setNotice(takeGroupNotice());
+  }, [groupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchGroup() {
     try {
@@ -83,36 +89,11 @@ export default function GroupDetailPage() {
         return;
       }
       setGroup(data);
-      setEditName(data.name);
-      setEditDescription(data.description || "");
-      setEditColor(data.color || "#3b82f6");
     } catch (e) {
       console.error("Failed to fetch group:", e);
       router.push("/groups");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleSaveEdit() {
-    setSaving(true);
-    try {
-      const res = await apiClient.patch(`/groups/${groupId}`, {
-          name: editName,
-          description: editDescription || null,
-          color: editColor || null,
-        }, { showErrorToast: false });
-      if (res) {
-        await fetchGroup();
-        setShowEditDialog(false);
-      } else {
-        alert(t("groupDetail.saveFailed"));
-      }
-    } catch (e) {
-      console.error("Failed to update group:", e);
-      alert(t("groupDetail.saveFailed"));
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -206,7 +187,17 @@ export default function GroupDetailPage() {
   return (
     <main className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Breadcrumb */}
+        {/* Breadcrumb: the parent groups */}
+        <nav aria-label={t("groupDetail.parents")} className="mb-2 flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+          <Link href="/groups" className="hover:underline">{t("groupsPage.title")}</Link>
+          {(group.parents ?? []).map((p) => (
+            <span key={p.id} className="inline-flex items-center gap-1">
+              <ChevronRight className="size-3.5" aria-hidden="true" />
+              <Link href={`/groups/${p.id}`} className="hover:underline">{p.name}</Link>
+            </span>
+          ))}
+          <ChevronRight className="size-3.5" aria-hidden="true" /><span className="text-foreground">{group.name}</span>
+        </nav>
 {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -225,6 +216,7 @@ export default function GroupDetailPage() {
             {group.description && (
               <p className="text-muted-foreground mt-2">{group.description}</p>
             )}
+            {notice && <p role="status" className="mt-2 text-sm text-green-500">{notice}</p>}
           </div>
           <div className="flex gap-2">
             {group.is_dynamic && (
@@ -288,6 +280,41 @@ export default function GroupDetailPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Sub-groups: each opens its own page; members are each group's own (not inherited) */}
+        <Card className="mb-8">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2"><FolderTree className="h-5 w-5" aria-hidden="true" />{t("groupDetail.subgroups", { count: group.children?.length ?? 0 })}</CardTitle>
+                <CardDescription>{t("groupDetail.subgroupsHint")}</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setCreatingChild(true)}>
+                <FolderPlus className="h-4 w-4 mr-1" aria-hidden="true" />{t("groupDetail.addSubgroup")}
+              </Button>
+            </div>
+          </CardHeader>
+          {(group.children?.length ?? 0) > 0 && (
+            <CardContent>
+              <Table>
+                <TableBody>
+                  {group.children!.map((c) => (
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => router.push(`/groups/${c.id}`)}>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-2">
+                          <span className="size-2.5 rounded-full" style={{ backgroundColor: c.color || "#3b82f6" }} aria-hidden="true" />
+                          <Link href={`/groups/${c.id}`} onClick={(e) => e.stopPropagation()} className="font-medium hover:underline">{c.name}</Link>
+                          {c.is_dynamic && <span className="inline-flex items-center gap-1 text-xs text-purple-400"><Sparkles className="size-3" aria-hidden="true" />{t("groupsPage.dynamic")}</span>}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">{t(c.member_count === 1 ? "groupsPage.membersOne" : "groupsPage.members", { count: c.member_count })}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
+        </Card>
 
         {/* Members Table */}
         <Card>
@@ -368,58 +395,17 @@ export default function GroupDetailPage() {
       </div>
 
       {/* Edit Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("groupDetail.editTitle")}</DialogTitle>
-            <DialogDescription>{t("groupDetail.editDescription")}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">{t("common.name")}</Label>
-              <Input
-                id="name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">{t("common.description")}</Label>
-              <Textarea
-                id="description"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="color">{t("groupDetail.color")}</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="color"
-                  type="color"
-                  value={editColor}
-                  onChange={(e) => setEditColor(e.target.value)}
-                  className="w-16 h-10 p-1"
-                />
-                <Input
-                  value={editColor}
-                  onChange={(e) => setEditColor(e.target.value)}
-                  placeholder="#3b82f6"
-                  className="flex-1"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={handleSaveEdit} disabled={saving || !editName.trim()}>
-              {saving ? t("groupDetail.saving") : t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {showEditDialog && (
+        <GroupFormDialog
+          group={{ id: group.id, name: group.name, description: group.description, color: group.color, parent_id: group.parent_id,
+                   is_dynamic: group.is_dynamic, dynamic_rule: (group.dynamic_rule as unknown as GroupRule) ?? null }}
+          onClose={() => setShowEditDialog(false)}
+          onSaved={async (_id, text) => { setShowEditDialog(false); setNotice(text); await fetchGroup(); }} />
+      )}
+      {creatingChild && (
+        <GroupFormDialog parentId={group.id} onClose={() => setCreatingChild(false)}
+          onSaved={(id, text) => { setCreatingChild(false); passGroupNotice(text); router.push(`/groups/${id}`); }} />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -428,6 +414,7 @@ export default function GroupDetailPage() {
             <DialogTitle>{t("groupDetail.deleteTitle")}</DialogTitle>
             <DialogDescription>
               {t("groupDetail.deleteText", { name: group.name })}
+              {(group.children?.length ?? 0) > 0 && <> {t("groupDetail.deleteSubgroups", { count: group.children!.length })}</>}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
