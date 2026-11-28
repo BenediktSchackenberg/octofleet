@@ -117,3 +117,31 @@ def test_by_node_filters_by_critical_and_high():
     r = requests.get(f"{API_URL}/api/v1/vulnerabilities/by-node?severity=medium", headers=HEADERS, timeout=10)
     assert r.status_code == 422, r.text
 
+
+
+def test_list_counts_by_severity_and_pages(node):
+    hostname, _ = node
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}?limit=10&offset=0&severity=high&q=openssl",
+                     headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body["severity_counts"]) == {"CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"}
+    assert sum(body["severity_counts"].values()) == body["count"]
+    assert body["matching"] <= body["count"] and len(body["vulnerabilities"]) <= min(10, body["matching"])
+    assert body["offset"] == 0
+
+
+def test_list_rejects_an_unknown_severity(node):
+    hostname, _ = node
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}?severity=bad", headers=HEADERS, timeout=10)
+    assert r.status_code == 422, r.text
+
+
+def test_groups_count_by_severity_and_list_old_kernels(node):
+    hostname, _ = node
+    r = requests.get(f"{API_URL}/api/v1/vulnerabilities/node/{hostname}/groups", headers=HEADERS, timeout=10)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["old_kernels"] == []
+    assert body["severity_counts"] == {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0}
+    assert all(g["kernel_state"] != "old" for g in body["groups"])
